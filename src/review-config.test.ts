@@ -344,6 +344,11 @@ test.for([
     reader: 'typescript',
     files: { 'tools/gen/index.ts': '' },
   },
+  {
+    reason: 'a root without config/application.rb',
+    reader: 'rails',
+    files: { 'tools/gen/app/models/order.rb': '' },
+  },
 ])(
   'a config stack added at a root that holds it on neither side, here $reason, fails the review, naming the root',
   async ({ reader, files }) => {

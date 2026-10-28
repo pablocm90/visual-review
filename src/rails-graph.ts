@@ -44,10 +44,11 @@ const definedConstant = (text: string, names: ReadonlyArray<string>): string => 
 
 type RailsGraphOptions = {
   readonly stack: string;
+  readonly root: string;
   readonly files: ReadonlyArray<SourceFile>;
 };
 
-export const railsGraph = ({ stack, files }: RailsGraphOptions): Graph => {
+export const railsGraph = ({ stack, root, files }: RailsGraphOptions): Graph => {
   const classes = files
     .toSorted((a, b) => a.file.localeCompare(b.file))
     .map(({ file, text }) => {
@@ -65,7 +66,7 @@ export const railsGraph = ({ stack, files }: RailsGraphOptions): Graph => {
           kind: 'module',
           label: layer,
           parent: stack,
-          path: folder,
+          path: join(root, folder),
         };
         return [
           box,
@@ -74,7 +75,7 @@ export const railsGraph = ({ stack, files }: RailsGraphOptions): Graph => {
             kind: 'file',
             label: constant,
             parent: box.id,
-            path: file,
+            path: join(root, file),
           },
         ];
       })

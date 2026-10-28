@@ -5,6 +5,7 @@ import { parse } from 'jsonc-parser';
 import { z } from 'zod';
 import { addedStacks, folderOf, stackSettings } from '../config.ts';
 import type { Checkout, Reader } from '../reader.ts';
+import { stackIds } from '../stack-ids.ts';
 import { readTypeScriptTests } from '../test-statements.ts';
 import { webGraph } from '../web-graph.ts';
 
@@ -97,21 +98,6 @@ const rootsIn = (checkout: Checkout): ReadonlyArray<string> => {
   return roots.filter(root => !holdsOthers({ checkout: checkout.directory, root, roots }));
 };
 
-const stacksIn = (checkout: Checkout, roots: ReadonlyArray<string>): ReadonlyMap<string, string> =>
-  roots.reduce<{
-    readonly used: ReadonlySet<string>;
-    readonly stacks: ReadonlyMap<string, string>;
-  }>(
-    (sofar, root) => {
-      const stack = stackAt({ checkout, root });
-      const free = (n: number): string =>
-        sofar.used.has(`${stack}~${n}`) ? free(n + 1) : `${stack}~${n}`;
-      const id = sofar.used.has(stack) ? free(2) : stack;
-      return { used: new Set([...sofar.used, id]), stacks: new Map([...sofar.stacks, [root, id]]) };
-    },
-    { used: checkout.taken, stacks: new Map() },
-  ).stacks;
-
 const packagesIn = (
   directory: string,
   stacks: ReadonlyMap<string, string>,
@@ -153,7 +139,11 @@ export const typeScriptReader: Reader = {
   open: checkout => {
     const { directory, config } = checkout;
     const detected = rootsIn(checkout);
-    const detectedStacks = stacksIn(checkout, detected);
+    const detectedStacks = stackIds({
+      roots: detected,
+      taken: checkout.taken,
+      idOf: root => stackAt({ checkout, root }),
+    });
     const added = addedStacks({
       config,
       reader: 'typescript',

@@ -127,3 +127,68 @@ test('two files defining one constant draw it once, from the first by path', asy
     expect.objectContaining({ id: `${shop}/class/Money`, path: 'app/models/money.rb' }),
   ]);
 });
+
+test('a Rails app in a folder is a stack named by the folder, while apps under vendor/, node_modules/, test/ or spec/ are none', async () => {
+  using workspace = gitRepo({
+    'api/config/application.rb': railsApp['config/application.rb'],
+    'api/app/models/order.rb': 'class Order\nend\n',
+    'vendor/bundle/gem/config/application.rb': '',
+    'node_modules/gem/config/application.rb': '',
+    'engines/pay/test/dummy/config/application.rb': '',
+    'engines/pay/spec/dummy/config/application.rb': '',
+  });
+  const { repo, root } = workspace;
+
+  const range = await readRange({ repo, from: root, to: root });
+
+  expect(range.after.nodes).toEqual([
+    { id: 'api', kind: 'stack', label: 'api', path: '' },
+    {
+      id: 'api/layer/models',
+      kind: 'module',
+      label: 'models',
+      parent: 'api',
+      path: 'api/app/models',
+    },
+    {
+      id: 'api/class/Order',
+      kind: 'file',
+      label: 'Order',
+      parent: 'api/layer/models',
+      path: 'api/app/models/order.rb',
+    },
+  ]);
+});
+
+test('a Rails app at the root whose id a TS stack at the root took is told apart by a suffix', async () => {
+  using workspace = gitRepo({
+    ...railsApp,
+    'package.json': '{}\n',
+    'src/index.ts': '',
+    'app/models/order.rb': 'class Order\nend\n',
+  });
+  const { repo, root } = workspace;
+  const shop = basename(repo);
+
+  const range = await readRange({ repo, from: root, to: root });
+
+  expect(range.after.nodes.map(node => node.id)).toContain(`${shop}~2/class/Order`);
+});
+
+test('the config adds a Rails app detection leaves out, under the id it gives', async () => {
+  using workspace = gitRepo({
+    'visual-review.config.json':
+      '{"stacks": {"dummy": {"reader": "rails", "root": "test/dummy"}}}\n',
+    'test/dummy/config/application.rb': railsApp['config/application.rb'],
+    'test/dummy/app/models/order.rb': 'class Order\nend\n',
+  });
+  const { repo, root } = workspace;
+
+  const range = await readRange({ repo, from: root, to: root });
+
+  expect(range.after.nodes.map(node => [node.id, node.path])).toEqual([
+    ['dummy', ''],
+    ['dummy/layer/models', 'test/dummy/app/models'],
+    ['dummy/class/Order', 'test/dummy/app/models/order.rb'],
+  ]);
+});
