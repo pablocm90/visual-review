@@ -1,8 +1,8 @@
 # visual-review
 
-Draws what a change did to the structure of a repo: the Rust crates and their dependencies, the web modules and files and their imports, and the web calls to API routes, before and after, with added, removed and modified parts coloured. A renamed crate, module or file is one node that says what it was called ("was domain"), and a test that moved to another file says where it went. Changed files outside those (tools, plans, CI, config) are listed below the graph with their patches.
+Draws what a change did to the structure of a repo: the Rust crates and their dependencies, the web modules and files and their imports, the classes of a Rails app in a box per layer, and the web calls to API routes, before and after, with added, removed and modified parts coloured. A renamed crate, module or file is one node that says what it was called ("was domain"), and a test that moved to another file says where it went. Changed files outside those (tools, plans, CI, config) are listed below the graph with their patches.
 
-It reads Rust (Cargo workspaces) and TypeScript/JavaScript, and links `fetch` calls to axum routes. More languages are planned.
+It reads Rust (Cargo workspaces), TypeScript/JavaScript and Rails apps (parsed as text, so no Ruby is needed), and links `fetch` calls to axum routes. More languages are planned.
 
 ## Before the first run
 
@@ -49,7 +49,7 @@ npx @pablocm90/visual-review 42
 
 ## When detection misreads a repo
 
-Stacks are detected: a Cargo workspace at the repo root, and every `package.json` whose source root holds TS/JS files. A `visual-review.config.json` at the repo root overrides that. It is read from the reviewed head revision, or from your checkout when the head has none, and applies to both sides.
+Stacks are detected: a Cargo workspace at the repo root, every `package.json` whose source root holds TS/JS files, and every Rails app (a `config/application.rb` outside `vendor/`, `node_modules/`, `test/` and `spec/`). A `visual-review.config.json` at the repo root overrides that. It is read from the reviewed head revision, or from your checkout when the head has none, and applies to both sides.
 
 ```json
 {
@@ -66,9 +66,9 @@ Stacks are detected: a Cargo workspace at the repo root, and every `package.json
 }
 ```
 
-- Stacks are keyed by the id the page draws: a package's directory, a root package's name, or `rust`.
+- Stacks are keyed by the id the page draws: a package's or Rails app's directory, a root package's name, the repo's folder name for a Rails app at the root, or `rust`.
 - `false` drops a stack, and `label` relabels it.
-- `reader` with `root` adds a stack that detection missed (`rust` or `typescript`).
+- `reader` with `root` adds a stack that detection missed (`rust`, `typescript` or `rails`).
 - TS stacks also take `sourceRoot`, and `boxes`: folder globs under the source root, each matched folder one box. The deepest match wins, and other files keep one box per first folder.
 - `linkers.fetch-axum` draws the `fetch` calls of TS stacks to the routes of Rust crates that depend on axum, and lists calls no route matches. `from` and `to` limit it to those stacks, and `false` turns it off.
 

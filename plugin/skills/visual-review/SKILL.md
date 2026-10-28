@@ -1,6 +1,6 @@
 ---
 name: visual-review
-description: Visual review of a pull request by number, a commit range, or uncommitted work when given none — draws the Rust crates and modules and the web modules before and after the PR's merge base and head, `<from>..<to>`, or `HEAD` and the working tree, with added, removed and modified nodes and edges coloured, annotates it with Claude's notes and structural flags, and opens it in the browser. Use when the user runs /visual-review or asks to see what a PR, a range or their uncommitted work changed structurally.
+description: Visual review of a pull request by number, a commit range, or uncommitted work when given none — draws the Rust crates and modules, the web modules and the Rails layers and classes before and after the PR's merge base and head, `<from>..<to>`, or `HEAD` and the working tree, with added, removed and modified nodes and edges coloured, annotates it with Claude's notes and structural flags, and opens it in the browser. Use when the user runs /visual-review or asks to see what a PR, a range or their uncommitted work changed structurally.
 argument-hint: [<pr number> | <from>..<to>]
 ---
 
@@ -39,13 +39,14 @@ Run every command from the repository root (`git rev-parse --show-toplevel`, whi
    - `notes` are keyed by a crate's, module's or file's `id`, or by an edge's `<from> -> <to>` ids. A stack (`rust`, `web`) takes no note.
    - A file inside a web module has its own id, such as `web/file/modules/AppInfo/api/app-info.ts`; its note shows once the module is expanded.
    - A Rust module has its own id inside its crate, such as `rust/mod/application/sign_up`, and so does the crate's root file (`rust/mod/application/lib.rs`, or `main.rs` for a binary); its note shows once the crate is expanded. Edges between modules are their `use` lines.
+   - A Rails class has its own id, keyed by its constant, such as `shop/class/Admin::UsersController`, inside its layer (`shop/layer/controllers`); its note shows once the layer is expanded.
    - Each note says what that part does in the change, in one or two sentences.
    - `summary` holds two to five items on the change's shape as a whole, undrawn files included. Give an item a `target` when it is about one node or edge.
    - `tests` is one or two sentences on the tests as a whole: what the listed tests pin, and what the change leaves untested, such as a modified part with no test change under it. When no test changed, say what that leaves unpinned. It heads the page's Tests section.
    - Set `flag` to a short label only for a structural concern the graph shows: a new dependency direction, a layer reaching past its neighbour, a cycle, or coupling across the stack edge.
    - Keep to structure. Line-level findings belong to `/code-review`.
 
-   Done when every touched crate, module and root file, and every added or removed edge between them as drawn with modules collapsed, has a note. A note on a file import counts for the module edge it is drawn into.
+   Done when every touched crate, module, root file and Rails class, and every added or removed edge between them as drawn with modules collapsed, has a note. A note on a file import counts for the module edge it is drawn into.
 4. Run `visual-review '<range>' --notes '<notes file>'`. It fills the notes into the page from step 1 without reading the range again. A non-zero exit names the notes file and either the contract error or one line per problem (`unknown id <id>`, `no note on <id>`): fix the file and rerun. Done when it exits 0.
 5. Open the page with `xdg-open <path>` on Linux, or `open <path>` on macOS. Done when the opener has returned.
 6. Reply with the page's path and the flags you raised, one line each, or "no flags".

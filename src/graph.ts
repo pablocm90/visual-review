@@ -2,7 +2,8 @@
  * A box in the review graph. `id` is the node's contract: notes are keyed by it, so a reader
  * keeps it stable across versions. Ids are `<stack>/<word>/<name>` under the reader's stack id,
  * e.g. `rust/crate/http-adapter`, `rust/mod/application/sign_up`, `web/module/utils`,
- * `web/file/App.tsx`; the stack's own node is just `<stack>`. An edge is keyed `<from> -> <to>`.
+ * `web/file/App.tsx`, `shop/layer/models`, `shop/class/Admin::UsersController` (a Rails class, keyed
+ * by its constant); the stack's own node is just `<stack>`. An edge is keyed `<from> -> <to>`.
  */
 export type GraphNode = {
   readonly id: string;
