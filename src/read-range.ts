@@ -10,6 +10,7 @@ import type { DanglingCall, Linker } from './linker.ts';
 import { fetchAxumLinker } from './linkers/fetch-axum.ts';
 import { onPath } from './on-path.ts';
 import type { OpenedCheckout, Reader } from './reader.ts';
+import { railsReader } from './readers/rails.ts';
 import { rustReader } from './readers/rust.ts';
 import { typeScriptReader } from './readers/typescript.ts';
 import type { Skipped } from './skipped.ts';
@@ -47,7 +48,7 @@ type ReadRangeOptions = {
 const git = async (repo: string, ...args: ReadonlyArray<string>): Promise<string> =>
   (await run('git', ['-C', repo, ...args])).stdout.trim();
 
-const readers: ReadonlyArray<Reader> = [rustReader, typeScriptReader];
+const readers: ReadonlyArray<Reader> = [rustReader, typeScriptReader, railsReader];
 
 const linkers: ReadonlyArray<Linker> = [fetchAxumLinker];
 

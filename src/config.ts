@@ -4,7 +4,7 @@ import type { GraphNode } from './graph.ts';
 
 export const CONFIG_FILE = 'visual-review.config.json';
 
-export const READERS = ['rust', 'typescript'] as const;
+export const READERS = ['rust', 'typescript', 'rails'] as const;
 
 export type ReaderName = (typeof READERS)[number];
 
