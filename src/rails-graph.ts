@@ -13,8 +13,7 @@ type Place = {
 const placeOf = (file: string): Place => {
   const [top = '', layer = '', ...rest] = file.split('/');
   if (top === 'lib') return { layer: top, folder: top, names: [layer, ...rest] };
-  const names = rest[0] === 'concerns' ? rest.slice(1) : rest;
-  return { layer, folder: join(top, layer), names };
+  return { layer, folder: join(top, layer), names: rest };
 };
 
 const camelized = (name: string): string =>
