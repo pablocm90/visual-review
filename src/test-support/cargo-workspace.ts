@@ -44,6 +44,19 @@ export const cargoWorkspace = () =>
     ...crateFiles('core'),
   });
 
+export const symlinkedDirectory = () => {
+  const target = mkdtempSync(join(tmpdir(), 'visual-review-target-'));
+  const path = `${target}-link`;
+  symlinkSync(target, path);
+  return {
+    path,
+    [Symbol.dispose]: () => {
+      rmSync(path, { force: true });
+      rmSync(target, { recursive: true, force: true });
+    },
+  };
+};
+
 export const pathTo = (...commands: ReadonlyArray<string>) => {
   const bin = mkdtempSync(join(tmpdir(), 'visual-review-bin-'));
   commands.forEach(command => {

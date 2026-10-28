@@ -9,6 +9,7 @@ import {
   git,
   gitRepo,
   pathTo,
+  symlinkedDirectory,
 } from './test-support/cargo-workspace.ts';
 
 const rootPackage = { 'package.json': '{}\n', 'src/index.ts': '' };
@@ -115,6 +116,21 @@ test('each side also has a module per first folder of web/src and its files, fil
     from: 'web/file/modules/A/a.ts',
     to: 'web/file/utils/x.ts',
   });
+});
+
+test("files are still joined by their imports when the temporary directory is a symlink, as macOS's is", async () => {
+  using temporary = symlinkedDirectory();
+  using workspace = gitRepo({
+    'web/package.json': '{}\n',
+    'web/src/a.ts': "import { b } from './b';\nexport const a = b;\n",
+    'web/src/b.ts': 'export const b = 1;\n',
+  });
+  const { repo, root } = workspace;
+  vi.stubEnv('TMPDIR', temporary.path);
+
+  const range = await readRange({ repo, from: root, to: root });
+
+  expect(range.after.edges).toEqual([{ from: 'web/file/a.ts', to: 'web/file/b.ts' }]);
 });
 
 test('every package.json with sources under its src/ is a stack named by its directory, JS-only ones included, node_modules left out', async () => {
