@@ -1,6 +1,6 @@
 import { execFile } from 'node:child_process';
 import { existsSync } from 'node:fs';
-import { mkdtemp, readFile, rm } from 'node:fs/promises';
+import { mkdtemp, readFile, realpath, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { basename, join, relative } from 'node:path';
 import { promisify } from 'node:util';
@@ -244,7 +244,7 @@ export const readRange = async ({ repo, from, to }: ReadRangeOptions): Promise<R
   const [fromCommit, toCommit] = await Promise.all([resolve(repo, from), resolve(repo, to)]);
   const base = await git(repo, 'merge-base', fromCommit, toCommit);
   const config = await configAt(repo, toCommit);
-  const scratch = await mkdtemp(join(tmpdir(), 'visual-review-'));
+  const scratch = await realpath(await mkdtemp(join(tmpdir(), 'visual-review-')));
   try {
     const before = await readSide({
       repo,
