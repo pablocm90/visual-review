@@ -23,6 +23,14 @@ In Claude Code, add the plugin once:
 /plugin install visual-review@pablocm90
 ```
 
+Each plugin release pins the CLI version it runs, so a new release reaches you only once you update the plugin. Run this in your shell, and the next session uses it:
+
+```sh
+claude plugin update visual-review@pablocm90
+```
+
+Or, in `/plugin`, pick the `pablocm90` marketplace and enable auto-update.
+
 Then, from anywhere in the repo (as `/visual-review:visual-review` when another skill or command already takes the name):
 
 | Command | Reviews |
