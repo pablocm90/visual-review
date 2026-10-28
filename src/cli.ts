@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 import { execFile } from 'node:child_process';
-import { mkdir, readFile, writeFile } from 'node:fs/promises';
+import { lstat, mkdir, readFile, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { parseArgs, promisify } from 'node:util';
 import { diffGraphs, splitPatches } from './diff-graphs.ts';
@@ -19,6 +19,12 @@ const slot = (id: string, content: string) =>
 const fillSlot = (html: string, id: string, value: unknown): string =>
   html.replace(new RegExp(slot(id, '[\\s\\S]*?')), () =>
     slot(id, JSON.stringify(value).replaceAll('<', '\\u003c')),
+  );
+
+const isDirectoryOrMissing = (path: string): Promise<boolean> =>
+  lstat(path).then(
+    stats => stats.isDirectory(),
+    () => true,
   );
 
 const parseRange = (range: string) => {
@@ -83,6 +89,8 @@ const writeReview = async (args: ReadonlyArray<string>): Promise<string> => {
   const repo = (await promisify(execFile)('git', ['rev-parse', '--show-toplevel'])).stdout.trim();
   const { range, from, to, ...pullRequest } = await rangeOf(repo, positionals[0]);
   const directory = join(repo, '.reviews');
+  if (!(await isDirectoryOrMissing(directory)))
+    throw new Error(`${directory} is not a directory, so no page is written into it`);
   const name = range.replaceAll('/', '_');
   const page = join(directory, `${name}.html`);
   const data = join(directory, `${name}.json`);

@@ -4,6 +4,7 @@ import {
   mkdirSync,
   readdirSync,
   readFileSync,
+  symlinkSync,
   utimesSync,
   writeFileSync,
 } from 'node:fs';
@@ -190,6 +191,28 @@ test('git ignores .reviews/ in a repo that does not, so a second review of the u
   expect(run.code).toBe(0);
   expect(git(repo, 'status', '--porcelain')).not.toContain('.reviews');
 }, 60_000);
+
+test.for([
+  { mode: 'a review', args: ['main..main'] },
+  { mode: 'filling notes', args: ['main..main', '--notes', 'notes.json'] },
+])(
+  'a .reviews that is a symlink makes $mode exit non-zero, naming it, and leaves what it points at as it was',
+  { timeout: 60_000 },
+  async ({ args }) => {
+    using workspace = cargoWorkspace();
+    const { repo } = workspace;
+    const elsewhere = join(repo, 'elsewhere');
+    writeFiles(repo, { 'elsewhere/.gitignore': 'mine\n' });
+    symlinkSync(elsewhere, join(repo, '.reviews'));
+
+    const run = await runCli(repo, ...args);
+
+    expect(run.code).not.toBe(0);
+    expect(run.stderr).toContain(`${join(repo, '.reviews')} is not a directory`);
+    expect(readdirSync(elsewhere)).toEqual(['.gitignore']);
+    expect(readFileSync(join(elsewhere, '.gitignore'), 'utf8')).toBe('mine\n');
+  },
+);
 
 test('writing a page keeps .reviews/ to the 20 most recently written pages', async () => {
   using workspace = cargoWorkspace();
