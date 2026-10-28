@@ -7,7 +7,10 @@ export type SourceFile = {
   readonly text: string;
 };
 
-export const sourcesIn = (directory: string, pattern: string): Promise<ReadonlyArray<SourceFile>> =>
+export const sourcesIn = (
+  directory: string,
+  pattern: string | ReadonlyArray<string>,
+): Promise<ReadonlyArray<SourceFile>> =>
   Promise.all(
     globSync(pattern, { cwd: directory }).map(async file => ({
       file,

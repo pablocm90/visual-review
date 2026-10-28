@@ -88,3 +88,42 @@ test('a class moved from one layer to another keeps its id, in its new box', asy
     `${shop}/layer/models`,
   ]);
 });
+
+test('a class is named by the definition its path names, so an acronym keeps its case, and by its path when the file defines none', async () => {
+  using workspace = gitRepo({
+    ...railsApp,
+    'app/services/api_client.rb': 'class APIClient\nend\n',
+    'app/controllers/admin/api_controller.rb': 'module Admin\n  class APIController\n  end\nend\n',
+    'app/controllers/admin/html_controller.rb': 'class Admin::HTMLController\nend\n',
+    'app/models/order.rb': 'class OrderError < StandardError\nend\n\nclass Order\nend\n',
+    'app/models/price.rb': 'Price = Struct.new(:cents)\n',
+  });
+  const { repo, root } = workspace;
+  const shop = basename(repo);
+
+  const range = await readRange({ repo, from: root, to: root });
+
+  expect(range.after.nodes.filter(node => node.kind === 'file').map(node => node.id)).toEqual([
+    `${shop}/class/Admin::APIController`,
+    `${shop}/class/Admin::HTMLController`,
+    `${shop}/class/Order`,
+    `${shop}/class/Price`,
+    `${shop}/class/APIClient`,
+  ]);
+});
+
+test('two files defining one constant draw it once, from the first by path', async () => {
+  using workspace = gitRepo({
+    ...railsApp,
+    'app/models/money.rb': 'class Money\nend\n',
+    'lib/money.rb': 'class Money\nend\n',
+  });
+  const { repo, root } = workspace;
+  const shop = basename(repo);
+
+  const range = await readRange({ repo, from: root, to: root });
+
+  expect(range.after.nodes.filter(node => node.kind === 'file')).toEqual([
+    expect.objectContaining({ id: `${shop}/class/Money`, path: 'app/models/money.rb' }),
+  ]);
+});
