@@ -1,0 +1,430 @@
+{
+  "modules": [
+    {
+      "source": "src/App.tsx",
+      "dependencies": [
+        {
+          "dynamic": false,
+          "module": "./modules/AppInfo/api/app-info",
+          "moduleSystem": "es6",
+          "exoticallyRequired": false,
+          "dependencyTypes": ["local", "import"],
+          "resolved": "src/modules/AppInfo/api/app-info.ts",
+          "coreModule": false,
+          "followable": true,
+          "couldNotResolve": false,
+          "matchesDoNotFollow": false,
+          "circular": false,
+          "valid": true
+        },
+        {
+          "dynamic": false,
+          "module": "@tanstack/react-query",
+          "moduleSystem": "es6",
+          "exoticallyRequired": false,
+          "dependencyTypes": ["npm", "import"],
+          "resolved": "../node_modules/.pnpm/@tanstack+react-query@5.104.2_react@19.3.0/node_modules/@tanstack/react-query/build/legacy/index.cjs",
+          "coreModule": false,
+          "followable": false,
+          "couldNotResolve": false,
+          "matchesDoNotFollow": true,
+          "circular": false,
+          "valid": true
+        }
+      ],
+      "dependents": ["src/main.tsx"],
+      "orphan": false,
+      "valid": true
+    },
+    {
+      "source": "../node_modules/.pnpm/@tanstack+react-query@5.104.2_react@19.3.0/node_modules/@tanstack/react-query/build/legacy/index.cjs",
+      "followable": false,
+      "coreModule": false,
+      "couldNotResolve": false,
+      "matchesDoNotFollow": true,
+      "dependencyTypes": ["npm", "import"],
+      "dependencies": [],
+      "dependents": [
+        "src/App.tsx",
+        "src/main.tsx",
+        "src/utils/add-action-name-to-mutation-result.ts",
+        "src/utils/add-resource-name-to-infinite-query-result.ts",
+        "src/utils/add-resource-name-to-query-result.ts"
+      ],
+      "orphan": false,
+      "valid": true
+    },
+    {
+      "source": "src/modules/AppInfo/api/app-info.ts",
+      "dependencies": [
+        {
+          "dynamic": false,
+          "module": "zod",
+          "moduleSystem": "es6",
+          "exoticallyRequired": false,
+          "dependencyTypes": ["npm", "import"],
+          "resolved": "../node_modules/.pnpm/zod@4.6.7/node_modules/zod/index.cjs",
+          "coreModule": false,
+          "followable": false,
+          "couldNotResolve": false,
+          "matchesDoNotFollow": true,
+          "circular": false,
+          "valid": true
+        }
+      ],
+      "dependents": ["src/App.tsx"],
+      "orphan": false,
+      "valid": true
+    },
+    {
+      "source": "../node_modules/.pnpm/zod@4.6.7/node_modules/zod/index.cjs",
+      "followable": false,
+      "coreModule": false,
+      "couldNotResolve": false,
+      "matchesDoNotFollow": true,
+      "dependencyTypes": ["npm", "import"],
+      "dependencies": [],
+      "dependents": ["src/modules/AppInfo/api/app-info.ts"],
+      "orphan": false,
+      "valid": true
+    },
+    {
+      "source": "src/main.tsx",
+      "dependencies": [
+        {
+          "dynamic": false,
+          "module": "./App",
+          "moduleSystem": "es6",
+          "exoticallyRequired": false,
+          "dependencyTypes": ["local", "import"],
+          "resolved": "src/App.tsx",
+          "coreModule": false,
+          "followable": true,
+          "couldNotResolve": false,
+          "matchesDoNotFollow": false,
+          "circular": false,
+          "valid": true
+        },
+        {
+          "dynamic": false,
+          "module": "@tanstack/react-query",
+          "moduleSystem": "es6",
+          "exoticallyRequired": false,
+          "dependencyTypes": ["npm", "import"],
+          "resolved": "../node_modules/.pnpm/@tanstack+react-query@5.104.2_react@19.3.0/node_modules/@tanstack/react-query/build/legacy/index.cjs",
+          "coreModule": false,
+          "followable": false,
+          "couldNotResolve": false,
+          "matchesDoNotFollow": true,
+          "circular": false,
+          "valid": true
+        },
+        {
+          "dynamic": false,
+          "module": "react",
+          "moduleSystem": "es6",
+          "exoticallyRequired": false,
+          "dependencyTypes": ["npm", "import"],
+          "resolved": "../node_modules/.pnpm/react@19.3.0/node_modules/react/index.js",
+          "coreModule": false,
+          "followable": false,
+          "couldNotResolve": false,
+          "matchesDoNotFollow": true,
+          "circular": false,
+          "valid": true
+        },
+        {
+          "dynamic": false,
+          "module": "react-dom/client",
+          "moduleSystem": "es6",
+          "exoticallyRequired": false,
+          "dependencyTypes": ["npm", "import"],
+          "resolved": "../node_modules/.pnpm/react-dom@19.3.0_react@19.3.0/node_modules/react-dom/client.js",
+          "coreModule": false,
+          "followable": false,
+          "couldNotResolve": false,
+          "matchesDoNotFollow": true,
+          "circular": false,
+          "valid": true
+        }
+      ],
+      "dependents": [],
+      "orphan": false,
+      "valid": true
+    },
+    {
+      "source": "../node_modules/.pnpm/react@19.3.0/node_modules/react/index.js",
+      "followable": false,
+      "coreModule": false,
+      "couldNotResolve": false,
+      "matchesDoNotFollow": true,
+      "dependencyTypes": ["npm", "import"],
+      "dependencies": [],
+      "dependents": ["src/main.tsx"],
+      "orphan": false,
+      "valid": true
+    },
+    {
+      "source": "../node_modules/.pnpm/react-dom@19.3.0_react@19.3.0/node_modules/react-dom/client.js",
+      "followable": false,
+      "coreModule": false,
+      "couldNotResolve": false,
+      "matchesDoNotFollow": true,
+      "dependencyTypes": ["npm", "import"],
+      "dependencies": [],
+      "dependents": ["src/main.tsx"],
+      "orphan": false,
+      "valid": true
+    },
+    {
+      "source": "src/utils/add-action-name-to-mutation-result.ts",
+      "dependencies": [
+        {
+          "dynamic": false,
+          "module": "@tanstack/react-query",
+          "moduleSystem": "es6",
+          "exoticallyRequired": false,
+          "dependencyTypes": ["npm", "import", "type-only"],
+          "resolved": "../node_modules/.pnpm/@tanstack+react-query@5.104.2_react@19.3.0/node_modules/@tanstack/react-query/build/legacy/index.cjs",
+          "coreModule": false,
+          "followable": false,
+          "couldNotResolve": false,
+          "matchesDoNotFollow": true,
+          "circular": false,
+          "valid": true
+        },
+        {
+          "dynamic": false,
+          "module": "remeda",
+          "moduleSystem": "es6",
+          "exoticallyRequired": false,
+          "dependencyTypes": ["npm", "import"],
+          "resolved": "../node_modules/.pnpm/remeda@2.51.0/node_modules/remeda/dist/index.cjs",
+          "coreModule": false,
+          "followable": false,
+          "couldNotResolve": false,
+          "matchesDoNotFollow": true,
+          "circular": false,
+          "valid": true
+        }
+      ],
+      "dependents": [],
+      "orphan": false,
+      "valid": true
+    },
+    {
+      "source": "../node_modules/.pnpm/remeda@2.51.0/node_modules/remeda/dist/index.cjs",
+      "followable": false,
+      "coreModule": false,
+      "couldNotResolve": false,
+      "matchesDoNotFollow": true,
+      "dependencyTypes": ["npm", "import"],
+      "dependencies": [],
+      "dependents": [
+        "src/utils/add-action-name-to-mutation-result.ts",
+        "src/utils/add-resource-name-to-infinite-query-result.ts",
+        "src/utils/add-resource-name-to-query-result.ts"
+      ],
+      "orphan": false,
+      "valid": true
+    },
+    {
+      "source": "src/utils/add-resource-name-to-infinite-query-result.ts",
+      "dependencies": [
+        {
+          "dynamic": false,
+          "module": "@tanstack/react-query",
+          "moduleSystem": "es6",
+          "exoticallyRequired": false,
+          "dependencyTypes": ["npm", "import", "type-only"],
+          "resolved": "../node_modules/.pnpm/@tanstack+react-query@5.104.2_react@19.3.0/node_modules/@tanstack/react-query/build/legacy/index.cjs",
+          "coreModule": false,
+          "followable": false,
+          "couldNotResolve": false,
+          "matchesDoNotFollow": true,
+          "circular": false,
+          "valid": true
+        },
+        {
+          "dynamic": false,
+          "module": "remeda",
+          "moduleSystem": "es6",
+          "exoticallyRequired": false,
+          "dependencyTypes": ["npm", "import"],
+          "resolved": "../node_modules/.pnpm/remeda@2.51.0/node_modules/remeda/dist/index.cjs",
+          "coreModule": false,
+          "followable": false,
+          "couldNotResolve": false,
+          "matchesDoNotFollow": true,
+          "circular": false,
+          "valid": true
+        }
+      ],
+      "dependents": [],
+      "orphan": false,
+      "valid": true
+    },
+    {
+      "source": "src/utils/add-resource-name-to-query-result.ts",
+      "dependencies": [
+        {
+          "dynamic": false,
+          "module": "@tanstack/react-query",
+          "moduleSystem": "es6",
+          "exoticallyRequired": false,
+          "dependencyTypes": ["npm", "import", "type-only"],
+          "resolved": "../node_modules/.pnpm/@tanstack+react-query@5.104.2_react@19.3.0/node_modules/@tanstack/react-query/build/legacy/index.cjs",
+          "coreModule": false,
+          "followable": false,
+          "couldNotResolve": false,
+          "matchesDoNotFollow": true,
+          "circular": false,
+          "valid": true
+        },
+        {
+          "dynamic": false,
+          "module": "remeda",
+          "moduleSystem": "es6",
+          "exoticallyRequired": false,
+          "dependencyTypes": ["npm", "import"],
+          "resolved": "../node_modules/.pnpm/remeda@2.51.0/node_modules/remeda/dist/index.cjs",
+          "coreModule": false,
+          "followable": false,
+          "couldNotResolve": false,
+          "matchesDoNotFollow": true,
+          "circular": false,
+          "valid": true
+        }
+      ],
+      "dependents": [],
+      "orphan": false,
+      "valid": true
+    },
+    {
+      "source": "src/vite-env.d.ts",
+      "dependencies": [],
+      "dependents": [],
+      "orphan": true,
+      "valid": true
+    }
+  ],
+  "summary": {
+    "violations": [],
+    "error": 0,
+    "warn": 0,
+    "info": 0,
+    "ignore": 0,
+    "advisedExitCode": 0,
+    "totalCruised": 12,
+    "totalDependenciesCruised": 13,
+    "optionsUsed": {
+      "baseDir": "../../web",
+      "combinedDependencies": false,
+      "detectImportsInAmbientModules": false,
+      "detectJSDocImports": false,
+      "detectProcessBuiltinModuleCalls": false,
+      "doNotFollow": { "path": "node_modules" },
+      "exoticRequireStrings": [],
+      "externalModuleResolutionStrategy": "node_modules",
+      "metrics": false,
+      "moduleSystems": ["es6", "cjs", "tsd", "amd"],
+      "outputType": "json",
+      "parser": "swc",
+      "preserveSymlinks": false,
+      "skipAnalysisNotInRules": false,
+      "tsPreCompilationDeps": true,
+      "args": "src"
+    },
+    "environment": {
+      "version": "18.6.0",
+      "nodeVersionSupported": "^22||^24||>=26",
+      "nodeVersionFound": "v22.22.0",
+      "osVersionFound": "x64 linux@7.0.0-30-generic",
+      "transpilersFound": [
+        {
+          "name": "javascript",
+          "version": "*",
+          "available": true,
+          "currentVersion": "acorn@8.19.0"
+        },
+        { "name": "babel", "version": ">=7.0.0 <8.0.0", "available": false, "currentVersion": "-" },
+        {
+          "name": "coffee-script",
+          "version": ">=1.0.0 <2.0.0",
+          "available": false,
+          "currentVersion": "-"
+        },
+        {
+          "name": "coffeescript",
+          "version": ">=1.0.0 <3.0.0",
+          "available": false,
+          "currentVersion": "-"
+        },
+        {
+          "name": "livescript",
+          "version": ">=1.0.0 <2.0.0",
+          "available": false,
+          "currentVersion": "-"
+        },
+        {
+          "name": "svelte",
+          "version": ">=3.0.0 <6.0.0",
+          "available": false,
+          "currentVersion": "-"
+        },
+        {
+          "name": "swc",
+          "version": ">=1.0.0 <2.0.0",
+          "available": true,
+          "currentVersion": "@swc/core@1.16.18"
+        },
+        {
+          "name": "typescript",
+          "version": ">=2.0.0 <7.0.0",
+          "available": false,
+          "currentVersion": "-"
+        },
+        {
+          "name": "vue-template-compiler",
+          "version": ">=2.0.0 <3.0.0",
+          "available": false,
+          "currentVersion": "-"
+        },
+        {
+          "name": "@vue/compiler-sfc",
+          "version": ">=3.0.0 <4.0.0",
+          "available": false,
+          "currentVersion": "-"
+        }
+      ],
+      "extensionsFound": [
+        { "extension": ".js", "available": true },
+        { "extension": ".cjs", "available": true },
+        { "extension": ".mjs", "available": true },
+        { "extension": ".jsx", "available": true },
+        { "extension": ".ts", "available": true },
+        { "extension": ".tsx", "available": true },
+        { "extension": ".d.ts", "available": true },
+        { "extension": ".cts", "available": false },
+        { "extension": ".d.cts", "available": false },
+        { "extension": ".mts", "available": false },
+        { "extension": ".d.mts", "available": false },
+        { "extension": ".vue", "available": false },
+        { "extension": ".svelte", "available": false },
+        { "extension": ".ls", "available": false },
+        { "extension": ".coffee", "available": false },
+        { "extension": ".litcoffee", "available": false },
+        { "extension": ".coffee.md", "available": false },
+        { "extension": ".csx", "available": false },
+        { "extension": ".cjsx", "available": false }
+      ],
+      "issues": [
+        {
+          "severity": "warn",
+          "name": "missing-typescript-transpiler",
+          "description": "dependency-cruiser detected a TypeScript environment,\n    but not a compatible TypeScript compiler (typescript: >=2.0.0 <7.0.0). This means\n    it's likely to have missed TypeScript sources and dependencies.\n\n    Install typescript to get better results (e.g. npm i -D typescript@^6).\n\n    => Support for typescript@>=7 will follow when its API is published and stable.\n"
+        }
+      ]
+    }
+  }
+}

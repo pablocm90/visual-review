@@ -1,0 +1,14 @@
+{
+  "name": "pablocm90",
+  "description": "visual-review: structural review pages for pull requests, with Claude's notes",
+  "owner": {
+    "name": "Pablo"
+  },
+  "plugins": [
+    {
+      "name": "visual-review",
+      "source": "./plugin",
+      "description": "Structural review pages for pull requests, ranges and uncommitted work, with Claude's notes and flags written onto them"
+    }
+  ]
+}

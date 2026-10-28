@@ -1,0 +1,11 @@
+.claude/*
+!.claude/skills/
+node_modules/
+dist/
+.reviews/
+.stryker-tmp/
+reports/
+*.tgz
+!.claude/settings.json
+!.claude/commands/
+!.claude/agents/

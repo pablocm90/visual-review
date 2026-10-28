@@ -1,0 +1,49 @@
+{
+  "$schema": "./node_modules/@biomejs/biome/configuration_schema.json",
+  "vcs": { "enabled": true, "clientKind": "git", "useIgnoreFile": true },
+  "files": { "includes": ["**", "!.claude"] },
+  "formatter": {
+    "indentStyle": "space",
+    "lineWidth": 100,
+    "formatWithErrors": true
+  },
+  "linter": {
+    "rules": {
+      "preset": "recommended",
+      "complexity": {
+        "noExcessiveCognitiveComplexity": {
+          "level": "warn",
+          "options": { "maxAllowedComplexity": 39 }
+        }
+      },
+      "correctness": {
+        "useExhaustiveDependencies": "warn"
+      }
+    }
+  },
+  "javascript": {
+    "formatter": {
+      "quoteStyle": "single",
+      "jsxQuoteStyle": "double",
+      "arrowParentheses": "asNeeded"
+    }
+  },
+  "assist": { "actions": { "source": { "organizeImports": "on" } } },
+  "overrides": [
+    {
+      "includes": ["src/viewer/**"],
+      "linter": {
+        "rules": {
+          "a11y": {
+            "noInteractiveElementToNoninteractiveRole": "off",
+            "useSemanticElements": "off"
+          }
+        }
+      }
+    },
+    {
+      "includes": ["src/api-paths.test.ts"],
+      "linter": { "rules": { "suspicious": { "noTemplateCurlyInString": "off" } } }
+    }
+  ]
+}

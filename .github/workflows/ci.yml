@@ -1,0 +1,23 @@
+name: CI
+
+on: push
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .tool-versions
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: git --version && cargo --version
+      - run: pnpm check
+      - run: pnpm typecheck
+      - run: pnpm test
+      - run: pnpm build

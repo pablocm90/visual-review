@@ -1,0 +1,32 @@
+# visual-review
+
+Structural review pages for pull requests, ranges and uncommitted work: the Rust crates and modules and the TS/JS modules of a repo, before and after, with what changed coloured, and optional notes written by Claude or anyone else. Being made public as `@pablocm90/visual-review`.
+
+## Where things are
+
+- `src/cli.ts` is the entry point (`pnpm review <pr | from..to>`, or nothing for uncommitted work). `read-range.ts` reads both sides of a range through the readers in `src/readers/` (Rust: `crate-graph.ts`, `crate-modules.ts`, `rust-tests.ts`; TS: `web-graph.ts` via dependency-cruiser, `test-statements.ts`), each implementing `Reader` (`reader.ts`): opened once per checkout, it gives its roots there and a graph per root, and its own test files, read only under a root the reader found. A TS root is any directory with a `package.json` whose source root (tsconfig `rootDir`, else its one `include` folder, else `src/`) holds TS/JS sources, `node_modules` skipped; its stack id is the directory, or the package.json name (else the repo folder name) at the checkout root. A bare import of a sibling package's name joins the file to that stack, since checkouts have no `node_modules`. A reader draws a stack whose id an earlier reader took (`Checkout.taken`) under the first free `~N` (`~2`). `config.ts` validates `visual-review.config.json` (Zod, `strictObject`), read from the head revision or else the working tree, and applies to both sides: readers get it on `Checkout.config` (box globs, `sourceRoot`, stacks added with `reader`+`root`), while relabelling happens in `read-range.ts` on drawn ids, and a dropped (`false`) stack's graph is never read. A reader may name the command its `graph` runs (`Reader.tool`, `cargo` for Rust): when it isn't on `PATH` (`on-path.ts`, a lookup, nothing run), none of its stacks is read and the review lists its kept stacks as `skipped` (`skipped.ts`), shown on stderr and as the page's header alert; its test files are still read. The CLI looks up `git`, and `gh` for a PR number, the same way and exits 1 naming the one missing. Each `Reader` names itself and the stack fields it takes (`stackFields`); config problems are checked once both sides are read. The Rust reader builds `rust/…` ids and rebases them for an added stack. `pnpm build` writes `dist/config.schema.json` and `dist/notes.schema.json` from their Zod schemas (`write-schemas.ts`). Linkers (`Linker`, `linker.ts`) then draw edges across stacks from the drawn nodes: `linkers/fetch-axum.ts` reads the fetch calls of every TS stack's files and the `.route("…")` paths in the module files (the files its targets reach, not `tests/` or nested crates) of every crate whose `Cargo.toml` depends on axum (`api-paths.ts` parses both), and lists unrouted calls as dangling; with no axum crate it draws nothing. The config's `linkers` entry turns one off or names its `from`/`to` stacks. `test-statements.ts` compares a test file's tests across the sides. `diff-graphs.ts` diffs the sides; `notes.ts` validates and fills notes.
+- `src/viewer/` is the page: React + ELK, built by vite with `vite-plugin-singlefile` into one file, `dist/viewer.html`. The CLI reads that file, never vite, so it must be built first: `pnpm build`, `pnpm review` and the tests' global setup (`vitest.setup.ts`) all build it.
+- `src/test-support/` builds temporary git repos, Cargo workspaces and a fake `gh` for the tests. `src/fixtures/` holds captured `cargo metadata` and depcruise output.
+- `plugin/` is the Claude Code plugin (`plugin/skills/visual-review/SKILL.md` writes notes onto a page), and `.claude-plugin/marketplace.json` makes the repo its marketplace (`pablocm90`). The skill runs the CLI through npx at the version `package.json` says (`plugin.test.ts` keeps `plugin.json` and the pin in step); `VISUAL_REVIEW_PACKAGE` swaps in another npm spec, such as a packed tarball's absolute path.
+
+## Commands
+
+- `pnpm install`, then `pnpm check` (biome), `pnpm typecheck` (tsc 7, no emit), `pnpm test` (vitest, ~30 s), `pnpm mutate` (Stryker), `pnpm build` (`dist/`: the CLI as JS via `tsconfig.build.json`, plus the page).
+- The package is `@pablocm90/visual-review` with the bin `visual-review` (`dist/cli.js`), shipping only `dist/`. Anything the CLI imports at runtime must be in `dependencies`; what only the page bundles (React, ELK, highlight.js) stays in `devDependencies`. Check an install with `pnpm pack` and `pnpm add <tarball>` in a scratch project.
+- **Pre-push gate:** `pnpm check && pnpm typecheck`. CI (`.github/workflows/ci.yml`, GitHub Actions on every push) runs those plus `pnpm test` and `pnpm build`, with git and cargo on the runner.
+- `src/index.ts` is the package entry: types only (`Reader`, `Graph`…). Node ids are part of a reader's contract (JSDoc on `GraphNode`): notes are keyed by them.
+- cargo runs inside the reviewed checkout (its `.cargo/config.toml` must apply) but with `RUSTUP_TOOLCHAIN` set to what rustup picks outside it, so the checkout's `rust-toolchain.toml` can't choose cargo.
+
+## Stack and gotchas
+
+- Node 22.22 (`.tool-versions`) runs the `.ts` sources directly by type stripping: relative imports carry `.ts`, and no syntax that needs emit (enums, parameter properties).
+- TypeScript strict with `noUncheckedIndexedAccess`, `exactOptionalPropertyTypes` and `noPropertyAccessFromIndexSignature`: index results are `T | undefined`, and `process.env['X']` takes brackets.
+- Biome: single quotes, width 100, arrow parens as needed; two a11y rules are off under `src/viewer/**`.
+- TypeScript 7 has no JS compiler API, so dependency-cruiser parses TS through `@swc/core`. Without it the web graph silently reads no modules.
+- The tests shell out to real `git` and `cargo`. The viewer's first-page tests can flake against a cold ELK under load (1 s `findBy`); ask before raising the timeout.
+
+## Conventions
+
+- **This repo will be public.** Commit messages and PR bodies carry no `Claude-Session:` line, whatever the attribution reminder says. Keep `Co-Authored-By`.
+- Changes land through PRs from a task branch (`claude-dev task <slug>`), never pushed straight to `main`.
+- Publishing to npm and flipping the repo public are outward-facing steps the user runs or approves.
