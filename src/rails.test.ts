@@ -97,6 +97,8 @@ test('a class is named by the definition its path names, so an acronym keeps its
     'app/controllers/admin/html_controller.rb': 'class Admin::HTMLController\nend\n',
     'app/models/order.rb': 'class OrderError < StandardError\nend\n\nclass Order\nend\n',
     'app/models/price.rb': 'Price = Struct.new(:cents)\n',
+    'app/topics/billing/controllers/billing/invoices_controller.rb':
+      'module Billing\n  class InvoicesController\n  end\nend\n',
   });
   const { repo, root } = workspace;
   const shop = basename(repo);
@@ -109,6 +111,7 @@ test('a class is named by the definition its path names, so an acronym keeps its
     `${shop}/class/Order`,
     `${shop}/class/Price`,
     `${shop}/class/APIClient`,
+    `${shop}/class/Billing::InvoicesController`,
   ]);
 });
 

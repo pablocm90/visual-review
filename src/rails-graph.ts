@@ -36,10 +36,13 @@ const definitionsIn = (node: Node, scope: ReadonlyArray<string>): ReadonlyArray<
   });
 
 const definedConstant = (text: string, names: ReadonlyArray<string>): string => {
-  const fromPath = constantOf(names);
   const program = parseRuby(text);
   const defined = program === undefined ? [] : definitionsIn(program, []);
-  return defined.find(constant => constant.toLowerCase() === fromPath.toLowerCase()) ?? fromPath;
+  const tails = names.map((_, start) => constantOf(names.slice(start)).toLowerCase());
+  const [named] = tails.flatMap(tail =>
+    defined.filter(constant => constant.toLowerCase() === tail),
+  );
+  return named ?? constantOf(names);
 };
 
 type RailsGraphOptions = {
