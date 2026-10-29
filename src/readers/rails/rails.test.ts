@@ -304,6 +304,11 @@ test.for([
     controller: 'module Admin\n  class UsersController\n    def index = Filter.new\n  end\nend\n',
     to: 'Admin::UsersController::Filter',
   },
+  {
+    reason: 'at the top only, written from the top',
+    controller: 'module Admin\n  class UsersController\n    def index = ::User.all\n  end\nend\n',
+    to: 'User',
+  },
 ])('a constant names the class it resolves to $reason', async ({ controller, to }) => {
   using workspace = gitRepo({
     ...railsApp,

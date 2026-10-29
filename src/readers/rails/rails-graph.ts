@@ -65,9 +65,11 @@ const scopesOf = (node: Node): ReadonlyArray<string> =>
     );
 
 const resolved = (node: Node, constants: ReadonlySet<string>): string =>
-  scopesOf(node)
-    .map(scope => `${scope}::${node.text}`)
-    .find(name => constants.has(name)) ?? node.text;
+  node.text.startsWith('::')
+    ? node.text.slice(2)
+    : (scopesOf(node)
+        .map(scope => `${scope}::${node.text}`)
+        .find(name => constants.has(name)) ?? node.text);
 
 const referencesIn = (
   program: Node | undefined,
