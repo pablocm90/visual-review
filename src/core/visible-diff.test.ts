@@ -116,7 +116,9 @@ test.for<{ readonly target: string; readonly opened: ReadonlyArray<string> }>([
   { target: 'leaf -> B', opened: ['B', 'A', 'A1'] },
   { target: 'A1 -> B', opened: ['B', 'A'] },
 ])('going to $target opens every box above it, or above both its ends', ({ target, opened }) => {
-  expect([...expandedToShow({ diff: deep, expanded: new Set(['B']), id: target })]).toEqual(opened);
+  expect(expandedToShow({ diff: deep, expanded: new Set(['B']), id: target })).toEqual(
+    new Set(opened),
+  );
 });
 
 const changed = (base: DiffedNode): DiffedNode => ({ ...base, state: 'modified' });
