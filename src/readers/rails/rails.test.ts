@@ -254,3 +254,22 @@ test("the constants a file's class and module lines define are no references, so
 
   expect(range.after.edges).toEqual([]);
 });
+
+test('a scoped constant a class writes names the class it reads in whole, not the classes its parts name', async () => {
+  using workspace = gitRepo({
+    ...railsApp,
+    'app/models/user.rb': 'class User\nend\n',
+    'app/models/admin.rb': 'module Admin\nend\n',
+    'app/models/admin/user.rb': 'module Admin\n  class User\n  end\nend\n',
+    'app/controllers/reports_controller.rb':
+      'class ReportsController\n  def index = Admin::User.count\nend\n',
+  });
+  const { repo, root } = workspace;
+  const shop = basename(repo);
+
+  const range = await readRange({ repo, from: root, to: root });
+
+  expect(range.after.edges).toEqual([
+    { from: `${shop}/class/ReportsController`, to: `${shop}/class/Admin::User` },
+  ]);
+});
