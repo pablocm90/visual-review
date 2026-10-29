@@ -1,11 +1,7 @@
 import { expect, test } from 'vitest';
 import { readRustTests } from './readers/rust/rust-tests.ts';
-import {
-  readTypeScriptTests,
-  type TestStatement,
-  testChanges,
-  withMovedTests,
-} from './test-statements.ts';
+import { readTypeScriptTests } from './readers/typescript/typescript-tests.ts';
+import { type TestStatement, testChanges, withMovedTests } from './test-statements.ts';
 
 test('reads a new file as a tree of its describe blocks and tests, in source order', () => {
   const after = [

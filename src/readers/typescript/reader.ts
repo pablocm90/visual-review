@@ -3,11 +3,11 @@ import { basename, dirname, join, relative } from 'node:path';
 import { cruise } from 'dependency-cruiser';
 import { parse } from 'jsonc-parser';
 import { z } from 'zod';
-import { addedStacks, folderOf, stackSettings } from '../config.ts';
-import type { Checkout, Reader } from '../reader.ts';
-import { stackIds } from '../stack-ids.ts';
-import { readTypeScriptTests } from '../test-statements.ts';
-import { webGraph } from '../web-graph.ts';
+import { addedStacks, folderOf, stackSettings } from '../../config.ts';
+import type { Checkout, Reader } from '../../reader.ts';
+import { stackIds } from '../../stack-ids.ts';
+import { readTypeScriptTests } from './typescript-tests.ts';
+import { webGraph } from './web-graph.ts';
 
 const TEST_FILE = /\.(test|spec)\.[cm]?[jt]sx?$/;
 

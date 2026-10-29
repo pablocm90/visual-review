@@ -4,7 +4,7 @@ import { expect, test } from 'vitest';
 import { webGraph } from './web-graph.ts';
 
 const recordedAt11bbc5d = readFileSync(
-  join(import.meta.dirname, 'fixtures', 'depcruise-web-11bbc5d.json'),
+  join(import.meta.dirname, '..', '..', 'fixtures', 'depcruise-web-11bbc5d.json'),
   'utf8',
 );
 
