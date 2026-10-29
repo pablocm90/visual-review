@@ -90,9 +90,9 @@ test('the page holds its data whole, a range that closes a script tag included, 
   expect(pageIn(slotsOf(pageHtml({ viewer, data })))).toStrictEqual({ data, notes: undefined });
 });
 
-test('notes filled into a page come back whole, a note that closes a script tag included, beside its data', () => {
+test('notes filled into a page come back whole, a note holding replacement patterns such as $& included, beside its data', () => {
   const data = pageData({ reading: readingWith({}), range: 'main..feature', version });
-  const notes = notesWith({ 'web/file/a.ts': { text: 'Ends a script: </script>' } });
+  const notes = notesWith({ 'web/file/a.ts': { text: "Costs $& more, and $' too." } });
 
   const page = notedPageHtml({ page: pageHtml({ viewer, data }), notes, notesFile, version });
 

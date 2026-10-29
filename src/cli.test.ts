@@ -268,7 +268,7 @@ test.for([
     problem: 'name a part not in the graph',
     notes: { 'rust/crate/gone': { text: 'Removed.' } },
     pageFrom: (html: string) => html,
-    says: 'unknown id rust/crate/gone',
+    says: "notes.json don't match the graph:\nunknown id rust/crate/gone",
   },
   {
     problem: 'are for a page another visual-review wrote',
