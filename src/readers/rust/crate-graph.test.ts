@@ -4,7 +4,7 @@ import { expect, test } from 'vitest';
 import { crateGraph } from './crate-graph.ts';
 
 const recordedAtAb4cb6a = readFileSync(
-  join(import.meta.dirname, 'fixtures', 'cargo-metadata-ab4cb6a.json'),
+  join(import.meta.dirname, '..', '..', 'fixtures', 'cargo-metadata-ab4cb6a.json'),
   'utf8',
 );
 

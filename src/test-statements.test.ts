@@ -1,5 +1,5 @@
 import { expect, test } from 'vitest';
-import { readRustTests } from './rust-tests.ts';
+import { readRustTests } from './readers/rust/rust-tests.ts';
 import {
   readTypeScriptTests,
   type TestStatement,

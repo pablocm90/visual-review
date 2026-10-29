@@ -3,8 +3,8 @@ import { basename, dirname, join } from 'node:path';
 import { addedStacks } from '../config.ts';
 import { railsGraph } from '../rails-graph.ts';
 import type { Reader } from '../reader.ts';
-import { sourcesIn } from '../sources-in.ts';
 import { stackIds } from '../stack-ids.ts';
+import { sourcesIn } from './sources-in.ts';
 
 const APPLICATION = 'config/application.rb';
 

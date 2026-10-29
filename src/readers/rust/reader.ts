@@ -2,13 +2,13 @@ import { execFile } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { promisify } from 'node:util';
-import { addedStacks } from '../config.ts';
-import { crateGraph, crateRoots } from '../crate-graph.ts';
-import { crateModules } from '../crate-modules.ts';
-import type { Graph } from '../graph.ts';
-import type { Reader } from '../reader.ts';
-import { readRustTests } from '../rust-tests.ts';
+import { addedStacks } from '../../config.ts';
+import type { Graph } from '../../graph.ts';
+import type { Reader } from '../../reader.ts';
 import { sourcesIn } from '../sources-in.ts';
+import { crateGraph, crateRoots } from './crate-graph.ts';
+import { crateModules } from './crate-modules.ts';
+import { readRustTests } from './rust-tests.ts';
 
 const run = promisify(execFile);
 

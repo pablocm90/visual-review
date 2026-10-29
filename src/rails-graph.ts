@@ -1,8 +1,8 @@
 import { join } from 'node:path';
 import type { Node } from 'web-tree-sitter';
 import type { Graph, GraphNode } from './graph.ts';
+import type { SourceFile } from './readers/sources-in.ts';
 import { parseRuby } from './ruby-syntax.ts';
-import type { SourceFile } from './sources-in.ts';
 
 type Place = {
   readonly layer: string;

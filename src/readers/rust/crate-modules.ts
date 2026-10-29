@@ -1,7 +1,7 @@
 import { basename, dirname, join } from 'node:path';
 import type { Node } from 'web-tree-sitter';
+import { edgeKey, type Graph, type GraphEdge, type GraphNode } from '../../graph.ts';
 import { crateId } from './crate-graph.ts';
-import { edgeKey, type Graph, type GraphEdge, type GraphNode } from './graph.ts';
 import { isCfgTest, itemsIn, parseRust } from './rust-syntax.ts';
 
 type CrateModulesOptions = {
