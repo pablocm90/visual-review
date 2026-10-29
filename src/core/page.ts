@@ -1,5 +1,6 @@
 import { diffGraphs, type FilePatch, type GraphDiff, isAtOrUnder } from './diff-graphs.ts';
 import type { DanglingCall } from './linker.ts';
+import type { ReviewNotes } from './notes.ts';
 import type { RangeReading } from './read-range.ts';
 import type { Skipped } from './skipped.ts';
 import type { TestFile } from './test-changes.ts';
@@ -42,3 +43,42 @@ export const pageData = ({ reading, range, pullRequest }: PageDataOptions): Page
     skipped: reading.skipped,
   };
 };
+
+const DATA_SLOT = 'review-data';
+
+const NOTES_SLOT = 'review-notes';
+
+const slot = (id: string, content: string) =>
+  `<script type="application/json" id="${id}">${content}</script>`;
+
+const filledSlot = (html: string, id: string, value: unknown): string =>
+  html.replace(new RegExp(slot(id, '[\\s\\S]*?')), () =>
+    slot(id, JSON.stringify(value).replaceAll('<', '\\u003c')),
+  );
+
+type PageHtmlOptions = {
+  readonly viewer: string;
+  readonly data: PageData;
+};
+
+export const pageHtml = ({ viewer, data }: PageHtmlOptions): string =>
+  filledSlot(viewer, DATA_SLOT, data);
+
+type Page = {
+  readonly data: PageData;
+  readonly notes: ReviewNotes | undefined;
+};
+
+export const pageIn = (slotText: (id: string) => string | undefined): Page => {
+  const data: PageData = JSON.parse(slotText(DATA_SLOT) ?? '{}');
+  const notes: ReviewNotes | null = JSON.parse(slotText(NOTES_SLOT) ?? 'null');
+  return { data, notes: notes ?? undefined };
+};
+
+type NotedPageHtmlOptions = {
+  readonly page: string;
+  readonly notes: ReviewNotes;
+};
+
+export const notedPageHtml = ({ page, notes }: NotedPageHtmlOptions): string =>
+  filledSlot(page, NOTES_SLOT, notes);

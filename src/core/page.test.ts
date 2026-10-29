@@ -1,6 +1,9 @@
+// @vitest-environment jsdom
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { expect, test } from 'vitest';
 import type { GraphNode } from './graph.ts';
-import { pageData } from './page.ts';
+import { notedPageHtml, pageData, pageHtml, pageIn } from './page.ts';
 import type { RangeReading } from './read-range.ts';
 
 const webFile = (path: string): GraphNode => ({
@@ -59,4 +62,31 @@ test("a pull request's page data names it, and lists the stacks a missing tool k
   expect(
     pageData({ reading: readingWith({ skipped }), range: 'abc..def', pullRequest }),
   ).toMatchObject({ range: 'abc..def', pullRequest, skipped });
+});
+
+const viewer = readFileSync(join(import.meta.dirname, '..', 'viewer', 'viewer.html'), 'utf8');
+
+const slotsOf = (html: string) => {
+  const document = new DOMParser().parseFromString(html, 'text/html');
+  return (id: string) => document.getElementById(id)?.textContent ?? undefined;
+};
+
+test('the page holds its data whole, a range that closes a script tag included, and no notes until they are filled', () => {
+  const data = pageData({ reading: readingWith({}), range: 'main..x</script><b>' });
+
+  expect(pageIn(slotsOf(pageHtml({ viewer, data })))).toStrictEqual({ data, notes: undefined });
+});
+
+test('notes filled into a page come back whole, a note that closes a script tag included, beside its data', () => {
+  const data = pageData({ reading: readingWith({}), range: 'main..feature' });
+  const notes = {
+    version: 1 as const,
+    summary: [],
+    tests: '',
+    notes: { 'web/file/a.ts': { text: 'Ends a script: </script>' } },
+  };
+
+  const page = notedPageHtml({ page: pageHtml({ viewer, data }), notes });
+
+  expect(pageIn(slotsOf(page))).toStrictEqual({ data, notes });
 });

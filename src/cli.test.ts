@@ -11,6 +11,7 @@ import {
 import { join } from 'node:path';
 import { promisify } from 'node:util';
 import { expect, test } from 'vitest';
+import { pageIn } from './core/page.ts';
 import { pullRequestRemote } from './test-support/pull-request-remote.ts';
 import {
   axumCrate,
@@ -44,14 +45,10 @@ const runCliIn = (
 const runCli = (cwd: string, ...args: ReadonlyArray<string>): Promise<CliRun> =>
   runCliIn({ cwd }, ...args);
 
-const slotIn = (html: string, id: string): unknown =>
-  JSON.parse(
-    new RegExp(`<script type="application/json" id="${id}">([\\s\\S]*?)</script>`).exec(
-      html,
-    )?.[1] ?? 'null',
-  );
+const pageOf = (html: string) =>
+  pageIn(id => new RegExp(`id="${id}">([\\s\\S]*?)</script>`).exec(html)?.[1]);
 
-const reviewDataIn = (html: string): unknown => slotIn(html, 'review-data');
+const reviewDataIn = (html: string) => pageOf(html).data;
 
 test('writes the review page for a range into .reviews/, with slashes in revision names made filename-safe, and its data beside it', async () => {
   using workspace = cargoWorkspace();
@@ -215,7 +212,7 @@ test('writing a page keeps .reviews/ to the 20 most recently written pages', asy
   expect(pages).not.toContain('old-00.html');
 }, 60_000);
 
-test('--notes fills the notes into the page already written for the range, a closing script tag included, without reading the range again', async () => {
+test('--notes fills the notes into the page already written for the range, without reading the range again', async () => {
   using workspace = cargoWorkspace();
   const { repo } = workspace;
   git(repo, 'switch', '--quiet', '--create', 'feature');
@@ -226,7 +223,7 @@ test('--notes fills the notes into the page already written for the range, a clo
     version: 1,
     summary: [{ text: 'Adds a CLI.', target: 'rust/crate/cli' }, { text: 'Nothing else moves.' }],
     tests: 'No test pins the new CLI.',
-    notes: { 'rust/crate/cli': { text: 'Ends with </script>.', flag: 'new entry point' } },
+    notes: { 'rust/crate/cli': { text: 'A second way in.', flag: 'new entry point' } },
   };
   const notesFile = join(repo, 'notes.json');
   writeFileSync(notesFile, JSON.stringify(notes));
@@ -235,7 +232,7 @@ test('--notes fills the notes into the page already written for the range, a clo
 
   expect(run.code).toBe(0);
   const html = readFileSync(join(repo, '.reviews', 'main..feature.html'), 'utf8');
-  expect(slotIn(html, 'review-notes')).toEqual(notes);
+  expect(pageOf(html).notes).toEqual(notes);
   expect(reviewDataIn(html)).not.toMatchObject({
     diff: { nodes: expect.arrayContaining([expect.objectContaining({ id: 'rust/crate/later' })]) },
   });
@@ -291,18 +288,6 @@ test('notes that name a part not in the graph, or leave a touched part without a
   expect(run.stderr).toContain('unknown id rust/crate/gone');
   expect(run.stderr).toContain('no note on rust/crate/cli');
   expect(readFileSync(join(repo, '.reviews', 'main..feature.html'), 'utf8')).toBe(page);
-}, 60_000);
-
-test('a revision name that closes a script tag stays inside the review data', async () => {
-  using workspace = cargoWorkspace();
-  const { repo } = workspace;
-  git(repo, 'switch', '--quiet', '--create', 'x<b></script>');
-  commit(repo, crateFiles('cli'));
-
-  await runCli(repo, 'main..x<b></script>');
-
-  const html = readFileSync(join(repo, '.reviews', 'main..x<b><_script>.html'), 'utf8');
-  expect(reviewDataIn(html)).toMatchObject({ range: 'main..x<b></script>' });
 }, 60_000);
 
 test('an unknown revision exits non-zero naming it and writes no page', async () => {

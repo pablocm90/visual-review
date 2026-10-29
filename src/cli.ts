@@ -4,21 +4,13 @@ import { lstat, mkdir, readFile, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { parseArgs, promisify } from 'node:util';
 import { notesProblems, parseNotes } from './core/notes.ts';
-import { type PageData, type PullRequest, pageData } from './core/page.ts';
+import { notedPageHtml, type PageData, type PullRequest, pageData, pageHtml } from './core/page.ts';
 import { readRange } from './core/read-range.ts';
 import { notReadLine } from './core/skipped.ts';
 import { onPath } from './git/on-path.ts';
 import { pruneReviews } from './git/prune-reviews.ts';
 import { readPullRequest } from './git/pull-request.ts';
 import { snapshotWorkingTree } from './git/working-tree.ts';
-
-const slot = (id: string, content: string) =>
-  `<script type="application/json" id="${id}">${content}</script>`;
-
-const fillSlot = (html: string, id: string, value: unknown): string =>
-  html.replace(new RegExp(slot(id, '[\\s\\S]*?')), () =>
-    slot(id, JSON.stringify(value).replaceAll('<', '\\u003c')),
-  );
 
 const isDirectoryOrMissing = (path: string): Promise<boolean> =>
   lstat(path).then(
@@ -57,12 +49,11 @@ const rangeOf = async (repo: string, argument: string | undefined): Promise<Revi
   return { range: argument, ...parseRange(argument) };
 };
 
-const viewerWith = async (review: PageData): Promise<string> =>
-  fillSlot(
-    await readFile(join(import.meta.dirname, '..', 'dist', 'viewer.html'), 'utf8'),
-    'review-data',
-    review,
-  );
+const viewerWith = async (data: PageData): Promise<string> =>
+  pageHtml({
+    viewer: await readFile(join(import.meta.dirname, '..', 'dist', 'viewer.html'), 'utf8'),
+    data,
+  });
 
 type FillNotesOptions = {
   readonly range: string;
@@ -82,7 +73,7 @@ const fillNotes = async ({ range, page, data, notesFile }: FillNotesOptions): Pr
   if (problems.length > 0) {
     throw new Error(`Notes in ${notesFile} don't match the graph:\n${problems.join('\n')}`);
   }
-  await writeFile(page, fillSlot(await readFile(page, 'utf8'), 'review-notes', notes));
+  await writeFile(page, notedPageHtml({ page: await readFile(page, 'utf8'), notes }));
 };
 
 const writeReview = async (args: ReadonlyArray<string>): Promise<string> => {
