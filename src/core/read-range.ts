@@ -4,11 +4,12 @@ import { mkdtemp, readFile, realpath, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { basename, join, relative } from 'node:path';
 import { promisify } from 'node:util';
-import { CONFIG_FILE, type Config, checkConfig, configuredNodes, parseConfig } from './config.ts';
+import { CONFIG_FILE, type Config, checkConfig, parseConfig } from './config.ts';
 import type { FilePatch, Rename } from './diff-graphs.ts';
-import { type Graph, stackOfIn } from './graph.ts';
-import type { DanglingCall, Linker } from './linker.ts';
-import type { OpenedCheckout, Reader } from './reader.ts';
+import type { Graph } from './graph.ts';
+import type { DanglingCall } from './linker.ts';
+import { type Adapters, type ReaderRoot, readStacks, type StacksReading } from './read-stacks.ts';
+import type { Reader } from './reader.ts';
 import type { Skipped } from './skipped.ts';
 import { type TestFile, testChanges, withMovedTests } from './test-changes.ts';
 
@@ -25,12 +26,6 @@ export type RangeReading = {
   readonly skipped: ReadonlyArray<Skipped>;
 };
 
-type Adapters = {
-  readonly readers: ReadonlyArray<Reader>;
-  readonly linkers: ReadonlyArray<Linker>;
-  readonly onPath: (command: string) => boolean;
-};
-
 type ReadRangeOptions = Adapters & {
   readonly repo: string;
   readonly from: string;
@@ -40,29 +35,6 @@ type ReadRangeOptions = Adapters & {
 const git = async (repo: string, ...args: ReadonlyArray<string>): Promise<string> =>
   (await run('git', ['-C', repo, ...args])).stdout.trim();
 
-type ReaderRoot = {
-  readonly reader: Reader;
-  readonly root: string;
-};
-
-type SideReading = {
-  readonly graph: Graph;
-  readonly danglingCalls: ReadonlyArray<DanglingCall>;
-  readonly roots: ReadonlyArray<ReaderRoot>;
-  readonly stacks: ReadonlyArray<DrawnStack>;
-  readonly skipped: ReadonlyArray<Skipped>;
-};
-
-type DrawnStack = {
-  readonly stack: string;
-  readonly reader: Reader;
-};
-
-type OpenedReader = {
-  readonly reader: Reader;
-  readonly checkout: OpenedCheckout;
-};
-
 type ReadSideOptions = Adapters & {
   readonly repo: string;
   readonly revision: string;
@@ -70,91 +42,13 @@ type ReadSideOptions = Adapters & {
   readonly config: Config;
 };
 
-const missingToolOf = ({ tool }: Reader, onPath: Adapters['onPath']): string | undefined =>
-  tool === undefined || onPath(tool) ? undefined : tool;
-
 const readSide = async ({
   repo,
   revision,
-  directory,
-  config,
-  readers,
-  linkers,
-  onPath,
-}: ReadSideOptions): Promise<SideReading> => {
-  await git(repo, 'worktree', 'add', '--detach', directory, revision);
-  const { opened } = readers.reduce<{
-    readonly taken: ReadonlySet<string>;
-    readonly opened: ReadonlyArray<OpenedReader>;
-  }>(
-    (sofar, reader) => {
-      const checkout = reader.open({
-        directory,
-        repoName: basename(repo),
-        config,
-        taken: sofar.taken,
-      });
-      return {
-        taken: new Set([...sofar.taken, ...checkout.stacks.values()]),
-        opened: [...sofar.opened, { reader, checkout }],
-      };
-    },
-    { taken: new Set(), opened: [] },
-  );
-  const kept = (stack: string): boolean => config.stacks[stack] !== false;
-  const skipped = opened.flatMap(({ reader, checkout }) => {
-    const tool = missingToolOf(reader, onPath);
-    const stacks = [...checkout.stacks.values()].filter(kept);
-    return tool === undefined || stacks.length === 0 ? [] : [{ reader: reader.name, tool, stacks }];
-  });
-  const graphs = (
-    await Promise.all(
-      opened
-        .filter(({ reader }) => !skipped.some(({ reader: name }) => name === reader.name))
-        .map(({ checkout }) =>
-          Promise.all(
-            [...checkout.stacks]
-              .filter(([, stack]) => kept(stack))
-              .map(([root]) => checkout.graph(root)),
-          ),
-        ),
-    )
-  ).flat();
-  const stacks = opened.flatMap(({ reader, checkout }) =>
-    [...checkout.stacks].map(([root, stack]) => ({ stack, reader, root })),
-  );
-  const nodes = configuredNodes(
-    config,
-    graphs.flatMap(graph => graph.nodes),
-  );
-  const roots = stacks.filter(({ stack }) => kept(stack));
-  const stackOf = stackOfIn(nodes);
-  const linkedBy = (reader: Reader['name'], only: ReadonlyArray<string> | undefined) =>
-    roots
-      .filter(drawn => drawn.reader.name === reader && (only?.includes(drawn.stack) ?? true))
-      .map(({ stack }) => ({ stack, nodes: nodes.filter(({ id }) => stackOf(id) === stack) }));
-  const links = await Promise.all(
-    linkers.flatMap(linker => {
-      const settings = config.linkers[linker.name] ?? {};
-      if (settings === false) return [];
-      return [
-        linker.link({
-          directory,
-          from: linkedBy(linker.from, settings.from),
-          to: linkedBy(linker.to, settings.to),
-        }),
-      ];
-    }),
-  );
-  const ids = new Set(nodes.map(({ id }) => id));
-  const edges = [...graphs.flatMap(graph => graph.edges), ...links.flatMap(({ edges }) => edges)];
-  return {
-    graph: { nodes, edges: edges.filter(edge => ids.has(edge.from) && ids.has(edge.to)) },
-    danglingCalls: links.flatMap(({ dangling }) => dangling),
-    roots,
-    stacks,
-    skipped,
-  };
+  ...options
+}: ReadSideOptions): Promise<StacksReading> => {
+  await git(repo, 'worktree', 'add', '--detach', options.directory, revision);
+  return readStacks({ ...options, repoName: basename(repo) });
 };
 
 const skippedAcross = (skips: ReadonlyArray<Skipped>): ReadonlyArray<Skipped> =>

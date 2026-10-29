@@ -1,6 +1,5 @@
 import { normalize } from 'node:path';
 import { z } from 'zod';
-import type { GraphNode } from './graph.ts';
 
 export const CONFIG_FILE = 'visual-review.config.json';
 
@@ -130,12 +129,6 @@ export const addedStacks = ({
   if (problems.length > 0) throw new Error(problems.join('\n'));
   return added;
 };
-
-export const configuredNodes = (
-  config: Config,
-  nodes: ReadonlyArray<GraphNode>,
-): ReadonlyArray<GraphNode> =>
-  nodes.map(node => ({ ...node, label: stackSettings(config, node.id).label ?? node.label }));
 
 type DrawnStack = {
   readonly stack: string;
