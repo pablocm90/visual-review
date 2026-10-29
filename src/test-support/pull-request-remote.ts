@@ -1,7 +1,7 @@
 import { chmodSync, mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { delimiter, join } from 'node:path';
-import { cargoWorkspace, commit, crateFiles, git } from './cargo-workspace.ts';
+import { cargoWorkspace, commit, crateFiles, git } from './repos.ts';
 
 const REPOSITORY_SSH_URL = 'git@github.com:acme/shop.git';
 const FORK_SSH_URL = 'git@github.com:someone/shop.git';

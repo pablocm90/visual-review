@@ -1,7 +1,7 @@
 import { expect, test, vi } from 'vitest';
+import { pullRequestRemote } from '../test-support/pull-request-remote.ts';
+import { git } from '../test-support/repos.ts';
 import { readPullRequest } from './pull-request.ts';
-import { git } from './test-support/cargo-workspace.ts';
-import { pullRequestRemote } from './test-support/pull-request-remote.ts';
 
 test.for([
   { state: 'an open', merged: false },

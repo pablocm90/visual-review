@@ -1,13 +1,7 @@
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { expect, test } from 'vitest';
-import {
-  cargoWorkspace,
-  commit,
-  crateFiles,
-  git,
-  writeFiles,
-} from './test-support/cargo-workspace.ts';
+import { cargoWorkspace, commit, crateFiles, git, writeFiles } from '../test-support/repos.ts';
 import { snapshotWorkingTree } from './working-tree.ts';
 
 test("a snapshot holds the working tree's untracked files and its edits over what is staged, but not its ignored files, and leaves the user's status and index as they were", async () => {

@@ -9,7 +9,7 @@ import {
   gitRepo,
   pathTo,
   symlinkedDirectory,
-} from '../test-support/cargo-workspace.ts';
+} from '../test-support/repos.ts';
 import { readRange } from './read-range.ts';
 
 const rootPackage = { 'package.json': '{}\n', 'src/index.ts': '' };

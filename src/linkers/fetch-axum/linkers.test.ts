@@ -6,7 +6,7 @@ import {
   commit,
   crateFiles,
   gitRepo,
-} from '../../test-support/cargo-workspace.ts';
+} from '../../test-support/repos.ts';
 
 test("a TS stack's fetch joins the axum crate that declares its route, under the ids the stacks are drawn with", async () => {
   using workspace = cargoWorkspace();

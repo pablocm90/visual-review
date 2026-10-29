@@ -5,7 +5,7 @@ import { tmpdir } from 'node:os';
 import { basename, join, relative } from 'node:path';
 import { promisify } from 'node:util';
 import { linkers, readers } from '../adapters.ts';
-import { onPath } from '../on-path.ts';
+import { onPath } from '../git/on-path.ts';
 import { CONFIG_FILE, type Config, checkConfig, configuredNodes, parseConfig } from './config.ts';
 import type { FilePatch, Rename } from './diff-graphs.ts';
 import { type Graph, stackOfIn } from './graph.ts';

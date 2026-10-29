@@ -8,10 +8,10 @@ import { notesProblems, readNotes } from './core/notes.ts';
 import { readRange } from './core/read-range.ts';
 import type { ReviewData } from './core/review-data.ts';
 import { notReadLine } from './core/skipped.ts';
-import { onPath } from './on-path.ts';
-import { pruneReviews } from './prune-reviews.ts';
-import { readPullRequest } from './pull-request.ts';
-import { snapshotWorkingTree } from './working-tree.ts';
+import { onPath } from './git/on-path.ts';
+import { pruneReviews } from './git/prune-reviews.ts';
+import { readPullRequest } from './git/pull-request.ts';
+import { snapshotWorkingTree } from './git/working-tree.ts';
 
 const slot = (id: string, content: string) =>
   `<script type="application/json" id="${id}">${content}</script>`;

@@ -11,6 +11,7 @@ import {
 import { join } from 'node:path';
 import { promisify } from 'node:util';
 import { expect, test } from 'vitest';
+import { pullRequestRemote } from './test-support/pull-request-remote.ts';
 import {
   axumCrate,
   cargoWorkspace,
@@ -19,8 +20,7 @@ import {
   git,
   pathTo,
   writeFiles,
-} from './test-support/cargo-workspace.ts';
-import { pullRequestRemote } from './test-support/pull-request-remote.ts';
+} from './test-support/repos.ts';
 
 type CliRun = { readonly code: number; readonly stdout: string; readonly stderr: string };
 
