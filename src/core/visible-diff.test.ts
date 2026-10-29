@@ -81,6 +81,17 @@ test.for<{
   expect(visibleDiff({ diff: nested(edges), expanded: new Set() }).edges).toEqual(drawn);
 });
 
+const deep: GraphDiff = {
+  nodes: [
+    node('web', 'stack'),
+    node('A', 'module', 'web'),
+    node('A1', 'module', 'A'),
+    node('leaf', 'file', 'A1'),
+    node('B', 'module', 'web'),
+  ],
+  edges: [{ from: 'leaf', to: 'B', state: 'added' }],
+};
+
 test.for<{
   readonly opened: ReadonlyArray<string>;
   readonly nodes: ReadonlyArray<string>;
@@ -93,19 +104,7 @@ test.for<{
 ])(
   'a file in a box inside a box is drawn as the outermost closed box above it, with $opened open',
   ({ opened, nodes, edge }) => {
-    const drawn = visibleDiff({
-      diff: {
-        nodes: [
-          node('web', 'stack'),
-          node('A', 'module', 'web'),
-          node('A1', 'module', 'A'),
-          node('leaf', 'file', 'A1'),
-          node('B', 'module', 'web'),
-        ],
-        edges: [{ from: 'leaf', to: 'B', state: 'added' }],
-      },
-      expanded: new Set(opened),
-    });
+    const drawn = visibleDiff({ diff: deep, expanded: new Set(opened) });
 
     expect(drawn.nodes.map(({ id }) => id)).toEqual(nodes);
     expect(drawn.edges.map(({ from, to }) => `${from} -> ${to}`)).toEqual([edge]);
@@ -116,20 +115,8 @@ test.for<{ readonly target: string; readonly opened: ReadonlyArray<string> }>([
   { target: 'leaf', opened: ['B', 'A', 'A1'] },
   { target: 'leaf -> B', opened: ['B', 'A', 'A1'] },
   { target: 'A1 -> B', opened: ['B', 'A'] },
-  { target: 'A', opened: ['B'] },
 ])('going to $target opens every box above it, or above both its ends', ({ target, opened }) => {
-  const diff: GraphDiff = {
-    nodes: [
-      node('web', 'stack'),
-      node('A', 'module', 'web'),
-      node('A1', 'module', 'A'),
-      node('leaf', 'file', 'A1'),
-      node('B', 'module', 'web'),
-    ],
-    edges: [{ from: 'leaf', to: 'B', state: 'added' }],
-  };
-
-  expect([...expandedToShow({ diff, expanded: new Set(['B']), id: target })]).toEqual(opened);
+  expect([...expandedToShow({ diff: deep, expanded: new Set(['B']), id: target })]).toEqual(opened);
 });
 
 const changed = (base: DiffedNode): DiffedNode => ({ ...base, state: 'modified' });

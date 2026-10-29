@@ -115,7 +115,6 @@ test('a note may be keyed by an edge between its ends or any of the boxes above 
     notesProblems({
       diff: deep,
       notes: notesWith({
-        summary: [],
         notes: {
           'web/module/pages -> web/module/utils': { text: 'Pages uses utils.' },
           'web/module/pages/home -> web/module/utils': { text: 'Home uses utils.' },
