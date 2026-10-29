@@ -49,6 +49,14 @@ const definedConstant = (program: Node | undefined, names: ReadonlyArray<string>
 const isDefinedName = ({ parent, id }: Node): boolean =>
   parent?.childForFieldName('name')?.id === id;
 
+const referencesIn = (program: Node | undefined): ReadonlyArray<string> => [
+  ...new Set(
+    (program?.descendantsOfType(['constant', 'scope_resolution']) ?? [])
+      .filter(node => node.parent?.type !== 'scope_resolution' && !isDefinedName(node))
+      .map(({ text }) => text),
+  ),
+];
+
 type RailsGraphOptions = {
   readonly stack: string;
   readonly root: string;
@@ -90,13 +98,7 @@ export const railsGraph = ({ stack, root, files }: RailsGraphOptions): Graph => 
       .map(node => [node.id, node]),
   );
   const edges = classes.flatMap(({ constant, program }) =>
-    [
-      ...new Set(
-        (program?.descendantsOfType(['constant', 'scope_resolution']) ?? [])
-          .filter(written => written.parent?.type !== 'scope_resolution' && !isDefinedName(written))
-          .map(({ text }) => text),
-      ),
-    ]
+    referencesIn(program)
       .filter(written => written !== constant)
       .map(written => ({ from: `${stack}/class/${constant}`, to: `${stack}/class/${written}` })),
   );
