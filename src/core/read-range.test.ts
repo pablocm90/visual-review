@@ -1,6 +1,7 @@
 import { rmSync } from 'node:fs';
 import { basename, join } from 'node:path';
 import { expect, test, vi } from 'vitest';
+import { readRange } from '../test-support/read-range.ts';
 import {
   cargoWorkspace,
   commit,
@@ -10,7 +11,6 @@ import {
   pathTo,
   symlinkedDirectory,
 } from '../test-support/repos.ts';
-import { readRange } from './read-range.ts';
 
 const rootPackage = { 'package.json': '{}\n', 'src/index.ts': '' };
 

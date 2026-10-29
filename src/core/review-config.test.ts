@@ -1,4 +1,5 @@
 import { expect, test } from 'vitest';
+import { readRange } from '../test-support/read-range.ts';
 import {
   cargoWorkspace,
   commit,
@@ -7,7 +8,6 @@ import {
   gitRepo,
   writeFiles,
 } from '../test-support/repos.ts';
-import { readRange } from './read-range.ts';
 
 const nodeIds = (graph: { readonly nodes: ReadonlyArray<{ readonly id: string }> }) =>
   graph.nodes.map(node => node.id);

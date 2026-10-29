@@ -1,5 +1,5 @@
 import { expect, test } from 'vitest';
-import { readRange } from '../../core/read-range.ts';
+import { readRange } from '../../test-support/read-range.ts';
 import {
   axumCrate,
   cargoWorkspace,

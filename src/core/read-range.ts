@@ -4,12 +4,10 @@ import { mkdtemp, readFile, realpath, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { basename, join, relative } from 'node:path';
 import { promisify } from 'node:util';
-import { linkers, readers } from '../adapters.ts';
-import { onPath } from '../git/on-path.ts';
 import { CONFIG_FILE, type Config, checkConfig, configuredNodes, parseConfig } from './config.ts';
 import type { FilePatch, Rename } from './diff-graphs.ts';
 import { type Graph, stackOfIn } from './graph.ts';
-import type { DanglingCall } from './linker.ts';
+import type { DanglingCall, Linker } from './linker.ts';
 import type { OpenedCheckout, Reader } from './reader.ts';
 import type { Skipped } from './skipped.ts';
 import { type TestFile, testChanges, withMovedTests } from './test-changes.ts';
@@ -27,7 +25,13 @@ export type RangeReading = {
   readonly skipped: ReadonlyArray<Skipped>;
 };
 
-type ReadRangeOptions = {
+type Adapters = {
+  readonly readers: ReadonlyArray<Reader>;
+  readonly linkers: ReadonlyArray<Linker>;
+  readonly onPath: (command: string) => boolean;
+};
+
+type ReadRangeOptions = Adapters & {
   readonly repo: string;
   readonly from: string;
   readonly to: string;
@@ -59,14 +63,14 @@ type OpenedReader = {
   readonly checkout: OpenedCheckout;
 };
 
-type ReadSideOptions = {
+type ReadSideOptions = Adapters & {
   readonly repo: string;
   readonly revision: string;
   readonly directory: string;
   readonly config: Config;
 };
 
-const missingToolOf = ({ tool }: Reader): string | undefined =>
+const missingToolOf = ({ tool }: Reader, onPath: Adapters['onPath']): string | undefined =>
   tool === undefined || onPath(tool) ? undefined : tool;
 
 const readSide = async ({
@@ -74,6 +78,9 @@ const readSide = async ({
   revision,
   directory,
   config,
+  readers,
+  linkers,
+  onPath,
 }: ReadSideOptions): Promise<SideReading> => {
   await git(repo, 'worktree', 'add', '--detach', directory, revision);
   const { opened } = readers.reduce<{
@@ -96,7 +103,7 @@ const readSide = async ({
   );
   const kept = (stack: string): boolean => config.stacks[stack] !== false;
   const skipped = opened.flatMap(({ reader, checkout }) => {
-    const tool = missingToolOf(reader);
+    const tool = missingToolOf(reader, onPath);
     const stacks = [...checkout.stacks.values()].filter(kept);
     return tool === undefined || stacks.length === 0 ? [] : [{ reader: reader.name, tool, stacks }];
   });
@@ -225,7 +232,12 @@ const resolve = (repo: string, revision: string): Promise<string> =>
     throw new Error(`Unknown revision: ${revision}`);
   });
 
-export const readRange = async ({ repo, from, to }: ReadRangeOptions): Promise<RangeReading> => {
+export const readRange = async ({
+  repo,
+  from,
+  to,
+  ...adapters
+}: ReadRangeOptions): Promise<RangeReading> => {
   const [fromCommit, toCommit] = await Promise.all([resolve(repo, from), resolve(repo, to)]);
   const base = await git(repo, 'merge-base', fromCommit, toCommit);
   const config = await configAt(repo, toCommit);
@@ -236,14 +248,16 @@ export const readRange = async ({ repo, from, to }: ReadRangeOptions): Promise<R
       revision: base,
       directory: join(scratch, 'before'),
       config,
+      ...adapters,
     });
     const after = await readSide({
       repo,
       revision: toCommit,
       directory: join(scratch, 'after'),
       config,
+      ...adapters,
     });
-    checkConfig(config, [...before.stacks, ...after.stacks], linkers);
+    checkConfig(config, [...before.stacks, ...after.stacks], adapters.linkers);
     const changes = (await git(repo, 'diff', '--find-renames', '--name-status', base, toCommit))
       .split('\n')
       .filter(line => line !== '')
