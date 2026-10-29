@@ -325,6 +325,21 @@ test.for([
   },
 );
 
+test('a package drawn under a suffix is detected by the source root its config gives under that suffixed id', async () => {
+  using workspace = gitRepo({
+    'package.json': '{ "name": "web" }\n',
+    'src/a.ts': '',
+    'web/package.json': '{}\n',
+    'web/app/b.ts': '',
+    'visual-review.config.json': '{"stacks": {"web~2": {"sourceRoot": "app"}}}',
+  });
+  const { repo, root } = workspace;
+
+  const range = await readRange({ repo, from: root, to: root });
+
+  expect(nodeIds(range.after)).toEqual(['web', 'web/file/a.ts', 'web~2', 'web~2/file/b.ts']);
+});
+
 test("a config field the stack's reader does not take fails the review once, naming the file, the stack and the field", async () => {
   using workspace = cargoWorkspace();
   const { repo, root } = workspace;
