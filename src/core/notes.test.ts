@@ -99,6 +99,34 @@ test('a stack that appears in the change is not asked for a note, since notes ca
   ).toEqual([]);
 });
 
+test('a note may be keyed by an edge between its ends or any of the boxes above them, nested at any depth', () => {
+  const deep: GraphDiff = {
+    nodes: [
+      stack,
+      webModule('pages', 'unchanged'),
+      { ...webModule('pages/home', 'unchanged'), parent: 'web/module/pages' },
+      webFile('pages/home', 'index.tsx', 'unchanged'),
+      webModule('utils', 'unchanged'),
+    ],
+    edges: [{ from: 'web/file/pages/home/index.tsx', to: 'web/module/utils', state: 'added' }],
+  };
+
+  expect(
+    notesProblems({
+      diff: deep,
+      notes: notesWith({
+        summary: [],
+        notes: {
+          'web/module/pages -> web/module/utils': { text: 'Pages uses utils.' },
+          'web/module/pages/home -> web/module/utils': { text: 'Home uses utils.' },
+          'web/file/pages/home/index.tsx -> web/module/utils': { text: 'Its index does.' },
+          'web/module/utils -> web/module/pages/home': { text: 'Backwards.' },
+        },
+      }),
+    }),
+  ).toEqual(['unknown id web/module/utils -> web/module/pages/home']);
+});
+
 test.for([
   {
     problem: 'a note on a node that is not in the graph',

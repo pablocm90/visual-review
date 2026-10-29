@@ -1,7 +1,12 @@
 import { z } from 'zod';
 import type { GraphDiff } from './diff-graphs.ts';
 import { edgeId } from './graph.ts';
-import { type VisibleDiffOptions, visibleDiff, visibleNodeOf } from './visible-diff.ts';
+import {
+  boxesAboveIn,
+  type VisibleDiffOptions,
+  visibleDiff,
+  visibleNodeOf,
+} from './visible-diff.ts';
 
 const notesVersion = 1;
 
@@ -124,8 +129,8 @@ type NotesProblemsOptions = {
 };
 
 export const notesProblems = ({ diff, notes }: NotesProblemsOptions): ReadonlyArray<string> => {
-  const collapsedOf = visibleNodeOf({ diff, expanded: new Set() });
-  const endsOf = (id: string): ReadonlyArray<string> => [...new Set([id, collapsedOf(id)])];
+  const boxesAbove = boxesAboveIn(diff.nodes);
+  const endsOf = (id: string): ReadonlyArray<string> => [id, ...boxesAbove(id)];
   const known = new Set([
     ...diff.nodes.filter(node => node.kind !== 'stack').map(node => node.id),
     ...diff.edges.flatMap(edge =>

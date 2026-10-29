@@ -1,4 +1,4 @@
-import type { DiffedEdge, GraphDiff } from './diff-graphs.ts';
+import type { DiffedEdge, DiffedNode, GraphDiff } from './diff-graphs.ts';
 
 const sameEnds = (one: DiffedEdge, other: DiffedEdge): boolean =>
   one.from === other.from && one.to === other.to;
@@ -14,13 +14,18 @@ export type VisibleDiffOptions = {
   readonly expanded: ReadonlySet<string>;
 };
 
-export const visibleNodeOf = ({ diff, expanded }: VisibleDiffOptions) => {
-  const parentOf = new Map(diff.nodes.map(node => [node.id, node.parent]));
-  const stacks = new Set(diff.nodes.filter(node => node.kind === 'stack').map(node => node.id));
+export const boxesAboveIn = (nodes: ReadonlyArray<DiffedNode>) => {
+  const parentOf = new Map(nodes.map(node => [node.id, node.parent]));
+  const stacks = new Set(nodes.filter(node => node.kind === 'stack').map(node => node.id));
   const boxesAbove = (id: string): ReadonlyArray<string> => {
     const parent = parentOf.get(id);
     return parent === undefined || stacks.has(parent) ? [] : [...boxesAbove(parent), parent];
   };
+  return boxesAbove;
+};
+
+export const visibleNodeOf = ({ diff, expanded }: VisibleDiffOptions) => {
+  const boxesAbove = boxesAboveIn(diff.nodes);
   return (id: string): string => boxesAbove(id).find(box => !expanded.has(box)) ?? id;
 };
 
