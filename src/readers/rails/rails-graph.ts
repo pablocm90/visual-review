@@ -56,24 +56,19 @@ const definitionsAround = (node: Node): ReadonlyArray<Node> => {
   return DEFINITIONS.has(parent.type) ? [...around, parent] : around;
 };
 
-const scopesOf = (node: Node): ReadonlyArray<string> =>
-  definitionsAround(node)
-    .map(definition => definition.childForFieldName('name')?.text ?? '')
-    .reduce<ReadonlyArray<string>>(
-      (scopes, name) => [scopes[0] === undefined ? name : `${scopes[0]}::${name}`, ...scopes],
-      [],
-    );
+const prefixesOf = (parts: ReadonlyArray<string>): ReadonlyArray<string> =>
+  parts.map((_, end) => parts.slice(0, parts.length - end).join('::'));
 
-const prefixesOf = (name: string): ReadonlyArray<string> => {
-  const parts = name.split('::');
-  return parts.map((_, end) => parts.slice(0, parts.length - end).join('::'));
-};
+const scopesOf = (node: Node): ReadonlyArray<string> =>
+  prefixesOf(
+    definitionsAround(node).map(definition => definition.childForFieldName('name')?.text ?? ''),
+  );
 
 const resolved = (node: Node, constants: ReadonlySet<string>): string | undefined => {
   const fromTop = node.text.startsWith('::');
   const name = fromTop ? node.text.slice(2) : node.text;
   return [...(fromTop ? [] : scopesOf(node)).map(scope => `${scope}::`), '']
-    .flatMap(scope => prefixesOf(name).map(prefix => `${scope}${prefix}`))
+    .flatMap(scope => prefixesOf(name.split('::')).map(prefix => `${scope}${prefix}`))
     .find(candidate => constants.has(candidate));
 };
 
