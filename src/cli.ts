@@ -4,7 +4,7 @@ import { lstat, mkdir, readFile, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { parseArgs, promisify } from 'node:util';
 import { diffGraphs, splitPatches } from './core/diff-graphs.ts';
-import { notesProblems, readNotes } from './core/notes.ts';
+import { notesProblems, parseNotes } from './core/notes.ts';
 import { readRange } from './core/read-range.ts';
 import type { ReviewData } from './core/review-data.ts';
 import { notReadLine } from './core/skipped.ts';
@@ -66,7 +66,7 @@ type FillNotesOptions = {
 };
 
 const fillNotes = async ({ range, page, data, notesFile }: FillNotesOptions): Promise<void> => {
-  const notes = await readNotes(notesFile);
+  const notes = parseNotes({ text: await readFile(notesFile, 'utf8'), file: notesFile });
   const review: ReviewData = JSON.parse(
     await readFile(data, 'utf8').catch(() => {
       throw new Error(`No page for ${range} yet: run visual-review without --notes first`);

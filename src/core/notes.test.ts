@@ -1,9 +1,6 @@
-import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
-import { tmpdir } from 'node:os';
-import { join } from 'node:path';
 import { expect, test } from 'vitest';
 import type { GraphDiff } from './diff-graphs.ts';
-import { notesJsonSchema, notesProblems, type ReviewNotes, readNotes } from './notes.ts';
+import { notesJsonSchema, notesProblems, parseNotes, type ReviewNotes } from './notes.ts';
 
 type NodeState = GraphDiff['nodes'][number]['state'];
 
@@ -141,12 +138,7 @@ test.for([
   expect(notesProblems({ diff, notes })).toEqual(expected);
 });
 
-const notesFile = (text: string) => {
-  const directory = mkdtempSync(join(tmpdir(), 'visual-review-notes-'));
-  const file = join(directory, 'x.notes.json');
-  writeFileSync(file, text);
-  return { file, [Symbol.dispose]: () => rmSync(directory, { recursive: true, force: true }) };
-};
+const file = 'x.notes.json';
 
 test.for([
   {
@@ -166,20 +158,16 @@ test.for([
   },
 ])(
   'a notes file with $problem is rejected naming the file and the version this CLI reads',
-  async ({ contents, reason }) => {
-    using notes = notesFile(JSON.stringify(contents));
-
-    await expect(readNotes(notes.file)).rejects.toThrow(
-      new Error(`Invalid notes file ${notes.file}: ${reason}; this visual-review reads version 1`),
+  ({ contents, reason }) => {
+    expect(() => parseNotes({ text: JSON.stringify(contents), file })).toThrow(
+      new Error(`Invalid notes file ${file}: ${reason}; this visual-review reads version 1`),
     );
   },
 );
 
-test('a notes file that is not JSON is rejected naming the file', async () => {
-  using notes = notesFile('{ "version": 1,');
-
-  await expect(readNotes(notes.file)).rejects.toThrow(
-    `Invalid notes file ${notes.file}: SyntaxError`,
+test('a notes file that is not JSON is rejected naming the file', () => {
+  expect(() => parseNotes({ text: '{ "version": 1,', file })).toThrow(
+    `Invalid notes file ${file}: SyntaxError`,
   );
 });
 
@@ -195,26 +183,19 @@ test.for([
     overrides: { notes: { 'web/module/pages': { text: 'Formats.', flags: 'cycle' } } },
     key: 'flags',
   },
-])(
-  'an unknown key on $level is rejected naming the file and the key',
-  async ({ overrides, key }) => {
-    using notes = notesFile(JSON.stringify({ ...notesWith(), ...overrides }));
+])('an unknown key on $level is rejected naming the file and the key', ({ overrides, key }) => {
+  expect(() =>
+    parseNotes({ text: JSON.stringify({ ...notesWith(), ...overrides }), file }),
+  ).toThrow(new RegExp(`^Invalid notes file ${file}: .*"${key}"`, 's'));
+});
 
-    await expect(readNotes(notes.file)).rejects.toThrow(
-      new RegExp(`^Invalid notes file ${notes.file}: .*"${key}"`, 's'),
-    );
-  },
-);
+test('a notes file may name its schema', () => {
+  const text = JSON.stringify({
+    $schema: 'https://unpkg.com/@pablocm90/visual-review@0.1/dist/notes.schema.json',
+    ...notesWith(),
+  });
 
-test('a notes file may name its schema', async () => {
-  using notes = notesFile(
-    JSON.stringify({
-      $schema: 'https://unpkg.com/@pablocm90/visual-review@0.1/dist/notes.schema.json',
-      ...notesWith(),
-    }),
-  );
-
-  await expect(readNotes(notes.file)).resolves.toMatchObject(notesWith());
+  expect(parseNotes({ text, file })).toMatchObject(notesWith());
 });
 
 test('the published notes schema marks no field read-only, since notes are written by hand or by agents', () => {

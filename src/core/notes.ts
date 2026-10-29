@@ -1,4 +1,3 @@
-import { readFile } from 'node:fs/promises';
 import { z } from 'zod';
 import type { GraphDiff } from './diff-graphs.ts';
 import { edgeId, visibleDiff, visibleNodeOf, visibleNotes } from './visible-diff.ts';
@@ -56,16 +55,21 @@ const invalidNotes = (file: string, reason: unknown): Error =>
 const versionProblem = (version: unknown): string =>
   `${version === undefined ? 'no "version"' : `version ${JSON.stringify(version)} is unknown`}; this visual-review reads version ${notesVersion}`;
 
-const contentsOf = async (file: string): Promise<unknown> => {
+const contentsOf = (text: string, file: string): unknown => {
   try {
-    return JSON.parse(await readFile(file, 'utf8'));
+    return JSON.parse(text);
   } catch (error) {
     throw invalidNotes(file, error);
   }
 };
 
-export const readNotes = async (file: string): Promise<ReviewNotes> => {
-  const contents = await contentsOf(file);
+type ParseNotesOptions = {
+  readonly text: string;
+  readonly file: string;
+};
+
+export const parseNotes = ({ text, file }: ParseNotesOptions): ReviewNotes => {
+  const contents = contentsOf(text, file);
   const version = VersionedSchema.safeParse(contents).data?.version;
   if (version !== notesVersion) {
     throw invalidNotes(file, versionProblem(version));
