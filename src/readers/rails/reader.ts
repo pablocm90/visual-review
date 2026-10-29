@@ -1,10 +1,10 @@
 import { existsSync, globSync } from 'node:fs';
 import { basename, dirname, join } from 'node:path';
-import { addedStacks } from '../config.ts';
-import { railsGraph } from '../rails-graph.ts';
-import type { Reader } from '../reader.ts';
-import { stackIds } from '../stack-ids.ts';
-import { sourcesIn } from './sources-in.ts';
+import { addedStacks } from '../../config.ts';
+import type { Reader } from '../../reader.ts';
+import { stackIds } from '../../stack-ids.ts';
+import { sourcesIn } from '../sources-in.ts';
+import { railsGraph } from './rails-graph.ts';
 
 const APPLICATION = 'config/application.rb';
 

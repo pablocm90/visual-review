@@ -10,7 +10,7 @@ import type { DanglingCall, Linker } from './linker.ts';
 import { fetchAxumLinker } from './linkers/fetch-axum.ts';
 import { onPath } from './on-path.ts';
 import type { OpenedCheckout, Reader } from './reader.ts';
-import { railsReader } from './readers/rails.ts';
+import { railsReader } from './readers/rails/reader.ts';
 import { rustReader } from './readers/rust/reader.ts';
 import { typeScriptReader } from './readers/typescript.ts';
 import type { Skipped } from './skipped.ts';

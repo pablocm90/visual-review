@@ -1,8 +1,8 @@
 import { rmSync } from 'node:fs';
 import { basename, join } from 'node:path';
 import { expect, test } from 'vitest';
-import { readRange } from './read-range.ts';
-import { commit, gitRepo } from './test-support/cargo-workspace.ts';
+import { readRange } from '../../read-range.ts';
+import { commit, gitRepo } from '../../test-support/cargo-workspace.ts';
 
 const railsApp = { 'config/application.rb': 'module Shop\n  class Application\n  end\nend\n' };
 
