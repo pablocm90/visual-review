@@ -17,10 +17,11 @@ export type VisibleDiffOptions = {
 export const visibleNodeOf = ({ diff, expanded }: VisibleDiffOptions) => {
   const parentOf = new Map(diff.nodes.map(node => [node.id, node.parent]));
   const stacks = new Set(diff.nodes.filter(node => node.kind === 'stack').map(node => node.id));
-  return (id: string): string => {
+  const boxesAbove = (id: string): ReadonlyArray<string> => {
     const parent = parentOf.get(id);
-    return parent === undefined || stacks.has(parent) || expanded.has(parent) ? id : parent;
+    return parent === undefined || stacks.has(parent) ? [] : [...boxesAbove(parent), parent];
   };
+  return (id: string): string => boxesAbove(id).find(box => !expanded.has(box)) ?? id;
 };
 
 export const visibleDiff = ({ diff, expanded }: VisibleDiffOptions): GraphDiff => {

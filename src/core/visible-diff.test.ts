@@ -81,6 +81,37 @@ test.for<{
   expect(visibleDiff({ diff: nested(edges), expanded: new Set() }).edges).toEqual(drawn);
 });
 
+test.for<{
+  readonly opened: ReadonlyArray<string>;
+  readonly nodes: ReadonlyArray<string>;
+  readonly edge: string;
+}>([
+  { opened: [], nodes: ['web', 'A', 'B'], edge: 'A -> B' },
+  { opened: ['A'], nodes: ['web', 'A', 'A1', 'B'], edge: 'A1 -> B' },
+  { opened: ['A', 'A1'], nodes: ['web', 'A', 'A1', 'leaf', 'B'], edge: 'leaf -> B' },
+  { opened: ['A1'], nodes: ['web', 'A', 'B'], edge: 'A -> B' },
+])(
+  'a file in a box inside a box is drawn as the outermost closed box above it, with $opened open',
+  ({ opened, nodes, edge }) => {
+    const drawn = visibleDiff({
+      diff: {
+        nodes: [
+          node('web', 'stack'),
+          node('A', 'module', 'web'),
+          node('A1', 'module', 'A'),
+          node('leaf', 'file', 'A1'),
+          node('B', 'module', 'web'),
+        ],
+        edges: [{ from: 'leaf', to: 'B', state: 'added' }],
+      },
+      expanded: new Set(opened),
+    });
+
+    expect(drawn.nodes.map(({ id }) => id)).toEqual(nodes);
+    expect(drawn.edges.map(({ from, to }) => `${from} -> ${to}`)).toEqual([edge]);
+  },
+);
+
 const changed = (base: DiffedNode): DiffedNode => ({ ...base, state: 'modified' });
 
 test.for<{
