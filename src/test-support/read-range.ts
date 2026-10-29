@@ -6,7 +6,8 @@ type RangeOptions = {
   readonly repo: string;
   readonly from: string;
   readonly to: string;
+  readonly onPath?: (command: string) => boolean;
 };
 
 export const readRange = (range: RangeOptions): Promise<RangeReading> =>
-  readRangeWith({ ...range, readers, linkers, onPath });
+  readRangeWith({ readers, linkers, onPath, ...range });

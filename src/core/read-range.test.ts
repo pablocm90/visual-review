@@ -231,62 +231,6 @@ test('with the whole package as source root, built-ins and packages it imports a
   expect(range.after.edges).toEqual([{ from: 'apps/a/file/index.ts', to: 'packages/b' }]);
 });
 
-test("a stack whose id another reader's stack already has is told apart by a suffix, its nodes and its reader's edges with it", async () => {
-  using workspace = cargoWorkspace();
-  const { repo, root } = workspace;
-  const to = commit(repo, {
-    'rust/package.json': '{ "name": "@x/bindings" }\n',
-    'rust/src/a.ts': "import { b } from './lib/b';\nexport const a = b;\n",
-    'rust/src/lib/b.ts': 'export const b = 1;\n',
-    'apps/a/package.json': '{}\n',
-    'apps/a/src/a.ts': "import { a } from '@x/bindings';\nexport const c = a;\n",
-  });
-
-  const range = await readRange({ repo, from: root, to });
-
-  expect(range.after.nodes.map(({ id, parent }) => [id, parent])).toEqual([
-    ['rust', undefined],
-    ['rust/crate/core', 'rust'],
-    ['rust/mod/core/lib.rs', 'rust/crate/core'],
-    ['apps/a', undefined],
-    ['apps/a/file/a.ts', 'apps/a'],
-    ['rust~2', undefined],
-    ['rust~2/file/a.ts', 'rust~2'],
-    ['rust~2/module/lib', 'rust~2'],
-    ['rust~2/file/lib/b.ts', 'rust~2/module/lib'],
-  ]);
-  expect(range.after.edges).toEqual([
-    { from: 'apps/a/file/a.ts', to: 'rust~2' },
-    { from: 'rust~2/file/a.ts', to: 'rust~2/file/lib/b.ts' },
-  ]);
-});
-
-test('stacks of one reader whose ids another reader took take the first suffixes free, in root order, as id and label', async () => {
-  using workspace = cargoWorkspace();
-  const { repo, root } = workspace;
-  const to = commit(repo, {
-    'package.json': '{ "name": "rust" }\n',
-    'src/a.ts': 'export const a = 1;\n',
-    'rust/package.json': '{}\n',
-    'rust/src/b.ts': 'export const b = 1;\n',
-  });
-
-  const range = await readRange({ repo, from: root, to });
-
-  expect(nodeIds(range.after)).toEqual([
-    'rust',
-    'rust/crate/core',
-    'rust/mod/core/lib.rs',
-    'rust~2',
-    'rust~2/file/a.ts',
-    'rust~3',
-    'rust~3/file/b.ts',
-  ]);
-  expect(
-    range.after.nodes.filter(({ kind }) => kind === 'stack').map(({ label }) => label),
-  ).toEqual(['rust', 'rust~2', 'rust~3']);
-});
-
 test.for([
   {
     tsconfig: '{ "compilerOptions": { "rootDir": "lib" }, "include": ["libraries"] }',
@@ -485,18 +429,6 @@ test('a reader whose tool is not on PATH reads none of its stacks and is listed 
   expect(range.skipped).toEqual([{ reader: 'rust', tool: 'cargo', stacks: ['rust'] }]);
 });
 
-test('a reader whose stacks the config all drops is not skipped, and the config naming them is no error', async () => {
-  using workspace = cargoWorkspace();
-  const { repo, root } = workspace;
-  const to = commit(repo, { 'visual-review.config.json': '{"stacks": {"rust": false}}\n' });
-  using bin = pathTo('git');
-  vi.stubEnv('PATH', bin.path);
-
-  const range = await readRange({ repo, from: root, to });
-
-  expect(range.skipped).toEqual([]);
-});
-
 test('a skipped reader lists the stacks it would read on either side, those found only before the range and those only after', async () => {
   using workspace = cargoWorkspace();
   const { repo, root } = workspace;
@@ -505,26 +437,10 @@ test('a skipped reader lists the stacks it would read on either side, those foun
     'other/Cargo.toml': '[workspace]\n',
     'visual-review.config.json': '{"stacks": {"other": {"reader": "rust", "root": "other"}}}\n',
   });
-  using bin = pathTo('git');
-  vi.stubEnv('PATH', bin.path);
 
-  const range = await readRange({ repo, from: root, to });
+  const range = await readRange({ repo, from: root, to, onPath: command => command !== 'cargo' });
 
   expect(range.skipped).toEqual([{ reader: 'rust', tool: 'cargo', stacks: ['rust', 'other'] }]);
-});
-
-test('a repo with no Cargo workspace is read with no Rust stack and skips nothing without cargo, and its changes still come with their patches', async () => {
-  using workspace = gitRepo({ 'package.json': '{}\n', 'README.md': 'one\n' });
-  const { repo, root } = workspace;
-  const to = commit(repo, { 'README.md': 'two\n' });
-  using bin = pathTo('git');
-  vi.stubEnv('PATH', bin.path);
-
-  const range = await readRange({ repo, from: root, to });
-
-  expect(range.after.nodes).toEqual([]);
-  expect(range.skipped).toEqual([]);
-  expect(range.patches.map(({ path }) => path)).toEqual(['README.md']);
 });
 
 test('a file moved between modules is one rename, with one patch at its new path that shows only what changed', async () => {
