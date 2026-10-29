@@ -27,6 +27,8 @@ export type Graph = {
 
 export const edgeId = (edge: GraphEdge): string => `${edge.from} -> ${edge.to}`;
 
+export const endsOfId = (id: string): ReadonlyArray<string> => id.split(' -> ');
+
 export const stackOfIn = (nodes: ReadonlyArray<GraphNode>): ((id: string) => string) => {
   const parents = new Map(nodes.map(node => [node.id, node.parent]));
   const stackOf = (id: string): string => {

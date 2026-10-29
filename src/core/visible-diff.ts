@@ -1,4 +1,5 @@
 import type { DiffedEdge, DiffedNode, GraphDiff } from './diff-graphs.ts';
+import { edgeId, endsOfId } from './graph.ts';
 
 const sameEnds = (one: DiffedEdge, other: DiffedEdge): boolean =>
   one.from === other.from && one.to === other.to;
@@ -28,6 +29,23 @@ export const visibleNodeOf = ({ diff, expanded }: VisibleDiffOptions) => {
   const boxesAbove = boxesAboveIn(diff.nodes);
   return (id: string): string => boxesAbove(id).find(box => !expanded.has(box)) ?? id;
 };
+
+type ToShowOptions = VisibleDiffOptions & {
+  readonly id: string;
+};
+
+export const expandedToShow = ({ diff, expanded, id }: ToShowOptions): ReadonlySet<string> => {
+  const boxesAbove = boxesAboveIn(diff.nodes);
+  return new Set([...expanded, ...endsOfId(id).flatMap(end => boxesAbove(end))]);
+};
+
+type IsDrawnOptions = {
+  readonly diff: GraphDiff;
+  readonly id: string;
+};
+
+export const isDrawn = ({ diff, id }: IsDrawnOptions): boolean =>
+  [...diff.nodes.map(node => node.id), ...diff.edges.map(edgeId)].includes(id);
 
 export const visibleDiff = ({ diff, expanded }: VisibleDiffOptions): GraphDiff => {
   const visibleOf = visibleNodeOf({ diff, expanded });

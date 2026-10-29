@@ -1,6 +1,6 @@
 import { expect, test } from 'vitest';
 import type { DiffedEdge, DiffedNode, GraphDiff } from './diff-graphs.ts';
-import { nearChanges, visibleDiff } from './visible-diff.ts';
+import { expandedToShow, nearChanges, visibleDiff } from './visible-diff.ts';
 
 const node = (id: string, kind: DiffedNode['kind'], parent?: string): DiffedNode => ({
   id,
@@ -111,6 +111,26 @@ test.for<{
     expect(drawn.edges.map(({ from, to }) => `${from} -> ${to}`)).toEqual([edge]);
   },
 );
+
+test.for<{ readonly target: string; readonly opened: ReadonlyArray<string> }>([
+  { target: 'leaf', opened: ['B', 'A', 'A1'] },
+  { target: 'leaf -> B', opened: ['B', 'A', 'A1'] },
+  { target: 'A1 -> B', opened: ['B', 'A'] },
+  { target: 'A', opened: ['B'] },
+])('going to $target opens every box above it, or above both its ends', ({ target, opened }) => {
+  const diff: GraphDiff = {
+    nodes: [
+      node('web', 'stack'),
+      node('A', 'module', 'web'),
+      node('A1', 'module', 'A'),
+      node('leaf', 'file', 'A1'),
+      node('B', 'module', 'web'),
+    ],
+    edges: [{ from: 'leaf', to: 'B', state: 'added' }],
+  };
+
+  expect([...expandedToShow({ diff, expanded: new Set(['B']), id: target })]).toEqual(opened);
+});
 
 const changed = (base: DiffedNode): DiffedNode => ({ ...base, state: 'modified' });
 

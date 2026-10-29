@@ -735,7 +735,7 @@ test("selecting a node narrows the tests section to the test files at or under i
   expect(within(tests).getByText('The notes check is pinned; the CLI is not.')).not.toBeNull();
 });
 
-test("ticking 'Changed + 1 hop' hides what is more than one edge from a change; going to a hidden node from the summary unticks it, and going to a shown one doesn't", async () => {
+test("ticking 'Changed + 1 hop' hides what is more than one edge from a change; going to a hidden node from the summary unticks it, and going to a shown node or edge doesn't", async () => {
   const user = userEvent.setup();
   render(
     <ReviewPage
@@ -759,6 +759,7 @@ test("ticking 'Changed + 1 hop' hides what is more than one edge from a change; 
         tests: '',
         summary: [
           { text: 'Read the use case.', target: 'rust/crate/application' },
+          { text: 'See what it uses.', target: 'rust/crate/application -> rust/crate/domain' },
           { text: 'Check the CLI.', target: 'rust/crate/cli-adapter' },
         ],
         notes: {},
@@ -781,6 +782,7 @@ test("ticking 'Changed + 1 hop' hides what is more than one edge from a change; 
   await waitFor(() => expect(buttonsIn(rust)).toEqual(near));
   const summary = screen.getByRole('region', { name: 'Summary' });
   await user.click(within(summary).getByRole('button', { name: 'Read the use case.' }));
+  await user.click(within(summary).getByRole('button', { name: 'See what it uses.' }));
   expect(hop).toHaveProperty('checked', true);
   await user.click(within(summary).getByRole('button', { name: 'Check the CLI.' }));
 

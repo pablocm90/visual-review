@@ -6,7 +6,13 @@ import { type Note, type ReviewNotes, visibleNotes } from '../core/notes.ts';
 import type { PageData } from '../core/page.ts';
 import { notReadLine } from '../core/skipped.ts';
 import type { MarkedTest, TestChange, TestStatement } from '../core/test-changes.ts';
-import { nearChanges, visibleDiff, visibleNodeOf } from '../core/visible-diff.ts';
+import {
+  expandedToShow,
+  isDrawn,
+  nearChanges,
+  visibleDiff,
+  visibleNodeOf,
+} from '../core/visible-diff.ts';
 import { highlightPatch, type PatchLine as Line, type Piece } from './highlight-patch.ts';
 import {
   type Layout,
@@ -457,14 +463,9 @@ export const ReviewPage = ({ review, notes }: ReviewPageProps) => {
   const [focusTarget, setFocusTarget] = useState<string>();
   const goTo = (id: string) => {
     setSelected(id);
-    const edge = review.diff.edges.find(other => edgeId(other) === id);
-    const parents = (edge ? [edge.from, edge.to] : [id]).flatMap(
-      end => review.diff.nodes.find(node => node.id === end)?.parent ?? [],
-    );
-    const opened = new Set([...expanded, ...parents]);
+    const opened = expandedToShow({ diff: review.diff, expanded, id });
     setExpanded(opened);
-    const near = nearChanges(visibleDiff({ diff: review.diff, expanded: opened }));
-    if (![...near.nodes.map(node => node.id), ...near.edges.map(edgeId)].includes(id)) {
+    if (!isDrawn({ diff: nearChanges(visibleDiff({ diff: review.diff, expanded: opened })), id })) {
       setNearOnly(false);
     }
     setFocusTarget(id);
