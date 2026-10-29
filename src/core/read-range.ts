@@ -4,11 +4,17 @@ import { mkdtemp, readFile, realpath, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { basename, join, relative } from 'node:path';
 import { promisify } from 'node:util';
-import { CONFIG_FILE, type Config, checkConfig, parseConfig } from './config.ts';
+import { CONFIG_FILE, type Config, parseConfig } from './config.ts';
 import type { FilePatch, Rename } from './diff-graphs.ts';
 import type { Graph } from './graph.ts';
 import type { DanglingCall } from './linker.ts';
-import { type Adapters, type ReaderRoot, readStacks, type StacksReading } from './read-stacks.ts';
+import {
+  type Adapters,
+  checkConfig,
+  type ReaderRoot,
+  readStacks,
+  type StacksReading,
+} from './read-stacks.ts';
 import type { Reader } from './reader.ts';
 import type { Skipped } from './skipped.ts';
 import { type TestFile, testChanges, withMovedTests } from './test-changes.ts';
