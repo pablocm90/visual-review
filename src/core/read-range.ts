@@ -4,15 +4,12 @@ import { mkdtemp, readFile, realpath, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { basename, join, relative } from 'node:path';
 import { promisify } from 'node:util';
-import { fetchAxumLinker } from '../linkers/fetch-axum/linker.ts';
+import { linkers, readers } from '../adapters.ts';
 import { onPath } from '../on-path.ts';
-import { railsReader } from '../readers/rails/reader.ts';
-import { rustReader } from '../readers/rust/reader.ts';
-import { typeScriptReader } from '../readers/typescript/reader.ts';
 import { CONFIG_FILE, type Config, checkConfig, configuredNodes, parseConfig } from './config.ts';
 import type { FilePatch, Rename } from './diff-graphs.ts';
 import { type Graph, stackOfIn } from './graph.ts';
-import type { DanglingCall, Linker } from './linker.ts';
+import type { DanglingCall } from './linker.ts';
 import type { OpenedCheckout, Reader } from './reader.ts';
 import type { Skipped } from './skipped.ts';
 import { type TestFile, testChanges, withMovedTests } from './test-changes.ts';
@@ -38,10 +35,6 @@ type ReadRangeOptions = {
 
 const git = async (repo: string, ...args: ReadonlyArray<string>): Promise<string> =>
   (await run('git', ['-C', repo, ...args])).stdout.trim();
-
-const readers: ReadonlyArray<Reader> = [rustReader, typeScriptReader, railsReader];
-
-const linkers: ReadonlyArray<Linker> = [fetchAxumLinker];
 
 type ReaderRoot = {
   readonly reader: Reader;
