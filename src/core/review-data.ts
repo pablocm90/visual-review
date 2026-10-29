@@ -1,8 +1,7 @@
 import type { PullRequest } from '../pull-request.ts';
-import type { GraphDiff } from './diff-graphs.ts';
+import type { FilePatch, GraphDiff } from './diff-graphs.ts';
 import type { DanglingCall } from './linker.ts';
 import type { ReviewNotes } from './notes.ts';
-import type { FilePatch } from './read-range.ts';
 import type { Skipped } from './skipped.ts';
 import type { TestFile } from './test-changes.ts';
 

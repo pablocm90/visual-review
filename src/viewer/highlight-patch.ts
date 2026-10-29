@@ -8,7 +8,7 @@ import rust from 'highlight.js/lib/languages/rust';
 import typescript from 'highlight.js/lib/languages/typescript';
 import xml from 'highlight.js/lib/languages/xml';
 import yaml from 'highlight.js/lib/languages/yaml';
-import type { FilePatch } from '../core/read-range.ts';
+import type { FilePatch } from '../core/diff-graphs.ts';
 
 const LANGUAGE_BY_NAME: Readonly<Record<string, string>> = {
   'Cargo.lock': 'ini',

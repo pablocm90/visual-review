@@ -10,6 +10,7 @@ import { railsReader } from '../readers/rails/reader.ts';
 import { rustReader } from '../readers/rust/reader.ts';
 import { typeScriptReader } from '../readers/typescript/reader.ts';
 import { CONFIG_FILE, type Config, checkConfig, configuredNodes, parseConfig } from './config.ts';
+import type { FilePatch, Rename } from './diff-graphs.ts';
 import { type Graph, stackOfIn } from './graph.ts';
 import type { DanglingCall, Linker } from './linker.ts';
 import type { OpenedCheckout, Reader } from './reader.ts';
@@ -17,16 +18,6 @@ import type { Skipped } from './skipped.ts';
 import { type TestFile, testChanges, withMovedTests } from './test-changes.ts';
 
 const run = promisify(execFile);
-
-export type FilePatch = {
-  readonly path: string;
-  readonly patch: string;
-};
-
-export type Rename = {
-  readonly from: string;
-  readonly to: string;
-};
 
 export type RangeReading = {
   readonly before: Graph;

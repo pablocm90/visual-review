@@ -1,5 +1,14 @@
 import { edgeKey, type Graph, type GraphEdge, type GraphNode } from './graph.ts';
-import type { FilePatch, Rename } from './read-range.ts';
+
+export type FilePatch = {
+  readonly path: string;
+  readonly patch: string;
+};
+
+export type Rename = {
+  readonly from: string;
+  readonly to: string;
+};
 
 type Diffed<T, KeptState> = T & { readonly state: 'added' | 'removed' | KeptState };
 
