@@ -90,9 +90,13 @@ export const railsGraph = ({ stack, root, files }: RailsGraphOptions): Graph => 
       .map(node => [node.id, node]),
   );
   const edges = classes.flatMap(({ constant, program }) =>
-    (program?.descendantsOfType(['constant', 'scope_resolution']) ?? [])
-      .filter(written => written.parent?.type !== 'scope_resolution' && !isDefinedName(written))
-      .map(({ text }) => text)
+    [
+      ...new Set(
+        (program?.descendantsOfType(['constant', 'scope_resolution']) ?? [])
+          .filter(written => written.parent?.type !== 'scope_resolution' && !isDefinedName(written))
+          .map(({ text }) => text),
+      ),
+    ]
       .filter(written => written !== constant)
       .map(written => ({ from: `${stack}/class/${constant}`, to: `${stack}/class/${written}` })),
   );

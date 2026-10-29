@@ -220,10 +220,10 @@ test('app/lib is a box of its own, apart from lib/', async () => {
   ]);
 });
 
-test("a constant a class writes draws an edge to the app's class it names, and constants naming no class of the app draw none", async () => {
+test("a constant a class writes draws an edge to the app's class it names, while its own name and constants naming no class of the app draw none", async () => {
   using workspace = gitRepo({
     ...railsApp,
-    'app/models/order.rb': 'class Order\nend\n',
+    'app/models/order.rb': 'class Order\n  def self.recent = Order.where(recent: true)\nend\n',
     'app/controllers/orders_controller.rb':
       'class OrdersController\n  def index\n    Rails.logger.info(JSON.dump(Stripe::Charge.list))\n  end\nend\n',
   });
@@ -271,5 +271,24 @@ test('a scoped constant a class writes names the class it reads in whole, not th
 
   expect(range.after.edges).toEqual([
     { from: `${shop}/class/ReportsController`, to: `${shop}/class/Admin::User` },
+  ]);
+});
+
+test('a class draws one edge to each class it writes, in the order it first writes them', async () => {
+  using workspace = gitRepo({
+    ...railsApp,
+    'app/models/money.rb': 'class Money\nend\n',
+    'app/models/order.rb': 'class Order\nend\n',
+    'app/controllers/checkout_controller.rb':
+      'class CheckoutController\n  def create\n    Money.new(Order.find(1).total - Money.zero)\n  end\nend\n',
+  });
+  const { repo, root } = workspace;
+  const shop = basename(repo);
+
+  const range = await readRange({ repo, from: root, to: root });
+
+  expect(range.after.edges).toEqual([
+    { from: `${shop}/class/CheckoutController`, to: `${shop}/class/Money` },
+    { from: `${shop}/class/CheckoutController`, to: `${shop}/class/Order` },
   ]);
 });
