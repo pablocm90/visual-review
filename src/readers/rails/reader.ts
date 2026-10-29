@@ -1,8 +1,8 @@
 import { existsSync, globSync } from 'node:fs';
 import { basename, dirname, join } from 'node:path';
-import { addedStacks } from '../../config.ts';
-import type { Reader } from '../../reader.ts';
-import { stackIds } from '../../stack-ids.ts';
+import { addedStacks } from '../../core/config.ts';
+import type { Reader } from '../../core/reader.ts';
+import { stackIds } from '../../core/stack-ids.ts';
 import { sourcesIn } from '../sources-in.ts';
 import { railsGraph } from './rails-graph.ts';
 

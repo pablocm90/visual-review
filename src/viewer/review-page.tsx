@@ -1,9 +1,17 @@
 import { type KeyboardEvent, type PointerEvent, useEffect, useMemo, useRef, useState } from 'react';
-import { isAtOrUnder } from '../diff-graphs.ts';
-import type { Note, ReviewNotes } from '../notes.ts';
-import type { FilePatch } from '../read-range.ts';
-import { notReadLine } from '../skipped.ts';
-import type { MarkedTest, TestChange, TestStatement } from '../test-statements.ts';
+import { isAtOrUnder } from '../core/diff-graphs.ts';
+import type { Note, ReviewNotes } from '../core/notes.ts';
+import type { FilePatch } from '../core/read-range.ts';
+import type { ReviewData } from '../core/review-data.ts';
+import { notReadLine } from '../core/skipped.ts';
+import type { MarkedTest, TestChange, TestStatement } from '../core/test-changes.ts';
+import {
+  edgeId,
+  nearChanges,
+  visibleDiff,
+  visibleNodeOf,
+  visibleNotes,
+} from '../core/visible-diff.ts';
 import { highlightPatch, type PatchLine as Line, type Piece } from './highlight-patch.ts';
 import {
   type Layout,
@@ -12,8 +20,6 @@ import {
   type PlacedNode,
   type PlacedStack,
 } from './layout.ts';
-import type { ReviewData } from './review-data.ts';
-import { edgeId, nearChanges, visibleDiff, visibleNodeOf, visibleNotes } from './visible-diff.ts';
 
 const STATES = ['added', 'removed', 'modified', 'unchanged'] as const;
 

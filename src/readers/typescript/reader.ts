@@ -3,9 +3,9 @@ import { basename, dirname, join, relative } from 'node:path';
 import { cruise } from 'dependency-cruiser';
 import { parse } from 'jsonc-parser';
 import { z } from 'zod';
-import { addedStacks, folderOf, stackSettings } from '../../config.ts';
-import type { Checkout, Reader } from '../../reader.ts';
-import { stackIds } from '../../stack-ids.ts';
+import { addedStacks, folderOf, stackSettings } from '../../core/config.ts';
+import type { Checkout, Reader } from '../../core/reader.ts';
+import { stackIds } from '../../core/stack-ids.ts';
 import { readTypeScriptTests } from './typescript-tests.ts';
 import { webGraph } from './web-graph.ts';
 

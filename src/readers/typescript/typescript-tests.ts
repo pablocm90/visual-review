@@ -1,6 +1,6 @@
 import { parse } from '@babel/parser';
 import type { Node, Statement } from '@babel/types';
-import type { ReadTest, TestLabel } from '../../test-statements.ts';
+import type { ReadTest, TestLabel } from '../../core/test-changes.ts';
 
 const TEST_CALLS = new Set(['test', 'it']);
 

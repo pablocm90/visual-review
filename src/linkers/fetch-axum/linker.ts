@@ -1,7 +1,7 @@
 import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
-import type { GraphNode } from '../../graph.ts';
-import type { Linker } from '../../linker.ts';
+import type { GraphNode } from '../../core/graph.ts';
+import type { Linker } from '../../core/linker.ts';
 import { apiRoutes, callGraph, webCalls } from './api-paths.ts';
 
 const TABLE_HEADER = /^\[([^\]]*)\]/;

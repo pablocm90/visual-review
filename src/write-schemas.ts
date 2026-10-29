@@ -1,7 +1,7 @@
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { configJsonSchema } from './config.ts';
-import { notesJsonSchema } from './notes.ts';
+import { configJsonSchema } from './core/config.ts';
+import { notesJsonSchema } from './core/notes.ts';
 
 const write = (name: string, schema: unknown): void =>
   writeFileSync(

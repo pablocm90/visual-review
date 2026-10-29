@@ -1,6 +1,6 @@
 import { dirname, relative } from 'node:path';
 import { z } from 'zod';
-import type { Graph, GraphNode } from '../../graph.ts';
+import type { Graph, GraphNode } from '../../core/graph.ts';
 
 const CargoMetadataSchema = z.object({
   workspace_root: z.string(),

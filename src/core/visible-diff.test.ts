@@ -1,6 +1,6 @@
 import { expect, test } from 'vitest';
-import type { DiffedEdge, DiffedNode, GraphDiff } from '../diff-graphs.ts';
-import type { Note } from '../notes.ts';
+import type { DiffedEdge, DiffedNode, GraphDiff } from './diff-graphs.ts';
+import type { Note } from './notes.ts';
 import { nearChanges, visibleDiff, visibleNotes } from './visible-diff.ts';
 
 const node = (id: string, kind: DiffedNode['kind'], parent?: string): DiffedNode => ({

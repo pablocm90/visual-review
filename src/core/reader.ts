@@ -1,6 +1,6 @@
 import type { Config, ReaderName } from './config.ts';
 import type { Graph } from './graph.ts';
-import type { ReadTest } from './test-statements.ts';
+import type { ReadTest } from './test-changes.ts';
 
 export type Checkout = {
   readonly directory: string;

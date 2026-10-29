@@ -2,7 +2,7 @@
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { expect, test } from 'vitest';
-import type { GraphDiff } from '../diff-graphs.ts';
+import type { GraphDiff } from '../core/diff-graphs.ts';
 import { ReviewPage } from './review-page.tsx';
 
 type Diffed = GraphDiff['nodes'][number]['state'];

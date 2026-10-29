@@ -1,5 +1,5 @@
 import type { Node } from 'web-tree-sitter';
-import type { ReadTest } from '../../test-statements.ts';
+import type { ReadTest } from '../../core/test-changes.ts';
 import { attributeOf, isCfgTest, itemsIn, parseRust } from './rust-syntax.ts';
 
 const pathOf = (item: Node) => attributeOf(item)?.namedChildren[0]?.text;

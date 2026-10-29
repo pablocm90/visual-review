@@ -3,14 +3,14 @@ import { execFile } from 'node:child_process';
 import { lstat, mkdir, readFile, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { parseArgs, promisify } from 'node:util';
-import { diffGraphs, splitPatches } from './diff-graphs.ts';
-import { notesProblems, readNotes } from './notes.ts';
+import { diffGraphs, splitPatches } from './core/diff-graphs.ts';
+import { notesProblems, readNotes } from './core/notes.ts';
+import { readRange } from './core/read-range.ts';
+import type { ReviewData } from './core/review-data.ts';
+import { notReadLine } from './core/skipped.ts';
 import { onPath } from './on-path.ts';
 import { pruneReviews } from './prune-reviews.ts';
 import { readPullRequest } from './pull-request.ts';
-import { readRange } from './read-range.ts';
-import { notReadLine } from './skipped.ts';
-import type { ReviewData } from './viewer/review-data.ts';
 import { snapshotWorkingTree } from './working-tree.ts';
 
 const slot = (id: string, content: string) =>

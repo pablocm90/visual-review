@@ -1,6 +1,6 @@
 import { createRoot } from 'react-dom/client';
-import type { ReviewNotes } from '../notes.ts';
-import type { ReviewData } from './review-data.ts';
+import type { ReviewNotes } from '../core/notes.ts';
+import type { ReviewData } from '../core/review-data.ts';
 import { ReviewPage } from './review-page.tsx';
 import './styles.css';
 

@@ -4,17 +4,17 @@ import { mkdtemp, readFile, realpath, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { basename, join, relative } from 'node:path';
 import { promisify } from 'node:util';
+import { fetchAxumLinker } from '../linkers/fetch-axum/linker.ts';
+import { onPath } from '../on-path.ts';
+import { railsReader } from '../readers/rails/reader.ts';
+import { rustReader } from '../readers/rust/reader.ts';
+import { typeScriptReader } from '../readers/typescript/reader.ts';
 import { CONFIG_FILE, type Config, checkConfig, configuredNodes, parseConfig } from './config.ts';
 import { type Graph, stackOfIn } from './graph.ts';
 import type { DanglingCall, Linker } from './linker.ts';
-import { fetchAxumLinker } from './linkers/fetch-axum/linker.ts';
-import { onPath } from './on-path.ts';
 import type { OpenedCheckout, Reader } from './reader.ts';
-import { railsReader } from './readers/rails/reader.ts';
-import { rustReader } from './readers/rust/reader.ts';
-import { typeScriptReader } from './readers/typescript/reader.ts';
 import type { Skipped } from './skipped.ts';
-import { type TestFile, testChanges, withMovedTests } from './test-statements.ts';
+import { type TestFile, testChanges, withMovedTests } from './test-changes.ts';
 
 const run = promisify(execFile);
 

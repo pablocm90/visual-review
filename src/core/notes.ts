@@ -1,7 +1,7 @@
 import { readFile } from 'node:fs/promises';
 import { z } from 'zod';
 import type { GraphDiff } from './diff-graphs.ts';
-import { edgeId, visibleDiff, visibleNodeOf, visibleNotes } from './viewer/visible-diff.ts';
+import { edgeId, visibleDiff, visibleNodeOf, visibleNotes } from './visible-diff.ts';
 
 const notesVersion = 1;
 

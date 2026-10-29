@@ -1,6 +1,6 @@
 import { join, matchesGlob } from 'node:path';
 import { z } from 'zod';
-import type { Graph, GraphNode } from '../../graph.ts';
+import type { Graph, GraphNode } from '../../core/graph.ts';
 
 const CruiseOutputSchema = z.object({
   modules: z.array(

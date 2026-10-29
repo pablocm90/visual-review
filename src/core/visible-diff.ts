@@ -1,6 +1,6 @@
-import type { DiffedEdge, GraphDiff } from '../diff-graphs.ts';
-import type { GraphEdge } from '../graph.ts';
-import type { Note } from '../notes.ts';
+import type { DiffedEdge, GraphDiff } from './diff-graphs.ts';
+import type { GraphEdge } from './graph.ts';
+import type { Note } from './notes.ts';
 
 export const edgeId = (edge: GraphEdge): string => `${edge.from} -> ${edge.to}`;
 
