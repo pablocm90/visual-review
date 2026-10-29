@@ -292,3 +292,35 @@ test('a class draws one edge to each class it writes, in the order it first writ
     { from: `${shop}/class/CheckoutController`, to: `${shop}/class/Order` },
   ]);
 });
+
+test.for([
+  {
+    reason: 'in its nested scope first',
+    controller: 'module Admin\n  class UsersController\n    def index = User.all\n  end\nend\n',
+    to: 'Admin::User',
+  },
+  {
+    reason: 'in its innermost scope first',
+    controller: 'module Admin\n  class UsersController\n    def index = Filter.new\n  end\nend\n',
+    to: 'Admin::UsersController::Filter',
+  },
+])('a constant names the class it resolves to $reason', async ({ controller, to }) => {
+  using workspace = gitRepo({
+    ...railsApp,
+    'app/models/user.rb': 'class User\nend\n',
+    'app/models/admin/user.rb': 'module Admin\n  class User\n  end\nend\n',
+    'app/models/order.rb': 'class Order\nend\n',
+    'app/models/admin/filter.rb': 'module Admin\n  class Filter\n  end\nend\n',
+    'app/controllers/admin/users_controller/filter.rb':
+      'module Admin\n  class UsersController\n    class Filter\n    end\n  end\nend\n',
+    'app/controllers/admin/users_controller.rb': controller,
+  });
+  const { repo, root } = workspace;
+  const shop = basename(repo);
+
+  const range = await readRange({ repo, from: root, to: root });
+
+  expect(range.after.edges).toEqual([
+    { from: `${shop}/class/Admin::UsersController`, to: `${shop}/class/${to}` },
+  ]);
+});
