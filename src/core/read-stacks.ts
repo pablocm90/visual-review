@@ -1,4 +1,4 @@
-import { type Config, stackSettings } from './config.ts';
+import { addedStacks, type Config, stackSettings } from './config.ts';
 import { type Graph, stackOfIn } from './graph.ts';
 import type { DanglingCall, Linker } from './linker.ts';
 import type { Reader } from './reader.ts';
@@ -17,14 +17,13 @@ export type ReaderRoot = {
 
 type DrawnStack = ReaderRoot & {
   readonly stack: string;
-  readonly graph: (root: string) => Promise<Graph>;
 };
 
 export type StacksReading = {
   readonly graph: Graph;
   readonly danglingCalls: ReadonlyArray<DanglingCall>;
   readonly roots: ReadonlyArray<ReaderRoot>;
-  readonly stacks: ReadonlyArray<ReaderRoot & { readonly stack: string }>;
+  readonly stacks: ReadonlyArray<DrawnStack>;
   readonly skipped: ReadonlyArray<Skipped>;
 };
 
@@ -37,28 +36,38 @@ type ReadStacksOptions = Adapters & {
 const missingToolOf = ({ tool }: Reader, onPath: Adapters['onPath']): string | undefined =>
   tool === undefined || onPath(tool) ? undefined : tool;
 
+const freeId = (name: string, used: ReadonlySet<string>): string => {
+  const suffixed = (n: number): string =>
+    used.has(`${name}~${n}`) ? suffixed(n + 1) : `${name}~${n}`;
+  return used.has(name) ? suffixed(2) : name;
+};
+
 const drawnIn = ({
   directory,
   repoName,
   config,
   readers,
 }: ReadStacksOptions): ReadonlyArray<DrawnStack> =>
-  readers.reduce<{
-    readonly taken: ReadonlySet<string>;
-    readonly drawn: ReadonlyArray<DrawnStack>;
-  }>(
-    (sofar, reader) => {
-      const { stacks, graph } = reader.open({ directory, repoName, config, taken: sofar.taken });
-      return {
-        taken: new Set([...sofar.taken, ...stacks.values()]),
-        drawn: [
-          ...sofar.drawn,
-          ...[...stacks].map(([root, stack]) => ({ reader, root, stack, graph })),
-        ],
-      };
-    },
-    { taken: new Set(), drawn: [] },
-  ).drawn;
+  readers.reduce<ReadonlyArray<DrawnStack>>((drawn, reader) => {
+    const holds = (root: string, stack: string): boolean =>
+      reader.holds({ directory, root, settings: stackSettings(config, stack) });
+    const detected = reader
+      .roots(directory)
+      .reduce<ReadonlyArray<DrawnStack>>((found, { root, name }) => {
+        const used = new Set([...drawn, ...found].map(({ stack }) => stack));
+        const stack = freeId(name ?? (root === '.' ? repoName : root), used);
+        return holds(root, stack) ? [...found, { reader, root, stack }] : found;
+      }, []);
+    const added = addedStacks({
+      config,
+      reader: reader.name,
+      detected: new Map(detected.map(({ root, stack }) => [root, stack])),
+      taken: new Set(drawn.map(({ stack }) => stack)),
+    })
+      .filter(({ root, stack }) => holds(root, stack))
+      .map(({ root, stack }) => ({ reader, root, stack }));
+    return [...drawn, ...detected, ...added];
+  }, []);
 
 export const readStacks = async (options: ReadStacksOptions): Promise<StacksReading> => {
   const { directory, config, readers, linkers, onPath } = options;
@@ -74,7 +83,17 @@ export const readStacks = async (options: ReadStacksOptions): Promise<StacksRead
   const graphs = await Promise.all(
     kept
       .filter(({ reader }) => !skipped.some(({ reader: name }) => name === reader.name))
-      .map(({ root, graph }) => graph(root)),
+      .map(({ reader, root, stack }) =>
+        reader.graph({
+          directory,
+          root,
+          stack,
+          settings: stackSettings(config, stack),
+          stacks: new Map(
+            stacks.filter(drawn => drawn.reader === reader).map(drawn => [drawn.root, drawn.stack]),
+          ),
+        }),
+      ),
   );
   const nodes = graphs
     .flatMap(graph => graph.nodes)

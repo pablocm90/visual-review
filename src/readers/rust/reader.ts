@@ -2,7 +2,6 @@ import { execFile } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { promisify } from 'node:util';
-import { addedStacks } from '../../core/config.ts';
 import type { Graph } from '../../core/graph.ts';
 import type { Reader } from '../../core/reader.ts';
 import { sourcesIn } from '../sources-in.ts';
@@ -65,26 +64,14 @@ const rebased = (graph: Graph, { stack, root }: RebaseOptions): Graph => {
   };
 };
 
-const isWorkspace = (directory: string): boolean => existsSync(join(directory, 'Cargo.toml'));
-
 export const rustReader: Reader = {
   name: 'rust',
   tool: 'cargo',
   stackFields: [],
-  open: ({ directory, config, taken }) => {
-    const detected = new Map(isWorkspace(directory) ? [['.', 'rust'] as const] : []);
-    const stacks = new Map([
-      ...detected,
-      ...addedStacks({ config, reader: 'rust', detected, taken })
-        .filter(({ root }) => isWorkspace(join(directory, root)))
-        .map(({ root, stack }) => [root, stack] as const),
-    ]);
-    return {
-      stacks,
-      graph: async root =>
-        rebased(await graphAt(directory, root), { stack: stacks.get(root) ?? 'rust', root }),
-    };
-  },
+  roots: () => [{ root: '.', name: 'rust' }],
+  holds: ({ directory, root }) => existsSync(join(directory, root, 'Cargo.toml')),
+  graph: async ({ directory, root, stack }) =>
+    rebased(await graphAt(directory, root), { stack, root }),
   isTestFile: path => path.endsWith('.rs'),
   readTests: readRustTests,
 };

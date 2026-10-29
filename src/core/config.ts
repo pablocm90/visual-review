@@ -79,7 +79,9 @@ export type Config = z.infer<typeof ConfigSchema>;
 
 export const configJsonSchema = () => z.toJSONSchema(ConfigSchema, { io: 'input' });
 
-export const stackSettings = (config: Config, stack: string): z.infer<typeof StackSchema> =>
+export type StackSettings = z.infer<typeof StackSchema>;
+
+export const stackSettings = (config: Config, stack: string): StackSettings =>
   config.stacks[stack] || {};
 
 type AddedStack = {

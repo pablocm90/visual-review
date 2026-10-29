@@ -1,18 +1,25 @@
-import type { Graph } from '../core/graph.ts';
+import type { ReaderName } from '../core/config.ts';
 import type { Reader } from '../core/reader.ts';
 
-type FakeReaderOptions = {
-  readonly graphs: Readonly<Record<string, Graph>>;
-  readonly stacks: Readonly<Record<string, string>>;
+type FakeReaderOptions = Partial<Pick<Reader, 'holds' | 'graph'>> & {
+  readonly name?: ReaderName;
+  readonly roots: ReturnType<Reader['roots']>;
 };
 
-export const fakeReader = ({ graphs, stacks }: FakeReaderOptions): Reader => ({
-  name: 'rails',
-  stackFields: [],
-  open: () => ({
-    stacks: new Map(Object.entries(stacks)),
-    graph: async root => graphs[root] ?? { nodes: [], edges: [] },
+export const fakeReader = ({
+  name = 'rails',
+  roots,
+  holds = () => true,
+  graph = async ({ root, stack }) => ({
+    nodes: [{ id: stack, kind: 'stack', label: stack, path: root }],
+    edges: [],
   }),
+}: FakeReaderOptions): Reader => ({
+  name,
+  stackFields: [],
+  roots: () => roots,
+  holds,
+  graph,
   isTestFile: () => false,
   readTests: () => [],
 });

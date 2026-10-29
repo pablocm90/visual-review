@@ -3,9 +3,8 @@ import { basename, dirname, join, relative } from 'node:path';
 import { cruise } from 'dependency-cruiser';
 import { parse } from 'jsonc-parser';
 import { z } from 'zod';
-import { addedStacks, folderOf, stackSettings } from '../../core/config.ts';
-import type { Checkout, Reader } from '../../core/reader.ts';
-import { stackIds } from '../../core/stack-ids.ts';
+import { folderOf, type StackSettings } from '../../core/config.ts';
+import type { CandidateRoot, Reader } from '../../core/reader.ts';
 import { readTypeScriptTests } from './typescript-tests.ts';
 import { webGraph } from './web-graph.ts';
 
@@ -52,50 +51,39 @@ const packageNameIn = (directory: string): string | undefined => {
     : undefined;
 };
 
-type RootOptions = {
-  readonly checkout: Checkout;
-  readonly root: string;
-};
+const sourceRootIn = (directory: string, { sourceRoot }: StackSettings): string =>
+  sourceRoot === undefined ? sourceRootOf(directory) : folderOf(sourceRoot);
 
-const stackAt = ({ checkout: { directory, repoName }, root }: RootOptions): string =>
-  root === '.' ? (packageNameIn(directory) ?? repoName) : root;
+const hasSources = (directory: string, sourceRoot: string): boolean =>
+  globSync(SOURCES, { cwd: join(directory, sourceRoot) }).length > 0;
 
-type SourceRootOptions = RootOptions & { readonly stack: string };
-
-const sourceRootIn = ({ checkout: { directory, config }, root, stack }: SourceRootOptions) => {
-  const { sourceRoot } = stackSettings(config, stack);
-  return sourceRoot === undefined ? sourceRootOf(join(directory, root)) : folderOf(sourceRoot);
-};
-
-const hasSources = ({ checkout, root }: RootOptions): boolean =>
-  globSync(SOURCES, {
-    cwd: join(
-      checkout.directory,
-      root,
-      sourceRootIn({ checkout, root, stack: stackAt({ checkout, root }) }),
-    ),
-  }).length > 0;
-
-type HoldsOptions = {
+type HoldsOthersOptions = {
   readonly checkout: string;
   readonly root: string;
   readonly roots: ReadonlyArray<string>;
 };
 
-const holdsOthers = ({ checkout, root, roots }: HoldsOptions): boolean => {
+const holdsOthers = ({ checkout, root, roots }: HoldsOthersOptions): boolean => {
   const folder = join(root, sourceRootOf(join(checkout, root)));
   return roots.some(other => other !== root && !relative(folder, other).startsWith('..'));
 };
 
-const rootsIn = (checkout: Checkout): ReadonlyArray<string> => {
-  const roots = globSync('**/package.json', {
-    cwd: checkout.directory,
+const rootsIn = (checkout: string): ReadonlyArray<CandidateRoot> => {
+  const packages = globSync('**/package.json', {
+    cwd: checkout,
     exclude: path => basename(path) === 'node_modules',
   })
     .map(dirname)
-    .filter(root => hasSources({ checkout, root }))
     .toSorted();
-  return roots.filter(root => !holdsOthers({ checkout: checkout.directory, root, roots }));
+  const sourced = packages.filter(root =>
+    hasSources(join(checkout, root), sourceRootOf(join(checkout, root))),
+  );
+  return packages
+    .filter(root => !holdsOthers({ checkout, root, roots: sourced }))
+    .map(root => {
+      const name = root === '.' ? packageNameIn(checkout) : undefined;
+      return name === undefined ? { root } : { root, name };
+    });
 };
 
 const packagesIn = (
@@ -136,43 +124,18 @@ const graphAt = async ({ directory, root, stack, sourceRoot, boxes, packages }: 
 export const typeScriptReader: Reader = {
   name: 'typescript',
   stackFields: ['boxes', 'sourceRoot'],
-  open: checkout => {
-    const { directory, config } = checkout;
-    const detected = rootsIn(checkout);
-    const detectedStacks = stackIds({
-      roots: detected,
-      taken: checkout.taken,
-      idOf: root => stackAt({ checkout, root }),
-    });
-    const added = addedStacks({
-      config,
-      reader: 'typescript',
-      detected: detectedStacks,
-      taken: checkout.taken,
-    }).filter(({ root, stack }) =>
-      isDirectory(join(directory, root, sourceRootIn({ checkout, root, stack }))),
-    );
-    const stacks = new Map([
-      ...detectedStacks,
-      ...added.map(({ root, stack }) => [root, stack] as const),
-    ]);
-    const packages = packagesIn(directory, stacks);
-    return {
-      stacks,
-      graph: root => {
-        const stack = stacks.get(root) ?? root;
-        const { boxes = [] } = stackSettings(config, stack);
-        return graphAt({
-          directory,
-          root,
-          stack,
-          sourceRoot: sourceRootIn({ checkout, root, stack }),
-          boxes,
-          packages,
-        });
-      },
-    };
-  },
+  roots: rootsIn,
+  holds: ({ directory, root, settings }) =>
+    hasSources(join(directory, root), sourceRootIn(join(directory, root), settings)),
+  graph: ({ directory, root, stack, settings, stacks }) =>
+    graphAt({
+      directory,
+      root,
+      stack,
+      sourceRoot: sourceRootIn(join(directory, root), settings),
+      boxes: settings.boxes ?? [],
+      packages: packagesIn(directory, stacks),
+    }),
   isTestFile: path => TEST_FILE.test(path),
   readTests: readTypeScriptTests,
 };
