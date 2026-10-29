@@ -3,6 +3,7 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { expect, test } from 'vitest';
 import type { GraphNode } from './graph.ts';
+import type { ReviewNotes } from './notes.ts';
 import { notedPageHtml, pageData, pageHtml, pageIn } from './page.ts';
 import type { RangeReading } from './read-range.ts';
 
@@ -38,8 +39,9 @@ test("a reading's page data holds its diff, its dangling calls and test files, t
     tests,
   });
 
-  expect(pageData({ reading, range: 'main..feature' })).toStrictEqual({
+  expect(pageData({ reading, range: 'main..feature', version: '1.2.3' })).toStrictEqual({
     range: 'main..feature',
+    version: '1.2.3',
     diff: {
       nodes: [
         { ...webStack, state: 'unchanged' },
@@ -60,8 +62,19 @@ test("a pull request's page data names it, and lists the stacks a missing tool k
   const skipped = [{ reader: 'rust' as const, tool: 'cargo', stacks: ['rust'] }];
 
   expect(
-    pageData({ reading: readingWith({ skipped }), range: 'abc..def', pullRequest }),
+    pageData({ reading: readingWith({ skipped }), range: 'abc..def', version, pullRequest }),
   ).toMatchObject({ range: 'abc..def', pullRequest, skipped });
+});
+
+const version = '1.2.3';
+
+const notesFile = 'x.notes.json';
+
+const notesWith = (notes: ReviewNotes['notes']): ReviewNotes => ({
+  version: 1,
+  summary: [],
+  tests: '',
+  notes,
 });
 
 const viewer = readFileSync(join(import.meta.dirname, '..', 'viewer', 'viewer.html'), 'utf8');
@@ -72,21 +85,44 @@ const slotsOf = (html: string) => {
 };
 
 test('the page holds its data whole, a range that closes a script tag included, and no notes until they are filled', () => {
-  const data = pageData({ reading: readingWith({}), range: 'main..x</script><b>' });
+  const data = pageData({ reading: readingWith({}), range: 'main..x</script><b>', version });
 
   expect(pageIn(slotsOf(pageHtml({ viewer, data })))).toStrictEqual({ data, notes: undefined });
 });
 
 test('notes filled into a page come back whole, a note that closes a script tag included, beside its data', () => {
-  const data = pageData({ reading: readingWith({}), range: 'main..feature' });
-  const notes = {
-    version: 1 as const,
-    summary: [],
-    tests: '',
-    notes: { 'web/file/a.ts': { text: 'Ends a script: </script>' } },
-  };
+  const data = pageData({ reading: readingWith({}), range: 'main..feature', version });
+  const notes = notesWith({ 'web/file/a.ts': { text: 'Ends a script: </script>' } });
 
-  const page = notedPageHtml({ page: pageHtml({ viewer, data }), notes });
+  const page = notedPageHtml({ page: pageHtml({ viewer, data }), notes, notesFile, version });
 
   expect(pageIn(slotsOf(page))).toStrictEqual({ data, notes });
+});
+
+const pageFor = (pageVersion: string) =>
+  pageHtml({
+    viewer,
+    data: pageData({ reading: readingWith({}), range: 'main..feature', version: pageVersion }),
+  });
+
+test('notes for a page another visual-review wrote are refused, naming its version', () => {
+  expect(() =>
+    notedPageHtml({ page: pageFor('1.0.0'), notes: notesWith({}), notesFile, version }),
+  ).toThrow(
+    'The page for main..feature was written by visual-review 1.0.0: run visual-review without --notes first',
+  );
+});
+
+test('notes for a page written before pages named their version are refused', () => {
+  const older = pageFor(version).replace(`"version":"${version}",`, '');
+
+  expect(() => notedPageHtml({ page: older, notes: notesWith({}), notesFile, version })).toThrow(
+    'The page for main..feature was written by an older visual-review: run visual-review without --notes first',
+  );
+});
+
+test('notes that leave a touched part without a note are refused, naming the notes file and the part', () => {
+  expect(() =>
+    notedPageHtml({ page: pageFor(version), notes: notesWith({}), notesFile, version }),
+  ).toThrow("Notes in x.notes.json don't match the graph:\nno note on web/file/a.ts");
 });

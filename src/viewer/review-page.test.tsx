@@ -24,6 +24,7 @@ const dependency = (from: string, to: string, state: GraphDiff['edges'][number][
 });
 
 const pageWith = (data: Pick<PageData, 'range' | 'diff'> & Partial<PageData>): PageData => ({
+  version: '0.1.0',
   dangling: [],
   patches: [],
   undrawn: [],

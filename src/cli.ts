@@ -3,7 +3,8 @@ import { execFile } from 'node:child_process';
 import { lstat, mkdir, readFile, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { parseArgs, promisify } from 'node:util';
-import { notesProblems, parseNotes } from './core/notes.ts';
+import { z } from 'zod';
+import { parseNotes } from './core/notes.ts';
 import { notedPageHtml, type PageData, type PullRequest, pageData, pageHtml } from './core/page.ts';
 import { readRange } from './core/read-range.ts';
 import { notReadLine } from './core/skipped.ts';
@@ -55,25 +56,28 @@ const viewerWith = async (data: PageData): Promise<string> =>
     data,
   });
 
+const PackageSchema = z.object({ version: z.string() });
+
+const ownVersion = async (): Promise<string> =>
+  PackageSchema.parse(
+    JSON.parse(await readFile(join(import.meta.dirname, '..', 'package.json'), 'utf8')),
+  ).version;
+
 type FillNotesOptions = {
   readonly range: string;
   readonly page: string;
-  readonly data: string;
   readonly notesFile: string;
 };
 
-const fillNotes = async ({ range, page, data, notesFile }: FillNotesOptions): Promise<void> => {
+const fillNotes = async ({ range, page, notesFile }: FillNotesOptions): Promise<void> => {
   const notes = parseNotes({ text: await readFile(notesFile, 'utf8'), file: notesFile });
-  const review: PageData = JSON.parse(
-    await readFile(data, 'utf8').catch(() => {
-      throw new Error(`No page for ${range} yet: run visual-review without --notes first`);
-    }),
+  const written = await readFile(page, 'utf8').catch(() => {
+    throw new Error(`No page for ${range} yet: run visual-review without --notes first`);
+  });
+  await writeFile(
+    page,
+    notedPageHtml({ page: written, notes, notesFile, version: await ownVersion() }),
   );
-  const problems = notesProblems({ diff: review.diff, notes });
-  if (problems.length > 0) {
-    throw new Error(`Notes in ${notesFile} don't match the graph:\n${problems.join('\n')}`);
-  }
-  await writeFile(page, notedPageHtml({ page: await readFile(page, 'utf8'), notes }));
 };
 
 const writeReview = async (args: ReadonlyArray<string>): Promise<string> => {
@@ -92,14 +96,14 @@ const writeReview = async (args: ReadonlyArray<string>): Promise<string> => {
   const page = join(directory, `${name}.html`);
   const data = join(directory, `${name}.json`);
   if (values.notes !== undefined) {
-    await fillNotes({ range, page, data, notesFile: values.notes });
+    await fillNotes({ range, page, notesFile: values.notes });
     return page;
   }
   const reading = await readRange({ repo, from, to });
   reading.skipped.forEach(skip => {
     console.error(notReadLine(skip));
   });
-  const review = pageData({ reading, range, pullRequest });
+  const review = pageData({ reading, range, version: await ownVersion(), pullRequest });
   await mkdir(directory, { recursive: true });
   await writeFile(join(directory, '.gitignore'), '*\n');
   await writeFile(data, JSON.stringify(review));

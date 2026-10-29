@@ -1,6 +1,6 @@
 import { diffGraphs, type FilePatch, type GraphDiff, isAtOrUnder } from './diff-graphs.ts';
 import type { DanglingCall } from './linker.ts';
-import type { ReviewNotes } from './notes.ts';
+import { notesProblems, type ReviewNotes } from './notes.ts';
 import type { RangeReading } from './read-range.ts';
 import type { Skipped } from './skipped.ts';
 import type { TestFile } from './test-changes.ts';
@@ -13,6 +13,7 @@ export type PullRequest = {
 
 export type PageData = {
   readonly range: string;
+  readonly version: string;
   readonly pullRequest?: PullRequest;
   readonly diff: GraphDiff;
   readonly dangling: ReadonlyArray<DanglingCall>;
@@ -25,15 +26,17 @@ export type PageData = {
 type PageDataOptions = {
   readonly reading: RangeReading;
   readonly range: string;
+  readonly version: string;
   readonly pullRequest?: PullRequest | undefined;
 };
 
-export const pageData = ({ reading, range, pullRequest }: PageDataOptions): PageData => {
+export const pageData = ({ reading, range, version, pullRequest }: PageDataOptions): PageData => {
   const diff = diffGraphs(reading);
   const isDrawn = ({ path }: FilePatch): boolean =>
     diff.nodes.some(node => isAtOrUnder(path, node));
   return {
     range,
+    version,
     ...(pullRequest === undefined ? {} : { pullRequest }),
     diff,
     dangling: reading.danglingCalls,
@@ -75,10 +78,36 @@ export const pageIn = (slotText: (id: string) => string | undefined): Page => {
   return { data, notes: notes ?? undefined };
 };
 
+const slotsIn =
+  (html: string) =>
+  (id: string): string | undefined =>
+    new RegExp(slot(id, '([\\s\\S]*?)')).exec(html)?.[1];
+
+const writerOf = (version: string | undefined): string =>
+  version === undefined ? 'an older visual-review' : `visual-review ${version}`;
+
 type NotedPageHtmlOptions = {
   readonly page: string;
   readonly notes: ReviewNotes;
+  readonly notesFile: string;
+  readonly version: string;
 };
 
-export const notedPageHtml = ({ page, notes }: NotedPageHtmlOptions): string =>
-  filledSlot(page, NOTES_SLOT, notes);
+export const notedPageHtml = ({
+  page,
+  notes,
+  notesFile,
+  version,
+}: NotedPageHtmlOptions): string => {
+  const { data } = pageIn(slotsIn(page));
+  if (data.version !== version) {
+    throw new Error(
+      `The page for ${data.range} was written by ${writerOf(data.version)}: run visual-review without --notes first`,
+    );
+  }
+  const problems = notesProblems({ diff: data.diff, notes });
+  if (problems.length > 0) {
+    throw new Error(`Notes in ${notesFile} don't match the graph:\n${problems.join('\n')}`);
+  }
+  return filledSlot(page, NOTES_SLOT, notes);
+};

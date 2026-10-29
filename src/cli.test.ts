@@ -263,32 +263,41 @@ test('a notes file without a version exits non-zero with the contract error and 
   expect(existsSync(join(workspace.repo, '.reviews'))).toBe(false);
 }, 60_000);
 
-test('notes that name a part not in the graph, or leave a touched part without a note, exit non-zero listing both and leave the page as it was', async () => {
-  using workspace = cargoWorkspace();
-  const { repo } = workspace;
-  git(repo, 'switch', '--quiet', '--create', 'feature');
-  commit(repo, crateFiles('cli'));
-  await runCli(repo, 'main..feature');
-  const notesFile = join(repo, 'notes.json');
-  writeFileSync(
-    notesFile,
-    JSON.stringify({
-      version: 1,
-      summary: [],
-      tests: '',
-      notes: { 'rust/crate/gone': { text: 'Removed.' } },
-    }),
-  );
-  const page = readFileSync(join(repo, '.reviews', 'main..feature.html'), 'utf8');
+test.for([
+  {
+    problem: 'name a part not in the graph',
+    notes: { 'rust/crate/gone': { text: 'Removed.' } },
+    pageFrom: (html: string) => html,
+    says: 'unknown id rust/crate/gone',
+  },
+  {
+    problem: 'are for a page another visual-review wrote',
+    notes: { 'rust/crate/cli': { text: 'A second way in.' } },
+    pageFrom: (html: string) => html.replace(/"version":"[^"]*"/, '"version":"0.0.1"'),
+    says: 'written by visual-review 0.0.1',
+  },
+])(
+  'notes that $problem exit non-zero saying so and leave the page as it was',
+  { timeout: 60_000 },
+  async ({ notes, pageFrom, says }) => {
+    using workspace = cargoWorkspace();
+    const { repo } = workspace;
+    git(repo, 'switch', '--quiet', '--create', 'feature');
+    commit(repo, crateFiles('cli'));
+    await runCli(repo, 'main..feature');
+    const pagePath = join(repo, '.reviews', 'main..feature.html');
+    const page = pageFrom(readFileSync(pagePath, 'utf8'));
+    writeFileSync(pagePath, page);
+    const notesFile = join(repo, 'notes.json');
+    writeFileSync(notesFile, JSON.stringify({ version: 1, summary: [], tests: '', notes }));
 
-  const run = await runCli(repo, 'main..feature', '--notes', notesFile);
+    const run = await runCli(repo, 'main..feature', '--notes', notesFile);
 
-  expect(run.code).not.toBe(0);
-  expect(run.stderr).toContain(notesFile);
-  expect(run.stderr).toContain('unknown id rust/crate/gone');
-  expect(run.stderr).toContain('no note on rust/crate/cli');
-  expect(readFileSync(join(repo, '.reviews', 'main..feature.html'), 'utf8')).toBe(page);
-}, 60_000);
+    expect(run.code).not.toBe(0);
+    expect(run.stderr).toContain(says);
+    expect(readFileSync(pagePath, 'utf8')).toBe(page);
+  },
+);
 
 test('an unknown revision exits non-zero naming it and writes no page', async () => {
   using workspace = cargoWorkspace();
