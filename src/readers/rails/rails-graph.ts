@@ -37,8 +37,7 @@ const definitionsIn = (node: Node, scope: ReadonlyArray<string>): ReadonlyArray<
     return [defined.join('::'), ...(body === null ? [] : definitionsIn(body, defined))];
   });
 
-const definedConstant = (text: string, names: ReadonlyArray<string>): string => {
-  const program = parseRuby(text);
+const definedConstant = (program: Node | undefined, names: ReadonlyArray<string>): string => {
   const defined = program === undefined ? [] : definitionsIn(program, []);
   const tails = names.map((_, start) => constantOf(names.slice(start)).toLowerCase());
   const [named] = tails.flatMap(tail =>
@@ -58,7 +57,8 @@ export const railsGraph = ({ stack, root, files }: RailsGraphOptions): Graph => 
     .toSorted((a, b) => (a.file < b.file ? -1 : 1))
     .map(({ file, text }) => {
       const { layer, folder, names } = placeOf(file);
-      return { file, layer, folder, constant: definedConstant(text, names) };
+      const program = parseRuby(text);
+      return { file, layer, folder, program, constant: definedConstant(program, names) };
     })
     .filter(
       ({ constant }, index, all) => all.findIndex(other => other.constant === constant) === index,
@@ -86,6 +86,12 @@ export const railsGraph = ({ stack, root, files }: RailsGraphOptions): Graph => 
       })
       .map(node => [node.id, node]),
   );
+  const edges = classes.flatMap(({ constant, program }) =>
+    (program?.descendantsOfType('constant') ?? [])
+      .map(({ text }) => text)
+      .filter(written => written !== constant)
+      .map(written => ({ from: `${stack}/class/${constant}`, to: `${stack}/class/${written}` })),
+  );
   const stackNode: GraphNode = { id: stack, kind: 'stack', label: stack, path: '' };
-  return { nodes: [stackNode, ...nodes.values()], edges: [] };
+  return { nodes: [stackNode, ...nodes.values()], edges };
 };

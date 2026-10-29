@@ -219,3 +219,25 @@ test('app/lib is a box of its own, apart from lib/', async () => {
     [`${shop}/class/Money`, 'lib/money.rb'],
   ]);
 });
+
+test("a constant a class writes draws an edge to the app's class it names, and constants naming no class of the app draw none", async () => {
+  using workspace = gitRepo({
+    ...railsApp,
+    'app/models/order.rb': 'class Order\nend\n',
+    'app/controllers/orders_controller.rb':
+      'class OrdersController\n  def index\n    Rails.logger.info(JSON.dump(Stripe::Charge.list))\n  end\nend\n',
+  });
+  const { repo, root } = workspace;
+  const shop = basename(repo);
+  const to = commit(repo, {
+    'app/controllers/orders_controller.rb':
+      'class OrdersController\n  def show\n    Order.find(params[:id])\n  end\nend\n',
+  });
+
+  const range = await readRange({ repo, from: root, to });
+
+  expect([range.before.edges, range.after.edges]).toEqual([
+    [],
+    [{ from: `${shop}/class/OrdersController`, to: `${shop}/class/Order` }],
+  ]);
+});
