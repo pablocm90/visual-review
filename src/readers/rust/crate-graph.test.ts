@@ -22,7 +22,7 @@ const dependency = (from: string, to: string) => ({
 });
 
 test('the workspace crates become nodes under a rust stack, joined by their path dependencies only', () => {
-  const graph = crateGraph(recordedAtAb4cb6a);
+  const graph = crateGraph({ metadataJson: recordedAtAb4cb6a, stack: 'rust', root: '.' });
 
   expect(graph.nodes).toEqual([
     { id: 'rust', kind: 'stack', label: 'rust', path: '' },
@@ -67,19 +67,56 @@ const twoCrateMetadata = (cliDependencies: ReadonlyArray<{ readonly path?: strin
   });
 
 test('a crate depending on another as both a normal and a dev dependency has one edge to it', () => {
-  const graph = crateGraph(
-    twoCrateMetadata([{ path: '/repo/crates/core' }, { path: '/repo/crates/core' }]),
-  );
+  const graph = crateGraph({
+    metadataJson: twoCrateMetadata([{ path: '/repo/crates/core' }, { path: '/repo/crates/core' }]),
+    stack: 'rust',
+    root: '.',
+  });
 
   expect(graph.edges).toEqual([dependency('cli', 'core')]);
 });
 
 test('a path dependency outside the workspace gives no edge', () => {
-  const graph = crateGraph(twoCrateMetadata([{ path: '/elsewhere/vendored' }]));
+  const graph = crateGraph({
+    metadataJson: twoCrateMetadata([{ path: '/elsewhere/vendored' }]),
+    stack: 'rust',
+    root: '.',
+  });
 
   expect(graph.edges).toEqual([]);
 });
 
+test('a workspace read as another stack at a folder of the repo draws its crates under that stack, with repo paths', () => {
+  const graph = crateGraph({
+    metadataJson: twoCrateMetadata([{ path: '/repo/crates/core' }]),
+    stack: 'api',
+    root: 'backend',
+  });
+
+  expect(graph).toEqual({
+    nodes: [
+      { id: 'api', kind: 'stack', label: 'api', path: '' },
+      {
+        id: 'api/crate/core',
+        kind: 'package',
+        label: 'core',
+        parent: 'api',
+        path: 'backend/crates/core',
+      },
+      {
+        id: 'api/crate/cli',
+        kind: 'package',
+        label: 'cli',
+        parent: 'api',
+        path: 'backend/crates/cli',
+      },
+    ],
+    edges: [{ from: 'api/crate/cli', to: 'api/crate/core' }],
+  });
+});
+
 test('metadata missing the fields the graph needs is rejected rather than read as a partial graph', () => {
-  expect(() => crateGraph(JSON.stringify({ packages: [] }))).toThrow(/workspace_root/);
+  expect(() =>
+    crateGraph({ metadataJson: JSON.stringify({ packages: [] }), stack: 'rust', root: '.' }),
+  ).toThrow(/workspace_root/);
 });

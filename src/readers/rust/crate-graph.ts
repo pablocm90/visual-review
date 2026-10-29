@@ -1,4 +1,4 @@
-import { dirname, relative } from 'node:path';
+import { dirname, join, relative } from 'node:path';
 import { z } from 'zod';
 import type { Graph, GraphNode } from '../../core/graph.ts';
 
@@ -14,29 +14,33 @@ const CargoMetadataSchema = z.object({
   ),
 });
 
-const rustStack = { id: 'rust', kind: 'stack', label: 'rust', path: '' } as const;
+export const crateId = (stack: string, name: string): string => `${stack}/crate/${name}`;
 
-export const crateId = (name: string): string => `${rustStack.id}/crate/${name}`;
+type CrateGraphOptions = {
+  readonly metadataJson: string;
+  readonly stack: string;
+  readonly root: string;
+};
 
-export const crateGraph = (metadataJson: string): Graph => {
+export const crateGraph = ({ metadataJson, stack, root }: CrateGraphOptions): Graph => {
   const metadata = CargoMetadataSchema.parse(JSON.parse(metadataJson));
   const crates = metadata.packages.map(pkg => ({
     ...pkg,
     directory: dirname(pkg.manifest_path),
   }));
   const idByDirectory = new Map<string | undefined, string>(
-    crates.map(pkg => [pkg.directory, crateId(pkg.name)]),
+    crates.map(pkg => [pkg.directory, crateId(stack, pkg.name)]),
   );
   return {
     nodes: [
-      rustStack,
+      { id: stack, kind: 'stack', label: stack, path: '' },
       ...crates.map(
         (pkg): GraphNode => ({
-          id: crateId(pkg.name),
+          id: crateId(stack, pkg.name),
           kind: 'package',
           label: pkg.name,
-          parent: rustStack.id,
-          path: relative(metadata.workspace_root, pkg.directory),
+          parent: stack,
+          path: join(root, relative(metadata.workspace_root, pkg.directory)),
         }),
       ),
     ],
@@ -47,7 +51,7 @@ export const crateGraph = (metadataJson: string): Graph => {
           return to === undefined ? [] : [to];
         }),
       );
-      return [...targets].map(to => ({ from: crateId(pkg.name), to }));
+      return [...targets].map(to => ({ from: crateId(stack, pkg.name), to }));
     }),
   };
 };
