@@ -1,4 +1,4 @@
-import { edgeKey, type Graph, type GraphEdge, type GraphNode } from './graph.ts';
+import { edgeId, type Graph, type GraphEdge, type GraphNode } from './graph.ts';
 
 export type FilePatch = {
   readonly path: string;
@@ -125,7 +125,7 @@ export const diffGraphs = ({
     edges: diffItems({
       before: before.edges.map(edge => ({ ...edge, from: idOf(edge.from), to: idOf(edge.to) })),
       after: after.edges,
-      keyOf: edgeKey,
+      keyOf: edgeId,
       stateOfKept: () => 'unchanged',
     }),
   };

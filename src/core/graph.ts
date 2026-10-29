@@ -3,7 +3,8 @@
  * keeps it stable across versions. Ids are `<stack>/<word>/<name>` under the reader's stack id,
  * e.g. `rust/crate/http-adapter`, `rust/mod/application/sign_up`, `web/module/utils`,
  * `web/file/App.tsx`, `shop/layer/models`, `shop/class/Admin::UsersController` (a Rails class, keyed
- * by its constant); the stack's own node is just `<stack>`. An edge is keyed `<from> -> <to>`.
+ * by its constant); the stack's own node is just `<stack>`. An edge is keyed `<from> -> <to>`
+ * (`edgeId`), so a node id never contains ` -> `.
  */
 export type GraphNode = {
   readonly id: string;
@@ -24,7 +25,7 @@ export type Graph = {
   readonly edges: ReadonlyArray<GraphEdge>;
 };
 
-export const edgeKey = (edge: GraphEdge): string => JSON.stringify([edge.from, edge.to]);
+export const edgeId = (edge: GraphEdge): string => `${edge.from} -> ${edge.to}`;
 
 export const stackOfIn = (nodes: ReadonlyArray<GraphNode>): ((id: string) => string) => {
   const parents = new Map(nodes.map(node => [node.id, node.parent]));

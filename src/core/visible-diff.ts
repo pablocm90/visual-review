@@ -1,8 +1,6 @@
 import type { DiffedEdge, GraphDiff } from './diff-graphs.ts';
-import type { GraphEdge } from './graph.ts';
+import { edgeId } from './graph.ts';
 import type { Note } from './notes.ts';
-
-export const edgeId = (edge: GraphEdge): string => `${edge.from} -> ${edge.to}`;
 
 const sameEnds = (one: DiffedEdge, other: DiffedEdge): boolean =>
   one.from === other.from && one.to === other.to;

@@ -1,6 +1,6 @@
 import { basename, dirname, join } from 'node:path';
 import type { Node } from 'web-tree-sitter';
-import { edgeKey, type Graph, type GraphEdge, type GraphNode } from '../../core/graph.ts';
+import { edgeId, type Graph, type GraphEdge, type GraphNode } from '../../core/graph.ts';
 import { crateId } from './crate-graph.ts';
 import { isCfgTest, itemsIn, parseRust } from './rust-syntax.ts';
 
@@ -139,6 +139,6 @@ export const crateModules = ({ crate, roots, sources }: CrateModulesOptions): Gr
         path: module.path,
       }),
     ),
-    edges: [...new Map(edges.map(edge => [edgeKey(edge), edge])).values()],
+    edges: [...new Map(edges.map(edge => [edgeId(edge), edge])).values()],
   };
 };

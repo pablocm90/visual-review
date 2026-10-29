@@ -1,17 +1,12 @@
 import { type KeyboardEvent, type PointerEvent, useEffect, useMemo, useRef, useState } from 'react';
 import type { FilePatch } from '../core/diff-graphs.ts';
 import { isAtOrUnder } from '../core/diff-graphs.ts';
+import { edgeId } from '../core/graph.ts';
 import type { Note, ReviewNotes } from '../core/notes.ts';
 import type { PageData } from '../core/page.ts';
 import { notReadLine } from '../core/skipped.ts';
 import type { MarkedTest, TestChange, TestStatement } from '../core/test-changes.ts';
-import {
-  edgeId,
-  nearChanges,
-  visibleDiff,
-  visibleNodeOf,
-  visibleNotes,
-} from '../core/visible-diff.ts';
+import { nearChanges, visibleDiff, visibleNodeOf, visibleNotes } from '../core/visible-diff.ts';
 import { highlightPatch, type PatchLine as Line, type Piece } from './highlight-patch.ts';
 import {
   type Layout,
