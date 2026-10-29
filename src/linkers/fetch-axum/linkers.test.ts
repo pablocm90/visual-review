@@ -1,12 +1,12 @@
 import { expect, test } from 'vitest';
-import { readRange } from './read-range.ts';
+import { readRange } from '../../read-range.ts';
 import {
   axumCrate,
   cargoWorkspace,
   commit,
   crateFiles,
   gitRepo,
-} from './test-support/cargo-workspace.ts';
+} from '../../test-support/cargo-workspace.ts';
 
 test("a TS stack's fetch joins the axum crate that declares its route, under the ids the stacks are drawn with", async () => {
   using workspace = cargoWorkspace();

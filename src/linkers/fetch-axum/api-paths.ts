@@ -1,5 +1,5 @@
-import type { GraphEdge } from './graph.ts';
-import type { DanglingCall, Links } from './linker.ts';
+import type { GraphEdge } from '../../graph.ts';
+import type { DanglingCall, Links } from '../../linker.ts';
 
 export type WebCall = DanglingCall;
 
