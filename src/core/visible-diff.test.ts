@@ -1,0 +1,213 @@
+import { expect, test } from 'vitest';
+import type { DiffedEdge, DiffedNode, GraphDiff } from './diff-graphs.ts';
+import { expandedToShow, nearChanges, visibleDiff } from './visible-diff.ts';
+
+const node = (id: string, kind: DiffedNode['kind'], parent?: string): DiffedNode => ({
+  id,
+  kind,
+  label: id,
+  path: id,
+  state: 'unchanged',
+  ...(parent === undefined ? {} : { parent }),
+});
+
+const nested = (edges: ReadonlyArray<DiffedEdge>): GraphDiff => ({
+  nodes: [
+    node('web', 'stack'),
+    node('A', 'module', 'web'),
+    node('B', 'module', 'web'),
+    node('a1', 'file', 'A'),
+    node('a2', 'file', 'A'),
+    node('b1', 'file', 'B'),
+    node('root', 'file', 'web'),
+  ],
+  edges,
+});
+
+test.for<{
+  readonly rule: string;
+  readonly edges: ReadonlyArray<DiffedEdge>;
+  readonly drawn: ReadonlyArray<DiffedEdge>;
+}>([
+  {
+    rule: 'merges file edges between two modules into one added edge when all were added',
+    edges: [
+      { from: 'a1', to: 'b1', state: 'added' },
+      { from: 'a2', to: 'b1', state: 'added' },
+    ],
+    drawn: [{ from: 'A', to: 'B', state: 'added' }],
+  },
+  {
+    rule: 'draws a removed module edge when every file edge under it was removed',
+    edges: [
+      { from: 'a1', to: 'b1', state: 'removed' },
+      { from: 'a2', to: 'b1', state: 'removed' },
+    ],
+    drawn: [{ from: 'A', to: 'B', state: 'removed' }],
+  },
+  {
+    rule: 'draws an unchanged module edge when its file edges were both added and removed',
+    edges: [
+      { from: 'a1', to: 'b1', state: 'added' },
+      { from: 'a2', to: 'b1', state: 'removed' },
+    ],
+    drawn: [{ from: 'A', to: 'B', state: 'unchanged' }],
+  },
+  {
+    rule: 'keeps the edges from one module to two others apart',
+    edges: [
+      { from: 'a1', to: 'b1', state: 'added' },
+      { from: 'a2', to: 'root', state: 'removed' },
+    ],
+    drawn: [
+      { from: 'A', to: 'B', state: 'added' },
+      { from: 'A', to: 'root', state: 'removed' },
+    ],
+  },
+  {
+    rule: 'joins the paths of the calls merged into one call edge, each once',
+    edges: [
+      { from: 'a1', to: 'root', via: ['/api/users'], state: 'added' },
+      { from: 'a2', to: 'root', via: ['/api/sessions', '/api/users'], state: 'added' },
+    ],
+    drawn: [{ from: 'A', to: 'root', via: ['/api/users', '/api/sessions'], state: 'added' }],
+  },
+  {
+    rule: 'drops an edge between two files of the same module',
+    edges: [{ from: 'a1', to: 'a2', state: 'added' }],
+    drawn: [],
+  },
+])('$rule', ({ edges, drawn }) => {
+  expect(visibleDiff({ diff: nested(edges), expanded: new Set() }).edges).toEqual(drawn);
+});
+
+const deep: GraphDiff = {
+  nodes: [
+    node('web', 'stack'),
+    node('A', 'module', 'web'),
+    node('A1', 'module', 'A'),
+    node('leaf', 'file', 'A1'),
+    node('B', 'module', 'web'),
+  ],
+  edges: [{ from: 'leaf', to: 'B', state: 'added' }],
+};
+
+test.for<{
+  readonly opened: ReadonlyArray<string>;
+  readonly nodes: ReadonlyArray<string>;
+  readonly edge: string;
+}>([
+  { opened: [], nodes: ['web', 'A', 'B'], edge: 'A -> B' },
+  { opened: ['A'], nodes: ['web', 'A', 'A1', 'B'], edge: 'A1 -> B' },
+  { opened: ['A', 'A1'], nodes: ['web', 'A', 'A1', 'leaf', 'B'], edge: 'leaf -> B' },
+  { opened: ['A1'], nodes: ['web', 'A', 'B'], edge: 'A -> B' },
+])(
+  'a file in a box inside a box is drawn as the outermost closed box above it, with $opened open',
+  ({ opened, nodes, edge }) => {
+    const drawn = visibleDiff({ diff: deep, expanded: new Set(opened) });
+
+    expect(drawn.nodes.map(({ id }) => id)).toEqual(nodes);
+    expect(drawn.edges.map(({ from, to }) => `${from} -> ${to}`)).toEqual([edge]);
+  },
+);
+
+test.for<{ readonly target: string; readonly opened: ReadonlyArray<string> }>([
+  { target: 'leaf', opened: ['B', 'A', 'A1'] },
+  { target: 'leaf -> B', opened: ['B', 'A', 'A1'] },
+  { target: 'A1 -> B', opened: ['B', 'A'] },
+])('going to $target opens every box above it, or above both its ends', ({ target, opened }) => {
+  expect(expandedToShow({ diff: deep, expanded: new Set(['B']), id: target })).toEqual(
+    new Set(opened),
+  );
+});
+
+const changed = (base: DiffedNode): DiffedNode => ({ ...base, state: 'modified' });
+
+test.for<{
+  readonly rule: string;
+  readonly diff: GraphDiff;
+  readonly kept: ReadonlyArray<string>;
+  readonly keptEdges: ReadonlyArray<string>;
+}>([
+  {
+    rule: 'keeps a changed node and its neighbours either way, with the edges between them, and hides the rest and an emptied stack',
+    diff: {
+      nodes: [
+        node('rust', 'stack'),
+        node('domain', 'package', 'rust'),
+        node('application', 'package', 'rust'),
+        changed(node('http-adapter', 'package', 'rust')),
+        node('cli-adapter', 'package', 'rust'),
+        node('shop', 'package', 'rust'),
+        node('web', 'stack'),
+        node('W', 'module', 'web'),
+      ],
+      edges: [
+        { from: 'application', to: 'domain', state: 'unchanged' },
+        { from: 'http-adapter', to: 'application', state: 'unchanged' },
+        { from: 'http-adapter', to: 'domain', state: 'unchanged' },
+        { from: 'cli-adapter', to: 'application', state: 'unchanged' },
+        { from: 'shop', to: 'http-adapter', state: 'unchanged' },
+        { from: 'shop', to: 'cli-adapter', state: 'unchanged' },
+      ],
+    },
+    kept: ['rust', 'domain', 'application', 'http-adapter', 'shop'],
+    keptEdges: [
+      'application -> domain',
+      'http-adapter -> application',
+      'http-adapter -> domain',
+      'shop -> http-adapter',
+    ],
+  },
+  {
+    rule: 'keeps both ends of an added edge between unchanged nodes, and not their other neighbours',
+    diff: {
+      nodes: [
+        node('rust', 'stack'),
+        node('a', 'package', 'rust'),
+        node('b', 'package', 'rust'),
+        node('c', 'package', 'rust'),
+      ],
+      edges: [
+        { from: 'a', to: 'b', state: 'added' },
+        { from: 'b', to: 'c', state: 'unchanged' },
+      ],
+    },
+    kept: ['rust', 'a', 'b'],
+    keptEdges: ['a -> b'],
+  },
+  {
+    rule: 'keeps the expanded module and stack around a kept file',
+    diff: {
+      nodes: [
+        node('web', 'stack'),
+        node('A', 'module', 'web'),
+        changed(node('a1', 'file', 'A')),
+        node('a2', 'file', 'A'),
+        node('B', 'module', 'web'),
+      ],
+      edges: [],
+    },
+    kept: ['web', 'A', 'a1'],
+    keptEdges: [],
+  },
+  {
+    rule: 'counts a call across the stacks as a hop',
+    diff: {
+      nodes: [
+        node('web', 'stack'),
+        node('A', 'module', 'web'),
+        node('rust', 'stack'),
+        changed(node('http-adapter', 'package', 'rust')),
+      ],
+      edges: [{ from: 'A', to: 'http-adapter', via: ['/api/info'], state: 'unchanged' }],
+    },
+    kept: ['web', 'A', 'rust', 'http-adapter'],
+    keptEdges: ['A -> http-adapter'],
+  },
+])('changed + 1 hop $rule', ({ diff, kept, keptEdges }) => {
+  const near = nearChanges(diff);
+
+  expect(near.nodes.map(({ id }) => id)).toEqual(kept);
+  expect(near.edges.map(({ from, to }) => `${from} -> ${to}`)).toEqual(keptEdges);
+});

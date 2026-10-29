@@ -1,5 +1,5 @@
 import { expect, test } from 'vitest';
-import type { DiffedNode } from '../diff-graphs.ts';
+import type { DiffedNode } from '../core/diff-graphs.ts';
 import { layoutDiff } from './layout.ts';
 
 const node = (id: string, kind: DiffedNode['kind'], parent?: string): DiffedNode => ({

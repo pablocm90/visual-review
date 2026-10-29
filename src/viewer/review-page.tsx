@@ -1,9 +1,18 @@
 import { type KeyboardEvent, type PointerEvent, useEffect, useMemo, useRef, useState } from 'react';
-import { isAtOrUnder } from '../diff-graphs.ts';
-import type { Note, ReviewNotes } from '../notes.ts';
-import type { FilePatch } from '../read-range.ts';
-import { notReadLine } from '../skipped.ts';
-import type { MarkedTest, TestChange, TestStatement } from '../test-statements.ts';
+import type { FilePatch } from '../core/diff-graphs.ts';
+import { isAtOrUnder } from '../core/diff-graphs.ts';
+import { edgeId } from '../core/graph.ts';
+import { type Note, type ReviewNotes, visibleNotes } from '../core/notes.ts';
+import type { PageData } from '../core/page.ts';
+import { notReadLine } from '../core/skipped.ts';
+import type { MarkedTest, TestChange, TestStatement } from '../core/test-changes.ts';
+import {
+  expandedToShow,
+  isDrawn,
+  nearChanges,
+  visibleDiff,
+  visibleNodeOf,
+} from '../core/visible-diff.ts';
 import { highlightPatch, type PatchLine as Line, type Piece } from './highlight-patch.ts';
 import {
   type Layout,
@@ -12,8 +21,6 @@ import {
   type PlacedNode,
   type PlacedStack,
 } from './layout.ts';
-import type { ReviewData } from './review-data.ts';
-import { edgeId, nearChanges, visibleDiff, visibleNodeOf, visibleNotes } from './visible-diff.ts';
 
 const STATES = ['added', 'removed', 'modified', 'unchanged'] as const;
 
@@ -385,7 +392,12 @@ const TestTree = ({ statements }: { readonly statements: ReadonlyArray<TestState
   </ul>
 );
 
-export const ReviewPage = ({ review }: { readonly review: ReviewData }) => {
+type ReviewPageProps = {
+  readonly review: PageData;
+  readonly notes?: ReviewNotes | undefined;
+};
+
+export const ReviewPage = ({ review, notes }: ReviewPageProps) => {
   const [layout, setLayout] = useState<Layout>();
   const [selected, setSelected] = useState<string>();
   const [chosenWidth, setChosenWidth] = useState<number>();
@@ -398,8 +410,8 @@ export const ReviewPage = ({ review }: { readonly review: ReviewData }) => {
   const [nearOnly, setNearOnly] = useState(false);
   const drawn = useMemo(() => (nearOnly ? nearChanges(visible) : visible), [visible, nearOnly]);
   const shown = useMemo(
-    () => visibleNotes({ diff: review.diff, expanded, notes: review.notes?.notes ?? {} }),
-    [review, expanded],
+    () => visibleNotes({ diff: review.diff, expanded, notes: notes?.notes ?? {} }),
+    [review, notes, expanded],
   );
   const toggle = (id: string) =>
     setExpanded(current =>
@@ -412,8 +424,8 @@ export const ReviewPage = ({ review }: { readonly review: ReviewData }) => {
     elements.current.set(id, element);
   };
   const labelOf = new Map(visible.nodes.map(node => [node.id, node.label]));
-  const dangling = review.dangling ?? [];
-  const undrawn = review.undrawn ?? [];
+  const dangling = review.dangling;
+  const undrawn = review.undrawn;
   const visibleOf = visibleNodeOf({ diff: review.diff, expanded });
   const drawing = {
     notes: shown,
@@ -427,7 +439,7 @@ export const ReviewPage = ({ review }: { readonly review: ReviewData }) => {
   };
   const selectedNode = review.diff.nodes.find(node => node.id === selected);
   const patches = selectedNode
-    ? (review.patches ?? []).filter(({ path }) => isAtOrUnder(path, selectedNode))
+    ? review.patches.filter(({ path }) => isAtOrUnder(path, selectedNode))
     : [];
   const panelWidth = chosenWidth ?? (patches.length > 0 ? CHANGES_WIDTH : NOTE_WIDTH);
   const moveDivider = (event: KeyboardEvent) => {
@@ -445,20 +457,15 @@ export const ReviewPage = ({ review }: { readonly review: ReviewData }) => {
       once: true,
     });
   };
-  const tests = (review.tests ?? []).filter(
+  const tests = review.tests.filter(
     ({ path }) => selectedNode === undefined || isAtOrUnder(path, selectedNode),
   );
   const [focusTarget, setFocusTarget] = useState<string>();
   const goTo = (id: string) => {
     setSelected(id);
-    const edge = review.diff.edges.find(other => edgeId(other) === id);
-    const parents = (edge ? [edge.from, edge.to] : [id]).flatMap(
-      end => review.diff.nodes.find(node => node.id === end)?.parent ?? [],
-    );
-    const opened = new Set([...expanded, ...parents]);
+    const opened = expandedToShow({ diff: review.diff, expanded, id });
     setExpanded(opened);
-    const near = nearChanges(visibleDiff({ diff: review.diff, expanded: opened }));
-    if (![...near.nodes.map(node => node.id), ...near.edges.map(edgeId)].includes(id)) {
+    if (!isDrawn({ diff: nearChanges(visibleDiff({ diff: review.diff, expanded: opened })), id })) {
       setNearOnly(false);
     }
     setFocusTarget(id);
@@ -490,7 +497,7 @@ export const ReviewPage = ({ review }: { readonly review: ReviewData }) => {
             <ShortRange range={review.range} />
           </code>
         </h1>
-        {review.skipped?.map(skip => (
+        {review.skipped.map(skip => (
           <p key={skip.reader} className="skipped" role="alert">
             {notReadLine(skip)}
           </p>
@@ -500,7 +507,7 @@ export const ReviewPage = ({ review }: { readonly review: ReviewData }) => {
       </header>
       <div className="columns">
         <div className="content">
-          {review.notes && <Summary notes={review.notes} onGoTo={goTo} />}
+          {notes && <Summary notes={notes} onGoTo={goTo} />}
           <label className="near-only">
             <input
               type="checkbox"
@@ -564,7 +571,7 @@ export const ReviewPage = ({ review }: { readonly review: ReviewData }) => {
           )}
           <section className="tests" aria-label="Tests">
             <h2>Tests</h2>
-            {review.notes && <p className="tests-line">{review.notes.tests}</p>}
+            {notes && <p className="tests-line">{notes.tests}</p>}
             {tests.length === 0 ? (
               <p>{selectedNode ? 'No test changed here.' : 'No test changed.'}</p>
             ) : (

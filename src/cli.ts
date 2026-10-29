@@ -3,23 +3,15 @@ import { execFile } from 'node:child_process';
 import { lstat, mkdir, readFile, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { parseArgs, promisify } from 'node:util';
-import { diffGraphs, splitPatches } from './diff-graphs.ts';
-import { notesProblems, readNotes } from './notes.ts';
-import { onPath } from './on-path.ts';
-import { pruneReviews } from './prune-reviews.ts';
-import { readPullRequest } from './pull-request.ts';
-import { readRange } from './read-range.ts';
-import { notReadLine } from './skipped.ts';
-import type { ReviewData } from './viewer/review-data.ts';
-import { snapshotWorkingTree } from './working-tree.ts';
-
-const slot = (id: string, content: string) =>
-  `<script type="application/json" id="${id}">${content}</script>`;
-
-const fillSlot = (html: string, id: string, value: unknown): string =>
-  html.replace(new RegExp(slot(id, '[\\s\\S]*?')), () =>
-    slot(id, JSON.stringify(value).replaceAll('<', '\\u003c')),
-  );
+import { z } from 'zod';
+import { parseNotes } from './core/notes.ts';
+import { notedPageHtml, type PageData, type PullRequest, pageData, pageHtml } from './core/page.ts';
+import { readRange } from './core/read-range.ts';
+import { notReadLine } from './core/skipped.ts';
+import { onPath } from './git/on-path.ts';
+import { pruneReviews } from './git/prune-reviews.ts';
+import { readPullRequest } from './git/pull-request.ts';
+import { snapshotWorkingTree } from './git/working-tree.ts';
 
 const isDirectoryOrMissing = (path: string): Promise<boolean> =>
   lstat(path).then(
@@ -39,7 +31,14 @@ const requireOnPath = (command: string, installFrom: string): void => {
     throw new Error(`${command} not found on PATH: install it from ${installFrom}`);
 };
 
-const rangeOf = async (repo: string, argument: string | undefined) => {
+type ReviewedRange = {
+  readonly range: string;
+  readonly from: string;
+  readonly to: string;
+  readonly pullRequest?: PullRequest;
+};
+
+const rangeOf = async (repo: string, argument: string | undefined): Promise<ReviewedRange> => {
   if (argument === undefined) {
     return { range: 'HEAD..worktree', from: 'HEAD', to: await snapshotWorkingTree(repo) };
   }
@@ -51,32 +50,34 @@ const rangeOf = async (repo: string, argument: string | undefined) => {
   return { range: argument, ...parseRange(argument) };
 };
 
-const viewerWith = async (review: ReviewData): Promise<string> =>
-  fillSlot(
-    await readFile(join(import.meta.dirname, '..', 'dist', 'viewer.html'), 'utf8'),
-    'review-data',
-    review,
-  );
+const viewerWith = async (data: PageData): Promise<string> =>
+  pageHtml({
+    viewer: await readFile(join(import.meta.dirname, '..', 'dist', 'viewer.html'), 'utf8'),
+    data,
+  });
+
+const PackageSchema = z.object({ version: z.string() });
+
+const ownVersion = async (): Promise<string> =>
+  PackageSchema.parse(
+    JSON.parse(await readFile(join(import.meta.dirname, '..', 'package.json'), 'utf8')),
+  ).version;
 
 type FillNotesOptions = {
   readonly range: string;
   readonly page: string;
-  readonly data: string;
   readonly notesFile: string;
 };
 
-const fillNotes = async ({ range, page, data, notesFile }: FillNotesOptions): Promise<void> => {
-  const notes = await readNotes(notesFile);
-  const review: ReviewData = JSON.parse(
-    await readFile(data, 'utf8').catch(() => {
-      throw new Error(`No page for ${range} yet: run visual-review without --notes first`);
-    }),
+const fillNotes = async ({ range, page, notesFile }: FillNotesOptions): Promise<void> => {
+  const notes = parseNotes({ text: await readFile(notesFile, 'utf8'), file: notesFile });
+  const written = await readFile(page, 'utf8').catch(() => {
+    throw new Error(`No page for ${range} yet: run visual-review without --notes first`);
+  });
+  await writeFile(
+    page,
+    notedPageHtml({ page: written, notes, notesFile, version: await ownVersion() }),
   );
-  const problems = notesProblems({ diff: review.diff, notes });
-  if (problems.length > 0) {
-    throw new Error(`Notes in ${notesFile} don't match the graph:\n${problems.join('\n')}`);
-  }
-  await writeFile(page, fillSlot(await readFile(page, 'utf8'), 'review-notes', notes));
 };
 
 const writeReview = async (args: ReadonlyArray<string>): Promise<string> => {
@@ -87,7 +88,7 @@ const writeReview = async (args: ReadonlyArray<string>): Promise<string> => {
   });
   requireOnPath('git', 'https://git-scm.com/downloads');
   const repo = (await promisify(execFile)('git', ['rev-parse', '--show-toplevel'])).stdout.trim();
-  const { range, from, to, ...pullRequest } = await rangeOf(repo, positionals[0]);
+  const { range, from, to, pullRequest } = await rangeOf(repo, positionals[0]);
   const directory = join(repo, '.reviews');
   if (!(await isDirectoryOrMissing(directory)))
     throw new Error(`${directory} is not a directory, so no page is written into it`);
@@ -95,25 +96,14 @@ const writeReview = async (args: ReadonlyArray<string>): Promise<string> => {
   const page = join(directory, `${name}.html`);
   const data = join(directory, `${name}.json`);
   if (values.notes !== undefined) {
-    await fillNotes({ range, page, data, notesFile: values.notes });
+    await fillNotes({ range, page, notesFile: values.notes });
     return page;
   }
   const reading = await readRange({ repo, from, to });
   reading.skipped.forEach(skip => {
     console.error(notReadLine(skip));
   });
-  const diff = diffGraphs(reading);
-  const { drawn, undrawn } = splitPatches({ diff, patches: reading.patches });
-  const review = {
-    range,
-    ...pullRequest,
-    diff,
-    dangling: reading.danglingCalls,
-    patches: drawn,
-    undrawn,
-    tests: reading.tests,
-    ...(reading.skipped.length === 0 ? {} : { skipped: reading.skipped }),
-  };
+  const review = pageData({ reading, range, version: await ownVersion(), pullRequest });
   await mkdir(directory, { recursive: true });
   await writeFile(join(directory, '.gitignore'), '*\n');
   await writeFile(data, JSON.stringify(review));

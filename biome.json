@@ -42,7 +42,7 @@
       }
     },
     {
-      "includes": ["src/api-paths.test.ts"],
+      "includes": ["src/linkers/fetch-axum/api-paths.test.ts"],
       "linter": { "rules": { "suspicious": { "noTemplateCurlyInString": "off" } } }
     }
   ]

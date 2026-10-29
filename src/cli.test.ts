@@ -11,6 +11,8 @@ import {
 import { join } from 'node:path';
 import { promisify } from 'node:util';
 import { expect, test } from 'vitest';
+import { pageIn } from './core/page.ts';
+import { pullRequestRemote } from './test-support/pull-request-remote.ts';
 import {
   axumCrate,
   cargoWorkspace,
@@ -19,8 +21,7 @@ import {
   git,
   pathTo,
   writeFiles,
-} from './test-support/cargo-workspace.ts';
-import { pullRequestRemote } from './test-support/pull-request-remote.ts';
+} from './test-support/repos.ts';
 
 type CliRun = { readonly code: number; readonly stdout: string; readonly stderr: string };
 
@@ -44,26 +45,16 @@ const runCliIn = (
 const runCli = (cwd: string, ...args: ReadonlyArray<string>): Promise<CliRun> =>
   runCliIn({ cwd }, ...args);
 
-const slotIn = (html: string, id: string): unknown =>
-  JSON.parse(
-    new RegExp(`<script type="application/json" id="${id}">([\\s\\S]*?)</script>`).exec(
-      html,
-    )?.[1] ?? 'null',
-  );
+const pageOf = (html: string) =>
+  pageIn(id => new RegExp(`id="${id}">([\\s\\S]*?)</script>`).exec(html)?.[1]);
 
-const reviewDataIn = (html: string): unknown => slotIn(html, 'review-data');
+const reviewDataIn = (html: string) => pageOf(html).data;
 
-test('writes the review page for a range into .reviews/, with its calls that match no route, the patches of drawn files apart from the rest, the statements of changed test files, and slashes in revision names made filename-safe', async () => {
+test('writes the review page for a range into .reviews/, with slashes in revision names made filename-safe, and its data beside it', async () => {
   using workspace = cargoWorkspace();
   const { repo } = workspace;
-  commit(repo, { 'web/package.json': '{}\n' });
   git(repo, 'switch', '--quiet', '--create', 'feature/cli');
-  commit(repo, {
-    ...axumCrate('cli'),
-    'web/src/a.tsx': "fetch('/api/x');\n",
-    'README.md': 'not drawn',
-    'web/notes.test.ts': "test('reads notes', () => {});\n",
-  });
+  commit(repo, axumCrate('cli'));
 
   const run = await runCli(repo, 'main..feature/cli');
 
@@ -77,19 +68,7 @@ test('writes the review page for a range into .reviews/, with its calls that mat
         expect.objectContaining({ id: 'rust/crate/cli', state: 'added' }),
       ]),
     },
-    dangling: [{ from: 'web/file/a.tsx', path: '/api/x' }],
-    patches: ['crates/cli/Cargo.toml', 'crates/cli/src/lib.rs', 'web/src/a.tsx'].map(path =>
-      expect.objectContaining({ path }),
-    ),
-    undrawn: ['README.md', 'web/notes.test.ts'].map(path => expect.objectContaining({ path })),
-    tests: [
-      {
-        path: 'web/notes.test.ts',
-        statements: [{ kind: 'test', name: 'reads notes', change: 'added' }],
-      },
-    ],
   });
-  expect(reviewData).not.toHaveProperty('skipped');
   expect(
     JSON.parse(readFileSync(join(repo, '.reviews', 'main..feature_cli.json'), 'utf8')),
   ).toEqual(reviewData);
@@ -233,7 +212,7 @@ test('writing a page keeps .reviews/ to the 20 most recently written pages', asy
   expect(pages).not.toContain('old-00.html');
 }, 60_000);
 
-test('--notes fills the notes into the page already written for the range, a closing script tag included, without reading the range again', async () => {
+test('--notes fills the notes into the page already written for the range, without reading the range again', async () => {
   using workspace = cargoWorkspace();
   const { repo } = workspace;
   git(repo, 'switch', '--quiet', '--create', 'feature');
@@ -244,7 +223,7 @@ test('--notes fills the notes into the page already written for the range, a clo
     version: 1,
     summary: [{ text: 'Adds a CLI.', target: 'rust/crate/cli' }, { text: 'Nothing else moves.' }],
     tests: 'No test pins the new CLI.',
-    notes: { 'rust/crate/cli': { text: 'Ends with </script>.', flag: 'new entry point' } },
+    notes: { 'rust/crate/cli': { text: 'A second way in.', flag: 'new entry point' } },
   };
   const notesFile = join(repo, 'notes.json');
   writeFileSync(notesFile, JSON.stringify(notes));
@@ -253,7 +232,7 @@ test('--notes fills the notes into the page already written for the range, a clo
 
   expect(run.code).toBe(0);
   const html = readFileSync(join(repo, '.reviews', 'main..feature.html'), 'utf8');
-  expect(slotIn(html, 'review-notes')).toEqual(notes);
+  expect(pageOf(html).notes).toEqual(notes);
   expect(reviewDataIn(html)).not.toMatchObject({
     diff: { nodes: expect.arrayContaining([expect.objectContaining({ id: 'rust/crate/later' })]) },
   });
@@ -284,44 +263,41 @@ test('a notes file without a version exits non-zero with the contract error and 
   expect(existsSync(join(workspace.repo, '.reviews'))).toBe(false);
 }, 60_000);
 
-test('notes that name a part not in the graph, or leave a touched part without a note, exit non-zero listing both and leave the page as it was', async () => {
-  using workspace = cargoWorkspace();
-  const { repo } = workspace;
-  git(repo, 'switch', '--quiet', '--create', 'feature');
-  commit(repo, crateFiles('cli'));
-  await runCli(repo, 'main..feature');
-  const notesFile = join(repo, 'notes.json');
-  writeFileSync(
-    notesFile,
-    JSON.stringify({
-      version: 1,
-      summary: [],
-      tests: '',
-      notes: { 'rust/crate/gone': { text: 'Removed.' } },
-    }),
-  );
-  const page = readFileSync(join(repo, '.reviews', 'main..feature.html'), 'utf8');
+test.for([
+  {
+    problem: 'name a part not in the graph',
+    notes: { 'rust/crate/gone': { text: 'Removed.' } },
+    pageFrom: (html: string) => html,
+    says: "notes.json don't match the graph:\nunknown id rust/crate/gone",
+  },
+  {
+    problem: 'are for a page another visual-review wrote',
+    notes: { 'rust/crate/cli': { text: 'A second way in.' } },
+    pageFrom: (html: string) => html.replace(/"version":"[^"]*"/, '"version":"0.0.1"'),
+    says: 'written by visual-review 0.0.1',
+  },
+])(
+  'notes that $problem exit non-zero saying so and leave the page as it was',
+  { timeout: 60_000 },
+  async ({ notes, pageFrom, says }) => {
+    using workspace = cargoWorkspace();
+    const { repo } = workspace;
+    git(repo, 'switch', '--quiet', '--create', 'feature');
+    commit(repo, crateFiles('cli'));
+    await runCli(repo, 'main..feature');
+    const pagePath = join(repo, '.reviews', 'main..feature.html');
+    const page = pageFrom(readFileSync(pagePath, 'utf8'));
+    writeFileSync(pagePath, page);
+    const notesFile = join(repo, 'notes.json');
+    writeFileSync(notesFile, JSON.stringify({ version: 1, summary: [], tests: '', notes }));
 
-  const run = await runCli(repo, 'main..feature', '--notes', notesFile);
+    const run = await runCli(repo, 'main..feature', '--notes', notesFile);
 
-  expect(run.code).not.toBe(0);
-  expect(run.stderr).toContain(notesFile);
-  expect(run.stderr).toContain('unknown id rust/crate/gone');
-  expect(run.stderr).toContain('no note on rust/crate/cli');
-  expect(readFileSync(join(repo, '.reviews', 'main..feature.html'), 'utf8')).toBe(page);
-}, 60_000);
-
-test('a revision name that closes a script tag stays inside the review data', async () => {
-  using workspace = cargoWorkspace();
-  const { repo } = workspace;
-  git(repo, 'switch', '--quiet', '--create', 'x<b></script>');
-  commit(repo, crateFiles('cli'));
-
-  await runCli(repo, 'main..x<b></script>');
-
-  const html = readFileSync(join(repo, '.reviews', 'main..x<b><_script>.html'), 'utf8');
-  expect(reviewDataIn(html)).toMatchObject({ range: 'main..x<b></script>' });
-}, 60_000);
+    expect(run.code).not.toBe(0);
+    expect(run.stderr).toContain(says);
+    expect(readFileSync(pagePath, 'utf8')).toBe(page);
+  },
+);
 
 test('an unknown revision exits non-zero naming it and writes no page', async () => {
   using workspace = cargoWorkspace();

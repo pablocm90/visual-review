@@ -1,5 +1,5 @@
 import ELK, { type ElkNode } from 'elkjs/lib/elk.bundled.js';
-import type { DiffedEdge, DiffedNode, GraphDiff } from '../diff-graphs.ts';
+import type { DiffedEdge, DiffedNode, GraphDiff } from '../core/diff-graphs.ts';
 
 type Box = {
   readonly x: number;
