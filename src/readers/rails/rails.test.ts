@@ -345,3 +345,28 @@ test.for([
     { from: `${shop}/class/Admin::UsersController`, to: `${shop}/class/${to}` },
   ]);
 });
+
+test("edges onto the base classes Rails generates are dropped, while edges onto an app's own base classes stay", async () => {
+  using workspace = gitRepo({
+    ...railsApp,
+    'app/models/application_record.rb': 'class ApplicationRecord\nend\n',
+    'app/models/order.rb': 'class Order < ApplicationRecord\nend\n',
+    'app/controllers/application_controller.rb': 'class ApplicationController\nend\n',
+    'app/controllers/admin/base_controller.rb':
+      'class Admin::BaseController < ApplicationController\nend\n',
+    'app/controllers/admin/users_controller.rb':
+      'class Admin::UsersController < Admin::BaseController\nend\n',
+    'app/jobs/application_job.rb': 'class ApplicationJob\nend\n',
+    'app/jobs/export_job.rb': 'class ExportJob < ApplicationJob\nend\n',
+    'app/mailers/application_mailer.rb': 'class ApplicationMailer\nend\n',
+    'app/mailers/order_mailer.rb': 'class OrderMailer < ApplicationMailer\nend\n',
+  });
+  const { repo, root } = workspace;
+  const shop = basename(repo);
+
+  const range = await readRange({ repo, from: root, to: root });
+
+  expect(range.after.edges).toEqual([
+    { from: `${shop}/class/Admin::UsersController`, to: `${shop}/class/Admin::BaseController` },
+  ]);
+});

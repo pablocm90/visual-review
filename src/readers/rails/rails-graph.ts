@@ -28,6 +28,13 @@ const constantOf = (names: ReadonlyArray<string>): string =>
 
 const DEFINITIONS = new Set(['class', 'module']);
 
+const GENERATED_BASES = new Set([
+  'ApplicationRecord',
+  'ApplicationController',
+  'ApplicationJob',
+  'ApplicationMailer',
+]);
+
 const definitionsIn = (node: Node, scope: ReadonlyArray<string>): ReadonlyArray<string> =>
   node.namedChildren.flatMap(child => {
     const name = child.childForFieldName('name');
@@ -126,7 +133,7 @@ export const railsGraph = ({ stack, root, files }: RailsGraphOptions): Graph => 
   const constants = new Set(classes.map(({ constant }) => constant));
   const edges = classes.flatMap(({ constant, program }) =>
     referencesIn(program, constants)
-      .filter(written => written !== constant)
+      .filter(written => written !== constant && !GENERATED_BASES.has(written))
       .map(written => ({ from: `${stack}/class/${constant}`, to: `${stack}/class/${written}` })),
   );
   const stackNode: GraphNode = { id: stack, kind: 'stack', label: stack, path: '' };
