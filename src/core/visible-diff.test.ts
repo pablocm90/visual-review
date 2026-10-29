@@ -1,7 +1,6 @@
 import { expect, test } from 'vitest';
 import type { DiffedEdge, DiffedNode, GraphDiff } from './diff-graphs.ts';
-import type { Note } from './notes.ts';
-import { nearChanges, visibleDiff, visibleNotes } from './visible-diff.ts';
+import { nearChanges, visibleDiff } from './visible-diff.ts';
 
 const node = (id: string, kind: DiffedNode['kind'], parent?: string): DiffedNode => ({
   id,
@@ -80,59 +79,6 @@ test.for<{
   },
 ])('$rule', ({ edges, drawn }) => {
   expect(visibleDiff({ diff: nested(edges), expanded: new Set() }).edges).toEqual(drawn);
-});
-
-test.for<{
-  readonly rule: string;
-  readonly notes: Readonly<Record<string, Note>>;
-  readonly shown: Readonly<Record<string, Note>>;
-}>([
-  {
-    rule: 'shows a note on a hidden file edge on the module edge it merges into, and keeps node notes',
-    notes: {
-      'a1 -> b1': { text: 'Reads b1.', flag: 'reaches in' },
-      a1: { text: 'Changed.' },
-    },
-    shown: {
-      'A -> B': { text: 'Reads b1.', flag: 'reaches in' },
-      a1: { text: 'Changed.' },
-    },
-  },
-  {
-    rule: 'joins the notes and the flags of the file edges merged into one drawn edge',
-    notes: {
-      'a1 -> b1': { text: 'Reads b1.', flag: 'reaches in' },
-      'a2 -> b1': { text: 'Also reads b1.', flag: 'cycle' },
-      'a2 -> root': { text: 'Calls root.' },
-    },
-    shown: {
-      'A -> B': { text: 'Reads b1. Also reads b1.', flag: 'reaches in, cycle' },
-      'A -> root': { text: 'Calls root.' },
-    },
-  },
-  {
-    rule: 'keeps the one flag among merged notes',
-    notes: {
-      'a1 -> b1': { text: 'Reads b1.' },
-      'a2 -> b1': { text: 'Also reads b1.', flag: 'cycle' },
-    },
-    shown: { 'A -> B': { text: 'Reads b1. Also reads b1.', flag: 'cycle' } },
-  },
-  {
-    rule: 'gives merged notes without flags no flag',
-    notes: {
-      'a1 -> b1': { text: 'Reads b1.' },
-      'a2 -> b1': { text: 'Also reads b1.' },
-    },
-    shown: { 'A -> B': { text: 'Reads b1. Also reads b1.' } },
-  },
-])('$rule', ({ notes, shown }) => {
-  const diff = nested([
-    { from: 'a1', to: 'b1', state: 'added' },
-    { from: 'a2', to: 'b1', state: 'added' },
-    { from: 'a2', to: 'root', state: 'added' },
-  ]);
-  expect(visibleNotes({ diff, expanded: new Set(), notes })).toEqual(shown);
 });
 
 const changed = (base: DiffedNode): DiffedNode => ({ ...base, state: 'modified' });

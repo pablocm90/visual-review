@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import type { GraphDiff } from './diff-graphs.ts';
 import { edgeId } from './graph.ts';
-import { visibleDiff, visibleNodeOf, visibleNotes } from './visible-diff.ts';
+import { type VisibleDiffOptions, visibleDiff, visibleNodeOf } from './visible-diff.ts';
 
 const notesVersion = 1;
 
@@ -80,6 +80,42 @@ export const parseNotes = ({ text, file }: ParseNotesOptions): ReviewNotes => {
     throw invalidNotes(file, notes.error);
   }
   return notes.data;
+};
+
+const joined = (one: Note, other: Note): Note => {
+  const flags = [one.flag, other.flag].filter(flag => flag !== undefined);
+  return {
+    text: `${one.text} ${other.text}`,
+    ...(flags.length > 0 ? { flag: flags.join(', ') } : {}),
+  };
+};
+
+type VisibleNotesOptions = VisibleDiffOptions & {
+  readonly notes: Readonly<Record<string, Note>>;
+};
+
+export const visibleNotes = ({
+  diff,
+  expanded,
+  notes,
+}: VisibleNotesOptions): Readonly<Record<string, Note>> => {
+  const visibleOf = visibleNodeOf({ diff, expanded });
+  const drawnIdOf = new Map(
+    diff.edges.map(edge => [
+      edgeId(edge),
+      edgeId({ from: visibleOf(edge.from), to: visibleOf(edge.to) }),
+    ]),
+  );
+  const placed = Object.entries(notes).map(([id, note]) => ({ id: drawnIdOf.get(id) ?? id, note }));
+  return Object.fromEntries(
+    [...new Set(placed.map(({ id }) => id))].map(id => [
+      id,
+      placed
+        .filter(other => other.id === id)
+        .map(({ note }) => note)
+        .reduce(joined),
+    ]),
+  );
 };
 
 type NotesProblemsOptions = {

@@ -1,6 +1,4 @@
 import type { DiffedEdge, GraphDiff } from './diff-graphs.ts';
-import { edgeId } from './graph.ts';
-import type { Note } from './notes.ts';
 
 const sameEnds = (one: DiffedEdge, other: DiffedEdge): boolean =>
   one.from === other.from && one.to === other.to;
@@ -11,7 +9,7 @@ const mergedState = (edges: ReadonlyArray<DiffedEdge>): DiffedEdge['state'] => {
   return 'unchanged';
 };
 
-type VisibleDiffOptions = {
+export type VisibleDiffOptions = {
   readonly diff: GraphDiff;
   readonly expanded: ReadonlySet<string>;
 };
@@ -64,40 +62,4 @@ export const nearChanges = (diff: GraphDiff): GraphDiff => {
     nodes: diff.nodes.filter(node => kept.has(node.id)),
     edges: diff.edges.filter(edge => kept.has(edge.from) && kept.has(edge.to)),
   };
-};
-
-const joined = (one: Note, other: Note): Note => {
-  const flags = [one.flag, other.flag].filter(flag => flag !== undefined);
-  return {
-    text: `${one.text} ${other.text}`,
-    ...(flags.length > 0 ? { flag: flags.join(', ') } : {}),
-  };
-};
-
-type VisibleNotesOptions = VisibleDiffOptions & {
-  readonly notes: Readonly<Record<string, Note>>;
-};
-
-export const visibleNotes = ({
-  diff,
-  expanded,
-  notes,
-}: VisibleNotesOptions): Readonly<Record<string, Note>> => {
-  const visibleOf = visibleNodeOf({ diff, expanded });
-  const drawnIdOf = new Map(
-    diff.edges.map(edge => [
-      edgeId(edge),
-      edgeId({ from: visibleOf(edge.from), to: visibleOf(edge.to) }),
-    ]),
-  );
-  const placed = Object.entries(notes).map(([id, note]) => ({ id: drawnIdOf.get(id) ?? id, note }));
-  return Object.fromEntries(
-    [...new Set(placed.map(({ id }) => id))].map(id => [
-      id,
-      placed
-        .filter(other => other.id === id)
-        .map(({ note }) => note)
-        .reduce(joined),
-    ]),
-  );
 };
