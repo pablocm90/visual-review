@@ -87,9 +87,10 @@ test('a class moved from one layer to another keeps its id, in its new box', asy
     `${shop}/layer/services`,
     `${shop}/layer/models`,
   ]);
+  expect(range.after.nodes.map(node => node.id)).not.toContain(`${shop}/layer/services`);
 });
 
-test('a class is named by the definition its path names, so an acronym keeps its case, and by its path when the file defines none', async () => {
+test("a class is named by the class or module definition naming the longest tail of its path, so acronyms keep their case and an app's own autoload roots are no namespaces, and by its path when the file defines none", async () => {
   using workspace = gitRepo({
     ...railsApp,
     'app/services/api_client.rb': 'class APIClient\nend\n',
@@ -97,6 +98,7 @@ test('a class is named by the definition its path names, so an acronym keeps its
     'app/controllers/admin/html_controller.rb': 'class Admin::HTMLController\nend\n',
     'app/models/order.rb': 'class OrderError < StandardError\nend\n\nclass Order\nend\n',
     'app/models/price.rb': 'Price = Struct.new(:cents)\n',
+    'app/models/invoice.rb': 'def invoice\nend\n\nclass Invoice\nend\n',
     'app/topics/billing/controllers/billing/invoices_controller.rb':
       'module Billing\n  class InvoicesController\n  end\nend\n',
   });
@@ -108,6 +110,7 @@ test('a class is named by the definition its path names, so an acronym keeps its
   expect(range.after.nodes.filter(node => node.kind === 'file').map(node => node.id)).toEqual([
     `${shop}/class/Admin::APIController`,
     `${shop}/class/Admin::HTMLController`,
+    `${shop}/class/Invoice`,
     `${shop}/class/Order`,
     `${shop}/class/Price`,
     `${shop}/class/APIClient`,
@@ -193,5 +196,26 @@ test('the config adds a Rails app detection leaves out, under the id it gives', 
     ['dummy', ''],
     ['dummy/layer/models', 'test/dummy/app/models'],
     ['dummy/class/Order', 'test/dummy/app/models/order.rb'],
+  ]);
+});
+
+test('app/lib is a box of its own, apart from lib/', async () => {
+  using workspace = gitRepo({
+    ...railsApp,
+    'app/lib/tokenizer.rb': 'class Tokenizer\nend\n',
+    'lib/money.rb': 'class Money\nend\n',
+  });
+  const { repo, root } = workspace;
+  const shop = basename(repo);
+
+  const range = await readRange({ repo, from: root, to: root });
+
+  expect(
+    range.after.nodes.filter(node => node.kind !== 'stack').map(node => [node.id, node.path]),
+  ).toEqual([
+    [`${shop}/layer/app/lib`, 'app/lib'],
+    [`${shop}/class/Tokenizer`, 'app/lib/tokenizer.rb'],
+    [`${shop}/layer/lib`, 'lib'],
+    [`${shop}/class/Money`, 'lib/money.rb'],
   ]);
 });

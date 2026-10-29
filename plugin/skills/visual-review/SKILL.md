@@ -46,7 +46,7 @@ Run every command from the repository root (`git rev-parse --show-toplevel`, whi
    - Set `flag` to a short label only for a structural concern the graph shows: a new dependency direction, a layer reaching past its neighbour, a cycle, or coupling across the stack edge.
    - Keep to structure. Line-level findings belong to `/code-review`.
 
-   Done when every touched crate, module, root file and Rails class, and every added or removed edge between them as drawn with modules collapsed, has a note. A note on a file import counts for the module edge it is drawn into.
+   Done when every touched crate, module, root file, Rails layer and class, and every added or removed edge between them as drawn with modules collapsed, has a note. A note on a file import counts for the module edge it is drawn into.
 4. Run `visual-review '<range>' --notes '<notes file>'`. It fills the notes into the page from step 1 without reading the range again. A non-zero exit names the notes file and either the contract error or one line per problem (`unknown id <id>`, `no note on <id>`): fix the file and rerun. Done when it exits 0.
 5. Open the page with `xdg-open <path>` on Linux, or `open <path>` on macOS. Done when the opener has returned.
 6. Reply with the page's path and the flags you raised, one line each, or "no flags".

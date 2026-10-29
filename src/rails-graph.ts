@@ -13,7 +13,8 @@ type Place = {
 const placeOf = (file: string): Place => {
   const [top = '', layer = '', ...rest] = file.split('/');
   if (top === 'lib') return { layer: top, folder: top, names: [layer, ...rest] };
-  return { layer, folder: join(top, layer), names: rest };
+  const folder = join(top, layer);
+  return { layer: layer === 'lib' ? folder : layer, folder, names: rest };
 };
 
 const camelized = (name: string): string =>
@@ -25,10 +26,12 @@ const camelized = (name: string): string =>
 const constantOf = (names: ReadonlyArray<string>): string =>
   names.map(name => camelized(name.replace(/\.rb$/, ''))).join('::');
 
+const DEFINITIONS = new Set(['class', 'module']);
+
 const definitionsIn = (node: Node, scope: ReadonlyArray<string>): ReadonlyArray<string> =>
   node.namedChildren.flatMap(child => {
     const name = child.childForFieldName('name');
-    if (name === null) return [];
+    if (!DEFINITIONS.has(child.type) || name === null) return [];
     const defined = [...scope, name.text];
     const body = child.childForFieldName('body');
     return [defined.join('::'), ...(body === null ? [] : definitionsIn(body, defined))];
@@ -52,7 +55,7 @@ type RailsGraphOptions = {
 
 export const railsGraph = ({ stack, root, files }: RailsGraphOptions): Graph => {
   const classes = files
-    .toSorted((a, b) => a.file.localeCompare(b.file))
+    .toSorted((a, b) => (a.file < b.file ? -1 : 1))
     .map(({ file, text }) => {
       const { layer, folder, names } = placeOf(file);
       return { file, layer, folder, constant: definedConstant(text, names) };
