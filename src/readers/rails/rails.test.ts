@@ -241,3 +241,16 @@ test("a constant a class writes draws an edge to the app's class it names, and c
     [{ from: `${shop}/class/OrdersController`, to: `${shop}/class/Order` }],
   ]);
 });
+
+test("the constants a file's class and module lines define are no references, so a class draws no edge to the app's module it is nested in", async () => {
+  using workspace = gitRepo({
+    ...railsApp,
+    'app/models/billing.rb': 'module Billing\n  def self.table_name_prefix = "billing_"\nend\n',
+    'app/models/billing/invoice.rb': 'module Billing\n  class Invoice\n  end\nend\n',
+  });
+  const { repo, root } = workspace;
+
+  const range = await readRange({ repo, from: root, to: root });
+
+  expect(range.after.edges).toEqual([]);
+});
