@@ -1,5 +1,5 @@
 import { expect, test } from 'vitest';
-import { diffGraphs, splitPatches } from './diff-graphs.ts';
+import { diffGraphs } from './diff-graphs.ts';
 import type { Graph, GraphEdge, GraphNode } from './graph.ts';
 
 const crate = (name: string): GraphNode => ({
@@ -301,29 +301,4 @@ test.for([
   });
 
   expect(diff.nodes).toStrictEqual(expected);
-});
-
-test('patches split into those of files under a drawn node and the rest, such as lockfiles and root files', () => {
-  const patch = (path: string) => ({ path, patch: `diff --git a/${path} b/${path}` });
-  const diff = diffGraphs({
-    renames: [],
-    before: graph({ nodes: [crate('core'), rootFile('a.ts')] }),
-    after: graph({ nodes: [crate('core'), rootFile('a.ts')] }),
-    changedPaths: [],
-  });
-
-  const split = splitPatches({
-    diff,
-    patches: [
-      patch('crates/core/src/lib.rs'),
-      patch('web/src/a.ts'),
-      patch('Cargo.lock'),
-      patch('README.md'),
-    ],
-  });
-
-  expect(split).toEqual({
-    drawn: [patch('crates/core/src/lib.rs'), patch('web/src/a.ts')],
-    undrawn: [patch('Cargo.lock'), patch('README.md')],
-  });
 });

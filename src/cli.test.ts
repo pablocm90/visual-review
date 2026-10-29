@@ -53,17 +53,11 @@ const slotIn = (html: string, id: string): unknown =>
 
 const reviewDataIn = (html: string): unknown => slotIn(html, 'review-data');
 
-test('writes the review page for a range into .reviews/, with its calls that match no route, the patches of drawn files apart from the rest, the statements of changed test files, and slashes in revision names made filename-safe', async () => {
+test('writes the review page for a range into .reviews/, with slashes in revision names made filename-safe, and its data beside it', async () => {
   using workspace = cargoWorkspace();
   const { repo } = workspace;
-  commit(repo, { 'web/package.json': '{}\n' });
   git(repo, 'switch', '--quiet', '--create', 'feature/cli');
-  commit(repo, {
-    ...axumCrate('cli'),
-    'web/src/a.tsx': "fetch('/api/x');\n",
-    'README.md': 'not drawn',
-    'web/notes.test.ts': "test('reads notes', () => {});\n",
-  });
+  commit(repo, axumCrate('cli'));
 
   const run = await runCli(repo, 'main..feature/cli');
 
@@ -77,19 +71,7 @@ test('writes the review page for a range into .reviews/, with its calls that mat
         expect.objectContaining({ id: 'rust/crate/cli', state: 'added' }),
       ]),
     },
-    dangling: [{ from: 'web/file/a.tsx', path: '/api/x' }],
-    patches: ['crates/cli/Cargo.toml', 'crates/cli/src/lib.rs', 'web/src/a.tsx'].map(path =>
-      expect.objectContaining({ path }),
-    ),
-    undrawn: ['README.md', 'web/notes.test.ts'].map(path => expect.objectContaining({ path })),
-    tests: [
-      {
-        path: 'web/notes.test.ts',
-        statements: [{ kind: 'test', name: 'reads notes', change: 'added' }],
-      },
-    ],
   });
-  expect(reviewData).not.toHaveProperty('skipped');
   expect(
     JSON.parse(readFileSync(join(repo, '.reviews', 'main..feature_cli.json'), 'utf8')),
   ).toEqual(reviewData);

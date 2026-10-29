@@ -134,14 +134,3 @@ export const diffGraphs = ({
 export type DiffedNode = GraphDiff['nodes'][number];
 
 export type DiffedEdge = GraphDiff['edges'][number];
-
-type SplitPatchesOptions = {
-  readonly diff: GraphDiff;
-  readonly patches: ReadonlyArray<FilePatch>;
-};
-
-export const splitPatches = ({ diff, patches }: SplitPatchesOptions) => {
-  const isDrawn = ({ path }: FilePatch): boolean =>
-    diff.nodes.some(node => isAtOrUnder(path, node));
-  return { drawn: patches.filter(isDrawn), undrawn: patches.filter(patch => !isDrawn(patch)) };
-};

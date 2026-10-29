@@ -3,6 +3,7 @@ import { fireEvent, render, screen, waitFor, within } from '@testing-library/rea
 import userEvent from '@testing-library/user-event';
 import { expect, test } from 'vitest';
 import type { GraphDiff } from '../core/diff-graphs.ts';
+import type { PageData } from '../core/page.ts';
 import { ReviewPage } from './review-page.tsx';
 
 type Diffed = GraphDiff['nodes'][number]['state'];
@@ -20,6 +21,15 @@ const dependency = (from: string, to: string, state: GraphDiff['edges'][number][
   from: `rust/crate/${from}`,
   to: `rust/crate/${to}`,
   state,
+});
+
+const pageWith = (data: Pick<PageData, 'range' | 'diff'> & Partial<PageData>): PageData => ({
+  dangling: [],
+  patches: [],
+  undrawn: [],
+  tests: [],
+  skipped: [],
+  ...data,
 });
 
 const review = {
@@ -44,7 +54,7 @@ const noteShown = () => screen.getByRole('complementary', { name: 'Note' }).text
 
 test('draws every crate and dependency inside the rust stack with its change state, and opens no note panel until one is clicked', async () => {
   const user = userEvent.setup();
-  render(<ReviewPage review={review} />);
+  render(<ReviewPage review={pageWith(review)} />);
 
   const rust = await screen.findByRole('group', { name: 'rust' });
   expect(screen.getAllByRole('group')).toEqual([rust]);
@@ -73,14 +83,14 @@ test('draws every crate and dependency inside the rust stack with its change sta
 test("a PR's page names the PR above its range, as a link to it", async () => {
   render(
     <ReviewPage
-      review={{
+      review={pageWith({
         ...review,
         pullRequest: {
           number: 7,
           title: 'Add the cli crate',
           url: 'https://github.com/acme/shop/pull/7',
         },
-      }}
+      })}
     />,
   );
 
@@ -94,10 +104,10 @@ test("a PR's page names the PR above its range, as a link to it", async () => {
 test('a reader skipped for want of its tool is named in the header with the stacks it did not read', async () => {
   render(
     <ReviewPage
-      review={{
+      review={pageWith({
         ...review,
         skipped: [{ reader: 'rust', tool: 'cargo', stacks: ['rust', 'rust~2'] }],
-      }}
+      })}
     />,
   );
 
@@ -114,7 +124,7 @@ test.for([
   },
   { range: 'main..my-branch', heading: 'Structure main..my-branch' },
 ])('the header and the graph name $range by short SHAs', async ({ range, heading }) => {
-  render(<ReviewPage review={{ ...review, range }} />);
+  render(<ReviewPage review={pageWith({ ...review, range })} />);
 
   expect(screen.getByRole('heading', { level: 1 }).textContent).toBe(heading);
   await screen.findByRole('group', { name: 'rust' });
@@ -124,10 +134,10 @@ test.for([
 test('a short SHA in the header shows its full SHA on hover', async () => {
   render(
     <ReviewPage
-      review={{
+      review={pageWith({
         ...review,
         range: '646f56cfd31dbe78c3b93e793c174efe85d8f666..fe2b80f6d56a89db7649e4e59a7b73790e5f8202',
-      }}
+      })}
     />,
   );
 
@@ -140,19 +150,19 @@ test('clicking a crate or a dependency, or pressing Enter or Space on it, shows 
   const user = userEvent.setup();
   render(
     <ReviewPage
-      review={{
+      review={pageWith({
         ...review,
+      })}
+      notes={{
+        version: 1,
+        tests: '',
+        summary: [],
         notes: {
-          version: 1,
-          tests: '',
-          summary: [],
-          notes: {
-            'rust/crate/application': { text: 'Adds the export use case.' },
-            'rust/crate/cli-adapter': { text: 'A second way in.', flag: 'new entry point' },
-            'rust/crate/cli-adapter -> rust/crate/application': {
-              text: 'The CLI drives the use case.',
-              flag: 'new dependency direction',
-            },
+          'rust/crate/application': { text: 'Adds the export use case.' },
+          'rust/crate/cli-adapter': { text: 'A second way in.', flag: 'new entry point' },
+          'rust/crate/cli-adapter -> rust/crate/application': {
+            text: 'The CLI drives the use case.',
+            flag: 'new dependency direction',
           },
         },
       }}
@@ -196,25 +206,25 @@ test('the summary lists its items and then every flagged note, and an item with 
   const user = userEvent.setup();
   render(
     <ReviewPage
-      review={{
+      review={pageWith({
         ...review,
+      })}
+      notes={{
+        version: 1,
+        tests: '',
+        summary: [
+          { text: 'The CLI is a new adapter.', target: 'rust/crate/cli-adapter' },
+          { text: 'Domain is untouched.' },
+        ],
         notes: {
-          version: 1,
-          tests: '',
-          summary: [
-            { text: 'The CLI is a new adapter.', target: 'rust/crate/cli-adapter' },
-            { text: 'Domain is untouched.' },
-          ],
-          notes: {
-            'rust/crate/cli-adapter': { text: 'A second way in.' },
-            'rust/crate/cli-adapter -> rust/crate/application': {
-              text: 'The CLI drives the use case.',
-              flag: 'new dependency direction',
-            },
-            'rust/crate/legacy': {
-              text: 'Domain still reaches it.',
-              flag: 'removed but depended on',
-            },
+          'rust/crate/cli-adapter': { text: 'A second way in.' },
+          'rust/crate/cli-adapter -> rust/crate/application': {
+            text: 'The CLI drives the use case.',
+            flag: 'new dependency direction',
+          },
+          'rust/crate/legacy': {
+            text: 'Domain still reaches it.',
+            flag: 'removed but depended on',
           },
         },
       }}
@@ -280,7 +290,7 @@ test("modules open collapsed, joined by their files' imports; a module's toggle 
   const user = userEvent.setup();
   render(
     <ReviewPage
-      review={{
+      review={pageWith({
         range: 'abc123..def456',
         diff: {
           nodes: [
@@ -309,17 +319,17 @@ test("modules open collapsed, joined by their files' imports; a module's toggle 
             },
           ],
         },
+      })}
+      notes={{
+        version: 1,
+        tests: '',
+        summary: [{ text: 'Check y.ts', target: 'web/file/utils/y.ts' }],
         notes: {
-          version: 1,
-          tests: '',
-          summary: [{ text: 'Check y.ts', target: 'web/file/utils/y.ts' }],
-          notes: {
-            'web/file/modules/AppInfo/api/app-info.ts -> web/file/utils/x.ts': {
-              text: 'New helper.',
-              flag: 'reaches into utils',
-            },
-            'web/file/utils/y.ts': { text: 'Untouched, but read it.' },
+          'web/file/modules/AppInfo/api/app-info.ts -> web/file/utils/x.ts': {
+            text: 'New helper.',
+            flag: 'reaches into utils',
           },
+          'web/file/utils/y.ts': { text: 'Untouched, but read it.' },
         },
       }}
     />,
@@ -394,7 +404,7 @@ test("web calls to API routes are drawn between the stacks, named by their paths
   });
   render(
     <ReviewPage
-      review={{
+      review={pageWith({
         range: 'abc123..def456',
         diff: {
           nodes: [
@@ -411,14 +421,14 @@ test("web calls to API routes are drawn between the stacks, named by their paths
           ],
         },
         dangling: [{ from: 'web/file/modules/AppInfo/api/users.ts', path: '/api/app-info' }],
+      })}
+      notes={{
+        version: 1,
+        tests: '',
+        summary: [],
         notes: {
-          version: 1,
-          tests: '',
-          summary: [],
-          notes: {
-            'web/file/modules/AppInfo/api/users.ts -> rust/crate/http-adapter': {
-              text: 'Lists users.',
-            },
+          'web/file/modules/AppInfo/api/users.ts -> rust/crate/http-adapter': {
+            text: 'Lists users.',
           },
         },
       }}
@@ -474,7 +484,7 @@ test("selecting a node lists the patches of the files under it from their first 
   ].join('\n');
   render(
     <ReviewPage
-      review={{
+      review={pageWith({
         range: 'abc123..def456',
         diff: {
           nodes: [
@@ -486,7 +496,7 @@ test("selecting a node lists the patches of the files under it from their first 
           edges: [{ from: 'web/file/utils/y.ts', to: 'web/file/utils/x.ts', state: 'unchanged' }],
         },
         patches: [{ path: 'web/src/utils/x.ts', patch }],
-      }}
+      })}
     />,
   );
   const changes = () => screen.queryByRole('region', { name: 'Changes' });
@@ -530,12 +540,12 @@ test('changed files outside the graph are listed under their own heading, each a
   const user = userEvent.setup();
   render(
     <ReviewPage
-      review={{
+      review={pageWith({
         ...review,
         undrawn: [
           { path: 'README.md', patch: '--- a/README.md\n+++ b/README.md\n@@ -1 +1 @@\n-old\n+new' },
         ],
-      }}
+      })}
     />,
   );
 
@@ -553,7 +563,7 @@ test('a renamed node shows the label it had under its own, also once expanded, i
   const user = userEvent.setup();
   render(
     <ReviewPage
-      review={{
+      review={pageWith({
         range: 'abc123..def456',
         diff: {
           nodes: [
@@ -575,7 +585,7 @@ test('a renamed node shows the label it had under its own, also once expanded, i
           ],
           edges: [],
         },
-      }}
+      })}
     />,
   );
 
@@ -598,7 +608,7 @@ test('a renamed node shows the label it had under its own, also once expanded, i
 test('the tests section lists each changed test file with its tests as a tree, each named with its change and any label or where it moved, an unreadable one with the reason and a renamed one with its old path', async () => {
   render(
     <ReviewPage
-      review={{
+      review={pageWith({
         ...review,
         tests: [
           {
@@ -633,7 +643,7 @@ test('the tests section lists each changed test file with its tests as a tree, e
           },
           { path: 'web/src/broken.test.ts', unreadable: 'SyntaxError: Unexpected token (2:0)' },
         ],
-      }}
+      })}
     />,
   );
 
@@ -673,7 +683,7 @@ test('the tests section lists each changed test file with its tests as a tree, e
 });
 
 test('the tests section says so when no test changed', async () => {
-  render(<ReviewPage review={{ ...review, tests: [] }} />);
+  render(<ReviewPage review={pageWith({ ...review, tests: [] })} />);
 
   await screen.findByRole('group', { name: 'rust' });
   expect(
@@ -689,19 +699,19 @@ test("selecting a node narrows the tests section to the test files at or under i
   });
   render(
     <ReviewPage
-      review={{
+      review={pageWith({
         ...review,
         tests: [
           testFile('crates/application/src/lib.rs'),
           testFile('crates/application/tests/export.rs'),
           testFile('tools/visual-review/src/notes.test.ts'),
         ],
-        notes: {
-          version: 1,
-          summary: [],
-          tests: 'The notes check is pinned; the CLI is not.',
-          notes: {},
-        },
+      })}
+      notes={{
+        version: 1,
+        summary: [],
+        tests: 'The notes check is pinned; the CLI is not.',
+        notes: {},
       }}
     />,
   );
@@ -728,7 +738,7 @@ test("ticking 'Changed + 1 hop' hides what is more than one edge from a change; 
   const user = userEvent.setup();
   render(
     <ReviewPage
-      review={{
+      review={pageWith({
         range: 'abc123..def456',
         diff: {
           nodes: [
@@ -742,15 +752,15 @@ test("ticking 'Changed + 1 hop' hides what is more than one edge from a change; 
             dependency('cli-adapter', 'domain', 'unchanged'),
           ],
         },
-        notes: {
-          version: 1,
-          tests: '',
-          summary: [
-            { text: 'Read the use case.', target: 'rust/crate/application' },
-            { text: 'Check the CLI.', target: 'rust/crate/cli-adapter' },
-          ],
-          notes: {},
-        },
+      })}
+      notes={{
+        version: 1,
+        tests: '',
+        summary: [
+          { text: 'Read the use case.', target: 'rust/crate/application' },
+          { text: 'Check the CLI.', target: 'rust/crate/cli-adapter' },
+        ],
+        notes: {},
       }}
     />,
   );
@@ -785,7 +795,7 @@ test("with 'Changed + 1 hop' ticked and nothing drawn changed, the graph gives w
   const user = userEvent.setup();
   render(
     <ReviewPage
-      review={{
+      review={pageWith({
         range: 'abc123..def456',
         diff: {
           nodes: [
@@ -794,7 +804,7 @@ test("with 'Changed + 1 hop' ticked and nothing drawn changed, the graph gives w
           ],
           edges: [],
         },
-      }}
+      })}
     />,
   );
   await screen.findByRole('group', { name: 'rust' });
@@ -828,7 +838,7 @@ const panelWidth = () =>
 
 test('a selected node opens its panel beside a divider that gives its width: 360 for a note alone, 600 with changes; arrow keys move the divider, other keys leave it, and it stops at 280 and where the graph would get narrower than 320; the width it sets holds for later selections', async () => {
   const user = userEvent.setup();
-  render(<ReviewPage review={withChangesUnderApplication} />);
+  render(<ReviewPage review={pageWith(withChangesUnderApplication)} />);
 
   const rust = await screen.findByRole('group', { name: 'rust' });
   expect(screen.queryByRole('separator')).toBeNull();
@@ -860,7 +870,7 @@ test('a selected node opens its panel beside a divider that gives its width: 360
 
 test('dragging the divider sets the panel width until the button is let go, within the same limits', async () => {
   const user = userEvent.setup();
-  render(<ReviewPage review={review} />);
+  render(<ReviewPage review={pageWith(review)} />);
   const rust = await screen.findByRole('group', { name: 'rust' });
   await user.click(within(rust).getByRole('button', { name: 'domain: unchanged' }));
   const divider = screen.getByRole('separator', { name: 'Panel width' });

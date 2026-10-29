@@ -2,7 +2,7 @@ import { type KeyboardEvent, type PointerEvent, useEffect, useMemo, useRef, useS
 import type { FilePatch } from '../core/diff-graphs.ts';
 import { isAtOrUnder } from '../core/diff-graphs.ts';
 import type { Note, ReviewNotes } from '../core/notes.ts';
-import type { ReviewData } from '../core/review-data.ts';
+import type { PageData } from '../core/page.ts';
 import { notReadLine } from '../core/skipped.ts';
 import type { MarkedTest, TestChange, TestStatement } from '../core/test-changes.ts';
 import {
@@ -391,7 +391,12 @@ const TestTree = ({ statements }: { readonly statements: ReadonlyArray<TestState
   </ul>
 );
 
-export const ReviewPage = ({ review }: { readonly review: ReviewData }) => {
+type ReviewPageProps = {
+  readonly review: PageData;
+  readonly notes?: ReviewNotes | undefined;
+};
+
+export const ReviewPage = ({ review, notes }: ReviewPageProps) => {
   const [layout, setLayout] = useState<Layout>();
   const [selected, setSelected] = useState<string>();
   const [chosenWidth, setChosenWidth] = useState<number>();
@@ -404,8 +409,8 @@ export const ReviewPage = ({ review }: { readonly review: ReviewData }) => {
   const [nearOnly, setNearOnly] = useState(false);
   const drawn = useMemo(() => (nearOnly ? nearChanges(visible) : visible), [visible, nearOnly]);
   const shown = useMemo(
-    () => visibleNotes({ diff: review.diff, expanded, notes: review.notes?.notes ?? {} }),
-    [review, expanded],
+    () => visibleNotes({ diff: review.diff, expanded, notes: notes?.notes ?? {} }),
+    [review, notes, expanded],
   );
   const toggle = (id: string) =>
     setExpanded(current =>
@@ -418,8 +423,8 @@ export const ReviewPage = ({ review }: { readonly review: ReviewData }) => {
     elements.current.set(id, element);
   };
   const labelOf = new Map(visible.nodes.map(node => [node.id, node.label]));
-  const dangling = review.dangling ?? [];
-  const undrawn = review.undrawn ?? [];
+  const dangling = review.dangling;
+  const undrawn = review.undrawn;
   const visibleOf = visibleNodeOf({ diff: review.diff, expanded });
   const drawing = {
     notes: shown,
@@ -433,7 +438,7 @@ export const ReviewPage = ({ review }: { readonly review: ReviewData }) => {
   };
   const selectedNode = review.diff.nodes.find(node => node.id === selected);
   const patches = selectedNode
-    ? (review.patches ?? []).filter(({ path }) => isAtOrUnder(path, selectedNode))
+    ? review.patches.filter(({ path }) => isAtOrUnder(path, selectedNode))
     : [];
   const panelWidth = chosenWidth ?? (patches.length > 0 ? CHANGES_WIDTH : NOTE_WIDTH);
   const moveDivider = (event: KeyboardEvent) => {
@@ -451,7 +456,7 @@ export const ReviewPage = ({ review }: { readonly review: ReviewData }) => {
       once: true,
     });
   };
-  const tests = (review.tests ?? []).filter(
+  const tests = review.tests.filter(
     ({ path }) => selectedNode === undefined || isAtOrUnder(path, selectedNode),
   );
   const [focusTarget, setFocusTarget] = useState<string>();
@@ -496,7 +501,7 @@ export const ReviewPage = ({ review }: { readonly review: ReviewData }) => {
             <ShortRange range={review.range} />
           </code>
         </h1>
-        {review.skipped?.map(skip => (
+        {review.skipped.map(skip => (
           <p key={skip.reader} className="skipped" role="alert">
             {notReadLine(skip)}
           </p>
@@ -506,7 +511,7 @@ export const ReviewPage = ({ review }: { readonly review: ReviewData }) => {
       </header>
       <div className="columns">
         <div className="content">
-          {review.notes && <Summary notes={review.notes} onGoTo={goTo} />}
+          {notes && <Summary notes={notes} onGoTo={goTo} />}
           <label className="near-only">
             <input
               type="checkbox"
@@ -570,7 +575,7 @@ export const ReviewPage = ({ review }: { readonly review: ReviewData }) => {
           )}
           <section className="tests" aria-label="Tests">
             <h2>Tests</h2>
-            {review.notes && <p className="tests-line">{review.notes.tests}</p>}
+            {notes && <p className="tests-line">{notes.tests}</p>}
             {tests.length === 0 ? (
               <p>{selectedNode ? 'No test changed here.' : 'No test changed.'}</p>
             ) : (

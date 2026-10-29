@@ -1,6 +1,7 @@
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import { z } from 'zod';
+import type { PullRequest } from '../core/page.ts';
 
 const run = promisify(execFile);
 
@@ -10,12 +11,6 @@ const PullRequestViewSchema = z.object({
   title: z.string(),
   url: z.string(),
 });
-
-export type PullRequest = {
-  readonly number: number;
-  readonly title: string;
-  readonly url: string;
-};
 
 type PullRequestOptions = {
   readonly repo: string;
@@ -29,7 +24,15 @@ const namesRepository = (remoteUrl: string, repository: string): boolean => {
 
 type ExecFailure = { readonly stderr: string };
 
-export const readPullRequest = async ({ repo, number }: PullRequestOptions) => {
+type FetchedPullRequest = PullRequest & {
+  readonly from: string;
+  readonly to: string;
+};
+
+export const readPullRequest = async ({
+  repo,
+  number,
+}: PullRequestOptions): Promise<FetchedPullRequest> => {
   const git = async (...args: ReadonlyArray<string>): Promise<string> =>
     (await run('git', ['-C', repo, ...args])).stdout.trim();
   const view = await run(

@@ -1,0 +1,62 @@
+import { expect, test } from 'vitest';
+import type { GraphNode } from './graph.ts';
+import { pageData } from './page.ts';
+import type { RangeReading } from './read-range.ts';
+
+const webFile = (path: string): GraphNode => ({
+  id: `web/file/${path}`,
+  kind: 'file',
+  label: path,
+  parent: 'web',
+  path: `web/src/${path}`,
+});
+
+const webStack: GraphNode = { id: 'web', kind: 'stack', label: 'web', path: '' };
+
+const patch = (path: string) => ({ path, patch: `diff --git a/${path} b/${path}` });
+
+const readingWith = (overrides: Partial<RangeReading>): RangeReading => ({
+  before: { nodes: [webStack], edges: [] },
+  after: { nodes: [webStack, webFile('a.ts')], edges: [] },
+  changedPaths: ['web/src/a.ts'],
+  renames: [],
+  patches: [],
+  tests: [],
+  danglingCalls: [],
+  skipped: [],
+  ...overrides,
+});
+
+test("a reading's page data holds its diff, its dangling calls and test files, the patches of drawn files apart from the rest, and an empty list of skipped stacks", () => {
+  const tests = [{ path: 'web/a.test.ts', unreadable: 'SyntaxError' }];
+  const reading = readingWith({
+    patches: [patch('web/src/a.ts'), patch('README.md')],
+    danglingCalls: [{ from: 'web/file/a.ts', path: '/api/x' }],
+    tests,
+  });
+
+  expect(pageData({ reading, range: 'main..feature' })).toStrictEqual({
+    range: 'main..feature',
+    diff: {
+      nodes: [
+        { ...webStack, state: 'unchanged' },
+        { ...webFile('a.ts'), state: 'added' },
+      ],
+      edges: [],
+    },
+    dangling: [{ from: 'web/file/a.ts', path: '/api/x' }],
+    patches: [patch('web/src/a.ts')],
+    undrawn: [patch('README.md')],
+    tests,
+    skipped: [],
+  });
+});
+
+test("a pull request's page data names it, and lists the stacks a missing tool kept from being read", () => {
+  const pullRequest = { number: 7, title: 'Adds a', url: 'https://github.com/acme/shop/pull/7' };
+  const skipped = [{ reader: 'rust' as const, tool: 'cargo', stacks: ['rust'] }];
+
+  expect(
+    pageData({ reading: readingWith({ skipped }), range: 'abc..def', pullRequest }),
+  ).toMatchObject({ range: 'abc..def', pullRequest, skipped });
+});
