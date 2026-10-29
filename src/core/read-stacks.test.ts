@@ -1,4 +1,4 @@
-import { expect, test } from 'vitest';
+import { expect, test, vi } from 'vitest';
 import { fakeLinker, fakeReader } from '../test-support/fakes.ts';
 import { parseConfig } from './config.ts';
 import type { Graph } from './graph.ts';
@@ -48,6 +48,8 @@ const drawnStacks = (side: Awaited<ReturnType<typeof readSide>>) =>
   side.stacks.map(({ root, stack }) => ({ root, stack }));
 
 const nodeIds = (graph: Graph) => graph.nodes.map(({ id }) => id);
+
+const bothSides = (side: Awaited<ReturnType<typeof readSide>>) => [...side.stacks, ...side.stacks];
 
 const unread: Reader['graph'] = async () => {
   throw new Error('a graph was read');
@@ -114,28 +116,20 @@ test('whether a root holds a stack is asked with the settings of the id it would
 });
 
 test("a reader's graph is given the roots and ids of its own stacks, not another reader's", async () => {
-  const side = await readSide({
+  const graph = vi.fn<Reader['graph']>(async ({ root, stack }) => ({
+    nodes: [{ id: stack, kind: 'stack', label: stack, path: root }],
+    edges: [],
+  }));
+  await readSide({
     readers: [
       fakeReader({ name: 'rust', roots: [{ root: 'api' }] }),
-      fakeReader({
-        name: 'typescript',
-        roots: [{ root: 'web' }],
-        graph: async ({ stack, stacks }) => ({
-          nodes: [
-            {
-              id: stack,
-              kind: 'stack',
-              label: [...stacks].map(([root, id]) => `${root}=${id}`).join(','),
-              path: '',
-            },
-          ],
-          edges: [],
-        }),
-      }),
+      fakeReader({ name: 'typescript', roots: [{ root: 'web' }], graph }),
     ],
   });
 
-  expect(side.graph.nodes.map(({ label }) => label)).toEqual(['api', 'web=web']);
+  expect(graph).toHaveBeenCalledWith(
+    expect.objectContaining({ stacks: new Map([['web', 'web']]) }),
+  );
 });
 
 test("a stack's graph is read with the settings of the id it is drawn under", async () => {
@@ -159,8 +153,8 @@ test("a stack's graph is read with the settings of the id it is drawn under", as
   );
 });
 
-test('a stack the config sets to false is not read, edges to it go, and its root is no test root, while it still counts as drawn', async () => {
-  const side = await readSide({
+const withE2eDropped = () =>
+  readSide({
     config: '{"stacks": {"e2e": false}}',
     readers: [
       fakeReader({
@@ -176,10 +170,18 @@ test('a stack the config sets to false is not read, edges to it go, and its root
     ],
   });
 
+test('a stack the config sets to false is not read, and edges to it go', async () => {
+  const side = await withE2eDropped();
+
   expect(side.graph).toEqual({
     nodes: [{ id: 'web', kind: 'stack', label: 'web', path: 'web' }],
     edges: [],
   });
+});
+
+test('a stack the config sets to false is no test root, but still counts as drawn', async () => {
+  const side = await withE2eDropped();
+
   expect(side.roots.map(({ root }) => root)).toEqual(['web']);
   expect(drawnStacks(side)).toEqual([
     { root: 'web', stack: 'web' },
@@ -395,9 +397,9 @@ test.for([
   const linkers = [fakeLinker({ from: 'typescript', to: 'rust' })];
   const side = await readSide({ config: JSON.stringify(config), readers, linkers });
 
-  expect(() =>
-    checkConfig(parseConfig(JSON.stringify(config)), [...side.stacks, ...side.stacks], linkers),
-  ).toThrow(new Error(`visual-review.config.json: ${error}`));
+  expect(() => checkConfig(parseConfig(JSON.stringify(config)), bothSides(side), linkers)).toThrow(
+    new Error(`visual-review.config.json: ${error}`),
+  );
 });
 
 test('a config naming drawn stacks, by fields their readers take, its own fields and linkers reading them, passes the check', async () => {
