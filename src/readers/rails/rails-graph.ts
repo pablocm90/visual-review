@@ -64,12 +64,18 @@ const scopesOf = (node: Node): ReadonlyArray<string> =>
       [],
     );
 
-const resolved = (node: Node, constants: ReadonlySet<string>): string =>
-  node.text.startsWith('::')
-    ? node.text.slice(2)
-    : (scopesOf(node)
-        .map(scope => `${scope}::${node.text}`)
-        .find(name => constants.has(name)) ?? node.text);
+const prefixesOf = (name: string): ReadonlyArray<string> => {
+  const parts = name.split('::');
+  return parts.map((_, end) => parts.slice(0, parts.length - end).join('::'));
+};
+
+const resolved = (node: Node, constants: ReadonlySet<string>): string | undefined => {
+  const fromTop = node.text.startsWith('::');
+  const name = fromTop ? node.text.slice(2) : node.text;
+  return [...(fromTop ? [] : scopesOf(node)).map(scope => `${scope}::`), '']
+    .flatMap(scope => prefixesOf(name).map(prefix => `${scope}${prefix}`))
+    .find(candidate => constants.has(candidate));
+};
 
 const referencesIn = (
   program: Node | undefined,
@@ -78,7 +84,7 @@ const referencesIn = (
   ...new Set(
     (program?.descendantsOfType(['constant', 'scope_resolution']) ?? [])
       .filter(node => node.parent?.type !== 'scope_resolution' && !isDefinedName(node))
-      .map(node => resolved(node, constants)),
+      .flatMap(node => resolved(node, constants) ?? []),
   ),
 ];
 

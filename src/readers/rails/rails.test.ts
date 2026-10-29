@@ -305,9 +305,25 @@ test.for([
     to: 'Admin::UsersController::Filter',
   },
   {
+    reason: 'in the one scope a compact class line opens',
+    controller: 'class Admin::UsersController\n  def index = User.all\nend\n',
+    to: 'User',
+  },
+  {
     reason: 'at the top only, written from the top',
     controller: 'module Admin\n  class UsersController\n    def index = ::User.all\n  end\nend\n',
     to: 'User',
+  },
+  {
+    reason: 'by the longest part of it that is a class',
+    controller:
+      'module Admin\n  class UsersController\n    def index = Order::STATUSES\n  end\nend\n',
+    to: 'Order',
+  },
+  {
+    reason: 'by the longest part of it that is a class, in its nested scope first',
+    controller: 'module Admin\n  class UsersController\n    def index = User::ROLES\n  end\nend\n',
+    to: 'Admin::User',
   },
 ])('a constant names the class it resolves to $reason', async ({ controller, to }) => {
   using workspace = gitRepo({
