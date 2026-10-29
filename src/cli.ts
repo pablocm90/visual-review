@@ -4,6 +4,7 @@ import { lstat, mkdir, readFile, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { parseArgs, promisify } from 'node:util';
 import { z } from 'zod';
+import { linkers, readers } from './adapters.ts';
 import { parseNotes } from './core/notes.ts';
 import { notedPageHtml, type PageData, type PullRequest, pageData, pageHtml } from './core/page.ts';
 import { readRange } from './core/read-range.ts';
@@ -99,7 +100,7 @@ const writeReview = async (args: ReadonlyArray<string>): Promise<string> => {
     await fillNotes({ range, page, notesFile: values.notes });
     return page;
   }
-  const reading = await readRange({ repo, from, to });
+  const reading = await readRange({ repo, from, to, readers, linkers, onPath });
   reading.skipped.forEach(skip => {
     console.error(notReadLine(skip));
   });

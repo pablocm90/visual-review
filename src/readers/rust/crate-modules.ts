@@ -5,6 +5,8 @@ import { crateId } from './crate-graph.ts';
 import { isCfgTest, itemsIn, parseRust } from './rust-syntax.ts';
 
 type CrateModulesOptions = {
+  readonly stack: string;
+  readonly root: string;
   readonly crate: string;
   readonly roots: ReadonlyArray<string>;
   readonly sources: Readonly<Record<string, string>>;
@@ -74,7 +76,13 @@ type WithChildrenOptions = {
   readonly directory: string;
 };
 
-export const crateModules = ({ crate, roots, sources }: CrateModulesOptions): Graph => {
+export const crateModules = ({
+  stack,
+  root,
+  crate,
+  roots,
+  sources,
+}: CrateModulesOptions): Graph => {
   const readModule = ({ path, segments, label }: ReadModuleOptions): Module => ({
     label,
     path,
@@ -95,7 +103,7 @@ export const crateModules = ({ crate, roots, sources }: CrateModulesOptions): Gr
       });
     }),
   ];
-  const idOf = (module: Module): string => `rust/mod/${crate}/${module.label}`;
+  const idOf = (module: Module): string => `${stack}/mod/${crate}/${module.label}`;
   const trees = roots.map(path =>
     withChildren({
       module: readModule({ path, segments: [], label: basename(path) }),
@@ -135,8 +143,8 @@ export const crateModules = ({ crate, roots, sources }: CrateModulesOptions): Gr
         id: idOf(module),
         kind: 'file',
         label: module.label,
-        parent: crateId(crate),
-        path: module.path,
+        parent: crateId(stack, crate),
+        path: join(root, module.path),
       }),
     ),
     edges: [...new Map(edges.map(edge => [edgeId(edge), edge])).values()],

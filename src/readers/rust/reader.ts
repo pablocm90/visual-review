@@ -2,7 +2,6 @@ import { execFile } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { promisify } from 'node:util';
-import { addedStacks } from '../../core/config.ts';
 import type { Graph } from '../../core/graph.ts';
 import type { Reader } from '../../core/reader.ts';
 import { sourcesIn } from '../sources-in.ts';
@@ -18,7 +17,13 @@ const reviewersToolchain = (outside: string): Promise<NodeJS.ProcessEnv> =>
     () => process.env,
   );
 
-const graphAt = async (checkout: string, root: string): Promise<Graph> => {
+type GraphAtOptions = {
+  readonly checkout: string;
+  readonly root: string;
+  readonly stack: string;
+};
+
+const graphAt = async ({ checkout, root, stack }: GraphAtOptions): Promise<Graph> => {
   const directory = join(checkout, root);
   const { stdout } = await run(
     'cargo',
@@ -32,12 +37,12 @@ const graphAt = async (checkout: string, root: string): Promise<Graph> => {
     ],
     { cwd: directory, env: await reviewersToolchain(dirname(checkout)) },
   );
-  const crates = crateGraph(stdout);
+  const crates = crateGraph({ metadataJson: stdout, stack, root });
   const modules = await Promise.all(
     crateRoots(stdout).map(async ({ crate, directory: crateDirectory, roots }) => {
       const files = await sourcesIn(directory, join(crateDirectory, '**/*.rs'));
       const sources = Object.fromEntries(files.map(({ file, text }) => [file, text]));
-      return crateModules({ crate, roots, sources });
+      return crateModules({ stack, root, crate, roots, sources });
     }),
   );
   return {
@@ -46,45 +51,13 @@ const graphAt = async (checkout: string, root: string): Promise<Graph> => {
   };
 };
 
-type RebaseOptions = {
-  readonly stack: string;
-  readonly root: string;
-};
-
-const rebased = (graph: Graph, { stack, root }: RebaseOptions): Graph => {
-  const id = (old: string): string => `${stack}${old.slice('rust'.length)}`;
-  return {
-    nodes: graph.nodes.map(node => ({
-      ...node,
-      id: id(node.id),
-      label: node.parent === undefined ? stack : node.label,
-      ...(node.parent === undefined ? {} : { parent: id(node.parent) }),
-      path: node.kind === 'stack' ? '' : join(root, node.path),
-    })),
-    edges: graph.edges.map(edge => ({ ...edge, from: id(edge.from), to: id(edge.to) })),
-  };
-};
-
-const isWorkspace = (directory: string): boolean => existsSync(join(directory, 'Cargo.toml'));
-
 export const rustReader: Reader = {
   name: 'rust',
   tool: 'cargo',
   stackFields: [],
-  open: ({ directory, config, taken }) => {
-    const detected = new Map(isWorkspace(directory) ? [['.', 'rust'] as const] : []);
-    const stacks = new Map([
-      ...detected,
-      ...addedStacks({ config, reader: 'rust', detected, taken })
-        .filter(({ root }) => isWorkspace(join(directory, root)))
-        .map(({ root, stack }) => [root, stack] as const),
-    ]);
-    return {
-      stacks,
-      graph: async root =>
-        rebased(await graphAt(directory, root), { stack: stacks.get(root) ?? 'rust', root }),
-    };
-  },
+  roots: () => [{ root: '.', name: 'rust' }],
+  holds: ({ directory, root }) => existsSync(join(directory, root, 'Cargo.toml')),
+  graph: ({ directory, root, stack }) => graphAt({ checkout: directory, root, stack }),
   isTestFile: path => path.endsWith('.rs'),
   readTests: readRustTests,
 };

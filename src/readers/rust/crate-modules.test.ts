@@ -11,6 +11,8 @@ const moduleNode = (label: string, path: string) => ({
 
 const modulesOf = (sources: Readonly<Record<string, string>>) =>
   crateModules({
+    stack: 'rust',
+    root: '.',
     crate: 'app',
     roots: ['crates/app/src/lib.rs'],
     sources: Object.fromEntries(
@@ -136,4 +138,34 @@ test.for([
   },
 ])('a use joins modules: $reason', ({ file, text, edges }) => {
   expect(edgesWith(file, text)).toEqual(edges);
+});
+
+test("a crate read as another stack at a folder of the repo draws its modules under that stack's crate, with repo paths", () => {
+  const graph = crateModules({
+    stack: 'api',
+    root: 'backend',
+    crate: 'app',
+    roots: ['src/lib.rs'],
+    sources: { 'src/lib.rs': 'mod a;\nuse a::Thing;\n', 'src/a.rs': '' },
+  });
+
+  expect(graph).toEqual({
+    nodes: [
+      {
+        id: 'api/mod/app/lib.rs',
+        kind: 'file',
+        label: 'lib.rs',
+        parent: 'api/crate/app',
+        path: 'backend/src/lib.rs',
+      },
+      {
+        id: 'api/mod/app/a',
+        kind: 'file',
+        label: 'a',
+        parent: 'api/crate/app',
+        path: 'backend/src/a.rs',
+      },
+    ],
+    edges: [{ from: 'api/mod/app/lib.rs', to: 'api/mod/app/a' }],
+  });
 });
