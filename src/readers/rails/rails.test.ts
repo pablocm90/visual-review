@@ -346,6 +346,47 @@ test.for([
   ]);
 });
 
+test.for([
+  { association: 'has_many :line_items', to: 'LineItem' },
+  { association: 'has_and_belongs_to_many :tags', to: 'Tag' },
+  { association: 'has_one :invoice', to: 'Invoice' },
+  { association: 'belongs_to :customer', to: 'Customer' },
+  { association: 'has_many :ai_calls', to: 'AICall' },
+])('a model declaring $association draws an edge to $to', async ({ association, to }) => {
+  using workspace = gitRepo({
+    ...railsApp,
+    'app/models/order.rb': `class Order\n  ${association}\nend\n`,
+    'app/models/line_item.rb': 'class LineItem\nend\n',
+    'app/models/tag.rb': 'class Tag\nend\n',
+    'app/models/invoice.rb': 'class Invoice\nend\n',
+    'app/models/customer.rb': 'class Customer\nend\n',
+    'app/models/ai_call.rb': 'class AICall\nend\n',
+  });
+  const { repo, root } = workspace;
+  const shop = basename(repo);
+
+  const range = await readRange({ repo, from: root, to: root });
+
+  expect(range.after.edges).toEqual([{ from: `${shop}/class/Order`, to: `${shop}/class/${to}` }]);
+});
+
+test("an association names the class in its owner's scope first, even from a compact class line", async () => {
+  using workspace = gitRepo({
+    ...railsApp,
+    'app/models/admin/order.rb': 'class Admin::Order\n  has_many :items\nend\n',
+    'app/models/item.rb': 'class Item\nend\n',
+    'app/models/admin/item.rb': 'module Admin\n  class Item\n  end\nend\n',
+  });
+  const { repo, root } = workspace;
+  const shop = basename(repo);
+
+  const range = await readRange({ repo, from: root, to: root });
+
+  expect(range.after.edges).toEqual([
+    { from: `${shop}/class/Admin::Order`, to: `${shop}/class/Admin::Item` },
+  ]);
+});
+
 test("edges onto the base classes Rails generates are dropped, while edges onto an app's own base classes stay", async () => {
   using workspace = gitRepo({
     ...railsApp,
