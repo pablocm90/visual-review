@@ -172,7 +172,7 @@ test('the toolbar zooms the graph by steps of 1.25, to 100% about the frame cent
 
   await press('Zoom in');
   await showEverything(user);
-  expect(zoomShown()).toBe('50%');
+  await waitFor(() => expect(zoomShown()).toBe('50%'));
 });
 
 test('dragging from a node pans the graph and selects nothing, even back near where it began, while a press that barely moves still selects it', async () => {
