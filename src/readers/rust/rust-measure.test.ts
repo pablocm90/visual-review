@@ -20,6 +20,10 @@ test("a Rust file's lines are those holding code, not blank or comment ones", ()
   expect(measureRust(text).lines).toBe(5);
 });
 
+test.for(['', '\n  \n'])('a file with no code in it, %j, has no lines', text => {
+  expect(measureRust(text).lines).toBe(0);
+});
+
 test("a test fn's and a cfg(test) module's lines, attributes included, are not counted", () => {
   const text = source(
     'fn kept() {}',

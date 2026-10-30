@@ -66,7 +66,7 @@ export const measureRust = (text: string): FileMeasures => {
   const root = parseRust(text);
   if (root === undefined) return { lines: 0, functions: [] };
   return {
-    lines: new Set(codeRows(root)).size,
+    lines: new Set(root.children.flatMap(codeRows)).size,
     functions: root
       .descendantsOfType('function_item')
       .filter(item => !isTestCode(item))
