@@ -87,3 +87,29 @@ export const nearChanges = (diff: GraphDiff): GraphDiff => {
     edges: diff.edges.filter(edge => kept.has(edge.from) && kept.has(edge.to)),
   };
 };
+
+type MergedDiffOptions = VisibleDiffOptions & {
+  readonly noted: ReadonlySet<string>;
+};
+
+export const mergedDiff = ({ diff, expanded, noted }: MergedDiffOptions): GraphDiff => {
+  const boxesAbove = boxesAboveIn(diff.nodes);
+  const up = (id: string): string => boxesAbove(id).at(-1) ?? id;
+  const changed = new Set(
+    diff.nodes.filter(node => node.state !== 'unchanged').map(node => node.id),
+  );
+  const touchesChange = (edge: DiffedEdge): boolean =>
+    edge.state !== 'unchanged' ||
+    changed.has(edge.from) ||
+    changed.has(edge.to) ||
+    noted.has(edgeId(edge));
+  return visibleDiff({
+    diff: {
+      ...diff,
+      edges: diff.edges.map(edge =>
+        touchesChange(edge) ? edge : { ...edge, from: up(edge.from), to: up(edge.to) },
+      ),
+    },
+    expanded,
+  });
+};
