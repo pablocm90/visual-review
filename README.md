@@ -9,7 +9,7 @@ Out of the box, it reads these, with nothing to configure:
 | Language | Detected from | Drawn as | Edges | Tests compared |
 |---|---|---|---|---|
 | Rust | a Cargo workspace at the repo root | crates, holding their modules | crate dependencies, and the modules' `use` paths | `#[test]` functions, in `#[cfg(test)]` modules too |
-| TypeScript and JavaScript | every `package.json` whose source root holds TS/JS files | one box per first folder under the source root (or per `boxes` glob), holding its files | imports, including a sibling package's by its name | `test`/`it` under `describe` in `*.test.*` and `*.spec.*` files |
+| TypeScript and JavaScript | every `package.json` whose source root holds TS/JS files | one box per first folder under the source root (or per `boxes` glob), holding its files | imports, including a sibling package's by its name | `test`/`it` calls, grouped by `describe`, in `*.test.*` and `*.spec.*` files |
 | Ruby on Rails | every `config/application.rb` outside `vendor/`, `node_modules/`, `test/` and `spec/` | one box per `app/` layer (`models`, `controllers`…) and `lib` (or per `boxes` glob), holding its classes | the constants a class names, and model associations | Minitest under `test/`, RSpec under `spec/` |
 
 Across stacks, `fetch` calls in TS/JS are linked to the routes of Rust crates that use axum.
@@ -51,7 +51,7 @@ Then, from anywhere in the repo (as `/visual-review:visual-review` when another 
 | `/visual-review main..my-branch` | a range of commits |
 | `/visual-review` | your uncommitted work against `HEAD` |
 
-Claude builds the page, writes structural notes and flags onto it, and opens it in your browser. Selecting a crate, module, file or edge opens its note and patches in a panel beside the graph; drag the divider between them, or focus it and use the arrow keys, to give either side more room.
+Claude builds the page, writes structural notes and flags onto it, and opens it in your browser. Selecting a crate, module or file opens its note and patches in a panel beside the graph, and selecting an edge opens its note; drag the divider between them, or focus it and use the arrow keys, to give either side more room.
 
 Without Claude, run the CLI with the same argument. It builds the page with no notes and prints its path:
 
@@ -64,11 +64,11 @@ npx @pablocm90/visual-review 42
 The header names the range (and the PR, linked) and gives the legend: green is added, red with a dashed outline is removed, amber is modified, and grey is unchanged. A modified crate, module, box or class has a changed file inside it. A renamed one is drawn once, with "was …" under its name. When a reader's tool is missing, such as `cargo`, an alert says which stacks weren't read.
 
 - **Summary.** With Claude's notes, the change's summary and every flagged concern come first. Click one to go to the part it's about.
-- **Graph.** Each stack is a box. Click `+` on a crate, folder or layer to open it, and `−` to close it. Solid arrows are dependencies or references. Dotted arrows are `fetch` calls to routes. A `!` badge at a part's top corner marks a flagged note, and one at its bottom corner marks calls no route matches.
+- **Graph.** Each stack is a box. Click `+` on a crate, folder or layer to open it, and `−` to close it. Arrows are dependencies or references, dashed when removed. Dotted arrows are `fetch` calls to routes. A `!` badge at a closed part's top-right corner, or at an arrow's middle, marks a flagged note. One at a part's bottom-right corner marks calls no route matches.
 - **Changed + 1 hop**, ticked by default, draws only the changed parts and their direct neighbours. Untick it to see everything.
 - **All edges**, unticked by default, keeps an opened box readable: unchanged edges between two boxes are merged into one box-to-box arrow, and unchanged edges inside a box are hidden. Edges that are added, removed, noted or touch a changed part are always drawn in full. Tick it to draw every edge as it is.
-- **Selecting** a part or an arrow opens a panel with its note and the patches of its files. Drag the divider, or focus it and use the arrow keys, to resize it.
-- **Tests** lists the test files whose tests changed, or the selected part's, as a tree: `+` added, `−` removed, `✎` edited, with "moved to" or "moved from" for a test that changed file.
+- **Selecting** a part opens a panel with its note and the patches of its files. Selecting an arrow shows its note. Drag the divider, or focus it and use the arrow keys, to resize it.
+- **Tests** lists the test files whose tests changed, or the selected part's, as a tree: `+` added, `−` removed, `✎` edited, `·` unchanged, with "moved to" or "moved from" for a test that changed file.
 - **Calls with no route** lists `fetch` calls no axum route matches. Calls whose path is built at runtime aren't drawn.
 - **Not in the graph** holds the patches of changed files outside every stack (tools, plans, CI, config).
 
