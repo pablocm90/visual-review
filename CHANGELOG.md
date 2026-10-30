@@ -2,6 +2,12 @@
 
 What changed in each release of `@pablocm90/visual-review`, newest first. Versions follow [semver](https://semver.org); while it is 0.x, a minor version may change the exported types.
 
+## Unreleased
+
+### Fixed
+
+- A flag badge opens what it marks and says why. Clicking a red `!` selects its node or edge and opens the panel, headed by the flag ("Flagged: …", or "No route for …" for calls with no route); hovering it shows the same reason.
+
 ## 0.3.0 — 2026-10-30
 
 ### Added
