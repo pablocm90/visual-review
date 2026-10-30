@@ -2,14 +2,33 @@ import type { Node } from 'web-tree-sitter';
 import type { ReadTest } from '../../core/test-changes.ts';
 import { parseRuby } from './ruby-syntax.ts';
 
-const TESTS = new Set(['test', 'it']);
+const TESTS = new Set(['test', 'it', 'specify', 'example', 'scenario']);
 
-const HEADINGS = new Set(['describe', 'context']);
+const HEADINGS = new Set(['describe', 'context', 'feature']);
+
+const MODULES = new Set(['constant', 'scope_resolution']);
+
+const METADATA = new Set(['pair', 'simple_symbol']);
+
+const JOINED_TO_A_MODULE = /^(#|::|\.)/;
+
+const argumentsOf = (call: Node): ReadonlyArray<Node> =>
+  call.childForFieldName('arguments')?.namedChildren ?? [];
+
+const described = (argument: Node): string =>
+  argument.type === 'string' ? argument.text.slice(1, -1) : argument.text;
 
 const titleOf = (call: Node): string => {
-  const [title] = call.childForFieldName('arguments')?.namedChildren ?? [];
-  if (title === undefined) return '';
-  return title.type === 'string' ? title.text.slice(1, -1) : title.text;
+  const [title] = argumentsOf(call);
+  return title === undefined ? '' : described(title);
+};
+
+const groupOf = (call: Node): string => {
+  const [first, second] = argumentsOf(call);
+  if (first === undefined) return '';
+  if (second === undefined || METADATA.has(second.type)) return described(first);
+  const joined = MODULES.has(first.type) && JOINED_TO_A_MODULE.test(described(second));
+  return `${described(first)}${joined ? '' : ' '}${described(second)}`;
 };
 
 const statementsIn = (node: Node, scope: ReadonlyArray<string>): ReadonlyArray<ReadTest> =>
@@ -30,7 +49,8 @@ const statementsIn = (node: Node, scope: ReadonlyArray<string>): ReadonlyArray<R
     if (!HEADINGS.has(method)) return statementsIn(child, scope);
     const block = child.childForFieldName('block');
     const children = block === null ? [] : statementsIn(block, []);
-    return [{ kind: 'heading', name: titleOf(child), children }];
+    if (children.length === 0) return [];
+    return [{ kind: 'heading', name: groupOf(child), children }];
   });
 
 export const readRubyTests = (text: string): ReadonlyArray<ReadTest> => {

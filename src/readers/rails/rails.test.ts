@@ -589,6 +589,13 @@ test("a Minitest or RSpec file is read only under a test/ or spec/ folder of a R
 
 const added = (name: string) => ({ kind: 'test', name, change: 'added' });
 
+const testsAdded = async ({ path, file }: { path: string; file: string }) => {
+  using workspace = gitRepo(railsApp);
+  const { repo, root } = workspace;
+  const to = commit(repo, { [path]: file });
+  return (await readRange({ repo, from: root, to })).tests;
+};
+
 test.for([
   {
     reason: 'a class in a module, by its constant',
@@ -637,13 +644,89 @@ test.for([
     statements: [{ kind: 'heading', name: 'OrderTest', children: [added('#{state} works')] }],
   },
 ])('a Minitest file reads $reason', async ({ file, statements }) => {
-  using workspace = gitRepo(railsApp);
-  const { repo, root } = workspace;
-  const to = commit(repo, { 'test/models/order_test.rb': file });
+  expect(await testsAdded({ path: 'test/models/order_test.rb', file })).toEqual([
+    { path: 'test/models/order_test.rb', statements },
+  ]);
+});
 
-  const range = await readRange({ repo, from: root, to });
+const works = 'do\n  it "works" do\n  end\nend\n';
 
-  expect(range.tests).toEqual([{ path: 'test/models/order_test.rb', statements }]);
+test.for([
+  {
+    reason: 'a group by its two descriptions, joined by a space',
+    file: `RSpec.describe "create reseller", "as an admin" ${works}`,
+    name: 'create reseller as an admin',
+  },
+  {
+    reason: 'a class then a method, joined by nothing',
+    file: `describe Order, "#total" ${works}`,
+    name: 'Order#total',
+  },
+  {
+    reason: 'a class then a class method, joined by nothing',
+    file: `describe Order, ".build" ${works}`,
+    name: 'Order.build',
+  },
+  {
+    reason: 'a scoped class then a constant, joined by nothing',
+    file: `describe Admin::Order, "::Line" ${works}`,
+    name: 'Admin::Order::Line',
+  },
+  {
+    reason: 'a class then words, joined by a space',
+    file: `describe Order, "when paid. #2" ${works}`,
+    name: 'Order when paid. #2',
+  },
+  {
+    reason: 'a group with no description, as RSpec does, by nothing',
+    file: `describe ${works}`,
+    name: '',
+  },
+  {
+    reason: 'a string then a method, joined by a space',
+    file: `describe "Order", "#total" ${works}`,
+    name: 'Order #total',
+  },
+  {
+    reason: 'a group without its hash metadata',
+    file: `RSpec.describe Order, type: :model ${works}`,
+    name: 'Order',
+  },
+  {
+    reason: 'a group without its symbol metadata',
+    file: `describe "checkout", :integration ${works}`,
+    name: 'checkout',
+  },
+])('an RSpec file names $reason', async ({ file, name }) => {
+  expect(await testsAdded({ path: 'spec/models/order_spec.rb', file })).toEqual([
+    {
+      path: 'spec/models/order_spec.rb',
+      statements: [{ kind: 'heading', name, children: [added('works')] }],
+    },
+  ]);
+});
+
+test.for([
+  {
+    reason: 'feature as a group holding scenario, specify and example tests',
+    file: 'feature "checkout" do\n  scenario "pays" do\n  end\n\n  specify "ships" do\n  end\n\n  example "refunds" do\n  end\nend\n',
+    statements: [
+      {
+        kind: 'heading',
+        name: 'checkout',
+        children: [added('pays'), added('ships'), added('refunds')],
+      },
+    ],
+  },
+  {
+    reason: 'no heading for a group holding no test',
+    file: 'describe Order do\n  context "when paid" do\n    let(:paid) { true }\n  end\n\n  it "works" do\n  end\nend\n',
+    statements: [{ kind: 'heading', name: 'Order', children: [added('works')] }],
+  },
+])('an RSpec file reads $reason', async ({ file, statements }) => {
+  expect(await testsAdded({ path: 'spec/models/order_spec.rb', file })).toEqual([
+    { path: 'spec/models/order_spec.rb', statements },
+  ]);
 });
 
 test('a test_ method is a test named by the method, so renaming it removes one test and adds another', async () => {
