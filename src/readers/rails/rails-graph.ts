@@ -127,12 +127,13 @@ const associated = (call: Node, owner: string, { ignoringCase }: Classes): strin
   const [name, ...rest] = call.childForFieldName('arguments')?.namedChildren ?? [];
   const options = optionsOf(rest);
   if (options.get('polymorphic') === 'true') return undefined;
-  const className = options.get('class_name');
-  const candidate =
-    className === undefined
-      ? camelized(inflected((name?.text ?? '').slice(1)))
-      : className.slice(1, -1);
-  return lookedUp(candidate, prefixesOf(owner.split('::')), ignoringCase);
+  const scopes = prefixesOf(owner.split('::'));
+  const className = options.get('class_name') ?? options.get('source_type');
+  if (className !== undefined) return lookedUp(className.slice(1, -1), scopes, ignoringCase);
+  const source = options.get('source');
+  const named =
+    source === undefined ? inflected((name?.text ?? '').slice(1)) : singular(source.slice(1));
+  return lookedUp(camelized(named), scopes, ignoringCase);
 };
 
 const namedBy = (node: Node, owner: string, classes: Classes): string | undefined => {

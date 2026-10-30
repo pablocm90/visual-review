@@ -415,6 +415,15 @@ test.for([
     to: 'Invoice',
   },
   { association: 'has_many :terms, class_name: "TermsAndConditions"', to: 'TermsAndConditions' },
+  {
+    association: 'has_many :payments, through: :lines, source: :item, source_type: "Invoice"',
+    to: 'Invoice',
+  },
+  { association: 'has_many :reviewers, through: :reviews, source: :users', to: 'User' },
+  {
+    association: 'has_many :buyers, through: :carts, source: :customer, class_name: "User"',
+    to: 'User',
+  },
 ])(
   'a model declaring $association draws an edge to the class it names',
   async ({ association, to }) => {
@@ -424,6 +433,9 @@ test.for([
       'app/models/user.rb': 'class User\nend\n',
       'app/models/invoice.rb': 'class Invoice\nend\n',
       'app/models/terms_and_conditions.rb': 'class TermsAndConditions\nend\n',
+      'app/models/item.rb': 'class Item\nend\n',
+      'app/models/payment.rb': 'class Payment\nend\n',
+      'app/models/customer.rb': 'class Customer\nend\n',
     });
     const { repo, root } = workspace;
     const shop = basename(repo);
