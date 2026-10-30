@@ -30,7 +30,7 @@ import {
   type PlacedNode,
   type PlacedStack,
 } from './layout.ts';
-import { fitted, frameHeight, panned, pinned, topLeftOf, type View, zoomed } from './view.ts';
+import { boxOf, fitted, frameHeight, panned, pinned, type View, zoomed } from './view.ts';
 
 const STATES = ['added', 'removed', 'modified', 'unchanged'] as const;
 
@@ -452,8 +452,8 @@ type ViewOnOptions = {
 const viewOn = ({ layout, frame, chosen }: ViewOnOptions): View => {
   if (chosen?.of === layout) return chosen.view;
   if (chosen?.pin === undefined) return fitted({ graph: layout, frame });
-  const from = topLeftOf({ layout: chosen.of, id: chosen.pin });
-  const to = topLeftOf({ layout, id: chosen.pin });
+  const from = boxOf({ layout: chosen.of, id: chosen.pin });
+  const to = boxOf({ layout, id: chosen.pin });
   return from && to
     ? pinned({ graph: layout, frame, view: chosen.view, from, to })
     : fitted({ graph: layout, frame });

@@ -1,6 +1,6 @@
 import { expect, test } from 'vitest';
 import type { Layout, PlacedNode } from './layout.ts';
-import { centred, fitted, frameHeight, panned, pinned, topLeftOf, zoomed } from './view.ts';
+import { boxOf, centred, fitted, frameHeight, panned, pinned, zoomed } from './view.ts';
 
 test.for([
   {
@@ -172,7 +172,7 @@ const placed = (
   children,
 });
 
-test("a box's top-left in the graph adds up the places of the stack and boxes it is drawn in", () => {
+test("a box's place in the graph adds up the places of the stack and boxes it is drawn in, and keeps its own size", () => {
   const layout: Layout = {
     width: 1000,
     height: 1000,
@@ -191,6 +191,11 @@ test("a box's top-left in the graph adds up the places of the stack and boxes it
     ],
   };
 
-  expect(topLeftOf({ layout, id: 'web/file/utils/x.ts' })).toEqual({ x: 232, y: 104 });
-  expect(topLeftOf({ layout, id: 'web' })).toEqual({ x: 16, y: 20 });
+  expect(boxOf({ layout, id: 'web/file/utils/x.ts' })).toEqual({
+    x: 232,
+    y: 104,
+    width: 100,
+    height: 50,
+  });
+  expect(boxOf({ layout, id: 'web' })).toMatchObject({ x: 16, y: 20 });
 });

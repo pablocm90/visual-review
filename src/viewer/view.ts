@@ -81,15 +81,16 @@ export const centred = ({ graph, frame, box }: Omit<Placed, 'view'> & { readonly
   });
 };
 
-const topLeftIn = (
-  nodes: ReadonlyArray<PlacedNode>,
-  id: string,
-  offset: Point,
-): Point | undefined =>
-  nodes.reduce<Point | undefined>((found, node) => {
+const boxIn = (nodes: ReadonlyArray<PlacedNode>, id: string, offset: Point): Box | undefined =>
+  nodes.reduce<Box | undefined>((found, node) => {
     const at = { x: offset.x + node.x, y: offset.y + node.y };
-    return found ?? (node.id === id ? at : topLeftIn(node.children, id, at));
+    return (
+      found ??
+      (node.id === id
+        ? { ...at, width: node.width, height: node.height }
+        : boxIn(node.children, id, at))
+    );
   }, undefined);
 
-export const topLeftOf = ({ layout, id }: { readonly layout: Layout; readonly id: string }) =>
-  topLeftIn(layout.stacks, id, { x: 0, y: 0 });
+export const boxOf = ({ layout, id }: { readonly layout: Layout; readonly id: string }) =>
+  boxIn(layout.stacks, id, { x: 0, y: 0 });
