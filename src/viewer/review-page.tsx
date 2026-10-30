@@ -1,5 +1,5 @@
 import { type KeyboardEvent, type PointerEvent, useEffect, useMemo, useRef, useState } from 'react';
-import type { FilePatch } from '../core/diff-graphs.ts';
+import type { FilePatch, GraphDiff } from '../core/diff-graphs.ts';
 import { isAtOrUnder } from '../core/diff-graphs.ts';
 import { edgeId } from '../core/graph.ts';
 import { type Note, type ReviewNotes, visibleNotes } from '../core/notes.ts';
@@ -393,6 +393,16 @@ const TestTree = ({ statements }: { readonly statements: ReadonlyArray<TestState
   </ul>
 );
 
+type DrawnAtOptions = {
+  readonly diff: GraphDiff;
+  readonly expanded: ReadonlySet<string>;
+  readonly noted: ReadonlySet<string>;
+  readonly allEdges: boolean;
+};
+
+const drawnAt = ({ diff, expanded, noted, allEdges }: DrawnAtOptions): GraphDiff =>
+  allEdges ? visibleDiff({ diff, expanded }) : mergedDiff({ diff, expanded, noted });
+
 type ReviewPageProps = {
   readonly review: PageData;
   readonly notes?: ReviewNotes | undefined;
@@ -410,15 +420,11 @@ export const ReviewPage = ({ review, notes }: ReviewPageProps) => {
   const visible = useMemo(() => visibleDiff({ diff: review.diff, expanded }), [review, expanded]);
   const [allEdges, setAllEdges] = useState(false);
   const noted = useMemo(() => new Set(Object.keys(notes?.notes ?? {})), [notes]);
-  const edgesAt = (opened: ReadonlySet<string>, all: boolean) =>
-    all
-      ? visibleDiff({ diff: review.diff, expanded: opened })
-      : mergedDiff({ diff: review.diff, expanded: opened, noted });
   const [nearOnly, setNearOnly] = useState(false);
   const drawn = useMemo(() => {
-    const atExpansion = allEdges ? visible : mergedDiff({ diff: review.diff, expanded, noted });
+    const atExpansion = drawnAt({ diff: review.diff, expanded, noted, allEdges });
     return nearOnly ? nearChanges(atExpansion) : atExpansion;
-  }, [review, expanded, noted, visible, allEdges, nearOnly]);
+  }, [review, expanded, noted, allEdges, nearOnly]);
   const shown = useMemo(
     () => visibleNotes({ diff: review.diff, expanded, notes: notes?.notes ?? {} }),
     [review, notes, expanded],
@@ -475,9 +481,10 @@ export const ReviewPage = ({ review, notes }: ReviewPageProps) => {
     setSelected(id);
     const opened = expandedToShow({ diff: review.diff, expanded, id });
     setExpanded(opened);
-    const all = allEdges || !isDrawn({ diff: edgesAt(opened, false), id });
-    setAllEdges(all);
-    if (!isDrawn({ diff: nearChanges(edgesAt(opened, all)), id })) {
+    const at = { diff: review.diff, expanded: opened, noted };
+    const all = allEdges || !isDrawn({ diff: drawnAt({ ...at, allEdges: false }), id });
+    if (all) setAllEdges(true);
+    if (!isDrawn({ diff: nearChanges(drawnAt({ ...at, allEdges: all })), id })) {
       setNearOnly(false);
     }
     setFocusTarget(id);
