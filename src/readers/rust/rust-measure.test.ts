@@ -38,3 +38,23 @@ test('every fn with a body is a function, free, in an impl, a trait default or n
     { name: 'shut', cyclomatic: 1, abc: noAbc },
   ]);
 });
+
+const cyclomaticOf = (body: string) =>
+  measureRust(`fn f() { ${body} }`).functions[0]?.cyclomatic;
+
+test.for([
+  { body: 'if a {}', cyclomatic: 2 },
+  { body: 'if a {} else if b {} else {}', cyclomatic: 3 },
+  { body: 'while a {}', cyclomatic: 2 },
+  { body: 'for i in a {}', cyclomatic: 2 },
+  { body: 'loop {}', cyclomatic: 2 },
+  { body: 'match a { 1 => {}, _ => {} }', cyclomatic: 3 },
+  { body: 'a && b;', cyclomatic: 2 },
+  { body: 'a || b;', cyclomatic: 2 },
+  { body: 'a == b;', cyclomatic: 1 },
+  { body: 'a?;', cyclomatic: 2 },
+  { body: 'let g = |y| if y {};', cyclomatic: 2 },
+  { body: 'fn g() { if a {} }', cyclomatic: 1 },
+])('`$body` gives its fn cyclomatic $cyclomatic', ({ body, cyclomatic }) => {
+  expect(cyclomaticOf(body)).toBe(cyclomatic);
+});

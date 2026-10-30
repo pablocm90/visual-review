@@ -14,9 +14,25 @@ const codeRows = (node: Node): ReadonlyArray<number> => {
   );
 };
 
+const BRANCHES = new Set([
+  'if_expression',
+  'while_expression',
+  'for_expression',
+  'loop_expression',
+  'match_arm',
+  'try_expression',
+  '&&',
+  '||',
+]);
+
+const ownNodes = (node: Node): ReadonlyArray<Node> =>
+  node.children.flatMap(child =>
+    child.type === 'function_item' ? [] : [child, ...ownNodes(child)],
+  );
+
 const measureFunction = (item: Node): FunctionMeasures => ({
   name: item.childForFieldName('name')?.text ?? '',
-  cyclomatic: 1,
+  cyclomatic: 1 + ownNodes(item).filter(node => BRANCHES.has(node.type)).length,
   abc: { assignments: 0, branches: 0, conditions: 0 },
 });
 
