@@ -222,6 +222,38 @@ test('the wheel pans the graph, and with Ctrl or ⌘ zooms it at the pointer, ne
   expect(zoomShown()).toBe('71%');
 });
 
+test('with the frame focused, + = - step the zoom, 1 goes to 100%, 0 fits, and the arrows pan by 40px without scrolling the page', async () => {
+  const user = userEvent.setup();
+  const graph = await layoutDiff(review.diff);
+  renderInFrame(pageWith(review), { width: graph.width / 2, windowHeight: 10_000 });
+  const rust = await screen.findByRole('group', { name: 'rust' });
+  const frame = screen.getByRole('group', { name: 'Graph' });
+  const at100 = (x: number, y: number) =>
+    `translate(${x - graph.width / 4} ${y - graph.height / 4}) scale(1)`;
+  frame.focus();
+
+  await user.keyboard('+');
+  expect(zoomShown()).toBe('63%');
+  await user.keyboard('=');
+  expect(zoomShown()).toBe('78%');
+  await user.keyboard('-');
+  expect(zoomShown()).toBe('63%');
+  await user.keyboard('1');
+  expect(viewOf(rust)).toBe(at100(0, 0));
+  await user.keyboard('{ArrowRight}');
+  expect(viewOf(rust)).toBe(at100(-40, 0));
+  await user.keyboard('{ArrowDown}');
+  expect(viewOf(rust)).toBe(at100(-40, -40));
+  await user.keyboard('{ArrowLeft}{ArrowLeft}');
+  expect(viewOf(rust)).toBe(at100(40, -40));
+  await user.keyboard('{ArrowUp}{ArrowUp}');
+  expect(viewOf(rust)).toBe(at100(40, 40));
+  expect(fireEvent.keyDown(frame, { key: 'ArrowUp' })).toBe(false);
+  expect(fireEvent.keyDown(frame, { key: 'Tab' })).toBe(true);
+  await user.keyboard('0');
+  expect(viewOf(rust)).toBe('translate(0 0) scale(0.5)');
+});
+
 test("a PR's page names the PR above its range, as a link to it", async () => {
   render(
     <ReviewPage

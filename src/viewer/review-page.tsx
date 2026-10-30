@@ -42,6 +42,7 @@ const PAGE_PADDING_AND_DIVIDER = 72;
 const DIVIDER_STEP = 40;
 const LEAST_DRAG = 4;
 const WHEEL_PER_DOUBLING = 100;
+const PAN_STEP = 40;
 
 const panelWidthWithin = (width: number) =>
   Math.min(Math.max(width, PANEL_MIN), window.innerWidth - PAGE_PADDING_AND_DIVIDER - GRAPH_MIN);
@@ -559,6 +560,30 @@ export const ReviewPage = ({ review, notes }: ReviewPageProps) => {
       once: true,
     });
   };
+  const zoomAtCentre = (scale: number) => {
+    if (!layout || !frame || !view) return;
+    const at = { x: frame.width / 2, y: frame.height / 2 };
+    setChosen({ of: layout, view: zoomed({ graph: layout, frame, view, scale, at }) });
+  };
+  const keyed = (event: KeyboardEvent) => {
+    if (!layout || !frame || !view) return;
+    const panBy = (x: number, y: number) => () =>
+      setChosen({ of: layout, view: panned({ graph: layout, frame, view, by: { x, y } }) });
+    const act = {
+      '+': () => zoomAtCentre(view.scale * ZOOM_STEP),
+      '=': () => zoomAtCentre(view.scale * ZOOM_STEP),
+      '-': () => zoomAtCentre(view.scale / ZOOM_STEP),
+      '1': () => zoomAtCentre(1),
+      '0': () => setChosen(undefined),
+      ArrowLeft: panBy(PAN_STEP, 0),
+      ArrowRight: panBy(-PAN_STEP, 0),
+      ArrowUp: panBy(0, PAN_STEP),
+      ArrowDown: panBy(0, -PAN_STEP),
+    }[event.key];
+    if (!act) return;
+    event.preventDefault();
+    act();
+  };
   const wheel = useEffectEvent((event: WheelEvent) => {
     if (!layout || !frame || !view || !frameElement) return;
     event.preventDefault();
@@ -643,6 +668,9 @@ export const ReviewPage = ({ review, notes }: ReviewPageProps) => {
               aria-label="Graph"
               ref={setFrameElement}
               style={{ height: frame?.height }}
+              // biome-ignore lint/a11y/noNoninteractiveTabindex: the frame takes the zoom and pan keys
+              tabIndex={0}
+              onKeyDown={keyed}
               onPointerDown={pan}
               onClickCapture={event => {
                 if (dragged.current) event.stopPropagation();
@@ -652,18 +680,7 @@ export const ReviewPage = ({ review, notes }: ReviewPageProps) => {
                 <>
                   <Zoom
                     scale={view.scale}
-                    onZoom={scale =>
-                      setChosen({
-                        of: layout,
-                        view: zoomed({
-                          graph: layout,
-                          frame,
-                          view,
-                          scale,
-                          at: { x: frame.width / 2, y: frame.height / 2 },
-                        }),
-                      })
-                    }
+                    onZoom={zoomAtCentre}
                     onFit={() => setChosen(undefined)}
                   />
                   <svg className="graph">
