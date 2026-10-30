@@ -4,6 +4,7 @@ What changed in each release of `@pablocm90/visual-review`, newest first. Versio
 
 ## Unreleased
 
+- The page's graph zooms and pans inside a frame of its own: drag, wheel, Ctrl/⌘ + wheel or pinch, a toolbar and keys. It opens fitted, keeps a toggled box in place, and going to a part centres it readable.
 - The README lists what each language reads out of the box and walks through the page. CONTRIBUTING.md and SECURITY.md are new.
 
 ## 0.2.0 — 2026-10-30
