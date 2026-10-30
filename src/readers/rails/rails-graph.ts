@@ -71,22 +71,86 @@ const scopesOf = (node: Node): ReadonlyArray<string> =>
     definitionsAround(node).map(definition => definition.childForFieldName('name')?.text ?? ''),
   );
 
-const resolved = (node: Node, constants: ReadonlySet<string>): string | undefined => {
-  const fromTop = node.text.startsWith('::');
-  const name = fromTop ? node.text.slice(2) : node.text;
-  return [...(fromTop ? [] : scopesOf(node)).map(scope => `${scope}::`), '']
+type ClassNamed = (candidate: string) => string | undefined;
+
+type Classes = { readonly exactly: ClassNamed; readonly ignoringCase: ClassNamed };
+
+const lookedUp = (
+  name: string,
+  scopes: ReadonlyArray<string>,
+  classNamed: ClassNamed,
+): string | undefined =>
+  [...scopes.map(scope => `${scope}::`), '']
     .flatMap(scope => prefixesOf(name.split('::')).map(prefix => `${scope}${prefix}`))
-    .find(candidate => constants.has(candidate));
+    .map(classNamed)
+    .find(named => named !== undefined);
+
+const resolved = (node: Node, { exactly }: Classes): string | undefined => {
+  const fromTop = node.text.startsWith('::');
+  return fromTop
+    ? lookedUp(node.text.slice(2), [], exactly)
+    : lookedUp(node.text, scopesOf(node), exactly);
 };
 
-const referencesIn = (
+const SINGULAR_ENDINGS: ReadonlyArray<readonly [RegExp, string]> = [
+  [/people$/, 'person'],
+  [/ies$/, 'y'],
+  [/(ss|x|ch|sh)es$/, '$1'],
+  [/s$/, ''],
+];
+
+const singular = (plural: string): string => {
+  const ending = SINGULAR_ENDINGS.find(([pattern]) => pattern.test(plural));
+  return ending === undefined ? plural : plural.replace(...ending);
+};
+
+const asWritten = (name: string): string => name;
+
+const ASSOCIATIONS: ReadonlyMap<string, (name: string) => string> = new Map([
+  ['has_many', singular],
+  ['has_and_belongs_to_many', singular],
+  ['has_one', asWritten],
+  ['belongs_to', asWritten],
+]);
+
+const optionsOf = (args: ReadonlyArray<Node>): ReadonlyMap<string, string> =>
+  new Map(
+    args.map(arg => [
+      arg.childForFieldName('key')?.text ?? '',
+      arg.childForFieldName('value')?.text ?? '',
+    ]),
+  );
+
+const associated = (call: Node, owner: string, { ignoringCase }: Classes): string | undefined => {
+  const inflected = ASSOCIATIONS.get(call.childForFieldName('method')?.text ?? '');
+  if (inflected === undefined) return undefined;
+  const [name, ...rest] = call.childForFieldName('arguments')?.namedChildren ?? [];
+  const options = optionsOf(rest);
+  if (options.get('polymorphic') === 'true') return undefined;
+  const scopes = prefixesOf(owner.split('::'));
+  const className = options.get('class_name') ?? options.get('source_type');
+  if (className !== undefined) return lookedUp(className.slice(1, -1), scopes, ignoringCase);
+  const source = options.get('source');
+  const named =
+    source === undefined ? inflected((name?.text ?? '').slice(1)) : singular(source.slice(1));
+  return lookedUp(camelized(named), scopes, ignoringCase);
+};
+
+const namedBy = (node: Node, owner: string, classes: Classes): string | undefined => {
+  if (node.type === 'call') return associated(node, owner, classes);
+  if (node.parent?.type === 'scope_resolution' || isDefinedName(node)) return undefined;
+  return resolved(node, classes);
+};
+
+const classesNamedIn = (
   program: Node | undefined,
-  constants: ReadonlySet<string>,
+  owner: string,
+  classes: Classes,
 ): ReadonlyArray<string> => [
   ...new Set(
-    (program?.descendantsOfType(['constant', 'scope_resolution']) ?? [])
-      .filter(node => node.parent?.type !== 'scope_resolution' && !isDefinedName(node))
-      .flatMap(node => resolved(node, constants) ?? []),
+    (program?.descendantsOfType(['constant', 'scope_resolution', 'call']) ?? []).flatMap(
+      node => namedBy(node, owner, classes) ?? [],
+    ),
   ),
 ];
 
@@ -131,10 +195,15 @@ export const railsGraph = ({ stack, root, files }: RailsGraphOptions): Graph => 
       .map(node => [node.id, node]),
   );
   const constants = new Set(classes.map(({ constant }) => constant));
+  const byLowerCase = new Map(classes.map(({ constant }) => [constant.toLowerCase(), constant]));
+  const lookups: Classes = {
+    exactly: candidate => (constants.has(candidate) ? candidate : undefined),
+    ignoringCase: candidate => byLowerCase.get(candidate.toLowerCase()),
+  };
   const edges = classes.flatMap(({ constant, program }) =>
-    referencesIn(program, constants)
-      .filter(written => written !== constant && !GENERATED_BASES.has(written))
-      .map(written => ({ from: `${stack}/class/${constant}`, to: `${stack}/class/${written}` })),
+    classesNamedIn(program, constant, lookups)
+      .filter(named => named !== constant && !GENERATED_BASES.has(named))
+      .map(named => ({ from: `${stack}/class/${constant}`, to: `${stack}/class/${named}` })),
   );
   const stackNode: GraphNode = { id: stack, kind: 'stack', label: stack, path: '' };
   return { nodes: [stackNode, ...nodes.values()], edges };
