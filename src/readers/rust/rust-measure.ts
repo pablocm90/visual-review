@@ -1,5 +1,5 @@
 import type { Node } from 'web-tree-sitter';
-import type { FileMeasures } from '../../core/reader.ts';
+import type { FileMeasures, FunctionMeasures } from '../../core/reader.ts';
 import { parseRust } from './rust-syntax.ts';
 
 const isComment = (node: Node): boolean => node.type.endsWith('_comment');
@@ -14,7 +14,17 @@ const codeRows = (node: Node): ReadonlyArray<number> => {
   );
 };
 
+const measureFunction = (item: Node): FunctionMeasures => ({
+  name: item.childForFieldName('name')?.text ?? '',
+  cyclomatic: 1,
+  abc: { assignments: 0, branches: 0, conditions: 0 },
+});
+
 export const measureRust = (text: string): FileMeasures => {
   const root = parseRust(text);
-  return { lines: root === undefined ? 0 : new Set(codeRows(root)).size, functions: [] };
+  if (root === undefined) return { lines: 0, functions: [] };
+  return {
+    lines: new Set(codeRows(root)).size,
+    functions: root.descendantsOfType('function_item').map(measureFunction),
+  };
 };
