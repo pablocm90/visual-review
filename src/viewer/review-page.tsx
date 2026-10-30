@@ -30,7 +30,7 @@ import {
   type PlacedNode,
   type PlacedStack,
 } from './layout.ts';
-import { fitted, frameHeight, type View, zoomed } from './view.ts';
+import { fitted, frameHeight, panned, type View, zoomed } from './view.ts';
 
 const STATES = ['added', 'removed', 'modified', 'unchanged'] as const;
 
@@ -40,6 +40,7 @@ const PANEL_MIN = 280;
 const GRAPH_MIN = 320;
 const PAGE_PADDING_AND_DIVIDER = 72;
 const DIVIDER_STEP = 40;
+const LEAST_DRAG = 4;
 
 const panelWidthWithin = (width: number) =>
   Math.min(Math.max(width, PANEL_MIN), window.innerWidth - PAGE_PADDING_AND_DIVIDER - GRAPH_MIN);
@@ -540,6 +541,21 @@ export const ReviewPage = ({ review, notes }: ReviewPageProps) => {
   const [chosen, setChosen] = useState<{ readonly view: View; readonly of: Layout }>();
   const view =
     chosen?.of === layout ? chosen?.view : layout && frame && fitted({ graph: layout, frame });
+  const dragged = useRef(false);
+  const pan = (down: PointerEvent<HTMLDivElement>) => {
+    dragged.current = false;
+    if (!layout || !frame || !view) return;
+    const follow = (move: globalThis.PointerEvent) => {
+      const by = { x: move.clientX - down.clientX, y: move.clientY - down.clientY };
+      dragged.current ||= Math.hypot(by.x, by.y) >= LEAST_DRAG;
+      if (dragged.current)
+        setChosen({ of: layout, view: panned({ graph: layout, frame, view, by }) });
+    };
+    window.addEventListener('pointermove', follow);
+    window.addEventListener('pointerup', () => window.removeEventListener('pointermove', follow), {
+      once: true,
+    });
+  };
   useEffect(() => {
     layoutDiff(drawn).then(setLayout);
   }, [drawn]);
@@ -602,6 +618,10 @@ export const ReviewPage = ({ review, notes }: ReviewPageProps) => {
               aria-label="Graph"
               ref={observeFrame}
               style={{ height: frame?.height }}
+              onPointerDown={pan}
+              onClickCapture={event => {
+                if (dragged.current) event.stopPropagation();
+              }}
             >
               {frame && view && (
                 <>

@@ -48,3 +48,6 @@ export const zoomed = ({ graph, frame, view, scale, at }: ZoomedOptions): View =
     view: { scale: within, x: at.x - (at.x - view.x) * ratio, y: at.y - (at.y - view.y) * ratio },
   });
 };
+
+export const panned = ({ graph, frame, view, by }: Placed & { readonly by: Point }): View =>
+  clamped({ graph, frame, view: { scale: view.scale, x: view.x + by.x, y: view.y + by.y } });

@@ -175,6 +175,33 @@ test('the toolbar zooms the graph by steps of 1.25, to 100% about the frame cent
   expect(zoomShown()).toBe('50%');
 });
 
+test('dragging from a node pans the graph and selects nothing, even back near where it began, while a press that barely moves still selects it', async () => {
+  const user = userEvent.setup();
+  const graph = await layoutDiff(review.diff);
+  renderInFrame(pageWith(review), { width: graph.width / 2, windowHeight: 10_000 });
+  const rust = await screen.findByRole('group', { name: 'rust' });
+  await user.click(screen.getByRole('button', { name: '100%' }));
+  const domain = within(rust).getByRole('button', { name: 'domain: unchanged' });
+  const drag = (...moves: ReadonlyArray<{ readonly clientX: number; readonly clientY: number }>) =>
+    user.pointer([
+      { keys: '[MouseLeft>]', target: domain, coords: { clientX: 100, clientY: 100 } },
+      ...moves.map(coords => ({ coords })),
+      { keys: '[/MouseLeft]' },
+    ]);
+  const pannedBy = (x: number, y: number) =>
+    `translate(${x - graph.width / 4} ${y - graph.height / 4}) scale(1)`;
+
+  await drag({ clientX: 140, clientY: 130 });
+  expect(viewOf(rust)).toBe(pannedBy(40, 30));
+  await drag({ clientX: 140, clientY: 130 }, { clientX: 102, clientY: 101 });
+  expect(viewOf(rust)).toBe(pannedBy(42, 31));
+  expect(screen.queryByRole('complementary', { name: 'Note' })).toBeNull();
+
+  await drag({ clientX: 103, clientY: 100 });
+  expect(viewOf(rust)).toBe(pannedBy(42, 31));
+  expect(noteShown()).toBe('No note');
+});
+
 test("a PR's page names the PR above its range, as a link to it", async () => {
   render(
     <ReviewPage

@@ -1,5 +1,5 @@
 import { expect, test } from 'vitest';
-import { fitted, frameHeight, zoomed } from './view.ts';
+import { fitted, frameHeight, panned, zoomed } from './view.ts';
 
 test.for([
   {
@@ -82,4 +82,19 @@ test('zooming centres a graph smaller than the frame on that axis', () => {
       at: { x: 0, y: 0 },
     }),
   ).toEqual({ scale: 1, x: 0, y: 100 });
+});
+
+test.for([
+  {
+    panIs: 'moves the graph by the pointer',
+    by: { x: 40, y: -30 },
+    view: { scale: 2, x: -460, y: -530 },
+  },
+  {
+    panIs: 'stops at the edge of the graph',
+    by: { x: 600, y: -3000 },
+    view: { scale: 2, x: 0, y: -3000 },
+  },
+])('panning $panIs', ({ by, view }) => {
+  expect(panned({ ...big, view: { scale: 2, x: -500, y: -500 }, by })).toEqual(view);
 });
