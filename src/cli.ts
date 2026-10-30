@@ -36,12 +36,14 @@ type ReviewedRange = {
   readonly range: string;
   readonly from: string;
   readonly to: string;
+  readonly churnTo?: string;
   readonly pullRequest?: PullRequest;
 };
 
 const rangeOf = async (repo: string, argument: string | undefined): Promise<ReviewedRange> => {
   if (argument === undefined) {
-    return { range: 'HEAD..worktree', from: 'HEAD', to: await snapshotWorkingTree(repo) };
+    const to = await snapshotWorkingTree(repo);
+    return { range: 'HEAD..worktree', from: 'HEAD', to, churnTo: 'HEAD' };
   }
   if (/^\d+$/.test(argument)) {
     requireOnPath('gh', 'https://cli.github.com');
@@ -89,7 +91,7 @@ const writeReview = async (args: ReadonlyArray<string>): Promise<string> => {
   });
   requireOnPath('git', 'https://git-scm.com/downloads');
   const repo = (await promisify(execFile)('git', ['rev-parse', '--show-toplevel'])).stdout.trim();
-  const { range, from, to, pullRequest } = await rangeOf(repo, positionals[0]);
+  const { range, pullRequest, ...revisions } = await rangeOf(repo, positionals[0]);
   const directory = join(repo, '.reviews');
   if (!(await isDirectoryOrMissing(directory)))
     throw new Error(`${directory} is not a directory, so no page is written into it`);
@@ -100,7 +102,7 @@ const writeReview = async (args: ReadonlyArray<string>): Promise<string> => {
     await fillNotes({ range, page, notesFile: values.notes });
     return page;
   }
-  const reading = await readRange({ repo, from, to, readers, linkers, onPath });
+  const reading = await readRange({ repo, ...revisions, readers, linkers, onPath });
   reading.skipped.forEach(skip => {
     console.error(notReadLine(skip));
   });

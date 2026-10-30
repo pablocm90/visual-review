@@ -39,6 +39,7 @@ type ReadRangeOptions = Adapters & {
   readonly repo: string;
   readonly from: string;
   readonly to: string;
+  readonly churnTo?: string;
 };
 
 const git = async (repo: string, ...args: ReadonlyArray<string>): Promise<string> =>
@@ -171,6 +172,7 @@ export const readRange = async ({
   repo,
   from,
   to,
+  churnTo = to,
   ...adapters
 }: ReadRangeOptions): Promise<RangeReading> => {
   const [fromCommit, toCommit] = await Promise.all([resolve(repo, from), resolve(repo, to)]);
@@ -203,7 +205,7 @@ export const readRange = async ({
       }),
       after: await churnAt({
         repo,
-        revision: toCommit,
+        revision: churnTo,
         directory: join(scratch, 'after'),
         graph: after.graph,
         days: config.metrics.churnDays,

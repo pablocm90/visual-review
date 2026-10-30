@@ -112,6 +112,20 @@ test('with no range, reviews the uncommitted work against HEAD as HEAD..worktree
   });
 }, 60_000);
 
+test("the uncommitted work's churn counts up to HEAD on the head side too, the uncommitted edit left out", async () => {
+  using workspace = cargoWorkspace();
+  const { repo } = workspace;
+  writeFiles(repo, { 'crates/core/src/lib.rs': 'pub fn edited() {}\n' });
+
+  await runCli(repo);
+
+  const page = readFileSync(join(repo, '.reviews', 'HEAD..worktree.html'), 'utf8');
+  expect(reviewDataIn(page).metrics['rust/mod/core/lib.rs']).toEqual({
+    base: { churn: 1 },
+    head: { churn: 1 },
+  });
+}, 60_000);
+
 test.for([
   {
     missing: 'git',
