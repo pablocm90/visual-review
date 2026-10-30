@@ -51,6 +51,9 @@ const review = {
   },
 };
 
+const showEverything = (user: ReturnType<typeof userEvent.setup>) =>
+  user.click(screen.getByRole('checkbox', { name: 'Changed + 1 hop' }));
+
 const noteShown = () => screen.getByRole('complementary', { name: 'Note' }).textContent;
 
 test('draws every crate and dependency inside the rust stack with its change state, and opens no note panel until one is clicked', async () => {
@@ -282,6 +285,12 @@ const webFile = (module: string, label: string, state: Diffed = 'unchanged') => 
   state,
 });
 
+const webImport = (from: string, to: string, state: GraphDiff['edges'][number]['state']) => ({
+  from: `web/file/${from}`,
+  to: `web/file/${to}`,
+  state,
+});
+
 const buttonsIn = (element: HTMLElement) =>
   within(element)
     .getAllByRole('button')
@@ -336,6 +345,7 @@ test("modules open collapsed, joined by their files' imports; a module's toggle 
     />,
   );
 
+  await showEverything(user);
   const web = await screen.findByRole('group', { name: 'web' });
   expect(screen.queryByRole('region', { name: 'Unplaced notes' })).toBeNull();
   const collapsed = [
@@ -395,6 +405,128 @@ test("modules open collapsed, joined by their files' imports; a module's toggle 
   expect(noteShown()).toBe('New helper.');
 });
 
+test("with 'All edges' unticked, an unchanged import between two open modules is drawn module to module unless it has a note; ticking it draws every import; going to a merged import from the summary ticks it", async () => {
+  const user = userEvent.setup();
+  render(
+    <ReviewPage
+      review={pageWith({
+        range: 'abc123..def456',
+        diff: {
+          nodes: [
+            { id: 'web', kind: 'stack', label: 'web', path: '', state: 'unchanged' },
+            webModule('orders'),
+            webModule('billing'),
+            webFile('orders', 'cart.ts'),
+            webFile('orders', 'checkout.ts'),
+            webFile('billing', 'invoice.ts'),
+          ],
+          edges: [
+            webImport('orders/cart.ts', 'billing/invoice.ts', 'unchanged'),
+            webImport('orders/checkout.ts', 'billing/invoice.ts', 'unchanged'),
+          ],
+        },
+      })}
+      notes={{
+        version: 1,
+        tests: '',
+        summary: [
+          {
+            text: 'See checkout.',
+            target: 'web/file/orders/checkout.ts -> web/file/billing/invoice.ts',
+          },
+        ],
+        notes: {
+          'web/file/orders/cart.ts -> web/file/billing/invoice.ts': { text: 'Totals.' },
+        },
+      }}
+    />,
+  );
+  await showEverything(user);
+  const web = await screen.findByRole('group', { name: 'web' });
+  const all = screen.getByRole('checkbox', { name: 'All edges' });
+  expect(all).toHaveProperty('checked', false);
+  await user.click(within(web).getByRole('button', { name: 'Expand orders' }));
+  await user.click(within(web).getByRole('button', { name: 'Expand billing' }));
+  await within(web).findByRole('group', { name: 'billing' });
+
+  const imports = () => buttonsIn(web).filter(name => name?.includes('→'));
+  await waitFor(() =>
+    expect(imports()).toEqual(['cart.ts → invoice.ts: unchanged', 'orders → billing: unchanged']),
+  );
+
+  await user.click(all);
+
+  await waitFor(() =>
+    expect(imports()).toEqual([
+      'cart.ts → invoice.ts: unchanged',
+      'checkout.ts → invoice.ts: unchanged',
+    ]),
+  );
+
+  await user.click(all);
+  await waitFor(() => expect(imports()).toContain('orders → billing: unchanged'));
+  await user.click(screen.getByRole('button', { name: 'See checkout.' }));
+
+  expect(all).toHaveProperty('checked', true);
+  await waitFor(() =>
+    expect(document.activeElement).toBe(
+      within(web).getByRole('button', { name: 'checkout.ts → invoice.ts: unchanged' }),
+    ),
+  );
+});
+
+test("with 'Changed + 1 hop' ticked, going to a merged module edge or to a hidden import near a change keeps it ticked", async () => {
+  const user = userEvent.setup();
+  render(
+    <ReviewPage
+      review={pageWith({
+        range: 'abc123..def456',
+        diff: {
+          nodes: [
+            { id: 'web', kind: 'stack', label: 'web', path: '', state: 'unchanged' },
+            webModule('orders', 'modified'),
+            webModule('billing'),
+            webFile('orders', 'cart.ts'),
+            webFile('orders', 'checkout.ts'),
+            webFile('billing', 'invoice.ts'),
+          ],
+          edges: [
+            webImport('orders/cart.ts', 'billing/invoice.ts', 'added'),
+            webImport('orders/checkout.ts', 'orders/cart.ts', 'added'),
+            webImport('orders/checkout.ts', 'billing/invoice.ts', 'unchanged'),
+          ],
+        },
+      })}
+      notes={{
+        version: 1,
+        tests: '',
+        summary: [
+          { text: 'See the coupling.', target: 'web/module/orders -> web/module/billing' },
+          {
+            text: 'See checkout.',
+            target: 'web/file/orders/checkout.ts -> web/file/billing/invoice.ts',
+          },
+        ],
+        notes: {},
+      }}
+    />,
+  );
+  const web = await screen.findByRole('group', { name: 'web' });
+  await user.click(within(web).getByRole('button', { name: 'Expand orders' }));
+  await user.click(await within(web).findByRole('button', { name: 'Expand billing' }));
+  await within(web).findByRole('group', { name: 'billing' });
+  const hop = screen.getByRole('checkbox', { name: 'Changed + 1 hop' });
+
+  await user.click(screen.getByRole('button', { name: 'See the coupling.' }));
+
+  expect(hop).toHaveProperty('checked', true);
+
+  await user.click(screen.getByRole('button', { name: 'See checkout.' }));
+
+  expect(screen.getByRole('checkbox', { name: 'All edges' })).toHaveProperty('checked', true);
+  expect(hop).toHaveProperty('checked', true);
+});
+
 test("web calls to API routes are drawn between the stacks, named by their paths, merged while their module is collapsed and split by file once it's expanded; a call with no route marks the node holding it and is listed", async () => {
   const user = userEvent.setup();
   const call = (file: string, path: string, state: GraphDiff['edges'][number]['state']) => ({
@@ -417,7 +549,7 @@ test("web calls to API routes are drawn between the stacks, named by their paths
             webFile('modules/AppInfo', 'api/users.ts'),
           ],
           edges: [
-            call('api/app-info.ts', '/api/info', 'unchanged'),
+            call('api/app-info.ts', '/api/info', 'removed'),
             call('api/users.ts', '/api/users', 'added'),
           ],
         },
@@ -436,6 +568,7 @@ test("web calls to API routes are drawn between the stacks, named by their paths
     />,
   );
 
+  await showEverything(user);
   const web = await screen.findByRole('group', { name: 'web' });
   expect(buttonsIn(web)).toEqual([
     'modules/AppInfo: unchanged, no route for /api/app-info',
@@ -459,7 +592,7 @@ test("web calls to API routes are drawn between the stacks, named by their paths
 
   expect(
     await screen.findByRole('button', {
-      name: 'api/app-info.ts ⇢ http-adapter: unchanged (/api/info)',
+      name: 'api/app-info.ts ⇢ http-adapter: removed (/api/info)',
     }),
   ).toBeTruthy();
   expect(buttonsIn(within(web).getByRole('group', { name: 'modules/AppInfo' }))).toEqual([
@@ -735,7 +868,7 @@ test("selecting a node narrows the tests section to the test files at or under i
   expect(within(tests).getByText('The notes check is pinned; the CLI is not.')).not.toBeNull();
 });
 
-test("ticking 'Changed + 1 hop' hides what is more than one edge from a change; going to a hidden node from the summary unticks it, and going to a shown node or edge doesn't", async () => {
+test("'Changed + 1 hop' starts ticked, hiding what is more than one edge from a change; going to a shown node or edge keeps it, and going to a hidden node unticks it", async () => {
   const user = userEvent.setup();
   render(
     <ReviewPage
@@ -768,18 +901,12 @@ test("ticking 'Changed + 1 hop' hides what is more than one edge from a change; 
   );
   const rust = await screen.findByRole('group', { name: 'rust' });
   const hop = screen.getByRole('checkbox', { name: 'Changed + 1 hop' });
-  expect(hop).toHaveProperty('checked', false);
-  const near = ['application → domain: unchanged', 'domain: unchanged', 'application: modified'];
+  expect(hop).toHaveProperty('checked', true);
   expect(buttonsIn(rust)).toEqual([
-    near[0],
-    'cli-adapter → domain: unchanged',
-    near[1],
-    near[2],
-    'cli-adapter: unchanged',
+    'application → domain: unchanged',
+    'domain: unchanged',
+    'application: modified',
   ]);
-
-  await user.click(hop);
-  await waitFor(() => expect(buttonsIn(rust)).toEqual(near));
   const summary = screen.getByRole('region', { name: 'Summary' });
   await user.click(within(summary).getByRole('button', { name: 'Read the use case.' }));
   await user.click(within(summary).getByRole('button', { name: 'See what it uses.' }));
@@ -810,13 +937,13 @@ test("with 'Changed + 1 hop' ticked and nothing drawn changed, the graph gives w
       })}
     />,
   );
-  await screen.findByRole('group', { name: 'rust' });
-  expect(screen.queryByText('Nothing in the graph changed.')).toBeNull();
-
-  await user.click(screen.getByRole('checkbox', { name: 'Changed + 1 hop' }));
-
   expect(await screen.findByText('Nothing in the graph changed.')).toBeTruthy();
   expect(screen.queryByRole('group', { name: 'rust' })).toBeNull();
+
+  await showEverything(user);
+
+  await screen.findByRole('group', { name: 'rust' });
+  expect(screen.queryByText('Nothing in the graph changed.')).toBeNull();
 });
 
 const withChangesUnderApplication = {

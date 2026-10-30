@@ -28,6 +28,13 @@ const constantOf = (names: ReadonlyArray<string>): string =>
 
 const DEFINITIONS = new Set(['class', 'module']);
 
+const GENERATED_BASES = new Set([
+  'ApplicationRecord',
+  'ApplicationController',
+  'ApplicationJob',
+  'ApplicationMailer',
+]);
+
 const definitionsIn = (node: Node, scope: ReadonlyArray<string>): ReadonlyArray<string> =>
   node.namedChildren.flatMap(child => {
     const name = child.childForFieldName('name');
@@ -37,8 +44,7 @@ const definitionsIn = (node: Node, scope: ReadonlyArray<string>): ReadonlyArray<
     return [defined.join('::'), ...(body === null ? [] : definitionsIn(body, defined))];
   });
 
-const definedConstant = (text: string, names: ReadonlyArray<string>): string => {
-  const program = parseRuby(text);
+const definedConstant = (program: Node | undefined, names: ReadonlyArray<string>): string => {
   const defined = program === undefined ? [] : definitionsIn(program, []);
   const tails = names.map((_, start) => constantOf(names.slice(start)).toLowerCase());
   const [named] = tails.flatMap(tail =>
@@ -46,6 +52,43 @@ const definedConstant = (text: string, names: ReadonlyArray<string>): string => 
   );
   return named ?? constantOf(names);
 };
+
+const isDefinedName = ({ parent, id }: Node): boolean =>
+  parent?.childForFieldName('name')?.id === id;
+
+const definitionsAround = (node: Node): ReadonlyArray<Node> => {
+  const { parent } = node;
+  if (parent === null) return [];
+  const around = definitionsAround(parent);
+  return DEFINITIONS.has(parent.type) ? [...around, parent] : around;
+};
+
+const prefixesOf = (parts: ReadonlyArray<string>): ReadonlyArray<string> =>
+  parts.map((_, end) => parts.slice(0, parts.length - end).join('::'));
+
+const scopesOf = (node: Node): ReadonlyArray<string> =>
+  prefixesOf(
+    definitionsAround(node).map(definition => definition.childForFieldName('name')?.text ?? ''),
+  );
+
+const resolved = (node: Node, constants: ReadonlySet<string>): string | undefined => {
+  const fromTop = node.text.startsWith('::');
+  const name = fromTop ? node.text.slice(2) : node.text;
+  return [...(fromTop ? [] : scopesOf(node)).map(scope => `${scope}::`), '']
+    .flatMap(scope => prefixesOf(name.split('::')).map(prefix => `${scope}${prefix}`))
+    .find(candidate => constants.has(candidate));
+};
+
+const referencesIn = (
+  program: Node | undefined,
+  constants: ReadonlySet<string>,
+): ReadonlyArray<string> => [
+  ...new Set(
+    (program?.descendantsOfType(['constant', 'scope_resolution']) ?? [])
+      .filter(node => node.parent?.type !== 'scope_resolution' && !isDefinedName(node))
+      .flatMap(node => resolved(node, constants) ?? []),
+  ),
+];
 
 type RailsGraphOptions = {
   readonly stack: string;
@@ -58,7 +101,8 @@ export const railsGraph = ({ stack, root, files }: RailsGraphOptions): Graph => 
     .toSorted((a, b) => (a.file < b.file ? -1 : 1))
     .map(({ file, text }) => {
       const { layer, folder, names } = placeOf(file);
-      return { file, layer, folder, constant: definedConstant(text, names) };
+      const program = parseRuby(text);
+      return { file, layer, folder, program, constant: definedConstant(program, names) };
     })
     .filter(
       ({ constant }, index, all) => all.findIndex(other => other.constant === constant) === index,
@@ -86,6 +130,12 @@ export const railsGraph = ({ stack, root, files }: RailsGraphOptions): Graph => 
       })
       .map(node => [node.id, node]),
   );
+  const constants = new Set(classes.map(({ constant }) => constant));
+  const edges = classes.flatMap(({ constant, program }) =>
+    referencesIn(program, constants)
+      .filter(written => written !== constant && !GENERATED_BASES.has(written))
+      .map(written => ({ from: `${stack}/class/${constant}`, to: `${stack}/class/${written}` })),
+  );
   const stackNode: GraphNode = { id: stack, kind: 'stack', label: stack, path: '' };
-  return { nodes: [stackNode, ...nodes.values()], edges: [] };
+  return { nodes: [stackNode, ...nodes.values()], edges };
 };

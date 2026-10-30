@@ -1,5 +1,5 @@
 import { type KeyboardEvent, type PointerEvent, useEffect, useMemo, useRef, useState } from 'react';
-import type { FilePatch } from '../core/diff-graphs.ts';
+import type { FilePatch, GraphDiff } from '../core/diff-graphs.ts';
 import { isAtOrUnder } from '../core/diff-graphs.ts';
 import { edgeId } from '../core/graph.ts';
 import { type Note, type ReviewNotes, visibleNotes } from '../core/notes.ts';
@@ -9,6 +9,7 @@ import type { MarkedTest, TestChange, TestStatement } from '../core/test-changes
 import {
   expandedToShow,
   isDrawn,
+  mergedDiff,
   nearChanges,
   visibleDiff,
   visibleNodeOf,
@@ -392,6 +393,16 @@ const TestTree = ({ statements }: { readonly statements: ReadonlyArray<TestState
   </ul>
 );
 
+type DrawnAtOptions = {
+  readonly diff: GraphDiff;
+  readonly expanded: ReadonlySet<string>;
+  readonly noted: ReadonlySet<string>;
+  readonly allEdges: boolean;
+};
+
+const drawnAt = ({ diff, expanded, noted, allEdges }: DrawnAtOptions): GraphDiff =>
+  allEdges ? visibleDiff({ diff, expanded }) : mergedDiff({ diff, expanded, noted });
+
 type ReviewPageProps = {
   readonly review: PageData;
   readonly notes?: ReviewNotes | undefined;
@@ -407,8 +418,13 @@ export const ReviewPage = ({ review, notes }: ReviewPageProps) => {
     [review],
   );
   const visible = useMemo(() => visibleDiff({ diff: review.diff, expanded }), [review, expanded]);
-  const [nearOnly, setNearOnly] = useState(false);
-  const drawn = useMemo(() => (nearOnly ? nearChanges(visible) : visible), [visible, nearOnly]);
+  const [allEdges, setAllEdges] = useState(false);
+  const noted = useMemo(() => new Set(Object.keys(notes?.notes ?? {})), [notes]);
+  const [nearOnly, setNearOnly] = useState(true);
+  const drawn = useMemo(() => {
+    const atExpansion = drawnAt({ diff: review.diff, expanded, noted, allEdges });
+    return nearOnly ? nearChanges(atExpansion) : atExpansion;
+  }, [review, expanded, noted, allEdges, nearOnly]);
   const shown = useMemo(
     () => visibleNotes({ diff: review.diff, expanded, notes: notes?.notes ?? {} }),
     [review, notes, expanded],
@@ -465,7 +481,10 @@ export const ReviewPage = ({ review, notes }: ReviewPageProps) => {
     setSelected(id);
     const opened = expandedToShow({ diff: review.diff, expanded, id });
     setExpanded(opened);
-    if (!isDrawn({ diff: nearChanges(visibleDiff({ diff: review.diff, expanded: opened })), id })) {
+    const at = { diff: review.diff, expanded: opened, noted };
+    const all = allEdges || !isDrawn({ diff: drawnAt({ ...at, allEdges: false }), id });
+    if (all) setAllEdges(true);
+    if (!isDrawn({ diff: nearChanges(drawnAt({ ...at, allEdges: all })), id })) {
       setNearOnly(false);
     }
     setFocusTarget(id);
@@ -515,6 +534,14 @@ export const ReviewPage = ({ review, notes }: ReviewPageProps) => {
               onChange={event => setNearOnly(event.target.checked)}
             />
             Changed + 1 hop
+          </label>
+          <label className="near-only">
+            <input
+              type="checkbox"
+              checked={allEdges}
+              onChange={event => setAllEdges(event.target.checked)}
+            />
+            All edges
           </label>
           {drawn.nodes.length === 0 && <p className="caveat">Nothing in the graph changed.</p>}
           {layout && (

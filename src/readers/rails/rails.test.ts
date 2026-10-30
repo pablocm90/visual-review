@@ -219,3 +219,154 @@ test('app/lib is a box of its own, apart from lib/', async () => {
     [`${shop}/class/Money`, 'lib/money.rb'],
   ]);
 });
+
+test("a constant a class writes draws an edge to the app's class it names, while its own name and constants naming no class of the app draw none", async () => {
+  using workspace = gitRepo({
+    ...railsApp,
+    'app/models/order.rb': 'class Order\n  def self.recent = Order.where(recent: true)\nend\n',
+    'app/controllers/orders_controller.rb':
+      'class OrdersController\n  def index\n    Rails.logger.info(JSON.dump(Stripe::Charge.list))\n  end\nend\n',
+  });
+  const { repo, root } = workspace;
+  const shop = basename(repo);
+  const to = commit(repo, {
+    'app/controllers/orders_controller.rb':
+      'class OrdersController\n  def show\n    Order.find(params[:id])\n  end\nend\n',
+  });
+
+  const range = await readRange({ repo, from: root, to });
+
+  expect([range.before.edges, range.after.edges]).toEqual([
+    [],
+    [{ from: `${shop}/class/OrdersController`, to: `${shop}/class/Order` }],
+  ]);
+});
+
+test("the constants a file's class and module lines define are no references, so a class draws no edge to the app's module it is nested in", async () => {
+  using workspace = gitRepo({
+    ...railsApp,
+    'app/models/billing.rb': 'module Billing\n  def self.table_name_prefix = "billing_"\nend\n',
+    'app/models/billing/invoice.rb': 'module Billing\n  class Invoice\n  end\nend\n',
+  });
+  const { repo, root } = workspace;
+
+  const range = await readRange({ repo, from: root, to: root });
+
+  expect(range.after.edges).toEqual([]);
+});
+
+test('a scoped constant a class writes names the class it reads in whole, not the classes its parts name', async () => {
+  using workspace = gitRepo({
+    ...railsApp,
+    'app/models/user.rb': 'class User\nend\n',
+    'app/models/admin.rb': 'module Admin\nend\n',
+    'app/models/admin/user.rb': 'module Admin\n  class User\n  end\nend\n',
+    'app/controllers/reports_controller.rb':
+      'class ReportsController\n  def index = Admin::User.count\nend\n',
+  });
+  const { repo, root } = workspace;
+  const shop = basename(repo);
+
+  const range = await readRange({ repo, from: root, to: root });
+
+  expect(range.after.edges).toEqual([
+    { from: `${shop}/class/ReportsController`, to: `${shop}/class/Admin::User` },
+  ]);
+});
+
+test('a class draws one edge to each class it writes, in the order it first writes them', async () => {
+  using workspace = gitRepo({
+    ...railsApp,
+    'app/models/money.rb': 'class Money\nend\n',
+    'app/models/order.rb': 'class Order\nend\n',
+    'app/controllers/checkout_controller.rb':
+      'class CheckoutController\n  def create\n    Money.new(Order.find(1).total - Money.zero)\n  end\nend\n',
+  });
+  const { repo, root } = workspace;
+  const shop = basename(repo);
+
+  const range = await readRange({ repo, from: root, to: root });
+
+  expect(range.after.edges).toEqual([
+    { from: `${shop}/class/CheckoutController`, to: `${shop}/class/Money` },
+    { from: `${shop}/class/CheckoutController`, to: `${shop}/class/Order` },
+  ]);
+});
+
+test.for([
+  {
+    reason: 'in its nested scope first',
+    controller: 'module Admin\n  class UsersController\n    def index = User.all\n  end\nend\n',
+    to: 'Admin::User',
+  },
+  {
+    reason: 'in its innermost scope first',
+    controller: 'module Admin\n  class UsersController\n    def index = Filter.new\n  end\nend\n',
+    to: 'Admin::UsersController::Filter',
+  },
+  {
+    reason: 'in the one scope a compact class line opens',
+    controller: 'class Admin::UsersController\n  def index = User.all\nend\n',
+    to: 'User',
+  },
+  {
+    reason: 'at the top only, written from the top',
+    controller: 'module Admin\n  class UsersController\n    def index = ::User.all\n  end\nend\n',
+    to: 'User',
+  },
+  {
+    reason: 'by the longest part of it that is a class',
+    controller:
+      'module Admin\n  class UsersController\n    def index = Order::STATUSES\n  end\nend\n',
+    to: 'Order',
+  },
+  {
+    reason: 'by the longest part of it that is a class, in its nested scope first',
+    controller: 'module Admin\n  class UsersController\n    def index = User::ROLES\n  end\nend\n',
+    to: 'Admin::User',
+  },
+])('a constant names the class it resolves to $reason', async ({ controller, to }) => {
+  using workspace = gitRepo({
+    ...railsApp,
+    'app/models/user.rb': 'class User\nend\n',
+    'app/models/admin/user.rb': 'module Admin\n  class User\n  end\nend\n',
+    'app/models/order.rb': 'class Order\nend\n',
+    'app/models/admin/filter.rb': 'module Admin\n  class Filter\n  end\nend\n',
+    'app/controllers/admin/users_controller/filter.rb':
+      'module Admin\n  class UsersController\n    class Filter\n    end\n  end\nend\n',
+    'app/controllers/admin/users_controller.rb': controller,
+  });
+  const { repo, root } = workspace;
+  const shop = basename(repo);
+
+  const range = await readRange({ repo, from: root, to: root });
+
+  expect(range.after.edges).toEqual([
+    { from: `${shop}/class/Admin::UsersController`, to: `${shop}/class/${to}` },
+  ]);
+});
+
+test("edges onto the base classes Rails generates are dropped, while edges onto an app's own base classes stay", async () => {
+  using workspace = gitRepo({
+    ...railsApp,
+    'app/models/application_record.rb': 'class ApplicationRecord\nend\n',
+    'app/models/order.rb': 'class Order < ApplicationRecord\nend\n',
+    'app/controllers/application_controller.rb': 'class ApplicationController\nend\n',
+    'app/controllers/admin/base_controller.rb':
+      'class Admin::BaseController < ApplicationController\nend\n',
+    'app/controllers/admin/users_controller.rb':
+      'class Admin::UsersController < Admin::BaseController\nend\n',
+    'app/jobs/application_job.rb': 'class ApplicationJob\nend\n',
+    'app/jobs/export_job.rb': 'class ExportJob < ApplicationJob\nend\n',
+    'app/mailers/application_mailer.rb': 'class ApplicationMailer\nend\n',
+    'app/mailers/order_mailer.rb': 'class OrderMailer < ApplicationMailer\nend\n',
+  });
+  const { repo, root } = workspace;
+  const shop = basename(repo);
+
+  const range = await readRange({ repo, from: root, to: root });
+
+  expect(range.after.edges).toEqual([
+    { from: `${shop}/class/Admin::UsersController`, to: `${shop}/class/Admin::BaseController` },
+  ]);
+});

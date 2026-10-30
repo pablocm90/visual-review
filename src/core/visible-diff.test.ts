@@ -1,6 +1,6 @@
 import { expect, test } from 'vitest';
 import type { DiffedEdge, DiffedNode, GraphDiff } from './diff-graphs.ts';
-import { expandedToShow, nearChanges, visibleDiff } from './visible-diff.ts';
+import { expandedToShow, mergedDiff, nearChanges, visibleDiff } from './visible-diff.ts';
 
 const node = (id: string, kind: DiffedNode['kind'], parent?: string): DiffedNode => ({
   id,
@@ -10,6 +10,8 @@ const node = (id: string, kind: DiffedNode['kind'], parent?: string): DiffedNode
   state: 'unchanged',
   ...(parent === undefined ? {} : { parent }),
 });
+
+const changed = (base: DiffedNode): DiffedNode => ({ ...base, state: 'modified' });
 
 const nested = (edges: ReadonlyArray<DiffedEdge>): GraphDiff => ({
   nodes: [
@@ -81,6 +83,63 @@ test.for<{
   expect(visibleDiff({ diff: nested(edges), expanded: new Set() }).edges).toEqual(drawn);
 });
 
+test.for<{
+  readonly rule: string;
+  readonly edges: ReadonlyArray<DiffedEdge>;
+  readonly opened?: ReadonlyArray<string>;
+  readonly modified?: string;
+  readonly noted?: ReadonlyArray<string>;
+  readonly drawn: ReadonlyArray<string>;
+}>([
+  {
+    rule: 'an unchanged edge between files in two open modules is drawn module to module',
+    edges: [{ from: 'a1', to: 'b1', state: 'unchanged' }],
+    drawn: ['A -> B'],
+  },
+  {
+    rule: 'an end directly under a stack stays',
+    edges: [{ from: 'a1', to: 'root', state: 'unchanged' }],
+    drawn: ['A -> root'],
+  },
+  {
+    rule: 'an added edge keeps its ends',
+    edges: [{ from: 'a1', to: 'b1', state: 'added' }],
+    drawn: ['a1 -> b1'],
+  },
+  {
+    rule: 'an edge from a modified file keeps its ends, into a closed module too',
+    edges: [{ from: 'a1', to: 'b1', state: 'unchanged' }],
+    opened: ['A'],
+    modified: 'a1',
+    drawn: ['a1 -> B'],
+  },
+  {
+    rule: 'an edge into a modified file keeps its ends',
+    edges: [{ from: 'a1', to: 'b1', state: 'unchanged' }],
+    opened: ['B'],
+    modified: 'b1',
+    drawn: ['A -> b1'],
+  },
+  {
+    rule: 'a noted edge keeps its ends',
+    edges: [{ from: 'a1', to: 'b1', state: 'unchanged' }],
+    noted: ['a1 -> b1'],
+    drawn: ['a1 -> b1'],
+  },
+])('at an expansion, $rule', ({ edges, opened = ['A', 'B'], modified, noted = [], drawn }) => {
+  const diff = nested(edges);
+  const merged = mergedDiff({
+    diff: {
+      ...diff,
+      nodes: diff.nodes.map(base => (base.id === modified ? changed(base) : base)),
+    },
+    expanded: new Set(opened),
+    noted: new Set(noted),
+  });
+
+  expect(merged.edges.map(({ from, to }) => `${from} -> ${to}`)).toEqual(drawn);
+});
+
 const deep: GraphDiff = {
   nodes: [
     node('web', 'stack'),
@@ -91,6 +150,16 @@ const deep: GraphDiff = {
   ],
   edges: [{ from: 'leaf', to: 'B', state: 'added' }],
 };
+
+test('at an expansion, an unchanged edge from a box inside an open box is drawn from the nearest box', () => {
+  const merged = mergedDiff({
+    diff: { ...deep, edges: [{ from: 'leaf', to: 'B', state: 'unchanged' }] },
+    expanded: new Set(['A', 'A1', 'B']),
+    noted: new Set(),
+  });
+
+  expect(merged.edges.map(({ from, to }) => `${from} -> ${to}`)).toEqual(['A1 -> B']);
+});
 
 test.for<{
   readonly opened: ReadonlyArray<string>;
@@ -120,8 +189,6 @@ test.for<{ readonly target: string; readonly opened: ReadonlyArray<string> }>([
     new Set(opened),
   );
 });
-
-const changed = (base: DiffedNode): DiffedNode => ({ ...base, state: 'modified' });
 
 test.for<{
   readonly rule: string;

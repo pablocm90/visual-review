@@ -47,6 +47,15 @@ type IsDrawnOptions = {
 export const isDrawn = ({ diff, id }: IsDrawnOptions): boolean =>
   [...diff.nodes.map(node => node.id), ...diff.edges.map(edgeId)].includes(id);
 
+const touchingChangeIn = (diff: GraphDiff) => {
+  const changed = new Set(
+    diff.nodes.filter(node => node.state !== 'unchanged').map(node => node.id),
+  );
+  const touchesChange = (edge: DiffedEdge): boolean =>
+    edge.state !== 'unchanged' || changed.has(edge.from) || changed.has(edge.to);
+  return { changed, touchesChange };
+};
+
 export const visibleDiff = ({ diff, expanded }: VisibleDiffOptions): GraphDiff => {
   const visibleOf = visibleNodeOf({ diff, expanded });
   const rerouted = diff.edges
@@ -65,16 +74,10 @@ export const visibleDiff = ({ diff, expanded }: VisibleDiffOptions): GraphDiff =
 };
 
 export const nearChanges = (diff: GraphDiff): GraphDiff => {
-  const changed = new Set(
-    diff.nodes.filter(node => node.state !== 'unchanged').map(node => node.id),
-  );
+  const { changed, touchesChange } = touchingChangeIn(diff);
   const near = [
     ...changed,
-    ...diff.edges.flatMap(edge =>
-      edge.state !== 'unchanged' || changed.has(edge.from) || changed.has(edge.to)
-        ? [edge.from, edge.to]
-        : [],
-    ),
+    ...diff.edges.flatMap(edge => (touchesChange(edge) ? [edge.from, edge.to] : [])),
   ];
   const parentOf = new Map(diff.nodes.map(node => [node.id, node.parent]));
   const withAncestors = (id: string): ReadonlyArray<string> => {
@@ -86,4 +89,25 @@ export const nearChanges = (diff: GraphDiff): GraphDiff => {
     nodes: diff.nodes.filter(node => kept.has(node.id)),
     edges: diff.edges.filter(edge => kept.has(edge.from) && kept.has(edge.to)),
   };
+};
+
+type MergedDiffOptions = VisibleDiffOptions & {
+  readonly noted: ReadonlySet<string>;
+};
+
+export const mergedDiff = ({ diff, expanded, noted }: MergedDiffOptions): GraphDiff => {
+  const boxesAbove = boxesAboveIn(diff.nodes);
+  const up = (id: string): string => boxesAbove(id).at(-1) ?? id;
+  const { touchesChange } = touchingChangeIn(diff);
+  return visibleDiff({
+    diff: {
+      ...diff,
+      edges: diff.edges.map(edge =>
+        touchesChange(edge) || noted.has(edgeId(edge))
+          ? edge
+          : { ...edge, from: up(edge.from), to: up(edge.to) },
+      ),
+    },
+    expanded,
+  });
 };
