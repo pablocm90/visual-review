@@ -282,6 +282,12 @@ const webFile = (module: string, label: string, state: Diffed = 'unchanged') => 
   state,
 });
 
+const webImport = (from: string, to: string, state: GraphDiff['edges'][number]['state']) => ({
+  from: `web/file/${from}`,
+  to: `web/file/${to}`,
+  state,
+});
+
 const buttonsIn = (element: HTMLElement) =>
   within(element)
     .getAllByRole('button')
@@ -397,11 +403,6 @@ test("modules open collapsed, joined by their files' imports; a module's toggle 
 
 test("with 'All edges' unticked, an unchanged import between two open modules is drawn module to module unless it has a note; ticking it draws every import; going to a merged import from the summary ticks it", async () => {
   const user = userEvent.setup();
-  const import_ = (from: string, to: string) => ({
-    from: `web/file/${from}`,
-    to: `web/file/${to}`,
-    state: 'unchanged' as const,
-  });
   render(
     <ReviewPage
       review={pageWith({
@@ -416,8 +417,8 @@ test("with 'All edges' unticked, an unchanged import between two open modules is
             webFile('billing', 'invoice.ts'),
           ],
           edges: [
-            import_('orders/cart.ts', 'billing/invoice.ts'),
-            import_('orders/checkout.ts', 'billing/invoice.ts'),
+            webImport('orders/cart.ts', 'billing/invoice.ts', 'unchanged'),
+            webImport('orders/checkout.ts', 'billing/invoice.ts', 'unchanged'),
           ],
         },
       })}
@@ -471,11 +472,6 @@ test("with 'All edges' unticked, an unchanged import between two open modules is
 
 test("with 'Changed + 1 hop' ticked, going to a merged module edge or to a hidden import near a change keeps it ticked", async () => {
   const user = userEvent.setup();
-  const import_ = (from: string, to: string, state: GraphDiff['edges'][number]['state']) => ({
-    from: `web/file/${from}`,
-    to: `web/file/${to}`,
-    state,
-  });
   render(
     <ReviewPage
       review={pageWith({
@@ -490,9 +486,9 @@ test("with 'Changed + 1 hop' ticked, going to a merged module edge or to a hidde
             webFile('billing', 'invoice.ts'),
           ],
           edges: [
-            import_('orders/cart.ts', 'billing/invoice.ts', 'added'),
-            import_('orders/checkout.ts', 'orders/cart.ts', 'added'),
-            import_('orders/checkout.ts', 'billing/invoice.ts', 'unchanged'),
+            webImport('orders/cart.ts', 'billing/invoice.ts', 'added'),
+            webImport('orders/checkout.ts', 'orders/cart.ts', 'added'),
+            webImport('orders/checkout.ts', 'billing/invoice.ts', 'unchanged'),
           ],
         },
       })}
