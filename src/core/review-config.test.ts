@@ -64,6 +64,41 @@ test.for([
     error: 'metrics.churnDays: Invalid input: expected int, received number',
   },
   {
+    reason: 'a cyclomatic threshold of 0',
+    text: '{"metrics": {"cyclomatic": 0}}',
+    error: 'metrics.cyclomatic: Too small: expected number to be >0',
+  },
+  {
+    reason: 'a cyclomatic threshold in part',
+    text: '{"metrics": {"cyclomatic": 1.5}}',
+    error: 'metrics.cyclomatic: Invalid input: expected int, received number',
+  },
+  {
+    reason: 'an unknown key in the hotspot',
+    text: '{"metrics": {"hotspot": {"churnDays": 6}}}',
+    error: 'metrics.hotspot: Unrecognized key: "churnDays"',
+  },
+  {
+    reason: 'a hotspot churn in part',
+    text: '{"metrics": {"hotspot": {"churn": 1.5}}}',
+    error: 'metrics.hotspot.churn: Invalid input: expected int, received number',
+  },
+  {
+    reason: 'a hotspot cyclomatic of 0',
+    text: '{"metrics": {"hotspot": {"cyclomatic": 0}}}',
+    error: 'metrics.hotspot.cyclomatic: Too small: expected number to be >0',
+  },
+  {
+    reason: 'a lines threshold of 0',
+    text: '{"metrics": {"lines": 0}}',
+    error: 'metrics.lines: Too small: expected number to be >0',
+  },
+  {
+    reason: 'an ABC threshold of 0',
+    text: '{"metrics": {"abc": 0}}',
+    error: 'metrics.abc: Too small: expected number to be >0',
+  },
+  {
     reason: 'a stack neither false nor an object',
     text: '{"stacks": {"web": true}}',
     error: 'stacks.web: Invalid input: expected false or an object',

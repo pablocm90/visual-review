@@ -53,12 +53,30 @@ const LinkerSchema = z.strictObject({
     .describe("The stacks it links to, by drawn id; every stack of its to reader's by default"),
 });
 
+const Threshold = z.int().positive();
+
 const MetricsSchema = z.strictObject({
   churnDays: z
     .int()
     .positive()
     .default(90)
     .describe("How many days before each side's commit its churn counts"),
+  cyclomatic: Threshold.optional().describe(
+    "The highest a function's cyclomatic complexity may be",
+  ),
+  hotspot: z
+    .strictObject({
+      churn: Threshold.optional().describe('The churn a hotspot reaches'),
+      cyclomatic: Threshold.optional().describe('The highest cyclomatic a hotspot reaches'),
+    })
+    .optional()
+    .describe('A node that reaches both is a hotspot'),
+  lines: Threshold.optional().describe("The most lines a node's file may have; off unless set"),
+  abc: z
+    .number()
+    .positive()
+    .optional()
+    .describe("The largest ABC size a node's file may have; off unless set"),
 });
 
 const ConfigSchema = z.strictObject({
