@@ -6,14 +6,8 @@ export type View = { readonly scale: number; readonly x: number; readonly y: num
 
 const PAGE_PADDING = 48;
 
-export const fitted = ({ graph, frame }: { readonly graph: Size; readonly frame: Size }): View => {
-  const scale = Math.min(1, frame.width / graph.width, frame.height / graph.height);
-  return {
-    scale,
-    x: (frame.width - graph.width * scale) / 2,
-    y: (frame.height - graph.height * scale) / 2,
-  };
-};
+export const fitted = ({ graph, frame }: { readonly graph: Size; readonly frame: Size }): View =>
+  centred({ graph, frame, box: { x: 0, y: 0, ...graph } });
 
 type FrameHeightOptions = {
   readonly graph: Size;
