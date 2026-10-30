@@ -1,7 +1,7 @@
 import { edgeId } from '../core/graph.ts';
 import type { Layout, PlacedNode } from './layout.ts';
 
-type Size = { readonly width: number; readonly height: number };
+export type Size = { readonly width: number; readonly height: number };
 
 export type View = { readonly scale: number; readonly x: number; readonly y: number };
 

@@ -30,7 +30,18 @@ import {
   type PlacedNode,
   type PlacedStack,
 } from './layout.ts';
-import { boxOf, centred, fitted, frameHeight, panned, pinned, type View, zoomed } from './view.ts';
+import {
+  boxOf,
+  centred,
+  fitted,
+  frameHeight,
+  panned,
+  pinned,
+  resized,
+  type Size,
+  type View,
+  zoomed,
+} from './view.ts';
 
 const STATES = ['added', 'removed', 'modified', 'unchanged'] as const;
 
@@ -442,12 +453,17 @@ const drawnAt = ({ diff, expanded, noted, allEdges }: DrawnAtOptions): GraphDiff
   allEdges ? visibleDiff({ diff, expanded }) : mergedDiff({ diff, expanded, noted });
 
 type Chosen =
-  | { readonly view: View; readonly of: Layout; readonly pin?: string }
+  | {
+      readonly view: View;
+      readonly of: Layout;
+      readonly in: Size;
+      readonly pin?: string | undefined;
+    }
   | { readonly centre: string };
 
 type ViewOnOptions = {
   readonly layout: Layout;
-  readonly frame: { readonly width: number; readonly height: number };
+  readonly frame: Size;
   readonly chosen: Chosen | undefined;
 };
 
@@ -458,7 +474,8 @@ const viewOn = ({ layout, frame, chosen }: ViewOnOptions): View => {
     const box = boxOf({ layout, id: chosen.centre });
     return box ? centred({ graph: layout, frame, box }) : fit;
   }
-  if (chosen.of === layout) return chosen.view;
+  if (chosen.of === layout)
+    return resized({ graph: layout, frame, view: chosen.view, from: chosen.in });
   if (chosen.pin === undefined) return fit;
   const from = boxOf({ layout: chosen.of, id: chosen.pin });
   const to = boxOf({ layout, id: chosen.pin });
@@ -492,7 +509,7 @@ export const ReviewPage = ({ review, notes }: ReviewPageProps) => {
     [review, notes, expanded],
   );
   const toggle = (id: string) => {
-    if (placed) setChosen({ of: placed.graph, view: placed.view, pin: id });
+    choose(on => on.view, id);
     setExpanded(current =>
       current.has(id)
         ? new Set([...current].filter(other => other !== id))
@@ -572,8 +589,8 @@ export const ReviewPage = ({ review, notes }: ReviewPageProps) => {
   const [chosen, setChosen] = useState<Chosen>();
   const view = layout && frame && viewOn({ layout, frame, chosen });
   const placed = layout && frame && view && { graph: layout, frame, view };
-  const choose = (next: (on: NonNullable<typeof placed>) => View) => {
-    if (placed) setChosen({ of: placed.graph, view: next(placed) });
+  const choose = (next: (on: NonNullable<typeof placed>) => View, pin?: string) => {
+    if (placed) setChosen({ of: placed.graph, view: next(placed), in: placed.frame, pin });
   };
   const dragged = useRef(false);
   const pan = (down: PointerEvent<HTMLDivElement>) => {

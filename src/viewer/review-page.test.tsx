@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { expect, onTestFinished, test, vi } from 'vitest';
 import type { GraphDiff } from '../core/diff-graphs.ts';
@@ -8,33 +8,38 @@ import type { PageData } from '../core/page.ts';
 import { layoutDiff } from './layout.ts';
 import { ReviewPage } from './review-page.tsx';
 
-const frameOfWidth = (width: number) =>
-  class implements ResizeObserver {
+const frameOfWidth = (width: number) => {
+  const observing: { report?: (width: number) => void } = {};
+  const Observer = class implements ResizeObserver {
     readonly #report: ResizeObserverCallback;
     constructor(report: ResizeObserverCallback) {
       this.#report = report;
     }
     observe(target: Element) {
-      this.#report(
-        [
-          {
-            target,
-            contentRect: DOMRectReadOnly.fromRect({ width }),
-            borderBoxSize: [],
-            contentBoxSize: [],
-            devicePixelContentBoxSize: [],
-          },
-        ],
-        this,
-      );
+      observing.report = (width: number) =>
+        this.#report(
+          [
+            {
+              target,
+              contentRect: DOMRectReadOnly.fromRect({ width }),
+              borderBoxSize: [],
+              contentBoxSize: [],
+              devicePixelContentBoxSize: [],
+            },
+          ],
+          this,
+        );
+      observing.report(width);
     }
     unobserve() {}
     disconnect() {}
   };
+  return { Observer, resize: (to: number) => act(() => observing.report?.(to)) };
+};
 
 const WIDE_FRAME = 1200;
 
-vi.stubGlobal('ResizeObserver', frameOfWidth(WIDE_FRAME));
+vi.stubGlobal('ResizeObserver', frameOfWidth(WIDE_FRAME).Observer);
 
 const scrolledIntoView = vi.fn();
 
@@ -128,13 +133,14 @@ type FrameOptions = {
 };
 
 const renderInFrame = (page: PageData, { width, windowHeight, notes }: FrameOptions) => {
-  vi.stubGlobal('ResizeObserver', frameOfWidth(width));
+  const frame = frameOfWidth(width);
+  vi.stubGlobal('ResizeObserver', frame.Observer);
   const innerHeight = vi.spyOn(window, 'innerHeight', 'get').mockReturnValue(windowHeight);
   onTestFinished(() => {
-    vi.stubGlobal('ResizeObserver', frameOfWidth(WIDE_FRAME));
+    vi.stubGlobal('ResizeObserver', frameOfWidth(WIDE_FRAME).Observer);
     innerHeight.mockRestore();
   });
-  return render(<ReviewPage review={page} notes={notes} />);
+  return { ...render(<ReviewPage review={page} notes={notes} />), resize: frame.resize };
 };
 
 const zoomShown = () => screen.getByRole('status', { name: 'Zoom' }).textContent;
@@ -261,6 +267,21 @@ test('with the frame focused, + = - step the zoom, 1 goes to 100%, 0 fits, and t
   expect(fireEvent.keyDown(frame, { key: 'Tab' })).toBe(true);
   await user.keyboard('0');
   expect(viewOf(rust)).toBe('translate(0 0) scale(0.5)');
+});
+
+test("resizing the frame keeps the zoom and the graph point at the frame's centre", async () => {
+  const user = userEvent.setup();
+  const graph = await layoutDiff(review.diff);
+  const { resize } = renderInFrame(pageWith(review), {
+    width: graph.width / 2,
+    windowHeight: 10_000,
+  });
+  const rust = await screen.findByRole('group', { name: 'rust' });
+  await user.click(screen.getByRole('button', { name: '100%' }));
+
+  resize((graph.width * 3) / 4);
+  expect(zoomShown()).toBe('100%');
+  expect(viewOf(rust)).toBe(`translate(${-graph.width / 8} ${-graph.height / 8}) scale(1)`);
 });
 
 const onScreen = (
