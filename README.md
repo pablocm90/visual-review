@@ -53,7 +53,7 @@ Stacks are detected: a Cargo workspace at the repo root, every `package.json` wh
 
 ```json
 {
-  "$schema": "https://unpkg.com/@pablocm90/visual-review@0.1/dist/config.schema.json",
+  "$schema": "https://unpkg.com/@pablocm90/visual-review@0.2/dist/config.schema.json",
   "stacks": {
     "web": { "boxes": ["modules/*"], "label": "Web app" },
     "e2e": false,
@@ -77,7 +77,7 @@ A key that names no detected stack, an unknown field, or a field the stack's rea
 
 ## Notes
 
-A notes file is JSON in notes version 1, whose schema is [`notes.schema.json`](https://unpkg.com/@pablocm90/visual-review@0.1/dist/notes.schema.json) (give that URL as `$schema`). Beside `version`, `summary` holds a few `{ text, target? }` items on the change as a whole and `tests` a sentence on what the tests pin; `notes` maps a node id, or `<from> -> <to>` for an edge, to `{ text, flag? }`, where `flag` labels a structural concern.
+A notes file is JSON in notes version 1, whose schema is [`notes.schema.json`](https://unpkg.com/@pablocm90/visual-review@0.2/dist/notes.schema.json) (give that URL as `$schema`). Beside `version`, `summary` holds a few `{ text, target? }` items on the change as a whole and `tests` a sentence on what the tests pin; `notes` maps a node id, or `<from> -> <to>` for an edge, to `{ text, flag? }`, where `flag` labels a structural concern.
 
 `--notes <file>` with the same argument fills the notes into the page already written for it. A missing or unknown `version`, an unknown key, an id the graph doesn't have, or a changed part without a note fails it, naming the file.
 
