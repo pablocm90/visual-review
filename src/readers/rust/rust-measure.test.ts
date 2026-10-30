@@ -90,3 +90,25 @@ test.for([
 ])('`$body` gives its fn cyclomatic $cyclomatic', ({ body, cyclomatic }) => {
   expect(cyclomaticOf(body)).toBe(cyclomatic);
 });
+
+const abcOf = (body: string) => measureRust(`fn f() { ${body} }`).functions[0]?.abc;
+
+test.for([
+  { body: 'let a = 1;', abc: [1, 0, 0] },
+  { body: 'let a;', abc: [0, 0, 0] },
+  { body: 'a = 1;', abc: [1, 0, 0] },
+  { body: 'a += 1;', abc: [1, 0, 0] },
+  { body: 'g();', abc: [0, 1, 0] },
+  { body: 'a.g();', abc: [0, 1, 0] },
+  { body: 'g!();', abc: [0, 1, 0] },
+  { body: 'a == b; a != b; a < b; a > b; a <= b; a >= b;', abc: [0, 0, 6] },
+  { body: 'a + b;', abc: [0, 0, 0] },
+  { body: 'let v: Vec<u8> = w;', abc: [1, 0, 0] },
+  { body: 'if a {} else {}', abc: [0, 0, 1] },
+  { body: 'match a { 1 => {}, _ => {} }', abc: [0, 0, 2] },
+  { body: 'a?;', abc: [0, 0, 1] },
+  { body: 'let g = || h();', abc: [1, 1, 0] },
+  { body: 'fn g() { h(); }', abc: [0, 0, 0] },
+])('`$body` gives its fn ABC $abc', ({ body, abc: [assignments, branches, conditions] }) => {
+  expect(abcOf(body)).toEqual({ assignments, branches, conditions });
+});
