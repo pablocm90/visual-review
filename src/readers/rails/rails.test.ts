@@ -701,6 +701,11 @@ test.for([
     name: 'Order',
   },
   {
+    reason: 'a group without its braced hash metadata',
+    file: `describe Order, { type: :model } ${works}`,
+    name: 'Order',
+  },
+  {
     reason: 'a group without its symbol metadata',
     file: `describe "checkout", :integration ${works}`,
     name: 'checkout',

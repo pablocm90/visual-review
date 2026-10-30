@@ -20,7 +20,7 @@ const NOT_READ = new Set([
 
 const MODULES = new Set(['constant', 'scope_resolution']);
 
-const METADATA = new Set(['pair', 'simple_symbol']);
+const METADATA = new Set(['pair', 'hash', 'simple_symbol']);
 
 const JOINED_TO_A_MODULE = /^(#|::|\.)/;
 
