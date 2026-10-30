@@ -3,6 +3,7 @@ import { fireEvent, render, screen, waitFor, within } from '@testing-library/rea
 import userEvent from '@testing-library/user-event';
 import { expect, onTestFinished, test, vi } from 'vitest';
 import type { GraphDiff } from '../core/diff-graphs.ts';
+import type { ReviewNotes } from '../core/notes.ts';
 import type { PageData } from '../core/page.ts';
 import { layoutDiff } from './layout.ts';
 import { ReviewPage } from './review-page.tsx';
@@ -34,6 +35,10 @@ const frameOfWidth = (width: number) =>
 const WIDE_FRAME = 1200;
 
 vi.stubGlobal('ResizeObserver', frameOfWidth(WIDE_FRAME));
+
+const scrolledIntoView = vi.fn();
+
+Object.defineProperty(HTMLElement.prototype, 'scrollIntoView', { value: scrolledIntoView });
 
 type Diffed = GraphDiff['nodes'][number]['state'];
 
@@ -116,16 +121,20 @@ test('draws every crate and dependency inside the rust stack with its change sta
   expect(noteShown()).toBe('No note');
 });
 
-type FrameOptions = { readonly width: number; readonly windowHeight: number };
+type FrameOptions = {
+  readonly width: number;
+  readonly windowHeight: number;
+  readonly notes?: ReviewNotes;
+};
 
-const renderInFrame = (page: PageData, { width, windowHeight }: FrameOptions) => {
+const renderInFrame = (page: PageData, { width, windowHeight, notes }: FrameOptions) => {
   vi.stubGlobal('ResizeObserver', frameOfWidth(width));
   const innerHeight = vi.spyOn(window, 'innerHeight', 'get').mockReturnValue(windowHeight);
   onTestFinished(() => {
     vi.stubGlobal('ResizeObserver', frameOfWidth(WIDE_FRAME));
     innerHeight.mockRestore();
   });
-  return render(<ReviewPage review={page} />);
+  return render(<ReviewPage review={page} notes={notes} />);
 };
 
 const zoomShown = () => screen.getByRole('status', { name: 'Zoom' }).textContent;
@@ -323,6 +332,53 @@ test("toggling a box keeps the zoom and the box's corner where it was on screen,
   expect(zoomShown()).toBe('125%');
   await showEverything(user);
   await refitsFrom('125%');
+});
+
+test('going to a hidden file from the summary opens its module and lands it centred in the frame at 100%, focused, with the frame scrolled into view', async () => {
+  const user = userEvent.setup();
+  renderInFrame(
+    pageWith({
+      range: 'abc123..def456',
+      diff: {
+        nodes: [
+          { id: 'web', kind: 'stack', label: 'web', path: '', state: 'unchanged' },
+          webModule('app'),
+          webModule('utils', 'modified'),
+          webFile('app', 'main.ts'),
+          webFile('utils', 'x.ts', 'modified'),
+          webFile('utils', 'y.ts'),
+          webFile('utils', 'z.ts'),
+        ],
+        edges: [webImport('app/main.ts', 'utils/x.ts', 'added')],
+      },
+    }),
+    {
+      width: 120,
+      windowHeight: 108,
+      notes: {
+        version: 1,
+        tests: '',
+        summary: [{ text: 'Check y.ts', target: 'web/file/utils/y.ts' }],
+        notes: {},
+      },
+    },
+  );
+  await screen.findByRole('group', { name: 'web' });
+
+  await user.click(screen.getByRole('button', { name: 'Check y.ts' }));
+
+  const y = await screen.findByRole('button', { name: 'y.ts: unchanged' });
+  await waitFor(() => expect(document.activeElement).toBe(y));
+  const frame = screen.getByRole('group', { name: 'Graph' });
+  const box = y.querySelector('rect');
+  const centre = onScreen(y, {
+    x: Number(box?.getAttribute('width')) / 2,
+    y: Number(box?.getAttribute('height')) / 2,
+  });
+  expect(zoomShown()).toBe('100%');
+  expect(centre.x).toBeCloseTo(60);
+  expect(centre.y).toBeCloseTo(parseFloat(frame.style.height) / 2);
+  expect(scrolledIntoView.mock.contexts).toContain(frame);
 });
 
 test("a PR's page names the PR above its range, as a link to it", async () => {

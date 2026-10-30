@@ -30,7 +30,7 @@ import {
   type PlacedNode,
   type PlacedStack,
 } from './layout.ts';
-import { boxOf, fitted, frameHeight, panned, pinned, type View, zoomed } from './view.ts';
+import { boxOf, centred, fitted, frameHeight, panned, pinned, type View, zoomed } from './view.ts';
 
 const STATES = ['added', 'removed', 'modified', 'unchanged'] as const;
 
@@ -441,7 +441,9 @@ type DrawnAtOptions = {
 const drawnAt = ({ diff, expanded, noted, allEdges }: DrawnAtOptions): GraphDiff =>
   allEdges ? visibleDiff({ diff, expanded }) : mergedDiff({ diff, expanded, noted });
 
-type Chosen = { readonly view: View; readonly of: Layout; readonly pin?: string };
+type Chosen =
+  | { readonly view: View; readonly of: Layout; readonly pin?: string }
+  | { readonly centre: string };
 
 type ViewOnOptions = {
   readonly layout: Layout;
@@ -450,13 +452,17 @@ type ViewOnOptions = {
 };
 
 const viewOn = ({ layout, frame, chosen }: ViewOnOptions): View => {
-  if (chosen?.of === layout) return chosen.view;
-  if (chosen?.pin === undefined) return fitted({ graph: layout, frame });
+  const fit = fitted({ graph: layout, frame });
+  if (chosen === undefined) return fit;
+  if ('centre' in chosen) {
+    const box = boxOf({ layout, id: chosen.centre });
+    return box ? centred({ graph: layout, frame, box }) : fit;
+  }
+  if (chosen.of === layout) return chosen.view;
+  if (chosen.pin === undefined) return fit;
   const from = boxOf({ layout: chosen.of, id: chosen.pin });
   const to = boxOf({ layout, id: chosen.pin });
-  return from && to
-    ? pinned({ graph: layout, frame, view: chosen.view, from, to })
-    : fitted({ graph: layout, frame });
+  return from && to ? pinned({ graph: layout, frame, view: chosen.view, from, to }) : fit;
 };
 
 type ReviewPageProps = {
@@ -545,6 +551,7 @@ export const ReviewPage = ({ review, notes }: ReviewPageProps) => {
     if (!isDrawn({ diff: nearChanges(drawnAt({ ...at, allEdges: all })), id })) {
       setNearOnly(false);
     }
+    setChosen({ centre: id });
     setFocusTarget(id);
   };
   const [frameElement, setFrameElement] = useState<HTMLDivElement | null>(null);
@@ -633,9 +640,10 @@ export const ReviewPage = ({ review, notes }: ReviewPageProps) => {
     const element = elements.current.get(focusTarget);
     if (element) {
       element.focus({ preventScroll: true });
+      frameElement?.scrollIntoView({ block: 'nearest' });
       setFocusTarget(undefined);
     }
-  }, [layout, focusTarget]);
+  }, [layout, focusTarget, frameElement]);
   return (
     <main>
       <header>
