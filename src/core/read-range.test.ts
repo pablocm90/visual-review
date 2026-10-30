@@ -10,6 +10,7 @@ import {
   gitRepo,
   pathTo,
   symlinkedDirectory,
+  writeFiles,
 } from '../test-support/repos.ts';
 
 const rootPackage = { 'package.json': '{}\n', 'src/index.ts': '' };
@@ -442,6 +443,24 @@ test('a range ending at a branch named like a folder reads its churn', async () 
   commit(repo, { 'src/a.ts': '2' });
 
   const range = await readRange({ repo, from: base, to: 'src' });
+
+  expect(range.churn.after).toEqual({ 'src/a.ts': 3 });
+});
+
+test('churn reads a history whose touched paths run past a megabyte', async () => {
+  using repository = gitRepo({ 'package.json': '{}\n', 'src/a.ts': '' });
+  const { repo } = repository;
+  const deep = Array.from({ length: 14 }, (_, level) => `${level}`.padEnd(250, 'x')).join('/');
+  writeFiles(
+    repo,
+    Object.fromEntries(Array.from({ length: 320 }, (_, file) => [`${deep}/${file}`, ''])),
+  );
+  git(repo, 'add', '--all');
+  git(repo, 'commit', '--quiet', '--message', 'deep files');
+  const base = commit(repo, { 'src/a.ts': '1' });
+  const head = commit(repo, { 'src/a.ts': '2' });
+
+  const range = await readRange({ repo, from: base, to: head });
 
   expect(range.churn.after).toEqual({ 'src/a.ts': 3 });
 });

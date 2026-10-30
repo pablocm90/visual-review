@@ -43,7 +43,7 @@ type ReadRangeOptions = Adapters & {
 };
 
 const git = async (repo: string, ...args: ReadonlyArray<string>): Promise<string> =>
-  (await run('git', ['-C', repo, ...args])).stdout.trim();
+  (await run('git', ['-C', repo, ...args], { maxBuffer: Number.POSITIVE_INFINITY })).stdout.trim();
 
 type ReadSideOptions = Adapters & {
   readonly repo: string;
