@@ -113,11 +113,25 @@ const ASSOCIATIONS: ReadonlyMap<string, (name: string) => string> = new Map([
   ['belongs_to', asWritten],
 ]);
 
+const optionsOf = (args: ReadonlyArray<Node>): ReadonlyMap<string, string> =>
+  new Map(
+    args.map(arg => [
+      arg.childForFieldName('key')?.text ?? '',
+      arg.childForFieldName('value')?.text ?? '',
+    ]),
+  );
+
 const associated = (call: Node, owner: string, { ignoringCase }: Classes): string | undefined => {
   const inflected = ASSOCIATIONS.get(call.childForFieldName('method')?.text ?? '');
   if (inflected === undefined) return undefined;
-  const [name] = call.childForFieldName('arguments')?.namedChildren ?? [];
-  const candidate = camelized(inflected((name?.text ?? '').slice(1)));
+  const [name, ...rest] = call.childForFieldName('arguments')?.namedChildren ?? [];
+  const options = optionsOf(rest);
+  if (options.get('polymorphic') === 'true') return undefined;
+  const className = options.get('class_name');
+  const candidate =
+    className === undefined
+      ? camelized(inflected((name?.text ?? '').slice(1)))
+      : className.slice(1, -1);
   return lookedUp(candidate, prefixesOf(owner.split('::')), ignoringCase);
 };
 

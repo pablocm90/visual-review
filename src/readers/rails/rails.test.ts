@@ -385,21 +385,66 @@ test.for([
   expect(range.after.edges).toEqual([{ from: `${shop}/class/Order`, to: `${shop}/class/${to}` }]);
 });
 
-test("an association names the class in its owner's scope first, even from a compact class line", async () => {
+test.for([
+  { association: 'has_many :items' },
+  { association: 'has_many :things, class_name: "Item"' },
+])(
+  "$association names the class in its owner's scope first, even from a compact class line",
+  async ({ association }) => {
+    using workspace = gitRepo({
+      ...railsApp,
+      'app/models/admin/order.rb': `class Admin::Order\n  ${association}\nend\n`,
+      'app/models/item.rb': 'class Item\nend\n',
+      'app/models/admin/item.rb': 'module Admin\n  class Item\n  end\nend\n',
+    });
+    const { repo, root } = workspace;
+    const shop = basename(repo);
+
+    const range = await readRange({ repo, from: root, to: root });
+
+    expect(range.after.edges).toEqual([
+      { from: `${shop}/class/Admin::Order`, to: `${shop}/class/Admin::Item` },
+    ]);
+  },
+);
+
+test.for([
+  { association: 'belongs_to :buyer, class_name: "User"', to: 'User' },
+  {
+    association: 'has_many :drafts, -> { where(draft: true) }, class_name: "Invoice"',
+    to: 'Invoice',
+  },
+  { association: 'has_many :terms, class_name: "TermsAndConditions"', to: 'TermsAndConditions' },
+])(
+  'a model declaring $association draws an edge to the class it names',
+  async ({ association, to }) => {
+    using workspace = gitRepo({
+      ...railsApp,
+      'app/models/order.rb': `class Order\n  ${association}\nend\n`,
+      'app/models/user.rb': 'class User\nend\n',
+      'app/models/invoice.rb': 'class Invoice\nend\n',
+      'app/models/terms_and_conditions.rb': 'class TermsAndConditions\nend\n',
+    });
+    const { repo, root } = workspace;
+    const shop = basename(repo);
+
+    const range = await readRange({ repo, from: root, to: root });
+
+    expect(range.after.edges).toEqual([{ from: `${shop}/class/Order`, to: `${shop}/class/${to}` }]);
+  },
+);
+
+test('a polymorphic association draws no edge, even when a class bears its name', async () => {
   using workspace = gitRepo({
     ...railsApp,
-    'app/models/admin/order.rb': 'class Admin::Order\n  has_many :items\nend\n',
-    'app/models/item.rb': 'class Item\nend\n',
-    'app/models/admin/item.rb': 'module Admin\n  class Item\n  end\nend\n',
+    'app/models/comment.rb': 'class Comment\n  belongs_to :commentable, polymorphic: true\nend\n',
+    'app/models/concerns/commentable.rb': 'module Commentable\nend\n',
   });
   const { repo, root } = workspace;
-  const shop = basename(repo);
 
   const range = await readRange({ repo, from: root, to: root });
 
-  expect(range.after.edges).toEqual([
-    { from: `${shop}/class/Admin::Order`, to: `${shop}/class/Admin::Item` },
-  ]);
+  expect(range.after.edges).toEqual([]);
 });
 
 test("edges onto the base classes Rails generates are dropped, while edges onto an app's own base classes stay", async () => {
