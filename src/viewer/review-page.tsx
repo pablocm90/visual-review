@@ -562,6 +562,7 @@ export const ReviewPage = ({ review, notes }: ReviewPageProps) => {
       dangling.filter(call => visibleOf(call.from) === id).map(call => call.path),
   };
   const selectedNode = review.diff.nodes.find(node => node.id === selected);
+  const selectedNote = selected === undefined ? undefined : shown[selected];
   const patches = selectedNode
     ? review.patches.filter(({ path }) => isAtOrUnder(path, selectedNode))
     : [];
@@ -857,7 +858,8 @@ export const ReviewPage = ({ review, notes }: ReviewPageProps) => {
               onPointerDown={dragDivider}
             />
             <aside className="note" aria-label="Note" style={{ width: panelWidth }}>
-              <p>{shown[selected]?.text ?? 'No note'}</p>
+              {selectedNote?.flag && <h2>Flagged: {selectedNote.flag}</h2>}
+              <p>{selectedNote?.text ?? 'No note'}</p>
               {selectedNode?.renamedFrom !== undefined && (
                 <p className="renamed">Renamed from {selectedNode.renamedFrom}</p>
               )}

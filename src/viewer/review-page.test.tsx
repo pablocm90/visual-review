@@ -93,7 +93,14 @@ const review = {
 const showEverything = (user: ReturnType<typeof userEvent.setup>) =>
   user.click(screen.getByRole('checkbox', { name: 'Changed + 1 hop' }));
 
-const noteShown = () => screen.getByRole('complementary', { name: 'Note' }).textContent;
+const notePanel = () => screen.getByRole('complementary', { name: 'Note' });
+
+const noteShown = () => within(notePanel()).getAllByRole('paragraph')[0]?.textContent;
+
+const reasonsShown = () =>
+  within(notePanel())
+    .queryAllByRole('heading')
+    .map(heading => heading.textContent);
 
 test('draws every crate and dependency inside the rust stack with its change state, and opens no note panel until one is clicked', async () => {
   const user = userEvent.setup();
@@ -581,8 +588,13 @@ test("a flag's badge says on hover what it is flagged for, and clicking it opens
 
   await user.click(screen.getByRole('img', { name: 'Flagged: new dependency direction' }));
   expect(noteShown()).toBe('The CLI drives the use case.');
+  expect(reasonsShown()).toEqual(['Flagged: new dependency direction']);
   await user.click(screen.getByRole('img', { name: 'Flagged: new entry point' }));
   expect(noteShown()).toBe('A second way in.');
+  expect(reasonsShown()).toEqual(['Flagged: new entry point']);
+
+  await user.click(screen.getByRole('button', { name: 'domain: unchanged' }));
+  expect(reasonsShown()).toEqual([]);
 });
 
 test('the summary lists its items and then every flagged note, and an item with a target takes focus to it and shows its note', async () => {
@@ -1113,7 +1125,7 @@ test('a renamed node shows the label it had under its own, also once expanded, i
   expect(within(models).getByText('was domain')).not.toBeNull();
 
   await user.click(models);
-  expect(noteShown()).toContain('Renamed from crates/domain');
+  expect(notePanel().textContent).toContain('Renamed from crates/domain');
 
   await user.click(within(rust).getByRole('button', { name: 'Expand models' }));
   const expanded = await within(rust).findByRole('group', { name: 'models' });
