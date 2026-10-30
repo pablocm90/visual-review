@@ -142,8 +142,8 @@ test('a changed node that is a file on both sides gets its churn on each', () =>
   });
 
   expect(pageData({ reading, range: 'main..feature', version }).metrics['web/file/a.ts']).toEqual({
-    base: { churn: 3 },
-    head: { churn: 4 },
+    base: { churn: 3, fanIn: 0, fanOut: 0 },
+    head: { churn: 4, fanIn: 0, fanOut: 0 },
   });
 });
 
@@ -164,8 +164,56 @@ test('a measured file gets, beside its churn, its lines, functions, highest and 
   });
 
   expect(pageData({ reading, range: 'main..feature', version }).metrics['web/file/a.ts']).toEqual({
-    base: { churn: 3, lines: 7, functions: 1, cyclomatic: { highest: 2, total: 2 }, abc: 5 },
-    head: { churn: 4, lines: 9, functions: 2, cyclomatic: { highest: 3, total: 4 }, abc: 3.5 },
+    base: {
+      churn: 3,
+      fanIn: 0,
+      fanOut: 0,
+      lines: 7,
+      functions: 1,
+      cyclomatic: { highest: 2, total: 2 },
+      abc: 5,
+    },
+    head: {
+      churn: 4,
+      fanIn: 0,
+      fanOut: 0,
+      lines: 9,
+      functions: 2,
+      cyclomatic: { highest: 3, total: 4 },
+      abc: 3.5,
+    },
+  });
+});
+
+test("a measured node's fan-in and fan-out count that side's edges into and out of it, an edge to another stack included", () => {
+  const files = ['a.ts', 'b.ts', 'c.ts', 'd.ts', 'e.ts'].map(webFile);
+  const routes: GraphNode = {
+    id: 'rust/mod/api/routes',
+    kind: 'module',
+    label: 'routes',
+    path: 'api/src/routes.rs',
+  };
+  const nodes = [webStack, ...files, routes];
+  const edge = (from: string, to: string) => ({ from: `web/file/${from}`, to: `web/file/${to}` });
+  const churn = Object.fromEntries(files.map(({ path }) => [path, 1]));
+  const reading = readingWith({
+    before: { nodes, edges: [edge('b.ts', 'a.ts')] },
+    after: {
+      nodes,
+      edges: [
+        edge('b.ts', 'a.ts'),
+        edge('d.ts', 'a.ts'),
+        edge('a.ts', 'c.ts'),
+        edge('a.ts', 'e.ts'),
+        { from: 'web/file/a.ts', to: routes.id },
+      ],
+    },
+    churn: { before: churn, after: churn },
+  });
+
+  expect(pageData({ reading, range: 'main..feature', version }).metrics['web/file/a.ts']).toEqual({
+    base: { churn: 1, fanIn: 1, fanOut: 0 },
+    head: { churn: 1, fanIn: 2, fanOut: 3 },
   });
 });
 
@@ -179,7 +227,15 @@ test('a measured file with no functions has a highest and total cyclomatic of 0 
   });
 
   expect(pageData({ reading, range: 'main..feature', version }).metrics['web/file/a.ts']).toEqual({
-    head: { churn: 1, lines: 2, functions: 0, cyclomatic: { highest: 0, total: 0 }, abc: 0 },
+    head: {
+      churn: 1,
+      fanIn: 0,
+      fanOut: 0,
+      lines: 2,
+      functions: 0,
+      cyclomatic: { highest: 0, total: 0 },
+      abc: 0,
+    },
   });
 });
 
@@ -189,14 +245,14 @@ test.for([
     before: [webStack],
     after: [webStack, webFile('a.ts')],
     churn: { before: {}, after: { 'web/src/a.ts': 2 } },
-    metrics: { head: { churn: 2 } },
+    metrics: { head: { churn: 2, fanIn: 0, fanOut: 0 } },
   },
   {
     reason: 'a removed file gets churn on the base side only',
     before: [webStack, webFile('a.ts')],
     after: [webStack],
     churn: { before: { 'web/src/a.ts': 2 }, after: {} },
-    metrics: { base: { churn: 2 } },
+    metrics: { base: { churn: 2, fanIn: 0, fanOut: 0 } },
   },
 ])('$reason', ({ before, after, churn, metrics }) => {
   const reading = readingWith({
@@ -239,8 +295,8 @@ test("a renamed file's base churn is read at the path it had on the base side", 
   });
 
   expect(pageData({ reading, range: 'main..feature', version }).metrics['web/file/a.ts']).toEqual({
-    base: { churn: 5 },
-    head: { churn: 1 },
+    base: { churn: 5, fanIn: 0, fanOut: 0 },
+    head: { churn: 1, fanIn: 0, fanOut: 0 },
   });
 });
 
@@ -254,8 +310,8 @@ test("a node whose file moved with no rename git saw reads its base churn at its
   });
 
   expect(pageData({ reading, range: 'main..feature', version }).metrics['web/file/a.ts']).toEqual({
-    base: { churn: 5 },
-    head: { churn: 1 },
+    base: { churn: 5, fanIn: 0, fanOut: 0 },
+    head: { churn: 1, fanIn: 0, fanOut: 0 },
   });
 });
 
@@ -287,7 +343,10 @@ test('a box gets, on each side, the highest churn among the measured nodes insid
   expect(metrics).toStrictEqual({
     web: { highestInside: true, base: { churn: 1 }, head: { churn: 5 } },
     'web/box/m': { highestInside: true, head: { churn: 5 } },
-    'web/file/m/a.ts': { head: { churn: 5 } },
-    'web/file/b.ts': { base: { churn: 1 }, head: { churn: 4 } },
+    'web/file/m/a.ts': { head: { churn: 5, fanIn: 0, fanOut: 0 } },
+    'web/file/b.ts': {
+      base: { churn: 1, fanIn: 0, fanOut: 0 },
+      head: { churn: 4, fanIn: 0, fanOut: 0 },
+    },
   });
 });

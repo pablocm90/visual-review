@@ -1,5 +1,5 @@
 import type { GraphDiff } from './diff-graphs.ts';
-import type { Graph } from './graph.ts';
+import type { Graph, GraphEdge } from './graph.ts';
 import type { Churn, Measures, RangeReading } from './read-range.ts';
 import type { FileMeasures } from './reader.ts';
 
@@ -10,7 +10,10 @@ type Complexity = {
   readonly abc: number;
 };
 
-export type NodeMeasures = { readonly churn: number } & (Complexity | Record<never, never>);
+type Fan = { readonly fanIn: number; readonly fanOut: number };
+
+export type NodeMeasures = { readonly churn: number } & (Fan | Record<never, never>) &
+  (Complexity | Record<never, never>);
 
 export type NodeMetrics = {
   readonly highestInside?: true;
@@ -45,15 +48,28 @@ const complexityOf = ({ lines, functions }: FileMeasures): Complexity => {
 type MeasuresAtOptions = {
   readonly churn: Churn;
   readonly measures: Measures;
+  readonly edges: ReadonlyArray<GraphEdge>;
+  readonly id: string;
   readonly path: string | undefined;
 };
 
-const measuresAt = ({ churn, measures, path }: MeasuresAtOptions): NodeMeasures | undefined => {
+const measuresAt = ({
+  churn,
+  measures,
+  edges,
+  id,
+  path,
+}: MeasuresAtOptions): NodeMeasures | undefined => {
   if (path === undefined) return undefined;
   const commits = churn[path];
   if (commits === undefined) return undefined;
   const file = measures[path];
-  return { churn: commits, ...(file && complexityOf(file)) };
+  return {
+    churn: commits,
+    fanIn: edges.filter(({ to }) => to === id).length,
+    fanOut: edges.filter(({ from }) => from === id).length,
+    ...(file && complexityOf(file)),
+  };
 };
 
 const sides = (base: NodeMeasures | undefined, head: NodeMeasures | undefined): NodeMetrics => ({
@@ -106,10 +122,20 @@ export const nodeMetrics = ({
   churn,
   measures,
 }: NodeMetricsOptions): Readonly<Record<string, NodeMetrics>> => {
+  const baseSide = {
+    churn: churn.before,
+    measures: measures.before,
+    edges: diff.edges.filter(({ state }) => state !== 'added'),
+  };
+  const headSide = {
+    churn: churn.after,
+    measures: measures.after,
+    edges: diff.edges.filter(({ state }) => state !== 'removed'),
+  };
   const leaves: Readonly<Record<string, NodeMetrics>> = Object.fromEntries(
     measuredNodes({ diff, before }).flatMap(({ id, basePath, headPath }) => {
-      const base = measuresAt({ churn: churn.before, measures: measures.before, path: basePath });
-      const head = measuresAt({ churn: churn.after, measures: measures.after, path: headPath });
+      const base = measuresAt({ ...baseSide, id, path: basePath });
+      const head = measuresAt({ ...headSide, id, path: headPath });
       if (base === undefined && head === undefined) return [];
       return [[id, sides(base, head)]];
     }),
