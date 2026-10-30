@@ -1,5 +1,6 @@
 import { expect, test } from 'vitest';
-import { fitted, frameHeight, panned, zoomed } from './view.ts';
+import type { Layout, PlacedNode } from './layout.ts';
+import { fitted, frameHeight, panned, pinned, topLeftOf, zoomed } from './view.ts';
 
 test.for([
   {
@@ -97,4 +98,72 @@ test.for([
   },
 ])('panning $panIs', ({ by, view }) => {
   expect(panned({ ...big, view: { scale: 2, x: -500, y: -500 }, by })).toEqual(view);
+});
+
+test.for([
+  {
+    pinIs: 'keeps the box where it was on screen, at the same zoom',
+    to: { x: 300, y: 250 },
+    view: { scale: 2, x: -700, y: -800 },
+  },
+  {
+    pinIs: 'stops at the edge of the graph',
+    to: { x: 1800, y: 250 },
+    view: { scale: 2, x: -3000, y: -800 },
+  },
+])('pinning a toggled box $pinIs', ({ to, view }) => {
+  expect(
+    pinned({ ...big, view: { scale: 2, x: -500, y: -500 }, from: { x: 200, y: 100 }, to }),
+  ).toEqual(view);
+});
+
+test('pinning a box after a relayout shrinks the graph keeps the zoom no lower than fits the new graph', () => {
+  expect(
+    pinned({
+      graph: { width: 500, height: 500 },
+      frame: { width: 1000, height: 1000 },
+      view: { scale: 0.5, x: 0, y: 0 },
+      from: { x: 200, y: 100 },
+      to: { x: 200, y: 100 },
+    }).scale,
+  ).toBe(1);
+});
+
+const placed = (
+  id: string,
+  at: { readonly x: number; readonly y: number },
+  children: ReadonlyArray<PlacedNode> = [],
+): PlacedNode => ({
+  id,
+  kind: 'module',
+  label: id,
+  path: id,
+  state: 'unchanged',
+  ...at,
+  width: 100,
+  height: 50,
+  children,
+});
+
+test("a box's top-left in the graph adds up the places of the stack and boxes it is drawn in", () => {
+  const layout: Layout = {
+    width: 1000,
+    height: 1000,
+    calls: [],
+    stacks: [
+      {
+        ...placed('web', { x: 16, y: 20 }, [
+          placed('web/module/app', { x: 24, y: 44 }),
+          placed('web/module/utils', { x: 200, y: 44 }, [
+            placed('web/file/utils/x.ts', { x: 16, y: 40 }),
+          ]),
+        ]),
+        edges: [],
+      },
+      { ...placed('rust', { x: 500, y: 16 }), edges: [] },
+    ],
+  };
+
+  expect(topLeftOf({ layout, id: 'web/file/utils/x.ts' })).toEqual({ x: 232, y: 104 });
+  expect(topLeftOf({ layout, id: 'web' })).toEqual({ x: 16, y: 20 });
 });

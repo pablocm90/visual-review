@@ -1,3 +1,5 @@
+import type { Layout, PlacedNode } from './layout.ts';
+
 type Size = { readonly width: number; readonly height: number };
 
 export type View = { readonly scale: number; readonly x: number; readonly y: number };
@@ -39,8 +41,11 @@ const clamped = ({ graph, frame, view }: Placed): View => ({
 
 type ZoomedOptions = Placed & { readonly scale: number; readonly at: Point };
 
+const bounded = ({ graph, frame, scale }: Omit<Placed, 'view'> & { readonly scale: number }) =>
+  Math.min(MOST_ZOOMED, Math.max(fitted({ graph, frame }).scale, scale));
+
 export const zoomed = ({ graph, frame, view, scale, at }: ZoomedOptions): View => {
-  const within = Math.min(MOST_ZOOMED, Math.max(fitted({ graph, frame }).scale, scale));
+  const within = bounded({ graph, frame, scale });
   const ratio = within / view.scale;
   return clamped({
     graph,
@@ -51,3 +56,31 @@ export const zoomed = ({ graph, frame, view, scale, at }: ZoomedOptions): View =
 
 export const panned = ({ graph, frame, view, by }: Placed & { readonly by: Point }): View =>
   clamped({ graph, frame, view: { scale: view.scale, x: view.x + by.x, y: view.y + by.y } });
+
+type PinnedOptions = Placed & { readonly from: Point; readonly to: Point };
+
+export const pinned = ({ graph, frame, view, from, to }: PinnedOptions): View => {
+  const scale = bounded({ graph, frame, scale: view.scale });
+  return clamped({
+    graph,
+    frame,
+    view: {
+      scale,
+      x: view.x + from.x * view.scale - to.x * scale,
+      y: view.y + from.y * view.scale - to.y * scale,
+    },
+  });
+};
+
+const topLeftIn = (
+  nodes: ReadonlyArray<PlacedNode>,
+  id: string,
+  offset: Point,
+): Point | undefined =>
+  nodes.reduce<Point | undefined>((found, node) => {
+    const at = { x: offset.x + node.x, y: offset.y + node.y };
+    return found ?? (node.id === id ? at : topLeftIn(node.children, id, at));
+  }, undefined);
+
+export const topLeftOf = ({ layout, id }: { readonly layout: Layout; readonly id: string }) =>
+  topLeftIn(layout.stacks, id, { x: 0, y: 0 });
