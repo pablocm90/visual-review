@@ -483,3 +483,147 @@ test("edges onto the base classes Rails generates are dropped, while edges onto 
     { from: `${shop}/class/Admin::UsersController`, to: `${shop}/class/Admin::BaseController` },
   ]);
 });
+
+test('a changed Minitest file lists its tests under their class, added, edited or unchanged', async () => {
+  const orderTest = (tests: string) =>
+    `require "test_helper"\n\nclass OrderTest < ActiveSupport::TestCase\n  setup do\n    sign_in\n  end\n\n${tests}end\n`;
+  using workspace = gitRepo({
+    ...railsApp,
+    'test/models/order_test.rb': orderTest(
+      '  test "totals its lines" do\n    assert_equal 3, total\n  end\n\n  test "ships" do\n    assert shipped\n  end\n',
+    ),
+  });
+  const { repo, root } = workspace;
+  const to = commit(repo, {
+    'test/models/order_test.rb': orderTest(
+      '  test "totals its lines" do\n    assert_equal 4, total\n  end\n\n  test "ships" do\n    assert shipped\n  end\n\n  test "refunds a paid order" do\n    assert refunded\n  end\n',
+    ),
+  });
+
+  const range = await readRange({ repo, from: root, to });
+
+  expect(range.tests).toEqual([
+    {
+      path: 'test/models/order_test.rb',
+      statements: [
+        {
+          kind: 'heading',
+          name: 'OrderTest',
+          children: [
+            { kind: 'test', name: 'totals its lines', change: 'edited' },
+            { kind: 'test', name: 'ships', change: 'unchanged' },
+            { kind: 'test', name: 'refunds a paid order', change: 'added' },
+          ],
+        },
+      ],
+    },
+  ]);
+});
+
+test("a Minitest file is read only under a test/ folder of a Rails app's root", async () => {
+  using workspace = gitRepo({
+    'apps/shop/config/application.rb': railsApp['config/application.rb'],
+  });
+  const { repo, root } = workspace;
+  const minitest = 'class SomeTest\n  test "works" do\n  end\nend\n';
+  const to = commit(repo, {
+    'apps/shop/test/models/order_test.rb': minitest,
+    'apps/shop/lib/contest/money_test.rb': minitest,
+    'tools/test/x_test.rb': minitest,
+  });
+
+  const range = await readRange({ repo, from: root, to });
+
+  expect(range.tests.map(({ path }) => path)).toEqual(['apps/shop/test/models/order_test.rb']);
+});
+
+const added = (name: string) => ({ kind: 'test', name, change: 'added' });
+
+test.for([
+  {
+    reason: 'a class in a module, by its constant',
+    file: 'module Admin\n  class UsersControllerTest\n    test "lists users" do\n    end\n  end\nend\n',
+    statements: [
+      { kind: 'heading', name: 'Admin::UsersControllerTest', children: [added('lists users')] },
+    ],
+  },
+  {
+    reason: 'a compact class line, by its constant',
+    file: 'class Admin::UsersControllerTest\n  test "lists users" do\n  end\nend\n',
+    statements: [
+      { kind: 'heading', name: 'Admin::UsersControllerTest', children: [added('lists users')] },
+    ],
+  },
+  {
+    reason: 'a class in a class, inside its heading',
+    file: 'class OrderTest\n  class RefundTest\n    test "refunds" do\n    end\n  end\n\n  test "ships" do\n  end\nend\n',
+    statements: [
+      {
+        kind: 'heading',
+        name: 'OrderTest',
+        children: [
+          { kind: 'heading', name: 'RefundTest', children: [added('refunds')] },
+          added('ships'),
+        ],
+      },
+    ],
+  },
+  {
+    reason: 'two classes, one heading each',
+    file: 'class OrderTest\n  test "ships" do\n  end\nend\n\nclass RefundTest\n  test "refunds" do\n  end\nend\n',
+    statements: [
+      { kind: 'heading', name: 'OrderTest', children: [added('ships')] },
+      { kind: 'heading', name: 'RefundTest', children: [added('refunds')] },
+    ],
+  },
+  {
+    reason: 'no heading for a class holding no test',
+    file: 'class FakeClient\n  def call = nil\nend\n\nclass OrderTest\n  test "ships" do\n  end\nend\n',
+    statements: [{ kind: 'heading', name: 'OrderTest', children: [added('ships')] }],
+  },
+  {
+    reason: 'a test in a loop, once, named as written',
+    file: 'class OrderTest\n  %i[paid sent].each do |state|\n    test "#{state} works" do\n    end\n  end\nend\n',
+    statements: [{ kind: 'heading', name: 'OrderTest', children: [added('#{state} works')] }],
+  },
+])('a Minitest file reads $reason', async ({ file, statements }) => {
+  using workspace = gitRepo(railsApp);
+  const { repo, root } = workspace;
+  const to = commit(repo, { 'test/models/order_test.rb': file });
+
+  const range = await readRange({ repo, from: root, to });
+
+  expect(range.tests).toEqual([{ path: 'test/models/order_test.rb', statements }]);
+});
+
+test('a test_ method is a test named by the method, so renaming it removes one test and adds another', async () => {
+  const orderTest = ({ method, shipped }: { method: string; shipped: string }) =>
+    `class OrderTest\n  def self.test_data = []\n\n  def ${method}\n    assert_equal 3, tested_amount\n  end\n\n  def test_ships\n    assert ${shipped}\n  end\n\n  def tested_amount = 3\nend\n`;
+  using workspace = gitRepo({
+    ...railsApp,
+    'test/models/order_test.rb': orderTest({ method: 'test_total', shipped: 'shipped' }),
+  });
+  const { repo, root } = workspace;
+  const to = commit(repo, {
+    'test/models/order_test.rb': orderTest({ method: 'test_sum', shipped: 'sent' }),
+  });
+
+  const range = await readRange({ repo, from: root, to });
+
+  expect(range.tests).toEqual([
+    {
+      path: 'test/models/order_test.rb',
+      statements: [
+        {
+          kind: 'heading',
+          name: 'OrderTest',
+          children: [
+            { kind: 'test', name: 'test_total', change: 'removed' },
+            { kind: 'test', name: 'test_sum', change: 'added' },
+            { kind: 'test', name: 'test_ships', change: 'edited' },
+          ],
+        },
+      ],
+    },
+  ]);
+});
