@@ -1,3 +1,4 @@
+import { edgeId } from '../core/graph.ts';
 import type { Layout, PlacedNode } from './layout.ts';
 
 type Size = { readonly width: number; readonly height: number };
@@ -92,5 +93,27 @@ const boxIn = (nodes: ReadonlyArray<PlacedNode>, id: string, offset: Point): Box
     );
   }, undefined);
 
-export const boxOf = ({ layout, id }: { readonly layout: Layout; readonly id: string }) =>
-  boxIn(layout.stacks, id, { x: 0, y: 0 });
+const ORIGIN = { x: 0, y: 0 };
+
+const span = (points: ReadonlyArray<Point>, offset: Point): Box => {
+  const xs = points.map(point => point.x);
+  const ys = points.map(point => point.y);
+  const x = Math.min(...xs);
+  const y = Math.min(...ys);
+  return {
+    x: offset.x + x,
+    y: offset.y + y,
+    width: Math.max(...xs) - x,
+    height: Math.max(...ys) - y,
+  };
+};
+
+const edgesIn = (layout: Layout) => [
+  ...layout.calls.map(edge => ({ edge, offset: ORIGIN })),
+  ...layout.stacks.flatMap(stack => stack.edges.map(edge => ({ edge, offset: stack }))),
+];
+
+export const boxOf = ({ layout, id }: { readonly layout: Layout; readonly id: string }) => {
+  const drawn = edgesIn(layout).find(({ edge }) => edgeId(edge) === id);
+  return boxIn(layout.stacks, id, ORIGIN) ?? (drawn && span(drawn.edge.points, drawn.offset));
+};

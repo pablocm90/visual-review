@@ -199,3 +199,51 @@ test("a box's place in the graph adds up the places of the stack and boxes it is
   });
   expect(boxOf({ layout, id: 'web' })).toMatchObject({ x: 16, y: 20 });
 });
+
+test("an edge's place in the graph spans its points, inside its stack's place for an import, and as drawn for a call across stacks", () => {
+  const layout: Layout = {
+    width: 1000,
+    height: 1000,
+    calls: [
+      {
+        from: 'web/file/app/api.ts',
+        to: 'rust/crate/api',
+        state: 'added',
+        points: [
+          { x: 400, y: 200 },
+          { x: 100, y: 50 },
+        ],
+      },
+    ],
+    stacks: [
+      {
+        ...placed('web', { x: 16, y: 20 }),
+        edges: [
+          {
+            from: 'web/module/app',
+            to: 'web/module/utils',
+            state: 'unchanged',
+            points: [
+              { x: 30, y: 60 },
+              { x: 130, y: 10 },
+              { x: 80, y: 100 },
+            ],
+          },
+        ],
+      },
+    ],
+  };
+
+  expect(boxOf({ layout, id: 'web/module/app -> web/module/utils' })).toEqual({
+    x: 46,
+    y: 30,
+    width: 100,
+    height: 90,
+  });
+  expect(boxOf({ layout, id: 'web/file/app/api.ts -> rust/crate/api' })).toEqual({
+    x: 100,
+    y: 50,
+    width: 300,
+    height: 150,
+  });
+});
