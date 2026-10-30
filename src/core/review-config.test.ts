@@ -49,6 +49,21 @@ test.for([
     error: 'linkers.fetch-axum: Unrecognized key: "form"',
   },
   {
+    reason: 'an unknown key in metrics',
+    text: '{"metrics": {"churn": 30}}',
+    error: 'metrics: Unrecognized key: "churn"',
+  },
+  {
+    reason: 'a churn window of no days',
+    text: '{"metrics": {"churnDays": 0}}',
+    error: 'metrics.churnDays: Too small: expected number to be >0',
+  },
+  {
+    reason: 'a churn window in part days',
+    text: '{"metrics": {"churnDays": 1.5}}',
+    error: 'metrics.churnDays: Invalid input: expected int, received number',
+  },
+  {
     reason: 'a stack neither false nor an object',
     text: '{"stacks": {"web": true}}',
     error: 'stacks.web: Invalid input: expected false or an object',
@@ -313,3 +328,19 @@ test.for([
     expect(range.after.nodes).toContainEqual(relabelled);
   },
 );
+
+test("the config's metrics.churnDays sets how many days before each side's commit its churn counts", async () => {
+  using repository = gitRepo({ 'package.json': '{}\n', 'src/a.ts': '' });
+  const { repo } = repository;
+  commit(repo, { 'src/a.ts': '1' }, { date: '2090-06-01T00:00:00Z' });
+  const base = commit(repo, { 'src/a.ts': '2' }, { date: '2090-06-20T00:00:00Z' });
+  const head = commit(
+    repo,
+    { 'src/a.ts': '3', 'visual-review.config.json': '{"metrics": {"churnDays": 15}}' },
+    { date: '2090-06-30T00:00:00Z' },
+  );
+
+  const range = await readRange({ repo, from: base, to: head });
+
+  expect(range.churn).toEqual({ before: { 'src/a.ts': 1 }, after: { 'src/a.ts': 2 } });
+});

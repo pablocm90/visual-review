@@ -130,13 +130,12 @@ const configAt = async (repo: string, revision: string): Promise<Config> => {
   return parseConfig((await textIn(repo, CONFIG_FILE)) ?? '{}');
 };
 
-const CHURN_DAYS = 90;
-
 type ChurnOptions = {
   readonly repo: string;
   readonly revision: string;
   readonly directory: string;
   readonly graph: Graph;
+  readonly days: number;
 };
 
 const isFile = (path: string): Promise<boolean> =>
@@ -145,9 +144,15 @@ const isFile = (path: string): Promise<boolean> =>
     () => false,
   );
 
-const churnAt = async ({ repo, revision, directory, graph }: ChurnOptions): Promise<Churn> => {
+const churnAt = async ({
+  repo,
+  revision,
+  directory,
+  graph,
+  days,
+}: ChurnOptions): Promise<Churn> => {
   const end = Number(await git(repo, 'log', '-1', '--format=%ct', revision));
-  const since = `--since=@${end - CHURN_DAYS * 24 * 60 * 60}`;
+  const since = `--since=@${end - days * 24 * 60 * 60}`;
   const touched = (await git(repo, 'log', '--format=', '--name-only', since, revision)).split('\n');
   const paths = graph.nodes.map(({ path }) => path);
   const areFiles = await Promise.all(paths.map(path => isFile(join(directory, path))));
@@ -194,12 +199,14 @@ export const readRange = async ({
         revision: base,
         directory: join(scratch, 'before'),
         graph: before.graph,
+        days: config.metrics.churnDays,
       }),
       after: await churnAt({
         repo,
         revision: toCommit,
         directory: join(scratch, 'after'),
         graph: after.graph,
+        days: config.metrics.churnDays,
       }),
     };
     const changes = (await git(repo, 'diff', '--find-renames', '--name-status', base, toCommit))

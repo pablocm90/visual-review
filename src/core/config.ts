@@ -53,6 +53,14 @@ const LinkerSchema = z.strictObject({
     .describe("The stacks it links to, by drawn id; every stack of its to reader's by default"),
 });
 
+const MetricsSchema = z.strictObject({
+  churnDays: z
+    .int()
+    .positive()
+    .default(90)
+    .describe("How many days before each side's commit its churn counts"),
+});
+
 const ConfigSchema = z.strictObject({
   $schema: z.string().optional(),
   stacks: z
@@ -73,6 +81,7 @@ const ConfigSchema = z.strictObject({
     )
     .default({})
     .describe('Linkers by name; false turns one off'),
+  metrics: MetricsSchema.prefault({}).describe('How node metrics are read'),
 });
 
 export type Config = z.infer<typeof ConfigSchema>;
