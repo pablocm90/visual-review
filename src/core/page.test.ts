@@ -171,3 +171,20 @@ test.for([
     'web/file/a.ts': metrics,
   });
 });
+
+test("an unchanged file one edge from a changed node, on either side's edges, gets its churn too, and one two edges away does not", () => {
+  const files = ['a.ts', 'b.ts', 'c.ts', 'd.ts'].map(webFile);
+  const edge = (from: string, to: string) => ({ from: `web/file/${from}`, to: `web/file/${to}` });
+  const churn = Object.fromEntries(files.map(({ path }) => [path, 1]));
+  const reading = readingWith({
+    before: { nodes: [webStack, ...files], edges: [edge('b.ts', 'a.ts')] },
+    after: { nodes: [webStack, ...files], edges: [edge('a.ts', 'c.ts'), edge('c.ts', 'd.ts')] },
+    churn: { before: churn, after: churn },
+  });
+
+  expect(Object.keys(pageData({ reading, range: 'main..feature', version }).metrics)).toEqual([
+    'web/file/a.ts',
+    'web/file/b.ts',
+    'web/file/c.ts',
+  ]);
+});

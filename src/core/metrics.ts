@@ -23,10 +23,19 @@ const measuresAt = (churn: Churn, path: string): NodeMeasures | undefined => {
 export const nodeMetrics = ({
   diff,
   churn,
-}: NodeMetricsOptions): Readonly<Record<string, NodeMetrics>> =>
-  Object.fromEntries(
+}: NodeMetricsOptions): Readonly<Record<string, NodeMetrics>> => {
+  const changed = new Set(
+    diff.nodes.filter(node => node.state !== 'unchanged').map(node => node.id),
+  );
+  const measured = new Set([
+    ...changed,
+    ...diff.edges
+      .filter(({ from, to }) => changed.has(from) || changed.has(to))
+      .flatMap(({ from, to }) => [from, to]),
+  ]);
+  return Object.fromEntries(
     diff.nodes
-      .filter(node => node.state !== 'unchanged')
+      .filter(node => measured.has(node.id))
       .flatMap(node => {
         const base = measuresAt(churn.before, node.path);
         const head = measuresAt(churn.after, node.path);
@@ -34,3 +43,4 @@ export const nodeMetrics = ({
         return [[node.id, { ...(base && { base }), ...(head && { head }) }]];
       }),
   );
+};
