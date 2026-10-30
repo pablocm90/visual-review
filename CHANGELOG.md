@@ -2,6 +2,13 @@
 
 What changed in each release of `@pablocm90/visual-review`, newest first. Versions follow [semver](https://semver.org); while it is 0.x, a minor version may change the exported types.
 
+## Unreleased
+
+### Added
+
+- The review data (the `.json` beside the page) carries `metrics`: for each changed node and each node one edge from one, on each side it exists on, `churn`, the commits that touched its file in the 90 days before that side's commit (for uncommitted work, before `HEAD`'s). A box gets the highest churn measured inside it, marked `highestInside`. The page doesn't show it yet.
+- `metrics.churnDays` in `visual-review.config.json` sets that window.
+
 ## 0.3.1 — 2026-10-30
 
 ### Fixed

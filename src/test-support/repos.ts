@@ -22,10 +22,29 @@ export const writeFiles = (repo: string, files: Readonly<Record<string, string>>
     writeFileSync(join(repo, path), content);
   });
 
-export const commit = (repo: string, files: Readonly<Record<string, string>>): string => {
+type CommitOptions = {
+  readonly date?: string;
+  readonly authorDate?: string;
+};
+
+export const commit = (
+  repo: string,
+  files: Readonly<Record<string, string>>,
+  { date, authorDate = date }: CommitOptions = {},
+): string => {
   writeFiles(repo, files);
   git(repo, 'add', '--all');
-  git(repo, 'commit', '--quiet', '--message', Object.keys(files).join(' '));
+  execFileSync(
+    'git',
+    ['-C', repo, 'commit', '--quiet', '--message', Object.keys(files).join(' ')],
+    {
+      env: {
+        ...process.env,
+        ...(date === undefined ? {} : { GIT_COMMITTER_DATE: date }),
+        ...(authorDate === undefined ? {} : { GIT_AUTHOR_DATE: authorDate }),
+      },
+    },
+  );
   return git(repo, 'rev-parse', 'HEAD');
 };
 

@@ -10,6 +10,7 @@ import {
   gitRepo,
   pathTo,
   symlinkedDirectory,
+  writeFiles,
 } from '../test-support/repos.ts';
 
 const rootPackage = { 'package.json': '{}\n', 'src/index.ts': '' };
@@ -416,6 +417,70 @@ test('each changed file comes with its own patch, keyed by its path, and edited 
   ]);
 });
 
+test("each side's churn counts, for each file a node is drawn from, the commits touching it in the 90 days up to that side's commit", async () => {
+  using repository = gitRepo({
+    'package.json': '{}\n',
+    'src/a.ts': '',
+    'src/b.ts': '',
+    'src/c.ts': '',
+  });
+  const { repo } = repository;
+  commit(repo, { 'src/a.ts': '1' }, { date: '2090-01-01T00:00:00Z' });
+  commit(repo, { 'src/a.ts': '2' }, { date: '2090-05-01T00:00:00Z' });
+  const base = commit(repo, { 'src/a.ts': '3', 'src/b.ts': '1' }, { date: '2090-06-01T00:00:00Z' });
+  commit(repo, { 'src/a.ts': '4' }, { date: '2090-08-01T00:00:00Z' });
+  const rebasedHead = { date: '2090-09-15T00:00:00Z', authorDate: '2090-01-01T00:00:00Z' };
+  const head = commit(repo, { 'src/b.ts': '2' }, rebasedHead);
+
+  const range = await readRange({ repo, from: base, to: head });
+
+  expect(range.churn).toEqual({
+    before: { 'src/a.ts': 2, 'src/b.ts': 1, 'src/c.ts': 0 },
+    after: { 'src/a.ts': 1, 'src/b.ts': 1, 'src/c.ts': 0 },
+  });
+});
+
+test('a range ending at a branch named like a folder reads its churn', async () => {
+  using repository = gitRepo({ 'package.json': '{}\n', 'src/a.ts': '' });
+  const { repo } = repository;
+  const base = commit(repo, { 'src/a.ts': '1' });
+  git(repo, 'switch', '--quiet', '--create', 'src');
+  commit(repo, { 'src/a.ts': '2' });
+
+  const range = await readRange({ repo, from: base, to: 'src' });
+
+  expect(range.churn.after).toEqual({ 'src/a.ts': 3 });
+});
+
+test('churn counts a file whose path git would quote', async () => {
+  using repository = gitRepo({ 'package.json': '{}\n', 'src/café.ts': '' });
+  const { repo } = repository;
+  const base = commit(repo, { 'src/café.ts': '1' });
+  const head = commit(repo, { 'src/café.ts': '2' });
+
+  const range = await readRange({ repo, from: base, to: head });
+
+  expect(range.churn.after).toEqual({ 'src/café.ts': 3 });
+});
+
+test('churn reads a history whose touched paths run past a megabyte', async () => {
+  using repository = gitRepo({ 'package.json': '{}\n', 'src/a.ts': '' });
+  const { repo } = repository;
+  const deep = Array.from({ length: 14 }, (_, level) => `${level}`.padEnd(250, 'x')).join('/');
+  writeFiles(
+    repo,
+    Object.fromEntries(Array.from({ length: 320 }, (_, file) => [`${deep}/${file}`, ''])),
+  );
+  git(repo, 'add', '--all');
+  git(repo, 'commit', '--quiet', '--message', 'deep files');
+  const base = commit(repo, { 'src/a.ts': '1' });
+  const head = commit(repo, { 'src/a.ts': '2' });
+
+  const range = await readRange({ repo, from: base, to: head });
+
+  expect(range.churn.after).toEqual({ 'src/a.ts': 3 });
+});
+
 test('a reader whose tool is not on PATH reads none of its stacks and is listed as skipped with them, while the other readers still read theirs', async () => {
   using workspace = cargoWorkspace();
   const { repo, root } = workspace;
@@ -588,13 +653,17 @@ test('when from is not an ancestor of to, before is their merge base and changed
   using workspace = cargoWorkspace();
   const { repo } = workspace;
   git(repo, 'switch', '--quiet', '--create', 'side');
-  const side = commit(repo, crateFiles('side'));
+  const side = commit(repo, {
+    ...crateFiles('side'),
+    'crates/core/src/lib.rs': 'pub fn side() {}\n',
+  });
   git(repo, 'switch', '--quiet', 'main');
   const main = commit(repo, { 'README.md': 'main' });
 
   const range = await readRange({ repo, from: side, to: main });
 
   expect(nodeIds(range.before)).toEqual(['rust', 'rust/crate/core', 'rust/mod/core/lib.rs']);
+  expect(range.churn.before).toEqual({ 'crates/core/src/lib.rs': 1 });
   expect(range.changedPaths).toEqual(['README.md']);
 });
 

@@ -22,6 +22,7 @@ const patch = (path: string) => ({ path, patch: `diff --git a/${path} b/${path}`
 const readingWith = (overrides: Partial<RangeReading>): RangeReading => ({
   before: { nodes: [webStack], edges: [] },
   after: { nodes: [webStack, webFile('a.ts')], edges: [] },
+  churn: { before: {}, after: {} },
   changedPaths: ['web/src/a.ts'],
   renames: [],
   patches: [],
@@ -49,6 +50,7 @@ test("a reading's page data holds its diff, its dangling calls and test files, t
       ],
       edges: [],
     },
+    metrics: {},
     dangling: [{ from: 'web/file/a.ts', path: '/api/x' }],
     patches: [patch('web/src/a.ts')],
     undrawn: [patch('README.md')],
@@ -125,4 +127,130 @@ test('notes that leave a touched part without a note are refused, naming the not
   expect(() =>
     notedPageHtml({ page: pageFor(version), notes: notesWith({}), notesFile, version }),
   ).toThrow("Notes in x.notes.json don't match the graph:\nno note on web/file/a.ts");
+});
+
+test('a changed node that is a file on both sides gets its churn on each', () => {
+  const graph = { nodes: [webStack, webFile('a.ts'), webFile('b.ts')], edges: [] };
+  const reading = readingWith({
+    before: graph,
+    after: graph,
+    churn: {
+      before: { 'web/src/a.ts': 3, 'web/src/b.ts': 1 },
+      after: { 'web/src/a.ts': 4, 'web/src/b.ts': 1 },
+    },
+  });
+
+  expect(pageData({ reading, range: 'main..feature', version }).metrics['web/file/a.ts']).toEqual({
+    base: { churn: 3 },
+    head: { churn: 4 },
+  });
+});
+
+test.for([
+  {
+    reason: 'an added file gets churn on the head side only',
+    before: [webStack],
+    after: [webStack, webFile('a.ts')],
+    churn: { before: {}, after: { 'web/src/a.ts': 2 } },
+    metrics: { head: { churn: 2 } },
+  },
+  {
+    reason: 'a removed file gets churn on the base side only',
+    before: [webStack, webFile('a.ts')],
+    after: [webStack],
+    churn: { before: { 'web/src/a.ts': 2 }, after: {} },
+    metrics: { base: { churn: 2 } },
+  },
+])('$reason', ({ before, after, churn, metrics }) => {
+  const reading = readingWith({
+    before: { nodes: before, edges: [] },
+    after: { nodes: after, edges: [] },
+    churn,
+  });
+
+  expect(
+    pageData({ reading, range: 'main..feature', version }).metrics['web/file/a.ts'],
+  ).toStrictEqual(metrics);
+});
+
+test("an unchanged file one edge from a changed node, on either side's edges, gets its churn too, and one two edges away does not", () => {
+  const files = ['a.ts', 'b.ts', 'c.ts', 'd.ts'].map(webFile);
+  const edge = (from: string, to: string) => ({ from: `web/file/${from}`, to: `web/file/${to}` });
+  const churn = Object.fromEntries(files.map(({ path }) => [path, 1]));
+  const reading = readingWith({
+    before: { nodes: [webStack, ...files], edges: [edge('b.ts', 'a.ts')] },
+    after: { nodes: [webStack, ...files], edges: [edge('a.ts', 'c.ts'), edge('c.ts', 'd.ts')] },
+    churn: { before: churn, after: churn },
+  });
+
+  const { metrics } = pageData({ reading, range: 'main..feature', version });
+
+  expect(Object.keys(metrics).filter(id => id.startsWith('web/file/'))).toEqual([
+    'web/file/a.ts',
+    'web/file/b.ts',
+    'web/file/c.ts',
+  ]);
+});
+
+test("a renamed file's base churn is read at the path it had on the base side", () => {
+  const reading = readingWith({
+    before: { nodes: [webStack, webFile('old.ts')], edges: [] },
+    after: { nodes: [webStack, webFile('a.ts')], edges: [] },
+    changedPaths: ['web/src/old.ts', 'web/src/a.ts'],
+    renames: [{ from: 'web/src/old.ts', to: 'web/src/a.ts' }],
+    churn: { before: { 'web/src/old.ts': 5 }, after: { 'web/src/a.ts': 1 } },
+  });
+
+  expect(pageData({ reading, range: 'main..feature', version }).metrics['web/file/a.ts']).toEqual({
+    base: { churn: 5 },
+    head: { churn: 1 },
+  });
+});
+
+test("a node whose file moved with no rename git saw reads its base churn at its base path, not at another file's", () => {
+  const moved = { ...webFile('a.ts'), path: 'web/src/old.ts' };
+  const reading = readingWith({
+    before: { nodes: [webStack, moved, { ...webFile('b.ts'), path: 'web/src/a.ts' }], edges: [] },
+    after: { nodes: [webStack, webFile('a.ts')], edges: [] },
+    changedPaths: ['web/src/old.ts', 'web/src/a.ts'],
+    churn: { before: { 'web/src/old.ts': 5, 'web/src/a.ts': 9 }, after: { 'web/src/a.ts': 1 } },
+  });
+
+  expect(pageData({ reading, range: 'main..feature', version }).metrics['web/file/a.ts']).toEqual({
+    base: { churn: 5 },
+    head: { churn: 1 },
+  });
+});
+
+test('a box gets, on each side, the highest churn among the measured nodes inside it at any depth, marked as such, with nothing on a side where none inside is measured, and nothing for a box with none measured inside', () => {
+  const box = (name: string): GraphNode => ({
+    id: `web/box/${name}`,
+    kind: 'module',
+    label: name,
+    parent: 'web',
+    path: `web/src/${name}`,
+  });
+  const inBox = (name: string, file: string): GraphNode => ({
+    ...webFile(`${name}/${file}`),
+    parent: `web/box/${name}`,
+  });
+  const files = [webFile('b.ts'), box('n'), inBox('n', 'c.ts')];
+  const reading = readingWith({
+    before: { nodes: [webStack, ...files], edges: [] },
+    after: { nodes: [webStack, box('m'), inBox('m', 'a.ts'), ...files], edges: [] },
+    changedPaths: ['web/src/m/a.ts', 'web/src/b.ts'],
+    churn: {
+      before: { 'web/src/b.ts': 1, 'web/src/n/c.ts': 9 },
+      after: { 'web/src/m/a.ts': 5, 'web/src/b.ts': 4, 'web/src/n/c.ts': 9 },
+    },
+  });
+
+  const { metrics } = pageData({ reading, range: 'main..feature', version });
+
+  expect(metrics).toStrictEqual({
+    web: { highestInside: true, base: { churn: 1 }, head: { churn: 5 } },
+    'web/box/m': { highestInside: true, head: { churn: 5 } },
+    'web/file/m/a.ts': { head: { churn: 5 } },
+    'web/file/b.ts': { base: { churn: 1 }, head: { churn: 4 } },
+  });
 });

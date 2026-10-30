@@ -97,6 +97,7 @@ Stacks are detected: a Cargo workspace at the repo root, every `package.json` wh
 - `reader` with `root` adds a stack that detection missed (`rust`, `typescript` or `rails`).
 - TS stacks also take `sourceRoot`, and `boxes`: folder globs under the source root, each matched folder one box. The deepest match wins, and other files keep one box per first folder.
 - Rails stacks take `boxes` too, as folder globs under the app root: `["app/models/*"]` puts `app/models/billing/invoice.rb` in a `models/billing` box. Other classes keep their layer's box (`models`, `lib`).
+- `metrics.churnDays` sets how many days before each side's commit the review data's churn counts commits over (90 when left out).
 - `linkers.fetch-axum` draws the `fetch` calls of TS stacks to the routes of Rust crates that depend on axum, and lists calls no route matches. `from` and `to` limit it to those stacks, and `false` turns it off.
 
 A key that names no detected stack, an unknown field, or a field the stack's reader doesn't take fails the review, naming the file and the field.
