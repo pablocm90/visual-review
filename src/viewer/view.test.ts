@@ -1,6 +1,6 @@
 import { expect, test } from 'vitest';
 import type { Layout, PlacedNode } from './layout.ts';
-import { fitted, frameHeight, panned, pinned, topLeftOf, zoomed } from './view.ts';
+import { centred, fitted, frameHeight, panned, pinned, topLeftOf, zoomed } from './view.ts';
 
 test.for([
   {
@@ -127,6 +127,33 @@ test('pinning a box after a relayout shrinks the graph keeps the zoom no lower t
       to: { x: 200, y: 100 },
     }).scale,
   ).toBe(1);
+});
+
+test.for([
+  {
+    boxIs: 'smaller than the frame at 100% puts its centre at the frame centre, at 100%',
+    box: { x: 800, y: 600, width: 200, height: 100 },
+    view: { scale: 1, x: -400, y: -350 },
+  },
+  {
+    boxIs: 'wider than the frame at 100% fits it to the frame width',
+    box: { x: 200, y: 800, width: 1600, height: 400 },
+    view: { scale: 0.625, x: -125, y: -325 },
+  },
+  {
+    boxIs: 'taller than the frame at 100% fits it to the frame height',
+    box: { x: 800, y: 200, width: 200, height: 1200 },
+    view: { scale: 0.5, x: 0, y: -100 },
+  },
+  {
+    boxIs: 'near the edge of the graph stops at that edge',
+    box: { x: 0, y: 1900, width: 100, height: 100 },
+    view: { scale: 1, x: 0, y: -1400 },
+  },
+])('centring on a box $boxIs', ({ box, view }) => {
+  expect(
+    centred({ graph: { width: 2000, height: 2000 }, frame: { width: 1000, height: 600 }, box }),
+  ).toEqual(view);
 });
 
 const placed = (

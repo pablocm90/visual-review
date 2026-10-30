@@ -72,6 +72,21 @@ export const pinned = ({ graph, frame, view, from, to }: PinnedOptions): View =>
   });
 };
 
+type Box = Point & Size;
+
+export const centred = ({ graph, frame, box }: Omit<Placed, 'view'> & { readonly box: Box }) => {
+  const scale = Math.min(1, frame.width / box.width, frame.height / box.height);
+  return clamped({
+    graph,
+    frame,
+    view: {
+      scale,
+      x: frame.width / 2 - (box.x + box.width / 2) * scale,
+      y: frame.height / 2 - (box.y + box.height / 2) * scale,
+    },
+  });
+};
+
 const topLeftIn = (
   nodes: ReadonlyArray<PlacedNode>,
   id: string,
