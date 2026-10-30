@@ -434,6 +434,18 @@ test("each side's churn counts, for each file a node is drawn from, the commits 
   });
 });
 
+test('a range ending at a branch named like a folder reads its churn', async () => {
+  using repository = gitRepo({ 'package.json': '{}\n', 'src/a.ts': '' });
+  const { repo } = repository;
+  const base = commit(repo, { 'src/a.ts': '1' });
+  git(repo, 'switch', '--quiet', '--create', 'src');
+  commit(repo, { 'src/a.ts': '2' });
+
+  const range = await readRange({ repo, from: base, to: 'src' });
+
+  expect(range.churn.after).toEqual({ 'src/a.ts': 3 });
+});
+
 test('a reader whose tool is not on PATH reads none of its stacks and is listed as skipped with them, while the other readers still read theirs', async () => {
   using workspace = cargoWorkspace();
   const { repo, root } = workspace;
