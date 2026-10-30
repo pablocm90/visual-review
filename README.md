@@ -112,7 +112,7 @@ Pages go to `.reviews/` at the repo root, which git ignores. Each page is named 
 
 ## Contributing
 
-See [CONTRIBUTING.md](CONTRIBUTING.md) to set up the repo, run its checks, and add a reader for another language.
+See [CONTRIBUTING.md](CONTRIBUTING.md) to set up the repo, run its checks, and add a reader for another language. Report a vulnerability privately, as [SECURITY.md](SECURITY.md) says. What changed in each release is in [CHANGELOG.md](CHANGELOG.md).
 
 ## License
 
