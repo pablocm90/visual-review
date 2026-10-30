@@ -188,3 +188,17 @@ test("an unchanged file one edge from a changed node, on either side's edges, ge
     'web/file/c.ts',
   ]);
 });
+
+test("a renamed file's base churn is read at the path it had on the base side", () => {
+  const reading = readingWith({
+    before: { nodes: [webStack, webFile('old.ts')], edges: [] },
+    after: { nodes: [webStack, webFile('a.ts')], edges: [] },
+    changedPaths: ['web/src/old.ts', 'web/src/a.ts'],
+    renames: [{ from: 'web/src/old.ts', to: 'web/src/a.ts' }],
+    churn: { before: { 'web/src/old.ts': 5 }, after: { 'web/src/a.ts': 1 } },
+  });
+
+  expect(pageData({ reading, range: 'main..feature', version }).metrics).toEqual({
+    'web/file/a.ts': { base: { churn: 5 }, head: { churn: 1 } },
+  });
+});

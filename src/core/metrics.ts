@@ -37,7 +37,7 @@ export const nodeMetrics = ({
     diff.nodes
       .filter(node => measured.has(node.id))
       .flatMap(node => {
-        const base = measuresAt(churn.before, node.path);
+        const base = measuresAt(churn.before, node.renamedFrom ?? node.path);
         const head = measuresAt(churn.after, node.path);
         if (base === undefined && head === undefined) return [];
         return [[node.id, { ...(base && { base }), ...(head && { head }) }]];
