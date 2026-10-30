@@ -207,6 +207,21 @@ test("a renamed file's base churn is read at the path it had on the base side", 
   });
 });
 
+test("a node whose file moved with no rename git saw reads its base churn at its base path, not at another file's", () => {
+  const moved = { ...webFile('a.ts'), path: 'web/src/old.ts' };
+  const reading = readingWith({
+    before: { nodes: [webStack, moved, { ...webFile('b.ts'), path: 'web/src/a.ts' }], edges: [] },
+    after: { nodes: [webStack, webFile('a.ts')], edges: [] },
+    changedPaths: ['web/src/old.ts', 'web/src/a.ts'],
+    churn: { before: { 'web/src/old.ts': 5, 'web/src/a.ts': 9 }, after: { 'web/src/a.ts': 1 } },
+  });
+
+  expect(pageData({ reading, range: 'main..feature', version }).metrics['web/file/a.ts']).toEqual({
+    base: { churn: 5 },
+    head: { churn: 1 },
+  });
+});
+
 test('a box gets, on each side, the highest churn among the measured nodes inside it at any depth, marked as such, with nothing on a side where none inside is measured, and nothing for a box with none measured inside', () => {
   const box = (name: string): GraphNode => ({
     id: `web/box/${name}`,

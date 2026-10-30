@@ -41,7 +41,7 @@ export const pageData = ({ reading, range, version, pullRequest }: PageDataOptio
     version,
     ...(pullRequest === undefined ? {} : { pullRequest }),
     diff,
-    metrics: nodeMetrics({ diff, churn: reading.churn }),
+    metrics: nodeMetrics({ diff, before: reading.before, churn: reading.churn }),
     dangling: reading.danglingCalls,
     patches: reading.patches.filter(isDrawn),
     undrawn: reading.patches.filter(patch => !isDrawn(patch)),
