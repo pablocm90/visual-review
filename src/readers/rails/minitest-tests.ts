@@ -12,6 +12,9 @@ const statementsIn = (node: Node, scope: ReadonlyArray<string>): ReadonlyArray<R
       if (children.length === 0) return [];
       return [{ kind: 'heading', name: [...scope, name].join('::'), children }];
     }
+    if (child.type === 'method' && name.startsWith('test_')) {
+      return [{ kind: 'test', name, source: child.text }];
+    }
     if (child.childForFieldName('method')?.text !== 'test') return statementsIn(child, scope);
     const [title] = child.childForFieldName('arguments')?.namedChildren ?? [];
     return [{ kind: 'test', name: (title?.text ?? '').slice(1, -1), source: child.text }];

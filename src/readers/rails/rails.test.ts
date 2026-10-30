@@ -595,3 +595,35 @@ test.for([
 
   expect(range.tests).toEqual([{ path: 'test/models/order_test.rb', statements }]);
 });
+
+test('a test_ method is a test named by the method, so renaming it removes one test and adds another', async () => {
+  const orderTest = ({ method, shipped }: { method: string; shipped: string }) =>
+    `class OrderTest\n  def self.test_data = []\n\n  def ${method}\n    assert_equal 3, tested_amount\n  end\n\n  def test_ships\n    assert ${shipped}\n  end\n\n  def tested_amount = 3\nend\n`;
+  using workspace = gitRepo({
+    ...railsApp,
+    'test/models/order_test.rb': orderTest({ method: 'test_total', shipped: 'shipped' }),
+  });
+  const { repo, root } = workspace;
+  const to = commit(repo, {
+    'test/models/order_test.rb': orderTest({ method: 'test_sum', shipped: 'sent' }),
+  });
+
+  const range = await readRange({ repo, from: root, to });
+
+  expect(range.tests).toEqual([
+    {
+      path: 'test/models/order_test.rb',
+      statements: [
+        {
+          kind: 'heading',
+          name: 'OrderTest',
+          children: [
+            { kind: 'test', name: 'test_total', change: 'removed' },
+            { kind: 'test', name: 'test_sum', change: 'added' },
+            { kind: 'test', name: 'test_ships', change: 'edited' },
+          ],
+        },
+      ],
+    },
+  ]);
+});
