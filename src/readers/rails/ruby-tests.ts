@@ -6,6 +6,18 @@ const TESTS = new Set(['test', 'it', 'specify', 'example', 'scenario']);
 
 const HEADINGS = new Set(['describe', 'context', 'feature']);
 
+const NOT_READ = new Set([
+  'shared_examples',
+  'shared_examples_for',
+  'shared_context',
+  'xdescribe',
+  'xcontext',
+  'xfeature',
+  'fdescribe',
+  'fcontext',
+  'ffeature',
+]);
+
 const MODULES = new Set(['constant', 'scope_resolution']);
 
 const METADATA = new Set(['pair', 'simple_symbol']);
@@ -54,6 +66,7 @@ const statementsIn = (node: Node, scope: ReadonlyArray<string>): ReadonlyArray<R
     }
     if (TESTS.has(method) && child.childForFieldName('receiver') === null)
       return [{ kind: 'test', name: titleOf(child), source: child.text }];
+    if (NOT_READ.has(method)) return [];
     if (!HEADINGS.has(method)) return statementsIn(child, scope);
     const block = child.childForFieldName('block');
     const children = block === null ? [] : statementsIn(block, []);

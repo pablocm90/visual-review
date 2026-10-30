@@ -752,6 +752,25 @@ test.for([
       },
     ],
   },
+  {
+    reason: 'no tests in shared, skipped or focused groups',
+    file: [
+      'describe Order do',
+      ...[
+        'shared_examples',
+        'shared_examples_for',
+        'shared_context',
+        'xdescribe',
+        'xcontext',
+        'xfeature',
+        'fdescribe',
+        'fcontext',
+        'ffeature',
+      ].map(group => `  ${group} "${group}" do\n    it "${group} works" do\n    end\n  end\n`),
+      '  it "works" do\n  end\nend\n',
+    ].join('\n'),
+    statements: [{ kind: 'heading', name: 'Order', children: [added('works')] }],
+  },
 ])('an RSpec file reads $reason', async ({ file, statements }) => {
   expect(await testsAdded({ path: 'spec/models/order_spec.rb', file })).toEqual([
     { path: 'spec/models/order_spec.rb', statements },
