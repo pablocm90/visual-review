@@ -65,6 +65,7 @@ test("a reading's page data holds its diff, its dangling calls and test files, t
       edges: [],
     },
     metrics: {},
+    metricFindings: [],
     dangling: [{ from: 'web/file/a.ts', path: '/api/x' }],
     patches: [patch('web/src/a.ts')],
     undrawn: [patch('README.md')],
@@ -399,3 +400,55 @@ test('a box takes, on each side, the highest of each measure among the measured 
     },
   });
 });
+
+test.for([
+  { reason: 'a new file over it is one to look at', base: undefined, head: 5, level: 'look' },
+  { reason: 'a file that crosses it is one to look at', base: 4, head: 5, level: 'look' },
+  { reason: 'a file over it that grew is one to look at', base: 5, head: 6, level: 'look' },
+  { reason: 'a file over it that held is for information', base: 5, head: 5, level: 'info' },
+  { reason: 'a file over it that shrank is for information', base: 6, head: 5, level: 'info' },
+  { reason: 'a file at it raises none', base: 6, head: 4, level: undefined },
+  { reason: 'a removed file raises none', base: 6, head: undefined, level: undefined },
+])(
+  'against the cyclomatic threshold, $reason, and the boxes above it raise none',
+  ({ base, head, level }) => {
+    const measured = (cyclomatic: number | undefined) =>
+      cyclomatic === undefined
+        ? {}
+        : {
+            'web/src/a.ts': {
+              lines: 1,
+              functions: [
+                { name: 'f', cyclomatic, abc: { assignments: 0, branches: 0, conditions: 0 } },
+                { name: 'g', cyclomatic: 1, abc: { assignments: 0, branches: 0, conditions: 0 } },
+              ],
+            },
+          };
+    const churned = (cyclomatic: number | undefined) =>
+      cyclomatic === undefined ? {} : { 'web/src/a.ts': 1 };
+    const nodes = (cyclomatic: number | undefined) =>
+      cyclomatic === undefined ? [webStack] : [webStack, webFile('a.ts')];
+    const reading = readingWith({
+      before: { nodes: nodes(base), edges: [] },
+      after: { nodes: nodes(head), edges: [] },
+      churn: { before: churned(base), after: churned(head) },
+      measures: { before: measured(base), after: measured(head) },
+      thresholds: { cyclomatic: 4 },
+    });
+
+    expect(pageData({ reading, range: 'main..feature', version }).metricFindings).toStrictEqual(
+      level === undefined
+        ? []
+        : [
+            {
+              node: 'web/file/a.ts',
+              metric: 'cyclomatic',
+              level,
+              ...(base === undefined ? {} : { base }),
+              head,
+              threshold: 4,
+            },
+          ],
+    );
+  },
+);
