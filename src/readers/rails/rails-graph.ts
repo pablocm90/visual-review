@@ -1,21 +1,24 @@
-import { join } from 'node:path';
+import { join, matchesGlob } from 'node:path';
 import type { Node } from 'web-tree-sitter';
 import type { Graph, GraphNode } from '../../core/graph.ts';
 import type { SourceFile } from '../sources-in.ts';
 import { parseRuby } from './ruby-syntax.ts';
 
-type Place = {
-  readonly layer: string;
-  readonly folder: string;
-  readonly names: ReadonlyArray<string>;
+const namesOf = (file: string): ReadonlyArray<string> => {
+  const [top = '', layer = '', ...rest] = file.split('/');
+  return top === 'lib' ? [layer, ...rest] : rest;
 };
 
-const placeOf = (file: string): Place => {
-  const [top = '', layer = '', ...rest] = file.split('/');
-  if (top === 'lib') return { layer: top, folder: top, names: [layer, ...rest] };
-  const folder = join(top, layer);
-  return { layer: layer === 'lib' ? folder : layer, folder, names: rest };
+const LAYERS = ['app/*', 'lib'];
+
+const boxOf = (file: string, boxes: ReadonlyArray<string>): string => {
+  const parts = file.split('/').slice(0, -1);
+  const folders = parts.map((_, index) => parts.slice(0, index + 1).join('/'));
+  const globs = [...LAYERS, ...boxes];
+  return folders.findLast(folder => globs.some(glob => matchesGlob(folder, glob))) ?? '';
 };
+
+const labelOf = (box: string): string => box.replace(/^app\/(?!lib(\/|$))/, '');
 
 const camelized = (name: string): string =>
   name
@@ -157,27 +160,29 @@ const classesNamedIn = (
 type RailsGraphOptions = {
   readonly stack: string;
   readonly root: string;
+  readonly boxes: ReadonlyArray<string>;
   readonly files: ReadonlyArray<SourceFile>;
 };
 
-export const railsGraph = ({ stack, root, files }: RailsGraphOptions): Graph => {
+export const railsGraph = ({ stack, root, boxes, files }: RailsGraphOptions): Graph => {
   const classes = files
     .toSorted((a, b) => (a.file < b.file ? -1 : 1))
     .map(({ file, text }) => {
-      const { layer, folder, names } = placeOf(file);
       const program = parseRuby(text);
-      return { file, layer, folder, program, constant: definedConstant(program, names) };
+      const folder = boxOf(file, boxes);
+      return { file, folder, program, constant: definedConstant(program, namesOf(file)) };
     })
     .filter(
       ({ constant }, index, all) => all.findIndex(other => other.constant === constant) === index,
     );
   const nodes = new Map(
     classes
-      .flatMap(({ file, layer, folder, constant }): ReadonlyArray<GraphNode> => {
+      .flatMap(({ file, folder, constant }): ReadonlyArray<GraphNode> => {
+        const label = labelOf(folder);
         const box: GraphNode = {
-          id: `${stack}/layer/${layer}`,
+          id: `${stack}/layer/${label}`,
           kind: 'module',
-          label: layer,
+          label,
           parent: stack,
           path: join(root, folder),
         };

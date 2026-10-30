@@ -23,11 +23,16 @@ const rootsIn = (directory: string): ReadonlyArray<string> =>
 
 export const railsReader: Reader = {
   name: 'rails',
-  stackFields: [],
+  stackFields: ['boxes'],
   roots: directory => rootsIn(directory).map(root => ({ root })),
   holds: ({ directory, root }) => existsSync(join(directory, root, APPLICATION)),
-  graph: async ({ directory, root, stack }) =>
-    railsGraph({ stack, root, files: await sourcesIn(join(directory, root), RUBY_FILES) }),
+  graph: async ({ directory, root, stack, settings }) =>
+    railsGraph({
+      stack,
+      root,
+      boxes: settings.boxes ?? [],
+      files: await sourcesIn(join(directory, root), RUBY_FILES),
+    }),
   isTestFile: path => TEST_FILE.test(path),
   readTests: readRubyTests,
 };

@@ -35,7 +35,7 @@ const StackSchema = z
       .array(z.string())
       .optional()
       .describe(
-        'TS stacks: folder globs under the source root, each matched folder a box; other files box by first folder',
+        'TS and Rails stacks: folder globs under the source root (TS) or app root (Rails), each matched folder a box; other files box by first folder (TS) or layer (Rails)',
       ),
   })
   .refine(({ reader, root }) => (reader === undefined) === (root === undefined), {
