@@ -1,6 +1,6 @@
 {
   "name": "visual-review",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "description": "Structural review pages for pull requests, ranges and uncommitted work, with Claude's notes and flags written onto them",
   "author": { "name": "Pablo" },
   "repository": "https://github.com/pablocm90/visual-review"

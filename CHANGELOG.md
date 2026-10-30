@@ -2,7 +2,7 @@
 
 What changed in each release of `@pablocm90/visual-review`, newest first. Versions follow [semver](https://semver.org); while it is 0.x, a minor version may change the exported types.
 
-## Unreleased
+## 0.3.1 — 2026-10-30
 
 ### Fixed
 
