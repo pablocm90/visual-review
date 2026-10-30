@@ -270,6 +270,10 @@ test('with the frame focused, + = - step the zoom, 1 goes to 100%, 0 fits, and t
   expect(viewOf(rust)).toBe(at100(40, 40));
   expect(fireEvent.keyDown(frame, { key: 'ArrowUp' })).toBe(false);
   expect(fireEvent.keyDown(frame, { key: 'Tab' })).toBe(true);
+  expect(fireEvent.keyDown(frame, { key: '=', ctrlKey: true })).toBe(true);
+  expect(fireEvent.keyDown(frame, { key: '-', metaKey: true })).toBe(true);
+  expect(fireEvent.keyDown(frame, { key: 'ArrowLeft', altKey: true })).toBe(true);
+  expect(viewOf(rust)).toBe(at100(40, 80));
   await user.keyboard('0');
   expect(viewOf(rust)).toBe('translate(0 0) scale(0.5)');
 });

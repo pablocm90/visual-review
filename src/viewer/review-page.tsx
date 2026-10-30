@@ -608,7 +608,7 @@ export const ReviewPage = ({ review, notes }: ReviewPageProps) => {
   const zoomAtCentre = (scale: number) =>
     choose(on => zoomed({ ...on, scale, at: { x: on.frame.width / 2, y: on.frame.height / 2 } }));
   const keyed = (event: KeyboardEvent) => {
-    if (!view) return;
+    if (!view || event.ctrlKey || event.metaKey || event.altKey) return;
     const panBy = (x: number, y: number) => () => choose(on => panned({ ...on, by: { x, y } }));
     const act = {
       '+': () => zoomAtCentre(view.scale * ZOOM_STEP),
