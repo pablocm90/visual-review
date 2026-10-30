@@ -112,6 +112,25 @@ test('with no range, reviews the uncommitted work against HEAD as HEAD..worktree
   });
 }, 60_000);
 
+test("the CLI, with every reader loaded, parses Rust as Rust: a crate's modules are drawn and its test changes read", async () => {
+  using workspace = cargoWorkspace();
+  const { repo } = workspace;
+  writeFiles(repo, {
+    'crates/core/src/lib.rs': 'mod a;\n',
+    'crates/core/src/a.rs': '#[test]\nfn checks() {}\n',
+  });
+
+  await runCli(repo);
+
+  const page = readFileSync(join(repo, '.reviews', 'HEAD..worktree.html'), 'utf8');
+  expect(reviewDataIn(page)).toMatchObject({
+    diff: {
+      nodes: expect.arrayContaining([expect.objectContaining({ id: 'rust/mod/core/a' })]),
+    },
+    tests: [expect.objectContaining({ path: 'crates/core/src/a.rs' })],
+  });
+}, 60_000);
+
 test("the uncommitted work's churn counts up to HEAD on the head side too, the uncommitted edit left out", async () => {
   using workspace = cargoWorkspace();
   const { repo } = workspace;
