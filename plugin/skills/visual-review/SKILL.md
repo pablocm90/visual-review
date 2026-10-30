@@ -9,7 +9,7 @@ argument-hint: [<pr number> | <from>..<to>]
 Each `visual-review` below is shorthand for this command: run the command in full in its place, since nothing puts `visual-review` on `PATH`:
 
 ```sh
-npx -y --prefix="$(mktemp -d)" --package="${VISUAL_REVIEW_PACKAGE:-@pablocm90/visual-review@0.1.1}" visual-review
+npx -y --prefix="$(mktemp -d)" --package="${VISUAL_REVIEW_PACKAGE:-@pablocm90/visual-review@0.2.0}" visual-review
 ```
 
 The empty `--prefix` keeps the reviewed checkout's own `node_modules` and `.npmrc` from choosing what runs; the command still runs in the repo.
