@@ -1,4 +1,12 @@
-import { type KeyboardEvent, type PointerEvent, useEffect, useMemo, useRef, useState } from 'react';
+import {
+  type KeyboardEvent,
+  type PointerEvent,
+  useEffect,
+  useEffectEvent,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
 import type { FilePatch, GraphDiff } from '../core/diff-graphs.ts';
 import { isAtOrUnder } from '../core/diff-graphs.ts';
 import { edgeId } from '../core/graph.ts';
@@ -22,6 +30,18 @@ import {
   type PlacedNode,
   type PlacedStack,
 } from './layout.ts';
+import {
+  boxOf,
+  centred,
+  fitted,
+  frameHeight,
+  panned,
+  pinned,
+  resized,
+  type Size,
+  type View,
+  zoomed,
+} from './view.ts';
 
 const STATES = ['added', 'removed', 'modified', 'unchanged'] as const;
 
@@ -31,6 +51,9 @@ const PANEL_MIN = 280;
 const GRAPH_MIN = 320;
 const PAGE_PADDING_AND_DIVIDER = 72;
 const DIVIDER_STEP = 40;
+const LEAST_DRAG = 4;
+const WHEEL_PER_DOUBLING = 100;
+const PAN_STEP = 40;
 
 const panelWidthWithin = (width: number) =>
   Math.min(Math.max(width, PANEL_MIN), window.innerWidth - PAGE_PADDING_AND_DIVIDER - GRAPH_MIN);
@@ -264,6 +287,32 @@ const Summary = ({ notes, onGoTo }: SummaryProps) => {
   );
 };
 
+const ZOOM_STEP = 1.25;
+
+type ZoomProps = {
+  readonly scale: number;
+  readonly onZoom: (scale: number) => void;
+  readonly onFit: () => void;
+};
+
+const Zoom = ({ scale, onZoom, onFit }: ZoomProps) => (
+  <div className="zoom" role="toolbar" aria-label="View">
+    <button type="button" aria-label="Zoom out" onClick={() => onZoom(scale / ZOOM_STEP)}>
+      −
+    </button>
+    <output aria-label="Zoom">{Math.round(scale * 100)}%</output>
+    <button type="button" aria-label="Zoom in" onClick={() => onZoom(scale * ZOOM_STEP)}>
+      +
+    </button>
+    <button type="button" onClick={onFit}>
+      Fit
+    </button>
+    <button type="button" onClick={() => onZoom(1)}>
+      100%
+    </button>
+  </div>
+);
+
 const isFullSha = (ref: string) => /^[0-9a-f]{40}$/.test(ref);
 
 const shortRef = (ref: string) => (isFullSha(ref) ? ref.slice(0, 7) : ref);
@@ -403,6 +452,36 @@ type DrawnAtOptions = {
 const drawnAt = ({ diff, expanded, noted, allEdges }: DrawnAtOptions): GraphDiff =>
   allEdges ? visibleDiff({ diff, expanded }) : mergedDiff({ diff, expanded, noted });
 
+type Chosen =
+  | {
+      readonly view: View;
+      readonly of: Layout;
+      readonly in: Size;
+      readonly pin?: string | undefined;
+    }
+  | { readonly centre: string };
+
+type ViewOnOptions = {
+  readonly layout: Layout;
+  readonly frame: Size;
+  readonly chosen: Chosen | undefined;
+};
+
+const viewOn = ({ layout, frame, chosen }: ViewOnOptions): View => {
+  const fit = fitted({ graph: layout, frame });
+  if (chosen === undefined) return fit;
+  if ('centre' in chosen) {
+    const box = boxOf({ layout, id: chosen.centre });
+    return box ? centred({ graph: layout, frame, box }) : fit;
+  }
+  if (chosen.of === layout)
+    return resized({ graph: layout, frame, view: chosen.view, from: chosen.in });
+  if (chosen.pin === undefined) return fit;
+  const from = boxOf({ layout: chosen.of, id: chosen.pin });
+  const to = boxOf({ layout, id: chosen.pin });
+  return from && to ? pinned({ graph: layout, frame, view: chosen.view, from, to }) : fit;
+};
+
 type ReviewPageProps = {
   readonly review: PageData;
   readonly notes?: ReviewNotes | undefined;
@@ -429,12 +508,14 @@ export const ReviewPage = ({ review, notes }: ReviewPageProps) => {
     () => visibleNotes({ diff: review.diff, expanded, notes: notes?.notes ?? {} }),
     [review, notes, expanded],
   );
-  const toggle = (id: string) =>
+  const toggle = (id: string) => {
+    choose(on => on.view, id);
     setExpanded(current =>
       current.has(id)
         ? new Set([...current].filter(other => other !== id))
         : new Set([...current, id]),
     );
+  };
   const elements = useRef(new Map<string, SVGElement | null>());
   const register = (id: string, element: SVGElement | null) => {
     elements.current.set(id, element);
@@ -487,8 +568,88 @@ export const ReviewPage = ({ review, notes }: ReviewPageProps) => {
     if (!isDrawn({ diff: nearChanges(drawnAt({ ...at, allEdges: all })), id })) {
       setNearOnly(false);
     }
+    setChosen({ centre: id });
     setFocusTarget(id);
   };
+  const [frameElement, setFrameElement] = useState<HTMLDivElement | null>(null);
+  const [frameWidth, setFrameWidth] = useState<number>();
+  useEffect(() => {
+    if (!frameElement) return;
+    const observer = new ResizeObserver(([entry]) => setFrameWidth(entry?.contentRect.width));
+    observer.observe(frameElement);
+    return () => observer.disconnect();
+  }, [frameElement]);
+  const frame =
+    layout && frameWidth !== undefined
+      ? {
+          width: frameWidth,
+          height: frameHeight({ graph: layout, frameWidth, windowHeight: window.innerHeight }),
+        }
+      : undefined;
+  const [chosen, setChosen] = useState<Chosen>();
+  const view = layout && frame && viewOn({ layout, frame, chosen });
+  const placed = layout && frame && view && { graph: layout, frame, view };
+  const choose = (next: (on: NonNullable<typeof placed>) => View, pin?: string) => {
+    if (placed) setChosen({ of: placed.graph, view: next(placed), in: placed.frame, pin });
+  };
+  const dragged = useRef(false);
+  const pan = (down: PointerEvent<HTMLDivElement>) => {
+    dragged.current = false;
+    if (down.button !== 0) return;
+    const follow = (move: globalThis.PointerEvent) => {
+      const by = { x: move.clientX - down.clientX, y: move.clientY - down.clientY };
+      dragged.current ||= Math.hypot(by.x, by.y) >= LEAST_DRAG;
+      if (dragged.current) choose(on => panned({ ...on, by }));
+    };
+    const released = new AbortController();
+    const release = () => released.abort();
+    window.addEventListener('pointermove', follow, { signal: released.signal });
+    window.addEventListener('pointerup', release, { signal: released.signal });
+    window.addEventListener('pointercancel', release, { signal: released.signal });
+  };
+  const zoomAtCentre = (scale: number) =>
+    choose(on => zoomed({ ...on, scale, at: { x: on.frame.width / 2, y: on.frame.height / 2 } }));
+  const keyed = (event: KeyboardEvent) => {
+    if (!view || event.ctrlKey || event.metaKey || event.altKey) return;
+    const panBy = (x: number, y: number) => () => choose(on => panned({ ...on, by: { x, y } }));
+    const act = {
+      '+': () => zoomAtCentre(view.scale * ZOOM_STEP),
+      '=': () => zoomAtCentre(view.scale * ZOOM_STEP),
+      '-': () => zoomAtCentre(view.scale / ZOOM_STEP),
+      '1': () => zoomAtCentre(1),
+      '0': () => setChosen(undefined),
+      ArrowLeft: panBy(PAN_STEP, 0),
+      ArrowRight: panBy(-PAN_STEP, 0),
+      ArrowUp: panBy(0, PAN_STEP),
+      ArrowDown: panBy(0, -PAN_STEP),
+    }[event.key];
+    if (!act) return;
+    event.preventDefault();
+    act();
+  };
+  const wheel = useEffectEvent((event: WheelEvent) => {
+    if (!frameElement || !placed) return;
+    const bounds = frameElement.getBoundingClientRect();
+    const at = { x: event.clientX - bounds.left, y: event.clientY - bounds.top };
+    const by = { x: -event.deltaX, y: -event.deltaY };
+    const zooming = event.ctrlKey || event.metaKey;
+    const next = zooming
+      ? zoomed({
+          ...placed,
+          scale: placed.view.scale * 2 ** (-event.deltaY / WHEEL_PER_DOUBLING),
+          at,
+        })
+      : panned({ ...placed, by });
+    if (!zooming && next.x === placed.view.x && next.y === placed.view.y) return;
+    event.preventDefault();
+    choose(() => next);
+  });
+  useEffect(() => {
+    if (!frameElement) return;
+    const onWheel = (event: WheelEvent) => wheel(event);
+    frameElement.addEventListener('wheel', onWheel, { passive: false });
+    return () => frameElement.removeEventListener('wheel', onWheel);
+  }, [frameElement]);
   useEffect(() => {
     layoutDiff(drawn).then(setLayout);
   }, [drawn]);
@@ -496,10 +657,11 @@ export const ReviewPage = ({ review, notes }: ReviewPageProps) => {
     if (layout === undefined || focusTarget === undefined) return;
     const element = elements.current.get(focusTarget);
     if (element) {
-      element.focus();
+      element.focus({ preventScroll: true });
+      frameElement?.scrollIntoView({ block: 'nearest' });
       setFocusTarget(undefined);
     }
-  }, [layout, focusTarget]);
+  }, [layout, focusTarget, frameElement]);
   return (
     <main>
       <header>
@@ -531,7 +693,10 @@ export const ReviewPage = ({ review, notes }: ReviewPageProps) => {
             <input
               type="checkbox"
               checked={nearOnly}
-              onChange={event => setNearOnly(event.target.checked)}
+              onChange={event => {
+                setChosen(undefined);
+                setNearOnly(event.target.checked);
+              }}
             />
             Changed + 1 hop
           </label>
@@ -539,49 +704,73 @@ export const ReviewPage = ({ review, notes }: ReviewPageProps) => {
             <input
               type="checkbox"
               checked={allEdges}
-              onChange={event => setAllEdges(event.target.checked)}
+              onChange={event => {
+                setChosen(undefined);
+                setAllEdges(event.target.checked);
+              }}
             />
             All edges
           </label>
           {drawn.nodes.length === 0 && <p className="caveat">Nothing in the graph changed.</p>}
           {layout && (
-            <svg
-              className="graph"
-              viewBox={`0 0 ${layout.width} ${layout.height}`}
-              width={layout.width}
-              height={layout.height}
+            <div
+              className="frame"
+              role="group"
+              aria-label="Graph"
+              ref={setFrameElement}
+              style={{ height: frame?.height }}
+              // biome-ignore lint/a11y/noNoninteractiveTabindex: the frame takes the zoom and pan keys
+              tabIndex={0}
+              onKeyDown={keyed}
+              onPointerDown={pan}
+              onClickCapture={event => {
+                if (dragged.current && event.detail > 0) event.stopPropagation();
+              }}
             >
-              <title>{`Structure ${shortRange(review.range)}`}</title>
-              <defs>
-                {STATES.map(state => (
-                  <marker
-                    key={state}
-                    id={`arrow-${state}`}
-                    className="arrow"
-                    data-state={state}
-                    viewBox="0 0 10 10"
-                    refX={9}
-                    refY={5}
-                    markerWidth={7}
-                    markerHeight={7}
-                    orient="auto-start-reverse"
-                  >
-                    <path d="M 0 0 L 10 5 L 0 10 z" />
-                  </marker>
-                ))}
-              </defs>
-              {layout.stacks.map(stack => (
-                <Stack key={stack.id} stack={stack} drawing={drawing} />
-              ))}
-              {layout.calls.map(edge => (
-                <EdgeView
-                  key={edgeId(edge)}
-                  edge={edge}
-                  name={`${labelOf.get(edge.from)} ⇢ ${labelOf.get(edge.to)}: ${edge.state} (${edge.via?.join(', ')})`}
-                  drawing={drawing}
-                />
-              ))}
-            </svg>
+              {frame && view && (
+                <>
+                  <Zoom
+                    scale={view.scale}
+                    onZoom={zoomAtCentre}
+                    onFit={() => setChosen(undefined)}
+                  />
+                  <svg className="graph">
+                    <title>{`Structure ${shortRange(review.range)}`}</title>
+                    <defs>
+                      {STATES.map(state => (
+                        <marker
+                          key={state}
+                          id={`arrow-${state}`}
+                          className="arrow"
+                          data-state={state}
+                          viewBox="0 0 10 10"
+                          refX={9}
+                          refY={5}
+                          markerWidth={7}
+                          markerHeight={7}
+                          orient="auto-start-reverse"
+                        >
+                          <path d="M 0 0 L 10 5 L 0 10 z" />
+                        </marker>
+                      ))}
+                    </defs>
+                    <g transform={`translate(${view.x} ${view.y}) scale(${view.scale})`}>
+                      {layout.stacks.map(stack => (
+                        <Stack key={stack.id} stack={stack} drawing={drawing} />
+                      ))}
+                      {layout.calls.map(edge => (
+                        <EdgeView
+                          key={edgeId(edge)}
+                          edge={edge}
+                          name={`${labelOf.get(edge.from)} ⇢ ${labelOf.get(edge.to)}: ${edge.state} (${edge.via?.join(', ')})`}
+                          drawing={drawing}
+                        />
+                      ))}
+                    </g>
+                  </svg>
+                </>
+              )}
+            </div>
           )}
           {dangling.length > 0 && (
             <section className="unplaced" aria-label="Calls with no route">

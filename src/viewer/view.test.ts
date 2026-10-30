@@ -1,0 +1,277 @@
+import { expect, test } from 'vitest';
+import type { Layout, PlacedNode } from './layout.ts';
+import { boxOf, centred, fitted, frameHeight, panned, pinned, resized, zoomed } from './view.ts';
+
+test.for([
+  {
+    graphIs: 'wider than the frame, fitted to its width and centred vertically',
+    graph: { width: 2000, height: 400 },
+    view: { scale: 0.5, x: 0, y: 200 },
+  },
+  {
+    graphIs: 'taller than the frame, fitted to its height and centred horizontally',
+    graph: { width: 500, height: 1200 },
+    view: { scale: 0.5, x: 375, y: 0 },
+  },
+  {
+    graphIs: 'smaller than the frame, kept at natural size and centred',
+    graph: { width: 400, height: 200 },
+    view: { scale: 1, x: 300, y: 200 },
+  },
+])('a graph $graphIs', ({ graph, view }) => {
+  expect(fitted({ graph, frame: { width: 1000, height: 600 } })).toEqual(view);
+});
+
+test.for([
+  {
+    graphIs: 'wider than the frame takes its height at the scale fitting its width',
+    graph: { width: 2000, height: 600 },
+    height: 300,
+  },
+  {
+    graphIs: 'narrower than the frame takes its natural height',
+    graph: { width: 400, height: 300 },
+    height: 300,
+  },
+  {
+    graphIs: 'taller than the window takes the window less its padding',
+    graph: { width: 1000, height: 1000 },
+    height: 652,
+  },
+])('the frame for a graph $graphIs', ({ graph, height }) => {
+  expect(frameHeight({ graph, frameWidth: 1000, windowHeight: 700 })).toBe(height);
+});
+
+const big = { graph: { width: 2000, height: 2000 }, frame: { width: 1000, height: 1000 } };
+
+test.for([
+  {
+    zoomIs: 'keeps the graph point under the pointer where it was',
+    scale: 2,
+    at: { x: 100, y: 200 },
+    view: { scale: 2, x: -1100, y: -1200 },
+  },
+  {
+    zoomIs: 'stops at 400%',
+    scale: 10,
+    at: { x: 500, y: 500 },
+    view: { scale: 4, x: -3500, y: -3500 },
+  },
+  {
+    zoomIs: 'stops at the scale that fits the graph',
+    scale: 0.1,
+    at: { x: 500, y: 500 },
+    view: { scale: 0.5, x: 0, y: 0 },
+  },
+  {
+    zoomIs: 'shows no space past the edge of a graph bigger than the frame',
+    scale: 0.6,
+    at: { x: 1000, y: 1000 },
+    view: { scale: 0.6, x: 0, y: 0 },
+  },
+])('zooming $zoomIs', ({ scale, at, view }) => {
+  expect(zoomed({ ...big, view: { scale: 1, x: -500, y: -500 }, scale, at })).toEqual(view);
+});
+
+test('zooming centres a graph smaller than the frame on that axis', () => {
+  expect(
+    zoomed({
+      graph: { width: 2000, height: 400 },
+      frame: { width: 1000, height: 600 },
+      view: { scale: 0.5, x: 0, y: 200 },
+      scale: 1,
+      at: { x: 0, y: 0 },
+    }),
+  ).toEqual({ scale: 1, x: 0, y: 100 });
+});
+
+test.for([
+  {
+    panIs: 'moves the graph by the pointer',
+    by: { x: 40, y: -30 },
+    view: { scale: 2, x: -460, y: -530 },
+  },
+  {
+    panIs: 'stops at the edge of the graph',
+    by: { x: 600, y: -3000 },
+    view: { scale: 2, x: 0, y: -3000 },
+  },
+])('panning $panIs', ({ by, view }) => {
+  expect(panned({ ...big, view: { scale: 2, x: -500, y: -500 }, by })).toEqual(view);
+});
+
+test.for([
+  {
+    pinIs: 'keeps the box where it was on screen, at the same zoom',
+    to: { x: 300, y: 250 },
+    view: { scale: 2, x: -700, y: -800 },
+  },
+  {
+    pinIs: 'stops at the edge of the graph',
+    to: { x: 1800, y: 250 },
+    view: { scale: 2, x: -3000, y: -800 },
+  },
+])('pinning a toggled box $pinIs', ({ to, view }) => {
+  expect(
+    pinned({ ...big, view: { scale: 2, x: -500, y: -500 }, from: { x: 200, y: 100 }, to }),
+  ).toEqual(view);
+});
+
+test('pinning a box after a relayout shrinks the graph keeps the zoom no lower than fits the new graph', () => {
+  expect(
+    pinned({
+      graph: { width: 500, height: 500 },
+      frame: { width: 1000, height: 1000 },
+      view: { scale: 0.5, x: 0, y: 0 },
+      from: { x: 200, y: 100 },
+      to: { x: 200, y: 100 },
+    }).scale,
+  ).toBe(1);
+});
+
+test.for([
+  {
+    boxIs: 'smaller than the frame at 100% puts its centre at the frame centre, at 100%',
+    box: { x: 800, y: 600, width: 200, height: 100 },
+    view: { scale: 1, x: -400, y: -350 },
+  },
+  {
+    boxIs: 'wider than the frame at 100% fits it to the frame width',
+    box: { x: 200, y: 800, width: 1600, height: 400 },
+    view: { scale: 0.625, x: -125, y: -325 },
+  },
+  {
+    boxIs: 'taller than the frame at 100% fits it to the frame height',
+    box: { x: 800, y: 200, width: 200, height: 1200 },
+    view: { scale: 0.5, x: 0, y: -100 },
+  },
+  {
+    boxIs: 'near the edge of the graph stops at that edge',
+    box: { x: 0, y: 1900, width: 100, height: 100 },
+    view: { scale: 1, x: 0, y: -1400 },
+  },
+])('centring on a box $boxIs', ({ box, view }) => {
+  expect(
+    centred({ graph: { width: 2000, height: 2000 }, frame: { width: 1000, height: 600 }, box }),
+  ).toEqual(view);
+});
+
+test.for([
+  {
+    resizeIs: 'keeps the zoom and the graph point at the centre of the frame',
+    from: { width: 1000, height: 1000 },
+    view: { scale: 2, x: -500, y: -500 },
+    to: { width: 600, height: 800 },
+    resized: { scale: 2, x: -700, y: -600 },
+  },
+  {
+    resizeIs: 'stops at the edge of the graph',
+    from: { width: 600, height: 1000 },
+    view: { scale: 2, x: 0, y: -500 },
+    to: { width: 1000, height: 1000 },
+    resized: { scale: 2, x: 0, y: -500 },
+  },
+  {
+    resizeIs: 'keeps the zoom no lower than fits the graph in the new frame',
+    from: { width: 500, height: 500 },
+    view: { scale: 0.25, x: 0, y: 0 },
+    to: { width: 1000, height: 1000 },
+    resized: { scale: 0.5, x: 0, y: 0 },
+  },
+])('resizing the frame $resizeIs', ({ from, view, to, resized: expected }) => {
+  expect(resized({ graph: { width: 2000, height: 2000 }, frame: to, view, from })).toEqual(
+    expected,
+  );
+});
+
+const placed = (
+  id: string,
+  at: { readonly x: number; readonly y: number },
+  children: ReadonlyArray<PlacedNode> = [],
+): PlacedNode => ({
+  id,
+  kind: 'module',
+  label: id,
+  path: id,
+  state: 'unchanged',
+  ...at,
+  width: 100,
+  height: 50,
+  children,
+});
+
+test("a box's place in the graph adds up the places of the stack and boxes it is drawn in, and keeps its own size", () => {
+  const layout: Layout = {
+    width: 1000,
+    height: 1000,
+    calls: [],
+    stacks: [
+      {
+        ...placed('web', { x: 16, y: 20 }, [
+          placed('web/module/app', { x: 24, y: 44 }),
+          placed('web/module/utils', { x: 200, y: 44 }, [
+            placed('web/file/utils/x.ts', { x: 16, y: 40 }),
+          ]),
+        ]),
+        edges: [],
+      },
+      { ...placed('rust', { x: 500, y: 16 }), edges: [] },
+    ],
+  };
+
+  expect(boxOf({ layout, id: 'web/file/utils/x.ts' })).toEqual({
+    x: 232,
+    y: 104,
+    width: 100,
+    height: 50,
+  });
+  expect(boxOf({ layout, id: 'web' })).toMatchObject({ x: 16, y: 20 });
+});
+
+test("an edge's place in the graph spans its points, inside its stack's place for an import, and as drawn for a call across stacks", () => {
+  const layout: Layout = {
+    width: 1000,
+    height: 1000,
+    calls: [
+      {
+        from: 'web/file/app/api.ts',
+        to: 'rust/crate/api',
+        state: 'added',
+        points: [
+          { x: 400, y: 200 },
+          { x: 100, y: 50 },
+        ],
+      },
+    ],
+    stacks: [
+      {
+        ...placed('web', { x: 16, y: 20 }),
+        edges: [
+          {
+            from: 'web/module/app',
+            to: 'web/module/utils',
+            state: 'unchanged',
+            points: [
+              { x: 30, y: 60 },
+              { x: 130, y: 10 },
+              { x: 80, y: 100 },
+            ],
+          },
+        ],
+      },
+    ],
+  };
+
+  expect(boxOf({ layout, id: 'web/module/app -> web/module/utils' })).toEqual({
+    x: 46,
+    y: 30,
+    width: 100,
+    height: 90,
+  });
+  expect(boxOf({ layout, id: 'web/file/app/api.ts -> rust/crate/api' })).toEqual({
+    x: 100,
+    y: 50,
+    width: 300,
+    height: 150,
+  });
+});

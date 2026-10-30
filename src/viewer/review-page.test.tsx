@@ -1,10 +1,49 @@
 // @vitest-environment jsdom
-import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { expect, test } from 'vitest';
+import { expect, onTestFinished, test, vi } from 'vitest';
 import type { GraphDiff } from '../core/diff-graphs.ts';
+import type { ReviewNotes } from '../core/notes.ts';
 import type { PageData } from '../core/page.ts';
+import { layoutDiff } from './layout.ts';
 import { ReviewPage } from './review-page.tsx';
+
+const frameOfWidth = (width: number) => {
+  const observing: { report?: (width: number) => void } = {};
+  const Observer = class implements ResizeObserver {
+    readonly #report: ResizeObserverCallback;
+    constructor(report: ResizeObserverCallback) {
+      this.#report = report;
+    }
+    observe(target: Element) {
+      observing.report = (width: number) =>
+        this.#report(
+          [
+            {
+              target,
+              contentRect: DOMRectReadOnly.fromRect({ width }),
+              borderBoxSize: [],
+              contentBoxSize: [],
+              devicePixelContentBoxSize: [],
+            },
+          ],
+          this,
+        );
+      observing.report(width);
+    }
+    unobserve() {}
+    disconnect() {}
+  };
+  return { Observer, resize: (to: number) => act(() => observing.report?.(to)) };
+};
+
+const WIDE_FRAME = 1200;
+
+vi.stubGlobal('ResizeObserver', frameOfWidth(WIDE_FRAME).Observer);
+
+const scrolledIntoView = vi.fn();
+
+Object.defineProperty(HTMLElement.prototype, 'scrollIntoView', { value: scrolledIntoView });
 
 type Diffed = GraphDiff['nodes'][number]['state'];
 
@@ -61,7 +100,10 @@ test('draws every crate and dependency inside the rust stack with its change sta
   render(<ReviewPage review={pageWith(review)} />);
 
   const rust = await screen.findByRole('group', { name: 'rust' });
-  expect(screen.getAllByRole('group')).toEqual([rust]);
+  expect(screen.getAllByRole('group')).toEqual([
+    screen.getByRole('group', { name: 'Graph' }),
+    rust,
+  ]);
   const drawn = within(rust).getAllByRole('button');
   expect(drawn).toHaveLength(7);
   [
@@ -82,6 +124,313 @@ test('draws every crate and dependency inside the rust stack with its change sta
 
   await user.click(within(rust).getByRole('button', { name: 'legacy: removed' }));
   expect(noteShown()).toBe('No note');
+});
+
+type FrameOptions = {
+  readonly width: number;
+  readonly windowHeight: number;
+  readonly notes?: ReviewNotes;
+};
+
+const renderInFrame = (page: PageData, { width, windowHeight, notes }: FrameOptions) => {
+  const frame = frameOfWidth(width);
+  vi.stubGlobal('ResizeObserver', frame.Observer);
+  const innerHeight = vi.spyOn(window, 'innerHeight', 'get').mockReturnValue(windowHeight);
+  onTestFinished(() => {
+    vi.stubGlobal('ResizeObserver', frameOfWidth(WIDE_FRAME).Observer);
+    innerHeight.mockRestore();
+  });
+  return { ...render(<ReviewPage review={page} notes={notes} />), resize: frame.resize };
+};
+
+const zoomShown = () => screen.getByRole('status', { name: 'Zoom' }).textContent;
+
+const viewOf = (stack: HTMLElement) => stack.parentElement?.getAttribute('transform');
+
+test.for([
+  { frameIs: 'half the graph wide', widthTimes: 0.5, window: 'tall', xTimes: 0 },
+  { frameIs: 'twice the graph wide', widthTimes: 2, window: 'half the graph high', xTimes: 0.75 },
+])(
+  'in a frame $frameIs and a window $window, the graph opens fitted at 50%, centred in a frame as high as the graph fitted to its width within the window',
+  async ({ widthTimes, window, xTimes }) => {
+    const graph = await layoutDiff(review.diff);
+    renderInFrame(pageWith(review), {
+      width: graph.width * widthTimes,
+      windowHeight: window === 'tall' ? 10_000 : graph.height / 2 + 48,
+    });
+
+    const frame = await screen.findByRole('group', { name: 'Graph' });
+    const rust = await within(frame).findByRole('group', { name: 'rust' });
+    expect(zoomShown()).toBe('50%');
+    expect(viewOf(rust)).toBe(`translate(${graph.width * xTimes} 0) scale(0.5)`);
+    expect(frame.style.height).toBe(`${graph.height / 2}px`);
+  },
+);
+
+test('the toolbar zooms the graph by steps of 1.25, to 100% about the frame centre and back to fitted, and a relayout refits', async () => {
+  const user = userEvent.setup();
+  const graph = await layoutDiff(review.diff);
+  renderInFrame(pageWith(review), { width: graph.width / 2, windowHeight: 10_000 });
+  const rust = await screen.findByRole('group', { name: 'rust' });
+  const press = (name: string) => user.click(screen.getByRole('button', { name }));
+
+  await press('Zoom in');
+  expect(zoomShown()).toBe('63%');
+  await press('Zoom out');
+  expect(zoomShown()).toBe('50%');
+  await press('100%');
+  expect(zoomShown()).toBe('100%');
+  expect(viewOf(rust)).toBe(`translate(${-graph.width / 4} ${-graph.height / 4}) scale(1)`);
+  await press('Fit');
+  expect(zoomShown()).toBe('50%');
+  expect(viewOf(rust)).toBe('translate(0 0) scale(0.5)');
+
+  await press('Zoom in');
+  await showEverything(user);
+  await waitFor(() => expect(zoomShown()).toBe('50%'));
+});
+
+test('dragging from a node pans the graph and selects nothing, even back near where it began, while a press that barely moves still selects it', async () => {
+  const user = userEvent.setup();
+  const graph = await layoutDiff(review.diff);
+  renderInFrame(pageWith(review), { width: graph.width / 2, windowHeight: 10_000 });
+  const rust = await screen.findByRole('group', { name: 'rust' });
+  await user.click(screen.getByRole('button', { name: '100%' }));
+  const domain = within(rust).getByRole('button', { name: 'domain: unchanged' });
+  const drag = (...moves: ReadonlyArray<{ readonly clientX: number; readonly clientY: number }>) =>
+    user.pointer([
+      { keys: '[MouseLeft>]', target: domain, coords: { clientX: 100, clientY: 100 } },
+      ...moves.map(coords => ({ coords })),
+      { keys: '[/MouseLeft]' },
+    ]);
+  const pannedBy = (x: number, y: number) =>
+    `translate(${x - graph.width / 4} ${y - graph.height / 4}) scale(1)`;
+
+  await drag({ clientX: 140, clientY: 130 });
+  expect(viewOf(rust)).toBe(pannedBy(40, 30));
+  await drag({ clientX: 140, clientY: 130 }, { clientX: 102, clientY: 101 });
+  expect(viewOf(rust)).toBe(pannedBy(42, 31));
+  expect(screen.queryByRole('complementary', { name: 'Note' })).toBeNull();
+
+  await drag({ clientX: 103, clientY: 100 });
+  expect(viewOf(rust)).toBe(pannedBy(42, 31));
+  expect(noteShown()).toBe('No note');
+
+  await drag({ clientX: 140, clientY: 130 });
+  screen.getByRole('button', { name: 'Zoom in' }).focus();
+  await user.keyboard('{Enter}');
+  expect(zoomShown()).toBe('125%');
+  const panned = viewOf(rust);
+
+  for (const button of ['MouseRight', 'MouseMiddle']) {
+    await user.pointer([
+      { keys: `[${button}>]`, target: domain, coords: { clientX: 100, clientY: 100 } },
+      { coords: { clientX: 140, clientY: 130 } },
+      { keys: `[/${button}]` },
+    ]);
+    expect(viewOf(rust)).toBe(panned);
+  }
+
+  fireEvent.pointerDown(domain, { button: 0, clientX: 100, clientY: 100 });
+  fireEvent.pointerCancel(window);
+  fireEvent.pointerMove(window, { clientX: 140, clientY: 130 });
+  expect(viewOf(rust)).toBe(panned);
+});
+
+test('the wheel pans the graph, scrolling the page instead once the graph can move no further that way, and with Ctrl or ⌘ zooms it at the pointer', async () => {
+  const graph = await layoutDiff(review.diff);
+  renderInFrame(pageWith(review), { width: graph.width / 2, windowHeight: 10_000 });
+  const rust = await screen.findByRole('group', { name: 'rust' });
+  const frame = screen.getByRole('group', { name: 'Graph' });
+  vi.spyOn(frame, 'getBoundingClientRect').mockReturnValue(
+    DOMRect.fromRect({ x: 10, y: 20, width: graph.width / 2, height: graph.height / 2 }),
+  );
+
+  expect(fireEvent.wheel(frame, { ctrlKey: true, deltaY: 100 })).toBe(false);
+  expect(zoomShown()).toBe('50%');
+  expect(fireEvent.wheel(frame, { ctrlKey: true, deltaY: -100, clientX: 10, clientY: 20 })).toBe(
+    false,
+  );
+  expect(zoomShown()).toBe('100%');
+  expect(viewOf(rust)).toBe('translate(0 0) scale(1)');
+  expect(fireEvent.wheel(frame, { deltaX: -30, deltaY: -20 })).toBe(true);
+  expect(fireEvent.wheel(frame, { deltaX: -30, deltaY: 20 })).toBe(false);
+  expect(viewOf(rust)).toBe('translate(0 -20) scale(1)');
+  expect(fireEvent.wheel(frame, { deltaX: 30, deltaY: -20 })).toBe(false);
+  expect(viewOf(rust)).toBe('translate(-30 0) scale(1)');
+  expect(fireEvent.wheel(frame, { deltaX: 30, deltaY: -20 })).toBe(false);
+  expect(viewOf(rust)).toBe('translate(-60 0) scale(1)');
+  expect(fireEvent.wheel(frame, { metaKey: true, deltaY: 50 })).toBe(false);
+  expect(zoomShown()).toBe('71%');
+});
+
+test('with the frame focused, + = - step the zoom, 1 goes to 100%, 0 fits, and the arrows pan by 40px without scrolling the page', async () => {
+  const user = userEvent.setup();
+  const graph = await layoutDiff(review.diff);
+  renderInFrame(pageWith(review), { width: graph.width / 2, windowHeight: 10_000 });
+  const rust = await screen.findByRole('group', { name: 'rust' });
+  const frame = screen.getByRole('group', { name: 'Graph' });
+  const at100 = (x: number, y: number) =>
+    `translate(${x - graph.width / 4} ${y - graph.height / 4}) scale(1)`;
+  frame.focus();
+
+  await user.keyboard('+');
+  expect(zoomShown()).toBe('63%');
+  await user.keyboard('=');
+  expect(zoomShown()).toBe('78%');
+  await user.keyboard('-');
+  expect(zoomShown()).toBe('63%');
+  await user.keyboard('1');
+  expect(viewOf(rust)).toBe(at100(0, 0));
+  await user.keyboard('{ArrowRight}');
+  expect(viewOf(rust)).toBe(at100(-40, 0));
+  await user.keyboard('{ArrowDown}');
+  expect(viewOf(rust)).toBe(at100(-40, -40));
+  await user.keyboard('{ArrowLeft}{ArrowLeft}');
+  expect(viewOf(rust)).toBe(at100(40, -40));
+  await user.keyboard('{ArrowUp}{ArrowUp}');
+  expect(viewOf(rust)).toBe(at100(40, 40));
+  expect(fireEvent.keyDown(frame, { key: 'ArrowUp' })).toBe(false);
+  expect(fireEvent.keyDown(frame, { key: 'Tab' })).toBe(true);
+  expect(fireEvent.keyDown(frame, { key: '=', ctrlKey: true })).toBe(true);
+  expect(fireEvent.keyDown(frame, { key: '-', metaKey: true })).toBe(true);
+  expect(fireEvent.keyDown(frame, { key: 'ArrowLeft', altKey: true })).toBe(true);
+  expect(viewOf(rust)).toBe(at100(40, 80));
+  await user.keyboard('0');
+  expect(viewOf(rust)).toBe('translate(0 0) scale(0.5)');
+});
+
+test("resizing the frame keeps the zoom and the graph point at the frame's centre", async () => {
+  const user = userEvent.setup();
+  const graph = await layoutDiff(review.diff);
+  const { resize } = renderInFrame(pageWith(review), {
+    width: graph.width / 2,
+    windowHeight: 10_000,
+  });
+  const rust = await screen.findByRole('group', { name: 'rust' });
+  await user.click(screen.getByRole('button', { name: '100%' }));
+
+  resize((graph.width * 3) / 4);
+  expect(zoomShown()).toBe('100%');
+  expect(viewOf(rust)).toBe(`translate(${-graph.width / 8} ${-graph.height / 8}) scale(1)`);
+});
+
+const onScreen = (
+  element: Element | null,
+  point = { x: 0, y: 0 },
+): { readonly x: number; readonly y: number } => {
+  const transform = element?.getAttribute('transform');
+  if (!element || !transform) return point;
+  const [, x = '0', y = '0'] = /translate\(([^ ]+) ([^)]+)\)/.exec(transform) ?? [];
+  const [, scale = '1'] = /scale\(([^)]+)\)/.exec(transform) ?? [];
+  return onScreen(element.parentElement, {
+    x: Number(x) + point.x * Number(scale),
+    y: Number(y) + point.y * Number(scale),
+  });
+};
+
+test("toggling a box keeps the zoom and the box's corner where it was on screen, and a checkbox change then refits", async () => {
+  const user = userEvent.setup();
+  renderInFrame(
+    pageWith({
+      range: 'abc123..def456',
+      diff: {
+        nodes: [
+          { id: 'web', kind: 'stack', label: 'web', path: '', state: 'unchanged' },
+          webModule('app'),
+          webModule('utils', 'modified'),
+          webFile('app', 'main.ts'),
+          webFile('utils', 'x.ts', 'modified'),
+          webFile('utils', 'y.ts'),
+        ],
+        edges: [webImport('app/main.ts', 'utils/x.ts', 'added')],
+      },
+    }),
+    { width: 200, windowHeight: 10_000 },
+  );
+  const web = await screen.findByRole('group', { name: 'web' });
+  const press = (name: string) => user.click(screen.getByRole('button', { name }));
+  await press('100%');
+  fireEvent.wheel(screen.getByRole('group', { name: 'Graph' }), {
+    ctrlKey: true,
+    deltaY: -100,
+    clientX: 100,
+    clientY: 50,
+  });
+  expect(zoomShown()).toBe('200%');
+  const before = onScreen(within(web).getByRole('button', { name: 'Expand utils' }));
+
+  await press('Expand utils');
+
+  await within(web).findByRole('group', { name: 'utils' });
+  const collapse = within(web).getByRole('button', { name: 'Collapse utils' });
+  expect(zoomShown()).toBe('200%');
+  expect(onScreen(collapse).x).toBeCloseTo(before.x);
+  expect(onScreen(collapse).y).toBeCloseTo(before.y);
+
+  const refitsFrom = async (zoom: string) => {
+    await waitFor(() => expect(zoomShown()).not.toBe(zoom));
+    const refitted = viewOf(web);
+    await press('Fit');
+    expect(viewOf(web)).toBe(refitted);
+  };
+  await user.click(screen.getByRole('checkbox', { name: 'All edges' }));
+  await refitsFrom('200%');
+
+  await press('100%');
+  await press('Zoom in');
+  await press('Collapse utils');
+  await waitFor(() => expect(within(web).queryByRole('group', { name: 'utils' })).toBeNull());
+  expect(zoomShown()).toBe('125%');
+  await showEverything(user);
+  await refitsFrom('125%');
+});
+
+test('going to a hidden file from the summary opens its module and lands it centred in the frame at 100%, focused, with the frame scrolled into view', async () => {
+  const user = userEvent.setup();
+  renderInFrame(
+    pageWith({
+      range: 'abc123..def456',
+      diff: {
+        nodes: [
+          { id: 'web', kind: 'stack', label: 'web', path: '', state: 'unchanged' },
+          webModule('app'),
+          webModule('utils', 'modified'),
+          webFile('app', 'main.ts'),
+          webFile('utils', 'x.ts', 'modified'),
+          webFile('utils', 'y.ts'),
+          webFile('utils', 'z.ts'),
+        ],
+        edges: [webImport('app/main.ts', 'utils/x.ts', 'added')],
+      },
+    }),
+    {
+      width: 120,
+      windowHeight: 108,
+      notes: {
+        version: 1,
+        tests: '',
+        summary: [{ text: 'Check y.ts', target: 'web/file/utils/y.ts' }],
+        notes: {},
+      },
+    },
+  );
+  await screen.findByRole('group', { name: 'web' });
+
+  await user.click(screen.getByRole('button', { name: 'Check y.ts' }));
+
+  const y = await screen.findByRole('button', { name: 'y.ts: unchanged' });
+  await waitFor(() => expect(document.activeElement).toBe(y));
+  const frame = screen.getByRole('group', { name: 'Graph' });
+  const box = y.querySelector('rect');
+  const centre = onScreen(y, {
+    x: Number(box?.getAttribute('width')) / 2,
+    y: Number(box?.getAttribute('height')) / 2,
+  });
+  expect(zoomShown()).toBe('100%');
+  expect(centre.x).toBeCloseTo(60);
+  expect(centre.y).toBeCloseTo(parseFloat(frame.style.height) / 2);
+  expect(scrolledIntoView.mock.contexts).toContain(frame);
 });
 
 test("a PR's page names the PR above its range, as a link to it", async () => {
@@ -253,8 +602,11 @@ test('the summary lists its items and then every flagged note, and an item with 
     'removed but depended on: Domain still reaches it.',
   ]);
 
+  const focus = vi.spyOn(SVGElement.prototype, 'focus');
+  onTestFinished(() => focus.mockRestore());
   await user.click(within(summary).getByRole('button', { name: 'The CLI is a new adapter.' }));
   expect(document.activeElement).toBe(screen.getByRole('button', { name: 'cli-adapter: added' }));
+  expect(focus).toHaveBeenCalledWith({ preventScroll: true });
   expect(noteShown()).toBe('A second way in.');
 
   await user.click(within(summary).getByRole('button', { name: /^new dependency direction/ }));
