@@ -401,6 +401,46 @@ test('a box takes, on each side, the highest of each measure among the measured 
   });
 });
 
+type FileOfA = { readonly churn: number; readonly cyclomatic: number };
+
+const readingOfA = ({
+  base,
+  head,
+  thresholds,
+}: {
+  readonly base: FileOfA | undefined;
+  readonly head: FileOfA | undefined;
+  readonly thresholds: RangeReading['thresholds'];
+}): RangeReading => {
+  const measured = (file: FileOfA | undefined) =>
+    file === undefined
+      ? {}
+      : {
+          'web/src/a.ts': {
+            lines: 1,
+            functions: [
+              {
+                name: 'f',
+                cyclomatic: file.cyclomatic,
+                abc: { assignments: 0, branches: 0, conditions: 0 },
+              },
+              { name: 'g', cyclomatic: 1, abc: { assignments: 0, branches: 0, conditions: 0 } },
+            ],
+          },
+        };
+  const churned = (file: FileOfA | undefined) =>
+    file === undefined ? {} : { 'web/src/a.ts': file.churn };
+  const nodes = (file: FileOfA | undefined) =>
+    file === undefined ? [webStack] : [webStack, webFile('a.ts')];
+  return readingWith({
+    before: { nodes: nodes(base), edges: [] },
+    after: { nodes: nodes(head), edges: [] },
+    churn: { before: churned(base), after: churned(head) },
+    measures: { before: measured(base), after: measured(head) },
+    thresholds,
+  });
+};
+
 test.for([
   { reason: 'a new file over it is one to look at', base: undefined, head: 5, level: 'look' },
   { reason: 'a file that crosses it is one to look at', base: 4, head: 5, level: 'look' },
@@ -412,27 +452,11 @@ test.for([
 ])(
   'against the cyclomatic threshold, $reason, and the boxes above it raise none',
   ({ base, head, level }) => {
-    const measured = (cyclomatic: number | undefined) =>
-      cyclomatic === undefined
-        ? {}
-        : {
-            'web/src/a.ts': {
-              lines: 1,
-              functions: [
-                { name: 'f', cyclomatic, abc: { assignments: 0, branches: 0, conditions: 0 } },
-                { name: 'g', cyclomatic: 1, abc: { assignments: 0, branches: 0, conditions: 0 } },
-              ],
-            },
-          };
-    const churned = (cyclomatic: number | undefined) =>
-      cyclomatic === undefined ? {} : { 'web/src/a.ts': 1 };
-    const nodes = (cyclomatic: number | undefined) =>
-      cyclomatic === undefined ? [webStack] : [webStack, webFile('a.ts')];
-    const reading = readingWith({
-      before: { nodes: nodes(base), edges: [] },
-      after: { nodes: nodes(head), edges: [] },
-      churn: { before: churned(base), after: churned(head) },
-      measures: { before: measured(base), after: measured(head) },
+    const file = (cyclomatic: number | undefined) =>
+      cyclomatic === undefined ? undefined : { churn: 1, cyclomatic };
+    const reading = readingOfA({
+      base: file(base),
+      head: file(head),
       thresholds: { cyclomatic: 4, hotspot: { churn: 6, cyclomatic: 8 } },
     });
 
