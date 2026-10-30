@@ -66,10 +66,10 @@ const MetricsSchema = z.strictObject({
   ),
   hotspot: z
     .strictObject({
-      churn: Threshold.optional().describe('The churn a hotspot reaches'),
-      cyclomatic: Threshold.optional().describe('The highest cyclomatic a hotspot reaches'),
+      churn: Threshold.default(6).describe('The churn a hotspot reaches'),
+      cyclomatic: Threshold.default(8).describe('The highest cyclomatic a hotspot reaches'),
     })
-    .optional()
+    .prefault({})
     .describe('A node that reaches both is a hotspot'),
   lines: Threshold.optional().describe("The most lines a node's file may have; off unless set"),
   abc: z

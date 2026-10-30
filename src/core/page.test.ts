@@ -42,7 +42,7 @@ const readingWith = (overrides: Partial<RangeReading>): RangeReading => ({
   tests: [],
   danglingCalls: [],
   skipped: [],
-  thresholds: { cyclomatic: 10 },
+  thresholds: { cyclomatic: 10, hotspot: { churn: 6, cyclomatic: 8 } },
   ...overrides,
 });
 
@@ -433,7 +433,7 @@ test.for([
       after: { nodes: nodes(head), edges: [] },
       churn: { before: churned(base), after: churned(head) },
       measures: { before: measured(base), after: measured(head) },
-      thresholds: { cyclomatic: 4 },
+      thresholds: { cyclomatic: 4, hotspot: { churn: 6, cyclomatic: 8 } },
     });
 
     expect(pageData({ reading, range: 'main..feature', version }).metricFindings).toStrictEqual(
