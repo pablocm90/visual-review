@@ -1,6 +1,6 @@
 import { execFile } from 'node:child_process';
 import { existsSync } from 'node:fs';
-import { mkdtemp, readFile, realpath, rm } from 'node:fs/promises';
+import { mkdtemp, readFile, realpath, rm, stat } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { basename, join, relative } from 'node:path';
 import { promisify } from 'node:util';
@@ -21,9 +21,12 @@ import { type TestFile, testChanges, withMovedTests } from './test-changes.ts';
 
 const run = promisify(execFile);
 
+export type Churn = Readonly<Record<string, number>>;
+
 export type RangeReading = {
   readonly before: Graph;
   readonly after: Graph;
+  readonly churn: { readonly before: Churn; readonly after: Churn };
   readonly changedPaths: ReadonlyArray<string>;
   readonly renames: ReadonlyArray<Rename>;
   readonly patches: ReadonlyArray<FilePatch>;
@@ -127,6 +130,33 @@ const configAt = async (repo: string, revision: string): Promise<Config> => {
   return parseConfig((await textIn(repo, CONFIG_FILE)) ?? '{}');
 };
 
+const CHURN_DAYS = 90;
+
+type ChurnOptions = {
+  readonly repo: string;
+  readonly revision: string;
+  readonly directory: string;
+  readonly graph: Graph;
+};
+
+const isFile = (path: string): Promise<boolean> =>
+  stat(path).then(
+    stats => stats.isFile(),
+    () => false,
+  );
+
+const churnAt = async ({ repo, revision, directory, graph }: ChurnOptions): Promise<Churn> => {
+  const end = Number(await git(repo, 'log', '-1', '--format=%ct', revision));
+  const since = `--since=@${end - CHURN_DAYS * 24 * 60 * 60}`;
+  const touched = (await git(repo, 'log', '--format=', '--name-only', since, revision)).split('\n');
+  const paths = graph.nodes.map(({ path }) => path);
+  const areFiles = await Promise.all(paths.map(path => isFile(join(directory, path))));
+  const files = paths.filter((_, index) => areFiles[index]);
+  return Object.fromEntries(
+    files.map(path => [path, touched.filter(each => each === path).length]),
+  );
+};
+
 const resolve = (repo: string, revision: string): Promise<string> =>
   git(repo, 'rev-parse', '--verify', '--quiet', `${revision}^{commit}`).catch(() => {
     throw new Error(`Unknown revision: ${revision}`);
@@ -158,6 +188,20 @@ export const readRange = async ({
       ...adapters,
     });
     checkConfig(config, [...before.stacks, ...after.stacks], adapters.linkers);
+    const churn = {
+      before: await churnAt({
+        repo,
+        revision: base,
+        directory: join(scratch, 'before'),
+        graph: before.graph,
+      }),
+      after: await churnAt({
+        repo,
+        revision: toCommit,
+        directory: join(scratch, 'after'),
+        graph: after.graph,
+      }),
+    };
     const changes = (await git(repo, 'diff', '--find-renames', '--name-status', base, toCommit))
       .split('\n')
       .filter(line => line !== '')
@@ -165,6 +209,7 @@ export const readRange = async ({
     return {
       before: before.graph,
       after: after.graph,
+      churn,
       danglingCalls: after.danglingCalls,
       skipped: skippedAcross([...before.skipped, ...after.skipped]),
       changedPaths: changes.flat(),

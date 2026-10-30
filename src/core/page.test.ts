@@ -22,6 +22,7 @@ const patch = (path: string) => ({ path, patch: `diff --git a/${path} b/${path}`
 const readingWith = (overrides: Partial<RangeReading>): RangeReading => ({
   before: { nodes: [webStack], edges: [] },
   after: { nodes: [webStack, webFile('a.ts')], edges: [] },
+  churn: { before: {}, after: {} },
   changedPaths: ['web/src/a.ts'],
   renames: [],
   patches: [],
