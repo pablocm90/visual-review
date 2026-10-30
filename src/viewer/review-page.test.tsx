@@ -254,6 +254,77 @@ test('with the frame focused, + = - step the zoom, 1 goes to 100%, 0 fits, and t
   expect(viewOf(rust)).toBe('translate(0 0) scale(0.5)');
 });
 
+const onScreen = (
+  element: Element | null,
+  point = { x: 0, y: 0 },
+): { readonly x: number; readonly y: number } => {
+  const transform = element?.getAttribute('transform');
+  if (!element || !transform) return point;
+  const [, x = '0', y = '0'] = /translate\(([^ ]+) ([^)]+)\)/.exec(transform) ?? [];
+  const [, scale = '1'] = /scale\(([^)]+)\)/.exec(transform) ?? [];
+  return onScreen(element.parentElement, {
+    x: Number(x) + point.x * Number(scale),
+    y: Number(y) + point.y * Number(scale),
+  });
+};
+
+test("toggling a box keeps the zoom and the box's corner where it was on screen, and a checkbox change then refits", async () => {
+  const user = userEvent.setup();
+  renderInFrame(
+    pageWith({
+      range: 'abc123..def456',
+      diff: {
+        nodes: [
+          { id: 'web', kind: 'stack', label: 'web', path: '', state: 'unchanged' },
+          webModule('app'),
+          webModule('utils', 'modified'),
+          webFile('app', 'main.ts'),
+          webFile('utils', 'x.ts', 'modified'),
+          webFile('utils', 'y.ts'),
+        ],
+        edges: [webImport('app/main.ts', 'utils/x.ts', 'added')],
+      },
+    }),
+    { width: 200, windowHeight: 10_000 },
+  );
+  const web = await screen.findByRole('group', { name: 'web' });
+  const press = (name: string) => user.click(screen.getByRole('button', { name }));
+  await press('100%');
+  fireEvent.wheel(screen.getByRole('group', { name: 'Graph' }), {
+    ctrlKey: true,
+    deltaY: -100,
+    clientX: 100,
+    clientY: 50,
+  });
+  expect(zoomShown()).toBe('200%');
+  const before = onScreen(within(web).getByRole('button', { name: 'Expand utils' }));
+
+  await press('Expand utils');
+
+  await within(web).findByRole('group', { name: 'utils' });
+  const collapse = within(web).getByRole('button', { name: 'Collapse utils' });
+  expect(zoomShown()).toBe('200%');
+  expect(onScreen(collapse).x).toBeCloseTo(before.x);
+  expect(onScreen(collapse).y).toBeCloseTo(before.y);
+
+  const refitsFrom = async (zoom: string) => {
+    await waitFor(() => expect(zoomShown()).not.toBe(zoom));
+    const refitted = viewOf(web);
+    await press('Fit');
+    expect(viewOf(web)).toBe(refitted);
+  };
+  await user.click(screen.getByRole('checkbox', { name: 'All edges' }));
+  await refitsFrom('200%');
+
+  await press('100%');
+  await press('Zoom in');
+  await press('Collapse utils');
+  await waitFor(() => expect(within(web).queryByRole('group', { name: 'utils' })).toBeNull());
+  expect(zoomShown()).toBe('125%');
+  await showEverything(user);
+  await refitsFrom('125%');
+});
+
 test("a PR's page names the PR above its range, as a link to it", async () => {
   render(
     <ReviewPage

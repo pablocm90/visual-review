@@ -30,7 +30,7 @@ import {
   type PlacedNode,
   type PlacedStack,
 } from './layout.ts';
-import { fitted, frameHeight, panned, type View, zoomed } from './view.ts';
+import { fitted, frameHeight, panned, pinned, topLeftOf, type View, zoomed } from './view.ts';
 
 const STATES = ['added', 'removed', 'modified', 'unchanged'] as const;
 
@@ -441,6 +441,24 @@ type DrawnAtOptions = {
 const drawnAt = ({ diff, expanded, noted, allEdges }: DrawnAtOptions): GraphDiff =>
   allEdges ? visibleDiff({ diff, expanded }) : mergedDiff({ diff, expanded, noted });
 
+type Chosen = { readonly view: View; readonly of: Layout; readonly pin?: string };
+
+type ViewOnOptions = {
+  readonly layout: Layout;
+  readonly frame: { readonly width: number; readonly height: number };
+  readonly chosen: Chosen | undefined;
+};
+
+const viewOn = ({ layout, frame, chosen }: ViewOnOptions): View => {
+  if (chosen?.of === layout) return chosen.view;
+  if (chosen?.pin === undefined) return fitted({ graph: layout, frame });
+  const from = topLeftOf({ layout: chosen.of, id: chosen.pin });
+  const to = topLeftOf({ layout, id: chosen.pin });
+  return from && to
+    ? pinned({ graph: layout, frame, view: chosen.view, from, to })
+    : fitted({ graph: layout, frame });
+};
+
 type ReviewPageProps = {
   readonly review: PageData;
   readonly notes?: ReviewNotes | undefined;
@@ -467,12 +485,14 @@ export const ReviewPage = ({ review, notes }: ReviewPageProps) => {
     () => visibleNotes({ diff: review.diff, expanded, notes: notes?.notes ?? {} }),
     [review, notes, expanded],
   );
-  const toggle = (id: string) =>
+  const toggle = (id: string) => {
+    if (layout && view) setChosen({ of: layout, view, pin: id });
     setExpanded(current =>
       current.has(id)
         ? new Set([...current].filter(other => other !== id))
         : new Set([...current, id]),
     );
+  };
   const elements = useRef(new Map<string, SVGElement | null>());
   const register = (id: string, element: SVGElement | null) => {
     elements.current.set(id, element);
@@ -542,9 +562,8 @@ export const ReviewPage = ({ review, notes }: ReviewPageProps) => {
           height: frameHeight({ graph: layout, frameWidth, windowHeight: window.innerHeight }),
         }
       : undefined;
-  const [chosen, setChosen] = useState<{ readonly view: View; readonly of: Layout }>();
-  const view =
-    chosen?.of === layout ? chosen?.view : layout && frame && fitted({ graph: layout, frame });
+  const [chosen, setChosen] = useState<Chosen>();
+  const view = layout && frame && viewOn({ layout, frame, chosen });
   const dragged = useRef(false);
   const pan = (down: PointerEvent<HTMLDivElement>) => {
     dragged.current = false;
@@ -648,7 +667,10 @@ export const ReviewPage = ({ review, notes }: ReviewPageProps) => {
             <input
               type="checkbox"
               checked={nearOnly}
-              onChange={event => setNearOnly(event.target.checked)}
+              onChange={event => {
+                setChosen(undefined);
+                setNearOnly(event.target.checked);
+              }}
             />
             Changed + 1 hop
           </label>
@@ -656,7 +678,10 @@ export const ReviewPage = ({ review, notes }: ReviewPageProps) => {
             <input
               type="checkbox"
               checked={allEdges}
-              onChange={event => setAllEdges(event.target.checked)}
+              onChange={event => {
+                setChosen(undefined);
+                setAllEdges(event.target.checked);
+              }}
             />
             All edges
           </label>
