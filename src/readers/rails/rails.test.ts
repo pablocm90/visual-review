@@ -220,6 +220,72 @@ test('app/lib is a box of its own, apart from lib/', async () => {
   ]);
 });
 
+test("the config's box globs box a Rails app's classes by the folder they match, labelled without app/", async () => {
+  using workspace = gitRepo({
+    'visual-review.config.json': '{"stacks": {"apps/shop": {"boxes": ["app/models/*"]}}}\n',
+    'apps/shop/config/application.rb': railsApp['config/application.rb'],
+    'apps/shop/app/models/billing/invoice.rb': 'module Billing\n  class Invoice\n  end\nend\n',
+    'apps/shop/app/models/order.rb': 'class Order\nend\n',
+  });
+  const { repo, root } = workspace;
+
+  const range = await readRange({ repo, from: root, to: root });
+
+  expect(
+    range.after.nodes
+      .filter(node => node.kind !== 'stack')
+      .map(node => [node.id, node.label, node.parent, node.path]),
+  ).toEqual([
+    [
+      'apps/shop/layer/models/billing',
+      'models/billing',
+      'apps/shop',
+      'apps/shop/app/models/billing',
+    ],
+    [
+      'apps/shop/class/Billing::Invoice',
+      'Billing::Invoice',
+      'apps/shop/layer/models/billing',
+      'apps/shop/app/models/billing/invoice.rb',
+    ],
+    ['apps/shop/layer/models', 'models', 'apps/shop', 'apps/shop/app/models'],
+    ['apps/shop/class/Order', 'Order', 'apps/shop/layer/models', 'apps/shop/app/models/order.rb'],
+  ]);
+});
+
+test.for([
+  { file: 'app/lib/parsers/csv.rb', box: 'app/lib/parsers' },
+  { file: 'app/libraries/csv.rb', box: 'libraries' },
+])(
+  "a box under app/lib keeps app/ in its label, so it can't meet lib/'s: $file is in $box",
+  async ({ file, box }) => {
+    using workspace = gitRepo({
+      'visual-review.config.json': '{"stacks": {"apps/shop": {"boxes": ["app/lib/*"]}}}\n',
+      'apps/shop/config/application.rb': railsApp['config/application.rb'],
+      [`apps/shop/${file}`]: 'class Csv\nend\n',
+    });
+    const { repo, root } = workspace;
+
+    const range = await readRange({ repo, from: root, to: root });
+
+    expect(range.after.nodes.find(node => node.id === 'apps/shop/class/Csv')?.parent).toBe(
+      `apps/shop/layer/${box}`,
+    );
+  },
+);
+
+test('a Rails stack takes no sourceRoot', async () => {
+  using workspace = gitRepo({
+    'visual-review.config.json': '{"stacks": {"apps/shop": {"sourceRoot": "app"}}}\n',
+    'apps/shop/config/application.rb': railsApp['config/application.rb'],
+  });
+  const { repo, root } = workspace;
+
+  await expect(readRange({ repo, from: root, to: root })).rejects.toThrow(
+    'visual-review.config.json: stacks.apps/shop.sourceRoot is not taken by the rails reader',
+  );
+});
+
 test("a constant a class writes draws an edge to the app's class it names, while its own name and constants naming no class of the app draw none", async () => {
   using workspace = gitRepo({
     ...railsApp,
