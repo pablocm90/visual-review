@@ -523,16 +523,18 @@ test('a changed Minitest file lists its tests under their class, added, edited o
 test('a changed RSpec file lists its tests under their describe and context, added, edited or unchanged', async () => {
   const orderSpec = (examples: string) =>
     `require "rails_helper"\n\nRSpec.describe Order do\n  let(:order) { create(:order) }\n\n  context "when paid" do\n${examples}  end\nend\n`;
+  const shippable = (carrier: string) =>
+    `    it_behaves_like "shippable" do\n      let(:carrier) { "${carrier}" }\n    end\n\n`;
   using workspace = gitRepo({
     ...railsApp,
     'spec/models/order_spec.rb': orderSpec(
-      '    it "ships" do\n      expect(order).to be_shipped\n    end\n\n    it "totals its lines" do\n      expect(order.total).to eq(3)\n    end\n',
+      `${shippable('dhl')}    it "ships" do\n      expect(order).to be_shipped\n    end\n\n    it "totals its lines" do\n      expect(order.total).to eq(3)\n    end\n`,
     ),
   });
   const { repo, root } = workspace;
   const to = commit(repo, {
     'spec/models/order_spec.rb': orderSpec(
-      '    it "ships" do\n      expect(order).to be_shipped\n    end\n\n    it "totals its lines" do\n      expect(order.total).to eq(4)\n    end\n\n    it "refunds" do\n      expect(order).to be_refunded\n    end\n',
+      `${shippable('ups')}    it "ships" do\n      expect(order).to be_shipped\n    end\n\n    it "totals its lines" do\n      expect(order.total).to eq(4)\n    end\n\n    it "refunds" do\n      expect(order).to be_refunded\n    end\n`,
     ),
   });
 
@@ -550,6 +552,7 @@ test('a changed RSpec file lists its tests under their describe and context, add
               kind: 'heading',
               name: 'when paid',
               children: [
+                { kind: 'test', name: '"shippable"', change: 'edited' },
                 { kind: 'test', name: 'ships', change: 'unchanged' },
                 { kind: 'test', name: 'totals its lines', change: 'edited' },
                 { kind: 'test', name: 'refunds', change: 'added' },
@@ -722,6 +725,27 @@ test.for([
     reason: 'no heading for a group holding no test',
     file: 'describe Order do\n  context "when paid" do\n    let(:paid) { true }\n  end\n\n  it "works" do\n  end\nend\n',
     statements: [{ kind: 'heading', name: 'Order', children: [added('works')] }],
+  },
+  {
+    reason: 'an example with no description, named by its block',
+    file: 'describe Order do\n  it { is_expected.to be_a_success }\nend\n',
+    statements: [
+      { kind: 'heading', name: 'Order', children: [added('is_expected.to be_a_success')] },
+    ],
+  },
+  {
+    reason: 'each shared example inclusion as a test, named by its arguments',
+    file: 'describe Order do\n  include_context "signed in"\n\n  it_behaves_like "requires authentication", :get, -> { orders_path }\n  it_behaves_like "requires authentication", :put, -> { order_path }\nend\n',
+    statements: [
+      {
+        kind: 'heading',
+        name: 'Order',
+        children: [
+          added('"requires authentication", :get, -> { orders_path }'),
+          added('"requires authentication", :put, -> { order_path }'),
+        ],
+      },
+    ],
   },
 ])('an RSpec file reads $reason', async ({ file, statements }) => {
   expect(await testsAdded({ path: 'spec/models/order_spec.rb', file })).toEqual([

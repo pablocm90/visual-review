@@ -20,7 +20,8 @@ const described = (argument: Node): string =>
 
 const titleOf = (call: Node): string => {
   const [title] = argumentsOf(call);
-  return title === undefined ? '' : described(title);
+  if (title !== undefined) return described(title);
+  return call.childForFieldName('block')?.childForFieldName('body')?.text ?? '';
 };
 
 const groupOf = (call: Node): string => {
@@ -45,6 +46,12 @@ const statementsIn = (node: Node, scope: ReadonlyArray<string>): ReadonlyArray<R
       return [{ kind: 'test', name, source: child.text }];
     }
     const method = child.childForFieldName('method')?.text ?? '';
+    if (method === 'it_behaves_like') {
+      const name = argumentsOf(child)
+        .map(argument => argument.text)
+        .join(', ');
+      return [{ kind: 'test', name, source: child.text }];
+    }
     if (TESTS.has(method)) return [{ kind: 'test', name: titleOf(child), source: child.text }];
     if (!HEADINGS.has(method)) return statementsIn(child, scope);
     const block = child.childForFieldName('block');
