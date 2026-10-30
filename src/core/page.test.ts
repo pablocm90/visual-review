@@ -42,6 +42,7 @@ const readingWith = (overrides: Partial<RangeReading>): RangeReading => ({
   tests: [],
   danglingCalls: [],
   skipped: [],
+  thresholds: { cyclomatic: 10 },
   ...overrides,
 });
 

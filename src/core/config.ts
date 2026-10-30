@@ -61,7 +61,7 @@ const MetricsSchema = z.strictObject({
     .positive()
     .default(90)
     .describe("How many days before each side's commit its churn counts"),
-  cyclomatic: Threshold.optional().describe(
+  cyclomatic: Threshold.default(10).describe(
     "The highest a function's cyclomatic complexity may be",
   ),
   hotspot: z

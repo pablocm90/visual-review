@@ -379,3 +379,20 @@ test("the config's metrics.churnDays sets how many days before each side's commi
 
   expect(range.churn).toEqual({ before: { 'src/a.ts': 1 }, after: { 'src/a.ts': 2 } });
 });
+
+test.for([
+  { reason: 'is 10 with no config', files: {}, cyclomatic: 10 },
+  {
+    reason: "is the config's metrics.cyclomatic when set",
+    files: { 'visual-review.config.json': '{"metrics": {"cyclomatic": 4}}' },
+    cyclomatic: 4,
+  },
+])("the reading's cyclomatic threshold $reason", async ({ files, cyclomatic }) => {
+  using repository = gitRepo({ 'package.json': '{}\n', 'src/a.ts': '' });
+  const { repo, root } = repository;
+  const head = commit(repo, { 'src/a.ts': '1', ...files });
+
+  const range = await readRange({ repo, from: root, to: head });
+
+  expect(range.thresholds).toEqual({ cyclomatic });
+});

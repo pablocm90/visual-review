@@ -37,6 +37,7 @@ export type RangeReading = {
   readonly tests: ReadonlyArray<TestFile>;
   readonly danglingCalls: ReadonlyArray<DanglingCall>;
   readonly skipped: ReadonlyArray<Skipped>;
+  readonly thresholds: { readonly cyclomatic: number };
 };
 
 type ReadRangeOptions = Adapters & {
@@ -262,6 +263,7 @@ export const readRange = async ({
       measures,
       danglingCalls: after.danglingCalls,
       skipped: skippedAcross([...before.skipped, ...after.skipped]),
+      thresholds: { cyclomatic: config.metrics.cyclomatic },
       changedPaths,
       renames,
       tests: withMovedTests(
