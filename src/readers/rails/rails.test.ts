@@ -483,3 +483,56 @@ test("edges onto the base classes Rails generates are dropped, while edges onto 
     { from: `${shop}/class/Admin::UsersController`, to: `${shop}/class/Admin::BaseController` },
   ]);
 });
+
+test('a changed Minitest file lists its tests under their class, added, edited or unchanged', async () => {
+  const orderTest = (tests: string) =>
+    `require "test_helper"\n\nclass OrderTest < ActiveSupport::TestCase\n  setup do\n    sign_in\n  end\n\n${tests}end\n`;
+  using workspace = gitRepo({
+    ...railsApp,
+    'test/models/order_test.rb': orderTest(
+      '  test "totals its lines" do\n    assert_equal 3, total\n  end\n\n  test "ships" do\n    assert shipped\n  end\n',
+    ),
+  });
+  const { repo, root } = workspace;
+  const to = commit(repo, {
+    'test/models/order_test.rb': orderTest(
+      '  test "totals its lines" do\n    assert_equal 4, total\n  end\n\n  test "ships" do\n    assert shipped\n  end\n\n  test "refunds a paid order" do\n    assert refunded\n  end\n',
+    ),
+  });
+
+  const range = await readRange({ repo, from: root, to });
+
+  expect(range.tests).toEqual([
+    {
+      path: 'test/models/order_test.rb',
+      statements: [
+        {
+          kind: 'heading',
+          name: 'OrderTest',
+          children: [
+            { kind: 'test', name: 'totals its lines', change: 'edited' },
+            { kind: 'test', name: 'ships', change: 'unchanged' },
+            { kind: 'test', name: 'refunds a paid order', change: 'added' },
+          ],
+        },
+      ],
+    },
+  ]);
+});
+
+test("a Minitest file is read only under a test/ folder of a Rails app's root", async () => {
+  using workspace = gitRepo({
+    'apps/shop/config/application.rb': railsApp['config/application.rb'],
+  });
+  const { repo, root } = workspace;
+  const minitest = 'class SomeTest\n  test "works" do\n  end\nend\n';
+  const to = commit(repo, {
+    'apps/shop/test/models/order_test.rb': minitest,
+    'apps/shop/lib/contest/money_test.rb': minitest,
+    'tools/test/x_test.rb': minitest,
+  });
+
+  const range = await readRange({ repo, from: root, to });
+
+  expect(range.tests.map(({ path }) => path)).toEqual(['apps/shop/test/models/order_test.rb']);
+});
