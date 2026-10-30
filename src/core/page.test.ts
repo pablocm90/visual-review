@@ -23,6 +23,7 @@ const readingWith = (overrides: Partial<RangeReading>): RangeReading => ({
   before: { nodes: [webStack], edges: [] },
   after: { nodes: [webStack, webFile('a.ts')], edges: [] },
   churn: { before: {}, after: {} },
+  measures: { before: {}, after: {} },
   changedPaths: ['web/src/a.ts'],
   renames: [],
   patches: [],

@@ -5,9 +5,10 @@ import { tmpdir } from 'node:os';
 import { basename, join, relative } from 'node:path';
 import { promisify } from 'node:util';
 import { CONFIG_FILE, type Config, parseConfig } from './config.ts';
-import type { FilePatch, Rename } from './diff-graphs.ts';
-import type { Graph } from './graph.ts';
+import { diffGraphs, type FilePatch, type Rename } from './diff-graphs.ts';
+import { type Graph, stackOfIn } from './graph.ts';
 import type { DanglingCall } from './linker.ts';
+import { measuredNodes } from './metrics.ts';
 import {
   type Adapters,
   checkConfig,
@@ -15,7 +16,7 @@ import {
   readStacks,
   type StacksReading,
 } from './read-stacks.ts';
-import type { Reader } from './reader.ts';
+import type { FileMeasures, Reader } from './reader.ts';
 import type { Skipped } from './skipped.ts';
 import { type TestFile, testChanges, withMovedTests } from './test-changes.ts';
 
@@ -23,10 +24,13 @@ const run = promisify(execFile);
 
 export type Churn = Readonly<Record<string, number>>;
 
+export type Measures = Readonly<Record<string, FileMeasures>>;
+
 export type RangeReading = {
   readonly before: Graph;
   readonly after: Graph;
   readonly churn: { readonly before: Churn; readonly after: Churn };
+  readonly measures: { readonly before: Measures; readonly after: Measures };
   readonly changedPaths: ReadonlyArray<string>;
   readonly renames: ReadonlyArray<Rename>;
   readonly patches: ReadonlyArray<FilePatch>;
@@ -164,6 +168,24 @@ const churnAt = async ({
   return Object.fromEntries(files.map(path => [path, commits.get(path)?.length ?? 0]));
 };
 
+type MeasuresOptions = {
+  readonly directory: string;
+  readonly stacks: StacksReading['stacks'];
+  readonly files: ReadonlyArray<{ readonly stack: string; readonly path: string | undefined }>;
+};
+
+const measuresAt = async ({ directory, stacks, files }: MeasuresOptions): Promise<Measures> => {
+  const measured = await Promise.all(
+    files.map(async ({ stack, path }) => {
+      const measure = stacks.find(each => each.stack === stack)?.reader.measure;
+      if (path === undefined || measure === undefined) return [];
+      if (!(await isFile(join(directory, path)))) return [];
+      return [[path, measure(await readFile(join(directory, path), 'utf8'), path)] as const];
+    }),
+  );
+  return Object.fromEntries(measured.flat());
+};
+
 const resolve = (repo: string, revision: string): Promise<string> =>
   git(repo, 'rev-parse', '--verify', '--quiet', `${revision}^{commit}`).catch(() => {
     throw new Error(`Unknown revision: ${revision}`);
@@ -196,6 +218,27 @@ export const readRange = async ({
       ...adapters,
     });
     checkConfig(config, [...before.stacks, ...after.stacks], adapters.linkers);
+    const changes = (await git(repo, 'diff', '--find-renames', '--name-status', base, toCommit))
+      .split('\n')
+      .filter(line => line !== '')
+      .map(line => line.split('\t').slice(1));
+    const changedPaths = changes.flat();
+    const renames = changes.flatMap(([from = '', to]) => (to === undefined ? [] : [{ from, to }]));
+    const diff = diffGraphs({ before: before.graph, after: after.graph, changedPaths, renames });
+    const stackOf = stackOfIn(diff.nodes);
+    const measured = measuredNodes({ diff, before: before.graph });
+    const measures = {
+      before: await measuresAt({
+        directory: join(scratch, 'before'),
+        stacks: before.stacks,
+        files: measured.map(({ id, basePath }) => ({ stack: stackOf(id), path: basePath })),
+      }),
+      after: await measuresAt({
+        directory: join(scratch, 'after'),
+        stacks: after.stacks,
+        files: measured.map(({ id, headPath }) => ({ stack: stackOf(id), path: headPath })),
+      }),
+    };
     const churn = {
       before: await churnAt({
         repo,
@@ -212,18 +255,15 @@ export const readRange = async ({
         days: config.metrics.churnDays,
       }),
     };
-    const changes = (await git(repo, 'diff', '--find-renames', '--name-status', base, toCommit))
-      .split('\n')
-      .filter(line => line !== '')
-      .map(line => line.split('\t').slice(1));
     return {
       before: before.graph,
       after: after.graph,
       churn,
+      measures,
       danglingCalls: after.danglingCalls,
       skipped: skippedAcross([...before.skipped, ...after.skipped]),
-      changedPaths: changes.flat(),
-      renames: changes.flatMap(([from = '', to]) => (to === undefined ? [] : [{ from, to }])),
+      changedPaths,
+      renames,
       tests: withMovedTests(
         await testsIn({
           scratch,
