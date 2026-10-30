@@ -95,6 +95,10 @@ const middleOf = (points: PlacedEdge['points']) => {
     : { x: 0, y: 0 };
 };
 
+const flaggedFor = (flag: string) => `Flagged: ${flag}`;
+
+const noRouteFor = (paths: ReadonlyArray<string>) => `No route for ${paths.join(', ')}`;
+
 type FlagBadgeProps = {
   readonly x: number;
   readonly y: number;
@@ -216,13 +220,9 @@ const NodeView = ({ node, drawing }: { readonly node: PlacedNode; readonly drawi
             </>
           )}
         </text>
-        {flag && <FlagBadge x={node.width} y={0} reason={`Flagged: ${flag}`} />}
+        {flag && <FlagBadge x={node.width} y={0} reason={flaggedFor(flag)} />}
         {unrouted.length > 0 && (
-          <FlagBadge
-            x={node.width}
-            y={node.height}
-            reason={`No route for ${unrouted.join(', ')}`}
-          />
+          <FlagBadge x={node.width} y={node.height} reason={noRouteFor(unrouted)} />
         )}
       </g>
       {toggle}
@@ -255,7 +255,7 @@ const EdgeView = ({ edge, name, drawing }: EdgeViewProps) => {
       {note?.flag && (
         <FlagBadge
           {...middleOf(edge.points)}
-          reason={`Flagged: ${note.flag}`}
+          reason={flaggedFor(note.flag)}
           onPress={() => onSelect(id)}
         />
       )}
@@ -859,8 +859,8 @@ export const ReviewPage = ({ review, notes }: ReviewPageProps) => {
               onPointerDown={dragDivider}
             />
             <aside className="note" aria-label="Note" style={{ width: panelWidth }}>
-              {selectedNote?.flag && <h2>Flagged: {selectedNote.flag}</h2>}
-              {selectedUnrouted.length > 0 && <h2>No route for {selectedUnrouted.join(', ')}</h2>}
+              {selectedNote?.flag && <h2>{flaggedFor(selectedNote.flag)}</h2>}
+              {selectedUnrouted.length > 0 && <h2>{noRouteFor(selectedUnrouted)}</h2>}
               <p>{selectedNote?.text ?? 'No note'}</p>
               {selectedNode?.renamedFrom !== undefined && (
                 <p className="renamed">Renamed from {selectedNode.renamedFrom}</p>
