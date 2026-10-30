@@ -1,15 +1,7 @@
-import { createRequire } from 'node:module';
-import { Language, type Node, Parser } from 'web-tree-sitter';
+import type { Node } from 'web-tree-sitter';
+import { parserOf } from '../tree-sitter.ts';
 
-await Parser.init();
-const parser = new Parser();
-parser.setLanguage(
-  await Language.load(
-    createRequire(import.meta.url).resolve('tree-sitter-rust/tree-sitter-rust.wasm'),
-  ),
-);
-
-export const parseRust = (text: string): Node | undefined => parser.parse(text)?.rootNode;
+export const parseRust = await parserOf('tree-sitter-rust');
 
 type Item = { readonly node: Node; readonly attributes: ReadonlyArray<Node> };
 
