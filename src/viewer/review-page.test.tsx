@@ -395,6 +395,80 @@ test("modules open collapsed, joined by their files' imports; a module's toggle 
   expect(noteShown()).toBe('New helper.');
 });
 
+test("with 'All edges' unticked, an unchanged import between two open modules is drawn module to module unless it has a note; ticking it draws every import; going to a merged import from the summary ticks it", async () => {
+  const user = userEvent.setup();
+  const import_ = (from: string, to: string) => ({
+    from: `web/file/${from}`,
+    to: `web/file/${to}`,
+    state: 'unchanged' as const,
+  });
+  render(
+    <ReviewPage
+      review={pageWith({
+        range: 'abc123..def456',
+        diff: {
+          nodes: [
+            { id: 'web', kind: 'stack', label: 'web', path: '', state: 'unchanged' },
+            webModule('orders'),
+            webModule('billing'),
+            webFile('orders', 'cart.ts'),
+            webFile('orders', 'checkout.ts'),
+            webFile('billing', 'invoice.ts'),
+          ],
+          edges: [
+            import_('orders/cart.ts', 'billing/invoice.ts'),
+            import_('orders/checkout.ts', 'billing/invoice.ts'),
+          ],
+        },
+      })}
+      notes={{
+        version: 1,
+        tests: '',
+        summary: [
+          {
+            text: 'See checkout.',
+            target: 'web/file/orders/checkout.ts -> web/file/billing/invoice.ts',
+          },
+        ],
+        notes: {
+          'web/file/orders/cart.ts -> web/file/billing/invoice.ts': { text: 'Totals.' },
+        },
+      }}
+    />,
+  );
+  const web = await screen.findByRole('group', { name: 'web' });
+  const all = screen.getByRole('checkbox', { name: 'All edges' });
+  expect(all).toHaveProperty('checked', false);
+  await user.click(within(web).getByRole('button', { name: 'Expand orders' }));
+  await user.click(within(web).getByRole('button', { name: 'Expand billing' }));
+  await within(web).findByRole('group', { name: 'billing' });
+
+  const imports = () => buttonsIn(web).filter(name => name?.includes('→'));
+  await waitFor(() =>
+    expect(imports()).toEqual(['cart.ts → invoice.ts: unchanged', 'orders → billing: unchanged']),
+  );
+
+  await user.click(all);
+
+  await waitFor(() =>
+    expect(imports()).toEqual([
+      'cart.ts → invoice.ts: unchanged',
+      'checkout.ts → invoice.ts: unchanged',
+    ]),
+  );
+
+  await user.click(all);
+  await waitFor(() => expect(imports()).toContain('orders → billing: unchanged'));
+  await user.click(screen.getByRole('button', { name: 'See checkout.' }));
+
+  expect(all).toHaveProperty('checked', true);
+  await waitFor(() =>
+    expect(document.activeElement).toBe(
+      within(web).getByRole('button', { name: 'checkout.ts → invoice.ts: unchanged' }),
+    ),
+  );
+});
+
 test("web calls to API routes are drawn between the stacks, named by their paths, merged while their module is collapsed and split by file once it's expanded; a call with no route marks the node holding it and is listed", async () => {
   const user = userEvent.setup();
   const call = (file: string, path: string, state: GraphDiff['edges'][number]['state']) => ({
@@ -417,7 +491,7 @@ test("web calls to API routes are drawn between the stacks, named by their paths
             webFile('modules/AppInfo', 'api/users.ts'),
           ],
           edges: [
-            call('api/app-info.ts', '/api/info', 'unchanged'),
+            call('api/app-info.ts', '/api/info', 'removed'),
             call('api/users.ts', '/api/users', 'added'),
           ],
         },
@@ -459,7 +533,7 @@ test("web calls to API routes are drawn between the stacks, named by their paths
 
   expect(
     await screen.findByRole('button', {
-      name: 'api/app-info.ts ⇢ http-adapter: unchanged (/api/info)',
+      name: 'api/app-info.ts ⇢ http-adapter: removed (/api/info)',
     }),
   ).toBeTruthy();
   expect(buttonsIn(within(web).getByRole('group', { name: 'modules/AppInfo' }))).toEqual([
