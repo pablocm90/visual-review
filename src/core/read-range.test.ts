@@ -418,7 +418,12 @@ test('each changed file comes with its own patch, keyed by its path, and edited 
 });
 
 test("each side's churn counts, for each file a node is drawn from, the commits touching it in the 90 days up to that side's commit", async () => {
-  using repository = gitRepo({ 'package.json': '{}\n', 'src/a.ts': '', 'src/b.ts': '' });
+  using repository = gitRepo({
+    'package.json': '{}\n',
+    'src/a.ts': '',
+    'src/b.ts': '',
+    'src/c.ts': '',
+  });
   const { repo } = repository;
   commit(repo, { 'src/a.ts': '1' }, { date: '2090-01-01T00:00:00Z' });
   commit(repo, { 'src/a.ts': '2' }, { date: '2090-05-01T00:00:00Z' });
@@ -430,8 +435,8 @@ test("each side's churn counts, for each file a node is drawn from, the commits 
   const range = await readRange({ repo, from: base, to: head });
 
   expect(range.churn).toEqual({
-    before: { 'src/a.ts': 2, 'src/b.ts': 1 },
-    after: { 'src/a.ts': 1, 'src/b.ts': 1 },
+    before: { 'src/a.ts': 2, 'src/b.ts': 1, 'src/c.ts': 0 },
+    after: { 'src/a.ts': 1, 'src/b.ts': 1, 'src/c.ts': 0 },
   });
 });
 
