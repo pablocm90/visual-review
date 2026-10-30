@@ -469,6 +469,64 @@ test("with 'All edges' unticked, an unchanged import between two open modules is
   );
 });
 
+test("with 'Changed + 1 hop' ticked, going to a merged module edge or to a hidden import near a change keeps it ticked", async () => {
+  const user = userEvent.setup();
+  const import_ = (from: string, to: string, state: GraphDiff['edges'][number]['state']) => ({
+    from: `web/file/${from}`,
+    to: `web/file/${to}`,
+    state,
+  });
+  render(
+    <ReviewPage
+      review={pageWith({
+        range: 'abc123..def456',
+        diff: {
+          nodes: [
+            { id: 'web', kind: 'stack', label: 'web', path: '', state: 'unchanged' },
+            webModule('orders'),
+            webModule('billing'),
+            webFile('orders', 'cart.ts'),
+            webFile('orders', 'checkout.ts'),
+            webFile('billing', 'invoice.ts'),
+          ],
+          edges: [
+            import_('orders/cart.ts', 'billing/invoice.ts', 'added'),
+            import_('orders/checkout.ts', 'orders/cart.ts', 'added'),
+            import_('orders/checkout.ts', 'billing/invoice.ts', 'unchanged'),
+          ],
+        },
+      })}
+      notes={{
+        version: 1,
+        tests: '',
+        summary: [
+          { text: 'See the coupling.', target: 'web/module/orders -> web/module/billing' },
+          {
+            text: 'See checkout.',
+            target: 'web/file/orders/checkout.ts -> web/file/billing/invoice.ts',
+          },
+        ],
+        notes: {},
+      }}
+    />,
+  );
+  const web = await screen.findByRole('group', { name: 'web' });
+  await user.click(within(web).getByRole('button', { name: 'Expand orders' }));
+  await user.click(await within(web).findByRole('button', { name: 'Expand billing' }));
+  await within(web).findByRole('group', { name: 'billing' });
+  const hop = screen.getByRole('checkbox', { name: 'Changed + 1 hop' });
+  await user.click(hop);
+
+  await user.click(screen.getByRole('button', { name: 'See the coupling.' }));
+
+  expect(hop).toHaveProperty('checked', true);
+
+  await user.click(screen.getByRole('button', { name: 'See checkout.' }));
+
+  expect(screen.getByRole('checkbox', { name: 'All edges' })).toHaveProperty('checked', true);
+  expect(hop).toHaveProperty('checked', true);
+});
+
 test("web calls to API routes are drawn between the stacks, named by their paths, merged while their module is collapsed and split by file once it's expanded; a call with no route marks the node holding it and is listed", async () => {
   const user = userEvent.setup();
   const call = (file: string, path: string, state: GraphDiff['edges'][number]['state']) => ({
