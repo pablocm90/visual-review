@@ -628,16 +628,21 @@ export const ReviewPage = ({ review, notes }: ReviewPageProps) => {
     act();
   };
   const wheel = useEffectEvent((event: WheelEvent) => {
-    if (!frameElement) return;
-    event.preventDefault();
+    if (!frameElement || !placed) return;
     const bounds = frameElement.getBoundingClientRect();
     const at = { x: event.clientX - bounds.left, y: event.clientY - bounds.top };
     const by = { x: -event.deltaX, y: -event.deltaY };
-    choose(on =>
-      event.ctrlKey || event.metaKey
-        ? zoomed({ ...on, scale: on.view.scale * 2 ** (-event.deltaY / WHEEL_PER_DOUBLING), at })
-        : panned({ ...on, by }),
-    );
+    const zooming = event.ctrlKey || event.metaKey;
+    const next = zooming
+      ? zoomed({
+          ...placed,
+          scale: placed.view.scale * 2 ** (-event.deltaY / WHEEL_PER_DOUBLING),
+          at,
+        })
+      : panned({ ...placed, by });
+    if (!zooming && next.x === placed.view.x && next.y === placed.view.y) return;
+    event.preventDefault();
+    choose(() => next);
   });
   useEffect(() => {
     if (!frameElement) return;

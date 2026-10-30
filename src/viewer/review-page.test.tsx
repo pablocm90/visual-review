@@ -237,7 +237,7 @@ test('dragging from a node pans the graph and selects nothing, even back near wh
   expect(viewOf(rust)).toBe(panned);
 });
 
-test('the wheel pans the graph, and with Ctrl or ⌘ zooms it at the pointer, never scrolling the page', async () => {
+test('the wheel pans the graph, scrolling the page instead once the graph can move no further that way, and with Ctrl or ⌘ zooms it at the pointer', async () => {
   const graph = await layoutDiff(review.diff);
   renderInFrame(pageWith(review), { width: graph.width / 2, windowHeight: 10_000 });
   const rust = await screen.findByRole('group', { name: 'rust' });
@@ -246,13 +246,20 @@ test('the wheel pans the graph, and with Ctrl or ⌘ zooms it at the pointer, ne
     DOMRect.fromRect({ x: 10, y: 20, width: graph.width / 2, height: graph.height / 2 }),
   );
 
+  expect(fireEvent.wheel(frame, { ctrlKey: true, deltaY: 100 })).toBe(false);
+  expect(zoomShown()).toBe('50%');
   expect(fireEvent.wheel(frame, { ctrlKey: true, deltaY: -100, clientX: 10, clientY: 20 })).toBe(
     false,
   );
   expect(zoomShown()).toBe('100%');
   expect(viewOf(rust)).toBe('translate(0 0) scale(1)');
-  expect(fireEvent.wheel(frame, { deltaX: 30, deltaY: 20 })).toBe(false);
-  expect(viewOf(rust)).toBe('translate(-30 -20) scale(1)');
+  expect(fireEvent.wheel(frame, { deltaX: -30, deltaY: -20 })).toBe(true);
+  expect(fireEvent.wheel(frame, { deltaX: -30, deltaY: 20 })).toBe(false);
+  expect(viewOf(rust)).toBe('translate(0 -20) scale(1)');
+  expect(fireEvent.wheel(frame, { deltaX: 30, deltaY: -20 })).toBe(false);
+  expect(viewOf(rust)).toBe('translate(-30 0) scale(1)');
+  expect(fireEvent.wheel(frame, { deltaX: 30, deltaY: -20 })).toBe(false);
+  expect(viewOf(rust)).toBe('translate(-60 0) scale(1)');
   expect(fireEvent.wheel(frame, { metaKey: true, deltaY: 50 })).toBe(false);
   expect(zoomShown()).toBe('71%');
 });
