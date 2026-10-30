@@ -646,6 +646,11 @@ test.for([
     file: 'class OrderTest\n  %i[paid sent].each do |state|\n    test "#{state} works" do\n    end\n  end\nend\n',
     statements: [{ kind: 'heading', name: 'OrderTest', children: [added('#{state} works')] }],
   },
+  {
+    reason: 'no test for a test word called on a receiver',
+    file: 'class ImportTest\n  setup do\n    @run = Importer.scenario(:nightly)\n    @suite = Suite.test("smoke")\n  end\n\n  test "imports" do\n  end\nend\n',
+    statements: [{ kind: 'heading', name: 'ImportTest', children: [added('imports')] }],
+  },
 ])('a Minitest file reads $reason', async ({ file, statements }) => {
   expect(await testsAdded({ path: 'test/models/order_test.rb', file })).toEqual([
     { path: 'test/models/order_test.rb', statements },

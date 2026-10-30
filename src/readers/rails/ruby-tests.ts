@@ -52,7 +52,8 @@ const statementsIn = (node: Node, scope: ReadonlyArray<string>): ReadonlyArray<R
         .join(', ');
       return [{ kind: 'test', name, source: child.text }];
     }
-    if (TESTS.has(method)) return [{ kind: 'test', name: titleOf(child), source: child.text }];
+    if (TESTS.has(method) && child.childForFieldName('receiver') === null)
+      return [{ kind: 'test', name: titleOf(child), source: child.text }];
     if (!HEADINGS.has(method)) return statementsIn(child, scope);
     const block = child.childForFieldName('block');
     const children = block === null ? [] : statementsIn(block, []);
