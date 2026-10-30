@@ -348,19 +348,34 @@ test.for([
 
 test.for([
   { association: 'has_many :line_items', to: 'LineItem' },
-  { association: 'has_and_belongs_to_many :tags', to: 'Tag' },
+  { association: 'has_and_belongs_to_many :skills', to: 'Skill' },
   { association: 'has_one :invoice', to: 'Invoice' },
-  { association: 'belongs_to :customer', to: 'Customer' },
+  { association: 'belongs_to :address', to: 'Address' },
   { association: 'has_many :ai_calls', to: 'AICall' },
+  { association: 'has_many :categories', to: 'Category' },
+  { association: 'has_many :addresses', to: 'Address' },
+  { association: 'has_many :taxes', to: 'Tax' },
+  { association: 'has_many :batches', to: 'Batch' },
+  { association: 'has_many :wishes', to: 'Wish' },
+  { association: 'has_many :contact_people', to: 'ContactPerson' },
+  { association: 'has_one :status', to: 'Status' },
+  { association: 'has_many :billing_line', to: 'BillingLine' },
 ])('a model declaring $association draws an edge to $to', async ({ association, to }) => {
   using workspace = gitRepo({
     ...railsApp,
     'app/models/order.rb': `class Order\n  ${association}\nend\n`,
     'app/models/line_item.rb': 'class LineItem\nend\n',
-    'app/models/tag.rb': 'class Tag\nend\n',
+    'app/models/skill.rb': 'class Skill\nend\n',
     'app/models/invoice.rb': 'class Invoice\nend\n',
-    'app/models/customer.rb': 'class Customer\nend\n',
     'app/models/ai_call.rb': 'class AICall\nend\n',
+    'app/models/category.rb': 'class Category\nend\n',
+    'app/models/address.rb': 'class Address\nend\n',
+    'app/models/tax.rb': 'class Tax\nend\n',
+    'app/models/batch.rb': 'class Batch\nend\n',
+    'app/models/wish.rb': 'class Wish\nend\n',
+    'app/models/contact_person.rb': 'class ContactPerson\nend\n',
+    'app/models/status.rb': 'class Status\nend\n',
+    'app/models/billing_line.rb': 'class BillingLine\nend\n',
   });
   const { repo, root } = workspace;
   const shop = basename(repo);

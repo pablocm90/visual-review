@@ -92,12 +92,32 @@ const resolved = (node: Node, { exactly }: Classes): string | undefined => {
     : lookedUp(node.text, scopesOf(node), exactly);
 };
 
-const ASSOCIATIONS = new Set(['has_many', 'has_and_belongs_to_many', 'has_one', 'belongs_to']);
+const SINGULAR_ENDINGS: ReadonlyArray<readonly [RegExp, string]> = [
+  [/people$/, 'person'],
+  [/ies$/, 'y'],
+  [/(ss|x|ch|sh)es$/, '$1'],
+  [/s$/, ''],
+];
+
+const singular = (plural: string): string => {
+  const ending = SINGULAR_ENDINGS.find(([pattern]) => pattern.test(plural));
+  return ending === undefined ? plural : plural.replace(...ending);
+};
+
+const asWritten = (name: string): string => name;
+
+const ASSOCIATIONS: ReadonlyMap<string, (name: string) => string> = new Map([
+  ['has_many', singular],
+  ['has_and_belongs_to_many', singular],
+  ['has_one', asWritten],
+  ['belongs_to', asWritten],
+]);
 
 const associated = (call: Node, owner: string, { ignoringCase }: Classes): string | undefined => {
+  const inflected = ASSOCIATIONS.get(call.childForFieldName('method')?.text ?? '');
+  if (inflected === undefined) return undefined;
   const [name] = call.childForFieldName('arguments')?.namedChildren ?? [];
-  if (!ASSOCIATIONS.has(call.childForFieldName('method')?.text ?? '')) return undefined;
-  const candidate = camelized((name?.text ?? '').slice(1).replace(/s$/, ''));
+  const candidate = camelized(inflected((name?.text ?? '').slice(1)));
   return lookedUp(candidate, prefixesOf(owner.split('::')), ignoringCase);
 };
 
