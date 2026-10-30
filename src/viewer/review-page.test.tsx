@@ -51,6 +51,9 @@ const review = {
   },
 };
 
+const showEverything = (user: ReturnType<typeof userEvent.setup>) =>
+  user.click(screen.getByRole('checkbox', { name: 'Changed + 1 hop' }));
+
 const noteShown = () => screen.getByRole('complementary', { name: 'Note' }).textContent;
 
 test('draws every crate and dependency inside the rust stack with its change state, and opens no note panel until one is clicked', async () => {
@@ -342,6 +345,7 @@ test("modules open collapsed, joined by their files' imports; a module's toggle 
     />,
   );
 
+  await showEverything(user);
   const web = await screen.findByRole('group', { name: 'web' });
   expect(screen.queryByRole('region', { name: 'Unplaced notes' })).toBeNull();
   const collapsed = [
@@ -437,6 +441,7 @@ test("with 'All edges' unticked, an unchanged import between two open modules is
       }}
     />,
   );
+  await showEverything(user);
   const web = await screen.findByRole('group', { name: 'web' });
   const all = screen.getByRole('checkbox', { name: 'All edges' });
   expect(all).toHaveProperty('checked', false);
@@ -479,7 +484,7 @@ test("with 'Changed + 1 hop' ticked, going to a merged module edge or to a hidde
         diff: {
           nodes: [
             { id: 'web', kind: 'stack', label: 'web', path: '', state: 'unchanged' },
-            webModule('orders'),
+            webModule('orders', 'modified'),
             webModule('billing'),
             webFile('orders', 'cart.ts'),
             webFile('orders', 'checkout.ts'),
@@ -511,7 +516,6 @@ test("with 'Changed + 1 hop' ticked, going to a merged module edge or to a hidde
   await user.click(await within(web).findByRole('button', { name: 'Expand billing' }));
   await within(web).findByRole('group', { name: 'billing' });
   const hop = screen.getByRole('checkbox', { name: 'Changed + 1 hop' });
-  await user.click(hop);
 
   await user.click(screen.getByRole('button', { name: 'See the coupling.' }));
 
@@ -564,6 +568,7 @@ test("web calls to API routes are drawn between the stacks, named by their paths
     />,
   );
 
+  await showEverything(user);
   const web = await screen.findByRole('group', { name: 'web' });
   expect(buttonsIn(web)).toEqual([
     'modules/AppInfo: unchanged, no route for /api/app-info',
@@ -863,7 +868,7 @@ test("selecting a node narrows the tests section to the test files at or under i
   expect(within(tests).getByText('The notes check is pinned; the CLI is not.')).not.toBeNull();
 });
 
-test("ticking 'Changed + 1 hop' hides what is more than one edge from a change; going to a hidden node from the summary unticks it, and going to a shown node or edge doesn't", async () => {
+test("'Changed + 1 hop' starts ticked, hiding what is more than one edge from a change; going to a shown node or edge keeps it, and going to a hidden node unticks it", async () => {
   const user = userEvent.setup();
   render(
     <ReviewPage
@@ -896,18 +901,12 @@ test("ticking 'Changed + 1 hop' hides what is more than one edge from a change; 
   );
   const rust = await screen.findByRole('group', { name: 'rust' });
   const hop = screen.getByRole('checkbox', { name: 'Changed + 1 hop' });
-  expect(hop).toHaveProperty('checked', false);
-  const near = ['application → domain: unchanged', 'domain: unchanged', 'application: modified'];
+  expect(hop).toHaveProperty('checked', true);
   expect(buttonsIn(rust)).toEqual([
-    near[0],
-    'cli-adapter → domain: unchanged',
-    near[1],
-    near[2],
-    'cli-adapter: unchanged',
+    'application → domain: unchanged',
+    'domain: unchanged',
+    'application: modified',
   ]);
-
-  await user.click(hop);
-  await waitFor(() => expect(buttonsIn(rust)).toEqual(near));
   const summary = screen.getByRole('region', { name: 'Summary' });
   await user.click(within(summary).getByRole('button', { name: 'Read the use case.' }));
   await user.click(within(summary).getByRole('button', { name: 'See what it uses.' }));
@@ -938,13 +937,13 @@ test("with 'Changed + 1 hop' ticked and nothing drawn changed, the graph gives w
       })}
     />,
   );
-  await screen.findByRole('group', { name: 'rust' });
-  expect(screen.queryByText('Nothing in the graph changed.')).toBeNull();
-
-  await user.click(screen.getByRole('checkbox', { name: 'Changed + 1 hop' }));
-
   expect(await screen.findByText('Nothing in the graph changed.')).toBeTruthy();
   expect(screen.queryByRole('group', { name: 'rust' })).toBeNull();
+
+  await showEverything(user);
+
+  await screen.findByRole('group', { name: 'rust' });
+  expect(screen.queryByText('Nothing in the graph changed.')).toBeNull();
 });
 
 const withChangesUnderApplication = {

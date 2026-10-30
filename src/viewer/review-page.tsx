@@ -420,7 +420,7 @@ export const ReviewPage = ({ review, notes }: ReviewPageProps) => {
   const visible = useMemo(() => visibleDiff({ diff: review.diff, expanded }), [review, expanded]);
   const [allEdges, setAllEdges] = useState(false);
   const noted = useMemo(() => new Set(Object.keys(notes?.notes ?? {})), [notes]);
-  const [nearOnly, setNearOnly] = useState(false);
+  const [nearOnly, setNearOnly] = useState(true);
   const drawn = useMemo(() => {
     const atExpansion = drawnAt({ diff: review.diff, expanded, noted, allEdges });
     return nearOnly ? nearChanges(atExpansion) : atExpansion;
