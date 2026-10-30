@@ -15,6 +15,18 @@ const webFile = (path: string): GraphNode => ({
   path: `web/src/${path}`,
 });
 
+const box = (name: string): GraphNode => ({
+  id: `web/box/${name}`,
+  kind: 'module',
+  label: name,
+  parent: 'web',
+  path: `web/src/${name}`,
+});
+const inBox = (name: string, file: string): GraphNode => ({
+  ...webFile(`${name}/${file}`),
+  parent: `web/box/${name}`,
+});
+
 const webStack: GraphNode = { id: 'web', kind: 'stack', label: 'web', path: '' };
 
 const patch = (path: string) => ({ path, patch: `diff --git a/${path} b/${path}` });
@@ -316,17 +328,6 @@ test("a node whose file moved with no rename git saw reads its base churn at its
 });
 
 test('a box gets, on each side, the highest churn among the measured nodes inside it at any depth, marked as such, with nothing on a side where none inside is measured, and nothing for a box with none measured inside', () => {
-  const box = (name: string): GraphNode => ({
-    id: `web/box/${name}`,
-    kind: 'module',
-    label: name,
-    parent: 'web',
-    path: `web/src/${name}`,
-  });
-  const inBox = (name: string, file: string): GraphNode => ({
-    ...webFile(`${name}/${file}`),
-    parent: `web/box/${name}`,
-  });
   const files = [webFile('b.ts'), box('n'), inBox('n', 'c.ts')];
   const reading = readingWith({
     before: { nodes: [webStack, ...files], edges: [] },
@@ -341,12 +342,59 @@ test('a box gets, on each side, the highest churn among the measured nodes insid
   const { metrics } = pageData({ reading, range: 'main..feature', version });
 
   expect(metrics).toStrictEqual({
-    web: { highestInside: true, base: { churn: 1 }, head: { churn: 5 } },
-    'web/box/m': { highestInside: true, head: { churn: 5 } },
+    web: {
+      highestInside: true,
+      base: { churn: 1, fanIn: 0, fanOut: 0 },
+      head: { churn: 5, fanIn: 0, fanOut: 0 },
+    },
+    'web/box/m': { highestInside: true, head: { churn: 5, fanIn: 0, fanOut: 0 } },
     'web/file/m/a.ts': { head: { churn: 5, fanIn: 0, fanOut: 0 } },
     'web/file/b.ts': {
       base: { churn: 1, fanIn: 0, fanOut: 0 },
       head: { churn: 4, fanIn: 0, fanOut: 0 },
+    },
+  });
+});
+
+test('a box takes, on each side, the highest of each measure among the measured leaves inside it, its complexity from the leaves a reader measured', () => {
+  const fn = (cyclomatic: number, assignments: number) => ({
+    name: 'f',
+    cyclomatic,
+    abc: { assignments, branches: 0, conditions: 0 },
+  });
+  const files = [inBox('m', 'a.ts'), inBox('m', 'b.ts'), inBox('m', 'c.ts')];
+  const reading = readingWith({
+    after: {
+      nodes: [webStack, box('m'), ...files],
+      edges: [
+        { from: 'web/file/m/a.ts', to: 'web/file/m/b.ts' },
+        { from: 'web/file/m/c.ts', to: 'web/file/m/b.ts' },
+      ],
+    },
+    changedPaths: files.map(({ path }) => path),
+    churn: {
+      before: {},
+      after: { 'web/src/m/a.ts': 2, 'web/src/m/b.ts': 7, 'web/src/m/c.ts': 1 },
+    },
+    measures: {
+      before: {},
+      after: {
+        'web/src/m/a.ts': { lines: 10, functions: [fn(5, 5)] },
+        'web/src/m/b.ts': { lines: 20, functions: [fn(3, 1), fn(3, 0)] },
+      },
+    },
+  });
+
+  expect(pageData({ reading, range: 'main..feature', version }).metrics['web/box/m']).toEqual({
+    highestInside: true,
+    head: {
+      churn: 7,
+      fanIn: 2,
+      fanOut: 1,
+      lines: 20,
+      functions: 2,
+      cyclomatic: { highest: 5, total: 6 },
+      abc: 5,
     },
   });
 });

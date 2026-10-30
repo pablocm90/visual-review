@@ -12,8 +12,7 @@ type Complexity = {
 
 type Fan = { readonly fanIn: number; readonly fanOut: number };
 
-export type NodeMeasures = { readonly churn: number } & (Fan | Record<never, never>) &
-  (Complexity | Record<never, never>);
+export type NodeMeasures = { readonly churn: number } & Fan & (Complexity | Record<never, never>);
 
 export type NodeMetrics = {
   readonly highestInside?: true;
@@ -77,9 +76,29 @@ const sides = (base: NodeMeasures | undefined, head: NodeMeasures | undefined): 
   ...(head && { head }),
 });
 
+const highestOf = <T>(items: ReadonlyArray<T>, pick: (item: T) => number): number =>
+  Math.max(...items.map(pick));
+
+const highestComplexity = (measured: ReadonlyArray<Complexity>): Complexity => ({
+  lines: highestOf(measured, ({ lines }) => lines),
+  functions: highestOf(measured, ({ functions }) => functions),
+  cyclomatic: {
+    highest: highestOf(measured, ({ cyclomatic }) => cyclomatic.highest),
+    total: highestOf(measured, ({ cyclomatic }) => cyclomatic.total),
+  },
+  abc: highestOf(measured, ({ abc }) => abc),
+});
+
 const highest = (measures: ReadonlyArray<NodeMeasures | undefined>): NodeMeasures | undefined => {
-  const churns = measures.flatMap(each => (each === undefined ? [] : [each.churn]));
-  return churns.length === 0 ? undefined : { churn: Math.max(...churns) };
+  const measured = measures.flatMap(each => (each === undefined ? [] : [each]));
+  if (measured.length === 0) return undefined;
+  const complex = measured.flatMap(each => ('lines' in each ? [each] : []));
+  return {
+    churn: highestOf(measured, ({ churn }) => churn),
+    fanIn: highestOf(measured, ({ fanIn }) => fanIn),
+    fanOut: highestOf(measured, ({ fanOut }) => fanOut),
+    ...(complex.length === 0 ? {} : highestComplexity(complex)),
+  };
 };
 
 export type MeasuredNode = {
