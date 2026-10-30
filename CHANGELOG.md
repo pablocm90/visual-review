@@ -11,7 +11,7 @@ What changed in each release of `@pablocm90/visual-review`, newest first. Versio
 
 ### Fixed
 
-- Rust is parsed as Rust again when the Rails reader is loaded beside it, which the CLI always does: since 0.3.0 a crate's `mod` files were left out of the graph and its test changes went unread.
+- Rust is parsed as Rust again when the Rails reader is loaded beside it, which the CLI always does: since 0.2.0 a crate's `mod` files were left out of the graph and its test changes went unread.
 
 ## 0.3.1 — 2026-10-30
 
