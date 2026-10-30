@@ -585,6 +585,10 @@ test("a flag's badge says on hover what it is flagged for, and clicking it opens
   await screen.findByRole('group', { name: 'rust' });
   expect(screen.getByRole('img', { name: 'Flagged: new entry point' })).toBeTruthy();
   expect(screen.getByRole('img', { name: 'Flagged: new dependency direction' })).toBeTruthy();
+  expect(
+    screen.getByRole('img', { name: 'Flagged: new entry point' }).querySelector('title')
+      ?.textContent,
+  ).toBe('Flagged: new entry point');
 
   await user.click(screen.getByRole('img', { name: 'Flagged: new dependency direction' }));
   expect(noteShown()).toBe('The CLI drives the use case.');
