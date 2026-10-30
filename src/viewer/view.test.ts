@@ -1,6 +1,6 @@
 import { expect, test } from 'vitest';
 import type { Layout, PlacedNode } from './layout.ts';
-import { boxOf, centred, fitted, frameHeight, panned, pinned, zoomed } from './view.ts';
+import { boxOf, centred, fitted, frameHeight, panned, pinned, resized, zoomed } from './view.ts';
 
 test.for([
   {
@@ -154,6 +154,34 @@ test.for([
   expect(
     centred({ graph: { width: 2000, height: 2000 }, frame: { width: 1000, height: 600 }, box }),
   ).toEqual(view);
+});
+
+test.for([
+  {
+    resizeIs: 'keeps the zoom and the graph point at the centre of the frame',
+    from: { width: 1000, height: 1000 },
+    view: { scale: 2, x: -500, y: -500 },
+    to: { width: 600, height: 800 },
+    resized: { scale: 2, x: -700, y: -600 },
+  },
+  {
+    resizeIs: 'stops at the edge of the graph',
+    from: { width: 600, height: 1000 },
+    view: { scale: 2, x: 0, y: -500 },
+    to: { width: 1000, height: 1000 },
+    resized: { scale: 2, x: 0, y: -500 },
+  },
+  {
+    resizeIs: 'keeps the zoom no lower than fits the graph in the new frame',
+    from: { width: 500, height: 500 },
+    view: { scale: 0.25, x: 0, y: 0 },
+    to: { width: 1000, height: 1000 },
+    resized: { scale: 0.5, x: 0, y: 0 },
+  },
+])('resizing the frame $resizeIs', ({ from, view, to, resized: expected }) => {
+  expect(resized({ graph: { width: 2000, height: 2000 }, frame: to, view, from })).toEqual(
+    expected,
+  );
 });
 
 const placed = (

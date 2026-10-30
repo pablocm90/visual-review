@@ -52,6 +52,17 @@ export const zoomed = ({ graph, frame, view, scale, at }: ZoomedOptions): View =
 export const panned = ({ graph, frame, view, by }: Placed & { readonly by: Point }): View =>
   clamped({ graph, frame, view: { scale: view.scale, x: view.x + by.x, y: view.y + by.y } });
 
+export const resized = ({ graph, frame, view, from }: Placed & { readonly from: Size }): View =>
+  clamped({
+    graph,
+    frame,
+    view: {
+      scale: bounded({ graph, frame, scale: view.scale }),
+      x: view.x + (frame.width - from.width) / 2,
+      y: view.y + (frame.height - from.height) / 2,
+    },
+  });
+
 type PinnedOptions = Placed & { readonly from: Point; readonly to: Point };
 
 export const pinned = ({ graph, frame, view, from, to }: PinnedOptions): View => {
