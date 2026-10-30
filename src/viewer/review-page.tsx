@@ -95,8 +95,11 @@ const middleOf = (points: PlacedEdge['points']) => {
     : { x: 0, y: 0 };
 };
 
-const FlagBadge = ({ x, y }: { readonly x: number; readonly y: number }) => (
-  <g className="flag-badge" transform={`translate(${x} ${y})`}>
+type FlagBadgeProps = { readonly x: number; readonly y: number; readonly reason: string };
+
+const FlagBadge = ({ x, y, reason }: FlagBadgeProps) => (
+  <g className="flag-badge" role="img" aria-label={reason} transform={`translate(${x} ${y})`}>
+    <title>{reason}</title>
     <circle r={8} />
     <path d="M 0 -4.5 V 1 M 0 3.5 V 4" />
   </g>
@@ -136,6 +139,7 @@ const Toggle = ({ node, expanded, onToggle }: ToggleProps) => (
 const NodeView = ({ node, drawing }: { readonly node: PlacedNode; readonly drawing: Drawing }) => {
   const { notes, onSelect, register, expandable, expanded, onToggle, unroutedOf } = drawing;
   const unrouted = unroutedOf(node.id);
+  const flag = notes[node.id]?.flag;
   const toggle = expandable.has(node.id) && (
     <Toggle node={node} expanded={expanded.has(node.id)} onToggle={onToggle} />
   );
@@ -201,8 +205,14 @@ const NodeView = ({ node, drawing }: { readonly node: PlacedNode; readonly drawi
             </>
           )}
         </text>
-        {notes[node.id]?.flag && <FlagBadge x={node.width} y={0} />}
-        {unrouted.length > 0 && <FlagBadge x={node.width} y={node.height} />}
+        {flag && <FlagBadge x={node.width} y={0} reason={`Flagged: ${flag}`} />}
+        {unrouted.length > 0 && (
+          <FlagBadge
+            x={node.width}
+            y={node.height}
+            reason={`No route for ${unrouted.join(', ')}`}
+          />
+        )}
       </g>
       {toggle}
     </>
@@ -231,7 +241,7 @@ const EdgeView = ({ edge, name, drawing }: EdgeViewProps) => {
         d={edgePath(edge.points)}
         markerEnd={`url(#arrow-${edge.state})`}
       />
-      {note?.flag && <FlagBadge {...middleOf(edge.points)} />}
+      {note?.flag && <FlagBadge {...middleOf(edge.points)} reason={`Flagged: ${note.flag}`} />}
     </>
   );
 };

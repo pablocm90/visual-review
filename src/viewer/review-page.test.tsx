@@ -555,6 +555,30 @@ test('clicking a crate or a dependency, or pressing Enter or Space on it, shows 
   expect(noteShown()).toBe('The CLI drives the use case.');
 });
 
+test("a flag's badge says on hover what it is flagged for", async () => {
+  render(
+    <ReviewPage
+      review={pageWith(review)}
+      notes={{
+        version: 1,
+        tests: '',
+        summary: [],
+        notes: {
+          'rust/crate/cli-adapter': { text: 'A second way in.', flag: 'new entry point' },
+          'rust/crate/cli-adapter -> rust/crate/application': {
+            text: 'The CLI drives the use case.',
+            flag: 'new dependency direction',
+          },
+        },
+      }}
+    />,
+  );
+
+  await screen.findByRole('group', { name: 'rust' });
+  expect(screen.getByRole('img', { name: 'Flagged: new entry point' })).toBeTruthy();
+  expect(screen.getByRole('img', { name: 'Flagged: new dependency direction' })).toBeTruthy();
+});
+
 test('the summary lists its items and then every flagged note, and an item with a target takes focus to it and shows its note', async () => {
   const user = userEvent.setup();
   render(
@@ -926,6 +950,7 @@ test("web calls to API routes are drawn between the stacks, named by their paths
     'modules/AppInfo: unchanged, no route for /api/app-info',
     'Expand modules/AppInfo',
   ]);
+  expect(screen.getByRole('img', { name: 'No route for /api/app-info' })).toBeTruthy();
   expect(
     within(screen.getByRole('region', { name: 'Calls with no route' }))
       .getAllByRole('listitem')
