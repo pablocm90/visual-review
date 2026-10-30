@@ -1,4 +1,12 @@
-import { type KeyboardEvent, type PointerEvent, useEffect, useMemo, useRef, useState } from 'react';
+import {
+  type KeyboardEvent,
+  type PointerEvent,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
 import type { FilePatch, GraphDiff } from '../core/diff-graphs.ts';
 import { isAtOrUnder } from '../core/diff-graphs.ts';
 import { edgeId } from '../core/graph.ts';
@@ -22,6 +30,7 @@ import {
   type PlacedNode,
   type PlacedStack,
 } from './layout.ts';
+import { fitted, frameHeight } from './view.ts';
 
 const STATES = ['added', 'removed', 'modified', 'unchanged'] as const;
 
@@ -489,6 +498,20 @@ export const ReviewPage = ({ review, notes }: ReviewPageProps) => {
     }
     setFocusTarget(id);
   };
+  const [frameWidth, setFrameWidth] = useState<number>();
+  const observeFrame = useCallback((frame: HTMLDivElement) => {
+    const observer = new ResizeObserver(([entry]) => setFrameWidth(entry?.contentRect.width));
+    observer.observe(frame);
+    return () => observer.disconnect();
+  }, []);
+  const frame =
+    layout && frameWidth !== undefined
+      ? {
+          width: frameWidth,
+          height: frameHeight({ graph: layout, frameWidth, windowHeight: window.innerHeight }),
+        }
+      : undefined;
+  const view = layout && frame ? fitted({ graph: layout, frame }) : undefined;
   useEffect(() => {
     layoutDiff(drawn).then(setLayout);
   }, [drawn]);
@@ -496,7 +519,7 @@ export const ReviewPage = ({ review, notes }: ReviewPageProps) => {
     if (layout === undefined || focusTarget === undefined) return;
     const element = elements.current.get(focusTarget);
     if (element) {
-      element.focus();
+      element.focus({ preventScroll: true });
       setFocusTarget(undefined);
     }
   }, [layout, focusTarget]);
@@ -545,43 +568,55 @@ export const ReviewPage = ({ review, notes }: ReviewPageProps) => {
           </label>
           {drawn.nodes.length === 0 && <p className="caveat">Nothing in the graph changed.</p>}
           {layout && (
-            <svg
-              className="graph"
-              viewBox={`0 0 ${layout.width} ${layout.height}`}
-              width={layout.width}
-              height={layout.height}
+            <div
+              className="frame"
+              role="group"
+              aria-label="Graph"
+              ref={observeFrame}
+              style={{ height: frame?.height }}
             >
-              <title>{`Structure ${shortRange(review.range)}`}</title>
-              <defs>
-                {STATES.map(state => (
-                  <marker
-                    key={state}
-                    id={`arrow-${state}`}
-                    className="arrow"
-                    data-state={state}
-                    viewBox="0 0 10 10"
-                    refX={9}
-                    refY={5}
-                    markerWidth={7}
-                    markerHeight={7}
-                    orient="auto-start-reverse"
-                  >
-                    <path d="M 0 0 L 10 5 L 0 10 z" />
-                  </marker>
-                ))}
-              </defs>
-              {layout.stacks.map(stack => (
-                <Stack key={stack.id} stack={stack} drawing={drawing} />
-              ))}
-              {layout.calls.map(edge => (
-                <EdgeView
-                  key={edgeId(edge)}
-                  edge={edge}
-                  name={`${labelOf.get(edge.from)} ⇢ ${labelOf.get(edge.to)}: ${edge.state} (${edge.via?.join(', ')})`}
-                  drawing={drawing}
-                />
-              ))}
-            </svg>
+              {view && (
+                <>
+                  <div className="zoom">
+                    <output aria-label="Zoom">{view.scale * 100}%</output>
+                  </div>
+                  <svg className="graph">
+                    <title>{`Structure ${shortRange(review.range)}`}</title>
+                    <defs>
+                      {STATES.map(state => (
+                        <marker
+                          key={state}
+                          id={`arrow-${state}`}
+                          className="arrow"
+                          data-state={state}
+                          viewBox="0 0 10 10"
+                          refX={9}
+                          refY={5}
+                          markerWidth={7}
+                          markerHeight={7}
+                          orient="auto-start-reverse"
+                        >
+                          <path d="M 0 0 L 10 5 L 0 10 z" />
+                        </marker>
+                      ))}
+                    </defs>
+                    <g transform={`translate(${view.x} ${view.y}) scale(${view.scale})`}>
+                      {layout.stacks.map(stack => (
+                        <Stack key={stack.id} stack={stack} drawing={drawing} />
+                      ))}
+                      {layout.calls.map(edge => (
+                        <EdgeView
+                          key={edgeId(edge)}
+                          edge={edge}
+                          name={`${labelOf.get(edge.from)} ⇢ ${labelOf.get(edge.to)}: ${edge.state} (${edge.via?.join(', ')})`}
+                          drawing={drawing}
+                        />
+                      ))}
+                    </g>
+                  </svg>
+                </>
+              )}
+            </div>
           )}
           {dangling.length > 0 && (
             <section className="unplaced" aria-label="Calls with no route">

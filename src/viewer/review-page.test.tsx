@@ -1,10 +1,39 @@
 // @vitest-environment jsdom
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { expect, test } from 'vitest';
+import { expect, onTestFinished, test, vi } from 'vitest';
 import type { GraphDiff } from '../core/diff-graphs.ts';
 import type { PageData } from '../core/page.ts';
+import { layoutDiff } from './layout.ts';
 import { ReviewPage } from './review-page.tsx';
+
+const frameOfWidth = (width: number) =>
+  class implements ResizeObserver {
+    readonly #report: ResizeObserverCallback;
+    constructor(report: ResizeObserverCallback) {
+      this.#report = report;
+    }
+    observe(target: Element) {
+      this.#report(
+        [
+          {
+            target,
+            contentRect: DOMRectReadOnly.fromRect({ width }),
+            borderBoxSize: [],
+            contentBoxSize: [],
+            devicePixelContentBoxSize: [],
+          },
+        ],
+        this,
+      );
+    }
+    unobserve() {}
+    disconnect() {}
+  };
+
+const WIDE_FRAME = 1200;
+
+vi.stubGlobal('ResizeObserver', frameOfWidth(WIDE_FRAME));
 
 type Diffed = GraphDiff['nodes'][number]['state'];
 
@@ -61,7 +90,10 @@ test('draws every crate and dependency inside the rust stack with its change sta
   render(<ReviewPage review={pageWith(review)} />);
 
   const rust = await screen.findByRole('group', { name: 'rust' });
-  expect(screen.getAllByRole('group')).toEqual([rust]);
+  expect(screen.getAllByRole('group')).toEqual([
+    screen.getByRole('group', { name: 'Graph' }),
+    rust,
+  ]);
   const drawn = within(rust).getAllByRole('button');
   expect(drawn).toHaveLength(7);
   [
@@ -83,6 +115,42 @@ test('draws every crate and dependency inside the rust stack with its change sta
   await user.click(within(rust).getByRole('button', { name: 'legacy: removed' }));
   expect(noteShown()).toBe('No note');
 });
+
+type FrameOptions = { readonly width: number; readonly windowHeight: number };
+
+const renderInFrame = (page: PageData, { width, windowHeight }: FrameOptions) => {
+  vi.stubGlobal('ResizeObserver', frameOfWidth(width));
+  const innerHeight = vi.spyOn(window, 'innerHeight', 'get').mockReturnValue(windowHeight);
+  onTestFinished(() => {
+    vi.stubGlobal('ResizeObserver', frameOfWidth(WIDE_FRAME));
+    innerHeight.mockRestore();
+  });
+  return render(<ReviewPage review={page} />);
+};
+
+const zoomShown = () => screen.getByRole('status', { name: 'Zoom' }).textContent;
+
+const viewOf = (stack: HTMLElement) => stack.parentElement?.getAttribute('transform');
+
+test.for([
+  { frameIs: 'half the graph wide', widthTimes: 0.5, window: 'tall', xTimes: 0 },
+  { frameIs: 'twice the graph wide', widthTimes: 2, window: 'half the graph high', xTimes: 0.75 },
+])(
+  'in a frame $frameIs and a window $window, the graph opens fitted at 50%, centred in a frame as high as the graph fitted to its width within the window',
+  async ({ widthTimes, window, xTimes }) => {
+    const graph = await layoutDiff(review.diff);
+    renderInFrame(pageWith(review), {
+      width: graph.width * widthTimes,
+      windowHeight: window === 'tall' ? 10_000 : graph.height / 2 + 48,
+    });
+
+    const frame = await screen.findByRole('group', { name: 'Graph' });
+    const rust = await within(frame).findByRole('group', { name: 'rust' });
+    expect(zoomShown()).toBe('50%');
+    expect(viewOf(rust)).toBe(`translate(${graph.width * xTimes} 0) scale(0.5)`);
+    expect(frame.style.height).toBe(`${graph.height / 2}px`);
+  },
+);
 
 test("a PR's page names the PR above its range, as a link to it", async () => {
   render(
@@ -253,8 +321,11 @@ test('the summary lists its items and then every flagged note, and an item with 
     'removed but depended on: Domain still reaches it.',
   ]);
 
+  const focus = vi.spyOn(SVGElement.prototype, 'focus');
+  onTestFinished(() => focus.mockRestore());
   await user.click(within(summary).getByRole('button', { name: 'The CLI is a new adapter.' }));
   expect(document.activeElement).toBe(screen.getByRole('button', { name: 'cli-adapter: added' }));
+  expect(focus).toHaveBeenCalledWith({ preventScroll: true });
   expect(noteShown()).toBe('A second way in.');
 
   await user.click(within(summary).getByRole('button', { name: /^new dependency direction/ }));
