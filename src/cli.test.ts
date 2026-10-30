@@ -140,8 +140,8 @@ test("the uncommitted work's churn counts up to HEAD on the head side too, the u
 
   const page = readFileSync(join(repo, '.reviews', 'HEAD..worktree.html'), 'utf8');
   expect(reviewDataIn(page).metrics['rust/mod/core/lib.rs']).toEqual({
-    base: { churn: 1 },
-    head: { churn: 1 },
+    base: expect.objectContaining({ churn: 1 }),
+    head: expect.objectContaining({ churn: 1 }),
   });
 }, 60_000);
 

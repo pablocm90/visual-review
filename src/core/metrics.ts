@@ -1,10 +1,16 @@
 import type { GraphDiff } from './diff-graphs.ts';
 import type { Graph } from './graph.ts';
-import type { Churn, RangeReading } from './read-range.ts';
+import type { Churn, Measures, RangeReading } from './read-range.ts';
+import type { FileMeasures } from './reader.ts';
 
-export type NodeMeasures = {
-  readonly churn: number;
+type Complexity = {
+  readonly lines: number;
+  readonly functions: number;
+  readonly cyclomatic: { readonly highest: number; readonly total: number };
+  readonly abc: number;
 };
+
+export type NodeMeasures = { readonly churn: number } & (Complexity | Record<never, never>);
 
 export type NodeMetrics = {
   readonly highestInside?: true;
@@ -16,11 +22,38 @@ type NodeMetricsOptions = {
   readonly diff: GraphDiff;
   readonly before: Graph;
   readonly churn: RangeReading['churn'];
+  readonly measures: RangeReading['measures'];
 };
 
-const measuresAt = (churn: Churn, path: string | undefined): NodeMeasures | undefined => {
-  const commits = path === undefined ? undefined : churn[path];
-  return commits === undefined ? undefined : { churn: commits };
+const sum = (values: ReadonlyArray<number>): number => values.reduce((a, b) => a + b, 0);
+
+const complexityOf = ({ lines, functions }: FileMeasures): Complexity => {
+  const cyclomatics = functions.map(({ cyclomatic }) => cyclomatic);
+  const parts = [
+    sum(functions.map(({ abc }) => abc.assignments)),
+    sum(functions.map(({ abc }) => abc.branches)),
+    sum(functions.map(({ abc }) => abc.conditions)),
+  ];
+  return {
+    lines,
+    functions: functions.length,
+    cyclomatic: { highest: Math.max(0, ...cyclomatics), total: sum(cyclomatics) },
+    abc: Math.round(Math.hypot(...parts) * 10) / 10,
+  };
+};
+
+type MeasuresAtOptions = {
+  readonly churn: Churn;
+  readonly measures: Measures;
+  readonly path: string | undefined;
+};
+
+const measuresAt = ({ churn, measures, path }: MeasuresAtOptions): NodeMeasures | undefined => {
+  if (path === undefined) return undefined;
+  const commits = churn[path];
+  if (commits === undefined) return undefined;
+  const file = measures[path];
+  return { churn: commits, ...(file && complexityOf(file)) };
 };
 
 const sides = (base: NodeMeasures | undefined, head: NodeMeasures | undefined): NodeMetrics => ({
@@ -71,11 +104,12 @@ export const nodeMetrics = ({
   diff,
   before,
   churn,
+  measures,
 }: NodeMetricsOptions): Readonly<Record<string, NodeMetrics>> => {
   const leaves: Readonly<Record<string, NodeMetrics>> = Object.fromEntries(
     measuredNodes({ diff, before }).flatMap(({ id, basePath, headPath }) => {
-      const base = measuresAt(churn.before, basePath);
-      const head = measuresAt(churn.after, headPath);
+      const base = measuresAt({ churn: churn.before, measures: measures.before, path: basePath });
+      const head = measuresAt({ churn: churn.after, measures: measures.after, path: headPath });
       if (base === undefined && head === undefined) return [];
       return [[id, sides(base, head)]];
     }),

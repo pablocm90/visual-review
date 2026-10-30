@@ -147,6 +147,42 @@ test('a changed node that is a file on both sides gets its churn on each', () =>
   });
 });
 
+test('a measured file gets, beside its churn, its lines, functions, highest and total cyclomatic, and the size of its summed ABC parts to one decimal, on each side', () => {
+  const graph = { nodes: [webStack, webFile('a.ts')], edges: [] };
+  const fn = (
+    cyclomatic: number,
+    [assignments, branches, conditions]: readonly [number, number, number],
+  ) => ({ name: 'f', cyclomatic, abc: { assignments, branches, conditions } });
+  const reading = readingWith({
+    before: graph,
+    after: graph,
+    churn: { before: { 'web/src/a.ts': 3 }, after: { 'web/src/a.ts': 4 } },
+    measures: {
+      before: { 'web/src/a.ts': { lines: 7, functions: [fn(2, [3, 4, 0])] } },
+      after: { 'web/src/a.ts': { lines: 9, functions: [fn(3, [1, 2, 0]), fn(1, [1, 0, 2])] } },
+    },
+  });
+
+  expect(pageData({ reading, range: 'main..feature', version }).metrics['web/file/a.ts']).toEqual({
+    base: { churn: 3, lines: 7, functions: 1, cyclomatic: { highest: 2, total: 2 }, abc: 5 },
+    head: { churn: 4, lines: 9, functions: 2, cyclomatic: { highest: 3, total: 4 }, abc: 3.5 },
+  });
+});
+
+test('a measured file with no functions has a highest and total cyclomatic of 0 and an ABC size of 0', () => {
+  const graph = { nodes: [webStack, webFile('a.ts')], edges: [] };
+  const reading = readingWith({
+    before: graph,
+    after: graph,
+    churn: { before: {}, after: { 'web/src/a.ts': 1 } },
+    measures: { before: {}, after: { 'web/src/a.ts': { lines: 2, functions: [] } } },
+  });
+
+  expect(pageData({ reading, range: 'main..feature', version }).metrics['web/file/a.ts']).toEqual({
+    head: { churn: 1, lines: 2, functions: 0, cyclomatic: { highest: 0, total: 0 }, abc: 0 },
+  });
+});
+
 test.for([
   {
     reason: 'an added file gets churn on the head side only',
