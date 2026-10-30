@@ -717,7 +717,7 @@ export const ReviewPage = ({ review, notes }: ReviewPageProps) => {
               onKeyDown={keyed}
               onPointerDown={pan}
               onClickCapture={event => {
-                if (dragged.current) event.stopPropagation();
+                if (dragged.current && event.detail > 0) event.stopPropagation();
               }}
             >
               {frame && view && (

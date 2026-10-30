@@ -215,6 +215,11 @@ test('dragging from a node pans the graph and selects nothing, even back near wh
   await drag({ clientX: 103, clientY: 100 });
   expect(viewOf(rust)).toBe(pannedBy(42, 31));
   expect(noteShown()).toBe('No note');
+
+  await drag({ clientX: 140, clientY: 130 });
+  screen.getByRole('button', { name: 'Zoom in' }).focus();
+  await user.keyboard('{Enter}');
+  expect(zoomShown()).toBe('125%');
 });
 
 test('the wheel pans the graph, and with Ctrl or ⌘ zooms it at the pointer, never scrolling the page', async () => {
