@@ -50,6 +50,7 @@ test("a reading's page data holds its diff, its dangling calls and test files, t
       ],
       edges: [],
     },
+    metrics: {},
     dangling: [{ from: 'web/file/a.ts', path: '/api/x' }],
     patches: [patch('web/src/a.ts')],
     undrawn: [patch('README.md')],
@@ -126,4 +127,47 @@ test('notes that leave a touched part without a note are refused, naming the not
   expect(() =>
     notedPageHtml({ page: pageFor(version), notes: notesWith({}), notesFile, version }),
   ).toThrow("Notes in x.notes.json don't match the graph:\nno note on web/file/a.ts");
+});
+
+test('a changed node that is a file on both sides gets its churn on each, and a node with no edge to a changed one gets none', () => {
+  const graph = { nodes: [webStack, webFile('a.ts'), webFile('b.ts')], edges: [] };
+  const reading = readingWith({
+    before: graph,
+    after: graph,
+    churn: {
+      before: { 'web/src/a.ts': 3, 'web/src/b.ts': 1 },
+      after: { 'web/src/a.ts': 4, 'web/src/b.ts': 1 },
+    },
+  });
+
+  expect(pageData({ reading, range: 'main..feature', version }).metrics).toEqual({
+    'web/file/a.ts': { base: { churn: 3 }, head: { churn: 4 } },
+  });
+});
+
+test.for([
+  {
+    reason: 'an added file gets churn on the head side only',
+    before: [webStack],
+    after: [webStack, webFile('a.ts')],
+    churn: { before: {}, after: { 'web/src/a.ts': 2 } },
+    metrics: { head: { churn: 2 } },
+  },
+  {
+    reason: 'a removed file gets churn on the base side only',
+    before: [webStack, webFile('a.ts')],
+    after: [webStack],
+    churn: { before: { 'web/src/a.ts': 2 }, after: {} },
+    metrics: { base: { churn: 2 } },
+  },
+])('$reason', ({ before, after, churn, metrics }) => {
+  const reading = readingWith({
+    before: { nodes: before, edges: [] },
+    after: { nodes: after, edges: [] },
+    churn,
+  });
+
+  expect(pageData({ reading, range: 'main..feature', version }).metrics).toStrictEqual({
+    'web/file/a.ts': metrics,
+  });
 });

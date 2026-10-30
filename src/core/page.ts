@@ -1,5 +1,6 @@
 import { diffGraphs, type FilePatch, type GraphDiff, isAtOrUnder } from './diff-graphs.ts';
 import type { DanglingCall } from './linker.ts';
+import { type NodeMetrics, nodeMetrics } from './metrics.ts';
 import { notesProblems, type ReviewNotes } from './notes.ts';
 import type { RangeReading } from './read-range.ts';
 import type { Skipped } from './skipped.ts';
@@ -16,6 +17,7 @@ export type PageData = {
   readonly version: string;
   readonly pullRequest?: PullRequest;
   readonly diff: GraphDiff;
+  readonly metrics: Readonly<Record<string, NodeMetrics>>;
   readonly dangling: ReadonlyArray<DanglingCall>;
   readonly patches: ReadonlyArray<FilePatch>;
   readonly undrawn: ReadonlyArray<FilePatch>;
@@ -39,6 +41,7 @@ export const pageData = ({ reading, range, version, pullRequest }: PageDataOptio
     version,
     ...(pullRequest === undefined ? {} : { pullRequest }),
     diff,
+    metrics: nodeMetrics({ diff, churn: reading.churn }),
     dangling: reading.danglingCalls,
     patches: reading.patches.filter(isDrawn),
     undrawn: reading.patches.filter(patch => !isDrawn(patch)),
