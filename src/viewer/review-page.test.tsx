@@ -202,6 +202,26 @@ test('dragging from a node pans the graph and selects nothing, even back near wh
   expect(noteShown()).toBe('No note');
 });
 
+test('the wheel pans the graph, and with Ctrl or ⌘ zooms it at the pointer, never scrolling the page', async () => {
+  const graph = await layoutDiff(review.diff);
+  renderInFrame(pageWith(review), { width: graph.width / 2, windowHeight: 10_000 });
+  const rust = await screen.findByRole('group', { name: 'rust' });
+  const frame = screen.getByRole('group', { name: 'Graph' });
+  vi.spyOn(frame, 'getBoundingClientRect').mockReturnValue(
+    DOMRect.fromRect({ x: 10, y: 20, width: graph.width / 2, height: graph.height / 2 }),
+  );
+
+  expect(fireEvent.wheel(frame, { ctrlKey: true, deltaY: -100, clientX: 10, clientY: 20 })).toBe(
+    false,
+  );
+  expect(zoomShown()).toBe('100%');
+  expect(viewOf(rust)).toBe('translate(0 0) scale(1)');
+  expect(fireEvent.wheel(frame, { deltaX: 30, deltaY: 20 })).toBe(false);
+  expect(viewOf(rust)).toBe('translate(-30 -20) scale(1)');
+  expect(fireEvent.wheel(frame, { metaKey: true, deltaY: 50 })).toBe(false);
+  expect(zoomShown()).toBe('71%');
+});
+
 test("a PR's page names the PR above its range, as a link to it", async () => {
   render(
     <ReviewPage

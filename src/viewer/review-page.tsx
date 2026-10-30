@@ -1,8 +1,8 @@
 import {
   type KeyboardEvent,
   type PointerEvent,
-  useCallback,
   useEffect,
+  useEffectEvent,
   useMemo,
   useRef,
   useState,
@@ -41,6 +41,7 @@ const GRAPH_MIN = 320;
 const PAGE_PADDING_AND_DIVIDER = 72;
 const DIVIDER_STEP = 40;
 const LEAST_DRAG = 4;
+const WHEEL_PER_DOUBLING = 100;
 
 const panelWidthWithin = (width: number) =>
   Math.min(Math.max(width, PANEL_MIN), window.innerWidth - PAGE_PADDING_AND_DIVIDER - GRAPH_MIN);
@@ -525,12 +526,14 @@ export const ReviewPage = ({ review, notes }: ReviewPageProps) => {
     }
     setFocusTarget(id);
   };
+  const [frameElement, setFrameElement] = useState<HTMLDivElement | null>(null);
   const [frameWidth, setFrameWidth] = useState<number>();
-  const observeFrame = useCallback((frame: HTMLDivElement) => {
+  useEffect(() => {
+    if (!frameElement) return;
     const observer = new ResizeObserver(([entry]) => setFrameWidth(entry?.contentRect.width));
-    observer.observe(frame);
+    observer.observe(frameElement);
     return () => observer.disconnect();
-  }, []);
+  }, [frameElement]);
   const frame =
     layout && frameWidth !== undefined
       ? {
@@ -556,6 +559,28 @@ export const ReviewPage = ({ review, notes }: ReviewPageProps) => {
       once: true,
     });
   };
+  const wheel = useEffectEvent((event: WheelEvent) => {
+    if (!layout || !frame || !view || !frameElement) return;
+    event.preventDefault();
+    const bounds = frameElement.getBoundingClientRect();
+    const at = { x: event.clientX - bounds.left, y: event.clientY - bounds.top };
+    const scale = view.scale * 2 ** (-event.deltaY / WHEEL_PER_DOUBLING);
+    const by = { x: -event.deltaX, y: -event.deltaY };
+    const placed = { graph: layout, frame, view };
+    setChosen({
+      of: layout,
+      view:
+        event.ctrlKey || event.metaKey
+          ? zoomed({ ...placed, scale, at })
+          : panned({ ...placed, by }),
+    });
+  });
+  useEffect(() => {
+    if (!frameElement) return;
+    const onWheel = (event: WheelEvent) => wheel(event);
+    frameElement.addEventListener('wheel', onWheel, { passive: false });
+    return () => frameElement.removeEventListener('wheel', onWheel);
+  }, [frameElement]);
   useEffect(() => {
     layoutDiff(drawn).then(setLayout);
   }, [drawn]);
@@ -616,7 +641,7 @@ export const ReviewPage = ({ review, notes }: ReviewPageProps) => {
               className="frame"
               role="group"
               aria-label="Graph"
-              ref={observeFrame}
+              ref={setFrameElement}
               style={{ height: frame?.height }}
               onPointerDown={pan}
               onClickCapture={event => {
