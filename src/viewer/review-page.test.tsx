@@ -968,7 +968,8 @@ test("web calls to API routes are drawn between the stacks, named by their paths
     'modules/AppInfo: unchanged, no route for /api/app-info',
     'Expand modules/AppInfo',
   ]);
-  expect(screen.getByRole('img', { name: 'No route for /api/app-info' })).toBeTruthy();
+  await user.click(screen.getByRole('img', { name: 'No route for /api/app-info' }));
+  expect(reasonsShown()).toEqual(['No route for /api/app-info']);
   expect(
     within(screen.getByRole('region', { name: 'Calls with no route' }))
       .getAllByRole('listitem')

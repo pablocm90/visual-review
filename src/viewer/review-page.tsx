@@ -563,6 +563,7 @@ export const ReviewPage = ({ review, notes }: ReviewPageProps) => {
   };
   const selectedNode = review.diff.nodes.find(node => node.id === selected);
   const selectedNote = selected === undefined ? undefined : shown[selected];
+  const selectedUnrouted = selected === undefined ? [] : drawing.unroutedOf(selected);
   const patches = selectedNode
     ? review.patches.filter(({ path }) => isAtOrUnder(path, selectedNode))
     : [];
@@ -859,6 +860,7 @@ export const ReviewPage = ({ review, notes }: ReviewPageProps) => {
             />
             <aside className="note" aria-label="Note" style={{ width: panelWidth }}>
               {selectedNote?.flag && <h2>Flagged: {selectedNote.flag}</h2>}
+              {selectedUnrouted.length > 0 && <h2>No route for {selectedUnrouted.join(', ')}</h2>}
               <p>{selectedNote?.text ?? 'No note'}</p>
               {selectedNode?.renamedFrom !== undefined && (
                 <p className="renamed">Renamed from {selectedNode.renamedFrom}</p>
