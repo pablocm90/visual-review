@@ -93,7 +93,14 @@ const review = {
 const showEverything = (user: ReturnType<typeof userEvent.setup>) =>
   user.click(screen.getByRole('checkbox', { name: 'Changed + 1 hop' }));
 
-const noteShown = () => screen.getByRole('complementary', { name: 'Note' }).textContent;
+const notePanel = () => screen.getByRole('complementary', { name: 'Note' });
+
+const noteShown = () => within(notePanel()).getAllByRole('paragraph')[0]?.textContent;
+
+const reasonsShown = () =>
+  within(notePanel())
+    .queryAllByRole('heading')
+    .map(heading => heading.textContent);
 
 test('draws every crate and dependency inside the rust stack with its change state, and opens no note panel until one is clicked', async () => {
   const user = userEvent.setup();
@@ -555,6 +562,45 @@ test('clicking a crate or a dependency, or pressing Enter or Space on it, shows 
   expect(noteShown()).toBe('The CLI drives the use case.');
 });
 
+test("a flag's badge says on hover what it is flagged for, and clicking it opens the note of what it marks", async () => {
+  const user = userEvent.setup();
+  render(
+    <ReviewPage
+      review={pageWith(review)}
+      notes={{
+        version: 1,
+        tests: '',
+        summary: [],
+        notes: {
+          'rust/crate/cli-adapter': { text: 'A second way in.', flag: 'new entry point' },
+          'rust/crate/cli-adapter -> rust/crate/application': {
+            text: 'The CLI drives the use case.',
+            flag: 'new dependency direction',
+          },
+        },
+      }}
+    />,
+  );
+
+  await screen.findByRole('group', { name: 'rust' });
+  expect(screen.getByRole('img', { name: 'Flagged: new entry point' })).toBeTruthy();
+  expect(screen.getByRole('img', { name: 'Flagged: new dependency direction' })).toBeTruthy();
+  expect(
+    screen.getByRole('img', { name: 'Flagged: new entry point' }).querySelector('title')
+      ?.textContent,
+  ).toBe('Flagged: new entry point');
+
+  await user.click(screen.getByRole('img', { name: 'Flagged: new dependency direction' }));
+  expect(noteShown()).toBe('The CLI drives the use case.');
+  expect(reasonsShown()).toEqual(['Flagged: new dependency direction']);
+  await user.click(screen.getByRole('img', { name: 'Flagged: new entry point' }));
+  expect(noteShown()).toBe('A second way in.');
+  expect(reasonsShown()).toEqual(['Flagged: new entry point']);
+
+  await user.click(screen.getByRole('button', { name: 'domain: unchanged' }));
+  expect(reasonsShown()).toEqual([]);
+});
+
 test('the summary lists its items and then every flagged note, and an item with a target takes focus to it and shows its note', async () => {
   const user = userEvent.setup();
   render(
@@ -926,6 +972,8 @@ test("web calls to API routes are drawn between the stacks, named by their paths
     'modules/AppInfo: unchanged, no route for /api/app-info',
     'Expand modules/AppInfo',
   ]);
+  await user.click(screen.getByRole('img', { name: 'No route for /api/app-info' }));
+  expect(reasonsShown()).toEqual(['No route for /api/app-info']);
   expect(
     within(screen.getByRole('region', { name: 'Calls with no route' }))
       .getAllByRole('listitem')
@@ -1082,7 +1130,7 @@ test('a renamed node shows the label it had under its own, also once expanded, i
   expect(within(models).getByText('was domain')).not.toBeNull();
 
   await user.click(models);
-  expect(noteShown()).toContain('Renamed from crates/domain');
+  expect(notePanel().textContent).toContain('Renamed from crates/domain');
 
   await user.click(within(rust).getByRole('button', { name: 'Expand models' }));
   const expanded = await within(rust).findByRole('group', { name: 'models' });

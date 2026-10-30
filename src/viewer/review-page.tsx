@@ -95,8 +95,26 @@ const middleOf = (points: PlacedEdge['points']) => {
     : { x: 0, y: 0 };
 };
 
-const FlagBadge = ({ x, y }: { readonly x: number; readonly y: number }) => (
-  <g className="flag-badge" transform={`translate(${x} ${y})`}>
+const flaggedFor = (flag: string) => `Flagged: ${flag}`;
+
+const noRouteFor = (paths: ReadonlyArray<string>) => `No route for ${paths.join(', ')}`;
+
+type FlagBadgeProps = {
+  readonly x: number;
+  readonly y: number;
+  readonly reason: string;
+  readonly onPress?: () => void;
+};
+
+const FlagBadge = ({ x, y, reason, onPress }: FlagBadgeProps) => (
+  <g
+    className="flag-badge"
+    role="img"
+    aria-label={reason}
+    onClick={onPress}
+    transform={`translate(${x} ${y})`}
+  >
+    <title>{reason}</title>
     <circle r={8} />
     <path d="M 0 -4.5 V 1 M 0 3.5 V 4" />
   </g>
@@ -136,6 +154,7 @@ const Toggle = ({ node, expanded, onToggle }: ToggleProps) => (
 const NodeView = ({ node, drawing }: { readonly node: PlacedNode; readonly drawing: Drawing }) => {
   const { notes, onSelect, register, expandable, expanded, onToggle, unroutedOf } = drawing;
   const unrouted = unroutedOf(node.id);
+  const flag = notes[node.id]?.flag;
   const toggle = expandable.has(node.id) && (
     <Toggle node={node} expanded={expanded.has(node.id)} onToggle={onToggle} />
   );
@@ -201,8 +220,10 @@ const NodeView = ({ node, drawing }: { readonly node: PlacedNode; readonly drawi
             </>
           )}
         </text>
-        {notes[node.id]?.flag && <FlagBadge x={node.width} y={0} />}
-        {unrouted.length > 0 && <FlagBadge x={node.width} y={node.height} />}
+        {flag && <FlagBadge x={node.width} y={0} reason={flaggedFor(flag)} />}
+        {unrouted.length > 0 && (
+          <FlagBadge x={node.width} y={node.height} reason={noRouteFor(unrouted)} />
+        )}
       </g>
       {toggle}
     </>
@@ -231,7 +252,13 @@ const EdgeView = ({ edge, name, drawing }: EdgeViewProps) => {
         d={edgePath(edge.points)}
         markerEnd={`url(#arrow-${edge.state})`}
       />
-      {note?.flag && <FlagBadge {...middleOf(edge.points)} />}
+      {note?.flag && (
+        <FlagBadge
+          {...middleOf(edge.points)}
+          reason={flaggedFor(note.flag)}
+          onPress={() => onSelect(id)}
+        />
+      )}
     </>
   );
 };
@@ -535,6 +562,8 @@ export const ReviewPage = ({ review, notes }: ReviewPageProps) => {
       dangling.filter(call => visibleOf(call.from) === id).map(call => call.path),
   };
   const selectedNode = review.diff.nodes.find(node => node.id === selected);
+  const selectedNote = selected === undefined ? undefined : shown[selected];
+  const selectedUnrouted = selected === undefined ? [] : drawing.unroutedOf(selected);
   const patches = selectedNode
     ? review.patches.filter(({ path }) => isAtOrUnder(path, selectedNode))
     : [];
@@ -830,7 +859,9 @@ export const ReviewPage = ({ review, notes }: ReviewPageProps) => {
               onPointerDown={dragDivider}
             />
             <aside className="note" aria-label="Note" style={{ width: panelWidth }}>
-              <p>{shown[selected]?.text ?? 'No note'}</p>
+              {selectedNote?.flag && <h2>{flaggedFor(selectedNote.flag)}</h2>}
+              {selectedUnrouted.length > 0 && <h2>{noRouteFor(selectedUnrouted)}</h2>}
+              <p>{selectedNote?.text ?? 'No note'}</p>
               {selectedNode?.renamedFrom !== undefined && (
                 <p className="renamed">Renamed from {selectedNode.renamedFrom}</p>
               )}
