@@ -2,8 +2,8 @@ import { existsSync, globSync } from 'node:fs';
 import { basename, dirname, join } from 'node:path';
 import type { Reader } from '../../core/reader.ts';
 import { sourcesIn } from '../sources-in.ts';
-import { readMinitestTests } from './minitest-tests.ts';
 import { railsGraph } from './rails-graph.ts';
+import { readRubyTests } from './ruby-tests.ts';
 
 const APPLICATION = 'config/application.rb';
 
@@ -29,5 +29,5 @@ export const railsReader: Reader = {
   graph: async ({ directory, root, stack }) =>
     railsGraph({ stack, root, files: await sourcesIn(join(directory, root), RUBY_FILES) }),
   isTestFile: path => TEST_FILE.test(path),
-  readTests: readMinitestTests,
+  readTests: readRubyTests,
 };

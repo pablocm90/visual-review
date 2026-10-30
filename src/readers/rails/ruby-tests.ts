@@ -33,7 +33,7 @@ const statementsIn = (node: Node, scope: ReadonlyArray<string>): ReadonlyArray<R
     return [{ kind: 'heading', name: titleOf(child), children }];
   });
 
-export const readMinitestTests = (text: string): ReadonlyArray<ReadTest> => {
+export const readRubyTests = (text: string): ReadonlyArray<ReadTest> => {
   const program = parseRuby(text);
   return program === undefined ? [] : statementsIn(program, []);
 };
