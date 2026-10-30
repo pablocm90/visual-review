@@ -33,11 +33,21 @@ const highest = (measures: ReadonlyArray<NodeMeasures | undefined>): NodeMeasure
   return churns.length === 0 ? undefined : { churn: Math.max(...churns) };
 };
 
-export const nodeMetrics = ({
+export type MeasuredNode = {
+  readonly id: string;
+  readonly basePath: string | undefined;
+  readonly headPath: string;
+};
+
+type MeasuredNodesOptions = {
+  readonly diff: GraphDiff;
+  readonly before: Graph;
+};
+
+export const measuredNodes = ({
   diff,
   before,
-  churn,
-}: NodeMetricsOptions): Readonly<Record<string, NodeMetrics>> => {
+}: MeasuredNodesOptions): ReadonlyArray<MeasuredNode> => {
   const changed = new Set(
     diff.nodes.filter(node => node.state !== 'unchanged').map(node => node.id),
   );
@@ -48,15 +58,27 @@ export const nodeMetrics = ({
       .flatMap(({ from, to }) => [from, to]),
   ]);
   const basePath = new Map(before.nodes.map(({ id, path }) => [id, path]));
+  return diff.nodes
+    .filter(node => measured.has(node.id))
+    .map(node => ({
+      id: node.id,
+      basePath: node.renamedFrom ?? basePath.get(node.id),
+      headPath: node.path,
+    }));
+};
+
+export const nodeMetrics = ({
+  diff,
+  before,
+  churn,
+}: NodeMetricsOptions): Readonly<Record<string, NodeMetrics>> => {
   const leaves: Readonly<Record<string, NodeMetrics>> = Object.fromEntries(
-    diff.nodes
-      .filter(node => measured.has(node.id))
-      .flatMap(node => {
-        const base = measuresAt(churn.before, node.renamedFrom ?? basePath.get(node.id));
-        const head = measuresAt(churn.after, node.path);
-        if (base === undefined && head === undefined) return [];
-        return [[node.id, sides(base, head)]];
-      }),
+    measuredNodes({ diff, before }).flatMap(({ id, basePath, headPath }) => {
+      const base = measuresAt(churn.before, basePath);
+      const head = measuresAt(churn.after, headPath);
+      if (base === undefined && head === undefined) return [];
+      return [[id, sides(base, head)]];
+    }),
   );
   const parentOf = new Map(diff.nodes.map(({ id, parent }) => [id, parent]));
   const isInside = (id: string, box: string): boolean => {
