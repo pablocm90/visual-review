@@ -555,7 +555,8 @@ test('clicking a crate or a dependency, or pressing Enter or Space on it, shows 
   expect(noteShown()).toBe('The CLI drives the use case.');
 });
 
-test("a flag's badge says on hover what it is flagged for", async () => {
+test("a flag's badge says on hover what it is flagged for, and clicking it opens the note of what it marks", async () => {
+  const user = userEvent.setup();
   render(
     <ReviewPage
       review={pageWith(review)}
@@ -577,6 +578,11 @@ test("a flag's badge says on hover what it is flagged for", async () => {
   await screen.findByRole('group', { name: 'rust' });
   expect(screen.getByRole('img', { name: 'Flagged: new entry point' })).toBeTruthy();
   expect(screen.getByRole('img', { name: 'Flagged: new dependency direction' })).toBeTruthy();
+
+  await user.click(screen.getByRole('img', { name: 'Flagged: new dependency direction' }));
+  expect(noteShown()).toBe('The CLI drives the use case.');
+  await user.click(screen.getByRole('img', { name: 'Flagged: new entry point' }));
+  expect(noteShown()).toBe('A second way in.');
 });
 
 test('the summary lists its items and then every flagged note, and an item with a target takes focus to it and shows its note', async () => {

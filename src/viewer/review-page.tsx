@@ -95,10 +95,21 @@ const middleOf = (points: PlacedEdge['points']) => {
     : { x: 0, y: 0 };
 };
 
-type FlagBadgeProps = { readonly x: number; readonly y: number; readonly reason: string };
+type FlagBadgeProps = {
+  readonly x: number;
+  readonly y: number;
+  readonly reason: string;
+  readonly onPress?: () => void;
+};
 
-const FlagBadge = ({ x, y, reason }: FlagBadgeProps) => (
-  <g className="flag-badge" role="img" aria-label={reason} transform={`translate(${x} ${y})`}>
+const FlagBadge = ({ x, y, reason, onPress }: FlagBadgeProps) => (
+  <g
+    className="flag-badge"
+    role="img"
+    aria-label={reason}
+    onClick={onPress}
+    transform={`translate(${x} ${y})`}
+  >
     <title>{reason}</title>
     <circle r={8} />
     <path d="M 0 -4.5 V 1 M 0 3.5 V 4" />
@@ -241,7 +252,13 @@ const EdgeView = ({ edge, name, drawing }: EdgeViewProps) => {
         d={edgePath(edge.points)}
         markerEnd={`url(#arrow-${edge.state})`}
       />
-      {note?.flag && <FlagBadge {...middleOf(edge.points)} reason={`Flagged: ${note.flag}`} />}
+      {note?.flag && (
+        <FlagBadge
+          {...middleOf(edge.points)}
+          reason={`Flagged: ${note.flag}`}
+          onPress={() => onSelect(id)}
+        />
+      )}
     </>
   );
 };
