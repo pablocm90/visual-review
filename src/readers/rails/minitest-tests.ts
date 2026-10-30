@@ -2,21 +2,22 @@ import type { Node } from 'web-tree-sitter';
 import type { ReadTest } from '../../core/test-changes.ts';
 import { parseRuby } from './ruby-syntax.ts';
 
-const testIn = (node: Node): ReadonlyArray<ReadTest> => {
-  if (node.childForFieldName('method')?.text !== 'test') return [];
-  const [name] = node.childForFieldName('arguments')?.namedChildren ?? [];
-  return [{ kind: 'test', name: (name?.text ?? '').slice(1, -1), source: node.text }];
-};
+const statementsIn = (node: Node, scope: ReadonlyArray<string>): ReadonlyArray<ReadTest> =>
+  node.namedChildren.flatMap<ReadTest>(child => {
+    const name = child.childForFieldName('name')?.text ?? '';
+    const body = child.childForFieldName('body');
+    if (child.type === 'module') return body === null ? [] : statementsIn(body, [...scope, name]);
+    if (child.type === 'class') {
+      const children = body === null ? [] : statementsIn(body, []);
+      if (children.length === 0) return [];
+      return [{ kind: 'heading', name: [...scope, name].join('::'), children }];
+    }
+    if (child.childForFieldName('method')?.text !== 'test') return statementsIn(child, scope);
+    const [title] = child.childForFieldName('arguments')?.namedChildren ?? [];
+    return [{ kind: 'test', name: (title?.text ?? '').slice(1, -1), source: child.text }];
+  });
 
-export const readMinitestTests = (text: string): ReadonlyArray<ReadTest> =>
-  (parseRuby(text)?.namedChildren ?? []).flatMap<ReadTest>(node =>
-    node.type === 'class'
-      ? [
-          {
-            kind: 'heading',
-            name: node.childForFieldName('name')?.text ?? '',
-            children: (node.childForFieldName('body')?.namedChildren ?? []).flatMap(testIn),
-          },
-        ]
-      : [],
-  );
+export const readMinitestTests = (text: string): ReadonlyArray<ReadTest> => {
+  const program = parseRuby(text);
+  return program === undefined ? [] : statementsIn(program, []);
+};

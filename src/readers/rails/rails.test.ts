@@ -536,3 +536,62 @@ test("a Minitest file is read only under a test/ folder of a Rails app's root", 
 
   expect(range.tests.map(({ path }) => path)).toEqual(['apps/shop/test/models/order_test.rb']);
 });
+
+const added = (name: string) => ({ kind: 'test', name, change: 'added' });
+
+test.for([
+  {
+    reason: 'a class in a module, by its constant',
+    file: 'module Admin\n  class UsersControllerTest\n    test "lists users" do\n    end\n  end\nend\n',
+    statements: [
+      { kind: 'heading', name: 'Admin::UsersControllerTest', children: [added('lists users')] },
+    ],
+  },
+  {
+    reason: 'a compact class line, by its constant',
+    file: 'class Admin::UsersControllerTest\n  test "lists users" do\n  end\nend\n',
+    statements: [
+      { kind: 'heading', name: 'Admin::UsersControllerTest', children: [added('lists users')] },
+    ],
+  },
+  {
+    reason: 'a class in a class, inside its heading',
+    file: 'class OrderTest\n  class RefundTest\n    test "refunds" do\n    end\n  end\n\n  test "ships" do\n  end\nend\n',
+    statements: [
+      {
+        kind: 'heading',
+        name: 'OrderTest',
+        children: [
+          { kind: 'heading', name: 'RefundTest', children: [added('refunds')] },
+          added('ships'),
+        ],
+      },
+    ],
+  },
+  {
+    reason: 'two classes, one heading each',
+    file: 'class OrderTest\n  test "ships" do\n  end\nend\n\nclass RefundTest\n  test "refunds" do\n  end\nend\n',
+    statements: [
+      { kind: 'heading', name: 'OrderTest', children: [added('ships')] },
+      { kind: 'heading', name: 'RefundTest', children: [added('refunds')] },
+    ],
+  },
+  {
+    reason: 'no heading for a class holding no test',
+    file: 'class FakeClient\n  def call = nil\nend\n\nclass OrderTest\n  test "ships" do\n  end\nend\n',
+    statements: [{ kind: 'heading', name: 'OrderTest', children: [added('ships')] }],
+  },
+  {
+    reason: 'a test in a loop, once, named as written',
+    file: 'class OrderTest\n  %i[paid sent].each do |state|\n    test "#{state} works" do\n    end\n  end\nend\n',
+    statements: [{ kind: 'heading', name: 'OrderTest', children: [added('#{state} works')] }],
+  },
+])('a Minitest file reads $reason', async ({ file, statements }) => {
+  using workspace = gitRepo(railsApp);
+  const { repo, root } = workspace;
+  const to = commit(repo, { 'test/models/order_test.rb': file });
+
+  const range = await readRange({ repo, from: root, to });
+
+  expect(range.tests).toEqual([{ path: 'test/models/order_test.rb', statements }]);
+});
