@@ -11,7 +11,7 @@ const NOT_SEARCHED = new Set(['vendor', 'node_modules', 'test', 'spec']);
 
 const RUBY_FILES = ['app/*/**/*.rb', 'lib/**/*.rb'];
 
-const MINITEST_FILE = /(^|\/)test\/.+_test\.rb$/;
+const TEST_FILE = /(^|\/)(test\/.+_test|spec\/.+_spec)\.rb$/;
 
 const rootsIn = (directory: string): ReadonlyArray<string> =>
   globSync(`**/${APPLICATION}`, {
@@ -28,6 +28,6 @@ export const railsReader: Reader = {
   holds: ({ directory, root }) => existsSync(join(directory, root, APPLICATION)),
   graph: async ({ directory, root, stack }) =>
     railsGraph({ stack, root, files: await sourcesIn(join(directory, root), RUBY_FILES) }),
-  isTestFile: path => MINITEST_FILE.test(path),
+  isTestFile: path => TEST_FILE.test(path),
   readTests: readMinitestTests,
 };

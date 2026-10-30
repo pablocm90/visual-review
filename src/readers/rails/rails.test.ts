@@ -520,21 +520,71 @@ test('a changed Minitest file lists its tests under their class, added, edited o
   ]);
 });
 
-test("a Minitest file is read only under a test/ folder of a Rails app's root", async () => {
+test('a changed RSpec file lists its tests under their describe and context, added, edited or unchanged', async () => {
+  const orderSpec = (examples: string) =>
+    `require "rails_helper"\n\nRSpec.describe Order do\n  let(:order) { create(:order) }\n\n  context "when paid" do\n${examples}  end\nend\n`;
+  using workspace = gitRepo({
+    ...railsApp,
+    'spec/models/order_spec.rb': orderSpec(
+      '    it "ships" do\n      expect(order).to be_shipped\n    end\n\n    it "totals its lines" do\n      expect(order.total).to eq(3)\n    end\n',
+    ),
+  });
+  const { repo, root } = workspace;
+  const to = commit(repo, {
+    'spec/models/order_spec.rb': orderSpec(
+      '    it "ships" do\n      expect(order).to be_shipped\n    end\n\n    it "totals its lines" do\n      expect(order.total).to eq(4)\n    end\n\n    it "refunds" do\n      expect(order).to be_refunded\n    end\n',
+    ),
+  });
+
+  const range = await readRange({ repo, from: root, to });
+
+  expect(range.tests).toEqual([
+    {
+      path: 'spec/models/order_spec.rb',
+      statements: [
+        {
+          kind: 'heading',
+          name: 'Order',
+          children: [
+            {
+              kind: 'heading',
+              name: 'when paid',
+              children: [
+                { kind: 'test', name: 'ships', change: 'unchanged' },
+                { kind: 'test', name: 'totals its lines', change: 'edited' },
+                { kind: 'test', name: 'refunds', change: 'added' },
+              ],
+            },
+          ],
+        },
+      ],
+    },
+  ]);
+});
+
+test("a Minitest or RSpec file is read only under a test/ or spec/ folder of a Rails app's root", async () => {
   using workspace = gitRepo({
     'apps/shop/config/application.rb': railsApp['config/application.rb'],
   });
   const { repo, root } = workspace;
   const minitest = 'class SomeTest\n  test "works" do\n  end\nend\n';
+  const rspec = 'describe Some do\n  it "works" do\n  end\nend\n';
   const to = commit(repo, {
     'apps/shop/test/models/order_test.rb': minitest,
     'apps/shop/lib/contest/money_test.rb': minitest,
     'tools/test/x_test.rb': minitest,
+    'apps/shop/spec/models/order_spec.rb': rspec,
+    'apps/shop/spec/support/order_examples.rb': rspec,
+    'apps/shop/lib/inspec/money_spec.rb': rspec,
+    'tools/spec/x_spec.rb': rspec,
   });
 
   const range = await readRange({ repo, from: root, to });
 
-  expect(range.tests.map(({ path }) => path)).toEqual(['apps/shop/test/models/order_test.rb']);
+  expect(range.tests.map(({ path }) => path)).toEqual([
+    'apps/shop/spec/models/order_spec.rb',
+    'apps/shop/test/models/order_test.rb',
+  ]);
 });
 
 const added = (name: string) => ({ kind: 'test', name, change: 'added' });
