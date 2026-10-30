@@ -1,10 +1,6 @@
 import type { Node } from 'web-tree-sitter';
 import type { ReadTest } from '../../core/test-changes.ts';
-import { attributeOf, isCfgTest, itemsIn, parseRust } from './rust-syntax.ts';
-
-const pathOf = (item: Node) => attributeOf(item)?.namedChildren[0]?.text;
-
-const isTestAttribute = (item: Node): boolean => pathOf(item)?.split('::').at(-1) === 'test';
+import { isCfgTest, isTestAttribute, itemsIn, parseRust, pathOf } from './rust-syntax.ts';
 
 const isIgnore = (item: Node): boolean => pathOf(item) === 'ignore';
 

@@ -1,6 +1,6 @@
 import type { Node } from 'web-tree-sitter';
 import type { FileMeasures, FunctionMeasures } from '../../core/reader.ts';
-import { parseRust } from './rust-syntax.ts';
+import { isTestCode, parseRust } from './rust-syntax.ts';
 
 const isComment = (node: Node): boolean => node.type.endsWith('_comment');
 
@@ -41,6 +41,9 @@ export const measureRust = (text: string): FileMeasures => {
   if (root === undefined) return { lines: 0, functions: [] };
   return {
     lines: new Set(codeRows(root)).size,
-    functions: root.descendantsOfType('function_item').map(measureFunction),
+    functions: root
+      .descendantsOfType('function_item')
+      .filter(item => !isTestCode(item))
+      .map(measureFunction),
   };
 };

@@ -39,8 +39,23 @@ test('every fn with a body is a function, free, in an impl, a trait default or n
   ]);
 });
 
-const cyclomaticOf = (body: string) =>
-  measureRust(`fn f() { ${body} }`).functions[0]?.cyclomatic;
+test('test fns and the items of a cfg(test) module are not measured as functions', () => {
+  const text = source(
+    'fn kept() {}',
+    '#[test]',
+    '#[ignore]',
+    'fn checks() {}',
+    '#[tokio::test]',
+    'async fn awaits() {}',
+    '#[cfg(test)]',
+    'mod tests { fn helper() {} }',
+    'fn also_kept() {}',
+  );
+
+  expect(measureRust(text).functions.map(({ name }) => name)).toEqual(['kept', 'also_kept']);
+});
+
+const cyclomaticOf = (body: string) => measureRust(`fn f() { ${body} }`).functions[0]?.cyclomatic;
 
 test.for([
   { body: 'if a {}', cyclomatic: 2 },
