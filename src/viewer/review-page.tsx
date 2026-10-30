@@ -30,7 +30,7 @@ import {
   type PlacedNode,
   type PlacedStack,
 } from './layout.ts';
-import { fitted, frameHeight } from './view.ts';
+import { fitted, frameHeight, type View, zoomed } from './view.ts';
 
 const STATES = ['added', 'removed', 'modified', 'unchanged'] as const;
 
@@ -273,6 +273,32 @@ const Summary = ({ notes, onGoTo }: SummaryProps) => {
   );
 };
 
+const ZOOM_STEP = 1.25;
+
+type ZoomProps = {
+  readonly scale: number;
+  readonly onZoom: (scale: number) => void;
+  readonly onFit: () => void;
+};
+
+const Zoom = ({ scale, onZoom, onFit }: ZoomProps) => (
+  <div className="zoom" role="toolbar" aria-label="View">
+    <button type="button" aria-label="Zoom out" onClick={() => onZoom(scale / ZOOM_STEP)}>
+      −
+    </button>
+    <output aria-label="Zoom">{Math.round(scale * 100)}%</output>
+    <button type="button" aria-label="Zoom in" onClick={() => onZoom(scale * ZOOM_STEP)}>
+      +
+    </button>
+    <button type="button" onClick={onFit}>
+      Fit
+    </button>
+    <button type="button" onClick={() => onZoom(1)}>
+      100%
+    </button>
+  </div>
+);
+
 const isFullSha = (ref: string) => /^[0-9a-f]{40}$/.test(ref);
 
 const shortRef = (ref: string) => (isFullSha(ref) ? ref.slice(0, 7) : ref);
@@ -511,7 +537,9 @@ export const ReviewPage = ({ review, notes }: ReviewPageProps) => {
           height: frameHeight({ graph: layout, frameWidth, windowHeight: window.innerHeight }),
         }
       : undefined;
-  const view = layout && frame ? fitted({ graph: layout, frame }) : undefined;
+  const [chosen, setChosen] = useState<{ readonly view: View; readonly of: Layout }>();
+  const view =
+    chosen?.of === layout ? chosen?.view : layout && frame && fitted({ graph: layout, frame });
   useEffect(() => {
     layoutDiff(drawn).then(setLayout);
   }, [drawn]);
@@ -575,11 +603,24 @@ export const ReviewPage = ({ review, notes }: ReviewPageProps) => {
               ref={observeFrame}
               style={{ height: frame?.height }}
             >
-              {view && (
+              {frame && view && (
                 <>
-                  <div className="zoom">
-                    <output aria-label="Zoom">{view.scale * 100}%</output>
-                  </div>
+                  <Zoom
+                    scale={view.scale}
+                    onZoom={scale =>
+                      setChosen({
+                        of: layout,
+                        view: zoomed({
+                          graph: layout,
+                          frame,
+                          view,
+                          scale,
+                          at: { x: frame.width / 2, y: frame.height / 2 },
+                        }),
+                      })
+                    }
+                    onFit={() => setChosen(undefined)}
+                  />
                   <svg className="graph">
                     <title>{`Structure ${shortRange(review.range)}`}</title>
                     <defs>

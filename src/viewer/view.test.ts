@@ -1,5 +1,5 @@
 import { expect, test } from 'vitest';
-import { fitted, frameHeight } from './view.ts';
+import { fitted, frameHeight, zoomed } from './view.ts';
 
 test.for([
   {
@@ -39,4 +39,47 @@ test.for([
   },
 ])('the frame for a graph $graphIs', ({ graph, height }) => {
   expect(frameHeight({ graph, frameWidth: 1000, windowHeight: 700 })).toBe(height);
+});
+
+const big = { graph: { width: 2000, height: 2000 }, frame: { width: 1000, height: 1000 } };
+
+test.for([
+  {
+    zoomIs: 'keeps the graph point under the pointer where it was',
+    scale: 2,
+    at: { x: 100, y: 200 },
+    view: { scale: 2, x: -1100, y: -1200 },
+  },
+  {
+    zoomIs: 'stops at 400%',
+    scale: 10,
+    at: { x: 500, y: 500 },
+    view: { scale: 4, x: -3500, y: -3500 },
+  },
+  {
+    zoomIs: 'stops at the scale that fits the graph',
+    scale: 0.1,
+    at: { x: 500, y: 500 },
+    view: { scale: 0.5, x: 0, y: 0 },
+  },
+  {
+    zoomIs: 'shows no space past the edge of a graph bigger than the frame',
+    scale: 0.6,
+    at: { x: 1000, y: 1000 },
+    view: { scale: 0.6, x: 0, y: 0 },
+  },
+])('zooming $zoomIs', ({ scale, at, view }) => {
+  expect(zoomed({ ...big, view: { scale: 1, x: -500, y: -500 }, scale, at })).toEqual(view);
+});
+
+test('zooming centres a graph smaller than the frame on that axis', () => {
+  expect(
+    zoomed({
+      graph: { width: 2000, height: 400 },
+      frame: { width: 1000, height: 600 },
+      view: { scale: 0.5, x: 0, y: 200 },
+      scale: 1,
+      at: { x: 0, y: 0 },
+    }),
+  ).toEqual({ scale: 1, x: 0, y: 100 });
 });

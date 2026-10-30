@@ -152,6 +152,29 @@ test.for([
   },
 );
 
+test('the toolbar zooms the graph by steps of 1.25, to 100% about the frame centre and back to fitted, and a relayout refits', async () => {
+  const user = userEvent.setup();
+  const graph = await layoutDiff(review.diff);
+  renderInFrame(pageWith(review), { width: graph.width / 2, windowHeight: 10_000 });
+  const rust = await screen.findByRole('group', { name: 'rust' });
+  const press = (name: string) => user.click(screen.getByRole('button', { name }));
+
+  await press('Zoom in');
+  expect(zoomShown()).toBe('63%');
+  await press('Zoom out');
+  expect(zoomShown()).toBe('50%');
+  await press('100%');
+  expect(zoomShown()).toBe('100%');
+  expect(viewOf(rust)).toBe(`translate(${-graph.width / 4} ${-graph.height / 4}) scale(1)`);
+  await press('Fit');
+  expect(zoomShown()).toBe('50%');
+  expect(viewOf(rust)).toBe('translate(0 0) scale(0.5)');
+
+  await press('Zoom in');
+  await showEverything(user);
+  expect(zoomShown()).toBe('50%');
+});
+
 test("a PR's page names the PR above its range, as a link to it", async () => {
   render(
     <ReviewPage

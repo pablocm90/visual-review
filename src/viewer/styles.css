@@ -183,12 +183,35 @@ h1 code {
   position: absolute;
   top: 8px;
   right: 8px;
-  padding: 2px 8px;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 2px;
   border: 1px solid var(--stack-line);
   border-radius: 6px;
   background: var(--stack);
   color: var(--muted);
+}
+
+.zoom output {
+  min-width: 4.5ch;
+  text-align: center;
   font-variant-numeric: tabular-nums;
+}
+
+.zoom button {
+  min-width: 28px;
+  padding: 2px 6px;
+  border: none;
+  border-radius: 4px;
+  background: none;
+  color: var(--ink);
+  font: inherit;
+  cursor: pointer;
+}
+
+.zoom button:hover {
+  background: var(--unchanged-fill);
 }
 
 .stack {
