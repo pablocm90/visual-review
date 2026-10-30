@@ -220,6 +220,21 @@ test('dragging from a node pans the graph and selects nothing, even back near wh
   screen.getByRole('button', { name: 'Zoom in' }).focus();
   await user.keyboard('{Enter}');
   expect(zoomShown()).toBe('125%');
+  const panned = viewOf(rust);
+
+  for (const button of ['MouseRight', 'MouseMiddle']) {
+    await user.pointer([
+      { keys: `[${button}>]`, target: domain, coords: { clientX: 100, clientY: 100 } },
+      { coords: { clientX: 140, clientY: 130 } },
+      { keys: `[/${button}]` },
+    ]);
+    expect(viewOf(rust)).toBe(panned);
+  }
+
+  fireEvent.pointerDown(domain, { button: 0, clientX: 100, clientY: 100 });
+  fireEvent.pointerCancel(window);
+  fireEvent.pointerMove(window, { clientX: 140, clientY: 130 });
+  expect(viewOf(rust)).toBe(panned);
 });
 
 test('the wheel pans the graph, and with Ctrl or ⌘ zooms it at the pointer, never scrolling the page', async () => {

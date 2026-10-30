@@ -595,15 +595,17 @@ export const ReviewPage = ({ review, notes }: ReviewPageProps) => {
   const dragged = useRef(false);
   const pan = (down: PointerEvent<HTMLDivElement>) => {
     dragged.current = false;
+    if (down.button !== 0) return;
     const follow = (move: globalThis.PointerEvent) => {
       const by = { x: move.clientX - down.clientX, y: move.clientY - down.clientY };
       dragged.current ||= Math.hypot(by.x, by.y) >= LEAST_DRAG;
       if (dragged.current) choose(on => panned({ ...on, by }));
     };
-    window.addEventListener('pointermove', follow);
-    window.addEventListener('pointerup', () => window.removeEventListener('pointermove', follow), {
-      once: true,
-    });
+    const released = new AbortController();
+    const release = () => released.abort();
+    window.addEventListener('pointermove', follow, { signal: released.signal });
+    window.addEventListener('pointerup', release, { signal: released.signal });
+    window.addEventListener('pointercancel', release, { signal: released.signal });
   };
   const zoomAtCentre = (scale: number) =>
     choose(on => zoomed({ ...on, scale, at: { x: on.frame.width / 2, y: on.frame.height / 2 } }));
