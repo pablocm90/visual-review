@@ -30,6 +30,8 @@ const attributesOf = (item: Node): ReadonlyArray<Node> => {
   return previous?.type === 'attribute_item' ? [...attributesOf(previous), previous] : [];
 };
 
+export const isTestItem = (node: Node): boolean =>
+  attributesOf(node).some(attribute => isTestAttribute(attribute) || isCfgTest(attribute));
+
 export const isTestCode = (node: Node): boolean =>
-  attributesOf(node).some(attribute => isTestAttribute(attribute) || isCfgTest(attribute)) ||
-  (node.parent !== null && isTestCode(node.parent));
+  isTestItem(node) || (node.parent !== null && isTestCode(node.parent));

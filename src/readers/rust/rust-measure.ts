@@ -1,11 +1,15 @@
 import type { Node } from 'web-tree-sitter';
 import type { FileMeasures, FunctionMeasures } from '../../core/reader.ts';
-import { isTestCode, parseRust } from './rust-syntax.ts';
+import { isTestCode, isTestItem, parseRust } from './rust-syntax.ts';
 
 const isComment = (node: Node): boolean => node.type.endsWith('_comment');
 
+const isTestPart = (node: Node | null): boolean =>
+  node !== null &&
+  (isTestItem(node) || (node.type === 'attribute_item' && isTestPart(node.nextNamedSibling)));
+
 const codeRows = (node: Node): ReadonlyArray<number> => {
-  if (isComment(node)) return [];
+  if (isComment(node) || isTestPart(node)) return [];
   if (node.childCount > 0) return node.children.flatMap(codeRows);
   const { startPosition, endPosition } = node;
   return Array.from(

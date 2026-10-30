@@ -20,6 +20,23 @@ test("a Rust file's lines are those holding code, not blank or comment ones", ()
   expect(measureRust(text).lines).toBe(5);
 });
 
+test("a test fn's and a cfg(test) module's lines, attributes included, are not counted", () => {
+  const text = source(
+    'fn kept() {}',
+    '#[test]',
+    '#[ignore]',
+    'fn checks() {}',
+    '#[cfg(test)]',
+    'mod tests {',
+    '    fn helper() {}',
+    '}',
+    '#[derive(Debug)]',
+    'struct Kept;',
+  );
+
+  expect(measureRust(text).lines).toBe(3);
+});
+
 const noAbc = { assignments: 0, branches: 0, conditions: 0 };
 
 test('every fn with a body is a function, free, in an impl, a trait default or nested, and a straight one has cyclomatic 1', () => {
