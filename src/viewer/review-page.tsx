@@ -492,7 +492,7 @@ export const ReviewPage = ({ review, notes }: ReviewPageProps) => {
     [review, notes, expanded],
   );
   const toggle = (id: string) => {
-    if (layout && view) setChosen({ of: layout, view, pin: id });
+    if (placed) setChosen({ of: placed.graph, view: placed.view, pin: id });
     setExpanded(current =>
       current.has(id)
         ? new Set([...current].filter(other => other !== id))
@@ -571,30 +571,28 @@ export const ReviewPage = ({ review, notes }: ReviewPageProps) => {
       : undefined;
   const [chosen, setChosen] = useState<Chosen>();
   const view = layout && frame && viewOn({ layout, frame, chosen });
+  const placed = layout && frame && view && { graph: layout, frame, view };
+  const choose = (next: (on: NonNullable<typeof placed>) => View) => {
+    if (placed) setChosen({ of: placed.graph, view: next(placed) });
+  };
   const dragged = useRef(false);
   const pan = (down: PointerEvent<HTMLDivElement>) => {
     dragged.current = false;
-    if (!layout || !frame || !view) return;
     const follow = (move: globalThis.PointerEvent) => {
       const by = { x: move.clientX - down.clientX, y: move.clientY - down.clientY };
       dragged.current ||= Math.hypot(by.x, by.y) >= LEAST_DRAG;
-      if (dragged.current)
-        setChosen({ of: layout, view: panned({ graph: layout, frame, view, by }) });
+      if (dragged.current) choose(on => panned({ ...on, by }));
     };
     window.addEventListener('pointermove', follow);
     window.addEventListener('pointerup', () => window.removeEventListener('pointermove', follow), {
       once: true,
     });
   };
-  const zoomAtCentre = (scale: number) => {
-    if (!layout || !frame || !view) return;
-    const at = { x: frame.width / 2, y: frame.height / 2 };
-    setChosen({ of: layout, view: zoomed({ graph: layout, frame, view, scale, at }) });
-  };
+  const zoomAtCentre = (scale: number) =>
+    choose(on => zoomed({ ...on, scale, at: { x: on.frame.width / 2, y: on.frame.height / 2 } }));
   const keyed = (event: KeyboardEvent) => {
-    if (!layout || !frame || !view) return;
-    const panBy = (x: number, y: number) => () =>
-      setChosen({ of: layout, view: panned({ graph: layout, frame, view, by: { x, y } }) });
+    if (!view) return;
+    const panBy = (x: number, y: number) => () => choose(on => panned({ ...on, by: { x, y } }));
     const act = {
       '+': () => zoomAtCentre(view.scale * ZOOM_STEP),
       '=': () => zoomAtCentre(view.scale * ZOOM_STEP),
@@ -611,20 +609,16 @@ export const ReviewPage = ({ review, notes }: ReviewPageProps) => {
     act();
   };
   const wheel = useEffectEvent((event: WheelEvent) => {
-    if (!layout || !frame || !view || !frameElement) return;
+    if (!frameElement) return;
     event.preventDefault();
     const bounds = frameElement.getBoundingClientRect();
     const at = { x: event.clientX - bounds.left, y: event.clientY - bounds.top };
-    const scale = view.scale * 2 ** (-event.deltaY / WHEEL_PER_DOUBLING);
     const by = { x: -event.deltaX, y: -event.deltaY };
-    const placed = { graph: layout, frame, view };
-    setChosen({
-      of: layout,
-      view:
-        event.ctrlKey || event.metaKey
-          ? zoomed({ ...placed, scale, at })
-          : panned({ ...placed, by }),
-    });
+    choose(on =>
+      event.ctrlKey || event.metaKey
+        ? zoomed({ ...on, scale: on.view.scale * 2 ** (-event.deltaY / WHEEL_PER_DOUBLING), at })
+        : panned({ ...on, by }),
+    );
   });
   useEffect(() => {
     if (!frameElement) return;
