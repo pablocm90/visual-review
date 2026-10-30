@@ -2,9 +2,15 @@
 
 What changed in each release of `@pablocm90/visual-review`, newest first. Versions follow [semver](https://semver.org); while it is 0.x, a minor version may change the exported types.
 
-## Unreleased
+## 0.3.0 — 2026-10-30
 
-- The page's graph zooms and pans inside a frame of its own: drag, wheel, Ctrl/⌘ + wheel or pinch, a toolbar and keys. It opens fitted, keeps a toggled box in place, and going to a part centres it readable.
+### Added
+
+- **Zoom and pan.** The page's graph sits in a frame of its own and opens fitted, never above 100%. Drag or the wheel pans it, and at its edge the wheel scrolls the page; Ctrl/⌘ + wheel or a trackpad pinch zooms at the pointer, up to 400%. A toolbar (− / + / Fit / 100%) and, with the frame focused, `+`, `−`, `0`, `1` and the arrow keys do the same.
+- Opening or closing a box keeps the zoom and keeps that box where it was on screen. Going to a part from the summary or a note centres it at 100%, or fits it when it is bigger.
+
+### Changed
+
 - The README lists what each language reads out of the box and walks through the page. CONTRIBUTING.md and SECURITY.md are new.
 
 ## 0.2.0 — 2026-10-30
