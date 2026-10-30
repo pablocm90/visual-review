@@ -157,12 +157,11 @@ const churnAt = async ({
   const touched = (
     await git(repo, 'log', '-z', '--format=', '--name-only', since, revision, '--')
   ).split('\0');
+  const commits = Map.groupBy(touched, path => path);
   const paths = graph.nodes.map(({ path }) => path);
   const areFiles = await Promise.all(paths.map(path => isFile(join(directory, path))));
   const files = paths.filter((_, index) => areFiles[index]);
-  return Object.fromEntries(
-    files.map(path => [path, touched.filter(each => each === path).length]),
-  );
+  return Object.fromEntries(files.map(path => [path, commits.get(path)?.length ?? 0]));
 };
 
 const resolve = (repo: string, revision: string): Promise<string> =>
