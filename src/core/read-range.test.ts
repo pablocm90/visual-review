@@ -447,6 +447,17 @@ test('a range ending at a branch named like a folder reads its churn', async () 
   expect(range.churn.after).toEqual({ 'src/a.ts': 3 });
 });
 
+test('churn counts a file whose path git would quote', async () => {
+  using repository = gitRepo({ 'package.json': '{}\n', 'src/café.ts': '' });
+  const { repo } = repository;
+  const base = commit(repo, { 'src/café.ts': '1' });
+  const head = commit(repo, { 'src/café.ts': '2' });
+
+  const range = await readRange({ repo, from: base, to: head });
+
+  expect(range.churn.after).toEqual({ 'src/café.ts': 3 });
+});
+
 test('churn reads a history whose touched paths run past a megabyte', async () => {
   using repository = gitRepo({ 'package.json': '{}\n', 'src/a.ts': '' });
   const { repo } = repository;

@@ -154,9 +154,9 @@ const churnAt = async ({
 }: ChurnOptions): Promise<Churn> => {
   const end = Number(await git(repo, 'log', '-1', '--format=%ct', revision, '--'));
   const since = `--since=@${end - days * 24 * 60 * 60}`;
-  const touched = (await git(repo, 'log', '--format=', '--name-only', since, revision, '--')).split(
-    '\n',
-  );
+  const touched = (
+    await git(repo, 'log', '-z', '--format=', '--name-only', since, revision, '--')
+  ).split('\0');
   const paths = graph.nodes.map(({ path }) => path);
   const areFiles = await Promise.all(paths.map(path => isFile(join(directory, path))));
   const files = paths.filter((_, index) => areFiles[index]);
