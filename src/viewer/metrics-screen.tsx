@@ -132,10 +132,11 @@ const Totals = ({ review }: { readonly review: PageData }) => {
 type LeafTableProps = {
   readonly leaves: ReadonlyArray<MeasuredLeaf>;
   readonly findings: ReadonlyArray<MetricFinding>;
+  readonly churnDays: number;
   readonly onGoTo: (id: string) => void;
 };
 
-const LeafTable = ({ leaves, findings, onGoTo }: LeafTableProps) => {
+const LeafTable = ({ leaves, findings, churnDays, onGoTo }: LeafTableProps) => {
   const [hop, setHop] = useState(false);
   const [picked, setPicked] = useState('');
   const [by, setBy] = useState<SortKey>('cyclomatic');
@@ -183,6 +184,9 @@ const LeafTable = ({ leaves, findings, onGoTo }: LeafTableProps) => {
       </label>
       <section aria-label="Metrics per node">
         <table>
+          <caption>
+            {`Base → head, the Δ under it. Lines are non-blank, non-comment. Cyclomatic is the node's most branching function; ABC is the whole file's. Churn counts the commits touching the node's file in the ${churnDays} days before each side.`}
+          </caption>
           <thead>
             <tr>
               <th scope="col">Node</th>
@@ -236,7 +240,12 @@ export const MetricsScreen = ({ review, onGoTo }: MetricsScreenProps) => {
       {leaves.length === 0 ? (
         <p>No node measured.</p>
       ) : (
-        <LeafTable leaves={leaves} findings={review.metricFindings} onGoTo={onGoTo} />
+        <LeafTable
+          leaves={leaves}
+          findings={review.metricFindings}
+          churnDays={review.churnDays}
+          onGoTo={onGoTo}
+        />
       )}
     </div>
   );
