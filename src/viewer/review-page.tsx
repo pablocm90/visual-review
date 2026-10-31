@@ -15,6 +15,7 @@ import type { NodeMetrics } from '../core/metrics.ts';
 import { type Note, type ReviewNotes, visibleNotes } from '../core/notes.ts';
 import { type PageData, UNCOMMITTED } from '../core/page.ts';
 import type { MarkedTest, TestChange, TestFile, TestStatement } from '../core/test-changes.ts';
+import { testsAlongside } from '../core/tests-alongside.ts';
 import {
   expandedToShow,
   isDrawn,
@@ -571,7 +572,7 @@ const Inspector = ({
   onClose,
 }: InspectorProps) => {
   const [picked, setPicked] = useState<InspectorTab>('note');
-  const testsHere = node ? tests.filter(({ path }) => isAtOrUnder(path, node)) : [];
+  const testsHere = node ? testsAlongside({ nodes, node, tests }) : [];
   const measured = node && metrics[node.id];
   const offered: ReadonlyArray<InspectorTab> = [
     'note',

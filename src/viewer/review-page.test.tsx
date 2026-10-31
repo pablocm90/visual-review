@@ -1805,6 +1805,39 @@ test("selecting a node narrows the tests section to the test files at or under i
   expect(within(tests).getByText('The notes check is pinned; the CLI is not.')).not.toBeNull();
 });
 
+test("a node's Tests tab also lists the test files named after a file inside it, wherever they sit in its stack", async () => {
+  const user = userEvent.setup();
+  render(
+    <ReviewPage
+      review={pageWith({
+        range: 'abc123..def456',
+        diff: {
+          nodes: [
+            { id: 'web', kind: 'stack', label: 'web', path: 'web', state: 'unchanged' },
+            webModule('orders', 'modified'),
+            webFile('orders', 'refund.ts', 'modified'),
+          ],
+          edges: [],
+        },
+        tests: [
+          {
+            path: 'web/tests/refund.test.ts',
+            statements: [{ kind: 'test', name: 'refunds twice', change: 'added' }],
+          },
+        ],
+      })}
+    />,
+  );
+
+  await user.click(await screen.findByRole('button', { name: 'orders: modified' }));
+  await user.click(within(inspector()).getByRole('tab', { name: 'Tests 1' }));
+  expect(
+    within(screen.getByRole('tabpanel', { name: 'Tests' }))
+      .getAllByRole('region')
+      .map(file => file.getAttribute('aria-label')),
+  ).toEqual(['web/tests/refund.test.ts']);
+});
+
 test("'Changed + 1 hop' starts ticked, hiding what is more than one edge from a change; going to a shown node or edge keeps it, and going to a hidden node unticks it", async () => {
   const user = userEvent.setup();
   render(
