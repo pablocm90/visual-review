@@ -295,13 +295,10 @@ type SummaryProps = {
 };
 
 const Summary = ({ notes, onGoTo }: SummaryProps) => {
-  const flagged = Object.entries(notes.notes).flatMap(([id, note]) =>
-    note.flag ? [{ text: `${note.flag}: ${note.text}`, target: id }] : [],
-  );
   return (
     <section className="summary" aria-label="Summary">
       <ul>
-        {[...notes.summary, ...flagged].map(({ text, target }) => (
+        {notes.summary.map(({ text, target }) => (
           <li key={`${target}:${text}`}>
             {target === undefined ? (
               text

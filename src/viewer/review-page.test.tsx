@@ -679,7 +679,7 @@ test("a flag's badge says on hover what it is flagged for, and clicking it opens
   expect(reasonsShown()).toEqual([]);
 });
 
-test('the summary lists its items and then every flagged note, and an item with a target takes focus to it and shows its note', async () => {
+test('the summary lists its items, not the flagged notes, and an item with a target takes focus to it and shows its note', async () => {
   const user = userEvent.setup();
   render(
     <ReviewPage
@@ -713,18 +713,12 @@ test('the summary lists its items and then every flagged note, and an item with 
   expect(items.map(item => item.textContent)).toEqual([
     'The CLI is a new adapter.',
     'Domain is untouched.',
-    'new dependency direction: The CLI drives the use case.',
-    'removed but depended on: Domain still reaches it.',
   ]);
   expect(
     within(summary)
       .getAllByRole('button')
       .map(button => button.textContent),
-  ).toEqual([
-    'The CLI is a new adapter.',
-    'new dependency direction: The CLI drives the use case.',
-    'removed but depended on: Domain still reaches it.',
-  ]);
+  ).toEqual(['The CLI is a new adapter.']);
 
   const focus = vi.spyOn(SVGElement.prototype, 'focus');
   onTestFinished(() => focus.mockRestore());
@@ -732,15 +726,6 @@ test('the summary lists its items and then every flagged note, and an item with 
   expect(document.activeElement).toBe(screen.getByRole('button', { name: 'cli-adapter: added' }));
   expect(focus).toHaveBeenCalledWith({ preventScroll: true });
   expect(noteShown()).toBe('A second way in.');
-
-  await user.click(within(summary).getByRole('button', { name: /^new dependency direction/ }));
-  expect(document.activeElement).toBe(
-    screen.getByRole('button', {
-      name: 'cli-adapter → application: added, flagged: new dependency direction',
-    }),
-  );
-  expect(noteShown()).toBe('The CLI drives the use case.');
-  expect(screen.queryByRole('region', { name: 'Unplaced notes' })).toBeNull();
 });
 
 test("the findings rail starts collapsed to their total and how many need a look or are for information: notes' flags need a look, metric findings keep their level, and each not-drawn line is for information; opened, it shows the groups holding findings, and hides again", async () => {
@@ -980,7 +965,7 @@ const buttonsIn = (element: HTMLElement) =>
     .getAllByRole('button')
     .map(drawn => drawn.getAttribute('aria-label'));
 
-test("modules open collapsed, joined by their files' imports; a module's toggle expands it into its files and back; a note on a hidden import shows on the edge it merges into; a summary item on a hidden file or import expands what hides it and focuses it, without pulling focus back later", async () => {
+test("modules open collapsed, joined by their files' imports; a module's toggle expands it into its files and back; a note on a hidden import shows on the edge it merges into; a summary item on a hidden file or a rail finding on a hidden import expands what hides it and focuses it, without pulling focus back later", async () => {
   const user = userEvent.setup();
   render(
     <ReviewPage
@@ -1080,7 +1065,8 @@ test("modules open collapsed, joined by their files' imports; a module's toggle 
 
   await user.click(within(web).getByRole('button', { name: 'Collapse modules/AppInfo' }));
   await user.click(within(web).getByRole('button', { name: 'Collapse utils' }));
-  await user.click(screen.getByRole('button', { name: 'reaches into utils: New helper.' }));
+  await user.click(screen.getByRole('button', { name: /^Show \d+ findings$/ }));
+  await user.click(screen.getByRole('button', { name: /: reaches into utils: New helper\.$/ }));
 
   const reaching = await within(web).findByRole('button', {
     name: 'api/app-info.ts → x.ts: added, flagged: reaches into utils',
