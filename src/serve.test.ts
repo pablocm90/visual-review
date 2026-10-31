@@ -28,7 +28,17 @@ const fakeOpeners = (openers: ReadonlyArray<string>) => {
 const writtenPage = () => {
   const directory = mkdtempSync(join(tmpdir(), 'visual-review-reviews-'));
   const page = join(directory, 'main..feature.html');
-  writeFileSync(page, readFileSync(join(import.meta.dirname, '..', 'dist', 'viewer.html')));
+  const { version } = JSON.parse(
+    readFileSync(join(import.meta.dirname, '..', 'package.json'), 'utf8'),
+  );
+  writeFileSync(
+    page,
+    readFileSync(join(import.meta.dirname, '..', 'dist', 'viewer.html'), 'utf8').replace(
+      '<script type="application/json" id="review-data">{}</script>',
+      () =>
+        `<script type="application/json" id="review-data">${JSON.stringify({ version, range: 'main..feature' })}</script>`,
+    ),
+  );
   return {
     page,
     [Symbol.dispose]: () => rmSync(directory, { recursive: true, force: true }),

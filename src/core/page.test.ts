@@ -141,7 +141,7 @@ test('a served page gives back the token serve filled in, beside its data and no
   const notes = notesWith({ 'web/file/a.ts': { text: 'Reads well.' } });
   const page = notedPageHtml({ page: pageHtml({ viewer, data }), notes, notesFile, version });
 
-  expect(pageIn(slotsOf(servedPageHtml({ page, token: 'f00d' })))).toStrictEqual({
+  expect(pageIn(slotsOf(servedPageHtml({ page, token: 'f00d', version })))).toStrictEqual({
     data,
     notes,
     token: 'f00d',
@@ -183,6 +183,12 @@ test('notes for a page another visual-review wrote, one from before serve includ
     notedPageHtml({ page: unservable, notes: notesWith({}), notesFile, version }),
   ).toThrow(
     'The page for main..feature was written by visual-review 0.4.1: run visual-review without --notes first',
+  );
+});
+
+test('a page another visual-review wrote is not served, naming its version', () => {
+  expect(() => servedPageHtml({ page: pageFor('0.4.1'), token: 'f00d', version })).toThrow(
+    'The page for main..feature was written by visual-review 0.4.1: run visual-review again to serve it',
   );
 });
 

@@ -11,10 +11,15 @@ import { parseReview } from './core/review.ts';
 
 const opener = process.platform === 'darwin' ? 'open' : 'xdg-open';
 
-export const servePage = async (page: string | undefined): Promise<string> => {
+type ServePageOptions = {
+  readonly page: string | undefined;
+  readonly version: string;
+};
+
+export const servePage = async ({ page, version }: ServePageOptions): Promise<string> => {
   if (page === undefined) throw new Error('Usage: visual-review serve <page.html>');
   const token = randomBytes(16).toString('hex');
-  const html = servedPageHtml({ page: await readFile(page, 'utf8'), token });
+  const html = servedPageHtml({ page: await readFile(page, 'utf8'), token, version });
   const server = createServer();
   server.listen(0, '127.0.0.1');
   await once(server, 'listening');

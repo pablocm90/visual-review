@@ -113,6 +113,22 @@ const slotsIn =
 const writerOf = (version: string | undefined): string =>
   version === undefined ? 'an older visual-review' : `visual-review ${version}`;
 
+type WrittenByOptions = {
+  readonly page: string;
+  readonly version: string;
+  readonly advice: string;
+};
+
+const writtenBy = ({ page, version, advice }: WrittenByOptions): PageData => {
+  const { data } = pageIn(slotsIn(page));
+  if (data.version !== version) {
+    throw new Error(
+      `The page for ${data.range} was written by ${writerOf(data.version)}: ${advice}`,
+    );
+  }
+  return data;
+};
+
 type NotedPageHtmlOptions = {
   readonly page: string;
   readonly notes: ReviewNotes;
@@ -126,12 +142,7 @@ export const notedPageHtml = ({
   notesFile,
   version,
 }: NotedPageHtmlOptions): string => {
-  const { data } = pageIn(slotsIn(page));
-  if (data.version !== version) {
-    throw new Error(
-      `The page for ${data.range} was written by ${writerOf(data.version)}: run visual-review without --notes first`,
-    );
-  }
+  const data = writtenBy({ page, version, advice: 'run visual-review without --notes first' });
   const problems = notesProblems({ diff: data.diff, notes });
   if (problems.length > 0) {
     throw new Error(`Notes in ${notesFile} don't match the graph:\n${problems.join('\n')}`);
@@ -142,10 +153,13 @@ export const notedPageHtml = ({
 type ServedPageHtmlOptions = {
   readonly page: string;
   readonly token: string;
+  readonly version: string;
 };
 
-export const servedPageHtml = ({ page, token }: ServedPageHtmlOptions): string =>
-  filledSlot(page, SERVE_SLOT, token);
+export const servedPageHtml = ({ page, token, version }: ServedPageHtmlOptions): string => {
+  writtenBy({ page, version, advice: 'run visual-review again to serve it' });
+  return filledSlot(page, SERVE_SLOT, token);
+};
 
 type SendReviewOptions = {
   readonly origin: string;

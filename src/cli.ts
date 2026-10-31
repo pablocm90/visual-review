@@ -139,7 +139,9 @@ const writeReview = async (args: ReadonlyArray<string>): Promise<string> => {
 };
 
 const run = (args: ReadonlyArray<string>): Promise<string> =>
-  args[0] === 'serve' ? servePage(args[1]) : writeReview(args);
+  args[0] === 'serve'
+    ? ownVersion().then(version => servePage({ page: args[1], version }))
+    : writeReview(args);
 
 run(process.argv.slice(2)).then(
   page => console.log(page),
