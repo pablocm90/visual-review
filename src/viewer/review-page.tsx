@@ -469,6 +469,34 @@ const TestTree = ({ statements }: { readonly statements: ReadonlyArray<TestState
   </ul>
 );
 
+type InspectorProps = {
+  readonly node: GraphDiff['nodes'][number] | undefined;
+  readonly note: Note | undefined;
+  readonly unrouted: ReadonlyArray<string>;
+  readonly patches: ReadonlyArray<FilePatch>;
+  readonly width: number;
+  readonly onClose: () => void;
+};
+
+const Inspector = ({ node, note, unrouted, patches, width, onClose }: InspectorProps) => (
+  <aside className="note" aria-label="Inspector" style={{ width }}>
+    <button type="button" className="close" aria-label="Close inspector" onClick={onClose}>
+      ×
+    </button>
+    {note?.flag && <h2>{flaggedFor(note.flag)}</h2>}
+    {unrouted.length > 0 && <h2>{noRouteFor(unrouted)}</h2>}
+    <p>{note?.text ?? 'No note'}</p>
+    {node?.renamedFrom !== undefined && <p className="renamed">Renamed from {node.renamedFrom}</p>}
+    {patches.length > 0 && (
+      <section className="changes" aria-label="Changes">
+        {patches.map(patch => (
+          <Patch key={patch.path} {...patch} open={node?.kind === 'file'} />
+        ))}
+      </section>
+    )}
+  </aside>
+);
+
 type DrawnAtOptions = {
   readonly diff: GraphDiff;
   readonly expanded: ReadonlySet<string>;
@@ -906,29 +934,14 @@ export const ReviewPage = ({ review, notes, shownTabs = SHOWN_TABS }: ReviewPage
                   onKeyDown={moveDivider}
                   onPointerDown={dragDivider}
                 />
-                <aside className="note" aria-label="Inspector" style={{ width: panelWidth }}>
-                  <button
-                    type="button"
-                    className="close"
-                    aria-label="Close inspector"
-                    onClick={() => setSelected(undefined)}
-                  >
-                    ×
-                  </button>
-                  {selectedNote?.flag && <h2>{flaggedFor(selectedNote.flag)}</h2>}
-                  {selectedUnrouted.length > 0 && <h2>{noRouteFor(selectedUnrouted)}</h2>}
-                  <p>{selectedNote?.text ?? 'No note'}</p>
-                  {selectedNode?.renamedFrom !== undefined && (
-                    <p className="renamed">Renamed from {selectedNode.renamedFrom}</p>
-                  )}
-                  {patches.length > 0 && (
-                    <section className="changes" aria-label="Changes">
-                      {patches.map(patch => (
-                        <Patch key={patch.path} {...patch} open={selectedNode?.kind === 'file'} />
-                      ))}
-                    </section>
-                  )}
-                </aside>
+                <Inspector
+                  node={selectedNode}
+                  note={selectedNote}
+                  unrouted={selectedUnrouted}
+                  patches={patches}
+                  width={panelWidth}
+                  onClose={() => setSelected(undefined)}
+                />
               </>
             )}
           </div>
