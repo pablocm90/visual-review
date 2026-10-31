@@ -445,6 +445,31 @@ h1 {
   background: var(--unchanged-fill);
 }
 
+.inspector-tabs {
+  display: flex;
+  gap: 4px;
+  margin-bottom: 12px;
+  border-bottom: 1px solid var(--stack-line);
+}
+
+.inspector-tabs button {
+  min-height: 32px;
+  margin-bottom: -1px;
+  padding: 0 8px;
+  border: none;
+  border-bottom: 2px solid transparent;
+  background: none;
+  color: var(--muted);
+  font: inherit;
+  cursor: pointer;
+}
+
+.inspector-tabs button[aria-selected='true'] {
+  border-bottom-color: var(--ink);
+  color: var(--ink);
+  font-weight: 600;
+}
+
 .note h2 {
   margin: 0 0 8px;
   color: var(--removed);

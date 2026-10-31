@@ -100,6 +100,11 @@ const notePanel = () => screen.getByRole('complementary', { name: 'Inspector' })
 
 const noteShown = () => within(notePanel()).getAllByRole('paragraph')[0]?.textContent;
 
+const inspectorTabs = () =>
+  within(notePanel())
+    .queryAllByRole('tab')
+    .map(tab => tab.textContent);
+
 const reasonsShown = () =>
   within(notePanel())
     .queryAllByRole('heading')
@@ -1072,7 +1077,7 @@ test("web calls to API routes are drawn between the stacks, named by their paths
   expect(noteShown()).toBe('Lists users.');
 });
 
-test("selecting a node lists the patches of the files under it from their first hunk, a module's closed and a file's open with its added and removed lines marked; a file without a patch or an edge lists none", async () => {
+test("a selected node's Diff tab lists the patches of the files under it from their first hunk, a module's closed and a file's open with its added and removed lines marked, and stays picked from one selection to the next; a file without a patch or an edge has no Diff tab and shows its Note", async () => {
   const user = userEvent.setup();
   const patch = [
     'diff --git a/web/src/utils/x.ts b/web/src/utils/x.ts',
@@ -1108,11 +1113,15 @@ test("selecting a node lists the patches of the files under it from their first 
 
   const web = await screen.findByRole('group', { name: 'web' });
   await user.click(within(web).getByRole('button', { name: 'utils: modified' }));
+  expect(inspectorTabs()).toEqual(['Note', 'Diff']);
+  expect(changes()).toBeNull();
+  await user.click(within(notePanel()).getByRole('tab', { name: 'Diff' }));
   expect(fileShown().hasAttribute('open')).toBe(false);
 
   await user.click(within(web).getByRole('button', { name: 'Expand utils' }));
   const utils = await within(web).findByRole('group', { name: 'utils' });
   await user.click(within(utils).getByRole('button', { name: 'x.ts: modified' }));
+  expect(within(notePanel()).getByRole('tab', { selected: true }).textContent).toBe('Diff');
   const file = fileShown();
   expect(file.hasAttribute('open')).toBe(true);
   expect(within(file).getByText(/^@@ -1,2 \+1,2 @@/)).not.toBeNull();
@@ -1129,11 +1138,15 @@ test("selecting a node lists the patches of the files under it from their first 
   ).toEqual(['-export const x = 1;']);
 
   await user.click(within(utils).getByRole('button', { name: 'y.ts: unchanged' }));
+  expect(inspectorTabs()).toEqual(['Note']);
   expect(changes()).toBeNull();
+  expect(noteShown()).toBe('No note');
 
   await user.click(within(utils).getByRole('button', { name: 'x.ts: modified' }));
+  await user.click(within(notePanel()).getByRole('tab', { name: 'Diff' }));
   expect(changes()).not.toBeNull();
   await user.click(within(web).getByRole('button', { name: 'y.ts → x.ts: unchanged' }));
+  expect(inspectorTabs()).toEqual(['Note']);
   expect(changes()).toBeNull();
 });
 

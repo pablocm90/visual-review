@@ -478,24 +478,53 @@ type InspectorProps = {
   readonly onClose: () => void;
 };
 
-const Inspector = ({ node, note, unrouted, patches, width, onClose }: InspectorProps) => (
-  <aside className="note" aria-label="Inspector" style={{ width }}>
-    <button type="button" className="close" aria-label="Close inspector" onClick={onClose}>
-      ×
-    </button>
-    {note?.flag && <h2>{flaggedFor(note.flag)}</h2>}
-    {unrouted.length > 0 && <h2>{noRouteFor(unrouted)}</h2>}
-    <p>{note?.text ?? 'No note'}</p>
-    {node?.renamedFrom !== undefined && <p className="renamed">Renamed from {node.renamedFrom}</p>}
-    {patches.length > 0 && (
-      <section className="changes" aria-label="Changes">
-        {patches.map(patch => (
-          <Patch key={patch.path} {...patch} open={node?.kind === 'file'} />
+type InspectorTab = 'note' | 'diff';
+
+const INSPECTOR_TABS: Readonly<Record<InspectorTab, string>> = { note: 'Note', diff: 'Diff' };
+
+const Inspector = ({ node, note, unrouted, patches, width, onClose }: InspectorProps) => {
+  const [picked, setPicked] = useState<InspectorTab>('note');
+  const offered: ReadonlyArray<InspectorTab> = patches.length > 0 ? ['note', 'diff'] : ['note'];
+  const shown = offered.includes(picked) ? picked : 'note';
+  return (
+    <aside className="note" aria-label="Inspector" style={{ width }}>
+      <button type="button" className="close" aria-label="Close inspector" onClick={onClose}>
+        ×
+      </button>
+      <div className="inspector-tabs" role="tablist" aria-label="Inspector sections">
+        {offered.map(tab => (
+          <button
+            key={tab}
+            type="button"
+            role="tab"
+            aria-selected={tab === shown}
+            onClick={() => setPicked(tab)}
+          >
+            {INSPECTOR_TABS[tab]}
+          </button>
         ))}
-      </section>
-    )}
-  </aside>
-);
+      </div>
+      <div role="tabpanel" aria-label={INSPECTOR_TABS[shown]}>
+        {shown === 'note' ? (
+          <>
+            {note?.flag && <h2>{flaggedFor(note.flag)}</h2>}
+            {unrouted.length > 0 && <h2>{noRouteFor(unrouted)}</h2>}
+            <p>{note?.text ?? 'No note'}</p>
+            {node?.renamedFrom !== undefined && (
+              <p className="renamed">Renamed from {node.renamedFrom}</p>
+            )}
+          </>
+        ) : (
+          <section className="changes" aria-label="Changes">
+            {patches.map(patch => (
+              <Patch key={patch.path} {...patch} open={node?.kind === 'file'} />
+            ))}
+          </section>
+        )}
+      </div>
+    </aside>
+  );
+};
 
 type DrawnAtOptions = {
   readonly diff: GraphDiff;
