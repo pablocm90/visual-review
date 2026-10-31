@@ -21,16 +21,31 @@ export const measuredLeaves = ({
   });
 };
 
-const cyclomaticOf = (side: NodeMeasures | undefined): number =>
-  side && 'lines' in side ? side.cyclomatic.highest : 0;
+type Complex = Extract<NodeMeasures, { readonly lines: number }>;
 
-const cyclomaticDelta = ({ base, head }: MeasuredLeaf): number =>
-  cyclomaticOf(head) - cyclomaticOf(base);
+const delta =
+  (measure: (side: Complex) => number) =>
+  ({ base, head }: MeasuredLeaf): number => {
+    const of = (side: NodeMeasures | undefined) => (side && 'lines' in side ? measure(side) : 0);
+    return of(head) - of(base);
+  };
+
+const sortValues = {
+  cyclomatic: delta(side => side.cyclomatic.highest),
+  churn: ({ head }: MeasuredLeaf) => head?.churn ?? 0,
+  lines: delta(side => side.lines),
+  abc: delta(side => side.abc),
+};
+
+export type SortKey = keyof typeof sortValues;
 
 export const sortedLeaves = ({
   leaves,
+  by,
 }: {
   readonly leaves: ReadonlyArray<MeasuredLeaf>;
-  readonly by: 'cyclomatic';
-}): ReadonlyArray<MeasuredLeaf> =>
-  leaves.toSorted((a, b) => cyclomaticDelta(b) - cyclomaticDelta(a));
+  readonly by: SortKey;
+}): ReadonlyArray<MeasuredLeaf> => {
+  const value = sortValues[by];
+  return leaves.toSorted((a, b) => value(b) - value(a));
+};

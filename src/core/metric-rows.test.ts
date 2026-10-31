@@ -79,7 +79,7 @@ const leaves = [
   leaf('ledger', { head: complex({ cyclomatic: 3, lines: 96, abc: 10 }) }),
   leaf('stripe', {
     base: complex({ cyclomatic: 2, lines: 40, abc: 6 }),
-    head: complex({ cyclomatic: 5, lines: 52, abc: 8, churn: 4 }),
+    head: complex({ cyclomatic: 5, lines: 52, abc: 20, churn: 4 }),
   }),
   leaf('refund', {
     base: complex({ cyclomatic: 4, total: 30, lines: 120, abc: 18 }),
@@ -87,13 +87,14 @@ const leaves = [
   }),
 ];
 
-test('sorted by cyclomatic Δ, the leaves go highest first, a missing side or complexity counting 0 and ties keeping their order', () => {
-  expect(sortedLeaves({ leaves, by: 'cyclomatic' }).map(({ node }) => node.id)).toEqual([
-    'refund',
-    'ledger',
-    'stripe',
-    'domain',
-    'cart',
-    'retry',
-  ]);
-});
+test.for([
+  { by: 'cyclomatic', order: ['refund', 'ledger', 'stripe', 'domain', 'cart', 'retry'] },
+  { by: 'churn', order: ['domain', 'refund', 'stripe', 'cart', 'ledger', 'retry'] },
+  { by: 'lines', order: ['ledger', 'refund', 'stripe', 'domain', 'cart', 'retry'] },
+  { by: 'abc', order: ['stripe', 'refund', 'ledger', 'domain', 'cart', 'retry'] },
+] as const)(
+  "sorted by $by, the leaves go highest first (Δ but for churn, the head's), a missing side or complexity counting 0 and ties keeping their order",
+  ({ by, order }) => {
+    expect(sortedLeaves({ leaves, by }).map(({ node }) => node.id)).toEqual(order);
+  },
+);
