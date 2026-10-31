@@ -113,3 +113,26 @@ test.for([
 ])('`$body` gives its function cyclomatic $cyclomatic', ({ body, params, cyclomatic }) => {
   expect(cyclomaticOf(body, params)).toBe(cyclomatic);
 });
+
+const abcOf = (body: string) =>
+  measureTypeScript(`function f() { ${body} }`, 'src/shop.ts').functions[0]?.abc;
+
+test.for([
+  { body: 'const a = 1;', abc: [1, 0, 0] },
+  { body: 'let a;', abc: [0, 0, 0] },
+  { body: 'a = 1; a += 1; a ??= 1;', abc: [3, 0, 0] },
+  { body: 'a++; --a;', abc: [2, 0, 0] },
+  { body: 'g(); a.g(); a?.g();', abc: [0, 3, 1] },
+  { body: 'new Shop();', abc: [0, 1, 0] },
+  { body: 'a == b; a != b; a === b; a !== b; a < b; a > b; a <= b; a >= b;', abc: [0, 0, 8] },
+  { body: 'a + b; a && b;', abc: [0, 0, 0] },
+  { body: 'if (a) {} else {} if (b) {}', abc: [0, 0, 1] },
+  { body: 'switch (a) { case 1: break; default: }', abc: [0, 0, 1] },
+  { body: 'try {} catch {}', abc: [0, 0, 1] },
+  { body: 'a ? b : c;', abc: [0, 0, 1] },
+  { body: 'a?.b;', abc: [0, 0, 1] },
+  { body: 'items.forEach(item => { a = item; });', abc: [1, 1, 0] },
+  { body: 'const g = () => h();', abc: [1, 0, 0] },
+])('`$body` gives its function ABC $abc', ({ body, abc: [assignments, branches, conditions] }) => {
+  expect(abcOf(body)).toEqual({ assignments, branches, conditions });
+});

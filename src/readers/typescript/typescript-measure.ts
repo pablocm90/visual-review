@@ -83,12 +83,35 @@ const DECISIONS = new Set([
 
 const LOGICAL_ASSIGNMENTS = new Set(['&&=', '||=', '??=']);
 
+const isOptionalLink = (node: Node): boolean =>
+  (node.type === 'OptionalMemberExpression' || node.type === 'OptionalCallExpression') &&
+  node.optional;
+
+const isCase = (node: Node): boolean => node.type === 'SwitchCase' && node.test !== null;
+
 const isDecision = (node: Node): boolean =>
   DECISIONS.has(node.type) ||
-  (node.type === 'SwitchCase' && node.test !== null) ||
+  isCase(node) ||
   (node.type === 'AssignmentExpression' && LOGICAL_ASSIGNMENTS.has(node.operator)) ||
-  ((node.type === 'OptionalMemberExpression' || node.type === 'OptionalCallExpression') &&
-    node.optional);
+  isOptionalLink(node);
+
+const isAssignment = (node: Node): boolean =>
+  node.type === 'AssignmentExpression' ||
+  node.type === 'UpdateExpression' ||
+  (node.type === 'VariableDeclarator' && node.init !== null);
+
+const CALLS = new Set(['CallExpression', 'OptionalCallExpression', 'NewExpression']);
+
+const COMPARISONS = new Set(['==', '!=', '===', '!==', '<', '>', '<=', '>=']);
+
+const CONDITIONS = new Set(['CatchClause', 'ConditionalExpression']);
+
+const isCondition = (node: Node): boolean =>
+  CONDITIONS.has(node.type) ||
+  isCase(node) ||
+  isOptionalLink(node) ||
+  (node.type === 'IfStatement' && node.alternate !== null) ||
+  (node.type === 'BinaryExpression' && COMPARISONS.has(node.operator));
 
 const ownNodes = (node: Node, functions: ReadonlySet<Node>): ReadonlyArray<Node> =>
   childrenOf(node).flatMap(child =>
@@ -109,10 +132,17 @@ export const measureTypeScript = (text: string, path: string): FileMeasures => {
   const bodies = new Set(functions.map(({ fn }) => fn));
   return {
     lines: new Set(code.flatMap(rowsOf)).size,
-    functions: functions.map(({ name, fn }) => ({
-      name,
-      cyclomatic: 1 + ownNodes(fn, bodies).filter(isDecision).length,
-      abc: { assignments: 0, branches: 0, conditions: 0 },
-    })),
+    functions: functions.map(({ name, fn }) => {
+      const nodes = ownNodes(fn, bodies);
+      return {
+        name,
+        cyclomatic: 1 + nodes.filter(isDecision).length,
+        abc: {
+          assignments: nodes.filter(isAssignment).length,
+          branches: nodes.filter(node => CALLS.has(node.type)).length,
+          conditions: nodes.filter(isCondition).length,
+        },
+      };
+    }),
   };
 };
