@@ -116,7 +116,7 @@ test("the totals give the changed leaves' lines head − base, their functions o
 const shownNodes = () =>
   within(screen.getByRole('region', { name: 'Metrics per node' }))
     .getAllByRole('rowheader')
-    .map(header => header.textContent);
+    .map(header => within(header).getByRole('button').textContent);
 
 test('the table lists the changed measured leaves, every measured leaf while "Changed + 1 hop" is pressed', async () => {
   atMetrics();
@@ -135,14 +135,14 @@ test('the table lists the changed measured leaves, every measured leaf while "Ch
   const changed = screen.getByRole('button', { name: 'Changed 2' });
 
   expect(changed.getAttribute('aria-pressed')).toBe('true');
-  expect(shownNodes()).toEqual(['ledgerapi', 'refundsapi']);
+  expect(shownNodes()).toEqual(['ledger', 'refunds']);
 
   await user.click(screen.getByRole('button', { name: 'Changed + 1 hop 3' }));
   expect(changed.getAttribute('aria-pressed')).toBe('false');
-  expect(shownNodes()).toEqual(['ledgerapi', 'refundsapi', 'domainapi']);
+  expect(shownNodes()).toEqual(['ledger', 'refunds', 'domain']);
 
   await user.click(changed);
-  expect(shownNodes()).toEqual(['ledgerapi', 'refundsapi']);
+  expect(shownNodes()).toEqual(['ledger', 'refunds']);
 });
 
 test('the stack picker offers the stacks holding a shown row, keeps the rows of the one picked, and all of them once the picked one holds none', async () => {
@@ -169,16 +169,16 @@ test('the stack picker offers the stacks holding a shown row, keeps the rows of 
   expect(offered()).toEqual(['All stacks', 'api', 'web']);
 
   await user.selectOptions(stack, 'web');
-  expect(shownNodes()).toEqual(['cartweb']);
+  expect(shownNodes()).toEqual(['cart']);
 
   await user.click(screen.getByRole('button', { name: 'Changed + 1 hop 4' }));
   expect(offered()).toEqual(['All stacks', 'api', 'web', 'jobs']);
-  expect(shownNodes()).toEqual(['cartweb', 'helpersweb']);
+  expect(shownNodes()).toEqual(['cart', 'helpers']);
 
   await user.selectOptions(stack, 'jobs');
   await user.click(screen.getByRole('button', { name: 'Changed 2' }));
   expect(stack).toHaveProperty('value', '');
-  expect(shownNodes()).toEqual(['refundsapi', 'cartweb']);
+  expect(shownNodes()).toEqual(['refunds', 'cart']);
 });
 
 test('the rows go by cyclomatic Δ, highest first, until another "Sort by" is picked', async () => {
@@ -207,14 +207,14 @@ test('the rows go by cyclomatic Δ, highest first, until another "Sort by" is pi
     />,
   );
 
-  expect(shownNodes()).toEqual(['refundsapi', 'stripeapi']);
+  expect(shownNodes()).toEqual(['refunds', 'stripe']);
 
   await user.selectOptions(screen.getByRole('combobox', { name: 'Sort by' }), 'Churn');
-  expect(shownNodes()).toEqual(['stripeapi', 'refundsapi']);
+  expect(shownNodes()).toEqual(['stripe', 'refunds']);
 });
 
 const cellsOf = (label: string) =>
-  within(screen.getByRole('row', { name: new RegExp(`^${label}`) }))
+  within(screen.getByRole('row', { name: new RegExp(label) }))
     .getAllByRole('cell')
     .map(cell => cell.textContent);
 
