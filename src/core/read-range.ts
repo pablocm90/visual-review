@@ -94,15 +94,15 @@ const testFileAt = async ({
 }: TestFileOptions): Promise<TestFile> => {
   const before = await textIn(join(scratch, 'before'), from);
   const after = await textIn(join(scratch, 'after'), to);
-  const renamedFrom = from === to ? undefined : from;
+  const file = {
+    path: to,
+    renamedFrom: from === to ? undefined : from,
+    ...(before === undefined && { new: true as const }),
+  };
   try {
-    return {
-      path: to,
-      renamedFrom,
-      statements: testChanges({ read: reader.readTests, before, after }),
-    };
+    return { ...file, statements: testChanges({ read: reader.readTests, before, after }) };
   } catch (error) {
-    return { path: to, renamedFrom, unreadable: String(error) };
+    return { ...file, unreadable: String(error) };
   }
 };
 

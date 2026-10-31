@@ -616,7 +616,7 @@ test('a file moved between modules is one rename, with one patch at its new path
   ]);
 });
 
-test('each changed test file whose tests changed comes with its marked statements, drawn or not, and a test that left one for another marked moved', async () => {
+test('each changed test file whose tests changed comes with its marked statements, drawn or not, a test that left one for another marked moved, and a file new in the range marked new', async () => {
   using workspace = cargoWorkspace();
   const { repo } = workspace;
   const from = commit(repo, {
@@ -640,6 +640,7 @@ test('each changed test file whose tests changed comes with its marked statement
   expect(range.tests).toEqual([
     {
       path: 'crates/core/tests/serve.rs',
+      new: true,
       statements: [{ kind: 'test', name: 'rejects an unknown route', change: 'added' }],
     },
     {
@@ -655,6 +656,7 @@ test('each changed test file whose tests changed comes with its marked statement
     },
     {
       path: 'web/src/page.test.tsx',
+      new: true,
       statements: [
         { kind: 'test', name: 'shows the range', change: 'added' },
         {
@@ -719,7 +721,7 @@ test('a renamed test file is listed once under its new path, compared against it
   ]);
 });
 
-test('a changed test file that does not parse is listed with the parser message', async () => {
+test('a changed test file that does not parse is listed with the parser message, still marked new when it is', async () => {
   using workspace = cargoWorkspace();
   const { repo, root } = workspace;
   const to = commit(repo, {
@@ -730,7 +732,11 @@ test('a changed test file that does not parse is listed with the parser message'
   const range = await readRange({ repo, from: root, to });
 
   expect(range.tests).toEqual([
-    { path: 'tools/review/notes.test.ts', unreadable: expect.stringMatching(/\(2:0\)$/) },
+    {
+      path: 'tools/review/notes.test.ts',
+      new: true,
+      unreadable: expect.stringMatching(/\(2:0\)$/),
+    },
   ]);
 });
 

@@ -18,10 +18,11 @@ export type TestStatement =
       readonly children: ReadonlyArray<TestStatement>;
     };
 
-export type TestFile = { readonly path: string; readonly renamedFrom?: string | undefined } & (
-  | { readonly statements: ReadonlyArray<TestStatement> }
-  | { readonly unreadable: string }
-);
+export type TestFile = {
+  readonly path: string;
+  readonly renamedFrom?: string | undefined;
+  readonly new?: true;
+} & ({ readonly statements: ReadonlyArray<TestStatement> } | { readonly unreadable: string });
 
 export type ReadTest =
   | {
