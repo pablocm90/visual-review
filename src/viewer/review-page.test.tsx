@@ -679,9 +679,9 @@ test("a flag's badge says on hover what it is flagged for, and clicking it opens
   expect(reasonsShown()).toEqual([]);
 });
 
-test('the summary lists its items, not the flagged notes, and an item with a target takes focus to it and shows its note', async () => {
+test('the summary lists its items, not the flagged notes, and an item with a target takes focus to it and shows its note; with no items there is no summary', async () => {
   const user = userEvent.setup();
-  render(
+  const { rerender } = render(
     <ReviewPage
       review={pageWith({
         ...review,
@@ -726,6 +726,14 @@ test('the summary lists its items, not the flagged notes, and an item with a tar
   expect(document.activeElement).toBe(screen.getByRole('button', { name: 'cli-adapter: added' }));
   expect(focus).toHaveBeenCalledWith({ preventScroll: true });
   expect(noteShown()).toBe('A second way in.');
+
+  rerender(
+    <ReviewPage
+      review={pageWith(review)}
+      notes={{ version: 1, tests: '', summary: [], notes: {} }}
+    />,
+  );
+  expect(screen.queryByRole('region', { name: 'Summary' })).toBeNull();
 });
 
 test("the findings rail starts collapsed to their total and how many need a look or are for information: notes' flags need a look, metric findings keep their level, and each not-drawn line is for information; opened, it shows the groups holding findings, and hides again", async () => {

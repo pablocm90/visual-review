@@ -297,6 +297,7 @@ type SummaryProps = {
 const Summary = ({ notes, onGoTo }: SummaryProps) => {
   return (
     <section className="summary" aria-label="Summary">
+      <h2 className="summary-title">Summary</h2>
       <ul>
         {notes.summary.map(({ text, target }) => (
           <li key={`${target}:${text}`}>
@@ -944,7 +945,7 @@ export const ReviewPage = ({ review, notes, shownTabs = SHOWN_TABS }: ReviewPage
               }}
             />
             <div className="content">
-              {notes && <Summary notes={notes} onGoTo={goTo} />}
+              {notes && notes.summary.length > 0 && <Summary notes={notes} onGoTo={goTo} />}
               <label className="near-only">
                 <input
                   type="checkbox"
