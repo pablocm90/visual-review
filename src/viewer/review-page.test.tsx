@@ -1550,29 +1550,6 @@ test("a selected node's Diff tab lists the patches of the files under it from th
   expect(changes()).toBeNull();
 });
 
-test('changed files outside the graph are listed under their own heading, each a closed patch that opens on click', async () => {
-  const user = userEvent.setup();
-  render(
-    <ReviewPage
-      review={pageWith({
-        ...review,
-        undrawn: [
-          { path: 'README.md', patch: '--- a/README.md\n+++ b/README.md\n@@ -1 +1 @@\n-old\n+new' },
-        ],
-      })}
-    />,
-  );
-
-  await screen.findByRole('group', { name: 'rust' });
-  const readme = within(screen.getByRole('region', { name: 'Not in the graph' })).getByRole(
-    'group',
-    { name: 'README.md' },
-  );
-  expect(readme.hasAttribute('open')).toBe(false);
-  await user.click(within(readme).getByText('README.md'));
-  expect(within(readme).getByRole('insertion').textContent).toBe('+new');
-});
-
 test("the rail's changed files outside the graph open in the inspector at the changes' width, each a closed patch that opens on click, until a node is selected or the inspector closed", async () => {
   const user = userEvent.setup();
   render(

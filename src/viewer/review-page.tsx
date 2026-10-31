@@ -784,7 +784,6 @@ export const ReviewPage = ({ review, notes, shownTabs = SHOWN_TABS }: ReviewPage
   };
   const labelOf = new Map(visible.nodes.map(node => [node.id, node.label]));
   const dangling = review.dangling;
-  const undrawn = review.undrawn;
   const visibleOf = visibleNodeOf({ diff: review.diff, expanded });
   const drawing = {
     notes: shown,
@@ -1054,14 +1053,6 @@ export const ReviewPage = ({ review, notes, shownTabs = SHOWN_TABS }: ReviewPage
                   <TestFiles files={tests} />
                 )}
               </section>
-              {undrawn.length > 0 && (
-                <section className="undrawn" aria-label="Not in the graph">
-                  <h2>Not in the graph</h2>
-                  {undrawn.map(patch => (
-                    <Patch key={patch.path} {...patch} open={false} />
-                  ))}
-                </section>
-              )}
             </div>
             {(selected !== undefined || outside) && (
               <>

@@ -524,11 +524,11 @@ h1 {
   font-weight: 600;
 }
 
-:is(.changes, .undrawn) details {
+.changes details {
   margin-top: 12px;
 }
 
-:is(.changes, .undrawn) summary {
+.changes summary {
   cursor: pointer;
   font:
     500 12px ui-monospace,
@@ -537,7 +537,7 @@ h1 {
     monospace;
 }
 
-:is(.changes, .undrawn) pre {
+.changes pre {
   margin: 6px 0 0;
   padding: 8px 0;
   overflow-x: auto;
@@ -550,7 +550,7 @@ h1 {
     monospace;
 }
 
-:is(.changes, .undrawn) pre > * {
+.changes pre > * {
   display: block;
   padding: 0 10px;
   color: var(--ink);
@@ -558,11 +558,11 @@ h1 {
   white-space: pre;
 }
 
-:is(.changes, .undrawn) ins {
+.changes ins {
   background: var(--added-fill);
 }
 
-:is(.changes, .undrawn) del {
+.changes del {
   background: var(--removed-fill);
 }
 
@@ -710,12 +710,7 @@ pre .hljs-emphasis {
   margin-top: 20px;
 }
 
-.undrawn {
-  margin-top: 20px;
-}
-
-.tests h2,
-.undrawn h2 {
+.tests h2 {
   margin: 0 0 8px;
   font-size: 14px;
   font-weight: 600;
