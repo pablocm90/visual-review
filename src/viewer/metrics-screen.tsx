@@ -1,8 +1,15 @@
 import { useState } from 'react';
-import { measuredLeaves } from '../core/metric-rows.ts';
+import { measuredLeaves, type SortKey, sortedLeaves } from '../core/metric-rows.ts';
 import { metricTotals } from '../core/metric-totals.ts';
 import type { PageData } from '../core/page.ts';
 import { signed } from './finding-display.tsx';
+
+const SORTS: ReadonlyArray<readonly [SortKey, string]> = [
+  ['cyclomatic', 'Cyclomatic Δ'],
+  ['churn', 'Churn'],
+  ['lines', 'Lines Δ'],
+  ['abc', 'ABC Δ'],
+];
 
 const Tile = ({
   name,
@@ -27,10 +34,13 @@ export const MetricsScreen = ({ review }: { readonly review: PageData }) => {
   const leaves = measuredLeaves(review);
   const changed = leaves.filter(({ node }) => node.state !== 'unchanged');
   const [picked, setPicked] = useState('');
+  const [by, setBy] = useState<SortKey>('cyclomatic');
   const nodesShown = hop ? leaves : changed;
   const stacks = [...new Set(nodesShown.map(({ stack }) => stack))];
   const inStack = stacks.includes(picked) ? picked : '';
-  const shown = nodesShown.filter(({ stack }) => inStack === '' || stack === inStack);
+  const shown = sortedLeaves({ leaves: nodesShown, by }).filter(
+    ({ stack }) => inStack === '' || stack === inStack,
+  );
   return (
     <div className="metrics-screen">
       <section className="metric-totals" aria-label="Totals">
@@ -64,6 +74,22 @@ export const MetricsScreen = ({ review }: { readonly review: PageData }) => {
           <option value="">All stacks</option>
           {stacks.map(stack => (
             <option key={stack}>{stack}</option>
+          ))}
+        </select>
+      </label>
+      <label>
+        Sort by
+        <select
+          value={by}
+          onChange={event => {
+            const sort = SORTS.find(([key]) => key === event.target.value);
+            if (sort) setBy(sort[0]);
+          }}
+        >
+          {SORTS.map(([key, name]) => (
+            <option key={key} value={key}>
+              {name}
+            </option>
           ))}
         </select>
       </label>

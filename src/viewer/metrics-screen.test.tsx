@@ -135,14 +135,14 @@ test('the table lists the changed measured leaves, every measured leaf while "Ch
   const changed = screen.getByRole('button', { name: 'Changed 2' });
 
   expect(changed.getAttribute('aria-pressed')).toBe('true');
-  expect(shownNodes()).toEqual(['refundsapi', 'ledgerapi']);
+  expect(shownNodes()).toEqual(['ledgerapi', 'refundsapi']);
 
   await user.click(screen.getByRole('button', { name: 'Changed + 1 hop 3' }));
   expect(changed.getAttribute('aria-pressed')).toBe('false');
-  expect(shownNodes()).toEqual(['refundsapi', 'domainapi', 'ledgerapi']);
+  expect(shownNodes()).toEqual(['ledgerapi', 'refundsapi', 'domainapi']);
 
   await user.click(changed);
-  expect(shownNodes()).toEqual(['refundsapi', 'ledgerapi']);
+  expect(shownNodes()).toEqual(['ledgerapi', 'refundsapi']);
 });
 
 test('the stack picker offers the stacks holding a shown row, keeps the rows of the one picked, and all of them once the picked one holds none', async () => {
@@ -179,4 +179,36 @@ test('the stack picker offers the stacks holding a shown row, keeps the rows of 
   await user.click(screen.getByRole('button', { name: 'Changed 2' }));
   expect(stack).toHaveProperty('value', '');
   expect(shownNodes()).toEqual(['refundsapi', 'cartweb']);
+});
+
+test('the rows go by cyclomatic Δ, highest first, until another "Sort by" is picked', async () => {
+  atMetrics();
+  const user = userEvent.setup();
+  render(
+    <ReviewPage
+      review={reviewOf({
+        rows: [
+          [
+            crate('stripe', 'modified'),
+            {
+              base: measured(),
+              head: measured({ churn: 9, cyclomatic: cyclomatic([['pay', 5]]) }),
+            },
+          ],
+          [
+            crate('refunds', 'modified'),
+            {
+              base: measured(),
+              head: measured({ churn: 1, cyclomatic: cyclomatic([['refund_order', 14]]) }),
+            },
+          ],
+        ],
+      })}
+    />,
+  );
+
+  expect(shownNodes()).toEqual(['refundsapi', 'stripeapi']);
+
+  await user.selectOptions(screen.getByRole('combobox', { name: 'Sort by' }), 'Churn');
+  expect(shownNodes()).toEqual(['stripeapi', 'refundsapi']);
 });
