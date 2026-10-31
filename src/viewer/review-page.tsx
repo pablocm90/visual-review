@@ -14,6 +14,7 @@ import type { MetricFinding } from '../core/metric-findings.ts';
 import type { NodeMetrics } from '../core/metrics.ts';
 import { type Note, type ReviewNotes, visibleNotes } from '../core/notes.ts';
 import { type PageData, UNCOMMITTED } from '../core/page.ts';
+import type { Review } from '../core/review.ts';
 import type { TestFile } from '../core/test-changes.ts';
 import { testsAlongside } from '../core/tests-alongside.ts';
 import {
@@ -638,12 +639,37 @@ const useTab = (): Tab => {
   return tab;
 };
 
+type SendProps = {
+  readonly comments: Readonly<Record<string, string>>;
+  readonly send: (review: Review) => Promise<void>;
+};
+
+const SendToClaude = ({ comments, send }: SendProps) => {
+  const [sent, setSent] = useState(false);
+  const sendComments = () =>
+    send({
+      version: 1,
+      comments: Object.fromEntries(Object.entries(comments).map(([id, text]) => [id, { text }])),
+    }).then(() => setSent(true));
+  return sent ? (
+    <p role="status" aria-label="Review">
+      Sent
+    </p>
+  ) : (
+    <button type="button" onClick={sendComments}>
+      Send to Claude
+    </button>
+  );
+};
+
 type HeaderProps = {
   readonly review: PageData;
   readonly tab: Tab;
+  readonly comments: Readonly<Record<string, string>>;
+  readonly send: ((review: Review) => Promise<void>) | undefined;
 };
 
-const Header = ({ review, tab }: HeaderProps) => {
+const Header = ({ review, tab, comments, send }: HeaderProps) => {
   const changed = changedCount(review.tests);
   return (
     <header className="review">
@@ -679,6 +705,7 @@ const Header = ({ review, tab }: HeaderProps) => {
           </a>
         ))}
       </nav>
+      {send && <SendToClaude comments={comments} send={send} />}
     </header>
   );
 };
@@ -686,9 +713,10 @@ const Header = ({ review, tab }: HeaderProps) => {
 type ReviewPageProps = {
   readonly review: PageData;
   readonly notes?: ReviewNotes | undefined;
+  readonly send?: (review: Review) => Promise<void>;
 };
 
-export const ReviewPage = ({ review, notes }: ReviewPageProps) => {
+export const ReviewPage = ({ review, notes, send }: ReviewPageProps) => {
   const tab = useTab();
   const [layout, setLayout] = useState<Layout>();
   const [selected, setSelected] = useState<string>();
@@ -881,7 +909,7 @@ export const ReviewPage = ({ review, notes }: ReviewPageProps) => {
   }, [layout, focusTarget, frameElement]);
   return (
     <main>
-      <Header review={review} tab={tab} />
+      <Header review={review} tab={tab} comments={comments} send={send} />
       {tab === 'structure' && (
         <>
           <div className="structure-head">
