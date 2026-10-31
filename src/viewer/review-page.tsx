@@ -696,23 +696,30 @@ export const ReviewPage = ({ review, notes }: ReviewPageProps) => {
   return (
     <main>
       <header className="review">
-        <p className="where">
-          {review.repo} ·{' '}
-          <code>
-            <ShortRange range={review.range} />
-          </code>
-        </p>
-        <h1>
-          {review.pullRequest ? (
-            <a href={review.pullRequest.url}>
-              #{review.pullRequest.number} {review.pullRequest.title}
-            </a>
-          ) : review.range === UNCOMMITTED ? (
-            'Uncommitted work'
-          ) : (
-            <ShortRange range={review.range} />
-          )}
-        </h1>
+        <div className="title">
+          <p className="where">
+            {review.repo} ·{' '}
+            <code>
+              <ShortRange range={review.range} />
+            </code>
+          </p>
+          <h1>
+            {review.pullRequest ? (
+              <a href={review.pullRequest.url}>
+                #{review.pullRequest.number} {review.pullRequest.title}
+              </a>
+            ) : review.range === UNCOMMITTED ? (
+              'Uncommitted work'
+            ) : (
+              <ShortRange range={review.range} />
+            )}
+          </h1>
+        </div>
+        <nav aria-label="Review">
+          <a href="#structure" aria-current="page">
+            Structure
+          </a>
+        </nav>
       </header>
       <div className="structure-head">
         {review.skipped.map(skip => (

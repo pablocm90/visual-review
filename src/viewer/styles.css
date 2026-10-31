@@ -67,11 +67,40 @@ body {
 
 header.review {
   display: flex;
-  flex-direction: column;
-  gap: 2px;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 32px;
   padding: 12px 24px;
   background: var(--stack);
   border-bottom: 1px solid var(--stack-line);
+}
+
+header.review .title {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+header.review nav {
+  display: flex;
+  gap: 4px;
+}
+
+header.review nav a {
+  padding: 6px 12px;
+  border-radius: 6px;
+  color: var(--muted);
+  font-weight: 500;
+  text-decoration: none;
+}
+
+header.review nav a:hover {
+  color: var(--ink);
+}
+
+header.review nav a[aria-current="page"] {
+  background: var(--unchanged-fill);
+  color: var(--ink);
 }
 
 .where {

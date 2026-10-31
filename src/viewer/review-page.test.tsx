@@ -465,6 +465,16 @@ test("a PR's page is headed by the PR's number and title, as a link to it", asyn
   await screen.findByRole('group', { name: 'rust' });
 });
 
+test('the Review nav links each shown tab, only Structure for now, and marks it the current page', async () => {
+  render(<ReviewPage review={pageWith(review)} />);
+
+  const links = within(screen.getByRole('navigation', { name: 'Review' })).getAllByRole('link');
+  expect(links.map(link => link.textContent)).toEqual(['Structure']);
+  expect(links[0]?.getAttribute('href')).toBe('#structure');
+  expect(links[0]?.getAttribute('aria-current')).toBe('page');
+  await screen.findByRole('group', { name: 'rust' });
+});
+
 test('a reader skipped for want of its tool is named in the header with the stacks it did not read', async () => {
   render(
     <ReviewPage
