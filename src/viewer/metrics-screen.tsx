@@ -26,7 +26,10 @@ export const MetricsScreen = ({ review }: { readonly review: PageData }) => {
   const [hop, setHop] = useState(false);
   const leaves = measuredLeaves(review);
   const changed = leaves.filter(({ node }) => node.state !== 'unchanged');
-  const shown = hop ? leaves : changed;
+  const [picked, setPicked] = useState('');
+  const nodesShown = hop ? leaves : changed;
+  const stacks = [...new Set(nodesShown.map(({ stack }) => stack))];
+  const shown = nodesShown.filter(({ stack }) => picked === '' || stack === picked);
   return (
     <div className="metrics-screen">
       <section className="metric-totals" aria-label="Totals">
@@ -54,6 +57,15 @@ export const MetricsScreen = ({ review }: { readonly review: PageData }) => {
           {`Changed + 1 hop ${leaves.length}`}
         </button>
       </div>
+      <label>
+        Stack
+        <select value={picked} onChange={event => setPicked(event.target.value)}>
+          <option value="">All stacks</option>
+          {stacks.map(stack => (
+            <option key={stack}>{stack}</option>
+          ))}
+        </select>
+      </label>
       <section aria-label="Metrics per node">
         <table>
           <tbody>

@@ -14,11 +14,11 @@ const atMetrics = () => {
   onTestFinished(() => history.replaceState(null, '', location.pathname));
 };
 
-const crate = (name: string, state: DiffedNode['state']): DiffedNode => ({
-  id: `api/crate/${name}`,
+const crate = (name: string, state: DiffedNode['state'], stack = 'api'): DiffedNode => ({
+  id: `${stack}/crate/${name}`,
   kind: 'package',
   label: name,
-  parent: 'api',
+  parent: stack,
   path: `crates/${name}`,
   state,
 });
@@ -43,7 +43,15 @@ const reviewOf = ({
     range: 'abc123..def456',
     diff: {
       nodes: [
-        { id: 'api', kind: 'stack', label: 'api', path: '', state: 'modified' },
+        ...[...new Set(rows.map(([node]) => node.parent ?? ''))].map(
+          (stack): DiffedNode => ({
+            id: stack,
+            kind: 'stack',
+            label: stack,
+            path: '',
+            state: 'modified',
+          }),
+        ),
         ...rows.map(([node]) => node),
       ],
       edges: [],
@@ -135,4 +143,35 @@ test('the table lists the changed measured leaves, every measured leaf while "Ch
 
   await user.click(changed);
   expect(shownNodes()).toEqual(['refundsapi', 'ledgerapi']);
+});
+
+test('the stack picker offers the stacks holding a shown row, and keeps the rows of the one picked', async () => {
+  atMetrics();
+  const user = userEvent.setup();
+  render(
+    <ReviewPage
+      review={reviewOf({
+        rows: [
+          [crate('refunds', 'modified'), { base: measured(), head: measured() }],
+          [crate('cart', 'modified', 'web'), { base: measured(), head: measured() }],
+          [crate('helpers', 'unchanged', 'web'), { base: measured(), head: measured() }],
+          [crate('mailer', 'unchanged', 'jobs'), { base: measured(), head: measured() }],
+        ],
+      })}
+    />,
+  );
+  const stack = screen.getByRole('combobox', { name: 'Stack' });
+  const offered = () =>
+    within(stack)
+      .getAllByRole('option')
+      .map(option => option.textContent);
+
+  expect(offered()).toEqual(['All stacks', 'api', 'web']);
+
+  await user.selectOptions(stack, 'web');
+  expect(shownNodes()).toEqual(['cartweb']);
+
+  await user.click(screen.getByRole('button', { name: 'Changed + 1 hop 4' }));
+  expect(offered()).toEqual(['All stacks', 'api', 'web', 'jobs']);
+  expect(shownNodes()).toEqual(['cartweb', 'helpersweb']);
 });
