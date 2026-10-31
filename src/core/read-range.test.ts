@@ -683,7 +683,7 @@ test("a changed test file is read only under a root of its reader's stack on eit
   const { repo, root } = workspace;
   rmSync(join(repo, 'apps/old'), { recursive: true });
   const to = commit(repo, {
-    'admin/src/a.test.ts': "test('reads a', () => {});\n",
+    'apps/a/src/a.test.ts': "test('reads a', () => {});\n",
     'apps/a/src/b.test.js': "test('reads b', () => {});\n",
     'apps/a/src/c.spec.mjs': "test('reads c', () => {});\n",
     'tools/x.test.ts': "test('reads x', () => {});\n",
