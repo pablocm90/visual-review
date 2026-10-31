@@ -800,6 +800,18 @@ test("the findings rail starts collapsed to their total and how many need a look
   expect(await groupsShown()).toEqual(['Flagged in notes', 'Metrics', 'Not drawn']);
   expect(screen.queryByRole('complementary', { name: 'Findings' })).toBeNull();
 
+  await user.click(screen.getByRole('button', { name: 'Show 6 findings' }));
+  const flagged = within(screen.getByRole('region', { name: 'Flagged in notes' }));
+  expect(
+    flagged.getByRole('button', { name: 'cli-adapter: new entry point: A second way in.' }),
+  ).toBeDefined();
+  expect(
+    flagged.getByRole('button', {
+      name: 'cli-adapter → application: new dependency direction: The CLI drives the use case.',
+    }),
+  ).toBeDefined();
+  await user.click(screen.getByRole('button', { name: 'Hide findings' }));
+
   rerender(
     <ReviewPage
       review={pageWith({

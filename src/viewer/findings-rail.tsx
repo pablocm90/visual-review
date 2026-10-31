@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { endsOfId } from '../core/graph.ts';
 import type { MetricFinding } from '../core/metric-findings.ts';
 import type { ReviewNotes } from '../core/notes.ts';
 import type { PageData } from '../core/page.ts';
@@ -34,18 +35,29 @@ type Group = { readonly name: string; readonly findings: ReadonlyArray<Finding> 
 
 const groupsOf = ({ notes, review }: FindingsRailProps): ReadonlyArray<Group> => {
   const labelOf = new Map(review.diff.nodes.map(node => [node.id, node.label]));
+  const targetOf = (id: string) =>
+    endsOfId(id)
+      .map(end => labelOf.get(end) ?? end)
+      .join(' → ');
   return [
     {
       name: 'Flagged in notes',
-      findings: Object.values(notes?.notes ?? {}).flatMap(note =>
-        note.flag ? [{ level: 'look' as const }] : [],
+      findings: Object.entries(notes?.notes ?? {}).flatMap(([id, note]) =>
+        note.flag
+          ? [
+              {
+                level: 'look' as const,
+                said: { sentence: `${note.flag}: ${note.text}`, target: targetOf(id) },
+              },
+            ]
+          : [],
       ),
     },
     {
       name: 'Metrics',
       findings: review.metricFindings.map(finding => ({
         level: finding.level,
-        said: { sentence: sentenceOf(finding), target: labelOf.get(finding.node) ?? finding.node },
+        said: { sentence: sentenceOf(finding), target: targetOf(finding.node) },
       })),
     },
     {
