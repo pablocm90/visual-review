@@ -56,7 +56,8 @@ const COLUMNS: ReadonlyArray<Column> = [
     name: 'Churn',
     of: side => side.churn,
     finding: 'hotspot',
-    meaning: churnDays => `commits touching its file in the ${churnDays} days before each side`,
+    meaning: churnDays =>
+      `commits touching its file in the ${churnDays} days before each side; its mark is a hotspot, past both the churn and the cyclomatic cuts`,
   },
 ];
 
@@ -72,7 +73,10 @@ const Legend = ({ churnDays }: { readonly churnDays: number }) => (
       <dt className="metric-legend-term">
         <LevelMark level="look" />
       </dt>
-      <dd className="metric-legend-meaning">over its threshold: new, newly over, or grown</dd>
+      <dd className="metric-legend-meaning">
+        over a threshold: new, newly over, or grown (a hotspot: entering the corner, or its
+        cyclomatic grew)
+      </dd>
     </div>
     <div className="metric-legend-entry">
       <dt className="metric-legend-term">
