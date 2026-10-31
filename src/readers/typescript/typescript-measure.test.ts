@@ -25,7 +25,11 @@ test("a TS file's lines are those holding code, not blank or comment ones, a tem
 test.for([
   { path: 'src/cast.ts', text: 'const n = <number>value;' },
   { path: 'src/cast.cts', text: 'const n = <number>value;' },
-  { path: 'src/view.tsx', text: 'const view = (n: number) => <b>{n}</b>;' },
+  {
+    path: 'src/shop.service.ts',
+    text: '@Injectable() class Shop { constructor(@Inject(Db) db: Db) {} accessor open = true; }',
+  },
+  { path: 'src/view.tsx', text: '@observer class View { render = (n: number) => <b>{n}</b>; }' },
   { path: 'src/view.js', text: 'const view = n => <b>{n}</b>;' },
   { path: 'src/view.mjs', text: 'const view = n => <b>{n}</b>;' },
 ])('$path parses with the syntax its extension allows', ({ path, text }) => {

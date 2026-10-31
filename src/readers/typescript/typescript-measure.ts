@@ -15,9 +15,15 @@ const NOT_CODE = new Set(['CommentLine', 'CommentBlock', 'eof']);
 const rowsOf = ({ loc: { start, end } }: z.infer<typeof TokenSchema>): ReadonlyArray<number> =>
   Array.from({ length: end.line - start.line + 1 }, (_, index) => start.line + index);
 
+const TYPESCRIPT: Array<ParserPlugin> = [
+  'typescript',
+  'decorators-legacy',
+  'decoratorAutoAccessors',
+];
+
 const pluginsFor = (path: string): Array<ParserPlugin> => {
-  if (path.endsWith('.tsx')) return ['typescript', 'jsx'];
-  return /\.[cm]?ts$/.test(path) ? ['typescript'] : ['jsx'];
+  if (path.endsWith('.tsx')) return [...TYPESCRIPT, 'jsx'];
+  return /\.[cm]?ts$/.test(path) ? TYPESCRIPT : ['jsx'];
 };
 
 const isNode = (value: unknown): value is Node =>
