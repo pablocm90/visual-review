@@ -147,7 +147,7 @@ h1 {
 }
 
 .skipped {
-  flex-basis: 100%;
+  grid-column: 1 / -1;
   margin: 0;
   padding: 6px 10px;
   border-left: 3px solid var(--modified);
@@ -1078,4 +1078,28 @@ pre .hljs-emphasis {
 
 .findings-count .level-mark {
   margin-left: 0;
+}
+
+.rail-skipped {
+  width: 28px;
+  height: 28px;
+  margin: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--modified);
+  border-radius: 50%;
+  background: var(--modified-fill);
+  color: var(--ink);
+  font-weight: 700;
+  cursor: help;
+}
+
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
 }

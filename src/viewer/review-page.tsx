@@ -14,7 +14,6 @@ import type { MetricFinding } from '../core/metric-findings.ts';
 import type { NodeMetrics } from '../core/metrics.ts';
 import { type Note, type ReviewNotes, visibleNotes } from '../core/notes.ts';
 import { type PageData, UNCOMMITTED } from '../core/page.ts';
-import { notReadLine } from '../core/skipped.ts';
 import type { MarkedTest, TestChange, TestFile, TestStatement } from '../core/test-changes.ts';
 import {
   expandedToShow,
@@ -935,11 +934,6 @@ export const ReviewPage = ({ review, notes, shownTabs = SHOWN_TABS }: ReviewPage
       {tab === 'structure' && (
         <>
           <div className="structure-head">
-            {review.skipped.map(skip => (
-              <p key={skip.reader} className="skipped" role="alert">
-                {notReadLine(skip)}
-              </p>
-            ))}
             <Legend />
             <p className="caveat">Calls whose path is built at runtime are not drawn.</p>
           </div>

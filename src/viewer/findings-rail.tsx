@@ -3,11 +3,12 @@ import { endsOfId } from '../core/graph.ts';
 import type { MetricFinding } from '../core/metric-findings.ts';
 import type { ReviewNotes } from '../core/notes.ts';
 import type { PageData } from '../core/page.ts';
+import { notReadLine } from '../core/skipped.ts';
 import { LevelMark, tenths } from './metrics-tab.tsx';
 
 type FindingsRailProps = {
   readonly notes: ReviewNotes | undefined;
-  readonly review: Pick<PageData, 'diff' | 'metricFindings' | 'dangling' | 'undrawn'>;
+  readonly review: Pick<PageData, 'diff' | 'metricFindings' | 'dangling' | 'undrawn' | 'skipped'>;
   readonly onGoTo: (id: string) => void;
   readonly onShowOutside: () => void;
 };
@@ -163,6 +164,11 @@ export const FindingsRail = (props: FindingsRailProps) => {
   if (open) {
     return (
       <aside className="findings" aria-label="Findings">
+        {props.review.skipped.map(skip => (
+          <p key={skip.reader} className="skipped" role="alert">
+            {notReadLine(skip)}
+          </p>
+        ))}
         <h2 className="findings-title">Findings</h2>
         <button type="button" aria-label="Hide findings" onClick={() => setOpen(false)}>
           ‹
@@ -197,6 +203,12 @@ export const FindingsRail = (props: FindingsRailProps) => {
   }
   return (
     <nav className="findings-rail" aria-label="Findings">
+      {props.review.skipped.map(skip => (
+        <p key={skip.reader} className="rail-skipped" role="alert" title={notReadLine(skip)}>
+          <span aria-hidden="true">!</span>
+          <span className="visually-hidden">{notReadLine(skip)}</span>
+        </p>
+      ))}
       <button
         type="button"
         aria-label={`Show ${levels.length} findings`}

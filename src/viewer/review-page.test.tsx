@@ -527,7 +527,8 @@ test('picking a tab sets the hash and shows it, and back and forward move betwee
   await waitFor(() => expect(currentTab()).toBe('Structure'));
 });
 
-test('a reader skipped for want of its tool is named in the header with the stacks it did not read', async () => {
+test('a reader skipped for want of its tool is named at the top of the findings rail, collapsed or open, with the stacks it did not read', async () => {
+  const user = userEvent.setup();
   render(
     <ReviewPage
       review={pageWith({
@@ -537,10 +538,13 @@ test('a reader skipped for want of its tool is named in the header with the stac
     />,
   );
 
-  expect(screen.getByRole('alert').textContent).toBe(
-    'rust, rust~2 not read: cargo not found on PATH',
-  );
-  await screen.findByRole('group', { name: 'rust' });
+  const line = 'rust, rust~2 not read: cargo not found on PATH';
+  const collapsed = await screen.findByRole('navigation', { name: 'Findings' });
+  expect(within(within(collapsed).getByRole('alert')).getByText(line)).toBeDefined();
+  await user.click(within(collapsed).getByRole('button', { name: 'Show 0 findings' }));
+  const open = screen.getByRole('complementary', { name: 'Findings' });
+  expect(within(open).getByRole('alert').textContent).toBe(line);
+  expect(screen.getAllByRole('alert')).toHaveLength(1);
 });
 
 test.for([
