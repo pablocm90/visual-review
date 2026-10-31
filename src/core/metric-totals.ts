@@ -1,15 +1,12 @@
-import type { DiffedNode, GraphDiff } from './diff-graphs.ts';
+import type { DiffedNode } from './diff-graphs.ts';
 import type { FunctionCyclomatic, NodeMeasures, NodeMetrics } from './metrics.ts';
-import type { RangeReading } from './read-range.ts';
+import type { PageData } from './page.ts';
 
-type MetricTotalsOptions = {
-  readonly diff: GraphDiff;
-  readonly metrics: Readonly<Record<string, NodeMetrics>>;
-  readonly thresholds: RangeReading['thresholds'];
-};
+type MetricTotalsOptions = Pick<PageData, 'diff' | 'metrics' | 'metricFindings' | 'thresholds'>;
 
 export type MetricTotals = {
   readonly lines: { readonly by: number; readonly across: number };
+  readonly hotspots: { readonly touched: number; readonly of: number };
   readonly over: {
     readonly base: number;
     readonly head: number;
@@ -25,13 +22,20 @@ const linesOf = (side: NodeMeasures | undefined): number | undefined =>
 const functionsOf = (side: NodeMeasures | undefined): ReadonlyArray<FunctionCyclomatic> =>
   (side && 'lines' in side && side.cyclomatic.byFunction) || [];
 
-export const metricTotals = ({ diff, metrics, thresholds }: MetricTotalsOptions): MetricTotals => {
+export const metricTotals = ({
+  diff,
+  metrics,
+  metricFindings,
+  thresholds,
+}: MetricTotalsOptions): MetricTotals => {
   const changed: ReadonlyArray<Leaf> = diff.nodes.flatMap(node => {
     const measures = metrics[node.id];
     return measures === undefined || measures.highestInside || node.state === 'unchanged'
       ? []
       : [{ node, ...measures }];
   });
+  const changedIds = new Set(changed.map(({ node }) => node.id));
+  const hotspots = metricFindings.filter(({ metric }) => metric === 'hotspot');
   const withLines = changed.filter(
     ({ base, head }) => linesOf(base) !== undefined || linesOf(head) !== undefined,
   );
@@ -43,6 +47,10 @@ export const metricTotals = ({ diff, metrics, thresholds }: MetricTotalsOptions)
     undefined,
   );
   return {
+    hotspots: {
+      touched: hotspots.filter(({ node }) => changedIds.has(node)).length,
+      of: hotspots.length,
+    },
     over: { base: overOn('base'), head: overOn('head'), ...(highest && { highest }) },
     lines: {
       by: withLines.reduce(
