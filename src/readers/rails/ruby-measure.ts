@@ -40,8 +40,9 @@ const ownNodes = (node: Node): ReadonlyArray<Node> =>
 const ASSIGNMENTS = new Set(['assignment', 'operator_assignment']);
 
 const isSetter = (call: Node): boolean =>
-  ASSIGNMENTS.has(call.parent?.type ?? '') &&
-  call.parent?.childForFieldName('left')?.id === call.id;
+  call.parent?.type === 'left_assignment_list' ||
+  (ASSIGNMENTS.has(call.parent?.type ?? '') &&
+    call.parent?.childForFieldName('left')?.id === call.id);
 
 const isCalledSuper = (node: Node): boolean =>
   node.parent?.type === 'call' && node.parent.childForFieldName('method')?.id === node.id;

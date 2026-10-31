@@ -86,6 +86,7 @@ const abcOf = (body: string) => measureRuby(source('def f', body, 'end'))?.funct
 test.for([
   { body: 'a = 1; a, b = 1, 2', abc: [2, 0, 0] },
   { body: 'x.y = g(1)', abc: [1, 1, 0] },
+  { body: 'x.y, z = 1, 2', abc: [1, 0, 0] },
   { body: 'a += 1; a ||= 1', abc: [2, 0, 0] },
   { body: 'g(); g 1; a.g; g { 1 }', abc: [0, 4, 0] },
   { body: 'g; a', abc: [0, 0, 0] },
