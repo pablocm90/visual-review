@@ -51,3 +51,32 @@ test('every def is a method, named as written after def; blocks, lambdas and cla
     ),
   ).toEqual(['open', 'self.build', 'close?', 'nested', 'find', 'message', 'top']);
 });
+
+const cyclomaticOf = (body: string) =>
+  measureRuby(source('def f', body, 'end'))?.functions[0]?.cyclomatic;
+
+test.for([
+  { body: 'if a then b elsif c then d else e end', cyclomatic: 3 },
+  { body: 'unless a then b end', cyclomatic: 2 },
+  { body: 'b if a; b unless a', cyclomatic: 3 },
+  { body: 'a ? b : c', cyclomatic: 2 },
+  { body: 'while a do b end; until a do b end', cyclomatic: 3 },
+  { body: 'b while a; b until a', cyclomatic: 3 },
+  { body: 'for x in a do b end', cyclomatic: 2 },
+  { body: 'case a when 1 then b when 2, 3 then c else d end', cyclomatic: 3 },
+  { body: 'case a\nin [x] then b\nin { y: } then c\nend', cyclomatic: 3 },
+  { body: 'begin; a; rescue A; b; rescue B; c; ensure; d; end', cyclomatic: 3 },
+  { body: 'a rescue b', cyclomatic: 2 },
+  { body: 'a && b and c; a || b or c; !a; a + b', cyclomatic: 5 },
+  { body: 'a ||= b; a &&= b; a += b', cyclomatic: 3 },
+  { body: 'a&.b; a.b', cyclomatic: 2 },
+  { body: 'items.each { |item| return if item }', cyclomatic: 2 },
+])('$body has cyclomatic $cyclomatic', ({ body, cyclomatic }) => {
+  expect(cyclomaticOf(body)).toBe(cyclomatic);
+});
+
+test("a nested def's decisions are its own, not the def around it", () => {
+  const measured = measureRuby(source('def outer', '  def inner', '    a if b', '  end', 'end'));
+
+  expect(measured?.functions.map(each => each.cyclomatic)).toEqual([1, 2]);
+});

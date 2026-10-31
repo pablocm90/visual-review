@@ -11,9 +11,35 @@ const nameOf = (method: Node): string => {
   return object === null ? name : `${object.text}.${name}`;
 };
 
+const DECISIONS = new Set([
+  'if',
+  'unless',
+  'elsif',
+  'if_modifier',
+  'unless_modifier',
+  'conditional',
+  'while',
+  'until',
+  'while_modifier',
+  'until_modifier',
+  'for',
+  'when',
+  'in_clause',
+  'rescue',
+  'rescue_modifier',
+]);
+
+const DECIDING_TOKENS = new Set(['&&', '||', 'and', 'or', '||=', '&&=', '&.']);
+
+const isDecision = (node: Node): boolean =>
+  node.isNamed ? DECISIONS.has(node.type) : DECIDING_TOKENS.has(node.type);
+
+const ownNodes = (node: Node): ReadonlyArray<Node> =>
+  node.children.flatMap(child => (METHODS.includes(child.type) ? [] : [child, ...ownNodes(child)]));
+
 const measureMethod = (method: Node): FunctionMeasures => ({
   name: nameOf(method),
-  cyclomatic: 1,
+  cyclomatic: 1 + ownNodes(method).filter(isDecision).length,
   abc: { assignments: 0, branches: 0, conditions: 0 },
 });
 
