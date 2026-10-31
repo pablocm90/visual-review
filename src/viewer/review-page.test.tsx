@@ -1926,7 +1926,8 @@ test("a renamed node shows the label it had under its own, also once expanded, i
   ).not.toBeNull();
 });
 
-test('the tests section lists each changed test file with its tests as a tree, each named with its change and any label or where it moved, an unreadable one with the reason and a renamed one with its old path', async () => {
+test('the Tests tab lists each changed test file with its tests as a tree, each named with its change and any label or where it moved, an unreadable one with the reason and a renamed one with its old path', () => {
+  atHash('#tests');
   render(
     <ReviewPage
       review={pageWith({
@@ -1968,8 +1969,7 @@ test('the tests section lists each changed test file with its tests as a tree, e
     />,
   );
 
-  await screen.findByRole('group', { name: 'rust' });
-  const tests = screen.getByRole('region', { name: 'Tests' });
+  const tests = screen.getByRole('region', { name: 'Test changes' });
   const file = within(tests).getByRole('region', { name: 'tools/visual-review/src/notes.test.ts' });
   expect(within(file).getByRole('listitem', { name: 'reads the notes: edited' })).not.toBeNull();
   expect(within(file).getByRole('listitem', { name: 'reads renames: added, todo' })).not.toBeNull();
@@ -2003,16 +2003,7 @@ test('the tests section lists each changed test file with its tests as a tree, e
   expect(within(tests).queryByText('No test changed.')).toBeNull();
 });
 
-test('the tests section says so when no test changed', async () => {
-  render(<ReviewPage review={pageWith({ ...review, tests: [] })} />);
-
-  await screen.findByRole('group', { name: 'rust' });
-  expect(
-    within(screen.getByRole('region', { name: 'Tests' })).getByText('No test changed.'),
-  ).not.toBeNull();
-});
-
-test("selecting a node narrows the tests section to the test files at or under it, and says so when none changed there, under Claude's tests line; the inspector's Tests tab lists those files, counting their changed tests, and is left out where none changed", async () => {
+test("the inspector's Tests tab lists the test files at or under the selected node, counting their changed tests, and is left out where none changed", async () => {
   const user = userEvent.setup();
   const testFile = (path: string) => ({
     path,
@@ -2041,27 +2032,10 @@ test("selecting a node narrows the tests section to the test files at or under i
           testFile('tools/visual-review/src/notes.test.ts'),
         ],
       })}
-      notes={{
-        version: 1,
-        summary: [],
-        tests: 'The notes check is pinned; the CLI is not.',
-        notes: {},
-      }}
     />,
   );
-  const tests = screen.getByRole('region', { name: 'Tests' });
-  const filesListed = () =>
-    within(tests)
-      .queryAllByRole('region')
-      .map(file => file.getAttribute('aria-label'));
 
-  expect(filesListed()).toHaveLength(3);
   await user.click(await screen.findByRole('button', { name: 'application: modified' }));
-  expect(filesListed()).toEqual([
-    'crates/application/src/lib.rs',
-    'crates/application/tests/export.rs',
-  ]);
-  expect(within(tests).queryByText('No test changed here.')).toBeNull();
   expect(inspectorTabs()).toEqual(['Note', 'Tests 3']);
   await user.click(within(inspector()).getByRole('tab', { name: 'Tests 3' }));
   expect(
@@ -2073,9 +2047,6 @@ test("selecting a node narrows the tests section to the test files at or under i
   expect(inspectorTabs()).toEqual(['Note']);
   await user.click(screen.getByRole('button', { name: 'domain: unchanged' }));
   expect(inspectorTabs()).toEqual(['Note']);
-  expect(filesListed()).toEqual([]);
-  expect(within(tests).getByText('No test changed here.')).not.toBeNull();
-  expect(within(tests).getByText('The notes check is pinned; the CLI is not.')).not.toBeNull();
 });
 
 test("a node's Tests tab also lists the test files named after a file inside it, wherever they sit in its stack", async () => {

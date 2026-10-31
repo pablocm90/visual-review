@@ -715,12 +715,6 @@ pre .hljs-emphasis {
   margin-top: 20px;
 }
 
-.tests h2 {
-  margin: 0 0 8px;
-  font-size: 14px;
-  font-weight: 600;
-}
-
 .note [role="tabpanel"] h2 {
   margin: 0 0 8px;
   color: var(--removed);
@@ -744,16 +738,6 @@ pre .hljs-emphasis {
 .tests p {
   margin: 0;
   color: var(--muted);
-}
-
-.tests .tests-line {
-  max-width: 72ch;
-  margin-bottom: 8px;
-  padding: 8px 12px;
-  border: 1px solid var(--stack-line);
-  border-radius: 8px;
-  background: var(--stack);
-  color: var(--ink);
 }
 
 .tests ul {

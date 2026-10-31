@@ -760,9 +760,7 @@ export const ReviewPage = ({ review, notes, shownTabs = SHOWN_TABS }: ReviewPage
       once: true,
     });
   };
-  const tests = review.tests.filter(
-    ({ path }) => selectedNode === undefined || isAtOrUnder(path, selectedNode),
-  );
+
   const [focusTarget, setFocusTarget] = useState<string>();
   const goTo = (id: string) => {
     select(id);
@@ -980,15 +978,6 @@ export const ReviewPage = ({ review, notes, shownTabs = SHOWN_TABS }: ReviewPage
                   )}
                 </div>
               )}
-              <section className="tests" aria-label="Tests">
-                <h2>Tests</h2>
-                {notes && <p className="tests-line">{notes.tests}</p>}
-                {tests.length === 0 ? (
-                  <p>{selectedNode ? 'No test changed here.' : 'No test changed.'}</p>
-                ) : (
-                  <TestFiles files={tests} nodes={review.diff.nodes} />
-                )}
-              </section>
             </div>
             {(selected !== undefined || outside) && (
               <>
