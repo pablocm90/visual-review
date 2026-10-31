@@ -178,6 +178,25 @@ test("a served page's Send to Claude sends each comment under its node's id or i
   expect(screen.queryByRole('button', { name: 'Send to Claude' })).toBeNull();
 });
 
+test('a send that fails says why and leaves Send to Claude to try again', async () => {
+  const user = userEvent.setup();
+  const send = vi.fn(() => Promise.reject(new Error('The review was not sent: 403 Forbidden')));
+  render(<ReviewPage review={pageWith(review)} send={send} />);
+
+  const rust = await screen.findByRole('group', { name: 'rust' });
+  await user.click(within(rust).getByRole('button', { name: 'domain: unchanged' }));
+  await user.type(
+    within(noteTab()).getByRole('textbox', { name: 'Your comment' }),
+    'Keep domain free of IO.',
+  );
+  await user.click(screen.getByRole('button', { name: 'Send to Claude' }));
+
+  expect((await screen.findByRole('status', { name: 'Review' })).textContent).toBe(
+    'The review was not sent: 403 Forbidden',
+  );
+  expect(screen.getByRole('button', { name: 'Send to Claude' })).not.toBeNull();
+});
+
 type FrameOptions = {
   readonly width: number;
   readonly windowHeight: number;

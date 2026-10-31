@@ -646,19 +646,30 @@ type SendProps = {
 
 const SendToClaude = ({ comments, send }: SendProps) => {
   const [sent, setSent] = useState(false);
+  const [problem, setProblem] = useState<string>();
   const sendComments = () =>
     send({
       version: 1,
       comments: Object.fromEntries(Object.entries(comments).map(([id, text]) => [id, { text }])),
-    }).then(() => setSent(true));
+    }).then(
+      () => setSent(true),
+      (error: Error) => setProblem(error.message),
+    );
   return sent ? (
     <p role="status" aria-label="Review">
       Sent
     </p>
   ) : (
-    <button type="button" onClick={sendComments}>
-      Send to Claude
-    </button>
+    <>
+      {problem && (
+        <p role="status" aria-label="Review">
+          {problem}
+        </p>
+      )}
+      <button type="button" onClick={sendComments}>
+        Send to Claude
+      </button>
+    </>
   );
 };
 
