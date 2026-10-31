@@ -598,6 +598,8 @@ type SidePanelProps = {
   readonly unrouted: ReadonlyArray<string>;
   readonly comments: Readonly<Record<string, string>>;
   readonly onComment: ((id: string, text: string) => void) | undefined;
+  readonly chosenWidth: number | undefined;
+  readonly onChooseWidth: (width: number) => void;
   readonly graphLeft: () => number;
   readonly onCloseOutside: () => void;
   readonly onCloseInspector: (id: string) => void;
@@ -612,11 +614,12 @@ const SidePanel = ({
   unrouted,
   comments,
   onComment,
+  chosenWidth,
+  onChooseWidth,
   graphLeft,
   onCloseOutside,
   onCloseInspector,
 }: SidePanelProps) => {
-  const [chosenWidth, setChosenWidth] = useState<number>();
   const patches = outside
     ? review.undrawn
     : node
@@ -626,13 +629,13 @@ const SidePanel = ({
   const moveDivider = (event: KeyboardEvent) => {
     const step = { ArrowLeft: DIVIDER_STEP, ArrowRight: -DIVIDER_STEP }[event.key];
     if (step === undefined) return;
-    setChosenWidth(panelWidthWithin(width + step, graphLeft()));
+    onChooseWidth(panelWidthWithin(width + step, graphLeft()));
   };
   const dragDivider = (down: PointerEvent<HTMLDivElement>) => {
     down.preventDefault();
     down.currentTarget.focus();
     const follow = (move: globalThis.PointerEvent) =>
-      setChosenWidth(panelWidthWithin(width + down.clientX - move.clientX, graphLeft()));
+      onChooseWidth(panelWidthWithin(width + down.clientX - move.clientX, graphLeft()));
     window.addEventListener('pointermove', follow);
     window.addEventListener('pointerup', () => window.removeEventListener('pointermove', follow), {
       once: true,
@@ -947,6 +950,7 @@ export const ReviewPage = ({ review, notes, send }: ReviewPageProps) => {
     setSelected(id);
   };
   const [comments, setComments] = useState<Readonly<Record<string, string>>>({});
+  const [chosenWidth, setChosenWidth] = useState<number>();
   const comment = (id: string, text: string) =>
     setComments(current => ({ ...current, [id]: text }));
   const [expanded, setExpanded] = useState<ReadonlySet<string>>(new Set());
@@ -1146,6 +1150,8 @@ export const ReviewPage = ({ review, notes, send }: ReviewPageProps) => {
               unrouted={selectedUnrouted}
               comments={comments}
               onComment={send && comment}
+              chosenWidth={chosenWidth}
+              onChooseWidth={setChosenWidth}
               graphLeft={graphLeft}
               onCloseOutside={closeOutside}
               onCloseInspector={closeInspector}

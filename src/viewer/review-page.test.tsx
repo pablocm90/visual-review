@@ -2394,7 +2394,7 @@ const withChangesUnderApplication = {
 const panelWidth = () =>
   screen.getByRole('separator', { name: 'Panel width' }).getAttribute('aria-valuenow');
 
-test('a selected node opens its panel beside a divider that gives its width: 360 for a note alone, 600 with changes; arrow keys move the divider, other keys leave it, and it stops at 280 and where the graph, right of the findings rail, would get narrower than 320; the width it sets holds for later selections', async () => {
+test('a selected node opens its panel beside a divider that gives its width: 360 for a note alone, 600 with changes; arrow keys move the divider, other keys leave it, and it stops at 280 and where the graph, right of the findings rail, would get narrower than 320; the width it sets holds for later selections and across tabs', async () => {
   const user = userEvent.setup();
   render(<ReviewPage review={pageWith(withChangesUnderApplication)} />);
 
@@ -2426,6 +2426,12 @@ test('a selected node opens its panel beside a divider that gives its width: 360
   expect(panelWidth()).toBe('555');
 
   await user.click(within(rust).getByRole('button', { name: 'application: modified' }));
+  expect(panelWidth()).toBe('555');
+
+  await user.click(screen.getByRole('link', { name: 'Metrics' }));
+  await waitFor(() => expect(currentTab()).toBe('Metrics'));
+  await user.click(screen.getByRole('link', { name: 'Structure' }));
+  await waitFor(() => expect(currentTab()).toBe('Structure'));
   expect(panelWidth()).toBe('555');
 });
 
