@@ -816,6 +816,32 @@ test("the findings rail starts collapsed to their total and how many need a look
   expect(notDrawn.getAllByRole('button').map(button => button.getAttribute('aria-label'))).toEqual([
     'README.md: 1 changed file outside the graph',
   ]);
+
+  const chips = within(screen.getByRole('group', { name: 'Show findings' }));
+  const pressed = () =>
+    chips
+      .getAllByRole('button')
+      .map(chip => `${chip.textContent} ${chip.getAttribute('aria-pressed')}`);
+  expect(pressed()).toEqual([
+    'All 6 true',
+    'Notes 2 false',
+    'Metrics 2 false',
+    'Not drawn 2 false',
+  ]);
+  const headings = () =>
+    within(screen.getByRole('complementary', { name: 'Findings' }))
+      .getAllByRole('heading', { level: 3 })
+      .map(heading => heading.textContent);
+  await user.click(chips.getByRole('button', { name: 'Metrics 2' }));
+  expect(pressed()).toEqual([
+    'All 6 false',
+    'Notes 2 false',
+    'Metrics 2 true',
+    'Not drawn 2 false',
+  ]);
+  expect(headings()).toEqual(['Metrics']);
+  await user.click(chips.getByRole('button', { name: 'All 6' }));
+  expect(headings()).toEqual(['Flagged in notes', 'Metrics', 'Not drawn']);
   await user.click(screen.getByRole('button', { name: 'Hide findings' }));
 
   rerender(

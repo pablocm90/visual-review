@@ -52,7 +52,11 @@ const sentenceOf = (finding: MetricFinding) => {
   return `hotspot, churn ${move(base?.churn, head.churn)} and cyclomatic ${move(base?.cyclomatic, head.cyclomatic)}, over ${threshold.churn} and ${threshold.cyclomatic}`;
 };
 
-type Group = { readonly name: string; readonly findings: ReadonlyArray<Finding> };
+type Group = {
+  readonly name: string;
+  readonly chip: string;
+  readonly findings: ReadonlyArray<Finding>;
+};
 
 const groupsOf = ({ notes, review }: FindingsRailProps): ReadonlyArray<Group> => {
   const labelOf = new Map(review.diff.nodes.map(node => [node.id, node.label]));
@@ -63,6 +67,7 @@ const groupsOf = ({ notes, review }: FindingsRailProps): ReadonlyArray<Group> =>
   return [
     {
       name: 'Flagged in notes',
+      chip: 'Notes',
       findings: Object.entries(notes?.notes ?? {}).flatMap(([id, note]) =>
         note.flag
           ? [
@@ -77,6 +82,7 @@ const groupsOf = ({ notes, review }: FindingsRailProps): ReadonlyArray<Group> =>
     },
     {
       name: 'Metrics',
+      chip: 'Metrics',
       findings: review.metricFindings.map(finding => ({
         level: finding.level,
         sentence: sentenceOf(finding),
@@ -85,6 +91,7 @@ const groupsOf = ({ notes, review }: FindingsRailProps): ReadonlyArray<Group> =>
     },
     {
       name: 'Not drawn',
+      chip: 'Not drawn',
       findings: [
         ...notDrawn({
           paths: review.dangling.map(call => call.path),
@@ -125,10 +132,15 @@ const FindingItem = ({ finding }: { readonly finding: Finding }) => {
 
 export const FindingsRail = (props: FindingsRailProps) => {
   const [open, setOpen] = useState(false);
+  const [picked, setPicked] = useState<string>();
   const groups = groupsOf(props).filter(group => group.findings.length > 0);
   const levels: ReadonlyArray<Level> = groups.flatMap(group =>
     group.findings.map(finding => finding.level),
   );
+  const chips = [
+    { chip: 'All', pick: undefined, count: levels.length },
+    ...groups.map(group => ({ chip: group.chip, pick: group.chip, count: group.findings.length })),
+  ];
   const counted = (level: Level) => (
     <span className="findings-count">
       <LevelMark level={level} />
@@ -142,16 +154,30 @@ export const FindingsRail = (props: FindingsRailProps) => {
         <button type="button" aria-label="Hide findings" onClick={() => setOpen(false)}>
           ‹
         </button>
-        {groups.map(group => (
-          <section key={group.name} aria-label={group.name}>
-            <h3>{group.name}</h3>
-            <ul>
-              {group.findings.map(finding => (
-                <FindingItem key={`${finding.target}: ${finding.sentence}`} finding={finding} />
-              ))}
-            </ul>
-          </section>
-        ))}
+        <div className="chips" role="group" aria-label="Show findings">
+          {chips.map(({ chip, pick, count }) => (
+            <button
+              key={chip}
+              type="button"
+              aria-pressed={pick === picked}
+              onClick={() => setPicked(pick)}
+            >
+              {`${chip} ${count}`}
+            </button>
+          ))}
+        </div>
+        {groups
+          .filter(group => picked === undefined || group.chip === picked)
+          .map(group => (
+            <section key={group.name} aria-label={group.name}>
+              <h3>{group.name}</h3>
+              <ul>
+                {group.findings.map(finding => (
+                  <FindingItem key={`${finding.target}: ${finding.sentence}`} finding={finding} />
+                ))}
+              </ul>
+            </section>
+          ))}
       </aside>
     );
   }
