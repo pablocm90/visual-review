@@ -656,6 +656,26 @@ test("a Minitest or RSpec file is read only under a test/ or spec/ folder of a R
   ]);
 });
 
+test("a changed class's file is measured by the Rails reader, while a test file drawn as a class is left unmeasured", async () => {
+  using workspace = gitRepo(railsApp);
+  const { repo, root } = workspace;
+  const to = commit(repo, {
+    'app/models/order.rb': 'class Order\n  def total = items.sum\nend\n',
+    'lib/test/money_test.rb': 'class MoneyTest\n  def test_adds = 1\nend\n',
+  });
+
+  const range = await readRange({ repo, from: root, to });
+
+  expect(range.measures.after).toStrictEqual({
+    'app/models/order.rb': {
+      lines: 3,
+      functions: [
+        { name: 'total', cyclomatic: 1, abc: { assignments: 0, branches: 1, conditions: 0 } },
+      ],
+    },
+  });
+});
+
 const added = (name: string) => ({ kind: 'test', name, change: 'added' });
 
 const testsAdded = async ({ path, file }: { path: string; file: string }) => {

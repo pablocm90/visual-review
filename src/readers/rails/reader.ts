@@ -3,6 +3,7 @@ import { basename, dirname, join } from 'node:path';
 import type { Reader } from '../../core/reader.ts';
 import { sourcesIn } from '../sources-in.ts';
 import { railsGraph } from './rails-graph.ts';
+import { measureRuby } from './ruby-measure.ts';
 import { readRubyTests } from './ruby-tests.ts';
 
 const APPLICATION = 'config/application.rb';
@@ -35,4 +36,5 @@ export const railsReader: Reader = {
     }),
   isTestFile: path => TEST_FILE.test(path),
   readTests: readRubyTests,
+  measure: (text, path) => (TEST_FILE.test(path) ? undefined : measureRuby(text)),
 };

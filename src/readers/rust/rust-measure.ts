@@ -1,20 +1,11 @@
 import type { Node } from 'web-tree-sitter';
 import type { FileMeasures, FunctionMeasures } from '../../core/reader.ts';
+import { codeLines } from '../tree-sitter.ts';
 import { isComment, isTestCode, isTestItem, parseRust } from './rust-syntax.ts';
 
 const isTestPart = (node: Node | null): boolean =>
   node !== null &&
   (isTestItem(node) || (node.type === 'attribute_item' && isTestPart(node.nextNamedSibling)));
-
-const codeRows = (node: Node): ReadonlyArray<number> => {
-  if (isComment(node) || isTestPart(node)) return [];
-  if (node.childCount > 0) return node.children.flatMap(codeRows);
-  const { startPosition, endPosition } = node;
-  return Array.from(
-    { length: endPosition.row - startPosition.row + 1 },
-    (_, index) => startPosition.row + index,
-  );
-};
 
 const DECISIONS = new Set([
   'if_expression',
@@ -64,7 +55,7 @@ export const measureRust = (text: string): FileMeasures => {
   const root = parseRust(text);
   if (root === undefined) return { lines: 0, functions: [] };
   return {
-    lines: new Set(root.children.flatMap(codeRows)).size,
+    lines: codeLines(root, node => isComment(node) || isTestPart(node)),
     functions: root
       .descendantsOfType('function_item')
       .filter(item => !isTestCode(item))
