@@ -393,3 +393,11 @@ test("a cell carries the level mark of its node's finding on that metric, the ho
     'needs a look',
   ]);
 });
+
+test('with no measured node, "No node measured." stands in for the table', () => {
+  atMetrics();
+  render(<ReviewPage review={reviewOf({ rows: [] })} />);
+
+  expect(screen.getByText('No node measured.')).toBeTruthy();
+  expect(screen.queryByRole('table')).toBeNull();
+});

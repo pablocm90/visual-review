@@ -138,77 +138,83 @@ export const MetricsScreen = ({ review, onGoTo }: MetricsScreenProps) => {
           caption={`${thresholds.hotspot.churn}+ commits in ${churnDays} days and ${thresholds.hotspot.cyclomatic}+ cyclomatic`}
         />
       </section>
-      <div role="group" aria-label="Nodes shown">
-        <button type="button" aria-pressed={!hop} onClick={() => setHop(false)}>
-          {`Changed ${changed.length}`}
-        </button>
-        <button type="button" aria-pressed={hop} onClick={() => setHop(true)}>
-          {`Changed + 1 hop ${leaves.length}`}
-        </button>
-      </div>
-      <label>
-        Stack
-        <select value={inStack} onChange={event => setPicked(event.target.value)}>
-          <option value="">All stacks</option>
-          {stacks.map(stack => (
-            <option key={stack}>{stack}</option>
-          ))}
-        </select>
-      </label>
-      <label>
-        Sort by
-        <select
-          value={by}
-          onChange={event => {
-            const sort = SORTS.find(([key]) => key === event.target.value);
-            if (sort) setBy(sort[0]);
-          }}
-        >
-          {SORTS.map(([key, name]) => (
-            <option key={key} value={key}>
-              {name}
-            </option>
-          ))}
-        </select>
-      </label>
-      <section aria-label="Metrics per node">
-        <table>
-          <thead>
-            <tr>
-              <th scope="col">Node</th>
-              {COLUMNS.map(({ name }) => (
-                <th key={name} scope="col">
-                  {name}
-                </th>
+      {leaves.length === 0 ? (
+        <p>No node measured.</p>
+      ) : (
+        <>
+          <div role="group" aria-label="Nodes shown">
+            <button type="button" aria-pressed={!hop} onClick={() => setHop(false)}>
+              {`Changed ${changed.length}`}
+            </button>
+            <button type="button" aria-pressed={hop} onClick={() => setHop(true)}>
+              {`Changed + 1 hop ${leaves.length}`}
+            </button>
+          </div>
+          <label>
+            Stack
+            <select value={inStack} onChange={event => setPicked(event.target.value)}>
+              <option value="">All stacks</option>
+              {stacks.map(stack => (
+                <option key={stack}>{stack}</option>
               ))}
-            </tr>
-          </thead>
-          <tbody>
-            {shown.map(({ node, stack, base, head }) => (
-              <tr key={node.id}>
-                <th scope="row">
-                  <ChangeMark state={node.state} />
-                  <button type="button" onClick={() => onGoTo(node.id)}>
-                    {node.label}
-                  </button>
-                  <span>{stack}</span>
-                </th>
-                {COLUMNS.map(({ name, of, finding }) => (
-                  <Cell
-                    key={name}
-                    of={of}
-                    base={base}
-                    head={head}
-                    finding={review.metricFindings.find(
-                      ({ node: at, metric }) => at === node.id && metric === finding,
-                    )}
-                  />
+            </select>
+          </label>
+          <label>
+            Sort by
+            <select
+              value={by}
+              onChange={event => {
+                const sort = SORTS.find(([key]) => key === event.target.value);
+                if (sort) setBy(sort[0]);
+              }}
+            >
+              {SORTS.map(([key, name]) => (
+                <option key={key} value={key}>
+                  {name}
+                </option>
+              ))}
+            </select>
+          </label>
+          <section aria-label="Metrics per node">
+            <table>
+              <thead>
+                <tr>
+                  <th scope="col">Node</th>
+                  {COLUMNS.map(({ name }) => (
+                    <th key={name} scope="col">
+                      {name}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {shown.map(({ node, stack, base, head }) => (
+                  <tr key={node.id}>
+                    <th scope="row">
+                      <ChangeMark state={node.state} />
+                      <button type="button" onClick={() => onGoTo(node.id)}>
+                        {node.label}
+                      </button>
+                      <span>{stack}</span>
+                    </th>
+                    {COLUMNS.map(({ name, of, finding }) => (
+                      <Cell
+                        key={name}
+                        of={of}
+                        base={base}
+                        head={head}
+                        finding={review.metricFindings.find(
+                          ({ node: at, metric }) => at === node.id && metric === finding,
+                        )}
+                      />
+                    ))}
+                  </tr>
                 ))}
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </section>
+              </tbody>
+            </table>
+          </section>
+        </>
+      )}
     </div>
   );
 };
