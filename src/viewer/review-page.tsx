@@ -14,7 +14,13 @@ import type { MetricFinding } from '../core/metric-findings.ts';
 import type { NodeMetrics } from '../core/metrics.ts';
 import { type Note, type ReviewNotes, visibleNotes } from '../core/notes.ts';
 import { type PageData, UNCOMMITTED } from '../core/page.ts';
-import type { MarkedTest, TestChange, TestFile, TestStatement } from '../core/test-changes.ts';
+import {
+  type MarkedTest,
+  type TestChange,
+  type TestFile,
+  type TestStatement,
+  testCounts,
+} from '../core/test-changes.ts';
 import { testsAlongside } from '../core/tests-alongside.ts';
 import {
   expandedToShow,
@@ -695,7 +701,7 @@ const TABS = { structure: 'Structure', metrics: 'Metrics', tests: 'Tests' } as c
 
 type Tab = keyof typeof TABS;
 
-const SHOWN_TABS: ReadonlyArray<Tab> = ['structure'];
+const SHOWN_TABS: ReadonlyArray<Tab> = ['structure', 'tests'];
 
 const tabAt = (hash: string, shown: ReadonlyArray<Tab>): Tab =>
   shown.find(tab => `#${tab}` === hash) ?? 'structure';
@@ -716,36 +722,48 @@ type HeaderProps = {
   readonly shownTabs: ReadonlyArray<Tab>;
 };
 
-const Header = ({ review, tab, shownTabs }: HeaderProps) => (
-  <header className="review">
-    <div className="title">
-      <p className="where">
-        {review.repo} ·{' '}
-        <code>
-          <ShortRange range={review.range} />
-        </code>
-      </p>
-      <h1>
-        {review.pullRequest ? (
-          <a href={review.pullRequest.url}>
-            #{review.pullRequest.number} {review.pullRequest.title}
+const changedCount = (files: ReadonlyArray<TestFile>): number =>
+  Object.values(testCounts(files)).reduce((sum, count) => sum + count, 0);
+
+const Header = ({ review, tab, shownTabs }: HeaderProps) => {
+  const changed = changedCount(review.tests);
+  return (
+    <header className="review">
+      <div className="title">
+        <p className="where">
+          {review.repo} ·{' '}
+          <code>
+            <ShortRange range={review.range} />
+          </code>
+        </p>
+        <h1>
+          {review.pullRequest ? (
+            <a href={review.pullRequest.url}>
+              #{review.pullRequest.number} {review.pullRequest.title}
+            </a>
+          ) : review.range === UNCOMMITTED ? (
+            'Uncommitted work'
+          ) : (
+            <ShortRange range={review.range} />
+          )}
+        </h1>
+      </div>
+      <nav aria-label="Review">
+        {shownTabs.map(shown => (
+          <a key={shown} href={`#${shown}`} aria-current={shown === tab ? 'page' : undefined}>
+            {TABS[shown]}
+            {shown === 'tests' && changed > 0 && (
+              <>
+                {' '}
+                <span className="badge">{changed}</span>
+              </>
+            )}
           </a>
-        ) : review.range === UNCOMMITTED ? (
-          'Uncommitted work'
-        ) : (
-          <ShortRange range={review.range} />
-        )}
-      </h1>
-    </div>
-    <nav aria-label="Review">
-      {shownTabs.map(shown => (
-        <a key={shown} href={`#${shown}`} aria-current={shown === tab ? 'page' : undefined}>
-          {TABS[shown]}
-        </a>
-      ))}
-    </nav>
-  </header>
-);
+        ))}
+      </nav>
+    </header>
+  );
+};
 
 type ReviewPageProps = {
   readonly review: PageData;

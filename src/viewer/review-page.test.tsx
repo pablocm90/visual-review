@@ -477,11 +477,11 @@ test("a PR's page is headed by the PR's number and title, as a link to it", asyn
   await screen.findByRole('group', { name: 'rust' });
 });
 
-test('the Review nav links each shown tab, only Structure for now, and marks it the current page', async () => {
+test('the Review nav links each shown tab, Structure and Tests for now, and marks Structure the current page', async () => {
   render(<ReviewPage review={pageWith(review)} />);
 
   const links = within(screen.getByRole('navigation', { name: 'Review' })).getAllByRole('link');
-  expect(links.map(link => link.textContent)).toEqual(['Structure']);
+  expect(links.map(link => link.textContent)).toEqual(['Structure', 'Tests']);
   expect(links[0]?.getAttribute('href')).toBe('#structure');
   expect(links[0]?.getAttribute('aria-current')).toBe('page');
   await screen.findByRole('group', { name: 'rust' });
@@ -507,6 +507,54 @@ test.for([
   expect(screen.queryByRole('checkbox', { name: 'Changed + 1 hop' }) !== null).toBe(
     tab === 'Structure',
   );
+});
+
+test("the Tests tab's link counts the review's changed tests, a moved pair once, and carries no count with none changed", async () => {
+  atHash('');
+  const user = userEvent.setup();
+  const { rerender } = render(
+    <ReviewPage
+      review={pageWith({
+        ...review,
+        tests: [
+          {
+            path: 'crates/application/src/lib.rs',
+            statements: [
+              { kind: 'test', name: 'reads the notes', change: 'edited' },
+              {
+                kind: 'test',
+                name: 'exports a CSV',
+                change: 'removed',
+                movedTo: 'crates/domain/src/lib.rs',
+              },
+            ],
+          },
+          {
+            path: 'crates/domain/src/lib.rs',
+            statements: [
+              {
+                kind: 'test',
+                name: 'exports a CSV',
+                change: 'added',
+                movedFrom: 'crates/application/src/lib.rs',
+              },
+            ],
+          },
+        ],
+      })}
+    />,
+  );
+
+  expect(
+    within(screen.getByRole('navigation', { name: 'Review' }))
+      .getAllByRole('link')
+      .map(link => link.textContent),
+  ).toEqual(['Structure', 'Tests 2']);
+  await user.click(screen.getByRole('link', { name: 'Tests 2' }));
+  await waitFor(() => expect(currentTab()).toBe('Tests 2'));
+  expect(screen.queryByRole('group', { name: 'rust' })).toBeNull();
+  rerender(<ReviewPage review={pageWith(review)} />);
+  expect(screen.getByRole('link', { name: 'Tests' })).not.toBeNull();
 });
 
 test('picking a tab sets the hash and shows it, and back and forward move between the tabs', async () => {
