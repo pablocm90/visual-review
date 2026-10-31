@@ -68,6 +68,33 @@ const functionsIn = (text: string, node: Node): ReadonlyArray<OwnFunction> => {
   return own === undefined ? inner : [own, ...inner];
 };
 
+const DECISIONS = new Set([
+  'IfStatement',
+  'ConditionalExpression',
+  'ForStatement',
+  'ForInStatement',
+  'ForOfStatement',
+  'WhileStatement',
+  'DoWhileStatement',
+  'CatchClause',
+  'LogicalExpression',
+  'AssignmentPattern',
+]);
+
+const LOGICAL_ASSIGNMENTS = new Set(['&&=', '||=', '??=']);
+
+const isDecision = (node: Node): boolean =>
+  DECISIONS.has(node.type) ||
+  (node.type === 'SwitchCase' && node.test !== null) ||
+  (node.type === 'AssignmentExpression' && LOGICAL_ASSIGNMENTS.has(node.operator)) ||
+  ((node.type === 'OptionalMemberExpression' || node.type === 'OptionalCallExpression') &&
+    node.optional);
+
+const ownNodes = (node: Node, functions: ReadonlySet<Node>): ReadonlyArray<Node> =>
+  childrenOf(node).flatMap(child =>
+    functions.has(child) ? [] : [child, ...ownNodes(child, functions)],
+  );
+
 export const measureTypeScript = (text: string, path: string): FileMeasures => {
   const { program, tokens } = parse(text, {
     sourceType: 'module',
@@ -78,11 +105,13 @@ export const measureTypeScript = (text: string, path: string): FileMeasures => {
     .array(TokenSchema)
     .parse(tokens)
     .filter(({ type }) => !NOT_CODE.has(type));
+  const functions = functionsIn(text, program);
+  const bodies = new Set(functions.map(({ fn }) => fn));
   return {
     lines: new Set(code.flatMap(rowsOf)).size,
-    functions: functionsIn(text, program).map(({ name }) => ({
+    functions: functions.map(({ name, fn }) => ({
       name,
-      cyclomatic: 1,
+      cyclomatic: 1 + ownNodes(fn, bodies).filter(isDecision).length,
       abc: { assignments: 0, branches: 0, conditions: 0 },
     })),
   };

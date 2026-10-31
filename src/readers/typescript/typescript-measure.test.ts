@@ -86,3 +86,30 @@ test('an anonymous function is no function of its own, a named one inside anothe
     ),
   ).toEqual(['load', 'helper']);
 });
+
+const cyclomaticOf = (body: string, params = '') =>
+  measureTypeScript(`function f(${params}) { ${body} }`, 'src/shop.ts').functions[0]?.cyclomatic;
+
+test.for([
+  { body: 'if (a) {}', cyclomatic: 2 },
+  { body: 'a ? b : c;', cyclomatic: 2 },
+  { body: 'for (;;) {}', cyclomatic: 2 },
+  { body: 'for (const k in a) {}', cyclomatic: 2 },
+  { body: 'for (const v of a) {}', cyclomatic: 2 },
+  { body: 'while (a) {}', cyclomatic: 2 },
+  { body: 'do {} while (a);', cyclomatic: 2 },
+  { body: 'switch (a) { case 1: break; case 2: break; default: }', cyclomatic: 3 },
+  { body: 'try {} catch {}', cyclomatic: 2 },
+  { body: 'try {} finally {}', cyclomatic: 1 },
+  { body: 'a && b; a || b; a ?? b;', cyclomatic: 4 },
+  { body: 'a &&= b; a ||= b; a ??= b;', cyclomatic: 4 },
+  { body: 'a = b; a += b;', cyclomatic: 1 },
+  { body: 'a?.b.c; a?.(); a?.[0];', cyclomatic: 4 },
+  { body: 'a === b;', cyclomatic: 1 },
+  { body: '', params: 'a = 1, b', cyclomatic: 2 },
+  { body: 'let c: { d?: number };', params: 'a?: number', cyclomatic: 1 },
+  { body: 'items.forEach(item => { if (item) {} });', cyclomatic: 2 },
+  { body: 'const g = () => { if (a) {} };', cyclomatic: 1 },
+])('`$body` gives its function cyclomatic $cyclomatic', ({ body, params, cyclomatic }) => {
+  expect(cyclomaticOf(body, params)).toBe(cyclomatic);
+});
