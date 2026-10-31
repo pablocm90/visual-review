@@ -16,11 +16,11 @@ const nodes: ReadonlyArray<GraphNode> = [
   node('shop/layer/models', 'module', 'app/models', 'shop'),
   node('shop/class/User', 'file', 'app/models/user.rb', 'shop/layer/models'),
   node('shop/class/AbTesting', 'file', 'app/models/ab_testing.rb', 'shop/layer/models'),
-  node('web', 'stack', 'web'),
+  node('web', 'stack', ''),
   node('web/module/refunds', 'module', 'web/src/refunds', 'web'),
   node('web/file/refunds/refund.ts', 'file', 'web/src/refunds/refund.ts', 'web/module/refunds'),
   node('web/module/orders', 'module', 'web/src/orders', 'web'),
-  node('api', 'stack', 'crates/api'),
+  node('api', 'stack', ''),
   node('api/module/refund', 'module', 'crates/api/src/refund.rs', 'api'),
 ];
 
@@ -76,7 +76,8 @@ test.for([
     alongside: false,
   },
   { test: 'crates/api/tests/refund.rs', stack: 'api', node: 'api/module/refund', alongside: true },
-  { test: 'web/src/refunds/refund.test.ts', stack: 'web', node: 'shop', alongside: true },
+  { test: 'test/models/order_test.rb', stack: 'shop', node: 'shop', alongside: true },
+  { test: 'web/src/refunds/refund.test.ts', stack: 'web', node: 'shop', alongside: false },
 ])('$test sits alongside $node: $alongside', ({ test: path, stack, node: id, alongside }) => {
   const at = nodes.find(each => each.id === id);
   if (at === undefined) throw new Error(`no node ${id}`);

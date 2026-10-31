@@ -1,5 +1,5 @@
 import { isAtOrUnder } from './diff-graphs.ts';
-import type { GraphNode } from './graph.ts';
+import { type GraphNode, stackOfIn } from './graph.ts';
 import type { TestFile } from './test-changes.ts';
 
 const holds = (node: GraphNode, path: string): boolean =>
@@ -33,14 +33,12 @@ export const testsAlongside = ({
   node,
   tests,
 }: TestsAlongsideOptions): ReadonlyArray<TestFile> => {
-  const inside = nodes.filter(each => holds(node, each.path));
+  if (node.kind === 'stack') return tests.filter(({ stack }) => stack === node.id);
+  const stackOf = stackOfIn(nodes);
+  const inside = nodes.filter(each => isAtOrUnder(each.path, node));
   return tests.filter(
-    ({ path }) =>
-      holds(node, path) ||
-      inside.some(
-        each =>
-          stem(each.path) === testedStem(path) &&
-          deepestStackHolding(nodes, each.path) === deepestStackHolding(nodes, path),
-      ),
+    ({ path, stack }) =>
+      isAtOrUnder(path, node) ||
+      inside.some(each => stem(each.path) === testedStem(path) && stackOf(each.id) === stack),
   );
 };
