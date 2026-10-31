@@ -25,7 +25,15 @@ export const servePage = async (page: string | undefined): Promise<string> => {
   server.on('request', async (request, response) => {
     const route = request.headers.host === host ? `${request.method} ${request.url}` : undefined;
     if (route === `POST /${token}/review`) {
-      const review = parseReview(await text(request));
+      const review = await text(request)
+        .then(parseReview)
+        .catch((error: Error) => error);
+      if (review instanceof Error) {
+        response
+          .writeHead(400, { 'content-type': 'text/plain; charset=utf-8' })
+          .end(review.message);
+        return;
+      }
       await writeFile(reviewFile, `${JSON.stringify(review, null, 2)}\n`);
       response.writeHead(204).end();
       server.close();

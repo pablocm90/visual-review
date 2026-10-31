@@ -186,3 +186,19 @@ test('a review sent from the served page is written beside it as <name>.review.j
   expect(await server.exited).toEqual({ code: 0, stdout: `${reviewFile}\n` });
   expect(JSON.parse(readFileSync(reviewFile, 'utf8'))).toEqual(review);
 });
+
+test('a review the page could not have sent is refused with 400 naming the problem, and serve keeps serving', async () => {
+  using server = await servedPage();
+  const { origin, pathname } = new URL(server.url);
+
+  const response = await fetch(`${origin}${pathname}/review`, {
+    method: 'POST',
+    body: JSON.stringify({ version: 2, comments: {} }),
+  });
+
+  expect(response.status).toBe(400);
+  expect(await response.text()).toBe(
+    'Invalid review: version 2 is unknown; this visual-review reads version 1',
+  );
+  expect(await statusFor({ url: server.url })).toBe(200);
+});
