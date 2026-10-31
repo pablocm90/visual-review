@@ -542,7 +542,9 @@ const Inspector = ({
             ))}
           </section>
         ) : (
-          <TestFiles files={testsHere} nodes={nodes} />
+          <div className="tests">
+            <TestFiles files={testsHere} nodes={nodes} />
+          </div>
         )}
       </div>
     </aside>
