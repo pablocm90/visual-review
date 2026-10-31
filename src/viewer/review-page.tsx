@@ -518,6 +518,53 @@ const SHOWN_TABS: ReadonlyArray<Tab> = ['structure'];
 const tabAt = (hash: string, shown: ReadonlyArray<Tab>): Tab =>
   shown.find(tab => `#${tab}` === hash) ?? 'structure';
 
+const useTab = (shown: ReadonlyArray<Tab>): Tab => {
+  const [tab, setTab] = useState(() => tabAt(location.hash, shown));
+  useEffect(() => {
+    const follow = () => setTab(tabAt(location.hash, shown));
+    addEventListener('hashchange', follow);
+    return () => removeEventListener('hashchange', follow);
+  }, [shown]);
+  return tab;
+};
+
+type HeaderProps = {
+  readonly review: PageData;
+  readonly tab: Tab;
+  readonly shownTabs: ReadonlyArray<Tab>;
+};
+
+const Header = ({ review, tab, shownTabs }: HeaderProps) => (
+  <header className="review">
+    <div className="title">
+      <p className="where">
+        {review.repo} ·{' '}
+        <code>
+          <ShortRange range={review.range} />
+        </code>
+      </p>
+      <h1>
+        {review.pullRequest ? (
+          <a href={review.pullRequest.url}>
+            #{review.pullRequest.number} {review.pullRequest.title}
+          </a>
+        ) : review.range === UNCOMMITTED ? (
+          'Uncommitted work'
+        ) : (
+          <ShortRange range={review.range} />
+        )}
+      </h1>
+    </div>
+    <nav aria-label="Review">
+      {shownTabs.map(shown => (
+        <a key={shown} href={`#${shown}`} aria-current={shown === tab ? 'page' : undefined}>
+          {TABS[shown]}
+        </a>
+      ))}
+    </nav>
+  </header>
+);
+
 type ReviewPageProps = {
   readonly review: PageData;
   readonly notes?: ReviewNotes | undefined;
@@ -525,12 +572,7 @@ type ReviewPageProps = {
 };
 
 export const ReviewPage = ({ review, notes, shownTabs = SHOWN_TABS }: ReviewPageProps) => {
-  const [tab, setTab] = useState(() => tabAt(location.hash, shownTabs));
-  useEffect(() => {
-    const follow = () => setTab(tabAt(location.hash, shownTabs));
-    addEventListener('hashchange', follow);
-    return () => removeEventListener('hashchange', follow);
-  }, [shownTabs]);
+  const tab = useTab(shownTabs);
   const [layout, setLayout] = useState<Layout>();
   const [selected, setSelected] = useState<string>();
   const [chosenWidth, setChosenWidth] = useState<number>();
@@ -709,34 +751,7 @@ export const ReviewPage = ({ review, notes, shownTabs = SHOWN_TABS }: ReviewPage
   }, [layout, focusTarget, frameElement]);
   return (
     <main>
-      <header className="review">
-        <div className="title">
-          <p className="where">
-            {review.repo} ·{' '}
-            <code>
-              <ShortRange range={review.range} />
-            </code>
-          </p>
-          <h1>
-            {review.pullRequest ? (
-              <a href={review.pullRequest.url}>
-                #{review.pullRequest.number} {review.pullRequest.title}
-              </a>
-            ) : review.range === UNCOMMITTED ? (
-              'Uncommitted work'
-            ) : (
-              <ShortRange range={review.range} />
-            )}
-          </h1>
-        </div>
-        <nav aria-label="Review">
-          {shownTabs.map(shown => (
-            <a key={shown} href={`#${shown}`} aria-current={shown === tab ? 'page' : undefined}>
-              {TABS[shown]}
-            </a>
-          ))}
-        </nav>
-      </header>
+      <Header review={review} tab={tab} shownTabs={shownTabs} />
       {tab === 'structure' && (
         <>
           <div className="structure-head">
