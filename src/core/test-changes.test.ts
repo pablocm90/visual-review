@@ -1,7 +1,7 @@
 import { expect, test } from 'vitest';
 import { readRustTests } from '../readers/rust/rust-tests.ts';
 import { readTypeScriptTests } from '../readers/typescript/typescript-tests.ts';
-import { type TestStatement, testChanges, withMovedTests } from './test-changes.ts';
+import { type TestStatement, testChanges, testCounts, withMovedTests } from './test-changes.ts';
 
 test('reads a new file as a tree of its describe blocks and tests, in source order', () => {
   const after = [
@@ -332,22 +332,29 @@ test('a test whose name leaves one file and arrives in one other is moved, in bo
   const moved = withMovedTests([
     {
       path: 'crates/application/src/sign_up.rs',
+      stack: 'rust',
       statements: [marked(PASSWORD_LENGTH, 'removed'), marked('records nothing', 'edited')],
     },
     {
       path: 'crates/models/src/password.rs',
+      stack: 'rust',
       statements: [
         { kind: 'heading', name: 'tests', children: [marked(PASSWORD_LENGTH, 'added')] },
         marked('hashes with argon2id', 'added'),
       ],
     },
-    { path: 'crates/models/src/email.rs', statements: [marked(PASSWORD_LENGTH, 'edited')] },
-    { path: 'crates/models/src/broken.rs', unreadable: 'expected `fn`' },
+    {
+      path: 'crates/models/src/email.rs',
+      stack: 'rust',
+      statements: [marked(PASSWORD_LENGTH, 'edited')],
+    },
+    { path: 'crates/models/src/broken.rs', stack: 'rust', unreadable: 'expected `fn`' },
   ]);
 
   expect(moved).toStrictEqual([
     {
       path: 'crates/application/src/sign_up.rs',
+      stack: 'rust',
       statements: [
         { ...marked(PASSWORD_LENGTH, 'removed'), movedTo: 'crates/models/src/password.rs' },
         marked('records nothing', 'edited'),
@@ -355,6 +362,7 @@ test('a test whose name leaves one file and arrives in one other is moved, in bo
     },
     {
       path: 'crates/models/src/password.rs',
+      stack: 'rust',
       statements: [
         {
           kind: 'heading',
@@ -369,30 +377,34 @@ test('a test whose name leaves one file and arrives in one other is moved, in bo
         marked('hashes with argon2id', 'added'),
       ],
     },
-    { path: 'crates/models/src/email.rs', statements: [marked(PASSWORD_LENGTH, 'edited')] },
-    { path: 'crates/models/src/broken.rs', unreadable: 'expected `fn`' },
+    {
+      path: 'crates/models/src/email.rs',
+      stack: 'rust',
+      statements: [marked(PASSWORD_LENGTH, 'edited')],
+    },
+    { path: 'crates/models/src/broken.rs', stack: 'rust', unreadable: 'expected `fn`' },
   ]);
 });
 
 test.for([
   {
     case: 'it only left',
-    files: [{ path: 'a.test.ts', statements: [marked('reads', 'removed')] }],
+    files: [{ path: 'a.test.ts', stack: 'web', statements: [marked('reads', 'removed')] }],
   },
   {
     case: 'it left two files',
     files: [
-      { path: 'a.test.ts', statements: [marked('reads', 'removed')] },
-      { path: 'b.test.ts', statements: [marked('reads', 'removed')] },
-      { path: 'c.test.ts', statements: [marked('reads', 'added')] },
+      { path: 'a.test.ts', stack: 'web', statements: [marked('reads', 'removed')] },
+      { path: 'b.test.ts', stack: 'web', statements: [marked('reads', 'removed')] },
+      { path: 'c.test.ts', stack: 'web', statements: [marked('reads', 'added')] },
     ],
   },
   {
     case: 'it arrived in two files',
     files: [
-      { path: 'a.test.ts', statements: [marked('reads', 'removed')] },
-      { path: 'b.test.ts', statements: [marked('reads', 'added')] },
-      { path: 'c.test.ts', statements: [marked('reads', 'added')] },
+      { path: 'a.test.ts', stack: 'web', statements: [marked('reads', 'removed')] },
+      { path: 'b.test.ts', stack: 'web', statements: [marked('reads', 'added')] },
+      { path: 'c.test.ts', stack: 'web', statements: [marked('reads', 'added')] },
     ],
   },
   {
@@ -400,6 +412,7 @@ test.for([
     files: [
       {
         path: 'a.test.ts',
+        stack: 'web',
         statements: [
           marked('reads', 'removed'),
           { kind: 'heading' as const, name: 'notes', children: [marked('reads', 'added')] },
@@ -409,4 +422,41 @@ test.for([
   },
 ])('a test is not moved when $case', ({ files }) => {
   expect(withMovedTests(files)).toStrictEqual(files);
+});
+
+const signUpMoved = () =>
+  withMovedTests([
+    {
+      path: 'crates/application/src/sign_up.rs',
+      stack: 'rust',
+      statements: [
+        marked(PASSWORD_LENGTH, 'removed'),
+        marked('records nothing', 'edited'),
+        marked('sends a welcome email', 'removed'),
+        marked('logs the attempt', 'removed'),
+        marked('keeps the session', 'removed'),
+      ],
+    },
+    {
+      path: 'crates/models/src/password.rs',
+      stack: 'rust',
+      statements: [
+        { kind: 'heading', name: 'tests', children: [marked(PASSWORD_LENGTH, 'added')] },
+        marked('hashes with argon2id', 'added'),
+        marked('rejects an empty password', 'edited'),
+        { kind: 'test', name: 'trims the password', change: 'unchanged' },
+      ],
+    },
+    { path: 'crates/models/src/broken.rs', stack: 'rust', unreadable: 'expected `fn`' },
+  ]);
+
+test('counts the changed tests by change, under any heading, a moved pair once as moved and not as its removed and added ends', () => {
+  expect(testCounts(signUpMoved())).toStrictEqual({ added: 1, edited: 2, removed: 3, moved: 1 });
+});
+
+test.for([
+  { end: 'the file it left', path: 'crates/application/src/sign_up.rs' },
+  { end: 'the file it arrived in', path: 'crates/models/src/password.rs' },
+])('counts a moved test as moved with only $end counted', ({ path }) => {
+  expect(testCounts(signUpMoved().filter(file => file.path === path)).moved).toBe(1);
 });

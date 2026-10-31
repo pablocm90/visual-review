@@ -14,7 +14,8 @@ import type { MetricFinding } from '../core/metric-findings.ts';
 import type { NodeMetrics } from '../core/metrics.ts';
 import { type Note, type ReviewNotes, visibleNotes } from '../core/notes.ts';
 import { type PageData, UNCOMMITTED } from '../core/page.ts';
-import type { MarkedTest, TestChange, TestFile, TestStatement } from '../core/test-changes.ts';
+import type { TestFile } from '../core/test-changes.ts';
+import { testsAlongside } from '../core/tests-alongside.ts';
 import {
   expandedToShow,
   isDrawn,
@@ -34,6 +35,7 @@ import {
   type PlacedStack,
 } from './layout.ts';
 import { MetricsTable } from './metrics-tab.tsx';
+import { changedCount, TestFiles, TestsScreen } from './tests-screen.tsx';
 import {
   boxOf,
   centred,
@@ -427,85 +429,6 @@ const Patch = ({ path, patch, open }: FilePatch & { readonly open: boolean }) =>
   </details>
 );
 
-const TEST_MARKS: Readonly<Record<TestChange, string>> = {
-  added: '+',
-  removed: '−',
-  edited: '✎',
-  unchanged: '·',
-};
-
-const accessibleName = (parts: ReadonlyArray<string | undefined>): string =>
-  parts.filter(Boolean).join(', ');
-
-const movement = ({ movedTo, movedFrom }: MarkedTest) => {
-  if (movedTo !== undefined) return { mark: '↷', text: `moved to ${movedTo}` };
-  if (movedFrom !== undefined) return { mark: '↶', text: `moved from ${movedFrom}` };
-  return undefined;
-};
-
-const TestLine = ({ test }: { readonly test: MarkedTest }) => {
-  const moved = movement(test);
-  return (
-    <li
-      className="test"
-      data-state={moved || test.change === 'edited' ? 'modified' : test.change}
-      aria-label={accessibleName([`${test.name}: ${moved?.text ?? test.change}`, test.label])}
-    >
-      <span className="mark" aria-hidden="true">
-        {moved?.mark ?? TEST_MARKS[test.change]}
-      </span>
-      {test.name}
-      {test.label && <span className="label">{test.label}</span>}
-      {moved && <span className="moved">{moved.text}</span>}
-    </li>
-  );
-};
-
-const TestTree = ({ statements }: { readonly statements: ReadonlyArray<TestStatement> }) => (
-  <ul>
-    {statements.map(statement =>
-      statement.kind === 'test' ? (
-        <TestLine key={`test ${statement.name} ${statement.change}`} test={statement} />
-      ) : (
-        <li
-          key={`heading ${statement.name}`}
-          className="heading"
-          aria-label={accessibleName([statement.name, statement.label])}
-        >
-          <span>{statement.name}</span>
-          {statement.label && <span className="label">{statement.label}</span>}
-          <TestTree statements={statement.children} />
-        </li>
-      ),
-    )}
-  </ul>
-);
-
-const TestFiles = ({ files }: { readonly files: ReadonlyArray<TestFile> }) =>
-  files.map(file => (
-    <section key={file.path} aria-label={file.path}>
-      <h3>
-        <code>{file.path}</code>
-        {file.renamedFrom && <span className="renamed">renamed from {file.renamedFrom}</span>}
-      </h3>
-      {'statements' in file ? (
-        <TestTree statements={file.statements} />
-      ) : (
-        <p>Couldn't read its tests: {file.unreadable}</p>
-      )}
-    </section>
-  ));
-
-const changedTests = (statements: ReadonlyArray<TestStatement>): number =>
-  statements.reduce(
-    (count, statement) =>
-      count +
-      (statement.kind === 'heading'
-        ? changedTests(statement.children)
-        : Number(statement.change !== 'unchanged')),
-    0,
-  );
-
 type DiffNode = GraphDiff['nodes'][number];
 
 const stackOf = (nodes: ReadonlyArray<DiffNode>, node: DiffNode): DiffNode => {
@@ -571,7 +494,7 @@ const Inspector = ({
   onClose,
 }: InspectorProps) => {
   const [picked, setPicked] = useState<InspectorTab>('note');
-  const testsHere = node ? tests.filter(({ path }) => isAtOrUnder(path, node)) : [];
+  const testsHere = node ? testsAlongside({ nodes, node, tests }) : [];
   const measured = node && metrics[node.id];
   const offered: ReadonlyArray<InspectorTab> = [
     'note',
@@ -580,10 +503,6 @@ const Inspector = ({
     ...(testsHere.length > 0 ? ['tests' as const] : []),
   ];
   const shown = offered.includes(picked) ? picked : 'note';
-  const count = testsHere.reduce(
-    (sum, file) => sum + ('statements' in file ? changedTests(file.statements) : 0),
-    0,
-  );
   return (
     <aside className="note" aria-label="Inspector" style={{ width }}>
       <button type="button" className="close" aria-label="Close inspector" onClick={onClose}>
@@ -600,7 +519,7 @@ const Inspector = ({
             onClick={() => setPicked(tab)}
           >
             {INSPECTOR_TABS[tab]}
-            {tab === 'tests' && ` ${count}`}
+            {tab === 'tests' && ` ${changedCount(testsHere)}`}
           </button>
         ))}
       </div>
@@ -623,7 +542,9 @@ const Inspector = ({
             ))}
           </section>
         ) : (
-          <TestFiles files={testsHere} />
+          <div className="tests">
+            <TestFiles files={testsHere} nodes={nodes} />
+          </div>
         )}
       </div>
     </aside>
@@ -694,7 +615,7 @@ const TABS = { structure: 'Structure', metrics: 'Metrics', tests: 'Tests' } as c
 
 type Tab = keyof typeof TABS;
 
-const SHOWN_TABS: ReadonlyArray<Tab> = ['structure'];
+const SHOWN_TABS: ReadonlyArray<Tab> = ['structure', 'tests'];
 
 const tabAt = (hash: string, shown: ReadonlyArray<Tab>): Tab =>
   shown.find(tab => `#${tab}` === hash) ?? 'structure';
@@ -715,36 +636,45 @@ type HeaderProps = {
   readonly shownTabs: ReadonlyArray<Tab>;
 };
 
-const Header = ({ review, tab, shownTabs }: HeaderProps) => (
-  <header className="review">
-    <div className="title">
-      <p className="where">
-        {review.repo} ·{' '}
-        <code>
-          <ShortRange range={review.range} />
-        </code>
-      </p>
-      <h1>
-        {review.pullRequest ? (
-          <a href={review.pullRequest.url}>
-            #{review.pullRequest.number} {review.pullRequest.title}
+const Header = ({ review, tab, shownTabs }: HeaderProps) => {
+  const changed = changedCount(review.tests);
+  return (
+    <header className="review">
+      <div className="title">
+        <p className="where">
+          {review.repo} ·{' '}
+          <code>
+            <ShortRange range={review.range} />
+          </code>
+        </p>
+        <h1>
+          {review.pullRequest ? (
+            <a href={review.pullRequest.url}>
+              #{review.pullRequest.number} {review.pullRequest.title}
+            </a>
+          ) : review.range === UNCOMMITTED ? (
+            'Uncommitted work'
+          ) : (
+            <ShortRange range={review.range} />
+          )}
+        </h1>
+      </div>
+      <nav aria-label="Review">
+        {shownTabs.map(shown => (
+          <a key={shown} href={`#${shown}`} aria-current={shown === tab ? 'page' : undefined}>
+            {TABS[shown]}
+            {shown === 'tests' && changed > 0 && (
+              <>
+                {' '}
+                <span className="badge">{changed}</span>
+              </>
+            )}
           </a>
-        ) : review.range === UNCOMMITTED ? (
-          'Uncommitted work'
-        ) : (
-          <ShortRange range={review.range} />
-        )}
-      </h1>
-    </div>
-    <nav aria-label="Review">
-      {shownTabs.map(shown => (
-        <a key={shown} href={`#${shown}`} aria-current={shown === tab ? 'page' : undefined}>
-          {TABS[shown]}
-        </a>
-      ))}
-    </nav>
-  </header>
-);
+        ))}
+      </nav>
+    </header>
+  );
+};
 
 type ReviewPageProps = {
   readonly review: PageData;
@@ -832,9 +762,7 @@ export const ReviewPage = ({ review, notes, shownTabs = SHOWN_TABS }: ReviewPage
       once: true,
     });
   };
-  const tests = review.tests.filter(
-    ({ path }) => selectedNode === undefined || isAtOrUnder(path, selectedNode),
-  );
+
   const [focusTarget, setFocusTarget] = useState<string>();
   const goTo = (id: string) => {
     select(id);
@@ -1052,15 +980,6 @@ export const ReviewPage = ({ review, notes, shownTabs = SHOWN_TABS }: ReviewPage
                   )}
                 </div>
               )}
-              <section className="tests" aria-label="Tests">
-                <h2>Tests</h2>
-                {notes && <p className="tests-line">{notes.tests}</p>}
-                {tests.length === 0 ? (
-                  <p>{selectedNode ? 'No test changed here.' : 'No test changed.'}</p>
-                ) : (
-                  <TestFiles files={tests} />
-                )}
-              </section>
             </div>
             {(selected !== undefined || outside) && (
               <>
@@ -1105,6 +1024,17 @@ export const ReviewPage = ({ review, notes, shownTabs = SHOWN_TABS }: ReviewPage
             )}
           </div>
         </>
+      )}
+      {tab === 'tests' && (
+        <TestsScreen
+          review={review}
+          notes={notes}
+          selected={selectedNode}
+          onGoTo={id => {
+            location.hash = '#structure';
+            goTo(id);
+          }}
+        />
       )}
     </main>
   );

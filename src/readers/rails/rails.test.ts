@@ -571,6 +571,7 @@ test('a changed Minitest file lists its tests under their class, added, edited o
   expect(range.tests).toEqual([
     {
       path: 'test/models/order_test.rb',
+      stack: basename(repo),
       statements: [
         {
           kind: 'heading',
@@ -609,6 +610,7 @@ test('a changed RSpec file lists its tests under their describe and context, add
   expect(range.tests).toEqual([
     {
       path: 'spec/models/order_spec.rb',
+      stack: basename(repo),
       statements: [
         {
           kind: 'heading',
@@ -739,7 +741,7 @@ test.for([
   },
 ])('a Minitest file reads $reason', async ({ file, statements }) => {
   expect(await testsAdded({ path: 'test/models/order_test.rb', file })).toEqual([
-    { path: 'test/models/order_test.rb', statements },
+    { path: 'test/models/order_test.rb', new: true, stack: expect.any(String), statements },
   ]);
 });
 
@@ -800,6 +802,8 @@ test.for([
   expect(await testsAdded({ path: 'spec/models/order_spec.rb', file })).toEqual([
     {
       path: 'spec/models/order_spec.rb',
+      new: true,
+      stack: expect.any(String),
       statements: [{ kind: 'heading', name, children: [added('works')] }],
     },
   ]);
@@ -864,7 +868,7 @@ test.for([
   },
 ])('an RSpec file reads $reason', async ({ file, statements }) => {
   expect(await testsAdded({ path: 'spec/models/order_spec.rb', file })).toEqual([
-    { path: 'spec/models/order_spec.rb', statements },
+    { path: 'spec/models/order_spec.rb', new: true, stack: expect.any(String), statements },
   ]);
 });
 
@@ -885,6 +889,7 @@ test('a test_ method is a test named by the method, so renaming it removes one t
   expect(range.tests).toEqual([
     {
       path: 'test/models/order_test.rb',
+      stack: basename(repo),
       statements: [
         {
           kind: 'heading',

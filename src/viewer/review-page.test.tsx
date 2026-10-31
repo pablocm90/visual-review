@@ -477,11 +477,11 @@ test("a PR's page is headed by the PR's number and title, as a link to it", asyn
   await screen.findByRole('group', { name: 'rust' });
 });
 
-test('the Review nav links each shown tab, only Structure for now, and marks it the current page', async () => {
+test('the Review nav links each shown tab, Structure and Tests for now, and marks Structure the current page', async () => {
   render(<ReviewPage review={pageWith(review)} />);
 
   const links = within(screen.getByRole('navigation', { name: 'Review' })).getAllByRole('link');
-  expect(links.map(link => link.textContent)).toEqual(['Structure']);
+  expect(links.map(link => link.textContent)).toEqual(['Structure', 'Tests']);
   expect(links[0]?.getAttribute('href')).toBe('#structure');
   expect(links[0]?.getAttribute('aria-current')).toBe('page');
   await screen.findByRole('group', { name: 'rust' });
@@ -507,6 +507,311 @@ test.for([
   expect(screen.queryByRole('checkbox', { name: 'Changed + 1 hop' }) !== null).toBe(
     tab === 'Structure',
   );
+});
+
+test("the Tests tab's link counts the review's changed tests, a moved pair once, and carries no count with none changed", async () => {
+  atHash('');
+  const user = userEvent.setup();
+  const { rerender } = render(
+    <ReviewPage
+      review={pageWith({
+        ...review,
+        tests: [
+          {
+            path: 'crates/application/src/lib.rs',
+            stack: 'rust',
+            statements: [
+              { kind: 'test', name: 'reads the notes', change: 'edited' },
+              {
+                kind: 'test',
+                name: 'exports a CSV',
+                change: 'removed',
+                movedTo: 'crates/domain/src/lib.rs',
+              },
+            ],
+          },
+          {
+            path: 'crates/domain/src/lib.rs',
+            stack: 'rust',
+            statements: [
+              {
+                kind: 'test',
+                name: 'exports a CSV',
+                change: 'added',
+                movedFrom: 'crates/application/src/lib.rs',
+              },
+            ],
+          },
+        ],
+      })}
+    />,
+  );
+
+  expect(
+    within(screen.getByRole('navigation', { name: 'Review' }))
+      .getAllByRole('link')
+      .map(link => link.textContent),
+  ).toEqual(['Structure', 'Tests 2']);
+  await user.click(screen.getByRole('link', { name: 'Tests 2' }));
+  await waitFor(() => expect(currentTab()).toBe('Tests 2'));
+  expect(screen.queryByRole('group', { name: 'rust' })).toBeNull();
+  rerender(<ReviewPage review={pageWith(review)} />);
+  expect(screen.getByRole('link', { name: 'Tests' })).not.toBeNull();
+});
+
+const testsShown = () =>
+  within(screen.getByRole('region', { name: 'Test changes' }))
+    .queryAllByRole('region')
+    .map(file => file.getAttribute('aria-label'));
+
+test("the Tests tab heads the test changes with what the notes say they pin, and lists each changed test file with its stack's label, marking a new one and what a renamed one was; with no notes and no test changed, it says so", () => {
+  atHash('#tests');
+  const added = [{ kind: 'test' as const, name: 'reads the notes', change: 'added' as const }];
+  const { rerender } = render(
+    <ReviewPage
+      review={pageWith({
+        ...review,
+        diff: {
+          ...review.diff,
+          nodes: [
+            ...review.diff.nodes,
+            { id: 'web', kind: 'stack', label: 'Web app', path: '', state: 'unchanged' },
+          ],
+        },
+        tests: [
+          {
+            path: 'crates/application/tests/export.rs',
+            stack: 'rust',
+            new: true,
+            statements: added,
+          },
+          {
+            path: 'web/src/notes.test.ts',
+            stack: 'web',
+            renamedFrom: 'web/src/note.test.ts',
+            statements: added,
+          },
+          { path: 'tools/review/x.test.ts', stack: 'tools/review', statements: added },
+        ],
+      })}
+      notes={{ version: 1, summary: [], tests: 'The export is pinned.', notes: {} }}
+    />,
+  );
+
+  expect(
+    within(screen.getByRole('region', { name: 'What they pin' })).getByText(
+      'The export is pinned.',
+    ),
+  ).not.toBeNull();
+  expect(testsShown()).toEqual([
+    'crates/application/tests/export.rs',
+    'web/src/notes.test.ts',
+    'tools/review/x.test.ts',
+  ]);
+  const exported = screen.getByRole('region', { name: 'crates/application/tests/export.rs' });
+  expect(within(exported).getByText('rust')).not.toBeNull();
+  expect(within(exported).getByText('new file')).not.toBeNull();
+  const notesTest = screen.getByRole('region', { name: 'web/src/notes.test.ts' });
+  expect(within(notesTest).getByText('Web app')).not.toBeNull();
+  expect(within(notesTest).getByText('renamed from web/src/note.test.ts')).not.toBeNull();
+  expect(within(notesTest).queryByText('new file')).toBeNull();
+  const undrawn = screen.getByRole('region', { name: 'tools/review/x.test.ts' });
+  expect(within(undrawn).getByText('tools/review')).not.toBeNull();
+
+  rerender(<ReviewPage review={pageWith(review)} />);
+  expect(screen.queryByRole('region', { name: 'What they pin' })).toBeNull();
+  expect(testsShown()).toEqual([]);
+  expect(
+    within(screen.getByRole('region', { name: 'Test changes' })).getByText('No test changed.'),
+  ).not.toBeNull();
+});
+
+test('the Tests tab shows all the test changes by default, or, while a node is picked on Structure, those alongside it, saying so when none changed there; with the pick cleared it shows them all', async () => {
+  atHash('');
+  const user = userEvent.setup();
+  const added = (name: string) => ({ kind: 'test' as const, name, change: 'added' as const });
+  render(
+    <ReviewPage
+      review={pageWith({
+        ...review,
+        tests: [
+          {
+            path: 'crates/application/src/lib.rs',
+            stack: 'rust',
+            statements: [added('reads the notes')],
+          },
+          {
+            path: 'crates/application/tests/export.rs',
+            stack: 'rust',
+            statements: [added('exports a CSV'), added('names the columns')],
+          },
+          {
+            path: 'crates/cli-adapter/src/main.rs',
+            stack: 'rust',
+            statements: [added('parses the args')],
+          },
+        ],
+      })}
+    />,
+  );
+  const shownBy = (name: string) =>
+    within(screen.getByRole('group', { name: 'Tests shown' })).getByRole('button', { name });
+  const goTo = (tab: string) =>
+    user.click(
+      within(screen.getByRole('navigation', { name: 'Review' })).getByRole('link', {
+        name: new RegExp(`^${tab}`),
+      }),
+    );
+
+  await user.click(await screen.findByRole('button', { name: 'application: modified' }));
+  await goTo('Tests');
+  expect(shownBy('All 4').getAttribute('aria-pressed')).toBe('true');
+  expect(shownBy('For application 3').getAttribute('aria-pressed')).toBe('false');
+  expect(testsShown()).toHaveLength(3);
+  await user.click(shownBy('For application 3'));
+  expect(shownBy('For application 3').getAttribute('aria-pressed')).toBe('true');
+  expect(shownBy('All 4').getAttribute('aria-pressed')).toBe('false');
+  expect(testsShown()).toEqual([
+    'crates/application/src/lib.rs',
+    'crates/application/tests/export.rs',
+  ]);
+
+  await goTo('Structure');
+  await user.click(await screen.findByRole('button', { name: 'domain: unchanged' }));
+  await goTo('Tests');
+  await user.click(shownBy('For domain 0'));
+  expect(testsShown()).toEqual([]);
+  expect(
+    within(screen.getByRole('region', { name: 'Test changes' })).getByText('No test changed here.'),
+  ).not.toBeNull();
+  await user.click(shownBy('All 4'));
+  expect(testsShown()).toHaveLength(3);
+
+  await goTo('Structure');
+  await user.click(within(inspector()).getByRole('button', { name: 'Close inspector' }));
+  await goTo('Tests');
+  expect(
+    within(screen.getByRole('group', { name: 'Tests shown' }))
+      .getAllByRole('button')
+      .map(button => `${button.textContent} ${button.getAttribute('aria-pressed')}`),
+  ).toEqual(['All 4 true']);
+});
+
+test('the Tests tab counts the shown tests by change, a moved pair once, as moved, even with only one of its files shown', async () => {
+  atHash('');
+  const user = userEvent.setup();
+  render(
+    <ReviewPage
+      review={pageWith({
+        ...review,
+        tests: [
+          {
+            path: 'crates/application/src/lib.rs',
+            stack: 'rust',
+            statements: [
+              { kind: 'test', name: 'reads the notes', change: 'edited' },
+              { kind: 'test', name: 'quotes commas', change: 'added' },
+              {
+                kind: 'test',
+                name: 'exports a CSV',
+                change: 'removed',
+                movedTo: 'crates/domain/src/lib.rs',
+              },
+            ],
+          },
+          {
+            path: 'crates/domain/src/lib.rs',
+            stack: 'rust',
+            statements: [
+              { kind: 'test', name: 'drops the totals', change: 'removed' },
+              {
+                kind: 'test',
+                name: 'exports a CSV',
+                change: 'added',
+                movedFrom: 'crates/application/src/lib.rs',
+              },
+            ],
+          },
+        ],
+      })}
+    />,
+  );
+  const counts = () =>
+    within(screen.getByRole('list', { name: 'Changed tests' }))
+      .getAllByRole('listitem')
+      .map(count => `${count.textContent} ${count.getAttribute('aria-label')}`);
+
+  await user.click(await screen.findByRole('button', { name: 'domain: unchanged' }));
+  await user.click(screen.getByRole('link', { name: 'Tests 4' }));
+  expect(counts()).toEqual(['+1 1 added', '✎1 1 edited', '−1 1 removed', '↷1 1 moved']);
+  await user.click(screen.getByRole('button', { name: 'For domain 2' }));
+  expect(counts()).toEqual(['+0 0 added', '✎0 0 edited', '−1 1 removed', '↷1 1 moved']);
+});
+
+test("the Tests tab lists the added and modified nodes, not stacks, with the changed tests alongside each, those with none first, marked as needing a look; a node's name goes to it on Structure, focused, its inspector open", async () => {
+  atHash('#tests');
+  const user = userEvent.setup();
+  render(
+    <ReviewPage
+      review={pageWith({
+        ...review,
+        diff: {
+          ...review.diff,
+          nodes: [
+            { id: 'rust', kind: 'stack', label: 'rust', path: '', state: 'modified' },
+            crate('domain', 'unchanged'),
+            crate('application', 'modified'),
+            crate('cli-adapter', 'added'),
+            crate('legacy', 'removed'),
+            crate('billing', 'modified'),
+          ],
+        },
+        tests: [
+          {
+            path: 'crates/application/tests/export.rs',
+            stack: 'rust',
+            statements: [
+              { kind: 'test', name: 'exports a CSV', change: 'added' },
+              { kind: 'test', name: 'names the columns', change: 'edited' },
+              { kind: 'test', name: 'quotes commas', change: 'unchanged' },
+            ],
+          },
+          {
+            path: 'crates/legacy/tests/export.rs',
+            stack: 'rust',
+            statements: [{ kind: 'test', name: 'exports a CSV', change: 'removed' }],
+          },
+        ],
+      })}
+    />,
+  );
+
+  expect(
+    within(screen.getByRole('region', { name: 'Changed nodes' }))
+      .getAllByRole('listitem')
+      .map(node =>
+        [
+          node.getAttribute('aria-label'),
+          ...within(node)
+            .queryAllByRole('img')
+            .map(mark => mark.getAttribute('aria-label')),
+        ].join(', '),
+      ),
+  ).toEqual([
+    'cli-adapter: added, tests alongside: none, needs a look',
+    'billing: modified, tests alongside: none, needs a look',
+    'application: modified, tests alongside: 2',
+  ]);
+
+  await user.click(
+    within(screen.getByRole('region', { name: 'Changed nodes' })).getByRole('button', {
+      name: 'billing',
+    }),
+  );
+  await waitFor(() => expect(currentTab()).toBe('Structure'));
+  const billing = await screen.findByRole('button', { name: 'billing: modified' });
+  await waitFor(() => expect(document.activeElement).toBe(billing));
+  expect(within(inspector()).getByRole('heading', { name: 'billing' })).not.toBeNull();
 });
 
 test('picking a tab sets the hash and shows it, and back and forward move between the tabs', async () => {
@@ -1653,7 +1958,8 @@ test("a renamed node shows the label it had under its own, also once expanded, i
   ).not.toBeNull();
 });
 
-test('the tests section lists each changed test file with its tests as a tree, each named with its change and any label or where it moved, an unreadable one with the reason and a renamed one with its old path', async () => {
+test('the Tests tab lists each changed test file with its tests as a tree, each named with its change and any label or where it moved, an unreadable one with the reason and a renamed one with its old path', () => {
+  atHash('#tests');
   render(
     <ReviewPage
       review={pageWith({
@@ -1661,6 +1967,7 @@ test('the tests section lists each changed test file with its tests as a tree, e
         tests: [
           {
             path: 'tools/visual-review/src/notes.test.ts',
+            stack: 'tools/visual-review',
             renamedFrom: 'tools/visual-review/src/review-notes.test.ts',
             statements: [
               { kind: 'test', name: 'reads the notes', change: 'edited' },
@@ -1689,14 +1996,17 @@ test('the tests section lists each changed test file with its tests as a tree, e
               },
             ],
           },
-          { path: 'web/src/broken.test.ts', unreadable: 'SyntaxError: Unexpected token (2:0)' },
+          {
+            path: 'web/src/broken.test.ts',
+            stack: 'web',
+            unreadable: 'SyntaxError: Unexpected token (2:0)',
+          },
         ],
       })}
     />,
   );
 
-  await screen.findByRole('group', { name: 'rust' });
-  const tests = screen.getByRole('region', { name: 'Tests' });
+  const tests = screen.getByRole('region', { name: 'Test changes' });
   const file = within(tests).getByRole('region', { name: 'tools/visual-review/src/notes.test.ts' });
   expect(within(file).getByRole('listitem', { name: 'reads the notes: edited' })).not.toBeNull();
   expect(within(file).getByRole('listitem', { name: 'reads renames: added, todo' })).not.toBeNull();
@@ -1730,19 +2040,11 @@ test('the tests section lists each changed test file with its tests as a tree, e
   expect(within(tests).queryByText('No test changed.')).toBeNull();
 });
 
-test('the tests section says so when no test changed', async () => {
-  render(<ReviewPage review={pageWith({ ...review, tests: [] })} />);
-
-  await screen.findByRole('group', { name: 'rust' });
-  expect(
-    within(screen.getByRole('region', { name: 'Tests' })).getByText('No test changed.'),
-  ).not.toBeNull();
-});
-
-test("selecting a node narrows the tests section to the test files at or under it, and says so when none changed there, under Claude's tests line; the inspector's Tests tab lists those files, counting their changed tests, and is left out where none changed", async () => {
+test("the inspector's Tests tab lists the test files at or under the selected node, counting their changed tests, and is left out where none changed", async () => {
   const user = userEvent.setup();
-  const testFile = (path: string) => ({
+  const testFile = (path: string, stack: string) => ({
     path,
+    stack,
     statements: [{ kind: 'test' as const, name: 'reads the notes', change: 'added' as const }],
   });
   render(
@@ -1750,9 +2052,10 @@ test("selecting a node narrows the tests section to the test files at or under i
       review={pageWith({
         ...review,
         tests: [
-          testFile('crates/application/src/lib.rs'),
+          testFile('crates/application/src/lib.rs', 'rust'),
           {
             path: 'crates/application/tests/export.rs',
+            stack: 'rust',
             statements: [
               { kind: 'test', name: 'exports a CSV', change: 'removed' },
               {
@@ -1765,30 +2068,13 @@ test("selecting a node narrows the tests section to the test files at or under i
               },
             ],
           },
-          testFile('tools/visual-review/src/notes.test.ts'),
+          testFile('tools/visual-review/src/notes.test.ts', 'tools/visual-review'),
         ],
       })}
-      notes={{
-        version: 1,
-        summary: [],
-        tests: 'The notes check is pinned; the CLI is not.',
-        notes: {},
-      }}
     />,
   );
-  const tests = screen.getByRole('region', { name: 'Tests' });
-  const filesListed = () =>
-    within(tests)
-      .queryAllByRole('region')
-      .map(file => file.getAttribute('aria-label'));
 
-  expect(filesListed()).toHaveLength(3);
   await user.click(await screen.findByRole('button', { name: 'application: modified' }));
-  expect(filesListed()).toEqual([
-    'crates/application/src/lib.rs',
-    'crates/application/tests/export.rs',
-  ]);
-  expect(within(tests).queryByText('No test changed here.')).toBeNull();
   expect(inspectorTabs()).toEqual(['Note', 'Tests 3']);
   await user.click(within(inspector()).getByRole('tab', { name: 'Tests 3' }));
   expect(
@@ -1800,9 +2086,81 @@ test("selecting a node narrows the tests section to the test files at or under i
   expect(inspectorTabs()).toEqual(['Note']);
   await user.click(screen.getByRole('button', { name: 'domain: unchanged' }));
   expect(inspectorTabs()).toEqual(['Note']);
-  expect(filesListed()).toEqual([]);
-  expect(within(tests).getByText('No test changed here.')).not.toBeNull();
-  expect(within(tests).getByText('The notes check is pinned; the CLI is not.')).not.toBeNull();
+});
+
+test("a node's Tests tab also lists the test files named after a file inside it, wherever they sit in its stack", async () => {
+  const user = userEvent.setup();
+  render(
+    <ReviewPage
+      review={pageWith({
+        range: 'abc123..def456',
+        diff: {
+          nodes: [
+            { id: 'web', kind: 'stack', label: 'web', path: '', state: 'unchanged' },
+            webModule('orders', 'modified'),
+            webFile('orders', 'refund.ts', 'modified'),
+          ],
+          edges: [],
+        },
+        tests: [
+          {
+            path: 'web/tests/refund.test.ts',
+            stack: 'web',
+            statements: [{ kind: 'test', name: 'refunds twice', change: 'added' }],
+          },
+        ],
+      })}
+    />,
+  );
+
+  await user.click(await screen.findByRole('button', { name: 'orders: modified' }));
+  await user.click(within(inspector()).getByRole('tab', { name: 'Tests 1' }));
+  expect(
+    within(screen.getByRole('tabpanel', { name: 'Tests' }))
+      .getAllByRole('region')
+      .map(file => file.getAttribute('aria-label')),
+  ).toEqual(['web/tests/refund.test.ts']);
+});
+
+test("a node's Tests tab counts a test moved between two of its files once", async () => {
+  const user = userEvent.setup();
+  render(
+    <ReviewPage
+      review={pageWith({
+        ...review,
+        tests: [
+          {
+            path: 'crates/application/src/lib.rs',
+            stack: 'rust',
+            statements: [
+              { kind: 'test', name: 'reads the notes', change: 'edited' },
+              {
+                kind: 'test',
+                name: 'exports a CSV',
+                change: 'removed',
+                movedTo: 'crates/application/tests/export.rs',
+              },
+            ],
+          },
+          {
+            path: 'crates/application/tests/export.rs',
+            stack: 'rust',
+            statements: [
+              {
+                kind: 'test',
+                name: 'exports a CSV',
+                change: 'added',
+                movedFrom: 'crates/application/src/lib.rs',
+              },
+            ],
+          },
+        ],
+      })}
+    />,
+  );
+
+  await user.click(await screen.findByRole('button', { name: 'application: modified' }));
+  expect(inspectorTabs()).toEqual(['Note', 'Tests 2']);
 });
 
 test("'Changed + 1 hop' starts ticked, hiding what is more than one edge from a change; going to a shown node or edge keeps it, and going to a hidden node unticks it", async () => {
