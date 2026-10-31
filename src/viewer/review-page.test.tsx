@@ -1108,7 +1108,7 @@ const metricCells = (metric: string) => {
   );
 };
 
-test("a measured node's Metrics tab gives each measure before and after with the difference, a missing side and its difference as —, and a side without complexity as not measured, and a box's values as the highest inside it; a node or an edge without metrics has no Metrics tab", async () => {
+test("a measured node's Metrics tab gives each measure before and after with the difference, a missing side and its difference as —, and a side without complexity as not measured, and a box's values as the highest inside it, with no functions listed without their cyclomatic; a node or an edge without metrics has no Metrics tab", async () => {
   const user = userEvent.setup();
   render(
     <ReviewPage
@@ -1144,6 +1144,7 @@ test("a measured node's Metrics tab gives each measure before and after with the
   expect(metricCells('Fan-in')).toEqual(['2', '1', '−1']);
   expect(metricCells('Churn')).toEqual(['6', '6', '±0']);
   expect(within(inspector()).queryByText(/highest inside/)).toBeNull();
+  expect(screen.queryByRole('list', { name: 'Functions by cyclomatic' })).toBeNull();
 
   await user.click(screen.getByRole('button', { name: 'cli-adapter: added' }));
   expect(metricCells('Lines')).toEqual(['—', 'not measured', '—']);
@@ -1208,6 +1209,60 @@ test("a Metrics row is marked by the level of the node's finding on it, a hotspo
   expect(metricMarks('Churn')).toEqual(['for information']);
   expect(metricMarks('Lines')).toEqual(['needs a look']);
   expect(metricMarks('Functions')).toEqual([]);
+});
+
+test("a measured file's Metrics tab lists its functions by cyclomatic base → head, a repeated name paired n-th with n-th, marked added, removed or modified, the highest head first and removed ones last", async () => {
+  const user = userEvent.setup();
+  const byFunction = (pairs: ReadonlyArray<readonly [string, number]>) => ({
+    highest: 14,
+    total: 40,
+    byFunction: pairs.map(([name, cyclomatic]) => ({ name, cyclomatic })),
+  });
+  render(
+    <ReviewPage
+      review={pageWith({
+        ...review,
+        metrics: {
+          'rust/crate/application': {
+            base: measured({
+              cyclomatic: byFunction([
+                ['refund_order', 4],
+                ['validate', 3],
+                ['legacy', 5],
+                ['helper', 2],
+                ['helper', 7],
+              ]),
+            }),
+            head: measured({
+              cyclomatic: byFunction([
+                ['validate', 3],
+                ['refund_order', 14],
+                ['helper', 2],
+                ['split', 6],
+                ['helper', 9],
+              ]),
+            }),
+          },
+        },
+      })}
+    />,
+  );
+
+  await user.click(await screen.findByRole('button', { name: 'application: modified' }));
+  await user.click(within(inspector()).getByRole('tab', { name: 'Metrics' }));
+  const functions = screen.getByRole('list', { name: 'Functions by cyclomatic' });
+  expect(
+    within(functions)
+      .getAllByRole('listitem')
+      .map(item => item.textContent),
+  ).toEqual([
+    '~ refund_order 4 → 14',
+    '~ helper 7 → 9',
+    '+ split — → 6',
+    'validate 3 → 3',
+    'helper 2 → 2',
+    '− legacy 5 → —',
+  ]);
 });
 
 test("a selected node's Diff tab lists the patches of the files under it from their first hunk, a module's closed and a file's open with its added and removed lines marked, and stays picked from one selection to the next; a file without a patch or an edge has no Diff tab and shows its Note", async () => {

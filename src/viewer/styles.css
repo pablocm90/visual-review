@@ -912,3 +912,31 @@ pre .hljs-emphasis {
 .metrics .over .bars .after {
   opacity: 1;
 }
+
+.functions {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: 12.5px;
+}
+
+.functions li {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.functions .added code:first-child {
+  color: var(--added);
+}
+
+.functions .removed code:first-child {
+  color: var(--removed);
+}
+
+.functions .modified code:first-child {
+  font-weight: 600;
+}

@@ -11,7 +11,7 @@ import type { FilePatch, GraphDiff } from '../core/diff-graphs.ts';
 import { isAtOrUnder } from '../core/diff-graphs.ts';
 import { edgeId } from '../core/graph.ts';
 import type { MetricFinding } from '../core/metric-findings.ts';
-import type { NodeMeasures, NodeMetrics } from '../core/metrics.ts';
+import type { FunctionCyclomatic, NodeMeasures, NodeMetrics } from '../core/metrics.ts';
 import { type Note, type ReviewNotes, visibleNotes } from '../core/notes.ts';
 import { type PageData, UNCOMMITTED } from '../core/page.ts';
 import { notReadLine } from '../core/skipped.ts';
@@ -619,6 +619,66 @@ const Bars = ({
   );
 };
 
+const numbered = (functions: ReadonlyArray<FunctionCyclomatic>) =>
+  functions.map(({ name, cyclomatic }, at) => ({
+    name,
+    cyclomatic,
+    key: `${name}#${functions.slice(0, at).filter(other => other.name === name).length}`,
+  }));
+
+const functionsOf = (side: NodeMeasures | undefined) =>
+  numbered((side && 'lines' in side && side.cyclomatic.byFunction) || []);
+
+type FunctionPair = {
+  readonly key: string;
+  readonly name: string;
+  readonly base?: number;
+  readonly head?: number;
+};
+
+const pairedFunctions = (base: NodeMeasures | undefined, head: NodeMeasures | undefined) => {
+  const before = functionsOf(base);
+  const after = functionsOf(head);
+  const kept = after
+    .map(({ key, name, cyclomatic }) => {
+      const was = before.find(old => old.key === key);
+      return was
+        ? { key, name, base: was.cyclomatic, head: cyclomatic }
+        : { key, name, head: cyclomatic };
+    })
+    .toSorted((one, other) => other.head - one.head);
+  const removed = before
+    .filter(({ key }) => !after.some(now => now.key === key))
+    .map(({ key, name, cyclomatic }) => ({ key, name, base: cyclomatic }));
+  return [...kept, ...removed];
+};
+
+const FUNCTION_MARKS = { added: '+ ', removed: '− ', modified: '~ ', unchanged: '' };
+
+const functionState = ({ base, head }: FunctionPair): keyof typeof FUNCTION_MARKS => {
+  if (base === undefined) return 'added';
+  if (head === undefined) return 'removed';
+  return base === head ? 'unchanged' : 'modified';
+};
+
+const Functions = ({ pairs }: { readonly pairs: ReadonlyArray<FunctionPair> }) =>
+  pairs.length > 0 && (
+    <>
+      <h3 id="functions-by-cyclomatic">Functions by cyclomatic</h3>
+      <ul className="functions" aria-labelledby="functions-by-cyclomatic">
+        {pairs.map(pair => {
+          const state = functionState(pair);
+          return (
+            <li key={pair.key} className={state}>
+              <code>{`${FUNCTION_MARKS[state]}${pair.name}`}</code>{' '}
+              <code>{`${pair.base ?? '—'} → ${pair.head ?? '—'}`}</code>
+            </li>
+          );
+        })}
+      </ul>
+    </>
+  );
+
 const MetricsTable = ({ metrics: { highestInside, base, head }, findings }: MetricsTableProps) => (
   <>
     <p className="metrics-caption">
@@ -655,6 +715,7 @@ const MetricsTable = ({ metrics: { highestInside, base, head }, findings }: Metr
         })}
       </tbody>
     </table>
+    <Functions pairs={pairedFunctions(base, head)} />
   </>
 );
 
