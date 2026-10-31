@@ -96,7 +96,7 @@ const review = {
 const showEverything = (user: ReturnType<typeof userEvent.setup>) =>
   user.click(screen.getByRole('checkbox', { name: 'Changed + 1 hop' }));
 
-const notePanel = () => screen.getByRole('complementary', { name: 'Note' });
+const notePanel = () => screen.getByRole('complementary', { name: 'Inspector' });
 
 const noteShown = () => within(notePanel()).getAllByRole('paragraph')[0]?.textContent;
 
@@ -105,7 +105,7 @@ const reasonsShown = () =>
     .queryAllByRole('heading')
     .map(heading => heading.textContent);
 
-test('draws every crate and dependency inside the rust stack with its change state, and opens no note panel until one is clicked', async () => {
+test('draws every crate and dependency inside the rust stack with its change state, and opens no inspector until one is clicked, closing it again from its close button', async () => {
   const user = userEvent.setup();
   render(<ReviewPage review={pageWith(review)} />);
 
@@ -127,13 +127,15 @@ test('draws every crate and dependency inside the rust stack with its change sta
   ].forEach(name => {
     expect(drawn).toContain(within(rust).getByRole('button', { name }));
   });
-  expect(screen.queryByRole('complementary', { name: 'Note' })).toBeNull();
+  expect(screen.queryByRole('complementary', { name: 'Inspector' })).toBeNull();
   expect(screen.queryByRole('region', { name: 'Summary' })).toBeNull();
   expect(screen.queryByRole('region', { name: 'Calls with no route' })).toBeNull();
   expect(screen.queryByRole('region', { name: 'Not in the graph' })).toBeNull();
 
   await user.click(within(rust).getByRole('button', { name: 'legacy: removed' }));
   expect(noteShown()).toBe('No note');
+  await user.click(within(notePanel()).getByRole('button', { name: 'Close inspector' }));
+  expect(screen.queryByRole('complementary', { name: 'Inspector' })).toBeNull();
 });
 
 type FrameOptions = {
@@ -220,7 +222,7 @@ test('dragging from a node pans the graph and selects nothing, even back near wh
   expect(viewOf(rust)).toBe(pannedBy(40, 30));
   await drag({ clientX: 140, clientY: 130 }, { clientX: 102, clientY: 101 });
   expect(viewOf(rust)).toBe(pannedBy(42, 31));
-  expect(screen.queryByRole('complementary', { name: 'Note' })).toBeNull();
+  expect(screen.queryByRole('complementary', { name: 'Inspector' })).toBeNull();
 
   await drag({ clientX: 103, clientY: 100 });
   expect(viewOf(rust)).toBe(pannedBy(42, 31));

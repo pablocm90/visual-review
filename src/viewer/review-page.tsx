@@ -906,7 +906,15 @@ export const ReviewPage = ({ review, notes, shownTabs = SHOWN_TABS }: ReviewPage
                   onKeyDown={moveDivider}
                   onPointerDown={dragDivider}
                 />
-                <aside className="note" aria-label="Note" style={{ width: panelWidth }}>
+                <aside className="note" aria-label="Inspector" style={{ width: panelWidth }}>
+                  <button
+                    type="button"
+                    className="close"
+                    aria-label="Close inspector"
+                    onClick={() => setSelected(undefined)}
+                  >
+                    ×
+                  </button>
                   {selectedNote?.flag && <h2>{flaggedFor(selectedNote.flag)}</h2>}
                   {selectedUnrouted.length > 0 && <h2>{noRouteFor(selectedUnrouted)}</h2>}
                   <p>{selectedNote?.text ?? 'No note'}</p>

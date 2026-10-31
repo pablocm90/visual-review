@@ -426,6 +426,25 @@ h1 {
   margin: 0;
 }
 
+.note .close {
+  float: right;
+  width: 28px;
+  height: 28px;
+  margin: -4px -8px 0 8px;
+  border: 1px solid var(--stack-line);
+  border-radius: 6px;
+  background: var(--stack);
+  color: var(--ink);
+  font: inherit;
+  font-size: 16px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.note .close:hover {
+  background: var(--unchanged-fill);
+}
+
 .note h2 {
   margin: 0 0 8px;
   color: var(--removed);
