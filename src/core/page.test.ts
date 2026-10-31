@@ -54,7 +54,10 @@ test("a reading's page data holds its diff, its dangling calls and test files, t
     tests,
   });
 
-  expect(pageData({ reading, range: 'main..feature', version: '1.2.3' })).toStrictEqual({
+  expect(
+    pageData({ repo: 'shop', reading, range: 'main..feature', version: '1.2.3' }),
+  ).toStrictEqual({
+    repo: 'shop',
     range: 'main..feature',
     version: '1.2.3',
     diff: {
@@ -79,7 +82,13 @@ test("a pull request's page data names it, and lists the stacks a missing tool k
   const skipped = [{ reader: 'rust' as const, tool: 'cargo', stacks: ['rust'] }];
 
   expect(
-    pageData({ reading: readingWith({ skipped }), range: 'abc..def', version, pullRequest }),
+    pageData({
+      repo: 'shop',
+      reading: readingWith({ skipped }),
+      range: 'abc..def',
+      version,
+      pullRequest,
+    }),
   ).toMatchObject({ range: 'abc..def', pullRequest, skipped });
 });
 
@@ -102,13 +111,23 @@ const slotsOf = (html: string) => {
 };
 
 test('the page holds its data whole, a range that closes a script tag included, and no notes until they are filled', () => {
-  const data = pageData({ reading: readingWith({}), range: 'main..x</script><b>', version });
+  const data = pageData({
+    repo: 'shop',
+    reading: readingWith({}),
+    range: 'main..x</script><b>',
+    version,
+  });
 
   expect(pageIn(slotsOf(pageHtml({ viewer, data })))).toStrictEqual({ data, notes: undefined });
 });
 
 test('notes filled into a page come back whole, a note holding replacement patterns such as $& included, beside its data', () => {
-  const data = pageData({ reading: readingWith({}), range: 'main..feature', version });
+  const data = pageData({
+    repo: 'shop',
+    reading: readingWith({}),
+    range: 'main..feature',
+    version,
+  });
   const notes = notesWith({ 'web/file/a.ts': { text: "Costs $& more, and $' too." } });
 
   const page = notedPageHtml({ page: pageHtml({ viewer, data }), notes, notesFile, version });
@@ -119,7 +138,12 @@ test('notes filled into a page come back whole, a note holding replacement patte
 const pageFor = (pageVersion: string) =>
   pageHtml({
     viewer,
-    data: pageData({ reading: readingWith({}), range: 'main..feature', version: pageVersion }),
+    data: pageData({
+      repo: 'shop',
+      reading: readingWith({}),
+      range: 'main..feature',
+      version: pageVersion,
+    }),
   });
 
 test('notes for a page another visual-review wrote are refused, naming its version', () => {
@@ -155,7 +179,9 @@ test('a changed node that is a file on both sides gets its churn on each', () =>
     },
   });
 
-  expect(pageData({ reading, range: 'main..feature', version }).metrics['web/file/a.ts']).toEqual({
+  expect(
+    pageData({ repo: 'shop', reading, range: 'main..feature', version }).metrics['web/file/a.ts'],
+  ).toEqual({
     base: { churn: 3, fanIn: 0, fanOut: 0 },
     head: { churn: 4, fanIn: 0, fanOut: 0 },
   });
@@ -177,7 +203,9 @@ test('a measured file gets, beside its churn, its lines, functions, highest and 
     },
   });
 
-  expect(pageData({ reading, range: 'main..feature', version }).metrics['web/file/a.ts']).toEqual({
+  expect(
+    pageData({ repo: 'shop', reading, range: 'main..feature', version }).metrics['web/file/a.ts'],
+  ).toEqual({
     base: {
       churn: 3,
       fanIn: 0,
@@ -225,7 +253,9 @@ test("a measured node's fan-in and fan-out count that side's edges into and out 
     churn: { before: churn, after: churn },
   });
 
-  expect(pageData({ reading, range: 'main..feature', version }).metrics['web/file/a.ts']).toEqual({
+  expect(
+    pageData({ repo: 'shop', reading, range: 'main..feature', version }).metrics['web/file/a.ts'],
+  ).toEqual({
     base: { churn: 1, fanIn: 1, fanOut: 0 },
     head: { churn: 1, fanIn: 2, fanOut: 3 },
   });
@@ -240,7 +270,9 @@ test('a measured file with no functions has a highest and total cyclomatic of 0 
     measures: { before: {}, after: { 'web/src/a.ts': { lines: 2, functions: [] } } },
   });
 
-  expect(pageData({ reading, range: 'main..feature', version }).metrics['web/file/a.ts']).toEqual({
+  expect(
+    pageData({ repo: 'shop', reading, range: 'main..feature', version }).metrics['web/file/a.ts'],
+  ).toEqual({
     head: {
       churn: 1,
       fanIn: 0,
@@ -276,7 +308,7 @@ test.for([
   });
 
   expect(
-    pageData({ reading, range: 'main..feature', version }).metrics['web/file/a.ts'],
+    pageData({ repo: 'shop', reading, range: 'main..feature', version }).metrics['web/file/a.ts'],
   ).toStrictEqual(metrics);
 });
 
@@ -290,7 +322,7 @@ test("an unchanged file one edge from a changed node, on either side's edges, ge
     churn: { before: churn, after: churn },
   });
 
-  const { metrics } = pageData({ reading, range: 'main..feature', version });
+  const { metrics } = pageData({ repo: 'shop', reading, range: 'main..feature', version });
 
   expect(Object.keys(metrics).filter(id => id.startsWith('web/file/'))).toEqual([
     'web/file/a.ts',
@@ -308,7 +340,9 @@ test("a renamed file's base churn is read at the path it had on the base side", 
     churn: { before: { 'web/src/old.ts': 5 }, after: { 'web/src/a.ts': 1 } },
   });
 
-  expect(pageData({ reading, range: 'main..feature', version }).metrics['web/file/a.ts']).toEqual({
+  expect(
+    pageData({ repo: 'shop', reading, range: 'main..feature', version }).metrics['web/file/a.ts'],
+  ).toEqual({
     base: { churn: 5, fanIn: 0, fanOut: 0 },
     head: { churn: 1, fanIn: 0, fanOut: 0 },
   });
@@ -323,7 +357,9 @@ test("a node whose file moved with no rename git saw reads its base churn at its
     churn: { before: { 'web/src/old.ts': 5, 'web/src/a.ts': 9 }, after: { 'web/src/a.ts': 1 } },
   });
 
-  expect(pageData({ reading, range: 'main..feature', version }).metrics['web/file/a.ts']).toEqual({
+  expect(
+    pageData({ repo: 'shop', reading, range: 'main..feature', version }).metrics['web/file/a.ts'],
+  ).toEqual({
     base: { churn: 5, fanIn: 0, fanOut: 0 },
     head: { churn: 1, fanIn: 0, fanOut: 0 },
   });
@@ -341,7 +377,7 @@ test('a box gets, on each side, the highest churn among the measured nodes insid
     },
   });
 
-  const { metrics } = pageData({ reading, range: 'main..feature', version });
+  const { metrics } = pageData({ repo: 'shop', reading, range: 'main..feature', version });
 
   expect(metrics).toStrictEqual({
     web: {
@@ -387,7 +423,9 @@ test('a box takes, on each side, the highest of each measure among the measured 
     },
   });
 
-  expect(pageData({ reading, range: 'main..feature', version }).metrics['web/box/m']).toEqual({
+  expect(
+    pageData({ repo: 'shop', reading, range: 'main..feature', version }).metrics['web/box/m'],
+  ).toEqual({
     highestInside: true,
     head: {
       churn: 7,
@@ -465,7 +503,9 @@ test.for([
       thresholds: { cyclomatic: 4, hotspot: { churn: 6, cyclomatic: 8 } },
     });
 
-    expect(pageData({ reading, range: 'main..feature', version }).metricFindings).toStrictEqual(
+    expect(
+      pageData({ repo: 'shop', reading, range: 'main..feature', version }).metricFindings,
+    ).toStrictEqual(
       level === undefined
         ? []
         : [
@@ -529,7 +569,9 @@ test.for([
   const threshold = { churn: 3, cyclomatic: 5 };
   const reading = readingOfA({ base, head, thresholds: { cyclomatic: 20, hotspot: threshold } });
 
-  expect(pageData({ reading, range: 'main..feature', version }).metricFindings).toStrictEqual(
+  expect(
+    pageData({ repo: 'shop', reading, range: 'main..feature', version }).metricFindings,
+  ).toStrictEqual(
     level === undefined || head === undefined
       ? []
       : [
@@ -574,7 +616,7 @@ test.for([
     thresholds: { cyclomatic: 10, hotspot: { churn: 6, cyclomatic: 8 }, ...thresholds },
   });
 
-  expect(pageData({ reading, range: 'main..feature', version }).metricFindings).toStrictEqual(
-    findings.map(finding => ({ node: 'web/file/a.ts', ...finding })),
-  );
+  expect(
+    pageData({ repo: 'shop', reading, range: 'main..feature', version }).metricFindings,
+  ).toStrictEqual(findings.map(finding => ({ node: 'web/file/a.ts', ...finding })));
 });

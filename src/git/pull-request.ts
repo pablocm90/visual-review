@@ -25,6 +25,7 @@ const namesRepository = (remoteUrl: string, repository: string): boolean => {
 type ExecFailure = { readonly stderr: string };
 
 type FetchedPullRequest = PullRequest & {
+  readonly repository: string;
   readonly from: string;
   readonly to: string;
 };
@@ -63,5 +64,5 @@ export const readPullRequest = async ({
   const to = await fetched(`refs/pull/${number}/head`);
   const baseTip = await fetched(`refs/heads/${baseRefName}`);
   const base = mergeCommit === null ? baseTip : `${mergeCommit.oid}^1`;
-  return { from: await git('merge-base', base, to), to, number, title, url };
+  return { repository, from: await git('merge-base', base, to), to, number, title, url };
 };

@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 import { execFile } from 'node:child_process';
 import { lstat, mkdir, readFile, writeFile } from 'node:fs/promises';
-import { join } from 'node:path';
+import { basename, join } from 'node:path';
 import { parseArgs, promisify } from 'node:util';
 import { z } from 'zod';
 import { linkers, readers } from './adapters.ts';
@@ -37,6 +37,7 @@ type ReviewedRange = {
   readonly from: string;
   readonly to: string;
   readonly churnTo?: string;
+  readonly repository?: string;
   readonly pullRequest?: PullRequest;
 };
 
@@ -47,8 +48,11 @@ const rangeOf = async (repo: string, argument: string | undefined): Promise<Revi
   }
   if (/^\d+$/.test(argument)) {
     requireOnPath('gh', 'https://cli.github.com');
-    const { from, to, ...pullRequest } = await readPullRequest({ repo, number: Number(argument) });
-    return { range: `${from}..${to}`, from, to, pullRequest };
+    const { from, to, repository, ...pullRequest } = await readPullRequest({
+      repo,
+      number: Number(argument),
+    });
+    return { range: `${from}..${to}`, from, to, repository, pullRequest };
   }
   return { range: argument, ...parseRange(argument) };
 };
@@ -91,7 +95,12 @@ const writeReview = async (args: ReadonlyArray<string>): Promise<string> => {
   });
   requireOnPath('git', 'https://git-scm.com/downloads');
   const repo = (await promisify(execFile)('git', ['rev-parse', '--show-toplevel'])).stdout.trim();
-  const { range, pullRequest, ...revisions } = await rangeOf(repo, positionals[0]);
+  const {
+    range,
+    pullRequest,
+    repository = basename(repo),
+    ...revisions
+  } = await rangeOf(repo, positionals[0]);
   const directory = join(repo, '.reviews');
   if (!(await isDirectoryOrMissing(directory)))
     throw new Error(`${directory} is not a directory, so no page is written into it`);
@@ -106,7 +115,13 @@ const writeReview = async (args: ReadonlyArray<string>): Promise<string> => {
   reading.skipped.forEach(skip => {
     console.error(notReadLine(skip));
   });
-  const review = pageData({ reading, range, version: await ownVersion(), pullRequest });
+  const review = pageData({
+    reading,
+    repo: repository,
+    range,
+    version: await ownVersion(),
+    pullRequest,
+  });
   await mkdir(directory, { recursive: true });
   await writeFile(join(directory, '.gitignore'), '*\n');
   await writeFile(data, JSON.stringify(review));
