@@ -36,13 +36,13 @@ const finding = <Metric, Value>({
   ...(base === undefined ? {} : { base }),
 });
 
-const valueOf = (metric: Over, measures: NodeMeasures | undefined): number | undefined => {
+const measureOf = (metric: Over, measures: NodeMeasures | undefined): number | undefined => {
   if (measures === undefined || !('lines' in measures)) return undefined;
   return metric === 'cyclomatic' ? measures.cyclomatic.highest : measures[metric];
 };
 
 const hotspotOf = (measures: NodeMeasures | undefined): Hotspot | undefined => {
-  const cyclomatic = valueOf('cyclomatic', measures);
+  const cyclomatic = measureOf('cyclomatic', measures);
   return measures === undefined || cyclomatic === undefined
     ? undefined
     : { churn: measures.churn, cyclomatic };
@@ -54,9 +54,9 @@ const overFindings = (
   metric: Over,
   threshold: number | undefined,
 ): ReadonlyArray<MetricFinding> => {
-  const headValue = valueOf(metric, head);
+  const headValue = measureOf(metric, head);
   if (threshold === undefined || headValue === undefined || headValue <= threshold) return [];
-  const baseValue = valueOf(metric, base);
+  const baseValue = measureOf(metric, base);
   const look = baseValue === undefined || headValue > baseValue;
   return [finding({ node, metric, base: baseValue, head: headValue, threshold, look })];
 };
