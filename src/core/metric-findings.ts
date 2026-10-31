@@ -61,18 +61,16 @@ const overFindings = (
   return [finding({ node, metric, base: baseValue, head: headValue, threshold, look })];
 };
 
+export const inHotspot = (point: Hotspot | undefined, cut: Hotspot): boolean =>
+  point !== undefined && point.churn >= cut.churn && point.cyclomatic >= cut.cyclomatic;
+
 const hotspotFindings = (
   node: string,
   { base, head }: NodeMetrics,
   threshold: Hotspot,
 ): ReadonlyArray<MetricFinding> => {
   const headValue = hotspotOf(head);
-  if (
-    headValue === undefined ||
-    headValue.churn < threshold.churn ||
-    headValue.cyclomatic < threshold.cyclomatic
-  )
-    return [];
+  if (headValue === undefined || !inHotspot(headValue, threshold)) return [];
   const baseValue = hotspotOf(base);
   const look =
     baseValue === undefined ||

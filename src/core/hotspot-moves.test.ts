@@ -62,3 +62,25 @@ test("each changed leaf with complexity on its head moves from its base's churn 
     ['stripe', undefined, { churn: 7, cyclomatic: 9 }],
   ]);
 });
+
+test("a move enters the hotspot corner when its head is at or past both cuts and its base isn't or wasn't placed, and stays when its base was there too; a head short of either cut is in no corner", () => {
+  const moves = hotspotMoves(
+    reviewOf([
+      [leaf('refund', 'modified'), { base: measured(6, 7), head: measured(9, 14) }],
+      [leaf('ledger', 'added'), { head: measured(6, 8) }],
+      [leaf('mailer', 'modified'), { base: measured(5, 9), head: measured(7, 9) }],
+      [leaf('stripe', 'modified'), { base: measured(6, 8), head: measured(7, 9) }],
+      [leaf('checkout', 'modified'), { base: measured(7, 9), head: measured(5, 9) }],
+      [leaf('routes', 'modified'), { base: measured(1, 1), head: measured(9, 7) }],
+    ]),
+  );
+
+  expect(moves.map(({ node, corner }) => [node.label, corner])).toEqual([
+    ['refund', 'enters'],
+    ['ledger', 'enters'],
+    ['mailer', 'enters'],
+    ['stripe', 'stays'],
+    ['checkout', undefined],
+    ['routes', undefined],
+  ]);
+});
