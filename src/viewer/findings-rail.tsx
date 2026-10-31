@@ -4,7 +4,7 @@ import type { MetricFinding } from '../core/metric-findings.ts';
 import type { ReviewNotes } from '../core/notes.ts';
 import type { PageData } from '../core/page.ts';
 import { notReadLine } from '../core/skipped.ts';
-import { LevelMark, tenths } from './metrics-tab.tsx';
+import { LevelMark, tenths } from './finding-display.tsx';
 
 type FindingsRailProps = {
   readonly notes: ReviewNotes | undefined;
