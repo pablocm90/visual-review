@@ -96,17 +96,19 @@ const review = {
 const showEverything = (user: ReturnType<typeof userEvent.setup>) =>
   user.click(screen.getByRole('checkbox', { name: 'Changed + 1 hop' }));
 
-const notePanel = () => screen.getByRole('complementary', { name: 'Inspector' });
+const inspector = () => screen.getByRole('complementary', { name: 'Inspector' });
 
-const noteShown = () => within(notePanel()).getAllByRole('paragraph')[0]?.textContent;
+const noteTab = () => screen.getByRole('tabpanel', { name: 'Note' });
+
+const noteShown = () => within(noteTab()).getAllByRole('paragraph')[0]?.textContent;
 
 const inspectorTabs = () =>
-  within(notePanel())
+  within(inspector())
     .queryAllByRole('tab')
     .map(tab => tab.textContent);
 
 const reasonsShown = () =>
-  within(notePanel())
+  within(noteTab())
     .queryAllByRole('heading')
     .map(heading => heading.textContent);
 
@@ -139,7 +141,8 @@ test('draws every crate and dependency inside the rust stack with its change sta
 
   await user.click(within(rust).getByRole('button', { name: 'legacy: removed' }));
   expect(noteShown()).toBe('No note');
-  await user.click(within(notePanel()).getByRole('button', { name: 'Close inspector' }));
+  expect(within(inspector()).getByText('crates/legacy')).not.toBeNull();
+  await user.click(within(inspector()).getByRole('button', { name: 'Close inspector' }));
   expect(screen.queryByRole('complementary', { name: 'Inspector' })).toBeNull();
 });
 
@@ -1115,13 +1118,13 @@ test("a selected node's Diff tab lists the patches of the files under it from th
   await user.click(within(web).getByRole('button', { name: 'utils: modified' }));
   expect(inspectorTabs()).toEqual(['Note', 'Diff']);
   expect(changes()).toBeNull();
-  await user.click(within(notePanel()).getByRole('tab', { name: 'Diff' }));
+  await user.click(within(inspector()).getByRole('tab', { name: 'Diff' }));
   expect(fileShown().hasAttribute('open')).toBe(false);
 
   await user.click(within(web).getByRole('button', { name: 'Expand utils' }));
   const utils = await within(web).findByRole('group', { name: 'utils' });
   await user.click(within(utils).getByRole('button', { name: 'x.ts: modified' }));
-  expect(within(notePanel()).getByRole('tab', { selected: true }).textContent).toBe('Diff');
+  expect(within(inspector()).getByRole('tab', { selected: true }).textContent).toBe('Diff');
   const file = fileShown();
   expect(file.hasAttribute('open')).toBe(true);
   expect(within(file).getByText(/^@@ -1,2 \+1,2 @@/)).not.toBeNull();
@@ -1143,7 +1146,7 @@ test("a selected node's Diff tab lists the patches of the files under it from th
   expect(noteShown()).toBe('No note');
 
   await user.click(within(utils).getByRole('button', { name: 'x.ts: modified' }));
-  await user.click(within(notePanel()).getByRole('tab', { name: 'Diff' }));
+  await user.click(within(inspector()).getByRole('tab', { name: 'Diff' }));
   expect(changes()).not.toBeNull();
   await user.click(within(web).getByRole('button', { name: 'y.ts → x.ts: unchanged' }));
   expect(inspectorTabs()).toEqual(['Note']);
@@ -1173,7 +1176,7 @@ test('changed files outside the graph are listed under their own heading, each a
   expect(within(readme).getByRole('insertion').textContent).toBe('+new');
 });
 
-test('a renamed node shows the label it had under its own, also once expanded, is named with both and its old path, and its panel says what it was renamed from; a node whose label stayed shows no former one', async () => {
+test("a renamed node shows the label it had under its own, also once expanded, is named with both and its old path, and its inspector's head names it with its kind, stack, state and path and what it was renamed from; a node whose label stayed shows no former one", async () => {
   const user = userEvent.setup();
   render(
     <ReviewPage
@@ -1210,13 +1213,21 @@ test('a renamed node shows the label it had under its own, also once expanded, i
   expect(within(models).getByText('was domain')).not.toBeNull();
 
   await user.click(models);
-  expect(notePanel().textContent).toContain('Renamed from crates/domain');
+  expect(within(inspector()).getByRole('heading', { level: 2 }).textContent).toBe('models');
+  expect(within(inspector()).getByText('package · rust')).not.toBeNull();
+  expect(within(inspector()).getByText('modified')).not.toBeNull();
+  expect(within(inspector()).getByText('crates/models, renamed from crates/domain')).not.toBeNull();
 
   await user.click(within(rust).getByRole('button', { name: 'Expand models' }));
   const expanded = await within(rust).findByRole('group', { name: 'models' });
   expect(within(expanded).getByText('was domain')).not.toBeNull();
   const lib = within(expanded).getByRole('button', { name: /^lib\.rs: modified/ });
   expect(within(lib).queryByText(/was/)).toBeNull();
+  await user.click(lib);
+  expect(within(inspector()).getByText('file · rust')).not.toBeNull();
+  expect(
+    within(inspector()).getByText('crates/models/src/lib.rs, renamed from crates/domain/src/lib.rs'),
+  ).not.toBeNull();
 });
 
 test('the tests section lists each changed test file with its tests as a tree, each named with its change and any label or where it moved, an unreadable one with the reason and a renamed one with its old path', async () => {
@@ -1356,7 +1367,7 @@ test("selecting a node narrows the tests section to the test files at or under i
   ]);
   expect(within(tests).queryByText('No test changed here.')).toBeNull();
   expect(inspectorTabs()).toEqual(['Note', 'Tests 3']);
-  await user.click(within(notePanel()).getByRole('tab', { name: 'Tests 3' }));
+  await user.click(within(inspector()).getByRole('tab', { name: 'Tests 3' }));
   expect(
     within(screen.getByRole('tabpanel', { name: 'Tests' }))
       .getAllByRole('region')

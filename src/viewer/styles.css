@@ -445,6 +445,53 @@ h1 {
   background: var(--unchanged-fill);
 }
 
+.inspector-head {
+  margin-bottom: 12px;
+}
+
+.inspector-head h2 {
+  margin: 4px 0;
+  font-family: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+  font-size: 15px;
+  font-weight: 600;
+  word-break: break-all;
+}
+
+.inspector-head .chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.inspector-head .chips span {
+  padding: 1px 8px;
+  border-radius: 999px;
+  background: var(--unchanged-fill);
+  color: var(--ink);
+  font-size: 12px;
+}
+
+.inspector-head .chips [data-state='added'] {
+  background: var(--added-fill);
+  color: var(--added);
+}
+
+.inspector-head .chips [data-state='removed'] {
+  background: var(--removed-fill);
+  color: var(--removed);
+}
+
+.inspector-head .chips [data-state='modified'] {
+  background: var(--modified-fill);
+  color: var(--modified);
+}
+
+.inspector-head .path {
+  color: var(--muted);
+  font-size: 12.5px;
+  word-break: break-all;
+}
+
 .inspector-tabs {
   display: flex;
   gap: 4px;
@@ -470,7 +517,7 @@ h1 {
   font-weight: 600;
 }
 
-.note h2 {
+.note [role='tabpanel'] h2 {
   margin: 0 0 8px;
   color: var(--removed);
   font-size: 14px;

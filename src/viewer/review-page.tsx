@@ -494,8 +494,39 @@ const changedTests = (statements: ReadonlyArray<TestStatement>): number =>
     0,
   );
 
+type DiffNode = GraphDiff['nodes'][number];
+
+const stackOf = (nodes: ReadonlyArray<DiffNode>, node: DiffNode): DiffNode => {
+  const parent = nodes.find(other => other.id === node.parent);
+  return parent ? stackOf(nodes, parent) : node;
+};
+
+const InspectorHead = ({
+  nodes,
+  node,
+}: {
+  readonly nodes: ReadonlyArray<DiffNode>;
+  readonly node: DiffNode;
+}) => (
+  <header className="inspector-head">
+    <p className="chips">
+      <span>
+        {node.kind} · {stackOf(nodes, node).label}
+      </span>
+      <span data-state={node.state}>{node.state}</span>
+    </p>
+    <h2>{node.label}</h2>
+    <p className="path">
+      {node.renamedFrom === undefined
+        ? node.path
+        : `${node.path}, renamed from ${node.renamedFrom}`}
+    </p>
+  </header>
+);
+
 type InspectorProps = {
-  readonly node: GraphDiff['nodes'][number] | undefined;
+  readonly nodes: ReadonlyArray<DiffNode>;
+  readonly node: DiffNode | undefined;
   readonly note: Note | undefined;
   readonly unrouted: ReadonlyArray<string>;
   readonly patches: ReadonlyArray<FilePatch>;
@@ -512,7 +543,16 @@ const INSPECTOR_TABS: Readonly<Record<InspectorTab, string>> = {
   tests: 'Tests',
 };
 
-const Inspector = ({ node, note, unrouted, patches, tests, width, onClose }: InspectorProps) => {
+const Inspector = ({
+  nodes,
+  node,
+  note,
+  unrouted,
+  patches,
+  tests,
+  width,
+  onClose,
+}: InspectorProps) => {
   const [picked, setPicked] = useState<InspectorTab>('note');
   const testsHere = node ? tests.filter(({ path }) => isAtOrUnder(path, node)) : [];
   const offered: ReadonlyArray<InspectorTab> = [
@@ -530,6 +570,7 @@ const Inspector = ({ node, note, unrouted, patches, tests, width, onClose }: Ins
       <button type="button" className="close" aria-label="Close inspector" onClick={onClose}>
         ×
       </button>
+      {node && <InspectorHead nodes={nodes} node={node} />}
       <div className="inspector-tabs" role="tablist" aria-label="Inspector sections">
         {offered.map(tab => (
           <button
@@ -550,9 +591,6 @@ const Inspector = ({ node, note, unrouted, patches, tests, width, onClose }: Ins
             {note?.flag && <h2>{flaggedFor(note.flag)}</h2>}
             {unrouted.length > 0 && <h2>{noRouteFor(unrouted)}</h2>}
             <p>{note?.text ?? 'No note'}</p>
-            {node?.renamedFrom !== undefined && (
-              <p className="renamed">Renamed from {node.renamedFrom}</p>
-            )}
           </>
         ) : shown === 'diff' ? (
           <section className="changes" aria-label="Changes">
@@ -992,6 +1030,7 @@ export const ReviewPage = ({ review, notes, shownTabs = SHOWN_TABS }: ReviewPage
                   onPointerDown={dragDivider}
                 />
                 <Inspector
+                  nodes={review.diff.nodes}
                   node={selectedNode}
                   note={selectedNote}
                   unrouted={selectedUnrouted}
