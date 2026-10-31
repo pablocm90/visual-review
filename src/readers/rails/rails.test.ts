@@ -739,7 +739,7 @@ test.for([
   },
 ])('a Minitest file reads $reason', async ({ file, statements }) => {
   expect(await testsAdded({ path: 'test/models/order_test.rb', file })).toEqual([
-    { path: 'test/models/order_test.rb', statements },
+    { path: 'test/models/order_test.rb', new: true, statements },
   ]);
 });
 
@@ -800,6 +800,7 @@ test.for([
   expect(await testsAdded({ path: 'spec/models/order_spec.rb', file })).toEqual([
     {
       path: 'spec/models/order_spec.rb',
+      new: true,
       statements: [{ kind: 'heading', name, children: [added('works')] }],
     },
   ]);
@@ -864,7 +865,7 @@ test.for([
   },
 ])('an RSpec file reads $reason', async ({ file, statements }) => {
   expect(await testsAdded({ path: 'spec/models/order_spec.rb', file })).toEqual([
-    { path: 'spec/models/order_spec.rb', statements },
+    { path: 'spec/models/order_spec.rb', new: true, statements },
   ]);
 });
 
