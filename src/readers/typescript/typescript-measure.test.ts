@@ -19,5 +19,15 @@ test("a TS file's lines are those holding code, not blank or comment ones, a tem
     '',
   );
 
-  expect(measureTypeScript(text).lines).toBe(6);
+  expect(measureTypeScript(text, 'src/shop.ts').lines).toBe(6);
+});
+
+test.for([
+  { path: 'src/cast.ts', text: 'const n = <number>value;' },
+  { path: 'src/cast.cts', text: 'const n = <number>value;' },
+  { path: 'src/view.tsx', text: 'const view = (n: number) => <b>{n}</b>;' },
+  { path: 'src/view.js', text: 'const view = n => <b>{n}</b>;' },
+  { path: 'src/view.mjs', text: 'const view = n => <b>{n}</b>;' },
+])('$path parses with the syntax its extension allows', ({ path, text }) => {
+  expect(measureTypeScript(text, path).lines).toBe(1);
 });

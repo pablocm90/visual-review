@@ -1,4 +1,4 @@
-import { parse } from '@babel/parser';
+import { type ParserPlugin, parse } from '@babel/parser';
 import { z } from 'zod';
 import type { FileMeasures } from '../../core/reader.ts';
 
@@ -14,8 +14,13 @@ const NOT_CODE = new Set(['CommentLine', 'CommentBlock', 'eof']);
 const rowsOf = ({ loc: { start, end } }: z.infer<typeof TokenSchema>): ReadonlyArray<number> =>
   Array.from({ length: end.line - start.line + 1 }, (_, index) => start.line + index);
 
-export const measureTypeScript = (text: string): FileMeasures => {
-  const { tokens } = parse(text, { sourceType: 'module', plugins: ['typescript'], tokens: true });
+const pluginsFor = (path: string): Array<ParserPlugin> => {
+  if (path.endsWith('.tsx')) return ['typescript', 'jsx'];
+  return /\.[cm]?ts$/.test(path) ? ['typescript'] : ['jsx'];
+};
+
+export const measureTypeScript = (text: string, path: string): FileMeasures => {
+  const { tokens } = parse(text, { sourceType: 'module', plugins: pluginsFor(path), tokens: true });
   const code = z
     .array(TokenSchema)
     .parse(tokens)
