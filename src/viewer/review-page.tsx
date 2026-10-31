@@ -598,8 +598,32 @@ type MetricsTableProps = {
   readonly findings: ReadonlyArray<MetricFinding>;
 };
 
+const barWidth = (value: number, scale: number) =>
+  `${scale > 0 ? Math.max(2, Math.round((value / scale) * 100)) : 2}%`;
+
+const Bars = ({
+  before,
+  after,
+}: {
+  readonly before: number | undefined;
+  readonly after: number | undefined;
+}) => {
+  const scale = Math.max(before ?? 0, after ?? 0);
+  return (
+    <span className="bars" aria-hidden="true">
+      {before !== undefined && (
+        <span className="before" style={{ width: barWidth(before, scale) }} />
+      )}
+      {after !== undefined && <span className="after" style={{ width: barWidth(after, scale) }} />}
+    </span>
+  );
+};
+
 const MetricsTable = ({ metrics: { highestInside, base, head }, findings }: MetricsTableProps) => (
   <>
+    <p className="metrics-caption">
+      Base → head. Each row's bars share one scale: grey before, dark after.
+    </p>
     {highestInside && <p>Each value is the highest inside it.</p>}
     <table className="metrics">
       <thead>
@@ -616,11 +640,12 @@ const MetricsTable = ({ metrics: { highestInside, base, head }, findings }: Metr
           const after = head && of(head);
           const over = findings.find(({ metric }) => metric === finding);
           return (
-            <tr key={name}>
+            <tr key={name} className={over ? 'over' : undefined}>
               <th scope="row">
                 {name}
                 {over && <LevelMark level={over.level} />}
                 {hint && <small>{hint}</small>}
+                <Bars before={before} after={after} />
               </th>
               <td>{shownValue(base, before)}</td>
               <td>{shownValue(head, after)}</td>
