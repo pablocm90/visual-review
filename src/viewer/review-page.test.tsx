@@ -1879,11 +1879,14 @@ const withChangesUnderApplication = {
 const panelWidth = () =>
   screen.getByRole('separator', { name: 'Panel width' }).getAttribute('aria-valuenow');
 
-test('a selected node opens its panel beside a divider that gives its width: 360 for a note alone, 600 with changes; arrow keys move the divider, other keys leave it, and it stops at 280 and where the graph would get narrower than 320; the width it sets holds for later selections', async () => {
+test('a selected node opens its panel beside a divider that gives its width: 360 for a note alone, 600 with changes; arrow keys move the divider, other keys leave it, and it stops at 280 and where the graph, right of the findings rail, would get narrower than 320; the width it sets holds for later selections', async () => {
   const user = userEvent.setup();
   render(<ReviewPage review={pageWith(withChangesUnderApplication)} />);
 
   const rust = await screen.findByRole('group', { name: 'rust' });
+  vi.spyOn(screen.getByRole('group', { name: 'Graph' }), 'getBoundingClientRect').mockReturnValue(
+    DOMRect.fromRect({ x: 101, y: 0, width: 600, height: 400 }),
+  );
   expect(screen.queryByRole('separator')).toBeNull();
 
   await user.click(within(rust).getByRole('button', { name: 'application: modified' }));
@@ -1900,15 +1903,15 @@ test('a selected node opens its panel beside a divider that gives its width: 360
   await user.keyboard('{ArrowRight}');
   expect(panelWidth()).toBe('280');
 
-  await user.keyboard('{ArrowLeft>8/}');
-  expect(panelWidth()).toBe('600');
+  await user.keyboard('{ArrowLeft>6/}');
+  expect(panelWidth()).toBe('520');
   await user.keyboard('{ArrowLeft}');
-  expect(panelWidth()).toBe('632');
+  expect(panelWidth()).toBe('555');
   await user.keyboard('{Tab}');
-  expect(panelWidth()).toBe('632');
+  expect(panelWidth()).toBe('555');
 
   await user.click(within(rust).getByRole('button', { name: 'application: modified' }));
-  expect(panelWidth()).toBe('632');
+  expect(panelWidth()).toBe('555');
 });
 
 test('dragging the divider sets the panel width until the button is let go, within the same limits', async () => {

@@ -53,14 +53,17 @@ const NOTE_WIDTH = 360;
 const CHANGES_WIDTH = 600;
 const PANEL_MIN = 280;
 const GRAPH_MIN = 320;
-const PAGE_PADDING_AND_DIVIDER = 72;
+const DIVIDER_AND_PADDING = 48;
 const DIVIDER_STEP = 40;
 const LEAST_DRAG = 4;
 const WHEEL_PER_DOUBLING = 100;
 const PAN_STEP = 40;
 
-const panelWidthWithin = (width: number) =>
-  Math.min(Math.max(width, PANEL_MIN), window.innerWidth - PAGE_PADDING_AND_DIVIDER - GRAPH_MIN);
+const panelWidthWithin = (width: number, graphLeft: number) =>
+  Math.min(
+    Math.max(width, PANEL_MIN),
+    window.innerWidth - graphLeft - DIVIDER_AND_PADDING - GRAPH_MIN,
+  );
 
 const edgePath = (points: PlacedEdge['points']): string =>
   points.map((point, index) => `${index === 0 ? 'M' : 'L'} ${point.x} ${point.y}`).join(' ');
@@ -812,16 +815,17 @@ export const ReviewPage = ({ review, notes, shownTabs = SHOWN_TABS }: ReviewPage
       ? review.patches.filter(({ path }) => isAtOrUnder(path, selectedNode))
       : [];
   const panelWidth = chosenWidth ?? (patches.length > 0 ? CHANGES_WIDTH : NOTE_WIDTH);
+  const graphLeft = () => frameElement?.getBoundingClientRect().left ?? 0;
   const moveDivider = (event: KeyboardEvent) => {
     const step = { ArrowLeft: DIVIDER_STEP, ArrowRight: -DIVIDER_STEP }[event.key];
     if (step === undefined) return;
-    setChosenWidth(panelWidthWithin(panelWidth + step));
+    setChosenWidth(panelWidthWithin(panelWidth + step, graphLeft()));
   };
   const dragDivider = (down: PointerEvent<HTMLDivElement>) => {
     down.preventDefault();
     down.currentTarget.focus();
     const follow = (move: globalThis.PointerEvent) =>
-      setChosenWidth(panelWidthWithin(panelWidth + down.clientX - move.clientX));
+      setChosenWidth(panelWidthWithin(panelWidth + down.clientX - move.clientX, graphLeft()));
     window.addEventListener('pointermove', follow);
     window.addEventListener('pointerup', () => window.removeEventListener('pointermove', follow), {
       once: true,
