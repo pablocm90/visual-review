@@ -401,7 +401,12 @@ test('a box takes, on each side, the highest of each measure among the measured 
   });
 });
 
-type FileOfA = { readonly churn: number; readonly cyclomatic: number };
+type FileOfA = {
+  readonly churn: number;
+  readonly cyclomatic: number;
+  readonly lines?: number;
+  readonly abc?: number;
+};
 
 const readingOfA = ({
   base,
@@ -417,12 +422,12 @@ const readingOfA = ({
       ? {}
       : {
           'web/src/a.ts': {
-            lines: 1,
+            lines: file.lines ?? 1,
             functions: [
               {
                 name: 'f',
                 cyclomatic: file.cyclomatic,
-                abc: { assignments: 0, branches: 0, conditions: 0 },
+                abc: { assignments: file.abc ?? 0, branches: 0, conditions: 0 },
               },
               { name: 'g', cyclomatic: 1, abc: { assignments: 0, branches: 0, conditions: 0 } },
             ],
@@ -537,5 +542,39 @@ test.for([
             threshold,
           },
         ],
+  );
+});
+
+test.for([
+  {
+    reason: 'a file past the lines threshold is reported against it',
+    thresholds: { lines: 100 },
+    base: { lines: 100 },
+    head: { lines: 101 },
+    findings: [{ metric: 'lines', level: 'look', base: 100, head: 101, threshold: 100 }],
+  },
+  {
+    reason: 'a file past the abc threshold is reported against it',
+    thresholds: { abc: 10 },
+    base: { abc: 12 },
+    head: { abc: 12 },
+    findings: [{ metric: 'abc', level: 'info', base: 12, head: 12, threshold: 10 }],
+  },
+  {
+    reason: 'with neither set, no file is reported for its lines or abc',
+    thresholds: {},
+    base: { lines: 1000, abc: 1000 },
+    head: { lines: 1000, abc: 1000 },
+    findings: [],
+  },
+])('$reason', ({ thresholds, base, head, findings }) => {
+  const reading = readingOfA({
+    base: { churn: 1, cyclomatic: 1, ...base },
+    head: { churn: 1, cyclomatic: 1, ...head },
+    thresholds: { cyclomatic: 10, hotspot: { churn: 6, cyclomatic: 8 }, ...thresholds },
+  });
+
+  expect(pageData({ reading, range: 'main..feature', version }).metricFindings).toStrictEqual(
+    findings.map(finding => ({ node: 'web/file/a.ts', ...finding })),
   );
 });

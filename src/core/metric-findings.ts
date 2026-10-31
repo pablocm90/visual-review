@@ -12,7 +12,9 @@ type Finding<Metric, Value> = {
   readonly threshold: Value;
 };
 
-export type MetricFinding = Finding<'cyclomatic', number> | Finding<'hotspot', Hotspot>;
+type Over = 'cyclomatic' | 'lines' | 'abc';
+
+export type MetricFinding = Finding<Over, number> | Finding<'hotspot', Hotspot>;
 
 type MetricFindingsOptions = {
   readonly metrics: Readonly<Record<string, NodeMetrics>>;
@@ -34,28 +36,29 @@ const finding = <Metric, Value>({
   ...(base === undefined ? {} : { base }),
 });
 
-const cyclomaticOf = (measures: NodeMeasures | undefined): number | undefined =>
-  measures !== undefined && 'lines' in measures ? measures.cyclomatic.highest : undefined;
+const valueOf = (metric: Over, measures: NodeMeasures | undefined): number | undefined => {
+  if (measures === undefined || !('lines' in measures)) return undefined;
+  return metric === 'cyclomatic' ? measures.cyclomatic.highest : measures[metric];
+};
 
 const hotspotOf = (measures: NodeMeasures | undefined): Hotspot | undefined => {
-  const cyclomatic = cyclomaticOf(measures);
+  const cyclomatic = valueOf('cyclomatic', measures);
   return measures === undefined || cyclomatic === undefined
     ? undefined
     : { churn: measures.churn, cyclomatic };
 };
 
-const cyclomaticFindings = (
+const overFindings = (
   node: string,
   { base, head }: NodeMetrics,
-  threshold: number,
+  metric: Over,
+  threshold: number | undefined,
 ): ReadonlyArray<MetricFinding> => {
-  const headValue = cyclomaticOf(head);
-  if (headValue === undefined || headValue <= threshold) return [];
-  const baseValue = cyclomaticOf(base);
+  const headValue = valueOf(metric, head);
+  if (threshold === undefined || headValue === undefined || headValue <= threshold) return [];
+  const baseValue = valueOf(metric, base);
   const look = baseValue === undefined || headValue > baseValue;
-  return [
-    finding({ node, metric: 'cyclomatic', base: baseValue, head: headValue, threshold, look }),
-  ];
+  return [finding({ node, metric, base: baseValue, head: headValue, threshold, look })];
 };
 
 const hotspotFindings = (
@@ -86,7 +89,9 @@ export const metricFindings = ({
     nodeMetrics.highestInside
       ? []
       : [
-          ...cyclomaticFindings(node, nodeMetrics, thresholds.cyclomatic),
+          ...overFindings(node, nodeMetrics, 'cyclomatic', thresholds.cyclomatic),
           ...hotspotFindings(node, nodeMetrics, thresholds.hotspot),
+          ...overFindings(node, nodeMetrics, 'lines', thresholds.lines),
+          ...overFindings(node, nodeMetrics, 'abc', thresholds.abc),
         ],
   );
