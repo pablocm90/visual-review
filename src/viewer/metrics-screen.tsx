@@ -206,7 +206,7 @@ const LeafTable = ({ leaves, findings, churnDays, labelOf, onGoTo }: LeafTablePr
       <section className="metric-panel metric-table-panel" aria-label="Metrics per node">
         <table className="metric-table">
           <caption className="metric-table-caption">
-            {`Base → head, the Δ under it. Lines are non-blank, non-comment. Cyclomatic is the node's most branching function; ABC is the whole file's. Churn counts the commits touching the node's file in the ${churnDays} days before each side.`}
+            {`Base → head, the Δ under it. Lines are non-blank, non-comment. Cyclomatic is the node's most branching function; ABC is the whole file's. Fan-out and fan-in count its edges out and in. Churn counts the commits touching the node's file in the ${churnDays} days before each side.`}
           </caption>
           <thead>
             <tr>
