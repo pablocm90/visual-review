@@ -36,7 +36,7 @@ Run every command from the repository root (`git rev-parse --show-toplevel`, whi
    }
    ```
 
-   - `notes` are keyed by a crate's, module's or file's `id`, or by an edge's `<from> -> <to>` ids. A stack (`rust`, `web`) takes no note.
+   - `notes` are keyed by a crate's, module's or file's `id`, or by an edge's `<from> -> <to>` ids. A stack (`rust`, `web`) takes no note. Leave `notes` out when nothing drawn is touched.
    - A file inside a web module has its own id, such as `web/file/modules/AppInfo/api/app-info.ts`; its note shows once the module is expanded.
    - A Rust module has its own id inside its crate, such as `rust/mod/application/sign_up`, and so does the crate's root file (`rust/mod/application/lib.rs`, or `main.rs` for a binary); its note shows once the crate is expanded. Edges between modules are their `use` lines.
    - A Rails class has its own id, keyed by its constant, such as `shop/class/Admin::UsersController`, inside its layer (`shop/layer/controllers`); its note shows once the layer is expanded.
