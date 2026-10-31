@@ -588,6 +588,100 @@ const OutsideFiles = ({ patches, width, onClose }: OutsideFilesProps) => (
   </aside>
 );
 
+type SidePanelProps = {
+  readonly review: PageData;
+  readonly selected: string | undefined;
+  readonly node: DiffNode | undefined;
+  readonly outside: boolean;
+  readonly note: Note | undefined;
+  readonly unrouted: ReadonlyArray<string>;
+  readonly comments: Readonly<Record<string, string>>;
+  readonly onComment: ((id: string, text: string) => void) | undefined;
+  readonly graphLeft: () => number;
+  readonly onCloseOutside: () => void;
+  readonly onCloseInspector: (id: string) => void;
+};
+
+const SidePanel = ({
+  review,
+  selected,
+  node,
+  outside,
+  note,
+  unrouted,
+  comments,
+  onComment,
+  graphLeft,
+  onCloseOutside,
+  onCloseInspector,
+}: SidePanelProps) => {
+  const [chosenWidth, setChosenWidth] = useState<number>();
+  const patches = outside
+    ? review.undrawn
+    : node
+      ? review.patches.filter(({ path }) => isAtOrUnder(path, node))
+      : [];
+  const width = chosenWidth ?? (patches.length > 0 ? CHANGES_WIDTH : NOTE_WIDTH);
+  const moveDivider = (event: KeyboardEvent) => {
+    const step = { ArrowLeft: DIVIDER_STEP, ArrowRight: -DIVIDER_STEP }[event.key];
+    if (step === undefined) return;
+    setChosenWidth(panelWidthWithin(width + step, graphLeft()));
+  };
+  const dragDivider = (down: PointerEvent<HTMLDivElement>) => {
+    down.preventDefault();
+    down.currentTarget.focus();
+    const follow = (move: globalThis.PointerEvent) =>
+      setChosenWidth(panelWidthWithin(width + down.clientX - move.clientX, graphLeft()));
+    window.addEventListener('pointermove', follow);
+    window.addEventListener('pointerup', () => window.removeEventListener('pointermove', follow), {
+      once: true,
+    });
+  };
+  const divider = (
+    <div
+      className="divider"
+      role="separator"
+      aria-orientation="vertical"
+      aria-label="Panel width"
+      aria-valuenow={width}
+      tabIndex={0}
+      onKeyDown={moveDivider}
+      onPointerDown={dragDivider}
+    />
+  );
+  if (outside) {
+    return (
+      <>
+        {divider}
+        <OutsideFiles patches={patches} width={width} onClose={onCloseOutside} />
+      </>
+    );
+  }
+  if (selected === undefined) return null;
+  return (
+    <>
+      {divider}
+      <Inspector
+        nodes={review.diff.nodes}
+        node={node}
+        metrics={review.metrics}
+        findings={review.metricFindings}
+        note={note}
+        unrouted={unrouted}
+        patches={patches}
+        tests={review.tests}
+        comment={comments[selected] ?? ''}
+        onComment={onComment && (text => onComment(selected, text))}
+        commentable={
+          node !== undefined || review.diff.edges.some(edge => edgeId(edge) === selected)
+        }
+        width={width}
+        onClose={() => onCloseInspector(selected)}
+      />
+    </>
+  );
+};
+
 type DrawnAtOptions = {
   readonly diff: GraphDiff;
   readonly expanded: ReadonlySet<string>;
@@ -749,8 +843,9 @@ export const ReviewPage = ({ review, notes, send }: ReviewPageProps) => {
     setOutside(false);
     setSelected(id);
   };
-  const [chosenWidth, setChosenWidth] = useState<number>();
   const [comments, setComments] = useState<Readonly<Record<string, string>>>({});
+  const comment = (id: string, text: string) =>
+    setComments(current => ({ ...current, [id]: text }));
   const [expanded, setExpanded] = useState<ReadonlySet<string>>(new Set());
   const expandable = useMemo(
     () => new Set(review.diff.nodes.flatMap(node => node.parent ?? [])),
@@ -798,27 +893,19 @@ export const ReviewPage = ({ review, notes, send }: ReviewPageProps) => {
   const selectedNode = review.diff.nodes.find(node => node.id === selected);
   const selectedNote = selected === undefined ? undefined : shown[selected];
   const selectedUnrouted = selected === undefined ? [] : drawing.unroutedOf(selected);
-  const patches = outside
-    ? review.undrawn
-    : selectedNode
-      ? review.patches.filter(({ path }) => isAtOrUnder(path, selectedNode))
-      : [];
-  const panelWidth = chosenWidth ?? (patches.length > 0 ? CHANGES_WIDTH : NOTE_WIDTH);
   const graphLeft = () => frameElement?.getBoundingClientRect().left ?? 0;
-  const moveDivider = (event: KeyboardEvent) => {
-    const step = { ArrowLeft: DIVIDER_STEP, ArrowRight: -DIVIDER_STEP }[event.key];
-    if (step === undefined) return;
-    setChosenWidth(panelWidthWithin(panelWidth + step, graphLeft()));
+  const showOutside = (opener: HTMLButtonElement) => {
+    outsideOpener.current = opener;
+    setSelected(undefined);
+    setOutside(true);
   };
-  const dragDivider = (down: PointerEvent<HTMLDivElement>) => {
-    down.preventDefault();
-    down.currentTarget.focus();
-    const follow = (move: globalThis.PointerEvent) =>
-      setChosenWidth(panelWidthWithin(panelWidth + down.clientX - move.clientX, graphLeft()));
-    window.addEventListener('pointermove', follow);
-    window.addEventListener('pointerup', () => window.removeEventListener('pointermove', follow), {
-      once: true,
-    });
+  const closeOutside = () => {
+    outsideOpener.current?.focus();
+    setOutside(false);
+  };
+  const closeInspector = (id: string) => {
+    elements.current.get(id)?.focus({ preventScroll: true });
+    select(undefined);
   };
 
   const [focusTarget, setFocusTarget] = useState<string>();
@@ -939,16 +1026,7 @@ export const ReviewPage = ({ review, notes, send }: ReviewPageProps) => {
             <p className="caveat">Calls whose path is built at runtime are not drawn.</p>
           </div>
           <div className="columns">
-            <FindingsRail
-              notes={notes}
-              review={review}
-              onGoTo={goTo}
-              onShowOutside={opener => {
-                outsideOpener.current = opener;
-                setSelected(undefined);
-                setOutside(true);
-              }}
-            />
+            <FindingsRail notes={notes} review={review} onGoTo={goTo} onShowOutside={showOutside} />
             <div className="content">
               {notes && notes.summary.length > 0 && <Summary notes={notes} onGoTo={goTo} />}
               <div className="graph-controls">
@@ -1043,58 +1121,19 @@ export const ReviewPage = ({ review, notes, send }: ReviewPageProps) => {
                 </div>
               )}
             </div>
-            {(selected !== undefined || outside) && (
-              <>
-                <div
-                  className="divider"
-                  role="separator"
-                  aria-orientation="vertical"
-                  aria-label="Panel width"
-                  aria-valuenow={panelWidth}
-                  tabIndex={0}
-                  onKeyDown={moveDivider}
-                  onPointerDown={dragDivider}
-                />
-                {outside ? (
-                  <OutsideFiles
-                    patches={patches}
-                    width={panelWidth}
-                    onClose={() => {
-                      outsideOpener.current?.focus();
-                      setOutside(false);
-                    }}
-                  />
-                ) : (
-                  <Inspector
-                    nodes={review.diff.nodes}
-                    node={selectedNode}
-                    metrics={review.metrics}
-                    findings={review.metricFindings}
-                    note={selectedNote}
-                    unrouted={selectedUnrouted}
-                    patches={patches}
-                    tests={review.tests}
-                    comment={(selected && comments[selected]) ?? ''}
-                    onComment={
-                      send &&
-                      (text =>
-                        selected !== undefined &&
-                        setComments(current => ({ ...current, [selected]: text })))
-                    }
-                    commentable={
-                      selectedNode !== undefined ||
-                      review.diff.edges.some(edge => edgeId(edge) === selected)
-                    }
-                    width={panelWidth}
-                    onClose={() => {
-                      if (selected !== undefined)
-                        elements.current.get(selected)?.focus({ preventScroll: true });
-                      select(undefined);
-                    }}
-                  />
-                )}
-              </>
-            )}
+            <SidePanel
+              review={review}
+              selected={selected}
+              node={selectedNode}
+              outside={outside}
+              note={selectedNote}
+              unrouted={selectedUnrouted}
+              comments={comments}
+              onComment={send && comment}
+              graphLeft={graphLeft}
+              onCloseOutside={closeOutside}
+              onCloseInspector={closeInspector}
+            />
           </div>
         </>
       )}
