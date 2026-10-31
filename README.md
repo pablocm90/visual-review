@@ -63,7 +63,7 @@ npx @pablocm90/visual-review 42
 
 ## Reading the page
 
-The header names the range (and the PR, linked) and gives the legend: green is added, red with a dashed outline is removed, amber is modified, and grey is unchanged. A modified crate, module, box or class has a changed file inside it. A renamed one is drawn once, with "was …" under its name. When a reader's tool is missing, such as `cargo`, an alert says which stacks weren't read.
+The header names the repo and the range, and is headed by the PR, linked, or else by the range ("Uncommitted work" for uncommitted work). Beside it, the tabs: only Structure for now, which holds everything below. The URL's hash (`#structure`) names the tab, so back and forward move between tabs. When a reader's tool is missing, such as `cargo`, Structure opens with an alert saying which stacks weren't read. Then comes the legend: green is added, red with a dashed outline is removed, amber is modified, and grey is unchanged. A modified crate, module, box or class has a changed file inside it. A renamed one is drawn once, with "was …" under its name.
 
 - **Summary.** With Claude's notes, the change's summary and every flagged concern come first. Click one to go to the part it's about.
 - **Graph.** Each stack is a box. Click `+` on a crate, folder or layer to open it, and `−` to close it. Arrows are dependencies or references, dashed when removed. Dotted arrows are `fetch` calls to routes. A `!` badge at a closed part's top-right corner, or at an arrow's middle, marks a flagged note. One at a part's bottom-right corner marks calls no route matches.

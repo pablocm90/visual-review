@@ -7,7 +7,7 @@ test.for([
   { state: 'an open', merged: false },
   { state: 'a merged', merged: true },
 ])(
-  '$state PR resolves to the range from where it branched off its base to its head, fetched into a clone that has neither, though the base has moved on since',
+  '$state PR resolves to the range from where it branched off its base to its head, fetched into a clone that has neither, though the base has moved on since, and names its repository by its URL',
   async ({ merged }) => {
     using pr = pullRequestRemote({ merged });
     vi.stubEnv('PATH', pr.path);
@@ -15,6 +15,7 @@ test.for([
     const pullRequest = await readPullRequest({ repo: pr.clone, number: 7 });
 
     expect(pullRequest).toEqual({
+      repository: 'acme/shop',
       from: pr.branchPoint,
       to: pr.head,
       number: 7,

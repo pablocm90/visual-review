@@ -8,7 +8,7 @@ import {
   utimesSync,
   writeFileSync,
 } from 'node:fs';
-import { join } from 'node:path';
+import { basename, join } from 'node:path';
 import { promisify } from 'node:util';
 import { expect, test } from 'vitest';
 import { pageIn } from './core/page.ts';
@@ -50,7 +50,7 @@ const pageOf = (html: string) =>
 
 const reviewDataIn = (html: string) => pageOf(html).data;
 
-test('writes the review page for a range into .reviews/, with slashes in revision names made filename-safe, and its data beside it', async () => {
+test('writes the review page for a range into .reviews/, with slashes in revision names made filename-safe, and its data beside it, naming the repo by its folder', async () => {
   using workspace = cargoWorkspace();
   const { repo } = workspace;
   git(repo, 'switch', '--quiet', '--create', 'feature/cli');
@@ -62,6 +62,7 @@ test('writes the review page for a range into .reviews/, with slashes in revisio
   expect(run).toMatchObject({ code: 0, stdout: `${page}\n` });
   const reviewData = reviewDataIn(readFileSync(page, 'utf8'));
   expect(reviewData).toMatchObject({
+    repo: basename(repo),
     range: 'main..feature/cli',
     diff: {
       nodes: expect.arrayContaining([
@@ -173,7 +174,7 @@ test.for([
   },
 );
 
-test('a PR number reviews the PR from its merge base to its head, so its new crate shows as added, and names the page by that sha range', async () => {
+test('a PR number reviews the PR from its merge base to its head, so its new crate shows as added, names the page by that sha range, and names the repo as its URL does', async () => {
   using pr = pullRequestRemote();
 
   const run = await runCliIn({ cwd: pr.clone, env: { ...process.env, PATH: pr.path } }, '7');
@@ -182,6 +183,7 @@ test('a PR number reviews the PR from its merge base to its head, so its new cra
   const page = join(pr.clone, '.reviews', `${range}.html`);
   expect(run).toMatchObject({ code: 0, stdout: `${page}\n` });
   expect(reviewDataIn(readFileSync(page, 'utf8'))).toMatchObject({
+    repo: 'acme/shop',
     range,
     pullRequest: { number: 7, title: 'Add the cli crate' },
     diff: {

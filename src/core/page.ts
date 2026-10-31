@@ -14,6 +14,7 @@ export type PullRequest = {
 };
 
 export type PageData = {
+  readonly repo: string;
   readonly range: string;
   readonly version: string;
   readonly pullRequest?: PullRequest;
@@ -29,17 +30,27 @@ export type PageData = {
 
 type PageDataOptions = {
   readonly reading: RangeReading;
+  readonly repo: string;
   readonly range: string;
   readonly version: string;
   readonly pullRequest?: PullRequest | undefined;
 };
 
-export const pageData = ({ reading, range, version, pullRequest }: PageDataOptions): PageData => {
+export const UNCOMMITTED = 'HEAD..worktree';
+
+export const pageData = ({
+  reading,
+  repo,
+  range,
+  version,
+  pullRequest,
+}: PageDataOptions): PageData => {
   const diff = diffGraphs(reading);
   const isDrawn = ({ path }: FilePatch): boolean =>
     diff.nodes.some(node => isAtOrUnder(path, node));
   const metrics = nodeMetrics({ diff, ...reading });
   return {
+    repo,
     range,
     version,
     ...(pullRequest === undefined ? {} : { pullRequest }),

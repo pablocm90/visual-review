@@ -1,12 +1,19 @@
 #!/usr/bin/env node
 import { execFile } from 'node:child_process';
 import { lstat, mkdir, readFile, writeFile } from 'node:fs/promises';
-import { join } from 'node:path';
+import { basename, join } from 'node:path';
 import { parseArgs, promisify } from 'node:util';
 import { z } from 'zod';
 import { linkers, readers } from './adapters.ts';
 import { parseNotes } from './core/notes.ts';
-import { notedPageHtml, type PageData, type PullRequest, pageData, pageHtml } from './core/page.ts';
+import {
+  notedPageHtml,
+  type PageData,
+  type PullRequest,
+  pageData,
+  pageHtml,
+  UNCOMMITTED,
+} from './core/page.ts';
 import { readRange } from './core/read-range.ts';
 import { notReadLine } from './core/skipped.ts';
 import { onPath } from './git/on-path.ts';
@@ -37,18 +44,22 @@ type ReviewedRange = {
   readonly from: string;
   readonly to: string;
   readonly churnTo?: string;
+  readonly repository?: string;
   readonly pullRequest?: PullRequest;
 };
 
 const rangeOf = async (repo: string, argument: string | undefined): Promise<ReviewedRange> => {
   if (argument === undefined) {
     const to = await snapshotWorkingTree(repo);
-    return { range: 'HEAD..worktree', from: 'HEAD', to, churnTo: 'HEAD' };
+    return { range: UNCOMMITTED, from: 'HEAD', to, churnTo: 'HEAD' };
   }
   if (/^\d+$/.test(argument)) {
     requireOnPath('gh', 'https://cli.github.com');
-    const { from, to, ...pullRequest } = await readPullRequest({ repo, number: Number(argument) });
-    return { range: `${from}..${to}`, from, to, pullRequest };
+    const { from, to, repository, ...pullRequest } = await readPullRequest({
+      repo,
+      number: Number(argument),
+    });
+    return { range: `${from}..${to}`, from, to, repository, pullRequest };
   }
   return { range: argument, ...parseRange(argument) };
 };
@@ -91,7 +102,12 @@ const writeReview = async (args: ReadonlyArray<string>): Promise<string> => {
   });
   requireOnPath('git', 'https://git-scm.com/downloads');
   const repo = (await promisify(execFile)('git', ['rev-parse', '--show-toplevel'])).stdout.trim();
-  const { range, pullRequest, ...revisions } = await rangeOf(repo, positionals[0]);
+  const {
+    range,
+    pullRequest,
+    repository = basename(repo),
+    ...revisions
+  } = await rangeOf(repo, positionals[0]);
   const directory = join(repo, '.reviews');
   if (!(await isDirectoryOrMissing(directory)))
     throw new Error(`${directory} is not a directory, so no page is written into it`);
@@ -106,7 +122,13 @@ const writeReview = async (args: ReadonlyArray<string>): Promise<string> => {
   reading.skipped.forEach(skip => {
     console.error(notReadLine(skip));
   });
-  const review = pageData({ reading, range, version: await ownVersion(), pullRequest });
+  const review = pageData({
+    reading,
+    repo: repository,
+    range,
+    version: await ownVersion(),
+    pullRequest,
+  });
   await mkdir(directory, { recursive: true });
   await writeFile(join(directory, '.gitignore'), '*\n');
   await writeFile(data, JSON.stringify(review));
