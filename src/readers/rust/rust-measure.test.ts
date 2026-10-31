@@ -28,9 +28,10 @@ test("a test fn's and a cfg(test) module's lines, attributes included, are not c
   const text = source(
     'fn kept() {}',
     '#[test]',
+    '// slow',
     '#[ignore]',
     'fn checks() {}',
-    '#[cfg(test)]',
+    '#[cfg(test)] // unit tests',
     'mod tests {',
     '    fn helper() {}',
     '}',
@@ -64,11 +65,12 @@ test('test fns and the items of a cfg(test) module are not measured as functions
   const text = source(
     'fn kept() {}',
     '#[test]',
-    '#[ignore]',
+    '#[ignore] // slow',
     'fn checks() {}',
     '#[tokio::test]',
     'async fn awaits() {}',
     '#[cfg(test)]',
+    '/* unit tests */',
     'mod tests { fn helper() {} }',
     'fn also_kept() {}',
   );

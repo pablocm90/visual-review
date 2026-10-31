@@ -1,8 +1,6 @@
 import type { Node } from 'web-tree-sitter';
 import type { FileMeasures, FunctionMeasures } from '../../core/reader.ts';
-import { isTestCode, isTestItem, parseRust } from './rust-syntax.ts';
-
-const isComment = (node: Node): boolean => node.type.endsWith('_comment');
+import { isComment, isTestCode, isTestItem, parseRust } from './rust-syntax.ts';
 
 const isTestPart = (node: Node | null): boolean =>
   node !== null &&
