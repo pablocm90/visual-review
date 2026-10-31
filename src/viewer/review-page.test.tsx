@@ -575,7 +575,7 @@ test("the Tests tab heads the test changes with what the notes say they pin, and
           ...review.diff,
           nodes: [
             ...review.diff.nodes,
-            { id: 'web', kind: 'stack', label: 'Web app', path: 'web', state: 'unchanged' },
+            { id: 'web', kind: 'stack', label: 'Web app', path: '', state: 'unchanged' },
           ],
         },
         tests: [
@@ -591,6 +591,7 @@ test("the Tests tab heads the test changes with what the notes say they pin, and
             renamedFrom: 'web/src/note.test.ts',
             statements: added,
           },
+          { path: 'tools/review/x.test.ts', stack: 'tools/review', statements: added },
         ],
       })}
       notes={{ version: 1, summary: [], tests: 'The export is pinned.', notes: {} }}
@@ -602,7 +603,11 @@ test("the Tests tab heads the test changes with what the notes say they pin, and
       'The export is pinned.',
     ),
   ).not.toBeNull();
-  expect(testsShown()).toEqual(['crates/application/tests/export.rs', 'web/src/notes.test.ts']);
+  expect(testsShown()).toEqual([
+    'crates/application/tests/export.rs',
+    'web/src/notes.test.ts',
+    'tools/review/x.test.ts',
+  ]);
   const exported = screen.getByRole('region', { name: 'crates/application/tests/export.rs' });
   expect(within(exported).getByText('rust')).not.toBeNull();
   expect(within(exported).getByText('new file')).not.toBeNull();
@@ -610,6 +615,8 @@ test("the Tests tab heads the test changes with what the notes say they pin, and
   expect(within(notesTest).getByText('Web app')).not.toBeNull();
   expect(within(notesTest).getByText('renamed from web/src/note.test.ts')).not.toBeNull();
   expect(within(notesTest).queryByText('new file')).toBeNull();
+  const undrawn = screen.getByRole('region', { name: 'tools/review/x.test.ts' });
+  expect(within(undrawn).getByText('tools/review')).not.toBeNull();
 
   rerender(<ReviewPage review={pageWith(review)} />);
   expect(screen.queryByRole('region', { name: 'What they pin' })).toBeNull();
@@ -2089,7 +2096,7 @@ test("a node's Tests tab also lists the test files named after a file inside it,
         range: 'abc123..def456',
         diff: {
           nodes: [
-            { id: 'web', kind: 'stack', label: 'web', path: 'web', state: 'unchanged' },
+            { id: 'web', kind: 'stack', label: 'web', path: '', state: 'unchanged' },
             webModule('orders', 'modified'),
             webFile('orders', 'refund.ts', 'modified'),
           ],

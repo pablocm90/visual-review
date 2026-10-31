@@ -10,7 +10,7 @@ import {
   type TestStatement,
   testCounts,
 } from '../core/test-changes.ts';
-import { deepestStackHolding, testsAlongside } from '../core/tests-alongside.ts';
+import { testsAlongside } from '../core/tests-alongside.ts';
 import { LevelMark } from './finding-display.tsx';
 
 const TEST_MARKS: Readonly<Record<TestChange, string>> = {
@@ -78,7 +78,9 @@ export const TestFiles = ({ files, nodes }: TestFilesProps) =>
       <h3>
         <code>{file.path}</code>
         {file.renamedFrom && <span className="renamed">renamed from {file.renamedFrom}</span>}
-        <span className="stack">{deepestStackHolding(nodes, file.path)?.label}</span>
+        <span className="stack">
+          {nodes.find(({ id }) => id === file.stack)?.label ?? file.stack}
+        </span>
         {file.new && <span className="new">new file</span>}
       </h3>
       {'statements' in file ? (
