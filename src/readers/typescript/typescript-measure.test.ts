@@ -137,7 +137,7 @@ test.for([
   { body: 'a == b; a != b; a === b; a !== b; a < b; a > b; a <= b; a >= b;', abc: [0, 0, 8] },
   { body: 'a + b; a && b;', abc: [0, 0, 0] },
   { body: 'if (a) {} else {} if (b) {}', abc: [0, 0, 1] },
-  { body: 'switch (a) { case 1: break; default: }', abc: [0, 0, 1] },
+  { body: 'switch (a) { case 1: break; default: }', abc: [0, 0, 2] },
   { body: 'try {} catch {}', abc: [0, 0, 1] },
   { body: 'a ? b : c;', abc: [0, 0, 1] },
   { body: 'a?.b;', abc: [0, 0, 1] },

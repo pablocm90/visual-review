@@ -116,11 +116,10 @@ const CALLS = new Set(['CallExpression', 'OptionalCallExpression', 'NewExpressio
 
 const COMPARISONS = new Set(['==', '!=', '===', '!==', '<', '>', '<=', '>=']);
 
-const CONDITIONS = new Set(['CatchClause', 'ConditionalExpression']);
+const CONDITIONS = new Set(['CatchClause', 'ConditionalExpression', 'SwitchCase']);
 
 const isCondition = (node: Node): boolean =>
   CONDITIONS.has(node.type) ||
-  isCase(node) ||
   isOptionalLink(node) ||
   (node.type === 'IfStatement' && node.alternate !== null) ||
   (node.type === 'BinaryExpression' && COMPARISONS.has(node.operator));
