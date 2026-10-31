@@ -497,6 +497,25 @@ test.for([
   );
 });
 
+test('picking a tab sets the hash and shows it, and back and forward move between the tabs', async () => {
+  atHash('');
+  const user = userEvent.setup();
+  render(<ReviewPage review={pageWith(review)} shownTabs={['structure', 'metrics']} />);
+  await screen.findByRole('group', { name: 'rust' });
+
+  await user.click(screen.getByRole('link', { name: 'Metrics' }));
+  await waitFor(() => expect(currentTab()).toBe('Metrics'));
+  expect(location.hash).toBe('#metrics');
+  expect(screen.queryByRole('group', { name: 'rust' })).toBeNull();
+
+  history.back();
+  await waitFor(() => expect(currentTab()).toBe('Structure'));
+  history.forward();
+  await waitFor(() => expect(currentTab()).toBe('Metrics'));
+  location.hash = '#tests';
+  await waitFor(() => expect(currentTab()).toBe('Structure'));
+});
+
 test('a reader skipped for want of its tool is named in the header with the stacks it did not read', async () => {
   render(
     <ReviewPage

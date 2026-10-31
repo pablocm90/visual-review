@@ -515,6 +515,8 @@ const TABS = { structure: 'Structure', metrics: 'Metrics', tests: 'Tests' } as c
 
 type Tab = keyof typeof TABS;
 
+const SHOWN_TABS: ReadonlyArray<Tab> = ['structure'];
+
 const tabAt = (hash: string, shown: ReadonlyArray<Tab>): Tab =>
   shown.find(tab => `#${tab}` === hash) ?? 'structure';
 
@@ -524,8 +526,13 @@ type ReviewPageProps = {
   readonly shownTabs?: ReadonlyArray<Tab>;
 };
 
-export const ReviewPage = ({ review, notes, shownTabs = ['structure'] }: ReviewPageProps) => {
-  const [tab] = useState(() => tabAt(location.hash, shownTabs));
+export const ReviewPage = ({ review, notes, shownTabs = SHOWN_TABS }: ReviewPageProps) => {
+  const [tab, setTab] = useState(() => tabAt(location.hash, shownTabs));
+  useEffect(() => {
+    const follow = () => setTab(tabAt(location.hash, shownTabs));
+    addEventListener('hashchange', follow);
+    return () => removeEventListener('hashchange', follow);
+  }, [shownTabs]);
   const [layout, setLayout] = useState<Layout>();
   const [selected, setSelected] = useState<string>();
   const [chosenWidth, setChosenWidth] = useState<number>();
