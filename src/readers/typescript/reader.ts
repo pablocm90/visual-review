@@ -139,5 +139,5 @@ export const typeScriptReader: Reader = {
     }),
   isTestFile: path => TEST_FILE.test(path),
   readTests: readTypeScriptTests,
-  measure: measureTypeScript,
+  measure: (text, path) => (TEST_FILE.test(path) ? undefined : measureTypeScript(text, path)),
 };

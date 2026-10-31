@@ -472,6 +472,16 @@ test("each side measures the files of the changed nodes and their neighbours wit
   });
 });
 
+test('a TS test file is left unmeasured, and the file it imports is measured', async () => {
+  using repository = gitRepo(rootPackage);
+  const { repo, root } = repository;
+  const head = commit(repo, { 'src/index.test.ts': "import './index.ts';\n" });
+
+  const range = await readRange({ repo, from: root, to: head });
+
+  expect(range.measures.after).toStrictEqual({ 'src/index.ts': { lines: 0, functions: [] } });
+});
+
 test('a renamed file is measured at its former path on the before side', async () => {
   using workspace = cargoWorkspace();
   const { repo } = workspace;

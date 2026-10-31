@@ -46,7 +46,8 @@ export type StackOptions = HoldsOptions & {
  * `tool` names the command its `graph` runs, if any: when it isn't on `PATH`, none of the
  * reader's stacks is read, and the review lists them as skipped. `measure`, if it has one,
  * measures one of its files: its lines of code (not blank, not comment) and each function's
- * cyclomatic complexity and ABC parts; without it, its nodes get no complexity.
+ * cyclomatic complexity and ABC parts; without it, its nodes get no complexity. A file it
+ * measures as `undefined` is left unmeasured.
  */
 export interface Reader {
   readonly name: ReaderName;
@@ -57,5 +58,5 @@ export interface Reader {
   readonly graph: (options: StackOptions) => Promise<Graph>;
   readonly isTestFile: (path: string) => boolean;
   readonly readTests: (text: string) => ReadonlyArray<ReadTest>;
-  readonly measure?: (text: string, path: string) => FileMeasures;
+  readonly measure?: (text: string, path: string) => FileMeasures | undefined;
 }
