@@ -19,12 +19,14 @@ const CORNER_LINES: Readonly<
 const CornerLine = ({ move: { node, head, corner } }: { readonly move: HotspotMove }) =>
   corner && (
     <li>
-      <code>{node.label}</code>
+      <code className="hotspot-move-node">{node.label}</code>
       {CORNER_LINES[corner](head)}
     </li>
   );
 
 const PLOT = { left: 40, right: 300, top: 40, bottom: 280 };
+
+const MIDDLE = (PLOT.left + PLOT.right) / 2;
 
 type Place = (point: Hotspot) => { readonly x: number; readonly y: number };
 
@@ -43,8 +45,8 @@ const scaleOf = (moves: ReadonlyArray<HotspotMove>, cut: Hotspot, threshold: num
   return {
     most,
     place: point => ({
-      x: PLOT.left + ((PLOT.right - PLOT.left) * point.churn) / most.churn,
-      y: PLOT.bottom - ((PLOT.bottom - PLOT.top) * point.cyclomatic) / most.cyclomatic,
+      x: PLOT.left + (PLOT.right - PLOT.left) * Math.sqrt(point.churn / most.churn),
+      y: PLOT.bottom - (PLOT.bottom - PLOT.top) * Math.sqrt(point.cyclomatic / most.cyclomatic),
     }),
   };
 };
@@ -91,7 +93,7 @@ const Frame = ({ scale: { most, place }, cut, threshold, churnDays }: FrameProps
       <text className="hotspot-tick" x={PLOT.right} y={PLOT.bottom + 16} textAnchor="end">
         {most.churn}
       </text>
-      <text className="hotspot-note" x={(PLOT.left + PLOT.right) / 2} y={306} textAnchor="middle">
+      <text className="hotspot-note" x={MIDDLE} y={306} textAnchor="middle">
         {`commits in ${churnDays} days`}
       </text>
       <text
@@ -115,9 +117,16 @@ const Point = ({ move, place }: { readonly move: HotspotMove; readonly place: Pl
       {base && <line className="hotspot-path" x1={base.x} y1={base.y} x2={head.x} y2={head.y} />}
       {base && <circle className="hotspot-base" cx={base.x} cy={base.y} r={4} />}
       <circle className="hotspot-head" cx={head.x} cy={head.y} r={4.5} />
-      <text className="hotspot-label" x={head.x + 8} y={head.y - 6}>
-        {move.node.label}
-      </text>
+      {move.corner && (
+        <text
+          className="hotspot-label"
+          x={head.x + (head.x > MIDDLE ? -8 : 8)}
+          y={head.y - 6}
+          textAnchor={head.x > MIDDLE ? 'end' : 'start'}
+        >
+          {move.node.label}
+        </text>
+      )}
     </g>
   );
 };
@@ -127,9 +136,9 @@ export const HotspotChart = ({ review }: { readonly review: PageData }) => {
   const { thresholds, churnDays } = review;
   const scale = scaleOf(moves, thresholds.hotspot, thresholds.cyclomatic);
   return (
-    <section className="hotspot-chart">
-      <h2>Hotspots</h2>
-      <p>
+    <section className="metric-panel hotspot-chart">
+      <h2 className="hotspot-title">Hotspots</h2>
+      <p className="hotspot-caption">
         Churn against cyclomatic. Each changed node moves from its base (ring) to its head (dot).
       </p>
       <svg className="hotspot-plot" viewBox="0 0 320 310" role="group" aria-label="Hotspots">
@@ -143,7 +152,7 @@ export const HotspotChart = ({ review }: { readonly review: PageData }) => {
           <Point key={move.node.id} move={move} place={scale.place} />
         ))}
       </svg>
-      <ol aria-label="Hotspot moves">
+      <ol className="hotspot-moves" aria-label="Hotspot moves">
         {moves.map(move => (
           <CornerLine key={move.node.id} move={move} />
         ))}

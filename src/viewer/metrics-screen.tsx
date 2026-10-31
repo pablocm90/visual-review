@@ -82,9 +82,9 @@ const Cell = ({ of, base, head, finding }: CellProps) => {
   const before = base && of(base);
   const after = head && of(head);
   return (
-    <td>
+    <td className="metric-cell">
       {`${valueText(before)} → ${valueText(after)}`}
-      <small>{caption({ base, head, before, after })}</small>
+      <small className="metric-delta">{caption({ base, head, before, after })}</small>
       {finding && <LevelMark level={finding.level} />}
     </td>
   );
@@ -100,7 +100,7 @@ const Tile = ({
   readonly caption: string | undefined;
 }) => (
   <div className="metric-tile" role="group" aria-label={name}>
-    <h3>{name}</h3>
+    <h3 className="metric-tile-name">{name}</h3>
     <p className="metric-tile-value">{value}</p>
     {caption && <p className="metric-tile-caption">{caption}</p>}
   </div>
@@ -150,42 +150,59 @@ const LeafTable = ({ leaves, findings, churnDays, onGoTo }: LeafTableProps) => {
   );
   return (
     <>
-      <div role="group" aria-label="Nodes shown">
-        <button type="button" aria-pressed={!hop} onClick={() => setHop(false)}>
-          {`Changed ${changed.length}`}
-        </button>
-        <button type="button" aria-pressed={hop} onClick={() => setHop(true)}>
-          {`Changed + 1 hop ${leaves.length}`}
-        </button>
+      <div className="metric-controls">
+        <div className="segmented" role="group" aria-label="Nodes shown">
+          <button
+            type="button"
+            className="segmented-button"
+            aria-pressed={!hop}
+            onClick={() => setHop(false)}
+          >
+            {`Changed ${changed.length}`}
+          </button>
+          <button
+            type="button"
+            className="segmented-button"
+            aria-pressed={hop}
+            onClick={() => setHop(true)}
+          >
+            {`Changed + 1 hop ${leaves.length}`}
+          </button>
+        </div>
+        <label className="metric-pick">
+          Stack
+          <select
+            className="metric-select"
+            value={inStack}
+            onChange={event => setPicked(event.target.value)}
+          >
+            <option value="">All stacks</option>
+            {stacks.map(stack => (
+              <option key={stack}>{stack}</option>
+            ))}
+          </select>
+        </label>
+        <label className="metric-pick">
+          Sort by
+          <select
+            className="metric-select"
+            value={by}
+            onChange={event => {
+              const sort = SORTS.find(([key]) => key === event.target.value);
+              if (sort) setBy(sort[0]);
+            }}
+          >
+            {SORTS.map(([key, name]) => (
+              <option key={key} value={key}>
+                {name}
+              </option>
+            ))}
+          </select>
+        </label>
       </div>
-      <label>
-        Stack
-        <select value={inStack} onChange={event => setPicked(event.target.value)}>
-          <option value="">All stacks</option>
-          {stacks.map(stack => (
-            <option key={stack}>{stack}</option>
-          ))}
-        </select>
-      </label>
-      <label>
-        Sort by
-        <select
-          value={by}
-          onChange={event => {
-            const sort = SORTS.find(([key]) => key === event.target.value);
-            if (sort) setBy(sort[0]);
-          }}
-        >
-          {SORTS.map(([key, name]) => (
-            <option key={key} value={key}>
-              {name}
-            </option>
-          ))}
-        </select>
-      </label>
-      <section aria-label="Metrics per node">
-        <table>
-          <caption>
+      <section className="metric-panel metric-table-panel" aria-label="Metrics per node">
+        <table className="metric-table">
+          <caption className="metric-table-caption">
             {`Base → head, the Δ under it. Lines are non-blank, non-comment. Cyclomatic is the node's most branching function; ABC is the whole file's. Churn counts the commits touching the node's file in the ${churnDays} days before each side.`}
           </caption>
           <thead>
@@ -201,12 +218,16 @@ const LeafTable = ({ leaves, findings, churnDays, onGoTo }: LeafTableProps) => {
           <tbody>
             {shown.map(({ node, stack, base, head }) => (
               <tr key={node.id}>
-                <th scope="row">
+                <th scope="row" className="metric-node" data-state={node.state}>
                   <ChangeMark state={node.state} />
-                  <button type="button" onClick={() => onGoTo(node.id)}>
+                  <button
+                    type="button"
+                    className="metric-node-name"
+                    onClick={() => onGoTo(node.id)}
+                  >
                     {node.label}
                   </button>
-                  <span>{stack}</span>
+                  <span className="metric-node-stack">{stack}</span>
                 </th>
                 {COLUMNS.map(({ name, of, finding }) => (
                   <Cell
@@ -239,7 +260,7 @@ export const MetricsScreen = ({ review, onGoTo }: MetricsScreenProps) => {
     <div className="metrics-screen">
       <Totals review={review} />
       {leaves.length === 0 ? (
-        <p>No node measured.</p>
+        <p className="metric-empty">No node measured.</p>
       ) : (
         <>
           <LeafTable
