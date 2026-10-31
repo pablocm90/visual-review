@@ -757,6 +757,7 @@ export const ReviewPage = ({ review, notes, shownTabs = SHOWN_TABS }: ReviewPage
   const [layout, setLayout] = useState<Layout>();
   const [selected, setSelected] = useState<string>();
   const [outside, setOutside] = useState(false);
+  const outsideOpener = useRef<HTMLButtonElement>(null);
   const select = (id: string | undefined) => {
     setOutside(false);
     setSelected(id);
@@ -952,7 +953,8 @@ export const ReviewPage = ({ review, notes, shownTabs = SHOWN_TABS }: ReviewPage
               notes={notes}
               review={review}
               onGoTo={goTo}
-              onShowOutside={() => {
+              onShowOutside={opener => {
+                outsideOpener.current = opener;
                 setSelected(undefined);
                 setOutside(true);
               }}
@@ -1076,7 +1078,10 @@ export const ReviewPage = ({ review, notes, shownTabs = SHOWN_TABS }: ReviewPage
                   <OutsideFiles
                     patches={patches}
                     width={panelWidth}
-                    onClose={() => setOutside(false)}
+                    onClose={() => {
+                      outsideOpener.current?.focus();
+                      setOutside(false);
+                    }}
                   />
                 ) : (
                   <Inspector

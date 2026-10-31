@@ -1560,7 +1560,7 @@ test("a selected node's Diff tab lists the patches of the files under it from th
   expect(changes()).toBeNull();
 });
 
-test("the rail's changed files outside the graph open in the inspector at the changes' width, each a closed patch that opens on click, until a node is selected or the inspector closed", async () => {
+test("the rail's changed files outside the graph open in the inspector at the changes' width, each a closed patch that opens on click, until a node is selected or the inspector closed, which hands the keyboard focus back to the rail's button", async () => {
   const user = userEvent.setup();
   render(
     <ReviewPage
@@ -1590,9 +1590,11 @@ test("the rail's changed files outside the graph open in the inspector at the ch
   await user.click(screen.getByRole('button', { name: 'domain: unchanged' }));
   expect(within(inspector()).getByRole('heading', { level: 2 }).textContent).toBe('domain');
 
-  await user.click(screen.getByRole('button', { name: outside }));
+  const opener = screen.getByRole('button', { name: outside });
+  await user.click(opener);
   await user.click(within(inspector()).getByRole('button', { name: 'Close inspector' }));
   expect(screen.queryByRole('complementary', { name: 'Inspector' })).toBeNull();
+  expect(document.activeElement).toBe(opener);
 });
 
 test("a renamed node shows the label it had under its own, also once expanded, is named with both and its old path, and its inspector's head names it with its kind, stack, state and path and what it was renamed from; a node whose label stayed shows no former one", async () => {

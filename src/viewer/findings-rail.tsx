@@ -10,7 +10,7 @@ type FindingsRailProps = {
   readonly notes: ReviewNotes | undefined;
   readonly review: Pick<PageData, 'diff' | 'metricFindings' | 'dangling' | 'undrawn' | 'skipped'>;
   readonly onGoTo: (id: string) => void;
-  readonly onShowOutside: () => void;
+  readonly onShowOutside: (opener: HTMLButtonElement) => void;
 };
 
 type Level = MetricFinding['level'];
@@ -19,14 +19,14 @@ type Finding = {
   readonly level: Level;
   readonly sentence: string;
   readonly target: string;
-  readonly act?: () => void;
+  readonly act?: (opener: HTMLButtonElement) => void;
 };
 
 type NotDrawnOptions = {
   readonly paths: ReadonlyArray<string>;
   readonly one: string;
   readonly many: string;
-  readonly act?: () => void;
+  readonly act?: (opener: HTMLButtonElement) => void;
 };
 
 const notDrawn = ({ paths, one, many, ...rest }: NotDrawnOptions): ReadonlyArray<Finding> =>
@@ -133,7 +133,7 @@ const FindingItem = ({ finding }: { readonly finding: Finding }) => {
         <button
           type="button"
           aria-label={`${finding.target}: ${finding.sentence}`}
-          onClick={finding.act}
+          onClick={event => finding.act?.(event.currentTarget)}
         >
           {said}
         </button>
