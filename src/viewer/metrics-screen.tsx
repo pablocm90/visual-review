@@ -12,7 +12,7 @@ const SORTS: ReadonlyArray<readonly [SortKey, string]> = [
   ['abc', 'ABC Δ'],
 ];
 
-const COLUMNS: ReadonlyArray<readonly [string, (side: NodeMeasures) => number | undefined]> = [
+const COLUMNS: ReadonlyArray<readonly [string, Measure]> = [
   ['Lines', side => ('lines' in side ? side.lines : undefined)],
   ['Cyclomatic', side => ('lines' in side ? side.cyclomatic.highest : undefined)],
   ['ABC', side => ('lines' in side ? side.abc : undefined)],
@@ -21,12 +21,32 @@ const COLUMNS: ReadonlyArray<readonly [string, (side: NodeMeasures) => number | 
   ['Churn', side => side.churn],
 ];
 
-const Cell = ({ base, head }: { readonly base: number; readonly head: number }) => (
-  <td>
-    {`${tenths(base)} → ${tenths(head)}`}
-    <small>{signed(head - base)}</small>
-  </td>
-);
+type Measure = (side: NodeMeasures) => number | undefined;
+
+const valueText = (value: number | undefined) => (value === undefined ? '—' : tenths(value));
+
+const caption = (base: number | undefined, head: number | undefined) => {
+  if (base === undefined) return 'new';
+  if (head === undefined) return 'gone';
+  return signed(head - base);
+};
+
+type CellProps = {
+  readonly of: Measure;
+  readonly base: NodeMeasures | undefined;
+  readonly head: NodeMeasures | undefined;
+};
+
+const Cell = ({ of, base, head }: CellProps) => {
+  const before = base && of(base);
+  const after = head && of(head);
+  return (
+    <td>
+      {`${valueText(before)} → ${valueText(after)}`}
+      <small>{caption(before, after)}</small>
+    </td>
+  );
+};
 
 const Tile = ({
   name,
@@ -130,7 +150,7 @@ export const MetricsScreen = ({ review }: { readonly review: PageData }) => {
                   <span>{stack}</span>
                 </th>
                 {COLUMNS.map(([name, of]) => (
-                  <Cell key={name} base={(base && of(base)) ?? 0} head={(head && of(head)) ?? 0} />
+                  <Cell key={name} of={of} base={base} head={head} />
                 ))}
               </tr>
             ))}

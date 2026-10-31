@@ -252,3 +252,34 @@ test('a row gives each metric base → head and its Δ: lines, highest cyclomati
     '6 → 9+3',
   ]);
 });
+
+test('an added row reads "new" under its head values, a removed one "gone" under its base values', () => {
+  atMetrics();
+  render(
+    <ReviewPage
+      review={reviewOf({
+        rows: [
+          [crate('ledger', 'added'), { head: measured({ lines: 96, churn: 2 }) }],
+          [crate('retry', 'removed'), { base: measured({ lines: 88, churn: 7 }) }],
+        ],
+      })}
+    />,
+  );
+
+  expect(cellsOf('ledger')).toEqual([
+    '— → 96new',
+    '— → 4new',
+    '— → 18.2new',
+    '— → 3new',
+    '— → 1new',
+    '— → 2new',
+  ]);
+  expect(cellsOf('retry')).toEqual([
+    '88 → —gone',
+    '4 → —gone',
+    '18.2 → —gone',
+    '3 → —gone',
+    '1 → —gone',
+    '7 → —gone',
+  ]);
+});
