@@ -1,5 +1,5 @@
-import type { DiffedNode } from './diff-graphs.ts';
-import type { FunctionCyclomatic, NodeMeasures, NodeMetrics } from './metrics.ts';
+import { measuredLeaves } from './metric-rows.ts';
+import type { FunctionCyclomatic, NodeMeasures } from './metrics.ts';
 import type { PageData } from './page.ts';
 
 type MetricTotalsOptions = Pick<PageData, 'diff' | 'metrics' | 'metricFindings' | 'thresholds'>;
@@ -14,8 +14,6 @@ export type MetricTotals = {
   };
 };
 
-type Leaf = { readonly node: DiffedNode } & NodeMetrics;
-
 const linesOf = (side: NodeMeasures | undefined): number | undefined =>
   side && 'lines' in side ? side.lines : undefined;
 
@@ -28,12 +26,9 @@ export const metricTotals = ({
   metricFindings,
   thresholds,
 }: MetricTotalsOptions): MetricTotals => {
-  const changed: ReadonlyArray<Leaf> = diff.nodes.flatMap(node => {
-    const measures = metrics[node.id];
-    return measures === undefined || measures.highestInside || node.state === 'unchanged'
-      ? []
-      : [{ node, ...measures }];
-  });
+  const changed = measuredLeaves({ diff, metrics }).filter(
+    ({ node }) => node.state !== 'unchanged',
+  );
   const changedIds = new Set(changed.map(({ node }) => node.id));
   const hotspots = metricFindings.filter(({ metric }) => metric === 'hotspot');
   const withLines = changed.filter(
