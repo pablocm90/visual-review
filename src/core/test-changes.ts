@@ -22,6 +22,7 @@ export type TestFile = {
   readonly path: string;
   readonly renamedFrom?: string | undefined;
   readonly new?: true;
+  readonly stack: string;
 } & ({ readonly statements: ReadonlyArray<TestStatement> } | { readonly unreadable: string });
 
 export type ReadTest =

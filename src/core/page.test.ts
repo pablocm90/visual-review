@@ -47,7 +47,7 @@ const readingWith = (overrides: Partial<RangeReading>): RangeReading => ({
 });
 
 test("a reading's page data holds its diff, its dangling calls and test files, the patches of drawn files apart from the rest, and an empty list of skipped stacks", () => {
-  const tests = [{ path: 'web/a.test.ts', unreadable: 'SyntaxError' }];
+  const tests = [{ path: 'web/a.test.ts', stack: 'web', unreadable: 'SyntaxError' }];
   const reading = readingWith({
     patches: [patch('web/src/a.ts'), patch('README.md')],
     danglingCalls: [{ from: 'web/file/a.ts', path: '/api/x' }],

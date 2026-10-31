@@ -641,10 +641,12 @@ test('each changed test file whose tests changed comes with its marked statement
     {
       path: 'crates/core/tests/serve.rs',
       new: true,
+      stack: 'rust',
       statements: [{ kind: 'test', name: 'rejects an unknown route', change: 'added' }],
     },
     {
       path: 'e2e/tests/home.spec.ts',
+      stack: basename(repo),
       statements: [
         {
           kind: 'test',
@@ -657,6 +659,7 @@ test('each changed test file whose tests changed comes with its marked statement
     {
       path: 'web/src/page.test.tsx',
       new: true,
+      stack: basename(repo),
       statements: [
         { kind: 'test', name: 'shows the range', change: 'added' },
         {
@@ -680,7 +683,7 @@ test("a changed test file is read only under a root of its reader's stack on eit
   const { repo, root } = workspace;
   rmSync(join(repo, 'apps/old'), { recursive: true });
   const to = commit(repo, {
-    'apps/a/src/a.test.ts': "test('reads a', () => {});\n",
+    'admin/src/a.test.ts': "test('reads a', () => {});\n",
     'apps/a/src/b.test.js': "test('reads b', () => {});\n",
     'apps/a/src/c.spec.mjs': "test('reads c', () => {});\n",
     'tools/x.test.ts': "test('reads x', () => {});\n",
@@ -694,6 +697,26 @@ test("a changed test file is read only under a root of its reader's stack on eit
     'apps/a/src/b.test.js',
     'apps/a/src/c.spec.mjs',
     'apps/old/src/old.test.ts',
+  ]);
+});
+
+test('a changed test file names its stack, the deepest root of its reader holding it', async () => {
+  using workspace = gitRepo({
+    ...rootPackage,
+    'admin/package.json': '{}\n',
+    'admin/src/a.ts': '',
+  });
+  const { repo, root } = workspace;
+  const to = commit(repo, {
+    'src/index.test.ts': "test('reads the root', () => {});\n",
+    'admin/src/a.test.ts': "test('reads a', () => {});\n",
+  });
+
+  const range = await readRange({ repo, from: root, to });
+
+  expect(range.tests.map(({ path, stack }) => [path, stack])).toEqual([
+    ['admin/src/a.test.ts', 'admin'],
+    ['src/index.test.ts', basename(repo)],
   ]);
 });
 
@@ -713,6 +736,7 @@ test('a renamed test file is listed once under its new path, compared against it
     {
       path: 'tools/review/notes-file.test.ts',
       renamedFrom: 'tools/review/notes.test.ts',
+      stack: basename(repo),
       statements: [
         ...tests.map(name => ({ kind: 'test', name, change: 'unchanged' })),
         { kind: 'test', name: 'reads flags', change: 'added' },
@@ -735,6 +759,7 @@ test('a changed test file that does not parse is listed with the parser message,
     {
       path: 'tools/review/notes.test.ts',
       new: true,
+      stack: basename(repo),
       unreadable: expect.stringMatching(/\(2:0\)$/),
     },
   ]);

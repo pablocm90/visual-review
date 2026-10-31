@@ -519,6 +519,7 @@ test("the Tests tab's link counts the review's changed tests, a moved pair once,
         tests: [
           {
             path: 'crates/application/src/lib.rs',
+            stack: 'rust',
             statements: [
               { kind: 'test', name: 'reads the notes', change: 'edited' },
               {
@@ -531,6 +532,7 @@ test("the Tests tab's link counts the review's changed tests, a moved pair once,
           },
           {
             path: 'crates/domain/src/lib.rs',
+            stack: 'rust',
             statements: [
               {
                 kind: 'test',
@@ -577,8 +579,18 @@ test("the Tests tab heads the test changes with what the notes say they pin, and
           ],
         },
         tests: [
-          { path: 'crates/application/tests/export.rs', new: true, statements: added },
-          { path: 'web/src/notes.test.ts', renamedFrom: 'web/src/note.test.ts', statements: added },
+          {
+            path: 'crates/application/tests/export.rs',
+            stack: 'rust',
+            new: true,
+            statements: added,
+          },
+          {
+            path: 'web/src/notes.test.ts',
+            stack: 'web',
+            renamedFrom: 'web/src/note.test.ts',
+            statements: added,
+          },
         ],
       })}
       notes={{ version: 1, summary: [], tests: 'The export is pinned.', notes: {} }}
@@ -616,12 +628,21 @@ test('the Tests tab shows all the test changes by default, or, while a node is p
       review={pageWith({
         ...review,
         tests: [
-          { path: 'crates/application/src/lib.rs', statements: [added('reads the notes')] },
+          {
+            path: 'crates/application/src/lib.rs',
+            stack: 'rust',
+            statements: [added('reads the notes')],
+          },
           {
             path: 'crates/application/tests/export.rs',
+            stack: 'rust',
             statements: [added('exports a CSV'), added('names the columns')],
           },
-          { path: 'crates/cli-adapter/src/main.rs', statements: [added('parses the args')] },
+          {
+            path: 'crates/cli-adapter/src/main.rs',
+            stack: 'rust',
+            statements: [added('parses the args')],
+          },
         ],
       })}
     />,
@@ -679,6 +700,7 @@ test('the Tests tab counts the shown tests by change, a moved pair once, as move
         tests: [
           {
             path: 'crates/application/src/lib.rs',
+            stack: 'rust',
             statements: [
               { kind: 'test', name: 'reads the notes', change: 'edited' },
               { kind: 'test', name: 'quotes commas', change: 'added' },
@@ -692,6 +714,7 @@ test('the Tests tab counts the shown tests by change, a moved pair once, as move
           },
           {
             path: 'crates/domain/src/lib.rs',
+            stack: 'rust',
             statements: [
               { kind: 'test', name: 'drops the totals', change: 'removed' },
               {
@@ -739,6 +762,7 @@ test("the Tests tab lists the added and modified nodes, not stacks, with the cha
         tests: [
           {
             path: 'crates/application/tests/export.rs',
+            stack: 'rust',
             statements: [
               { kind: 'test', name: 'exports a CSV', change: 'added' },
               { kind: 'test', name: 'names the columns', change: 'edited' },
@@ -747,6 +771,7 @@ test("the Tests tab lists the added and modified nodes, not stacks, with the cha
           },
           {
             path: 'crates/legacy/tests/export.rs',
+            stack: 'rust',
             statements: [{ kind: 'test', name: 'exports a CSV', change: 'removed' }],
           },
         ],
@@ -1935,6 +1960,7 @@ test('the Tests tab lists each changed test file with its tests as a tree, each 
         tests: [
           {
             path: 'tools/visual-review/src/notes.test.ts',
+            stack: 'tools/visual-review',
             renamedFrom: 'tools/visual-review/src/review-notes.test.ts',
             statements: [
               { kind: 'test', name: 'reads the notes', change: 'edited' },
@@ -1963,7 +1989,11 @@ test('the Tests tab lists each changed test file with its tests as a tree, each 
               },
             ],
           },
-          { path: 'web/src/broken.test.ts', unreadable: 'SyntaxError: Unexpected token (2:0)' },
+          {
+            path: 'web/src/broken.test.ts',
+            stack: 'web',
+            unreadable: 'SyntaxError: Unexpected token (2:0)',
+          },
         ],
       })}
     />,
@@ -2005,8 +2035,9 @@ test('the Tests tab lists each changed test file with its tests as a tree, each 
 
 test("the inspector's Tests tab lists the test files at or under the selected node, counting their changed tests, and is left out where none changed", async () => {
   const user = userEvent.setup();
-  const testFile = (path: string) => ({
+  const testFile = (path: string, stack: string) => ({
     path,
+    stack,
     statements: [{ kind: 'test' as const, name: 'reads the notes', change: 'added' as const }],
   });
   render(
@@ -2014,9 +2045,10 @@ test("the inspector's Tests tab lists the test files at or under the selected no
       review={pageWith({
         ...review,
         tests: [
-          testFile('crates/application/src/lib.rs'),
+          testFile('crates/application/src/lib.rs', 'rust'),
           {
             path: 'crates/application/tests/export.rs',
+            stack: 'rust',
             statements: [
               { kind: 'test', name: 'exports a CSV', change: 'removed' },
               {
@@ -2029,7 +2061,7 @@ test("the inspector's Tests tab lists the test files at or under the selected no
               },
             ],
           },
-          testFile('tools/visual-review/src/notes.test.ts'),
+          testFile('tools/visual-review/src/notes.test.ts', 'tools/visual-review'),
         ],
       })}
     />,
@@ -2066,6 +2098,7 @@ test("a node's Tests tab also lists the test files named after a file inside it,
         tests: [
           {
             path: 'web/tests/refund.test.ts',
+            stack: 'web',
             statements: [{ kind: 'test', name: 'refunds twice', change: 'added' }],
           },
         ],
@@ -2091,6 +2124,7 @@ test("a node's Tests tab counts a test moved between two of its files once", asy
         tests: [
           {
             path: 'crates/application/src/lib.rs',
+            stack: 'rust',
             statements: [
               { kind: 'test', name: 'reads the notes', change: 'edited' },
               {
@@ -2103,6 +2137,7 @@ test("a node's Tests tab counts a test moved between two of its files once", asy
           },
           {
             path: 'crates/application/tests/export.rs',
+            stack: 'rust',
             statements: [
               {
                 kind: 'test',

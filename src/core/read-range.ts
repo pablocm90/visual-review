@@ -12,7 +12,7 @@ import { measuredNodes } from './metrics.ts';
 import {
   type Adapters,
   checkConfig,
-  type ReaderRoot,
+  type DrawnStack,
   readStacks,
   type StacksReading,
 } from './read-stacks.ts';
@@ -85,12 +85,14 @@ type TestFileOptions = {
   readonly scratch: string;
   readonly change: Rename;
   readonly reader: Reader;
+  readonly stack: string;
 };
 
 const testFileAt = async ({
   scratch,
   change: { from, to },
   reader,
+  stack,
 }: TestFileOptions): Promise<TestFile> => {
   const before = await textIn(join(scratch, 'before'), from);
   const after = await textIn(join(scratch, 'after'), to);
@@ -98,6 +100,7 @@ const testFileAt = async ({
     path: to,
     renamedFrom: from === to ? undefined : from,
     ...(before === undefined && { new: true as const }),
+    stack,
   };
   try {
     return { ...file, statements: testChanges({ read: reader.readTests, before, after }) };
@@ -108,10 +111,12 @@ const testFileAt = async ({
 
 const isUnder = (path: string, root: string): boolean => !relative(root, path).startsWith('..');
 
+const depth = (root: string): number => (root === '.' ? 0 : root.split('/').length);
+
 type TestsInOptions = {
   readonly scratch: string;
   readonly changes: ReadonlyArray<Rename>;
-  readonly roots: ReadonlyArray<ReaderRoot>;
+  readonly roots: ReadonlyArray<DrawnStack>;
 };
 
 const testsIn = async ({
@@ -121,10 +126,12 @@ const testsIn = async ({
 }: TestsInOptions): Promise<ReadonlyArray<TestFile>> => {
   const files = await Promise.all(
     changes.flatMap(change => {
-      const reader = roots.find(
-        ({ reader, root }) => reader.isTestFile(change.to) && isUnder(change.to, root),
-      )?.reader;
-      return reader === undefined ? [] : [testFileAt({ scratch, change, reader })];
+      const drawn = roots
+        .filter(({ reader, root }) => reader.isTestFile(change.to) && isUnder(change.to, root))
+        .toSorted((a, b) => depth(b.root) - depth(a.root))[0];
+      return drawn === undefined
+        ? []
+        : [testFileAt({ scratch, change, reader: drawn.reader, stack: drawn.stack })];
     }),
   );
   return files.filter(file => !('statements' in file) || file.statements.length > 0);

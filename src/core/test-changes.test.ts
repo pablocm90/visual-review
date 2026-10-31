@@ -332,22 +332,29 @@ test('a test whose name leaves one file and arrives in one other is moved, in bo
   const moved = withMovedTests([
     {
       path: 'crates/application/src/sign_up.rs',
+      stack: 'rust',
       statements: [marked(PASSWORD_LENGTH, 'removed'), marked('records nothing', 'edited')],
     },
     {
       path: 'crates/models/src/password.rs',
+      stack: 'rust',
       statements: [
         { kind: 'heading', name: 'tests', children: [marked(PASSWORD_LENGTH, 'added')] },
         marked('hashes with argon2id', 'added'),
       ],
     },
-    { path: 'crates/models/src/email.rs', statements: [marked(PASSWORD_LENGTH, 'edited')] },
-    { path: 'crates/models/src/broken.rs', unreadable: 'expected `fn`' },
+    {
+      path: 'crates/models/src/email.rs',
+      stack: 'rust',
+      statements: [marked(PASSWORD_LENGTH, 'edited')],
+    },
+    { path: 'crates/models/src/broken.rs', stack: 'rust', unreadable: 'expected `fn`' },
   ]);
 
   expect(moved).toStrictEqual([
     {
       path: 'crates/application/src/sign_up.rs',
+      stack: 'rust',
       statements: [
         { ...marked(PASSWORD_LENGTH, 'removed'), movedTo: 'crates/models/src/password.rs' },
         marked('records nothing', 'edited'),
@@ -355,6 +362,7 @@ test('a test whose name leaves one file and arrives in one other is moved, in bo
     },
     {
       path: 'crates/models/src/password.rs',
+      stack: 'rust',
       statements: [
         {
           kind: 'heading',
@@ -369,30 +377,34 @@ test('a test whose name leaves one file and arrives in one other is moved, in bo
         marked('hashes with argon2id', 'added'),
       ],
     },
-    { path: 'crates/models/src/email.rs', statements: [marked(PASSWORD_LENGTH, 'edited')] },
-    { path: 'crates/models/src/broken.rs', unreadable: 'expected `fn`' },
+    {
+      path: 'crates/models/src/email.rs',
+      stack: 'rust',
+      statements: [marked(PASSWORD_LENGTH, 'edited')],
+    },
+    { path: 'crates/models/src/broken.rs', stack: 'rust', unreadable: 'expected `fn`' },
   ]);
 });
 
 test.for([
   {
     case: 'it only left',
-    files: [{ path: 'a.test.ts', statements: [marked('reads', 'removed')] }],
+    files: [{ path: 'a.test.ts', stack: 'web', statements: [marked('reads', 'removed')] }],
   },
   {
     case: 'it left two files',
     files: [
-      { path: 'a.test.ts', statements: [marked('reads', 'removed')] },
-      { path: 'b.test.ts', statements: [marked('reads', 'removed')] },
-      { path: 'c.test.ts', statements: [marked('reads', 'added')] },
+      { path: 'a.test.ts', stack: 'web', statements: [marked('reads', 'removed')] },
+      { path: 'b.test.ts', stack: 'web', statements: [marked('reads', 'removed')] },
+      { path: 'c.test.ts', stack: 'web', statements: [marked('reads', 'added')] },
     ],
   },
   {
     case: 'it arrived in two files',
     files: [
-      { path: 'a.test.ts', statements: [marked('reads', 'removed')] },
-      { path: 'b.test.ts', statements: [marked('reads', 'added')] },
-      { path: 'c.test.ts', statements: [marked('reads', 'added')] },
+      { path: 'a.test.ts', stack: 'web', statements: [marked('reads', 'removed')] },
+      { path: 'b.test.ts', stack: 'web', statements: [marked('reads', 'added')] },
+      { path: 'c.test.ts', stack: 'web', statements: [marked('reads', 'added')] },
     ],
   },
   {
@@ -400,6 +412,7 @@ test.for([
     files: [
       {
         path: 'a.test.ts',
+        stack: 'web',
         statements: [
           marked('reads', 'removed'),
           { kind: 'heading' as const, name: 'notes', children: [marked('reads', 'added')] },
@@ -415,6 +428,7 @@ const signUpMoved = () =>
   withMovedTests([
     {
       path: 'crates/application/src/sign_up.rs',
+      stack: 'rust',
       statements: [
         marked(PASSWORD_LENGTH, 'removed'),
         marked('records nothing', 'edited'),
@@ -425,6 +439,7 @@ const signUpMoved = () =>
     },
     {
       path: 'crates/models/src/password.rs',
+      stack: 'rust',
       statements: [
         { kind: 'heading', name: 'tests', children: [marked(PASSWORD_LENGTH, 'added')] },
         marked('hashes with argon2id', 'added'),
@@ -432,7 +447,7 @@ const signUpMoved = () =>
         { kind: 'test', name: 'trims the password', change: 'unchanged' },
       ],
     },
-    { path: 'crates/models/src/broken.rs', unreadable: 'expected `fn`' },
+    { path: 'crates/models/src/broken.rs', stack: 'rust', unreadable: 'expected `fn`' },
   ]);
 
 test('counts the changed tests by change, under any heading, a moved pair once as moved and not as its removed and added ends', () => {

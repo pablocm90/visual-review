@@ -10,19 +10,19 @@ export type Adapters = {
   readonly onPath: (command: string) => boolean;
 };
 
-export type ReaderRoot = {
+type ReaderRoot = {
   readonly reader: Reader;
   readonly root: string;
 };
 
-type DrawnStack = ReaderRoot & {
+export type DrawnStack = ReaderRoot & {
   readonly stack: string;
 };
 
 export type StacksReading = {
   readonly graph: Graph;
   readonly danglingCalls: ReadonlyArray<DanglingCall>;
-  readonly roots: ReadonlyArray<ReaderRoot>;
+  readonly roots: ReadonlyArray<DrawnStack>;
   readonly stacks: ReadonlyArray<DrawnStack>;
   readonly skipped: ReadonlyArray<Skipped>;
 };
