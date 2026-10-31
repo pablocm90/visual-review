@@ -25,10 +25,15 @@ type Measure = (side: NodeMeasures) => number | undefined;
 
 const valueText = (value: number | undefined) => (value === undefined ? '—' : tenths(value));
 
-const caption = (base: number | undefined, head: number | undefined) => {
+type Sides = Omit<CellProps, 'of'> & {
+  readonly before: number | undefined;
+  readonly after: number | undefined;
+};
+
+const caption = ({ base, head, before, after }: Sides) => {
   if (base === undefined) return 'new';
   if (head === undefined) return 'gone';
-  return signed(head - base);
+  return before !== undefined && after !== undefined && signed(after - before);
 };
 
 type CellProps = {
@@ -43,7 +48,7 @@ const Cell = ({ of, base, head }: CellProps) => {
   return (
     <td>
       {`${valueText(before)} → ${valueText(after)}`}
-      <small>{caption(before, after)}</small>
+      <small>{caption({ base, head, before, after })}</small>
     </td>
   );
 };

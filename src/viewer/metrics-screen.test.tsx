@@ -283,3 +283,28 @@ test('an added row reads "new" under its head values, a removed one "gone" under
     '7 → —gone',
   ]);
 });
+
+test('a side without complexity reads "—" in the complexity columns, with no Δ', () => {
+  atMetrics();
+  render(
+    <ReviewPage
+      review={reviewOf({
+        rows: [
+          [
+            crate('refunds', 'modified'),
+            { base: measured({ lines: 120 }), head: { churn: 9, fanIn: 1, fanOut: 3 } },
+          ],
+          [
+            crate('cart', 'modified'),
+            { base: { churn: 2, fanIn: 1, fanOut: 3 }, head: measured() },
+          ],
+          [crate('schema', 'added'), { head: { churn: 1, fanIn: 2, fanOut: 0 } }],
+        ],
+      })}
+    />,
+  );
+
+  expect(cellsOf('refunds').slice(0, 3)).toEqual(['120 → —', '4 → —', '18.2 → —']);
+  expect(cellsOf('cart').slice(0, 3)).toEqual(['— → 120', '— → 4', '— → 18.2']);
+  expect(cellsOf('schema').slice(0, 3)).toEqual(['— → —new', '— → —new', '— → —new']);
+});
