@@ -158,6 +158,7 @@ export const FindingsRail = (props: FindingsRailProps) => {
           {chips.map(({ chip, pick, count }) => (
             <button
               key={chip}
+              className="chip"
               type="button"
               aria-pressed={pick === picked}
               onClick={() => setPicked(pick)}

@@ -1050,7 +1050,7 @@ pre .hljs-emphasis {
   gap: 6px;
 }
 
-.chips > button {
+.chip {
   min-height: 32px;
   padding: 0 10px;
   border: 1px solid var(--stack-line);
@@ -1062,7 +1062,7 @@ pre .hljs-emphasis {
   cursor: pointer;
 }
 
-.chips > button[aria-pressed="true"] {
+.chip[aria-pressed="true"] {
   border-color: var(--ink);
   background: var(--ink);
   color: var(--page);
