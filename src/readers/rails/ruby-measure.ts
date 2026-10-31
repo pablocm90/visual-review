@@ -87,7 +87,7 @@ const measureMethod = (method: Node): FunctionMeasures => {
 
 export const measureRuby = (text: string): FileMeasures | undefined => {
   const program = parseRuby(text);
-  if (program === undefined) return undefined;
+  if (program === undefined || program.hasError) return undefined;
   return {
     lines: codeLines(program, node => NOT_CODE.has(node.type)),
     functions: program.descendantsOfType(METHODS).map(measureMethod),

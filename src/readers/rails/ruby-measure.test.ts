@@ -30,6 +30,10 @@ test('the data after __END__ is no code', () => {
   ).toBe(2);
 });
 
+test('a Ruby file with a syntax error is left unmeasured', () => {
+  expect(measureRuby(source('class Shop', '  def open(', 'end'))).toBeUndefined();
+});
+
 const namesIn = (...lines: ReadonlyArray<string>) =>
   measureRuby(source(...lines))?.functions.map(({ name }) => name);
 
