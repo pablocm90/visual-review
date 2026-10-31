@@ -24,20 +24,68 @@ type Column = {
   readonly name: string;
   readonly of: Measure;
   readonly finding?: MetricFinding['metric'];
+  readonly meaning: (churnDays: number) => string;
 };
 
 const COLUMNS: ReadonlyArray<Column> = [
-  { name: 'Lines', of: side => ('lines' in side ? side.lines : undefined), finding: 'lines' },
+  {
+    name: 'Lines',
+    of: side => ('lines' in side ? side.lines : undefined),
+    finding: 'lines',
+    meaning: () => 'non-blank, non-comment lines in the file',
+  },
   {
     name: 'Cyclomatic',
     of: side => ('lines' in side ? side.cyclomatic.highest : undefined),
     finding: 'cyclomatic',
+    meaning: () => 'paths through its most branching function: 1 + one per branch',
   },
-  { name: 'ABC', of: side => ('lines' in side ? side.abc : undefined), finding: 'abc' },
-  { name: 'Fan-out', of: side => side.fanOut },
-  { name: 'Fan-in', of: side => side.fanIn },
-  { name: 'Churn', of: side => side.churn, finding: 'hotspot' },
+  {
+    name: 'ABC',
+    of: side => ('lines' in side ? side.abc : undefined),
+    finding: 'abc',
+    meaning: () => "the whole file's size in assignments, branches (calls) and conditions",
+  },
+  {
+    name: 'Fan-out',
+    of: side => side.fanOut,
+    meaning: () => 'how many nodes it depends on in the graph',
+  },
+  { name: 'Fan-in', of: side => side.fanIn, meaning: () => 'how many nodes depend on it' },
+  {
+    name: 'Churn',
+    of: side => side.churn,
+    finding: 'hotspot',
+    meaning: churnDays =>
+      `commits touching its file in the ${churnDays} days before each side; its mark is a hotspot, past both the churn and the cyclomatic cuts`,
+  },
 ];
+
+const Legend = ({ churnDays }: { readonly churnDays: number }) => (
+  <dl className="metric-legend">
+    {COLUMNS.map(({ name, meaning }) => (
+      <div key={name} className="metric-legend-entry">
+        <dt className="metric-legend-term">{name}</dt>
+        <dd className="metric-legend-meaning">{meaning(churnDays)}</dd>
+      </div>
+    ))}
+    <div className="metric-legend-entry">
+      <dt className="metric-legend-term">
+        <LevelMark level="look" />
+      </dt>
+      <dd className="metric-legend-meaning">
+        over a threshold: new, newly over, or grown (a hotspot: entering the corner, or its
+        cyclomatic grew)
+      </dd>
+    </div>
+    <div className="metric-legend-entry">
+      <dt className="metric-legend-term">
+        <LevelMark level="info" />
+      </dt>
+      <dd className="metric-legend-meaning">over on both sides and not grown</dd>
+    </div>
+  </dl>
+);
 
 const CHANGE_MARKS: Readonly<Partial<Record<DiffedNode['state'], string>>> = {
   added: '+',
@@ -205,9 +253,7 @@ const LeafTable = ({ leaves, findings, churnDays, labelOf, onGoTo }: LeafTablePr
       </div>
       <section className="metric-panel metric-table-panel" aria-label="Metrics per node">
         <table className="metric-table">
-          <caption className="metric-table-caption">
-            {`Base → head, the Δ under it. Lines are non-blank, non-comment. Cyclomatic is the node's most branching function; ABC is the whole file's. Fan-out and fan-in count its edges out and in. Churn counts the commits touching the node's file in the ${churnDays} days before each side.`}
-          </caption>
+          <caption className="metric-table-caption">Base → head, the Δ under it.</caption>
           <thead>
             <tr>
               <th scope="col">Node</th>
@@ -247,6 +293,7 @@ const LeafTable = ({ leaves, findings, churnDays, labelOf, onGoTo }: LeafTablePr
             ))}
           </tbody>
         </table>
+        <Legend churnDays={churnDays} />
       </section>
     </>
   );
