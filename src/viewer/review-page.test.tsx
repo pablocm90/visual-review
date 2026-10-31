@@ -119,6 +119,7 @@ test('draws every crate and dependency inside the rust stack with its change sta
 
   const rust = await screen.findByRole('group', { name: 'rust' });
   expect(screen.getAllByRole('group')).toEqual([
+    screen.getByRole('group', { name: 'Colour by' }),
     screen.getByRole('group', { name: 'Graph' }),
     rust,
   ]);
@@ -1931,4 +1932,63 @@ test('dragging the divider sets the panel width until the button is let go, with
   expect(fireEvent.pointerDown(divider, { clientX: 500 }), 'a drag selects no page text').toBe(
     false,
   );
+});
+
+const churned = (churn: number) => ({ head: { churn, fanIn: 0, fanOut: 0 } });
+
+const colourBy = (name: string) =>
+  within(screen.getByRole('group', { name: 'Colour by' })).getByRole('button', { name });
+
+test('Colour by starts on Change; on Churn each measured node is named with its churn and the step of the ramp holding it, cut at 3, 6 and 9, a removed node by its base, an unmeasured one with nothing; back on Change they go', async () => {
+  const user = userEvent.setup();
+  render(
+    <ReviewPage
+      review={pageWith({
+        range: 'abc123..def456',
+        diff: {
+          nodes: [
+            { id: 'rust', kind: 'stack', label: 'rust', path: '', state: 'unchanged' },
+            crate('domain', 'modified'),
+            crate('application', 'modified'),
+            crate('billing', 'modified'),
+            crate('shipping', 'modified'),
+            crate('search', 'modified'),
+            crate('cli-adapter', 'added'),
+            crate('legacy', 'removed'),
+            crate('audit', 'modified'),
+          ],
+          edges: [],
+        },
+        metrics: {
+          'rust/crate/domain': { base: { churn: 7, fanIn: 0, fanOut: 0 }, ...churned(2) },
+          'rust/crate/cli-adapter': churned(3),
+          'rust/crate/billing': churned(5),
+          'rust/crate/shipping': churned(6),
+          'rust/crate/search': churned(8),
+          'rust/crate/application': churned(9),
+          'rust/crate/legacy': { base: { churn: 4, fanIn: 0, fanOut: 0 } },
+        },
+      })}
+    />,
+  );
+  const rust = await screen.findByRole('group', { name: 'rust' });
+  expect(colourBy('Change').getAttribute('aria-pressed')).toBe('true');
+  expect(colourBy('Churn').getAttribute('aria-pressed')).toBe('false');
+
+  await user.click(colourBy('Churn'));
+  expect(colourBy('Churn').getAttribute('aria-pressed')).toBe('true');
+  expect(colourBy('Change').getAttribute('aria-pressed')).toBe('false');
+  expect(buttonsIn(rust)).toEqual([
+    'domain: modified, churn 2 (0–2)',
+    'application: modified, churn 9 (9+)',
+    'billing: modified, churn 5 (3–5)',
+    'shipping: modified, churn 6 (6–8)',
+    'search: modified, churn 8 (6–8)',
+    'cli-adapter: added, churn 3 (3–5)',
+    'legacy: removed, churn 4 (3–5)',
+    'audit: modified',
+  ]);
+
+  await user.click(colourBy('Change'));
+  expect(within(rust).getByRole('button', { name: 'application: modified' })).toBeTruthy();
 });

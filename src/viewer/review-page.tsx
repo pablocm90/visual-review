@@ -23,6 +23,7 @@ import {
   visibleDiff,
   visibleNodeOf,
 } from '../core/visible-diff.ts';
+import { ColourBy, type Colouring, type Shade, shadeOf } from './colour-by.tsx';
 import { FindingsRail } from './findings-rail.tsx';
 import { highlightPatch, type PatchLine as Line, type Piece } from './highlight-patch.ts';
 import {
@@ -131,6 +132,7 @@ type Drawing = {
   readonly expanded: ReadonlySet<string>;
   readonly onToggle: (id: string) => void;
   readonly unroutedOf: (id: string) => ReadonlyArray<string>;
+  readonly shadeOf: (id: string) => Shade | undefined;
 };
 
 type ToggleProps = {
@@ -155,8 +157,10 @@ const Toggle = ({ node, expanded, onToggle }: ToggleProps) => (
 );
 
 const NodeView = ({ node, drawing }: { readonly node: PlacedNode; readonly drawing: Drawing }) => {
-  const { notes, onSelect, register, expandable, expanded, onToggle, unroutedOf } = drawing;
+  const { notes, onSelect, register, expandable, expanded, onToggle, unroutedOf, shadeOf } =
+    drawing;
   const unrouted = unroutedOf(node.id);
+  const shade = shadeOf(node.id);
   const flag = notes[node.id]?.flag;
   const toggle = expandable.has(node.id) && (
     <Toggle node={node} expanded={expanded.has(node.id)} onToggle={onToggle} />
@@ -198,6 +202,7 @@ const NodeView = ({ node, drawing }: { readonly node: PlacedNode; readonly drawi
             ...(node.formerLabel === undefined ? [] : [`was ${node.formerLabel}`]),
             ...(node.renamedFrom === undefined ? [] : [`renamed from ${node.renamedFrom}`]),
             ...(unrouted.length > 0 ? [`no route for ${unrouted.join(', ')}`] : []),
+            ...(shade === undefined ? [] : [shade.name]),
           ].join(', '),
           note: notes[node.id],
           onSelect,
@@ -760,6 +765,7 @@ export const ReviewPage = ({ review, notes, shownTabs = SHOWN_TABS }: ReviewPage
   const [allEdges, setAllEdges] = useState(false);
   const noted = useMemo(() => new Set(Object.keys(notes?.notes ?? {})), [notes]);
   const [nearOnly, setNearOnly] = useState(true);
+  const [colouring, setColouring] = useState<Colouring>('change');
   const drawn = useMemo(() => {
     const atExpansion = drawnAt({ diff: review.diff, expanded, noted, allEdges });
     return nearOnly ? nearChanges(atExpansion) : atExpansion;
@@ -792,6 +798,7 @@ export const ReviewPage = ({ review, notes, shownTabs = SHOWN_TABS }: ReviewPage
     onToggle: toggle,
     unroutedOf: (id: string) =>
       dangling.filter(call => visibleOf(call.from) === id).map(call => call.path),
+    shadeOf: (id: string) => shadeOf(colouring, review.metrics[id]),
   };
   const selectedNode = review.diff.nodes.find(node => node.id === selected);
   const selectedNote = selected === undefined ? undefined : shown[selected];
@@ -946,6 +953,7 @@ export const ReviewPage = ({ review, notes, shownTabs = SHOWN_TABS }: ReviewPage
             />
             <div className="content">
               {notes && notes.summary.length > 0 && <Summary notes={notes} onGoTo={goTo} />}
+              <ColourBy colouring={colouring} onPick={setColouring} />
               <label className="near-only">
                 <input
                   type="checkbox"
