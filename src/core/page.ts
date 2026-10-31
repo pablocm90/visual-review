@@ -73,6 +73,8 @@ const DATA_SLOT = 'review-data';
 
 const NOTES_SLOT = 'review-notes';
 
+const SERVE_SLOT = 'review-serve';
+
 const slot = (id: string, content: string) =>
   `<script type="application/json" id="${id}">${content}</script>`;
 
@@ -133,3 +135,11 @@ export const notedPageHtml = ({
   }
   return filledSlot(page, NOTES_SLOT, notes);
 };
+
+type ServedPageHtmlOptions = {
+  readonly page: string;
+  readonly token: string;
+};
+
+export const servedPageHtml = ({ page, token }: ServedPageHtmlOptions): string =>
+  filledSlot(page, SERVE_SLOT, token);

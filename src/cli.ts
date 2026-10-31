@@ -20,6 +20,7 @@ import { onPath } from './git/on-path.ts';
 import { pruneReviews } from './git/prune-reviews.ts';
 import { readPullRequest } from './git/pull-request.ts';
 import { snapshotWorkingTree } from './git/working-tree.ts';
+import { servePage } from './serve.ts';
 
 const isDirectoryOrMissing = (path: string): Promise<boolean> =>
   lstat(path).then(
@@ -137,7 +138,10 @@ const writeReview = async (args: ReadonlyArray<string>): Promise<string> => {
   return page;
 };
 
-writeReview(process.argv.slice(2)).then(
+const run = (args: ReadonlyArray<string>): Promise<string> =>
+  args[0] === 'serve' ? servePage(args[1]) : writeReview(args);
+
+run(process.argv.slice(2)).then(
   page => console.log(page),
   (error: Error) => {
     console.error(error.message);
