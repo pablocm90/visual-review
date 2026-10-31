@@ -211,7 +211,7 @@ export const FindingsRail = (props: FindingsRailProps) => {
       ))}
       <button
         type="button"
-        aria-label={`Show ${levels.length} findings`}
+        aria-label={`Show ${levels.length} ${levels.length === 1 ? 'finding' : 'findings'}`}
         onClick={() => setOpen(true)}
       >
         {levels.length}

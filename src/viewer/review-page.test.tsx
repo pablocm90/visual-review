@@ -785,7 +785,7 @@ test("the findings rail starts collapsed to their total and how many need a look
   expect(countBy('for information')).toBe('3');
 
   const groupsShown = async () => {
-    await user.click(screen.getByRole('button', { name: /^Show \d+ findings$/ }));
+    await user.click(screen.getByRole('button', { name: /^Show \d+ findings?$/ }));
     const open = screen.getByRole('complementary', { name: 'Findings' });
     const groups = within(open)
       .getAllByRole('heading', { level: 3 })
@@ -850,7 +850,7 @@ test("the findings rail starts collapsed to their total and how many need a look
       })}
     />,
   );
-  expect(within(rail()).getByRole('button', { name: 'Show 1 findings' })).toBeDefined();
+  expect(within(rail()).getByRole('button', { name: 'Show 1 finding' })).toBeDefined();
   expect(countBy('needs a look')).toBe('0');
   expect(await groupsShown()).toEqual(['Metrics']);
 });
@@ -1074,7 +1074,7 @@ test("modules open collapsed, joined by their files' imports; a module's toggle 
 
   await user.click(within(web).getByRole('button', { name: 'Collapse modules/AppInfo' }));
   await user.click(within(web).getByRole('button', { name: 'Collapse utils' }));
-  await user.click(screen.getByRole('button', { name: /^Show \d+ findings$/ }));
+  await user.click(screen.getByRole('button', { name: /^Show \d+ findings?$/ }));
   await user.click(screen.getByRole('button', { name: /: reaches into utils: New helper\.$/ }));
 
   const reaching = await within(web).findByRole('button', {
@@ -1552,7 +1552,7 @@ test("the rail's changed files outside the graph open in the inspector at the ch
     />,
   );
 
-  await user.click(await screen.findByRole('button', { name: 'Show 1 findings' }));
+  await user.click(await screen.findByRole('button', { name: 'Show 1 finding' }));
   const outside = 'README.md, docs/a.md: 2 changed files outside the graph';
   await user.click(screen.getByRole('button', { name: outside }));
   expect(within(inspector()).getByRole('heading', { level: 2 }).textContent).toBe(
