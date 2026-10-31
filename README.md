@@ -14,6 +14,8 @@ Out of the box, it reads these, with nothing to configure:
 
 Across stacks, `fetch` calls in TS/JS are linked to the routes of Rust crates that use axum.
 
+The review data (the `.json` beside the page) measures the files of changed nodes and their neighbours: lines of code, and each Rust or TS/JS function's or Rails method's cyclomatic complexity and ABC size. Test files aren't measured.
+
 Each language is read as text, with no compiler or runtime for it, except Rust's crate list, which comes from `cargo metadata`. Ruby doesn't need to be installed, and nothing in the reviewed repo is built or run. Other languages are planned.
 
 ## Before the first run
