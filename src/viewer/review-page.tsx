@@ -34,6 +34,7 @@ import {
   type PlacedNode,
   type PlacedStack,
 } from './layout.ts';
+import { MetricsScreen } from './metrics-screen.tsx';
 import { MetricsTable } from './metrics-tab.tsx';
 import { changedCount, TestFiles, TestsScreen } from './tests-screen.tsx';
 import {
@@ -1022,6 +1023,7 @@ export const ReviewPage = ({ review, notes }: ReviewPageProps) => {
           </div>
         </>
       )}
+      {tab === 'metrics' && <MetricsScreen review={review} />}
       {tab === 'tests' && (
         <TestsScreen
           review={review}
