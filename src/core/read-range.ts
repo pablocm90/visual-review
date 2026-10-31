@@ -181,7 +181,12 @@ const measuresAt = async ({ directory, stacks, files }: MeasuresOptions): Promis
       const measure = stacks.find(each => each.stack === stack)?.reader.measure;
       if (path === undefined || measure === undefined) return [];
       if (!(await isFile(join(directory, path)))) return [];
-      return [[path, measure(await readFile(join(directory, path), 'utf8'), path)] as const];
+      const text = await readFile(join(directory, path), 'utf8');
+      try {
+        return [[path, measure(text, path)] as const];
+      } catch {
+        return [];
+      }
     }),
   );
   return Object.fromEntries(measured.flat());

@@ -500,6 +500,17 @@ test('a stack the head adds is measured on the head side', async () => {
   expect(range.measures.after).toEqual({ 'crates/core/src/lib.rs': { lines: 0, functions: [] } });
 });
 
+test('a file its reader fails to measure is left unmeasured, and the range is still read', async () => {
+  using workspace = cargoWorkspace();
+  const { repo, root } = workspace;
+  const deep = `pub fn deep() -> u32 { ${Array.from({ length: 5000 }, () => '1').join(' + ')} }\n`;
+  const head = commit(repo, { 'crates/core/src/lib.rs': deep });
+
+  const range = await readRange({ repo, from: root, to: head });
+
+  expect(range.measures.after).toEqual({});
+});
+
 test('a range ending at a branch named like a folder reads its churn', async () => {
   using repository = gitRepo({ 'package.json': '{}\n', 'src/a.ts': '' });
   const { repo } = repository;
