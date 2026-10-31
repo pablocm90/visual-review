@@ -669,6 +669,55 @@ test('the Tests tab shows all the test changes by default, or, while a node is p
   ).toEqual(['All 4 true']);
 });
 
+test('the Tests tab counts the shown tests by change, a moved pair once, as moved, even with only one of its files shown', async () => {
+  atHash('');
+  const user = userEvent.setup();
+  render(
+    <ReviewPage
+      review={pageWith({
+        ...review,
+        tests: [
+          {
+            path: 'crates/application/src/lib.rs',
+            statements: [
+              { kind: 'test', name: 'reads the notes', change: 'edited' },
+              { kind: 'test', name: 'quotes commas', change: 'added' },
+              {
+                kind: 'test',
+                name: 'exports a CSV',
+                change: 'removed',
+                movedTo: 'crates/domain/src/lib.rs',
+              },
+            ],
+          },
+          {
+            path: 'crates/domain/src/lib.rs',
+            statements: [
+              { kind: 'test', name: 'drops the totals', change: 'removed' },
+              {
+                kind: 'test',
+                name: 'exports a CSV',
+                change: 'added',
+                movedFrom: 'crates/application/src/lib.rs',
+              },
+            ],
+          },
+        ],
+      })}
+    />,
+  );
+  const counts = () =>
+    within(screen.getByRole('list', { name: 'Changed tests' }))
+      .getAllByRole('listitem')
+      .map(count => `${count.textContent} ${count.getAttribute('aria-label')}`);
+
+  await user.click(await screen.findByRole('button', { name: 'domain: unchanged' }));
+  await user.click(screen.getByRole('link', { name: 'Tests 4' }));
+  expect(counts()).toEqual(['+1 1 added', '✎1 1 edited', '−1 1 removed', '↷1 1 moved']);
+  await user.click(screen.getByRole('button', { name: 'For domain 2' }));
+  expect(counts()).toEqual(['+0 0 added', '✎0 0 edited', '−1 1 removed', '↷1 1 moved']);
+});
+
 test('picking a tab sets the hash and shows it, and back and forward move between the tabs', async () => {
   atHash('');
   const user = userEvent.setup();

@@ -5,6 +5,7 @@ import type { PageData } from '../core/page.ts';
 import {
   type MarkedTest,
   type TestChange,
+  type TestCounts,
   type TestFile,
   type TestStatement,
   testCounts,
@@ -87,6 +88,27 @@ export const TestFiles = ({ files, nodes }: TestFilesProps) =>
     </section>
   ));
 
+const COUNT_MARKS: ReadonlyArray<readonly [keyof TestCounts, string]> = [
+  ['added', TEST_MARKS.added],
+  ['edited', TEST_MARKS.edited],
+  ['removed', TEST_MARKS.removed],
+  ['moved', '↷'],
+];
+
+const Counts = ({ files }: { readonly files: ReadonlyArray<TestFile> }) => {
+  const counts = testCounts(files);
+  return (
+    <ul className="test-counts" aria-label="Changed tests">
+      {COUNT_MARKS.map(([change, mark]) => (
+        <li key={change} aria-label={`${counts[change]} ${change}`}>
+          {mark}
+          {counts[change]}
+        </li>
+      ))}
+    </ul>
+  );
+};
+
 export const changedCount = (files: ReadonlyArray<TestFile>): number =>
   Object.values(testCounts(files)).reduce((sum, count) => sum + count, 0);
 
@@ -128,6 +150,7 @@ export const TestsScreen = ({ review, notes, selected }: TestsScreenProps) => {
           </button>
         )}
       </div>
+      <Counts files={shown} />
       <section className="tests" aria-label="Test changes">
         {shown.length > 0 ? (
           <TestFiles files={shown} nodes={review.diff.nodes} />
