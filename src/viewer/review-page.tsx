@@ -615,28 +615,26 @@ const TABS = { structure: 'Structure', metrics: 'Metrics', tests: 'Tests' } as c
 
 type Tab = keyof typeof TABS;
 
-const SHOWN_TABS: ReadonlyArray<Tab> = ['structure', 'tests'];
+const TAB_ORDER: ReadonlyArray<Tab> = ['structure', 'metrics', 'tests'];
 
-const tabAt = (hash: string, shown: ReadonlyArray<Tab>): Tab =>
-  shown.find(tab => `#${tab}` === hash) ?? 'structure';
+const tabAt = (hash: string): Tab => TAB_ORDER.find(tab => `#${tab}` === hash) ?? 'structure';
 
-const useTab = (shown: ReadonlyArray<Tab>): Tab => {
-  const [tab, setTab] = useState(() => tabAt(location.hash, shown));
+const useTab = (): Tab => {
+  const [tab, setTab] = useState(() => tabAt(location.hash));
   useEffect(() => {
-    const follow = () => setTab(tabAt(location.hash, shown));
+    const follow = () => setTab(tabAt(location.hash));
     addEventListener('hashchange', follow);
     return () => removeEventListener('hashchange', follow);
-  }, [shown]);
+  }, []);
   return tab;
 };
 
 type HeaderProps = {
   readonly review: PageData;
   readonly tab: Tab;
-  readonly shownTabs: ReadonlyArray<Tab>;
 };
 
-const Header = ({ review, tab, shownTabs }: HeaderProps) => {
+const Header = ({ review, tab }: HeaderProps) => {
   const changed = changedCount(review.tests);
   return (
     <header className="review">
@@ -660,7 +658,7 @@ const Header = ({ review, tab, shownTabs }: HeaderProps) => {
         </h1>
       </div>
       <nav aria-label="Review">
-        {shownTabs.map(shown => (
+        {TAB_ORDER.map(shown => (
           <a key={shown} href={`#${shown}`} aria-current={shown === tab ? 'page' : undefined}>
             {TABS[shown]}
             {shown === 'tests' && changed > 0 && (
@@ -679,11 +677,10 @@ const Header = ({ review, tab, shownTabs }: HeaderProps) => {
 type ReviewPageProps = {
   readonly review: PageData;
   readonly notes?: ReviewNotes | undefined;
-  readonly shownTabs?: ReadonlyArray<Tab>;
 };
 
-export const ReviewPage = ({ review, notes, shownTabs = SHOWN_TABS }: ReviewPageProps) => {
-  const tab = useTab(shownTabs);
+export const ReviewPage = ({ review, notes }: ReviewPageProps) => {
+  const tab = useTab();
   const [layout, setLayout] = useState<Layout>();
   const [selected, setSelected] = useState<string>();
   const [outside, setOutside] = useState(false);
@@ -870,7 +867,7 @@ export const ReviewPage = ({ review, notes, shownTabs = SHOWN_TABS }: ReviewPage
   }, [layout, focusTarget, frameElement]);
   return (
     <main>
-      <Header review={review} tab={tab} shownTabs={shownTabs} />
+      <Header review={review} tab={tab} />
       {tab === 'structure' && (
         <>
           <div className="structure-head">

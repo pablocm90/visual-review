@@ -479,11 +479,11 @@ test("a PR's page is headed by the PR's number and title, as a link to it", asyn
   await screen.findByRole('group', { name: 'rust' });
 });
 
-test('the Review nav links each shown tab, Structure and Tests for now, and marks Structure the current page', async () => {
+test('the Review nav links Structure, Metrics and Tests, and marks Structure the current page', async () => {
   render(<ReviewPage review={pageWith(review)} />);
 
   const links = within(screen.getByRole('navigation', { name: 'Review' })).getAllByRole('link');
-  expect(links.map(link => link.textContent)).toEqual(['Structure', 'Tests']);
+  expect(links.map(link => link.textContent)).toEqual(['Structure', 'Metrics', 'Tests']);
   expect(links[0]?.getAttribute('href')).toBe('#structure');
   expect(links[0]?.getAttribute('aria-current')).toBe('page');
   await screen.findByRole('group', { name: 'rust' });
@@ -500,10 +500,10 @@ const currentTab = () =>
 
 test.for([
   { hash: '#metrics', tab: 'Metrics' },
-  { hash: '#tests', tab: 'Structure' },
-])('at $hash, with Tests hidden, the page opens on $tab', ({ hash, tab }) => {
+  { hash: '#elsewhere', tab: 'Structure' },
+])('at $hash the page opens on $tab', ({ hash, tab }) => {
   atHash(hash);
-  render(<ReviewPage review={pageWith(review)} shownTabs={['structure', 'metrics']} />);
+  render(<ReviewPage review={pageWith(review)} />);
 
   expect(currentTab()).toBe(tab);
   expect(screen.queryByRole('checkbox', { name: 'Changed + 1 hop' }) !== null).toBe(
@@ -553,7 +553,7 @@ test("the Tests tab's link counts the review's changed tests, a moved pair once,
     within(screen.getByRole('navigation', { name: 'Review' }))
       .getAllByRole('link')
       .map(link => link.textContent),
-  ).toEqual(['Structure', 'Tests 2']);
+  ).toEqual(['Structure', 'Metrics', 'Tests 2']);
   await user.click(screen.getByRole('link', { name: 'Tests 2' }));
   await waitFor(() => expect(currentTab()).toBe('Tests 2'));
   expect(screen.queryByRole('group', { name: 'rust' })).toBeNull();
@@ -819,7 +819,7 @@ test("the Tests tab lists the added and modified nodes, not stacks, with the cha
 test('picking a tab sets the hash and shows it, and back and forward move between the tabs', async () => {
   atHash('');
   const user = userEvent.setup();
-  render(<ReviewPage review={pageWith(review)} shownTabs={['structure', 'metrics']} />);
+  render(<ReviewPage review={pageWith(review)} />);
   await screen.findByRole('group', { name: 'rust' });
 
   await user.click(screen.getByRole('link', { name: 'Metrics' }));
@@ -832,7 +832,7 @@ test('picking a tab sets the hash and shows it, and back and forward move betwee
   history.forward();
   await waitFor(() => expect(currentTab()).toBe('Metrics'));
   location.hash = '#tests';
-  await waitFor(() => expect(currentTab()).toBe('Structure'));
+  await waitFor(() => expect(currentTab()).toBe('Tests'));
 });
 
 test('a reader skipped for want of its tool is named at the top of the findings rail, collapsed or open, with the stacks it did not read', async () => {
