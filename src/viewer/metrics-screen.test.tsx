@@ -145,7 +145,7 @@ test('the table lists the changed measured leaves, every measured leaf while "Ch
   expect(shownNodes()).toEqual(['refundsapi', 'ledgerapi']);
 });
 
-test('the stack picker offers the stacks holding a shown row, and keeps the rows of the one picked', async () => {
+test('the stack picker offers the stacks holding a shown row, keeps the rows of the one picked, and all of them once the picked one holds none', async () => {
   atMetrics();
   const user = userEvent.setup();
   render(
@@ -174,4 +174,9 @@ test('the stack picker offers the stacks holding a shown row, and keeps the rows
   await user.click(screen.getByRole('button', { name: 'Changed + 1 hop 4' }));
   expect(offered()).toEqual(['All stacks', 'api', 'web', 'jobs']);
   expect(shownNodes()).toEqual(['cartweb', 'helpersweb']);
+
+  await user.selectOptions(stack, 'jobs');
+  await user.click(screen.getByRole('button', { name: 'Changed 2' }));
+  expect(stack).toHaveProperty('value', '');
+  expect(shownNodes()).toEqual(['refundsapi', 'cartweb']);
 });
