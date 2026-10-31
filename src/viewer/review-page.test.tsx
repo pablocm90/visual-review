@@ -73,6 +73,8 @@ const pageWith = (data: Pick<PageData, 'range' | 'diff'> & Partial<PageData>): P
   undrawn: [],
   tests: [],
   skipped: [],
+  thresholds: { cyclomatic: 10, hotspot: { churn: 6, cyclomatic: 8 } },
+  churnDays: 90,
   ...data,
 });
 
