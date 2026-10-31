@@ -3,10 +3,16 @@ import type { Graph, GraphEdge } from './graph.ts';
 import type { Churn, Measures, RangeReading } from './read-range.ts';
 import type { FileMeasures } from './reader.ts';
 
+export type FunctionCyclomatic = { readonly name: string; readonly cyclomatic: number };
+
 type Complexity = {
   readonly lines: number;
   readonly functions: number;
-  readonly cyclomatic: { readonly highest: number; readonly total: number };
+  readonly cyclomatic: {
+    readonly highest: number;
+    readonly total: number;
+    readonly byFunction?: ReadonlyArray<FunctionCyclomatic>;
+  };
   readonly abc: number;
 };
 
@@ -39,7 +45,11 @@ const complexityOf = ({ lines, functions }: FileMeasures): Complexity => {
   return {
     lines,
     functions: functions.length,
-    cyclomatic: { highest: Math.max(0, ...cyclomatics), total: sum(cyclomatics) },
+    cyclomatic: {
+      highest: Math.max(0, ...cyclomatics),
+      total: sum(cyclomatics),
+      byFunction: functions.map(({ name, cyclomatic }) => ({ name, cyclomatic })),
+    },
     abc: Math.round(Math.hypot(...parts) * 10) / 10,
   };
 };
