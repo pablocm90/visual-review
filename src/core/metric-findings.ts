@@ -1,6 +1,8 @@
 import type { NodeMeasures, NodeMetrics } from './metrics.ts';
 import type { RangeReading } from './read-range.ts';
 
+type Hotspot = RangeReading['thresholds']['hotspot'];
+
 type Finding<Metric, Value> = {
   readonly node: string;
   readonly metric: Metric;
@@ -10,7 +12,7 @@ type Finding<Metric, Value> = {
   readonly threshold: Value;
 };
 
-export type MetricFinding = Finding<'cyclomatic', number>;
+export type MetricFinding = Finding<'cyclomatic', number> | Finding<'hotspot', Hotspot>;
 
 type MetricFindingsOptions = {
   readonly metrics: Readonly<Record<string, NodeMetrics>>;
@@ -35,6 +37,13 @@ const finding = <Metric, Value>({
 const cyclomaticOf = (measures: NodeMeasures | undefined): number | undefined =>
   measures !== undefined && 'lines' in measures ? measures.cyclomatic.highest : undefined;
 
+const hotspotOf = (measures: NodeMeasures | undefined): Hotspot | undefined => {
+  const cyclomatic = cyclomaticOf(measures);
+  return measures === undefined || cyclomatic === undefined
+    ? undefined
+    : { churn: measures.churn, cyclomatic };
+};
+
 const cyclomaticFindings = (
   node: string,
   { base, head }: NodeMetrics,
@@ -49,10 +58,35 @@ const cyclomaticFindings = (
   ];
 };
 
+const hotspotFindings = (
+  node: string,
+  { base, head }: NodeMetrics,
+  threshold: Hotspot,
+): ReadonlyArray<MetricFinding> => {
+  const headValue = hotspotOf(head);
+  if (
+    headValue === undefined ||
+    headValue.churn < threshold.churn ||
+    headValue.cyclomatic < threshold.cyclomatic
+  )
+    return [];
+  const baseValue = hotspotOf(base);
+  const look =
+    baseValue === undefined ||
+    baseValue.churn < threshold.churn ||
+    headValue.cyclomatic > baseValue.cyclomatic;
+  return [finding({ node, metric: 'hotspot', base: baseValue, head: headValue, threshold, look })];
+};
+
 export const metricFindings = ({
   metrics,
   thresholds,
 }: MetricFindingsOptions): ReadonlyArray<MetricFinding> =>
   Object.entries(metrics).flatMap(([node, nodeMetrics]) =>
-    nodeMetrics.highestInside ? [] : cyclomaticFindings(node, nodeMetrics, thresholds.cyclomatic),
+    nodeMetrics.highestInside
+      ? []
+      : [
+          ...cyclomaticFindings(node, nodeMetrics, thresholds.cyclomatic),
+          ...hotspotFindings(node, nodeMetrics, thresholds.hotspot),
+        ],
   );

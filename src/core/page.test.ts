@@ -476,3 +476,66 @@ test.for([
     );
   },
 );
+
+test.for([
+  {
+    reason: 'a new file that reaches both is one to look at',
+    base: undefined,
+    head: { churn: 3, cyclomatic: 5 },
+    level: 'look',
+  },
+  {
+    reason: 'a file just under the churn raises none',
+    base: undefined,
+    head: { churn: 2, cyclomatic: 5 },
+    level: undefined,
+  },
+  {
+    reason: 'a file just under the cyclomatic raises none',
+    base: undefined,
+    head: { churn: 3, cyclomatic: 4 },
+    level: undefined,
+  },
+  {
+    reason: 'a file that churn made one is one to look at',
+    base: { churn: 2, cyclomatic: 6 },
+    head: { churn: 3, cyclomatic: 6 },
+    level: 'look',
+  },
+  {
+    reason: 'a hotspot that got more complex is one to look at',
+    base: { churn: 3, cyclomatic: 5 },
+    head: { churn: 3, cyclomatic: 6 },
+    level: 'look',
+  },
+  {
+    reason: 'a hotspot that churned more but held its complexity is for information',
+    base: { churn: 3, cyclomatic: 5 },
+    head: { churn: 4, cyclomatic: 5 },
+    level: 'info',
+  },
+  {
+    reason: 'a removed hotspot raises none',
+    base: { churn: 3, cyclomatic: 5 },
+    head: undefined,
+    level: undefined,
+  },
+])('as a hotspot, $reason, and the boxes above it raise none', ({ base, head, level }) => {
+  const threshold = { churn: 3, cyclomatic: 5 };
+  const reading = readingOfA({ base, head, thresholds: { cyclomatic: 20, hotspot: threshold } });
+
+  expect(pageData({ reading, range: 'main..feature', version }).metricFindings).toStrictEqual(
+    level === undefined || head === undefined
+      ? []
+      : [
+          {
+            node: 'web/file/a.ts',
+            metric: 'hotspot',
+            level,
+            ...(base === undefined ? {} : { base }),
+            head,
+            threshold,
+          },
+        ],
+  );
+});
