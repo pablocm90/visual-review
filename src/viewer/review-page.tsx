@@ -647,10 +647,11 @@ type SendProps = {
 const SendToClaude = ({ comments, send }: SendProps) => {
   const [sent, setSent] = useState(false);
   const [problem, setProblem] = useState<string>();
+  const written = Object.entries(comments).filter(([, text]) => text.trim() !== '');
   const sendComments = () =>
     send({
       version: 1,
-      comments: Object.fromEntries(Object.entries(comments).map(([id, text]) => [id, { text }])),
+      comments: Object.fromEntries(written.map(([id, text]) => [id, { text }])),
     }).then(
       () => setSent(true),
       (error: Error) => setProblem(error.message),
@@ -666,7 +667,7 @@ const SendToClaude = ({ comments, send }: SendProps) => {
           {problem}
         </p>
       )}
-      <button type="button" onClick={sendComments}>
+      <button type="button" disabled={written.length === 0} onClick={sendComments}>
         Send to Claude
       </button>
     </>

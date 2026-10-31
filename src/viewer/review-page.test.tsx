@@ -178,6 +178,30 @@ test("a served page's Send to Claude sends each comment under its node's id or i
   expect(screen.queryByRole('button', { name: 'Send to Claude' })).toBeNull();
 });
 
+test('Send to Claude waits for a comment that is more than blanks, and sends no blank one', async () => {
+  const user = userEvent.setup();
+  const sent = vi.fn(async () => {});
+  render(<ReviewPage review={pageWith(review)} send={sent} />);
+  const comment = () => within(noteTab()).getByRole('textbox', { name: 'Your comment' });
+  const sendButton = () => screen.getByRole('button', { name: 'Send to Claude' });
+
+  const rust = await screen.findByRole('group', { name: 'rust' });
+  expect(sendButton()).toHaveProperty('disabled', true);
+  await user.click(within(rust).getByRole('button', { name: 'domain: unchanged' }));
+  await user.type(comment(), '  ');
+  expect(sendButton()).toHaveProperty('disabled', true);
+  await user.click(within(rust).getByRole('button', { name: 'application → domain: unchanged' }));
+  await user.type(comment(), 'Why this way round?');
+  await user.click(sendButton());
+
+  expect(sent).toHaveBeenCalledExactlyOnceWith({
+    version: 1,
+    comments: {
+      'rust/crate/application -> rust/crate/domain': { text: 'Why this way round?' },
+    },
+  });
+});
+
 test('a send that fails says why and leaves Send to Claude to try again', async () => {
   const user = userEvent.setup();
   const send = vi.fn(() => Promise.reject(new Error('The review was not sent: 403 Forbidden')));
