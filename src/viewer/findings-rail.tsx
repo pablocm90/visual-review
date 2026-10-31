@@ -9,6 +9,7 @@ type FindingsRailProps = {
   readonly notes: ReviewNotes | undefined;
   readonly review: Pick<PageData, 'diff' | 'metricFindings' | 'dangling' | 'undrawn'>;
   readonly onGoTo: (id: string) => void;
+  readonly onShowOutside: () => void;
 };
 
 type Level = MetricFinding['level'];
@@ -17,15 +18,14 @@ type Finding = {
   readonly level: Level;
   readonly sentence: string;
   readonly target: string;
-  readonly go?: string;
-  readonly inert?: true;
+  readonly act?: () => void;
 };
 
 type NotDrawnOptions = {
   readonly paths: ReadonlyArray<string>;
   readonly one: string;
   readonly many: string;
-  readonly inert?: true;
+  readonly act?: () => void;
 };
 
 const notDrawn = ({ paths, one, many, ...rest }: NotDrawnOptions): ReadonlyArray<Finding> =>
@@ -60,7 +60,12 @@ type Group = {
   readonly findings: ReadonlyArray<Finding>;
 };
 
-const groupsOf = ({ notes, review }: FindingsRailProps): ReadonlyArray<Group> => {
+const groupsOf = ({
+  notes,
+  review,
+  onGoTo,
+  onShowOutside,
+}: FindingsRailProps): ReadonlyArray<Group> => {
   const labelOf = new Map(review.diff.nodes.map(node => [node.id, node.label]));
   const targetOf = (id: string) =>
     endsOfId(id)
@@ -77,7 +82,7 @@ const groupsOf = ({ notes, review }: FindingsRailProps): ReadonlyArray<Group> =>
                 level: 'look' as const,
                 sentence: `${note.flag}: ${note.text}`,
                 target: targetOf(id),
-                go: id,
+                act: () => onGoTo(id),
               },
             ]
           : [],
@@ -90,7 +95,7 @@ const groupsOf = ({ notes, review }: FindingsRailProps): ReadonlyArray<Group> =>
         level: finding.level,
         sentence: sentenceOf(finding),
         target: targetOf(finding.node),
-        go: finding.node,
+        act: () => onGoTo(finding.node),
       })),
     },
     {
@@ -101,24 +106,19 @@ const groupsOf = ({ notes, review }: FindingsRailProps): ReadonlyArray<Group> =>
           paths: review.dangling.map(call => call.path),
           one: 'call with no route',
           many: 'calls with no route',
-          inert: true,
         }),
         ...notDrawn({
           paths: review.undrawn.map(patch => patch.path),
           one: 'changed file outside the graph',
           many: 'changed files outside the graph',
+          act: onShowOutside,
         }),
       ],
     },
   ];
 };
 
-type FindingItemProps = {
-  readonly finding: Finding;
-  readonly onGoTo: (id: string) => void;
-};
-
-const FindingItem = ({ finding, onGoTo }: FindingItemProps) => {
+const FindingItem = ({ finding }: { readonly finding: Finding }) => {
   const said = (
     <>
       <span>{finding.sentence}</span>
@@ -128,16 +128,16 @@ const FindingItem = ({ finding, onGoTo }: FindingItemProps) => {
   return (
     <li className="finding">
       <LevelMark level={finding.level} />
-      {finding.inert ? (
-        <span className="finding-said">{said}</span>
-      ) : (
+      {finding.act ? (
         <button
           type="button"
           aria-label={`${finding.target}: ${finding.sentence}`}
-          onClick={() => finding.go && onGoTo(finding.go)}
+          onClick={finding.act}
         >
           {said}
         </button>
+      ) : (
+        <span className="finding-said">{said}</span>
       )}
     </li>
   );
@@ -187,11 +187,7 @@ export const FindingsRail = (props: FindingsRailProps) => {
               <h3>{group.name}</h3>
               <ul>
                 {group.findings.map(finding => (
-                  <FindingItem
-                    key={`${finding.target}: ${finding.sentence}`}
-                    finding={finding}
-                    onGoTo={props.onGoTo}
-                  />
+                  <FindingItem key={`${finding.target}: ${finding.sentence}`} finding={finding} />
                 ))}
               </ul>
             </section>
