@@ -1,6 +1,6 @@
 import { type ChildProcess, execFile, spawn } from 'node:child_process';
 import { once } from 'node:events';
-import { chmodSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { chmodSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { request } from 'node:http';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -210,6 +210,21 @@ test('a review the page could not have sent is refused with 400 naming the probl
   expect(await response.text()).toBe(
     'Invalid review: version 2 is unknown; this visual-review reads version 1',
   );
+  expect(await statusFor({ url: server.url })).toBe(200);
+});
+
+test('a review serve cannot write is answered 500 naming why, and serve keeps serving so it can be sent again', async () => {
+  using server = await servedPage();
+  mkdirSync(server.page.replace(/\.html$/, '.review.json'));
+  const { origin, pathname } = new URL(server.url);
+
+  const response = await fetch(`${origin}${pathname}/review`, {
+    method: 'POST',
+    body: JSON.stringify({ version: 1, comments: {} }),
+  });
+
+  expect(response.status).toBe(500);
+  expect(await response.text()).toMatch(/^EISDIR/);
   expect(await statusFor({ url: server.url })).toBe(200);
 });
 

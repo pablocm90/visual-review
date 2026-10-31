@@ -2,7 +2,7 @@ import { spawn } from 'node:child_process';
 import { randomBytes } from 'node:crypto';
 import { once } from 'node:events';
 import { readFile, writeFile } from 'node:fs/promises';
-import { createServer } from 'node:http';
+import { createServer, type ServerResponse } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { basename, dirname, join } from 'node:path';
 import { text } from 'node:stream/consumers';
@@ -10,6 +10,16 @@ import { servedPageHtml } from './core/page.ts';
 import { parseReview } from './core/review.ts';
 
 const opener = process.platform === 'darwin' ? 'open' : 'xdg-open';
+
+type RefuseOptions = {
+  readonly response: ServerResponse;
+  readonly status: number;
+  readonly error: Error;
+};
+
+const refuse = ({ response, status, error }: RefuseOptions): void => {
+  response.writeHead(status, { 'content-type': 'text/plain; charset=utf-8' }).end(error.message);
+};
 
 type ServePageOptions = {
   readonly page: string | undefined;
@@ -34,12 +44,16 @@ export const servePage = async ({ page, version }: ServePageOptions): Promise<st
         .then(parseReview)
         .catch((error: Error) => error);
       if (review instanceof Error) {
-        response
-          .writeHead(400, { 'content-type': 'text/plain; charset=utf-8' })
-          .end(review.message);
+        refuse({ response, status: 400, error: review });
         return;
       }
-      await writeFile(reviewFile, `${JSON.stringify(review, null, 2)}\n`);
+      const unwritten = await writeFile(reviewFile, `${JSON.stringify(review, null, 2)}\n`).catch(
+        (error: Error) => error,
+      );
+      if (unwritten instanceof Error) {
+        refuse({ response, status: 500, error: unwritten });
+        return;
+      }
       response.writeHead(204).end();
       server.close();
       sent.resolve(reviewFile);
