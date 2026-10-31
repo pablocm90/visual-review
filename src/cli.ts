@@ -6,7 +6,14 @@ import { parseArgs, promisify } from 'node:util';
 import { z } from 'zod';
 import { linkers, readers } from './adapters.ts';
 import { parseNotes } from './core/notes.ts';
-import { notedPageHtml, type PageData, type PullRequest, pageData, pageHtml } from './core/page.ts';
+import {
+  notedPageHtml,
+  type PageData,
+  type PullRequest,
+  pageData,
+  pageHtml,
+  UNCOMMITTED,
+} from './core/page.ts';
 import { readRange } from './core/read-range.ts';
 import { notReadLine } from './core/skipped.ts';
 import { onPath } from './git/on-path.ts';
@@ -44,7 +51,7 @@ type ReviewedRange = {
 const rangeOf = async (repo: string, argument: string | undefined): Promise<ReviewedRange> => {
   if (argument === undefined) {
     const to = await snapshotWorkingTree(repo);
-    return { range: 'HEAD..worktree', from: 'HEAD', to, churnTo: 'HEAD' };
+    return { range: UNCOMMITTED, from: 'HEAD', to, churnTo: 'HEAD' };
   }
   if (/^\d+$/.test(argument)) {
     requireOnPath('gh', 'https://cli.github.com');

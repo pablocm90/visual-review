@@ -11,7 +11,7 @@ import type { FilePatch, GraphDiff } from '../core/diff-graphs.ts';
 import { isAtOrUnder } from '../core/diff-graphs.ts';
 import { edgeId } from '../core/graph.ts';
 import { type Note, type ReviewNotes, visibleNotes } from '../core/notes.ts';
-import type { PageData } from '../core/page.ts';
+import { type PageData, UNCOMMITTED } from '../core/page.ts';
 import { notReadLine } from '../core/skipped.ts';
 import type { MarkedTest, TestChange, TestStatement } from '../core/test-changes.ts';
 import {
@@ -339,8 +339,6 @@ const Zoom = ({ scale, onZoom, onFit }: ZoomProps) => (
     </button>
   </div>
 );
-
-const UNCOMMITTED = 'HEAD..worktree';
 
 const isFullSha = (ref: string) => /^[0-9a-f]{40}$/.test(ref);
 

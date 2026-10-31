@@ -36,6 +36,8 @@ type PageDataOptions = {
   readonly pullRequest?: PullRequest | undefined;
 };
 
+export const UNCOMMITTED = 'HEAD..worktree';
+
 export const pageData = ({
   reading,
   repo,
