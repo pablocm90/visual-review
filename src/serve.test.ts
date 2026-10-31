@@ -202,3 +202,12 @@ test('a review the page could not have sent is refused with 400 naming the probl
   );
   expect(await statusFor({ url: server.url })).toBe(200);
 });
+
+test('sending a review the served page would refuse rejects with its answer, so the page can say it was not sent', async () => {
+  using server = await servedPage();
+  const { origin } = new URL(server.url);
+
+  await expect(
+    sendReview({ origin, token: 'not-the-token', review: { version: 1, comments: {} } }),
+  ).rejects.toThrow('The review was not sent: 403 Forbidden');
+});

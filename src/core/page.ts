@@ -152,5 +152,11 @@ type SendReviewOptions = {
 };
 
 export const sendReview = async ({ origin, token, review }: SendReviewOptions): Promise<void> => {
-  await fetch(`${origin}/${token}/review`, { method: 'POST', body: JSON.stringify(review) });
+  const response = await fetch(`${origin}/${token}/review`, {
+    method: 'POST',
+    body: JSON.stringify(review),
+  });
+  if (!response.ok) {
+    throw new Error(`The review was not sent: ${response.status} ${response.statusText}`);
+  }
 };
