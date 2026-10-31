@@ -19,7 +19,7 @@ test("a TS file's lines are those holding code, not blank or comment ones, a tem
     '',
   );
 
-  expect(measureTypeScript(text, 'src/shop.ts').lines).toBe(6);
+  expect(measureTypeScript(text, 'src/shop.ts')?.lines).toBe(6);
 });
 
 test.for([
@@ -33,11 +33,25 @@ test.for([
   { path: 'src/view.js', text: 'const view = n => <b>{n}</b>;' },
   { path: 'src/view.mjs', text: 'const view = n => <b>{n}</b>;' },
 ])('$path parses with the syntax its extension allows', ({ path, text }) => {
-  expect(measureTypeScript(text, path).lines).toBe(1);
+  expect(measureTypeScript(text, path)?.lines).toBe(1);
+});
+
+const longLine = (length: number) => `b;\na=${'1'.repeat(length - 3)};`;
+
+const shortLines = (length: number) =>
+  `${'a;\n'.repeat(Math.floor(length / 3))}${' '.repeat(length % 3)}`;
+
+test.for([
+  { reason: 'a line of 1,000 characters', text: longLine(1000), measured: true },
+  { reason: 'a line of 1,001 characters', text: longLine(1001), measured: false },
+  { reason: '262,144 characters', text: shortLines(262_144), measured: true },
+  { reason: '262,145 characters', text: shortLines(262_145), measured: false },
+])('a file of $reason is measured: $measured', ({ text, measured }) => {
+  expect(measureTypeScript(text, 'src/vendor.js') !== undefined).toBe(measured);
 });
 
 const namesIn = (...lines: ReadonlyArray<string>) =>
-  measureTypeScript(source(...lines), 'src/shop.ts').functions.map(({ name }) => name);
+  measureTypeScript(source(...lines), 'src/shop.ts')?.functions.map(({ name }) => name);
 
 test('every function with a body is one, named by its declaration, key or the name it is assigned to', () => {
   expect(
@@ -113,7 +127,7 @@ test('an anonymous function no function holds is named by the declaration, assig
 });
 
 const cyclomaticOf = (body: string, params = '') =>
-  measureTypeScript(`function f(${params}) { ${body} }`, 'src/shop.ts').functions[0]?.cyclomatic;
+  measureTypeScript(`function f(${params}) { ${body} }`, 'src/shop.ts')?.functions[0]?.cyclomatic;
 
 test.for([
   { body: 'if (a) {}', cyclomatic: 2 },
@@ -140,7 +154,7 @@ test.for([
 });
 
 const abcOf = (body: string) =>
-  measureTypeScript(`function f() { ${body} }`, 'src/shop.ts').functions[0]?.abc;
+  measureTypeScript(`function f() { ${body} }`, 'src/shop.ts')?.functions[0]?.abc;
 
 test.for([
   { body: 'const a = 1;', abc: [1, 0, 0] },

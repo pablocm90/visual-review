@@ -156,7 +156,15 @@ const ownNodes = (node: Node, functions: ReadonlySet<Node>): ReadonlyArray<Node>
     functions.has(child) ? [] : [child, ...ownNodes(child, functions)],
   );
 
-export const measureTypeScript = (text: string, path: string): FileMeasures => {
+const MOST_CHARACTERS = 262_144;
+
+const LONGEST_LINE = 1000;
+
+const isTooBig = (text: string): boolean =>
+  text.length > MOST_CHARACTERS || text.split('\n').some(line => line.length > LONGEST_LINE);
+
+export const measureTypeScript = (text: string, path: string): FileMeasures | undefined => {
+  if (isTooBig(text)) return undefined;
   const { program, tokens } = parse(text, {
     sourceType: 'module',
     plugins: pluginsFor(path),
