@@ -815,6 +815,59 @@ test("the findings rail starts collapsed to their total and how many need a look
   expect(await groupsShown()).toEqual(['Metrics']);
 });
 
+test('the rail reads each metric finding as a sentence on its node: the move from base to head, or the head alone, and the threshold it is over; a hotspot names its churn and cyclomatic', async () => {
+  const user = userEvent.setup();
+  render(
+    <ReviewPage
+      review={pageWith({
+        ...review,
+        metricFindings: [
+          {
+            node: 'rust/crate/application',
+            metric: 'cyclomatic',
+            level: 'look',
+            base: 4,
+            head: 14,
+            threshold: 10,
+          },
+          { node: 'rust/crate/domain', metric: 'lines', level: 'info', head: 900, threshold: 800 },
+          {
+            node: 'rust/crate/domain',
+            metric: 'abc',
+            level: 'look',
+            base: 28.25,
+            head: 31.5,
+            threshold: 30,
+          },
+          {
+            node: 'rust/crate/cli-adapter',
+            metric: 'hotspot',
+            level: 'info',
+            base: { churn: 6, cyclomatic: 9 },
+            head: { churn: 7, cyclomatic: 12 },
+            threshold: { churn: 6, cyclomatic: 8 },
+          },
+        ],
+      })}
+    />,
+  );
+
+  await user.click(await screen.findByRole('button', { name: 'Show 4 findings' }));
+  const metrics = within(screen.getByRole('region', { name: 'Metrics' }));
+  expect(
+    metrics.getByRole('button', { name: 'application: cyclomatic 4 → 14, over 10' }),
+  ).toBeDefined();
+  expect(metrics.getByRole('button', { name: 'domain: lines 900, over 800' })).toBeDefined();
+  expect(
+    metrics.getByRole('button', { name: 'domain: ABC size 28.3 → 31.5, over 30' }),
+  ).toBeDefined();
+  expect(
+    metrics.getByRole('button', {
+      name: 'cli-adapter: hotspot, churn 6 → 7 and cyclomatic 9 → 12, over 6 and 8',
+    }),
+  ).toBeDefined();
+});
+
 const webModule = (label: string, state: Diffed = 'unchanged') => ({
   id: `web/module/${label}`,
   kind: 'module' as const,

@@ -385,78 +385,6 @@ h1 {
   align-items: flex-start;
 }
 
-.findings-rail {
-  flex: none;
-  width: 60px;
-  margin-right: 16px;
-  padding: 16px 0;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 14px;
-  border-right: 1px solid var(--stack-line);
-}
-
-.findings-rail > button {
-  width: 44px;
-  height: 44px;
-  border: 1px solid var(--stack-line);
-  border-radius: 10px;
-  background: var(--stack);
-  color: var(--ink);
-  font: inherit;
-  font-weight: 600;
-  cursor: pointer;
-}
-
-.findings {
-  flex: 0 1 300px;
-  min-width: 260px;
-  margin-right: 16px;
-  padding: 16px 16px 16px 0;
-  display: grid;
-  grid-template-columns: 1fr auto;
-  align-content: start;
-  gap: 10px;
-  border-right: 1px solid var(--stack-line);
-}
-
-.findings h2 {
-  margin: 0;
-  align-self: center;
-  color: var(--muted);
-  font-size: 11.5px;
-  font-weight: 600;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-}
-
-.findings > button {
-  width: 36px;
-  height: 36px;
-  border: 1px solid var(--stack-line);
-  border-radius: 8px;
-  background: var(--stack);
-  color: var(--ink);
-  font: inherit;
-  cursor: pointer;
-}
-
-.findings h3 {
-  grid-column: 1 / -1;
-  margin: 8px 0 0;
-  font-size: 12.5px;
-  font-weight: 600;
-}
-
-.findings-count {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 2px;
-  font-size: 12px;
-}
-
 .content {
   flex: 1 0 320px;
   min-width: 0;
@@ -953,10 +881,6 @@ pre .hljs-emphasis {
   stroke-linejoin: round;
 }
 
-.findings-count .level-mark {
-  margin-left: 0;
-}
-
 .metrics-caption {
   margin: 0 0 8px;
   color: var(--muted);
@@ -1015,4 +939,117 @@ pre .hljs-emphasis {
 
 .functions .modified code:first-child {
   font-weight: 600;
+}
+
+.findings-rail {
+  flex: none;
+  width: 60px;
+  margin-right: 16px;
+  padding: 16px 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 14px;
+  border-right: 1px solid var(--stack-line);
+}
+
+.findings-rail > button {
+  width: 44px;
+  height: 44px;
+  border: 1px solid var(--stack-line);
+  border-radius: 10px;
+  background: var(--stack);
+  color: var(--ink);
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.findings {
+  flex: 0 1 300px;
+  min-width: 260px;
+  margin-right: 16px;
+  padding: 16px 16px 16px 0;
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-content: start;
+  gap: 10px;
+  border-right: 1px solid var(--stack-line);
+}
+
+.findings-title {
+  margin: 0;
+  align-self: center;
+  color: var(--muted);
+  font-size: 11.5px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.findings > button {
+  width: 36px;
+  height: 36px;
+  border: 1px solid var(--stack-line);
+  border-radius: 8px;
+  background: var(--stack);
+  color: var(--ink);
+  font: inherit;
+  cursor: pointer;
+}
+
+.findings h3 {
+  grid-column: 1 / -1;
+  margin: 8px 0 0;
+  font-size: 12.5px;
+  font-weight: 600;
+}
+
+.findings section {
+  grid-column: 1 / -1;
+}
+
+.findings ul {
+  margin: 6px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.finding {
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+  padding: 8px 0;
+}
+
+.finding button {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  font-size: 13.5px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.finding-target {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.findings-count {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  font-size: 12px;
+}
+
+.findings-count .level-mark {
+  margin-left: 0;
 }

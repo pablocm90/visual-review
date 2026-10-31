@@ -43,7 +43,7 @@ const METRIC_ROWS: ReadonlyArray<MetricRow> = [
   },
 ];
 
-const tenths = (value: number) => Math.round(value * 10) / 10;
+export const tenths = (value: number) => Math.round(value * 10) / 10;
 
 const shownValue = (side: NodeMeasures | undefined, value: number | undefined) => {
   if (side === undefined) return '—';
