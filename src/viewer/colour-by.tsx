@@ -10,6 +10,7 @@ const COLOURINGS = [
 ] as const satisfies ReadonlyArray<readonly [Colouring, string]>;
 
 type Scale = {
+  readonly title: string;
   readonly measure: string;
   readonly cuts: ReadonlyArray<number>;
   readonly steps: ReadonlyArray<string>;
@@ -18,12 +19,14 @@ type Scale = {
 
 const SCALES: Readonly<Record<Exclude<Colouring, 'change'>, Scale>> = {
   churn: {
+    title: 'Churn: commits in the window before the head',
     measure: 'churn',
     cuts: [3, 6, 9],
     steps: ['0–2', '3–5', '6–8', '9+'],
     valueOf: ({ head, base }) => (head ?? base)?.churn,
   },
   complexity: {
+    title: 'Cyclomatic of its most complex function, at the head',
     measure: 'cyclomatic',
     cuts: [5, 8, 11],
     steps: ['1–4', '5–7', '8–10', '11+'],
@@ -43,6 +46,27 @@ export const shadeOf = (
   if (value === undefined) return undefined;
   const step = cuts.filter(cut => value >= cut).length;
   return { step, name: `${measure} ${value} (${steps[step]})` };
+};
+
+export const ScaleLegend = ({
+  colouring,
+}: {
+  readonly colouring: Exclude<Colouring, 'change'>;
+}) => {
+  const { title, steps } = SCALES[colouring];
+  return (
+    <div className="scale-legend">
+      <span>{title}</span>
+      <ul className="scale" aria-label="Scale">
+        {steps.map((step, at) => (
+          <li key={step} data-step={at}>
+            {step}
+          </li>
+        ))}
+      </ul>
+      <span>Outline still shows the change.</span>
+    </div>
+  );
 };
 
 type ColourByProps = {

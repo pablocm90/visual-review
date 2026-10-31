@@ -23,7 +23,7 @@ import {
   visibleDiff,
   visibleNodeOf,
 } from '../core/visible-diff.ts';
-import { ColourBy, type Colouring, type Shade, shadeOf } from './colour-by.tsx';
+import { ColourBy, type Colouring, ScaleLegend, type Shade, shadeOf } from './colour-by.tsx';
 import { FindingsRail } from './findings-rail.tsx';
 import { highlightPatch, type PatchLine as Line, type Piece } from './highlight-patch.ts';
 import {
@@ -938,7 +938,7 @@ export const ReviewPage = ({ review, notes, shownTabs = SHOWN_TABS }: ReviewPage
       {tab === 'structure' && (
         <>
           <div className="structure-head">
-            <Legend />
+            {colouring === 'change' ? <Legend /> : <ScaleLegend colouring={colouring} />}
             <p className="caveat">Calls whose path is built at runtime are not drawn.</p>
           </div>
           <div className="columns">

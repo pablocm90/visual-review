@@ -1954,6 +1954,11 @@ const eightCrates = {
   },
 };
 
+const scaleSteps = () =>
+  within(screen.getByRole('list', { name: 'Scale' }))
+    .getAllByRole('listitem')
+    .map(step => step.textContent);
+
 const colourBy = (name: string) =>
   within(screen.getByRole('group', { name: 'Colour by' })).getByRole('button', { name });
 
@@ -1978,8 +1983,12 @@ test('Colour by starts on Change; on Churn each measured node is named with its 
   const rust = await screen.findByRole('group', { name: 'rust' });
   expect(colourBy('Change').getAttribute('aria-pressed')).toBe('true');
   expect(colourBy('Churn').getAttribute('aria-pressed')).toBe('false');
+  expect(screen.getByRole('list', { name: 'Legend' })).toBeTruthy();
+  expect(screen.queryByRole('list', { name: 'Scale' })).toBeNull();
 
   await user.click(colourBy('Churn'));
+  expect(screen.queryByRole('list', { name: 'Legend' })).toBeNull();
+  expect(scaleSteps()).toEqual(['0–2', '3–5', '6–8', '9+']);
   expect(colourBy('Churn').getAttribute('aria-pressed')).toBe('true');
   expect(colourBy('Change').getAttribute('aria-pressed')).toBe('false');
   expect(buttonsIn(rust)).toEqual([
@@ -1995,6 +2004,8 @@ test('Colour by starts on Change; on Churn each measured node is named with its 
 
   await user.click(colourBy('Change'));
   expect(within(rust).getByRole('button', { name: 'application: modified' })).toBeTruthy();
+  expect(screen.getByRole('list', { name: 'Legend' })).toBeTruthy();
+  expect(screen.queryByRole('list', { name: 'Scale' })).toBeNull();
 });
 
 const complex = (highest: number) => measured({ cyclomatic: { highest, total: highest } });
@@ -2022,6 +2033,7 @@ test("on Complexity each node is named with its head's highest cyclomatic and th
 
   await user.click(colourBy('Complexity'));
   expect(colourBy('Complexity').getAttribute('aria-pressed')).toBe('true');
+  expect(scaleSteps()).toEqual(['1–4', '5–7', '8–10', '11+']);
   expect(buttonsIn(rust)).toEqual([
     'domain: modified, cyclomatic 4 (1–4)',
     'application: modified, cyclomatic 5 (5–7)',
