@@ -1158,6 +1158,58 @@ test("a measured node's Metrics tab gives each measure before and after with the
   expect(inspectorTabs()).toEqual(['Note']);
 });
 
+const metricMarks = (metric: string) => {
+  const header = within(screen.getByRole('tabpanel', { name: 'Metrics' }))
+    .getAllByRole('rowheader')
+    .find(cell => cell.textContent?.startsWith(metric));
+  return (
+    header &&
+    within(header)
+      .queryAllByRole('img')
+      .map(mark => mark.getAttribute('aria-label'))
+  );
+};
+
+test("a Metrics row is marked by the level of the node's finding on it, a hotspot marking Churn", async () => {
+  const user = userEvent.setup();
+  const application = 'rust/crate/application';
+  render(
+    <ReviewPage
+      review={pageWith({
+        ...review,
+        metrics: { [application]: { base: measured(), head: measured() } },
+        metricFindings: [
+          {
+            node: 'rust/crate/domain',
+            metric: 'cyclomatic',
+            level: 'info',
+            head: 12,
+            threshold: 10,
+          },
+          { node: application, metric: 'cyclomatic', level: 'look', head: 14, threshold: 10 },
+          { node: application, metric: 'lines', level: 'look', head: 900, threshold: 800 },
+          { node: application, metric: 'abc', level: 'info', head: 31.5, threshold: 30 },
+          {
+            node: application,
+            metric: 'hotspot',
+            level: 'info',
+            head: { churn: 6, cyclomatic: 14 },
+            threshold: { churn: 5, cyclomatic: 10 },
+          },
+        ],
+      })}
+    />,
+  );
+
+  await user.click(await screen.findByRole('button', { name: 'application: modified' }));
+  await user.click(within(inspector()).getByRole('tab', { name: 'Metrics' }));
+  expect(metricMarks('Cyclomatic, highest')).toEqual(['needs a look']);
+  expect(metricMarks('ABC size')).toEqual(['for information']);
+  expect(metricMarks('Churn')).toEqual(['for information']);
+  expect(metricMarks('Lines')).toEqual(['needs a look']);
+  expect(metricMarks('Functions')).toEqual([]);
+});
+
 test("a selected node's Diff tab lists the patches of the files under it from their first hunk, a module's closed and a file's open with its added and removed lines marked, and stays picked from one selection to the next; a file without a patch or an edge has no Diff tab and shows its Note", async () => {
   const user = userEvent.setup();
   const patch = [

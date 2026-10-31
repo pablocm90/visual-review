@@ -869,3 +869,14 @@ pre .hljs-emphasis {
   font-size: 12px;
   font-weight: 400;
 }
+
+.level-mark {
+  width: 13px;
+  height: 13px;
+  margin-left: 6px;
+  vertical-align: -1px;
+  fill: none;
+  stroke: var(--ink);
+  stroke-width: 1.5;
+  stroke-linejoin: round;
+}

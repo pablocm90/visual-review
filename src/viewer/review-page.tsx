@@ -10,6 +10,7 @@ import {
 import type { FilePatch, GraphDiff } from '../core/diff-graphs.ts';
 import { isAtOrUnder } from '../core/diff-graphs.ts';
 import { edgeId } from '../core/graph.ts';
+import type { MetricFinding } from '../core/metric-findings.ts';
 import type { NodeMeasures, NodeMetrics } from '../core/metrics.ts';
 import { type Note, type ReviewNotes, visibleNotes } from '../core/notes.ts';
 import { type PageData, UNCOMMITTED } from '../core/page.ts';
@@ -529,15 +530,22 @@ type MetricRow = {
   readonly name: string;
   readonly hint: string;
   readonly of: (measures: NodeMeasures) => number | undefined;
+  readonly finding?: MetricFinding['metric'];
 };
 
 const METRIC_ROWS: ReadonlyArray<MetricRow> = [
-  { name: 'Lines', hint: 'non-blank, non-comment', of: m => ('lines' in m ? m.lines : undefined) },
+  {
+    name: 'Lines',
+    hint: 'non-blank, non-comment',
+    of: m => ('lines' in m ? m.lines : undefined),
+    finding: 'lines',
+  },
   { name: 'Functions', hint: '', of: m => ('lines' in m ? m.functions : undefined) },
   {
     name: 'Cyclomatic, highest',
     hint: 'its most branching function',
     of: m => ('lines' in m ? m.cyclomatic.highest : undefined),
+    finding: 'cyclomatic',
   },
   {
     name: 'Cyclomatic, total',
@@ -548,10 +556,16 @@ const METRIC_ROWS: ReadonlyArray<MetricRow> = [
     name: 'ABC size',
     hint: 'assignments, branches, conditions',
     of: m => ('lines' in m ? m.abc : undefined),
+    finding: 'abc',
   },
   { name: 'Fan-out', hint: 'nodes it depends on', of: m => m.fanOut },
   { name: 'Fan-in', hint: 'nodes depending on it', of: m => m.fanIn },
-  { name: 'Churn', hint: 'commits in the window before each side', of: m => m.churn },
+  {
+    name: 'Churn',
+    hint: 'commits in the window before each side',
+    of: m => m.churn,
+    finding: 'hotspot',
+  },
 ];
 
 const tenths = (value: number) => Math.round(value * 10) / 10;
@@ -568,11 +582,23 @@ const difference = (base: number | undefined, head: number | undefined) => {
   return by < 0 ? `−${-by}` : '±0';
 };
 
-const MetricsTable = ({
-  metrics: { highestInside, base, head },
-}: {
+const LEVELS: Readonly<Record<MetricFinding['level'], string>> = {
+  look: 'needs a look',
+  info: 'for information',
+};
+
+const LevelMark = ({ level }: { readonly level: MetricFinding['level'] }) => (
+  <svg className="level-mark" viewBox="0 0 16 16" role="img" aria-label={LEVELS[level]}>
+    {level === 'look' ? <path d="M8 2 L14.5 13.5 H1.5 Z" /> : <circle cx={8} cy={8} r={6} />}
+  </svg>
+);
+
+type MetricsTableProps = {
   readonly metrics: NodeMetrics;
-}) => (
+  readonly findings: ReadonlyArray<MetricFinding>;
+};
+
+const MetricsTable = ({ metrics: { highestInside, base, head }, findings }: MetricsTableProps) => (
   <>
     {highestInside && <p>Each value is the highest inside it.</p>}
     <table className="metrics">
@@ -585,13 +611,15 @@ const MetricsTable = ({
         </tr>
       </thead>
       <tbody>
-        {METRIC_ROWS.map(({ name, hint, of }) => {
+        {METRIC_ROWS.map(({ name, hint, of, finding }) => {
           const before = base && of(base);
           const after = head && of(head);
+          const over = findings.find(({ metric }) => metric === finding);
           return (
             <tr key={name}>
               <th scope="row">
                 {name}
+                {over && <LevelMark level={over.level} />}
                 {hint && <small>{hint}</small>}
               </th>
               <td>{shownValue(base, before)}</td>
@@ -609,6 +637,7 @@ type InspectorProps = {
   readonly nodes: ReadonlyArray<DiffNode>;
   readonly node: DiffNode | undefined;
   readonly metrics: Readonly<Record<string, NodeMetrics>>;
+  readonly findings: ReadonlyArray<MetricFinding>;
   readonly note: Note | undefined;
   readonly unrouted: ReadonlyArray<string>;
   readonly patches: ReadonlyArray<FilePatch>;
@@ -630,6 +659,7 @@ const Inspector = ({
   nodes,
   node,
   metrics,
+  findings,
   note,
   unrouted,
   patches,
@@ -679,7 +709,10 @@ const Inspector = ({
             <p>{note?.text ?? 'No note'}</p>
           </>
         ) : shown === 'metrics' && measured ? (
-          <MetricsTable metrics={measured} />
+          <MetricsTable
+            metrics={measured}
+            findings={findings.filter(finding => finding.node === node?.id)}
+          />
         ) : shown === 'diff' ? (
           <section className="changes" aria-label="Changes">
             {patches.map(patch => (
@@ -1121,6 +1154,7 @@ export const ReviewPage = ({ review, notes, shownTabs = SHOWN_TABS }: ReviewPage
                   nodes={review.diff.nodes}
                   node={selectedNode}
                   metrics={review.metrics}
+                  findings={review.metricFindings}
                   note={selectedNote}
                   unrouted={selectedUnrouted}
                   patches={patches}
