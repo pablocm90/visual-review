@@ -1569,6 +1569,41 @@ test('changed files outside the graph are listed under their own heading, each a
   expect(within(readme).getByRole('insertion').textContent).toBe('+new');
 });
 
+test("the rail's changed files outside the graph open in the inspector at the changes' width, each a closed patch that opens on click, until a node is selected or the inspector closed", async () => {
+  const user = userEvent.setup();
+  render(
+    <ReviewPage
+      review={pageWith({
+        ...review,
+        undrawn: [
+          { path: 'README.md', patch: '--- a/README.md\n+++ b/README.md\n@@ -1 +1 @@\n-old\n+new' },
+          { path: 'docs/a.md', patch: '--- a/docs/a.md\n+++ b/docs/a.md\n@@ -1 +1 @@\n-a\n+b' },
+        ],
+      })}
+    />,
+  );
+
+  await user.click(await screen.findByRole('button', { name: 'Show 1 findings' }));
+  const outside = 'README.md, docs/a.md: 2 changed files outside the graph';
+  await user.click(screen.getByRole('button', { name: outside }));
+  expect(within(inspector()).getByRole('heading', { level: 2 }).textContent).toBe(
+    'Changed files outside the graph',
+  );
+  expect(panelWidth()).toBe('600');
+  const readme = within(inspector()).getByRole('group', { name: 'README.md' });
+  expect(within(inspector()).getByRole('group', { name: 'docs/a.md' })).toBeDefined();
+  expect(readme.hasAttribute('open')).toBe(false);
+  await user.click(within(readme).getByText('README.md'));
+  expect(within(readme).getByRole('insertion').textContent).toBe('+new');
+
+  await user.click(screen.getByRole('button', { name: 'domain: unchanged' }));
+  expect(within(inspector()).getByRole('heading', { level: 2 }).textContent).toBe('domain');
+
+  await user.click(screen.getByRole('button', { name: outside }));
+  await user.click(within(inspector()).getByRole('button', { name: 'Close inspector' }));
+  expect(screen.queryByRole('complementary', { name: 'Inspector' })).toBeNull();
+});
+
 test("a renamed node shows the label it had under its own, also once expanded, is named with both and its old path, and its inspector's head names it with its kind, stack, state and path and what it was renamed from; a node whose label stayed shows no former one", async () => {
   const user = userEvent.setup();
   render(

@@ -622,6 +622,26 @@ const Inspector = ({
   );
 };
 
+type OutsideFilesProps = {
+  readonly patches: ReadonlyArray<FilePatch>;
+  readonly width: number;
+  readonly onClose: () => void;
+};
+
+const OutsideFiles = ({ patches, width, onClose }: OutsideFilesProps) => (
+  <aside className="note" aria-label="Inspector" style={{ width }}>
+    <button type="button" className="close" aria-label="Close inspector" onClick={onClose}>
+      ×
+    </button>
+    <h2>Changed files outside the graph</h2>
+    <section className="changes" aria-label="Changes">
+      {patches.map(patch => (
+        <Patch key={patch.path} {...patch} open={false} />
+      ))}
+    </section>
+  </aside>
+);
+
 type DrawnAtOptions = {
   readonly diff: GraphDiff;
   readonly expanded: ReadonlySet<string>;
@@ -728,6 +748,11 @@ export const ReviewPage = ({ review, notes, shownTabs = SHOWN_TABS }: ReviewPage
   const tab = useTab(shownTabs);
   const [layout, setLayout] = useState<Layout>();
   const [selected, setSelected] = useState<string>();
+  const [outside, setOutside] = useState(false);
+  const select = (id: string | undefined) => {
+    setOutside(false);
+    setSelected(id);
+  };
   const [chosenWidth, setChosenWidth] = useState<number>();
   const [expanded, setExpanded] = useState<ReadonlySet<string>>(new Set());
   const expandable = useMemo(
@@ -764,7 +789,7 @@ export const ReviewPage = ({ review, notes, shownTabs = SHOWN_TABS }: ReviewPage
   const visibleOf = visibleNodeOf({ diff: review.diff, expanded });
   const drawing = {
     notes: shown,
-    onSelect: setSelected,
+    onSelect: select,
     register,
     expandable,
     expanded,
@@ -775,9 +800,11 @@ export const ReviewPage = ({ review, notes, shownTabs = SHOWN_TABS }: ReviewPage
   const selectedNode = review.diff.nodes.find(node => node.id === selected);
   const selectedNote = selected === undefined ? undefined : shown[selected];
   const selectedUnrouted = selected === undefined ? [] : drawing.unroutedOf(selected);
-  const patches = selectedNode
-    ? review.patches.filter(({ path }) => isAtOrUnder(path, selectedNode))
-    : [];
+  const patches = outside
+    ? review.undrawn
+    : selectedNode
+      ? review.patches.filter(({ path }) => isAtOrUnder(path, selectedNode))
+      : [];
   const panelWidth = chosenWidth ?? (patches.length > 0 ? CHANGES_WIDTH : NOTE_WIDTH);
   const moveDivider = (event: KeyboardEvent) => {
     const step = { ArrowLeft: DIVIDER_STEP, ArrowRight: -DIVIDER_STEP }[event.key];
@@ -799,7 +826,7 @@ export const ReviewPage = ({ review, notes, shownTabs = SHOWN_TABS }: ReviewPage
   );
   const [focusTarget, setFocusTarget] = useState<string>();
   const goTo = (id: string) => {
-    setSelected(id);
+    select(id);
     const opened = expandedToShow({ diff: review.diff, expanded, id });
     setExpanded(opened);
     const at = { diff: review.diff, expanded: opened, noted };
@@ -921,7 +948,10 @@ export const ReviewPage = ({ review, notes, shownTabs = SHOWN_TABS }: ReviewPage
               notes={notes}
               review={review}
               onGoTo={goTo}
-              onShowOutside={() => undefined}
+              onShowOutside={() => {
+                setSelected(undefined);
+                setOutside(true);
+              }}
             />
             <div className="content">
               {notes && <Summary notes={notes} onGoTo={goTo} />}
@@ -1039,7 +1069,7 @@ export const ReviewPage = ({ review, notes, shownTabs = SHOWN_TABS }: ReviewPage
                 </section>
               )}
             </div>
-            {selected !== undefined && (
+            {(selected !== undefined || outside) && (
               <>
                 <div
                   className="divider"
@@ -1051,18 +1081,26 @@ export const ReviewPage = ({ review, notes, shownTabs = SHOWN_TABS }: ReviewPage
                   onKeyDown={moveDivider}
                   onPointerDown={dragDivider}
                 />
-                <Inspector
-                  nodes={review.diff.nodes}
-                  node={selectedNode}
-                  metrics={review.metrics}
-                  findings={review.metricFindings}
-                  note={selectedNote}
-                  unrouted={selectedUnrouted}
-                  patches={patches}
-                  tests={review.tests}
-                  width={panelWidth}
-                  onClose={() => setSelected(undefined)}
-                />
+                {outside ? (
+                  <OutsideFiles
+                    patches={patches}
+                    width={panelWidth}
+                    onClose={() => setOutside(false)}
+                  />
+                ) : (
+                  <Inspector
+                    nodes={review.diff.nodes}
+                    node={selectedNode}
+                    metrics={review.metrics}
+                    findings={review.metricFindings}
+                    note={selectedNote}
+                    unrouted={selectedUnrouted}
+                    patches={patches}
+                    tests={review.tests}
+                    width={panelWidth}
+                    onClose={() => select(undefined)}
+                  />
+                )}
               </>
             )}
           </div>
