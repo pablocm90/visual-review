@@ -3,9 +3,9 @@ import { act, fireEvent, render, screen, waitFor, within } from '@testing-librar
 import userEvent from '@testing-library/user-event';
 import { expect, onTestFinished, test, vi } from 'vitest';
 import type { GraphDiff } from '../core/diff-graphs.ts';
-import type { NodeMeasures } from '../core/metrics.ts';
 import type { ReviewNotes } from '../core/notes.ts';
 import type { PageData } from '../core/page.ts';
+import { measured, pageWith } from '../test-support/page-data.ts';
 import { layoutDiff } from './layout.ts';
 import { ReviewPage } from './review-page.tsx';
 
@@ -61,21 +61,6 @@ const dependency = (from: string, to: string, state: GraphDiff['edges'][number][
   from: `rust/crate/${from}`,
   to: `rust/crate/${to}`,
   state,
-});
-
-const pageWith = (data: Pick<PageData, 'range' | 'diff'> & Partial<PageData>): PageData => ({
-  repo: 'acme/shop',
-  version: '0.1.0',
-  metrics: {},
-  metricFindings: [],
-  dangling: [],
-  patches: [],
-  undrawn: [],
-  tests: [],
-  skipped: [],
-  thresholds: { cyclomatic: 10, hotspot: { churn: 6, cyclomatic: 8 } },
-  churnDays: 90,
-  ...data,
 });
 
 const review = {
@@ -1608,17 +1593,6 @@ test("web calls to API routes are drawn between the stacks, named by their paths
     screen.getByRole('button', { name: 'api/users.ts ⇢ http-adapter: added (/api/users)' }),
   );
   expect(noteShown()).toBe('Lists users.');
-});
-
-const measured = (overrides: Partial<NodeMeasures> = {}): NodeMeasures => ({
-  churn: 6,
-  fanIn: 1,
-  fanOut: 3,
-  lines: 120,
-  functions: 6,
-  cyclomatic: { highest: 4, total: 19 },
-  abc: 18.24,
-  ...overrides,
 });
 
 const metricCells = (metric: string) => {
