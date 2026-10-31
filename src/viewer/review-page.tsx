@@ -1031,19 +1031,6 @@ export const ReviewPage = ({ review, notes, shownTabs = SHOWN_TABS }: ReviewPage
                   )}
                 </div>
               )}
-              {dangling.length > 0 && (
-                <section className="unplaced" aria-label="Calls with no route">
-                  <h2>Calls with no route</h2>
-                  <ul>
-                    {dangling.map(call => (
-                      <li key={`${call.from} ${call.path}`}>
-                        <code>{call.path}</code> from{' '}
-                        <code>{review.diff.nodes.find(node => node.id === call.from)?.path}</code>
-                      </li>
-                    ))}
-                  </ul>
-                </section>
-              )}
               <section className="tests" aria-label="Tests">
                 <h2>Tests</h2>
                 {notes && <p className="tests-line">{notes.tests}</p>}

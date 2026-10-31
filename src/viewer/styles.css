@@ -776,32 +776,6 @@ pre .hljs-emphasis {
   text-decoration: line-through;
 }
 
-.unplaced {
-  max-width: 72ch;
-  margin-top: 20px;
-  color: var(--muted);
-}
-
-.unplaced h2 {
-  margin: 0 0 8px;
-  font-size: 14px;
-  font-weight: 600;
-}
-
-.unplaced ul {
-  margin: 0;
-  padding-left: 18px;
-}
-
-.unplaced code {
-  color: var(--ink);
-  font:
-    500 13px ui-monospace,
-    "SF Mono",
-    Menlo,
-    monospace;
-}
-
 .tests .moved {
   margin-left: 8px;
   color: var(--muted);

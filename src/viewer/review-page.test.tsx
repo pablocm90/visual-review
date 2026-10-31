@@ -137,8 +137,6 @@ test('draws every crate and dependency inside the rust stack with its change sta
   });
   expect(screen.queryByRole('complementary', { name: 'Inspector' })).toBeNull();
   expect(screen.queryByRole('region', { name: 'Summary' })).toBeNull();
-  expect(screen.queryByRole('region', { name: 'Calls with no route' })).toBeNull();
-  expect(screen.queryByRole('region', { name: 'Not in the graph' })).toBeNull();
 
   await user.click(within(rust).getByRole('button', { name: 'legacy: removed' }));
   expect(noteShown()).toBe('No note');
@@ -1213,7 +1211,7 @@ test("with 'Changed + 1 hop' ticked, going to a merged module edge or to a hidde
   expect(hop).toHaveProperty('checked', true);
 });
 
-test("web calls to API routes are drawn between the stacks, named by their paths, merged while their module is collapsed and split by file once it's expanded; a call with no route marks the node holding it and is listed", async () => {
+test("web calls to API routes are drawn between the stacks, named by their paths, merged while their module is collapsed and split by file once it's expanded; a call with no route marks the node holding it", async () => {
   const user = userEvent.setup();
   const call = (file: string, path: string, state: GraphDiff['edges'][number]['state']) => ({
     from: `web/file/modules/AppInfo/${file}`,
@@ -1262,11 +1260,6 @@ test("web calls to API routes are drawn between the stacks, named by their paths
   ]);
   await user.click(screen.getByRole('img', { name: 'No route for /api/app-info' }));
   expect(reasonsShown()).toEqual(['No route for /api/app-info']);
-  expect(
-    within(screen.getByRole('region', { name: 'Calls with no route' }))
-      .getAllByRole('listitem')
-      .map(item => item.textContent),
-  ).toEqual(['/api/app-info from web/src/modules/AppInfo/api/users.ts']);
   expect(buttonsIn(screen.getByRole('group', { name: 'rust' }))).toEqual([
     'http-adapter: unchanged',
   ]);
