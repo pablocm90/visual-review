@@ -1936,6 +1936,24 @@ test('dragging the divider sets the panel width until the button is let go, with
 
 const churned = (churn: number) => ({ head: { churn, fanIn: 0, fanOut: 0 } });
 
+const eightCrates = {
+  range: 'abc123..def456',
+  diff: {
+    nodes: [
+      { id: 'rust', kind: 'stack' as const, label: 'rust', path: '', state: 'unchanged' as const },
+      crate('domain', 'modified'),
+      crate('application', 'modified'),
+      crate('billing', 'modified'),
+      crate('shipping', 'modified'),
+      crate('search', 'modified'),
+      crate('cli-adapter', 'added'),
+      crate('legacy', 'removed'),
+      crate('audit', 'modified'),
+    ],
+    edges: [],
+  },
+};
+
 const colourBy = (name: string) =>
   within(screen.getByRole('group', { name: 'Colour by' })).getByRole('button', { name });
 
@@ -1944,21 +1962,7 @@ test('Colour by starts on Change; on Churn each measured node is named with its 
   render(
     <ReviewPage
       review={pageWith({
-        range: 'abc123..def456',
-        diff: {
-          nodes: [
-            { id: 'rust', kind: 'stack', label: 'rust', path: '', state: 'unchanged' },
-            crate('domain', 'modified'),
-            crate('application', 'modified'),
-            crate('billing', 'modified'),
-            crate('shipping', 'modified'),
-            crate('search', 'modified'),
-            crate('cli-adapter', 'added'),
-            crate('legacy', 'removed'),
-            crate('audit', 'modified'),
-          ],
-          edges: [],
-        },
+        ...eightCrates,
         metrics: {
           'rust/crate/domain': { base: { churn: 7, fanIn: 0, fanOut: 0 }, ...churned(2) },
           'rust/crate/cli-adapter': churned(3),
@@ -1991,4 +1995,41 @@ test('Colour by starts on Change; on Churn each measured node is named with its 
 
   await user.click(colourBy('Change'));
   expect(within(rust).getByRole('button', { name: 'application: modified' })).toBeTruthy();
+});
+
+const complex = (highest: number) => measured({ cyclomatic: { highest, total: highest } });
+
+test("on Complexity each node is named with its head's highest cyclomatic and the step holding it, cut at 5, 8 and 11; a removed node or a head without complexity with nothing", async () => {
+  const user = userEvent.setup();
+  render(
+    <ReviewPage
+      review={pageWith({
+        ...eightCrates,
+        metrics: {
+          'rust/crate/domain': { base: complex(12), head: complex(4) },
+          'rust/crate/application': { head: complex(5) },
+          'rust/crate/billing': { head: complex(7) },
+          'rust/crate/shipping': { head: complex(8) },
+          'rust/crate/search': { head: complex(10) },
+          'rust/crate/cli-adapter': { head: complex(11) },
+          'rust/crate/legacy': { base: complex(12) },
+          'rust/crate/audit': churned(9),
+        },
+      })}
+    />,
+  );
+  const rust = await screen.findByRole('group', { name: 'rust' });
+
+  await user.click(colourBy('Complexity'));
+  expect(colourBy('Complexity').getAttribute('aria-pressed')).toBe('true');
+  expect(buttonsIn(rust)).toEqual([
+    'domain: modified, cyclomatic 4 (1–4)',
+    'application: modified, cyclomatic 5 (5–7)',
+    'billing: modified, cyclomatic 7 (5–7)',
+    'shipping: modified, cyclomatic 8 (8–10)',
+    'search: modified, cyclomatic 10 (8–10)',
+    'cli-adapter: added, cyclomatic 11 (11+)',
+    'legacy: removed',
+    'audit: modified',
+  ]);
 });

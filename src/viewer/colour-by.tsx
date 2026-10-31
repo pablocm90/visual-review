@@ -1,14 +1,35 @@
 import { useId } from 'react';
 import type { NodeMetrics } from '../core/metrics.ts';
 
-export type Colouring = 'change' | 'churn';
+export type Colouring = 'change' | 'churn' | 'complexity';
 
 const COLOURINGS = [
   ['change', 'Change'],
   ['churn', 'Churn'],
+  ['complexity', 'Complexity'],
 ] as const satisfies ReadonlyArray<readonly [Colouring, string]>;
 
-const CHURN = { cuts: [3, 6, 9], steps: ['0–2', '3–5', '6–8', '9+'] };
+type Scale = {
+  readonly measure: string;
+  readonly cuts: ReadonlyArray<number>;
+  readonly steps: ReadonlyArray<string>;
+  readonly valueOf: (metrics: NodeMetrics) => number | undefined;
+};
+
+const SCALES: Readonly<Record<Exclude<Colouring, 'change'>, Scale>> = {
+  churn: {
+    measure: 'churn',
+    cuts: [3, 6, 9],
+    steps: ['0–2', '3–5', '6–8', '9+'],
+    valueOf: ({ head, base }) => (head ?? base)?.churn,
+  },
+  complexity: {
+    measure: 'cyclomatic',
+    cuts: [5, 8, 11],
+    steps: ['1–4', '5–7', '8–10', '11+'],
+    valueOf: ({ head }) => (head && 'lines' in head ? head.cyclomatic.highest : undefined),
+  },
+};
 
 export type Shade = { readonly step: number; readonly name: string };
 
@@ -16,10 +37,12 @@ export const shadeOf = (
   colouring: Colouring,
   metrics: NodeMetrics | undefined,
 ): Shade | undefined => {
-  const measures = metrics?.head ?? metrics?.base;
-  if (colouring === 'change' || measures === undefined) return undefined;
-  const step = CHURN.cuts.filter(cut => measures.churn >= cut).length;
-  return { step, name: `churn ${measures.churn} (${CHURN.steps[step]})` };
+  if (colouring === 'change' || metrics === undefined) return undefined;
+  const { measure, cuts, steps, valueOf } = SCALES[colouring];
+  const value = valueOf(metrics);
+  if (value === undefined) return undefined;
+  const step = cuts.filter(cut => value >= cut).length;
+  return { step, name: `${measure} ${value} (${steps[step]})` };
 };
 
 type ColourByProps = {
