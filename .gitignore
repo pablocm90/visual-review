@@ -1,6 +1,6 @@
 .claude/*
 !.claude/skills/
-node_modules/
+node_modules
 dist/
 .reviews/
 .stryker-tmp/
