@@ -810,6 +810,12 @@ test("the findings rail starts collapsed to their total and how many need a look
       name: 'cli-adapter → application: new dependency direction: The CLI drives the use case.',
     }),
   ).toBeDefined();
+  const notDrawn = within(screen.getByRole('region', { name: 'Not drawn' }));
+  expect(notDrawn.getByText('2 calls with no route')).toBeDefined();
+  expect(notDrawn.getByText('/api/a, /api/b')).toBeDefined();
+  expect(notDrawn.getAllByRole('button').map(button => button.getAttribute('aria-label'))).toEqual([
+    'README.md: 1 changed file outside the graph',
+  ]);
   await user.click(screen.getByRole('button', { name: 'Hide findings' }));
 
   rerender(

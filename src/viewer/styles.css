@@ -1022,7 +1022,8 @@ pre .hljs-emphasis {
   padding: 8px 0;
 }
 
-.finding button {
+.finding button,
+.finding-said {
   display: flex;
   flex-direction: column;
   gap: 2px;

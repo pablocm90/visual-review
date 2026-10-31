@@ -14,8 +14,29 @@ type Level = MetricFinding['level'];
 
 type Finding = {
   readonly level: Level;
-  readonly said?: { readonly sentence: string; readonly target: string };
+  readonly sentence: string;
+  readonly target: string;
+  readonly inert?: true;
 };
+
+type NotDrawnOptions = {
+  readonly paths: ReadonlyArray<string>;
+  readonly one: string;
+  readonly many: string;
+  readonly inert?: true;
+};
+
+const notDrawn = ({ paths, one, many, ...rest }: NotDrawnOptions): ReadonlyArray<Finding> =>
+  paths.length === 0
+    ? []
+    : [
+        {
+          level: 'info',
+          sentence: `${paths.length} ${paths.length === 1 ? one : many}`,
+          target: paths.join(', '),
+          ...rest,
+        },
+      ];
 
 const METRIC_NAMES = { cyclomatic: 'cyclomatic', lines: 'lines', abc: 'ABC size' } as const;
 
@@ -47,7 +68,8 @@ const groupsOf = ({ notes, review }: FindingsRailProps): ReadonlyArray<Group> =>
           ? [
               {
                 level: 'look' as const,
-                said: { sentence: `${note.flag}: ${note.text}`, target: targetOf(id) },
+                sentence: `${note.flag}: ${note.text}`,
+                target: targetOf(id),
               },
             ]
           : [],
@@ -57,16 +79,48 @@ const groupsOf = ({ notes, review }: FindingsRailProps): ReadonlyArray<Group> =>
       name: 'Metrics',
       findings: review.metricFindings.map(finding => ({
         level: finding.level,
-        said: { sentence: sentenceOf(finding), target: targetOf(finding.node) },
+        sentence: sentenceOf(finding),
+        target: targetOf(finding.node),
       })),
     },
     {
       name: 'Not drawn',
-      findings: [review.dangling, review.undrawn].flatMap(lines =>
-        lines.length > 0 ? [{ level: 'info' as const }] : [],
-      ),
+      findings: [
+        ...notDrawn({
+          paths: review.dangling.map(call => call.path),
+          one: 'call with no route',
+          many: 'calls with no route',
+          inert: true,
+        }),
+        ...notDrawn({
+          paths: review.undrawn.map(patch => patch.path),
+          one: 'changed file outside the graph',
+          many: 'changed files outside the graph',
+        }),
+      ],
     },
   ];
+};
+
+const FindingItem = ({ finding }: { readonly finding: Finding }) => {
+  const said = (
+    <>
+      <span>{finding.sentence}</span>
+      <code className="finding-target">{finding.target}</code>
+    </>
+  );
+  return (
+    <li className="finding">
+      <LevelMark level={finding.level} />
+      {finding.inert ? (
+        <span className="finding-said">{said}</span>
+      ) : (
+        <button type="button" aria-label={`${finding.target}: ${finding.sentence}`}>
+          {said}
+        </button>
+      )}
+    </li>
+  );
 };
 
 export const FindingsRail = (props: FindingsRailProps) => {
@@ -92,19 +146,9 @@ export const FindingsRail = (props: FindingsRailProps) => {
           <section key={group.name} aria-label={group.name}>
             <h3>{group.name}</h3>
             <ul>
-              {group.findings.flatMap(({ level, said }) =>
-                said
-                  ? [
-                      <li className="finding" key={`${said.target}: ${said.sentence}`}>
-                        <LevelMark level={level} />
-                        <button type="button" aria-label={`${said.target}: ${said.sentence}`}>
-                          <span>{said.sentence}</span>
-                          <code className="finding-target">{said.target}</code>
-                        </button>
-                      </li>,
-                    ]
-                  : [],
-              )}
+              {group.findings.map(finding => (
+                <FindingItem key={`${finding.target}: ${finding.sentence}`} finding={finding} />
+              ))}
             </ul>
           </section>
         ))}
