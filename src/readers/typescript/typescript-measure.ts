@@ -18,18 +18,21 @@ const isLabel = (value: unknown): value is { readonly label: string } =>
   'label' in value &&
   typeof value.label === 'string';
 
+const isLoc = (value: unknown): value is Token['loc'] =>
+  typeof value === 'object' &&
+  value !== null &&
+  'start' in value &&
+  isRow(value.start) &&
+  'end' in value &&
+  isRow(value.end);
+
 const isToken = (value: unknown): value is Token =>
   typeof value === 'object' &&
   value !== null &&
   'type' in value &&
   (typeof value.type === 'string' || isLabel(value.type)) &&
   'loc' in value &&
-  typeof value.loc === 'object' &&
-  value.loc !== null &&
-  'start' in value.loc &&
-  isRow(value.loc.start) &&
-  'end' in value.loc &&
-  isRow(value.loc.end);
+  isLoc(value.loc);
 
 const NOT_CODE = new Set(['CommentLine', 'CommentBlock', 'eof']);
 
