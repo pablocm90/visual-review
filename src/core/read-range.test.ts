@@ -460,10 +460,14 @@ test("each side measures the files of the changed nodes and their neighbours wit
   const range = await readRange({ repo, from: base, to: head });
 
   expect(range.measures).toEqual({
-    before: { [lib]: { lines: 1, functions: [simpleFn('a')] } },
+    before: {
+      [lib]: { lines: 1, functions: [simpleFn('a')] },
+      'src/index.ts': { lines: 0, functions: [] },
+    },
     after: {
       [lib]: { lines: 2, functions: [simpleFn('a'), simpleFn('b')] },
       'crates/cli/src/lib.rs': { lines: 0, functions: [] },
+      'src/index.ts': { lines: 1, functions: [] },
     },
   });
 });
