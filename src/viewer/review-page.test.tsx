@@ -607,6 +607,68 @@ test("the Tests tab heads the test changes with what the notes say they pin, and
   ).not.toBeNull();
 });
 
+test('the Tests tab shows all the test changes by default, or, while a node is picked on Structure, those alongside it, saying so when none changed there; with the pick cleared it shows them all', async () => {
+  atHash('');
+  const user = userEvent.setup();
+  const added = (name: string) => ({ kind: 'test' as const, name, change: 'added' as const });
+  render(
+    <ReviewPage
+      review={pageWith({
+        ...review,
+        tests: [
+          { path: 'crates/application/src/lib.rs', statements: [added('reads the notes')] },
+          {
+            path: 'crates/application/tests/export.rs',
+            statements: [added('exports a CSV'), added('names the columns')],
+          },
+          { path: 'crates/cli-adapter/src/main.rs', statements: [added('parses the args')] },
+        ],
+      })}
+    />,
+  );
+  const shownBy = (name: string) =>
+    within(screen.getByRole('group', { name: 'Tests shown' })).getByRole('button', { name });
+  const goTo = (tab: string) =>
+    user.click(
+      within(screen.getByRole('navigation', { name: 'Review' })).getByRole('link', {
+        name: new RegExp(`^${tab}`),
+      }),
+    );
+
+  await user.click(await screen.findByRole('button', { name: 'application: modified' }));
+  await goTo('Tests');
+  expect(shownBy('All 4').getAttribute('aria-pressed')).toBe('true');
+  expect(shownBy('For application 3').getAttribute('aria-pressed')).toBe('false');
+  expect(testsShown()).toHaveLength(3);
+  await user.click(shownBy('For application 3'));
+  expect(shownBy('For application 3').getAttribute('aria-pressed')).toBe('true');
+  expect(shownBy('All 4').getAttribute('aria-pressed')).toBe('false');
+  expect(testsShown()).toEqual([
+    'crates/application/src/lib.rs',
+    'crates/application/tests/export.rs',
+  ]);
+
+  await goTo('Structure');
+  await user.click(await screen.findByRole('button', { name: 'domain: unchanged' }));
+  await goTo('Tests');
+  await user.click(shownBy('For domain 0'));
+  expect(testsShown()).toEqual([]);
+  expect(
+    within(screen.getByRole('region', { name: 'Test changes' })).getByText('No test changed here.'),
+  ).not.toBeNull();
+  await user.click(shownBy('All 4'));
+  expect(testsShown()).toHaveLength(3);
+
+  await goTo('Structure');
+  await user.click(within(inspector()).getByRole('button', { name: 'Close inspector' }));
+  await goTo('Tests');
+  expect(
+    within(screen.getByRole('group', { name: 'Tests shown' }))
+      .getAllByRole('button')
+      .map(button => `${button.textContent} ${button.getAttribute('aria-pressed')}`),
+  ).toEqual(['All 4 true']);
+});
+
 test('picking a tab sets the hash and shows it, and back and forward move between the tabs', async () => {
   atHash('');
   const user = userEvent.setup();

@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import type { GraphNode } from '../core/graph.ts';
 import type { ReviewNotes } from '../core/notes.ts';
 import type { PageData } from '../core/page.ts';
@@ -8,7 +9,7 @@ import {
   type TestStatement,
   testCounts,
 } from '../core/test-changes.ts';
-import { deepestStackHolding } from '../core/tests-alongside.ts';
+import { deepestStackHolding, testsAlongside } from '../core/tests-alongside.ts';
 
 const TEST_MARKS: Readonly<Record<TestChange, string>> = {
   added: '+',
@@ -92,22 +93,48 @@ export const changedCount = (files: ReadonlyArray<TestFile>): number =>
 type TestsScreenProps = {
   readonly review: PageData;
   readonly notes: ReviewNotes | undefined;
+  readonly selected: GraphNode | undefined;
 };
 
-export const TestsScreen = ({ review, notes }: TestsScreenProps) => (
-  <div className="tests-screen">
-    {notes && (
-      <section className="summary" aria-label="What they pin">
-        <h2 className="summary-title">What they pin</h2>
-        <p>{notes.tests}</p>
-      </section>
-    )}
-    <section className="tests" aria-label="Test changes">
-      {review.tests.length === 0 ? (
-        <p>No test changed.</p>
-      ) : (
-        <TestFiles files={review.tests} nodes={review.diff.nodes} />
+export const TestsScreen = ({ review, notes, selected }: TestsScreenProps) => {
+  const [forSelected, setForSelected] = useState(false);
+  const alongside =
+    selected && testsAlongside({ nodes: review.diff.nodes, node: selected, tests: review.tests });
+  const forNode = forSelected ? alongside : undefined;
+  const shown = forNode ?? review.tests;
+  return (
+    <div className="tests-screen">
+      {notes && (
+        <section className="summary" aria-label="What they pin">
+          <h2 className="summary-title">What they pin</h2>
+          <p>{notes.tests}</p>
+        </section>
       )}
-    </section>
-  </div>
-);
+      <div role="group" aria-label="Tests shown">
+        <button
+          type="button"
+          aria-pressed={forNode === undefined}
+          onClick={() => setForSelected(false)}
+        >
+          All {changedCount(review.tests)}
+        </button>
+        {selected && alongside && (
+          <button
+            type="button"
+            aria-pressed={forNode !== undefined}
+            onClick={() => setForSelected(true)}
+          >
+            For {selected.label} {changedCount(alongside)}
+          </button>
+        )}
+      </div>
+      <section className="tests" aria-label="Test changes">
+        {shown.length > 0 ? (
+          <TestFiles files={shown} nodes={review.diff.nodes} />
+        ) : (
+          <p>{forNode ? 'No test changed here.' : 'No test changed.'}</p>
+        )}
+      </section>
+    </div>
+  );
+};

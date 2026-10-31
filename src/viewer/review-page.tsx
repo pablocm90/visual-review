@@ -1034,7 +1034,7 @@ export const ReviewPage = ({ review, notes, shownTabs = SHOWN_TABS }: ReviewPage
           </div>
         </>
       )}
-      {tab === 'tests' && <TestsScreen review={review} notes={notes} />}
+      {tab === 'tests' && <TestsScreen review={review} notes={notes} selected={selectedNode} />}
     </main>
   );
 };
