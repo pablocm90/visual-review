@@ -511,12 +511,21 @@ const viewOn = ({ layout, frame, chosen }: ViewOnOptions): View => {
   return from && to ? pinned({ graph: layout, frame, view: chosen.view, from, to }) : fit;
 };
 
+const TABS = { structure: 'Structure', metrics: 'Metrics', tests: 'Tests' } as const;
+
+type Tab = keyof typeof TABS;
+
+const tabAt = (hash: string, shown: ReadonlyArray<Tab>): Tab =>
+  shown.find(tab => `#${tab}` === hash) ?? 'structure';
+
 type ReviewPageProps = {
   readonly review: PageData;
   readonly notes?: ReviewNotes | undefined;
+  readonly shownTabs?: ReadonlyArray<Tab>;
 };
 
-export const ReviewPage = ({ review, notes }: ReviewPageProps) => {
+export const ReviewPage = ({ review, notes, shownTabs = ['structure'] }: ReviewPageProps) => {
+  const [tab] = useState(() => tabAt(location.hash, shownTabs));
   const [layout, setLayout] = useState<Layout>();
   const [selected, setSelected] = useState<string>();
   const [chosenWidth, setChosenWidth] = useState<number>();
@@ -716,181 +725,187 @@ export const ReviewPage = ({ review, notes }: ReviewPageProps) => {
           </h1>
         </div>
         <nav aria-label="Review">
-          <a href="#structure" aria-current="page">
-            Structure
-          </a>
+          {shownTabs.map(shown => (
+            <a key={shown} href={`#${shown}`} aria-current={shown === tab ? 'page' : undefined}>
+              {TABS[shown]}
+            </a>
+          ))}
         </nav>
       </header>
-      <div className="structure-head">
-        {review.skipped.map(skip => (
-          <p key={skip.reader} className="skipped" role="alert">
-            {notReadLine(skip)}
-          </p>
-        ))}
-        <Legend />
-        <p className="caveat">Calls whose path is built at runtime are not drawn.</p>
-      </div>
-      <div className="columns">
-        <div className="content">
-          {notes && <Summary notes={notes} onGoTo={goTo} />}
-          <label className="near-only">
-            <input
-              type="checkbox"
-              checked={nearOnly}
-              onChange={event => {
-                setChosen(undefined);
-                setNearOnly(event.target.checked);
-              }}
-            />
-            Changed + 1 hop
-          </label>
-          <label className="near-only">
-            <input
-              type="checkbox"
-              checked={allEdges}
-              onChange={event => {
-                setChosen(undefined);
-                setAllEdges(event.target.checked);
-              }}
-            />
-            All edges
-          </label>
-          {drawn.nodes.length === 0 && <p className="caveat">Nothing in the graph changed.</p>}
-          {layout && (
-            <div
-              className="frame"
-              role="group"
-              aria-label="Graph"
-              ref={setFrameElement}
-              style={{ height: frame?.height }}
-              // biome-ignore lint/a11y/noNoninteractiveTabindex: the frame takes the zoom and pan keys
-              tabIndex={0}
-              onKeyDown={keyed}
-              onPointerDown={pan}
-              onClickCapture={event => {
-                if (dragged.current && event.detail > 0) event.stopPropagation();
-              }}
-            >
-              {frame && view && (
-                <>
-                  <Zoom
-                    scale={view.scale}
-                    onZoom={zoomAtCentre}
-                    onFit={() => setChosen(undefined)}
-                  />
-                  <svg className="graph">
-                    <title>{`Structure ${shortRange(review.range)}`}</title>
-                    <defs>
-                      {STATES.map(state => (
-                        <marker
-                          key={state}
-                          id={`arrow-${state}`}
-                          className="arrow"
-                          data-state={state}
-                          viewBox="0 0 10 10"
-                          refX={9}
-                          refY={5}
-                          markerWidth={7}
-                          markerHeight={7}
-                          orient="auto-start-reverse"
-                        >
-                          <path d="M 0 0 L 10 5 L 0 10 z" />
-                        </marker>
-                      ))}
-                    </defs>
-                    <g transform={`translate(${view.x} ${view.y}) scale(${view.scale})`}>
-                      {layout.stacks.map(stack => (
-                        <Stack key={stack.id} stack={stack} drawing={drawing} />
-                      ))}
-                      {layout.calls.map(edge => (
-                        <EdgeView
-                          key={edgeId(edge)}
-                          edge={edge}
-                          name={`${labelOf.get(edge.from)} ⇢ ${labelOf.get(edge.to)}: ${edge.state} (${edge.via?.join(', ')})`}
-                          drawing={drawing}
-                        />
-                      ))}
-                    </g>
-                  </svg>
-                </>
-              )}
-            </div>
-          )}
-          {dangling.length > 0 && (
-            <section className="unplaced" aria-label="Calls with no route">
-              <h2>Calls with no route</h2>
-              <ul>
-                {dangling.map(call => (
-                  <li key={`${call.from} ${call.path}`}>
-                    <code>{call.path}</code> from{' '}
-                    <code>{review.diff.nodes.find(node => node.id === call.from)?.path}</code>
-                  </li>
-                ))}
-              </ul>
-            </section>
-          )}
-          <section className="tests" aria-label="Tests">
-            <h2>Tests</h2>
-            {notes && <p className="tests-line">{notes.tests}</p>}
-            {tests.length === 0 ? (
-              <p>{selectedNode ? 'No test changed here.' : 'No test changed.'}</p>
-            ) : (
-              tests.map(file => (
-                <section key={file.path} aria-label={file.path}>
-                  <h3>
-                    <code>{file.path}</code>
-                    {file.renamedFrom && (
-                      <span className="renamed">renamed from {file.renamedFrom}</span>
-                    )}
-                  </h3>
-                  {'statements' in file ? (
-                    <TestTree statements={file.statements} />
-                  ) : (
-                    <p>Couldn't read its tests: {file.unreadable}</p>
+      {tab === 'structure' && (
+        <>
+          <div className="structure-head">
+            {review.skipped.map(skip => (
+              <p key={skip.reader} className="skipped" role="alert">
+                {notReadLine(skip)}
+              </p>
+            ))}
+            <Legend />
+            <p className="caveat">Calls whose path is built at runtime are not drawn.</p>
+          </div>
+          <div className="columns">
+            <div className="content">
+              {notes && <Summary notes={notes} onGoTo={goTo} />}
+              <label className="near-only">
+                <input
+                  type="checkbox"
+                  checked={nearOnly}
+                  onChange={event => {
+                    setChosen(undefined);
+                    setNearOnly(event.target.checked);
+                  }}
+                />
+                Changed + 1 hop
+              </label>
+              <label className="near-only">
+                <input
+                  type="checkbox"
+                  checked={allEdges}
+                  onChange={event => {
+                    setChosen(undefined);
+                    setAllEdges(event.target.checked);
+                  }}
+                />
+                All edges
+              </label>
+              {drawn.nodes.length === 0 && <p className="caveat">Nothing in the graph changed.</p>}
+              {layout && (
+                <div
+                  className="frame"
+                  role="group"
+                  aria-label="Graph"
+                  ref={setFrameElement}
+                  style={{ height: frame?.height }}
+                  // biome-ignore lint/a11y/noNoninteractiveTabindex: the frame takes the zoom and pan keys
+                  tabIndex={0}
+                  onKeyDown={keyed}
+                  onPointerDown={pan}
+                  onClickCapture={event => {
+                    if (dragged.current && event.detail > 0) event.stopPropagation();
+                  }}
+                >
+                  {frame && view && (
+                    <>
+                      <Zoom
+                        scale={view.scale}
+                        onZoom={zoomAtCentre}
+                        onFit={() => setChosen(undefined)}
+                      />
+                      <svg className="graph">
+                        <title>{`Structure ${shortRange(review.range)}`}</title>
+                        <defs>
+                          {STATES.map(state => (
+                            <marker
+                              key={state}
+                              id={`arrow-${state}`}
+                              className="arrow"
+                              data-state={state}
+                              viewBox="0 0 10 10"
+                              refX={9}
+                              refY={5}
+                              markerWidth={7}
+                              markerHeight={7}
+                              orient="auto-start-reverse"
+                            >
+                              <path d="M 0 0 L 10 5 L 0 10 z" />
+                            </marker>
+                          ))}
+                        </defs>
+                        <g transform={`translate(${view.x} ${view.y}) scale(${view.scale})`}>
+                          {layout.stacks.map(stack => (
+                            <Stack key={stack.id} stack={stack} drawing={drawing} />
+                          ))}
+                          {layout.calls.map(edge => (
+                            <EdgeView
+                              key={edgeId(edge)}
+                              edge={edge}
+                              name={`${labelOf.get(edge.from)} ⇢ ${labelOf.get(edge.to)}: ${edge.state} (${edge.via?.join(', ')})`}
+                              drawing={drawing}
+                            />
+                          ))}
+                        </g>
+                      </svg>
+                    </>
                   )}
-                </section>
-              ))
-            )}
-          </section>
-          {undrawn.length > 0 && (
-            <section className="undrawn" aria-label="Not in the graph">
-              <h2>Not in the graph</h2>
-              {undrawn.map(patch => (
-                <Patch key={patch.path} {...patch} open={false} />
-              ))}
-            </section>
-          )}
-        </div>
-        {selected !== undefined && (
-          <>
-            <div
-              className="divider"
-              role="separator"
-              aria-orientation="vertical"
-              aria-label="Panel width"
-              aria-valuenow={panelWidth}
-              tabIndex={0}
-              onKeyDown={moveDivider}
-              onPointerDown={dragDivider}
-            />
-            <aside className="note" aria-label="Note" style={{ width: panelWidth }}>
-              {selectedNote?.flag && <h2>{flaggedFor(selectedNote.flag)}</h2>}
-              {selectedUnrouted.length > 0 && <h2>{noRouteFor(selectedUnrouted)}</h2>}
-              <p>{selectedNote?.text ?? 'No note'}</p>
-              {selectedNode?.renamedFrom !== undefined && (
-                <p className="renamed">Renamed from {selectedNode.renamedFrom}</p>
+                </div>
               )}
-              {patches.length > 0 && (
-                <section className="changes" aria-label="Changes">
-                  {patches.map(patch => (
-                    <Patch key={patch.path} {...patch} open={selectedNode?.kind === 'file'} />
+              {dangling.length > 0 && (
+                <section className="unplaced" aria-label="Calls with no route">
+                  <h2>Calls with no route</h2>
+                  <ul>
+                    {dangling.map(call => (
+                      <li key={`${call.from} ${call.path}`}>
+                        <code>{call.path}</code> from{' '}
+                        <code>{review.diff.nodes.find(node => node.id === call.from)?.path}</code>
+                      </li>
+                    ))}
+                  </ul>
+                </section>
+              )}
+              <section className="tests" aria-label="Tests">
+                <h2>Tests</h2>
+                {notes && <p className="tests-line">{notes.tests}</p>}
+                {tests.length === 0 ? (
+                  <p>{selectedNode ? 'No test changed here.' : 'No test changed.'}</p>
+                ) : (
+                  tests.map(file => (
+                    <section key={file.path} aria-label={file.path}>
+                      <h3>
+                        <code>{file.path}</code>
+                        {file.renamedFrom && (
+                          <span className="renamed">renamed from {file.renamedFrom}</span>
+                        )}
+                      </h3>
+                      {'statements' in file ? (
+                        <TestTree statements={file.statements} />
+                      ) : (
+                        <p>Couldn't read its tests: {file.unreadable}</p>
+                      )}
+                    </section>
+                  ))
+                )}
+              </section>
+              {undrawn.length > 0 && (
+                <section className="undrawn" aria-label="Not in the graph">
+                  <h2>Not in the graph</h2>
+                  {undrawn.map(patch => (
+                    <Patch key={patch.path} {...patch} open={false} />
                   ))}
                 </section>
               )}
-            </aside>
-          </>
-        )}
-      </div>
+            </div>
+            {selected !== undefined && (
+              <>
+                <div
+                  className="divider"
+                  role="separator"
+                  aria-orientation="vertical"
+                  aria-label="Panel width"
+                  aria-valuenow={panelWidth}
+                  tabIndex={0}
+                  onKeyDown={moveDivider}
+                  onPointerDown={dragDivider}
+                />
+                <aside className="note" aria-label="Note" style={{ width: panelWidth }}>
+                  {selectedNote?.flag && <h2>{flaggedFor(selectedNote.flag)}</h2>}
+                  {selectedUnrouted.length > 0 && <h2>{noRouteFor(selectedUnrouted)}</h2>}
+                  <p>{selectedNote?.text ?? 'No note'}</p>
+                  {selectedNode?.renamedFrom !== undefined && (
+                    <p className="renamed">Renamed from {selectedNode.renamedFrom}</p>
+                  )}
+                  {patches.length > 0 && (
+                    <section className="changes" aria-label="Changes">
+                      {patches.map(patch => (
+                        <Patch key={patch.path} {...patch} open={selectedNode?.kind === 'file'} />
+                      ))}
+                    </section>
+                  )}
+                </aside>
+              </>
+            )}
+          </div>
+        </>
+      )}
     </main>
   );
 };

@@ -475,6 +475,28 @@ test('the Review nav links each shown tab, only Structure for now, and marks it 
   await screen.findByRole('group', { name: 'rust' });
 });
 
+const atHash = (hash: string) => {
+  history.replaceState(null, '', hash);
+  onTestFinished(() => history.replaceState(null, '', location.pathname));
+};
+
+const currentTab = () =>
+  within(screen.getByRole('navigation', { name: 'Review' })).getByRole('link', { current: 'page' })
+    .textContent;
+
+test.for([
+  { hash: '#metrics', tab: 'Metrics' },
+  { hash: '#tests', tab: 'Structure' },
+])('at $hash, with Tests hidden, the page opens on $tab', ({ hash, tab }) => {
+  atHash(hash);
+  render(<ReviewPage review={pageWith(review)} shownTabs={['structure', 'metrics']} />);
+
+  expect(currentTab()).toBe(tab);
+  expect(screen.queryByRole('checkbox', { name: 'Changed + 1 hop' }) !== null).toBe(
+    tab === 'Structure',
+  );
+});
+
 test('a reader skipped for want of its tool is named in the header with the stacks it did not read', async () => {
   render(
     <ReviewPage
