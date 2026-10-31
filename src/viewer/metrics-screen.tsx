@@ -1,10 +1,11 @@
 import { useState } from 'react';
 import type { DiffedNode } from '../core/diff-graphs.ts';
+import type { MetricFinding } from '../core/metric-findings.ts';
 import { measuredLeaves, type SortKey, sortedLeaves } from '../core/metric-rows.ts';
 import { metricTotals } from '../core/metric-totals.ts';
 import type { NodeMeasures } from '../core/metrics.ts';
 import type { PageData } from '../core/page.ts';
-import { signed, tenths } from './finding-display.tsx';
+import { LevelMark, signed, tenths } from './finding-display.tsx';
 
 const SORTS: ReadonlyArray<readonly [SortKey, string]> = [
   ['cyclomatic', 'Cyclomatic Δ'],
@@ -13,13 +14,23 @@ const SORTS: ReadonlyArray<readonly [SortKey, string]> = [
   ['abc', 'ABC Δ'],
 ];
 
-const COLUMNS: ReadonlyArray<readonly [string, Measure]> = [
-  ['Lines', side => ('lines' in side ? side.lines : undefined)],
-  ['Cyclomatic', side => ('lines' in side ? side.cyclomatic.highest : undefined)],
-  ['ABC', side => ('lines' in side ? side.abc : undefined)],
-  ['Fan-out', side => side.fanOut],
-  ['Fan-in', side => side.fanIn],
-  ['Churn', side => side.churn],
+type Column = {
+  readonly name: string;
+  readonly of: Measure;
+  readonly finding?: MetricFinding['metric'];
+};
+
+const COLUMNS: ReadonlyArray<Column> = [
+  { name: 'Lines', of: side => ('lines' in side ? side.lines : undefined), finding: 'lines' },
+  {
+    name: 'Cyclomatic',
+    of: side => ('lines' in side ? side.cyclomatic.highest : undefined),
+    finding: 'cyclomatic',
+  },
+  { name: 'ABC', of: side => ('lines' in side ? side.abc : undefined), finding: 'abc' },
+  { name: 'Fan-out', of: side => side.fanOut },
+  { name: 'Fan-in', of: side => side.fanIn },
+  { name: 'Churn', of: side => side.churn, finding: 'hotspot' },
 ];
 
 const CHANGE_MARKS: Readonly<Partial<Record<DiffedNode['state'], string>>> = {
@@ -43,7 +54,7 @@ type Measure = (side: NodeMeasures) => number | undefined;
 
 const valueText = (value: number | undefined) => (value === undefined ? '—' : tenths(value));
 
-type Sides = Omit<CellProps, 'of'> & {
+type Sides = Pick<CellProps, 'base' | 'head'> & {
   readonly before: number | undefined;
   readonly after: number | undefined;
 };
@@ -58,15 +69,17 @@ type CellProps = {
   readonly of: Measure;
   readonly base: NodeMeasures | undefined;
   readonly head: NodeMeasures | undefined;
+  readonly finding: MetricFinding | undefined;
 };
 
-const Cell = ({ of, base, head }: CellProps) => {
+const Cell = ({ of, base, head, finding }: CellProps) => {
   const before = base && of(base);
   const after = head && of(head);
   return (
     <td>
       {`${valueText(before)} → ${valueText(after)}`}
       <small>{caption({ base, head, before, after })}</small>
+      {finding && <LevelMark level={finding.level} />}
     </td>
   );
 };
@@ -163,7 +176,7 @@ export const MetricsScreen = ({ review, onGoTo }: MetricsScreenProps) => {
           <thead>
             <tr>
               <th scope="col">Node</th>
-              {COLUMNS.map(([name]) => (
+              {COLUMNS.map(({ name }) => (
                 <th key={name} scope="col">
                   {name}
                 </th>
@@ -180,8 +193,16 @@ export const MetricsScreen = ({ review, onGoTo }: MetricsScreenProps) => {
                   </button>
                   <span>{stack}</span>
                 </th>
-                {COLUMNS.map(([name, of]) => (
-                  <Cell key={name} of={of} base={base} head={head} />
+                {COLUMNS.map(({ name, of, finding }) => (
+                  <Cell
+                    key={name}
+                    of={of}
+                    base={base}
+                    head={head}
+                    finding={review.metricFindings.find(
+                      ({ node: at, metric }) => at === node.id && metric === finding,
+                    )}
+                  />
                 ))}
               </tr>
             ))}

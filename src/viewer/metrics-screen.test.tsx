@@ -335,3 +335,61 @@ test("a row's mark names its node's change, and an unchanged row has none", asyn
   expect(markOf('retry')).toBe('removed');
   expect(markOf('domain')).toBeUndefined();
 });
+
+test("a cell carries the level mark of its node's finding on that metric, the hotspot one on Churn", () => {
+  atMetrics();
+  render(
+    <ReviewPage
+      review={reviewOf({
+        thresholds: { cyclomatic: 10, lines: 150, abc: 20, hotspot: { churn: 6, cyclomatic: 8 } },
+        rows: [
+          [
+            crate('refunds', 'modified'),
+            {
+              base: measured({
+                lines: 120,
+                abc: 18.24,
+                churn: 6,
+                cyclomatic: cyclomatic([['a', 12]]),
+              }),
+              head: measured({
+                lines: 184,
+                abc: 31.46,
+                churn: 9,
+                cyclomatic: cyclomatic([['a', 12]]),
+              }),
+            },
+          ],
+          [
+            crate('cart', 'modified'),
+            {
+              base: measured({ churn: 1, cyclomatic: cyclomatic([['b', 9]]) }),
+              head: measured({ churn: 7, abc: 25, cyclomatic: cyclomatic([['b', 9]]) }),
+            },
+          ],
+        ],
+      })}
+    />,
+  );
+  const marksOf = (label: string) =>
+    within(screen.getByRole('row', { name: new RegExp(label) }))
+      .getAllByRole('cell')
+      .map(cell => within(cell).queryByRole('img')?.getAttribute('aria-label'));
+
+  expect(marksOf('refunds')).toEqual([
+    'needs a look',
+    'for information',
+    'needs a look',
+    undefined,
+    undefined,
+    'for information',
+  ]);
+  expect(marksOf('cart')).toEqual([
+    undefined,
+    undefined,
+    'needs a look',
+    undefined,
+    undefined,
+    'needs a look',
+  ]);
+});
