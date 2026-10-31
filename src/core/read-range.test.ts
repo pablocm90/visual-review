@@ -460,12 +460,26 @@ test("each side measures the files of the changed nodes and their neighbours wit
   const range = await readRange({ repo, from: base, to: head });
 
   expect(range.measures).toEqual({
-    before: { [lib]: { lines: 1, functions: [simpleFn('a')] } },
+    before: {
+      [lib]: { lines: 1, functions: [simpleFn('a')] },
+      'src/index.ts': { lines: 0, functions: [] },
+    },
     after: {
       [lib]: { lines: 2, functions: [simpleFn('a'), simpleFn('b')] },
       'crates/cli/src/lib.rs': { lines: 0, functions: [] },
+      'src/index.ts': { lines: 1, functions: [] },
     },
   });
+});
+
+test('a TS test file is left unmeasured, and the file it imports is measured', async () => {
+  using repository = gitRepo(rootPackage);
+  const { repo, root } = repository;
+  const head = commit(repo, { 'src/index.test.ts': "import './index.ts';\n" });
+
+  const range = await readRange({ repo, from: root, to: head });
+
+  expect(range.measures.after).toStrictEqual({ 'src/index.ts': { lines: 0, functions: [] } });
 });
 
 test('a renamed file is measured at its former path on the before side', async () => {
