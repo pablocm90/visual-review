@@ -122,3 +122,12 @@ test('serve answers on 127.0.0.1 only, not on the IPv6 loopback', async () => {
 
   await expect(fetch(`http://[::1]:${port}${pathname}`)).rejects.toThrow();
 });
+
+test('the served page keeps its token URL out of caches and out of the referrer of links it opens', async () => {
+  using server = await servedPage();
+
+  const { headers } = await fetch(server.url);
+
+  expect(headers.get('cache-control')).toBe('no-store');
+  expect(headers.get('referrer-policy')).toBe('no-referrer');
+});

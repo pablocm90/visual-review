@@ -21,7 +21,13 @@ export const servePage = async (page: string | undefined): Promise<string> => {
       response.writeHead(403).end();
       return;
     }
-    response.writeHead(200, { 'content-type': 'text/html; charset=utf-8' }).end(html);
+    response
+      .writeHead(200, {
+        'content-type': 'text/html; charset=utf-8',
+        'cache-control': 'no-store',
+        'referrer-policy': 'no-referrer',
+      })
+      .end(html);
   });
   const url = `http://${host}/${token}`;
   console.error(`Serving ${url}`);
