@@ -10,7 +10,7 @@ const stem = (path: string): string =>
 
 const testedStem = (path: string): string => stem(path).replace(/[._](test|spec)$/, '');
 
-const deepestStackHolding = (
+export const deepestStackHolding = (
   nodes: ReadonlyArray<GraphNode>,
   path: string,
 ): GraphNode | undefined =>

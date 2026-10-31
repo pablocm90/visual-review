@@ -557,6 +557,56 @@ test("the Tests tab's link counts the review's changed tests, a moved pair once,
   expect(screen.getByRole('link', { name: 'Tests' })).not.toBeNull();
 });
 
+const testsShown = () =>
+  within(screen.getByRole('region', { name: 'Test changes' }))
+    .queryAllByRole('region')
+    .map(file => file.getAttribute('aria-label'));
+
+test("the Tests tab heads the test changes with what the notes say they pin, and lists each changed test file with its stack's label, marking a new one and what a renamed one was; with no notes and no test changed, it says so", () => {
+  atHash('#tests');
+  const added = [{ kind: 'test' as const, name: 'reads the notes', change: 'added' as const }];
+  const { rerender } = render(
+    <ReviewPage
+      review={pageWith({
+        ...review,
+        diff: {
+          ...review.diff,
+          nodes: [
+            ...review.diff.nodes,
+            { id: 'web', kind: 'stack', label: 'Web app', path: 'web', state: 'unchanged' },
+          ],
+        },
+        tests: [
+          { path: 'crates/application/tests/export.rs', new: true, statements: added },
+          { path: 'web/src/notes.test.ts', renamedFrom: 'web/src/note.test.ts', statements: added },
+        ],
+      })}
+      notes={{ version: 1, summary: [], tests: 'The export is pinned.', notes: {} }}
+    />,
+  );
+
+  expect(
+    within(screen.getByRole('region', { name: 'What they pin' })).getByText(
+      'The export is pinned.',
+    ),
+  ).not.toBeNull();
+  expect(testsShown()).toEqual(['crates/application/tests/export.rs', 'web/src/notes.test.ts']);
+  const exported = screen.getByRole('region', { name: 'crates/application/tests/export.rs' });
+  expect(within(exported).getByText('rust')).not.toBeNull();
+  expect(within(exported).getByText('new file')).not.toBeNull();
+  const notesTest = screen.getByRole('region', { name: 'web/src/notes.test.ts' });
+  expect(within(notesTest).getByText('Web app')).not.toBeNull();
+  expect(within(notesTest).getByText('renamed from web/src/note.test.ts')).not.toBeNull();
+  expect(within(notesTest).queryByText('new file')).toBeNull();
+
+  rerender(<ReviewPage review={pageWith(review)} />);
+  expect(screen.queryByRole('region', { name: 'What they pin' })).toBeNull();
+  expect(testsShown()).toEqual([]);
+  expect(
+    within(screen.getByRole('region', { name: 'Test changes' })).getByText('No test changed.'),
+  ).not.toBeNull();
+});
+
 test('picking a tab sets the hash and shows it, and back and forward move between the tabs', async () => {
   atHash('');
   const user = userEvent.setup();

@@ -1235,3 +1235,23 @@ pre .hljs-emphasis {
   font-size: 11.5px;
   font-variant-numeric: tabular-nums;
 }
+
+.tests-screen {
+  padding: 16px 20px;
+}
+
+.tests h3 .stack,
+.tests h3 .new {
+  margin-left: 8px;
+  padding: 0 6px;
+  border: 1px solid var(--stack-line);
+  border-radius: 4px;
+  color: var(--muted);
+  font-size: 11.5px;
+  font-weight: 400;
+}
+
+.tests h3 .new {
+  border-color: var(--added);
+  color: var(--ink);
+}

@@ -35,7 +35,7 @@ import {
   type PlacedStack,
 } from './layout.ts';
 import { MetricsTable } from './metrics-tab.tsx';
-import { changedCount, TestFiles } from './tests-screen.tsx';
+import { changedCount, TestFiles, TestsScreen } from './tests-screen.tsx';
 import {
   boxOf,
   centred,
@@ -542,7 +542,7 @@ const Inspector = ({
             ))}
           </section>
         ) : (
-          <TestFiles files={testsHere} />
+          <TestFiles files={testsHere} nodes={nodes} />
         )}
       </div>
     </aside>
@@ -986,7 +986,7 @@ export const ReviewPage = ({ review, notes, shownTabs = SHOWN_TABS }: ReviewPage
                 {tests.length === 0 ? (
                   <p>{selectedNode ? 'No test changed here.' : 'No test changed.'}</p>
                 ) : (
-                  <TestFiles files={tests} />
+                  <TestFiles files={tests} nodes={review.diff.nodes} />
                 )}
               </section>
             </div>
@@ -1034,6 +1034,7 @@ export const ReviewPage = ({ review, notes, shownTabs = SHOWN_TABS }: ReviewPage
           </div>
         </>
       )}
+      {tab === 'tests' && <TestsScreen review={review} notes={notes} />}
     </main>
   );
 };
