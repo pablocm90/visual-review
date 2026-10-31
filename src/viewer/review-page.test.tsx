@@ -113,7 +113,7 @@ const reasonsShown = () =>
     .queryAllByRole('heading')
     .map(heading => heading.textContent);
 
-test('draws every crate and dependency inside the rust stack with its change state, and opens no inspector until one is clicked, closing it again from its close button', async () => {
+test('draws every crate and dependency inside the rust stack with its change state, and opens no inspector until one is clicked, closing it again from its close button, which hands the keyboard focus back to the node', async () => {
   const user = userEvent.setup();
   render(<ReviewPage review={pageWith(review)} />);
 
@@ -139,11 +139,13 @@ test('draws every crate and dependency inside the rust stack with its change sta
   expect(screen.queryByRole('complementary', { name: 'Inspector' })).toBeNull();
   expect(screen.queryByRole('region', { name: 'Summary' })).toBeNull();
 
-  await user.click(within(rust).getByRole('button', { name: 'legacy: removed' }));
+  const legacy = within(rust).getByRole('button', { name: 'legacy: removed' });
+  await user.click(legacy);
   expect(noteShown()).toBe('No note');
   expect(within(inspector()).getByText('crates/legacy')).not.toBeNull();
   await user.click(within(inspector()).getByRole('button', { name: 'Close inspector' }));
   expect(screen.queryByRole('complementary', { name: 'Inspector' })).toBeNull();
+  expect(document.activeElement).toBe(legacy);
 });
 
 type FrameOptions = {

@@ -1089,7 +1089,11 @@ export const ReviewPage = ({ review, notes, shownTabs = SHOWN_TABS }: ReviewPage
                     patches={patches}
                     tests={review.tests}
                     width={panelWidth}
-                    onClose={() => select(undefined)}
+                    onClose={() => {
+                      if (selected !== undefined)
+                        elements.current.get(selected)?.focus({ preventScroll: true });
+                      select(undefined);
+                    }}
                   />
                 )}
               </>
