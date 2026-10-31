@@ -4,7 +4,7 @@ import { join } from 'node:path';
 import { expect, test } from 'vitest';
 import type { GraphNode } from './graph.ts';
 import type { ReviewNotes } from './notes.ts';
-import { notedPageHtml, pageData, pageHtml, pageIn } from './page.ts';
+import { notedPageHtml, pageData, pageHtml, pageIn, servedPageHtml } from './page.ts';
 import type { RangeReading } from './read-range.ts';
 
 const webFile = (path: string): GraphNode => ({
@@ -116,7 +116,7 @@ const slotsOf = (html: string) => {
   return (id: string) => document.getElementById(id)?.textContent ?? undefined;
 };
 
-test('the page holds its data whole, a range that closes a script tag included, and no notes until they are filled', () => {
+test('the page holds its data whole, a range that closes a script tag included, and no notes or serve token until they are filled', () => {
   const data = pageData({
     repo: 'shop',
     reading: readingWith({}),
@@ -124,7 +124,28 @@ test('the page holds its data whole, a range that closes a script tag included, 
     version,
   });
 
-  expect(pageIn(slotsOf(pageHtml({ viewer, data })))).toStrictEqual({ data, notes: undefined });
+  expect(pageIn(slotsOf(pageHtml({ viewer, data })))).toStrictEqual({
+    data,
+    notes: undefined,
+    token: undefined,
+  });
+});
+
+test('a served page gives back the token serve filled in, beside its data and notes', () => {
+  const data = pageData({
+    repo: 'shop',
+    reading: readingWith({}),
+    range: 'main..feature',
+    version,
+  });
+  const notes = notesWith({ 'web/file/a.ts': { text: 'Reads well.' } });
+  const page = notedPageHtml({ page: pageHtml({ viewer, data }), notes, notesFile, version });
+
+  expect(pageIn(slotsOf(servedPageHtml({ page, token: 'f00d' })))).toStrictEqual({
+    data,
+    notes,
+    token: 'f00d',
+  });
 });
 
 test('notes filled into a page come back whole, a note holding replacement patterns such as $& included, beside its data', () => {
@@ -138,7 +159,7 @@ test('notes filled into a page come back whole, a note holding replacement patte
 
   const page = notedPageHtml({ page: pageHtml({ viewer, data }), notes, notesFile, version });
 
-  expect(pageIn(slotsOf(page))).toStrictEqual({ data, notes });
+  expect(pageIn(slotsOf(page))).toStrictEqual({ data, notes, token: undefined });
 });
 
 const pageFor = (pageVersion: string) =>
@@ -152,11 +173,16 @@ const pageFor = (pageVersion: string) =>
     }),
   });
 
-test('notes for a page another visual-review wrote are refused, naming its version', () => {
+test('notes for a page another visual-review wrote, one from before serve included, are refused, naming its version', () => {
+  const unservable = pageFor('0.4.1').replace(
+    '<script type="application/json" id="review-serve">null</script>',
+    '',
+  );
+
   expect(() =>
-    notedPageHtml({ page: pageFor('1.0.0'), notes: notesWith({}), notesFile, version }),
+    notedPageHtml({ page: unservable, notes: notesWith({}), notesFile, version }),
   ).toThrow(
-    'The page for main..feature was written by visual-review 1.0.0: run visual-review without --notes first',
+    'The page for main..feature was written by visual-review 0.4.1: run visual-review without --notes first',
   );
 });
 

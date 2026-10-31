@@ -95,12 +95,14 @@ export const pageHtml = ({ viewer, data }: PageHtmlOptions): string =>
 type Page = {
   readonly data: PageData;
   readonly notes: ReviewNotes | undefined;
+  readonly token: string | undefined;
 };
 
 export const pageIn = (slotText: (id: string) => string | undefined): Page => {
   const data: PageData = JSON.parse(slotText(DATA_SLOT) ?? '{}');
   const notes: ReviewNotes | null = JSON.parse(slotText(NOTES_SLOT) ?? 'null');
-  return { data, notes: notes ?? undefined };
+  const token: string | null = JSON.parse(slotText(SERVE_SLOT) ?? 'null');
+  return { data, notes: notes ?? undefined, token: token ?? undefined };
 };
 
 const slotsIn =

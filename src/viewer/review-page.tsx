@@ -727,7 +727,7 @@ const Header = ({ review, tab, comments, send }: HeaderProps) => {
 type ReviewPageProps = {
   readonly review: PageData;
   readonly notes?: ReviewNotes | undefined;
-  readonly send?: (review: Review) => Promise<void>;
+  readonly send?: ((review: Review) => Promise<void>) | undefined;
 };
 
 export const ReviewPage = ({ review, notes, send }: ReviewPageProps) => {
