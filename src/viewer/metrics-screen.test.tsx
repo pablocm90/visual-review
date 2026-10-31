@@ -33,8 +33,10 @@ const reviewOf = ({
   rows,
   thresholds = { cyclomatic: 10, hotspot: { churn: 6, cyclomatic: 8 } },
   churnDays = 90,
+  stackLabels = {},
 }: {
   readonly rows: ReadonlyArray<readonly [DiffedNode, NodeMetrics]>;
+  readonly stackLabels?: Readonly<Record<string, string>>;
   readonly thresholds?: PageData['thresholds'];
   readonly churnDays?: number;
 }): PageData => {
@@ -47,7 +49,7 @@ const reviewOf = ({
           (stack): DiffedNode => ({
             id: stack,
             kind: 'stack',
-            label: stack,
+            label: stackLabels[stack] ?? stack,
             path: '',
             state: 'modified',
           }),
@@ -145,12 +147,13 @@ test('the table lists the changed measured leaves, every measured leaf while "Ch
   expect(shownNodes()).toEqual(['ledger', 'refunds']);
 });
 
-test('the stack picker offers the stacks holding a shown row, keeps the rows of the one picked, and all of them once the picked one holds none', async () => {
+test('the stack picker offers the stacks holding a shown row by label, keeps the rows of the one picked, and all of them once the picked one holds none', async () => {
   atMetrics();
   const user = userEvent.setup();
   render(
     <ReviewPage
       review={reviewOf({
+        stackLabels: { web: 'Storefront' },
         rows: [
           [crate('refunds', 'modified'), { base: measured(), head: measured() }],
           [crate('cart', 'modified', 'web'), { base: measured(), head: measured() }],
@@ -166,13 +169,16 @@ test('the stack picker offers the stacks holding a shown row, keeps the rows of 
       .getAllByRole('option')
       .map(option => option.textContent);
 
-  expect(offered()).toEqual(['All stacks', 'api', 'web']);
+  expect(offered()).toEqual(['All stacks', 'api', 'Storefront']);
 
-  await user.selectOptions(stack, 'web');
+  await user.selectOptions(stack, 'Storefront');
   expect(shownNodes()).toEqual(['cart']);
+  expect(
+    within(screen.getByRole('rowheader', { name: /cart/ })).getByText('Storefront'),
+  ).toBeTruthy();
 
   await user.click(screen.getByRole('button', { name: 'Changed + 1 hop 4' }));
-  expect(offered()).toEqual(['All stacks', 'api', 'web', 'jobs']);
+  expect(offered()).toEqual(['All stacks', 'api', 'Storefront', 'jobs']);
   expect(shownNodes()).toEqual(['cart', 'helpers']);
 
   await user.selectOptions(stack, 'jobs');

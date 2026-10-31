@@ -134,10 +134,11 @@ type LeafTableProps = {
   readonly leaves: ReadonlyArray<MeasuredLeaf>;
   readonly findings: ReadonlyArray<MetricFinding>;
   readonly churnDays: number;
+  readonly labelOf: (stack: string) => string;
   readonly onGoTo: (id: string) => void;
 };
 
-const LeafTable = ({ leaves, findings, churnDays, onGoTo }: LeafTableProps) => {
+const LeafTable = ({ leaves, findings, churnDays, labelOf, onGoTo }: LeafTableProps) => {
   const [hop, setHop] = useState(false);
   const [picked, setPicked] = useState('');
   const [by, setBy] = useState<SortKey>('cyclomatic');
@@ -178,7 +179,9 @@ const LeafTable = ({ leaves, findings, churnDays, onGoTo }: LeafTableProps) => {
           >
             <option value="">All stacks</option>
             {stacks.map(stack => (
-              <option key={stack}>{stack}</option>
+              <option key={stack} value={stack}>
+                {labelOf(stack)}
+              </option>
             ))}
           </select>
         </label>
@@ -227,7 +230,7 @@ const LeafTable = ({ leaves, findings, churnDays, onGoTo }: LeafTableProps) => {
                   >
                     {node.label}
                   </button>
-                  <span className="metric-node-stack">{stack}</span>
+                  <span className="metric-node-stack">{labelOf(stack)}</span>
                 </th>
                 {COLUMNS.map(({ name, of, finding }) => (
                   <Cell
@@ -267,6 +270,7 @@ export const MetricsScreen = ({ review, onGoTo }: MetricsScreenProps) => {
             leaves={leaves}
             findings={review.metricFindings}
             churnDays={review.churnDays}
+            labelOf={stack => review.diff.nodes.find(({ id }) => id === stack)?.label ?? stack}
             onGoTo={onGoTo}
           />
           <HotspotChart review={review} />
