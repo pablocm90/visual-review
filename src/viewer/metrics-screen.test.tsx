@@ -308,3 +308,30 @@ test('a side without complexity reads "—" in the complexity columns, with no �
   expect(cellsOf('cart').slice(0, 3)).toEqual(['— → 120', '— → 4', '— → 18.2']);
   expect(cellsOf('schema').slice(0, 3)).toEqual(['— → —new', '— → —new', '— → —new']);
 });
+
+test("a row's mark names its node's change, and an unchanged row has none", async () => {
+  atMetrics();
+  const user = userEvent.setup();
+  render(
+    <ReviewPage
+      review={reviewOf({
+        rows: [
+          [crate('ledger', 'added'), { head: measured() }],
+          [crate('refunds', 'modified'), { base: measured(), head: measured() }],
+          [crate('retry', 'removed'), { base: measured() }],
+          [crate('domain', 'unchanged'), { base: measured(), head: measured() }],
+        ],
+      })}
+    />,
+  );
+  await user.click(screen.getByRole('button', { name: /^Changed \+ 1 hop/ }));
+  const markOf = (label: string) =>
+    within(screen.getByRole('row', { name: new RegExp(label) }))
+      .queryByRole('img')
+      ?.getAttribute('aria-label');
+
+  expect(markOf('ledger')).toBe('added');
+  expect(markOf('refunds')).toBe('modified');
+  expect(markOf('retry')).toBe('removed');
+  expect(markOf('domain')).toBeUndefined();
+});

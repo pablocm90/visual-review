@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import type { DiffedNode } from '../core/diff-graphs.ts';
 import { measuredLeaves, type SortKey, sortedLeaves } from '../core/metric-rows.ts';
 import { metricTotals } from '../core/metric-totals.ts';
 import type { NodeMeasures } from '../core/metrics.ts';
@@ -20,6 +21,23 @@ const COLUMNS: ReadonlyArray<readonly [string, Measure]> = [
   ['Fan-in', side => side.fanIn],
   ['Churn', side => side.churn],
 ];
+
+const CHANGE_MARKS: Readonly<Partial<Record<DiffedNode['state'], string>>> = {
+  added: '+',
+  modified: '~',
+  removed: '−',
+};
+
+const ChangeMark = ({ state }: { readonly state: DiffedNode['state'] }) => {
+  const mark = CHANGE_MARKS[state];
+  return (
+    mark && (
+      <span className="change-mark" role="img" aria-label={state}>
+        {mark}
+      </span>
+    )
+  );
+};
 
 type Measure = (side: NodeMeasures) => number | undefined;
 
@@ -156,6 +174,7 @@ export const MetricsScreen = ({ review, onGoTo }: MetricsScreenProps) => {
             {shown.map(({ node, stack, base, head }) => (
               <tr key={node.id}>
                 <th scope="row">
+                  <ChangeMark state={node.state} />
                   <button type="button" onClick={() => onGoTo(node.id)}>
                     {node.label}
                   </button>
