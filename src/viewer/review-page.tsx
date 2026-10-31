@@ -472,6 +472,7 @@ type InspectorProps = {
   readonly tests: ReadonlyArray<TestFile>;
   readonly comment: string;
   readonly onComment: ((text: string) => void) | undefined;
+  readonly commentable: boolean;
   readonly width: number;
   readonly onClose: () => void;
 };
@@ -496,6 +497,7 @@ const Inspector = ({
   tests,
   comment,
   onComment,
+  commentable,
   width,
   onClose,
 }: InspectorProps) => {
@@ -535,12 +537,15 @@ const Inspector = ({
             {note?.flag && <h2>{flaggedFor(note.flag)}</h2>}
             {unrouted.length > 0 && <h2>{noRouteFor(unrouted)}</h2>}
             <p>{note?.text ?? 'No note'}</p>
-            {onComment && (
-              <label className="comment">
-                Your comment
-                <textarea value={comment} onChange={event => onComment(event.target.value)} />
-              </label>
-            )}
+            {onComment &&
+              (commentable ? (
+                <label className="comment">
+                  Your comment
+                  <textarea value={comment} onChange={event => onComment(event.target.value)} />
+                </label>
+              ) : (
+                <p>Drawn for several edges: open its ends to comment on one of them.</p>
+              ))}
           </>
         ) : shown === 'metrics' && measured ? (
           <MetricsTable
@@ -1075,6 +1080,10 @@ export const ReviewPage = ({ review, notes, send }: ReviewPageProps) => {
                       (text =>
                         selected !== undefined &&
                         setComments(current => ({ ...current, [selected]: text })))
+                    }
+                    commentable={
+                      selectedNode !== undefined ||
+                      review.diff.edges.some(edge => edgeId(edge) === selected)
                     }
                     width={panelWidth}
                     onClose={() => {

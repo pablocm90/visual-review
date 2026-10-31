@@ -1593,6 +1593,38 @@ test("with 'All edges' unticked, an unchanged import between two open modules is
   );
 });
 
+test('a served page offers no comment on an edge drawn between closed modules, which stands for imports and is none of them, and says to open its ends', async () => {
+  const user = userEvent.setup();
+  render(
+    <ReviewPage
+      review={pageWith({
+        range: 'abc123..def456',
+        diff: {
+          nodes: [
+            { id: 'web', kind: 'stack', label: 'web', path: '', state: 'unchanged' },
+            webModule('orders'),
+            webModule('billing'),
+            webFile('orders', 'cart.ts'),
+            webFile('billing', 'invoice.ts'),
+          ],
+          edges: [webImport('orders/cart.ts', 'billing/invoice.ts', 'unchanged')],
+        },
+      })}
+      send={async () => {}}
+    />,
+  );
+  await showEverything(user);
+  const web = await screen.findByRole('group', { name: 'web' });
+  const comment = () => within(noteTab()).queryByRole('textbox', { name: 'Your comment' });
+
+  await user.click(within(web).getByRole('button', { name: 'orders: unchanged' }));
+  expect(comment()).not.toBeNull();
+  await user.click(within(web).getByRole('button', { name: 'orders → billing: unchanged' }));
+
+  expect(comment()).toBeNull();
+  expect(within(noteTab()).getByText(/open its ends/)).not.toBeNull();
+});
+
 test("with 'Changed + 1 hop' ticked, going to a merged module edge or to a hidden import near a change keeps it ticked", async () => {
   const user = userEvent.setup();
   render(
