@@ -113,7 +113,12 @@ const Counts = ({ files }: { readonly files: ReadonlyArray<TestFile> }) => {
 export const changedCount = (files: ReadonlyArray<TestFile>): number =>
   Object.values(testCounts(files)).reduce((sum, count) => sum + count, 0);
 
-const ChangedNodes = ({ review }: { readonly review: PageData }) => {
+type ChangedNodesProps = {
+  readonly review: PageData;
+  readonly onGoTo: (id: string) => void;
+};
+
+const ChangedNodes = ({ review, onGoTo }: ChangedNodesProps) => {
   const changed = review.diff.nodes
     .filter(node => node.kind !== 'stack' && (node.state === 'added' || node.state === 'modified'))
     .map(node => ({
@@ -135,7 +140,9 @@ const ChangedNodes = ({ review }: { readonly review: PageData }) => {
             <span className="mark" aria-hidden="true">
               {node.state === 'added' ? TEST_MARKS.added : TEST_MARKS.edited}
             </span>
-            {node.label}
+            <button type="button" onClick={() => onGoTo(node.id)}>
+              {node.label}
+            </button>
             <span className="count">
               {count > 0 ? (
                 count
@@ -156,9 +163,10 @@ type TestsScreenProps = {
   readonly review: PageData;
   readonly notes: ReviewNotes | undefined;
   readonly selected: GraphNode | undefined;
+  readonly onGoTo: (id: string) => void;
 };
 
-export const TestsScreen = ({ review, notes, selected }: TestsScreenProps) => {
+export const TestsScreen = ({ review, notes, selected, onGoTo }: TestsScreenProps) => {
   const [forSelected, setForSelected] = useState(false);
   const alongside =
     selected && testsAlongside({ nodes: review.diff.nodes, node: selected, tests: review.tests });
@@ -198,7 +206,7 @@ export const TestsScreen = ({ review, notes, selected }: TestsScreenProps) => {
           <p>{forNode ? 'No test changed here.' : 'No test changed.'}</p>
         )}
       </section>
-      <ChangedNodes review={review} />
+      <ChangedNodes review={review} onGoTo={onGoTo} />
     </div>
   );
 };

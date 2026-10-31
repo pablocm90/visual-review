@@ -718,8 +718,9 @@ test('the Tests tab counts the shown tests by change, a moved pair once, as move
   expect(counts()).toEqual(['+0 0 added', '✎0 0 edited', '−1 1 removed', '↷1 1 moved']);
 });
 
-test('the Tests tab lists the added and modified nodes, not stacks, with the changed tests alongside each, those with none first, marked as needing a look', () => {
+test("the Tests tab lists the added and modified nodes, not stacks, with the changed tests alongside each, those with none first, marked as needing a look; a node's name goes to it on Structure, focused, its inspector open", async () => {
   atHash('#tests');
+  const user = userEvent.setup();
   render(
     <ReviewPage
       review={pageWith({
@@ -769,6 +770,16 @@ test('the Tests tab lists the added and modified nodes, not stacks, with the cha
     'billing: modified, tests alongside: none, needs a look',
     'application: modified, tests alongside: 2',
   ]);
+
+  await user.click(
+    within(screen.getByRole('region', { name: 'Changed nodes' })).getByRole('button', {
+      name: 'billing',
+    }),
+  );
+  await waitFor(() => expect(currentTab()).toBe('Structure'));
+  const billing = await screen.findByRole('button', { name: 'billing: modified' });
+  await waitFor(() => expect(document.activeElement).toBe(billing));
+  expect(within(inspector()).getByRole('heading', { name: 'billing' })).not.toBeNull();
 });
 
 test('picking a tab sets the hash and shows it, and back and forward move between the tabs', async () => {

@@ -1034,7 +1034,17 @@ export const ReviewPage = ({ review, notes, shownTabs = SHOWN_TABS }: ReviewPage
           </div>
         </>
       )}
-      {tab === 'tests' && <TestsScreen review={review} notes={notes} selected={selectedNode} />}
+      {tab === 'tests' && (
+        <TestsScreen
+          review={review}
+          notes={notes}
+          selected={selectedNode}
+          onGoTo={id => {
+            location.hash = '#structure';
+            goTo(id);
+          }}
+        />
+      )}
     </main>
   );
 };
