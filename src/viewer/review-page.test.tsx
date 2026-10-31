@@ -1100,7 +1100,12 @@ const metricCells = (metric: string) => {
   const row = within(panel)
     .getAllByRole('row')
     .find(row => header !== undefined && row.contains(header));
-  return row && within(row).getAllByRole('cell').map(cell => cell.textContent);
+  return (
+    row &&
+    within(row)
+      .getAllByRole('cell')
+      .map(cell => cell.textContent)
+  );
 };
 
 test("a measured node's Metrics tab gives each measure before and after with the difference; a node or an edge without metrics has no Metrics tab", async () => {
@@ -1289,7 +1294,9 @@ test("a renamed node shows the label it had under its own, also once expanded, i
   await user.click(lib);
   expect(within(inspector()).getByText('file · rust')).not.toBeNull();
   expect(
-    within(inspector()).getByText('crates/models/src/lib.rs, renamed from crates/domain/src/lib.rs'),
+    within(inspector()).getByText(
+      'crates/models/src/lib.rs, renamed from crates/domain/src/lib.rs',
+    ),
   ).not.toBeNull();
 });
 

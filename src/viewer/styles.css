@@ -451,7 +451,7 @@ h1 {
 
 .inspector-head h2 {
   margin: 4px 0;
-  font-family: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+  font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
   font-size: 15px;
   font-weight: 600;
   word-break: break-all;
@@ -471,17 +471,17 @@ h1 {
   font-size: 12px;
 }
 
-.inspector-head .chips [data-state='added'] {
+.inspector-head .chips [data-state="added"] {
   background: var(--added-fill);
   color: var(--added);
 }
 
-.inspector-head .chips [data-state='removed'] {
+.inspector-head .chips [data-state="removed"] {
   background: var(--removed-fill);
   color: var(--removed);
 }
 
-.inspector-head .chips [data-state='modified'] {
+.inspector-head .chips [data-state="modified"] {
   background: var(--modified-fill);
   color: var(--modified);
 }
@@ -511,13 +511,13 @@ h1 {
   cursor: pointer;
 }
 
-.inspector-tabs button[aria-selected='true'] {
+.inspector-tabs button[aria-selected="true"] {
   border-bottom-color: var(--ink);
   color: var(--ink);
   font-weight: 600;
 }
 
-.note [role='tabpanel'] h2 {
+.note [role="tabpanel"] h2 {
   margin: 0 0 8px;
   color: var(--removed);
   font-size: 14px;
