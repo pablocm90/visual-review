@@ -24,6 +24,12 @@ test("a Ruby file's lines are those holding code, not blank or comment ones, a h
   expect(measureRuby(text)?.lines).toBe(8);
 });
 
+test('the data after __END__ is no code', () => {
+  expect(
+    measureRuby(source('class Shop', 'end', '__END__', 'some data', '', 'more', ''))?.lines,
+  ).toBe(2);
+});
+
 const namesIn = (...lines: ReadonlyArray<string>) =>
   measureRuby(source(...lines))?.functions.map(({ name }) => name);
 

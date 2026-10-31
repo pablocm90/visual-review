@@ -5,6 +5,8 @@ import { parseRuby } from './ruby-syntax.ts';
 
 const METHODS = ['method', 'singleton_method'];
 
+const NOT_CODE = new Set(['comment', 'uninterpreted']);
+
 const nameOf = (method: Node): string => {
   const name = method.childForFieldName('name')?.text ?? '';
   const object = method.childForFieldName('object');
@@ -87,7 +89,7 @@ export const measureRuby = (text: string): FileMeasures | undefined => {
   const program = parseRuby(text);
   if (program === undefined) return undefined;
   return {
-    lines: codeLines(program, node => node.type === 'comment'),
+    lines: codeLines(program, node => NOT_CODE.has(node.type)),
     functions: program.descendantsOfType(METHODS).map(measureMethod),
   };
 };
