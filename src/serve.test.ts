@@ -1,18 +1,21 @@
 import { type ChildProcess, execFile, spawn } from 'node:child_process';
+import { once } from 'node:events';
 import { chmodSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { request } from 'node:http';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { createInterface } from 'node:readline';
+import { text } from 'node:stream/consumers';
 import { promisify } from 'node:util';
 import { expect, test, vi } from 'vitest';
+import { sendReview } from './core/page.ts';
 
 const fakeOpeners = (openers: ReadonlyArray<string>) => {
   const bin = mkdtempSync(join(tmpdir(), 'visual-review-opener-'));
   const opened = join(bin, 'opened');
   openers.forEach(opener => {
     const file = join(bin, opener);
-    writeFileSync(file, `#!/bin/sh\nprintf '%s' "$1" > '${opened}'\n`);
+    writeFileSync(file, `#!/bin/sh\nprintf '%s' "$1" > '${opened}'\necho 'the opener on stdout'\n`);
     chmodSync(file, 0o755);
   });
   return {
@@ -51,9 +54,14 @@ const servedPage = async ({ openers = ['xdg-open', 'open'] } = {}) => {
       env: { ...process.env, PATH: bin.path },
     },
   );
+  const exited = Promise.all([once(child, 'close'), text(child.stdout)]).then(
+    ([[code], stdout]) => ({ code, stdout }),
+  );
   return {
     url: await urlOn(child),
+    page: written.page,
     opened: bin.opened,
+    exited,
     [Symbol.dispose]: () => {
       child.kill();
       written[Symbol.dispose]();
@@ -74,13 +82,19 @@ test('serve opens the page at a URL holding a fresh token, and the page it serve
   expect(await response.text()).toContain(`id="review-serve">"${token}"</script>`);
 });
 
-type Asked = { readonly url: string; readonly path?: string; readonly host?: string };
+type Asked = {
+  readonly url: string;
+  readonly method?: string;
+  readonly path?: string;
+  readonly host?: string;
+};
 
-const statusFor = ({ url, path, host }: Asked): Promise<number> => {
+const statusFor = ({ url, method, path, host }: Asked): Promise<number> => {
   const served = new URL(url);
   return new Promise((resolve, reject) => {
     request(
       {
+        method: method ?? 'GET',
         hostname: served.hostname,
         port: served.port,
         path: path ?? served.pathname,
@@ -100,14 +114,21 @@ test.for([
   { request: 'for the root', path: '/' },
   { request: 'for a path under the token the page has no use for', path: '/:token/other' },
   { request: 'naming another host, as a DNS-rebinding site would', host: 'evil.example' },
+  {
+    request: 'sending a review while naming another host',
+    method: 'POST',
+    path: '/:token/review',
+    host: 'evil.example',
+  },
 ])(
   'serve refuses a request $request with 403, and keeps serving the page',
-  async ({ path, host }) => {
+  async ({ method, path, host }) => {
     using server = await servedPage();
     const { port, pathname } = new URL(server.url);
 
     const status = await statusFor({
       url: server.url,
+      ...(method === undefined ? {} : { method }),
       ...(path === undefined ? {} : { path: path.replace('/:token', pathname) }),
       ...(host === undefined ? {} : { host: `${host}:${port}` }),
     });
@@ -146,4 +167,22 @@ test('serve without a page exits non-zero saying how to call it', async () => {
     code: 1,
     stderr: 'Usage: visual-review serve <page.html>\n',
   });
+});
+
+test('a review sent from the served page is written beside it as <name>.review.json, its path the only output, and serve exits 0', async () => {
+  using server = await servedPage();
+  const { origin, pathname } = new URL(server.url);
+  const review = {
+    version: 1,
+    comments: {
+      'web/file/App.tsx': { text: 'Why does App fetch this itself?' },
+      'web/file/App.tsx -> web/module/modules/AppInfo': { text: 'Keep this edge.' },
+    },
+  } as const;
+
+  await sendReview({ origin, token: pathname.slice(1), review });
+
+  const reviewFile = server.page.replace(/\.html$/, '.review.json');
+  expect(await server.exited).toEqual({ code: 0, stdout: `${reviewFile}\n` });
+  expect(JSON.parse(readFileSync(reviewFile, 'utf8'))).toEqual(review);
 });

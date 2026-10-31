@@ -1,10 +1,13 @@
 import { spawn } from 'node:child_process';
 import { randomBytes } from 'node:crypto';
 import { once } from 'node:events';
-import { readFile } from 'node:fs/promises';
+import { readFile, writeFile } from 'node:fs/promises';
 import { createServer } from 'node:http';
 import type { AddressInfo } from 'node:net';
+import { basename, dirname, join } from 'node:path';
+import { text } from 'node:stream/consumers';
 import { servedPageHtml } from './core/page.ts';
+import { parseReview } from './core/review.ts';
 
 const opener = process.platform === 'darwin' ? 'open' : 'xdg-open';
 
@@ -17,8 +20,19 @@ export const servePage = async (page: string | undefined): Promise<string> => {
   await once(server, 'listening');
   const { port } = server.address() as AddressInfo;
   const host = `127.0.0.1:${port}`;
-  server.on('request', (request, response) => {
-    if (request.headers.host !== host || request.url !== `/${token}`) {
+  const reviewFile = join(dirname(page), `${basename(page, '.html')}.review.json`);
+  const sent = Promise.withResolvers<string>();
+  server.on('request', async (request, response) => {
+    const route = request.headers.host === host ? `${request.method} ${request.url}` : undefined;
+    if (route === `POST /${token}/review`) {
+      const review = parseReview(await text(request));
+      await writeFile(reviewFile, `${JSON.stringify(review, null, 2)}\n`);
+      response.writeHead(204).end();
+      server.close();
+      sent.resolve(reviewFile);
+      return;
+    }
+    if (route !== `GET /${token}`) {
       response.writeHead(403).end();
       return;
     }
@@ -35,5 +49,5 @@ export const servePage = async (page: string | undefined): Promise<string> => {
   spawn(opener, [url], { stdio: 'ignore', detached: true })
     .on('error', () => {})
     .unref();
-  return new Promise(() => {});
+  return sent.promise;
 };

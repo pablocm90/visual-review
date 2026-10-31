@@ -4,6 +4,7 @@ import { type MetricFinding, metricFindings } from './metric-findings.ts';
 import { type NodeMetrics, nodeMetrics } from './metrics.ts';
 import { notesProblems, type ReviewNotes } from './notes.ts';
 import type { RangeReading } from './read-range.ts';
+import type { Review } from './review.ts';
 import type { Skipped } from './skipped.ts';
 import type { TestFile } from './test-changes.ts';
 
@@ -143,3 +144,13 @@ type ServedPageHtmlOptions = {
 
 export const servedPageHtml = ({ page, token }: ServedPageHtmlOptions): string =>
   filledSlot(page, SERVE_SLOT, token);
+
+type SendReviewOptions = {
+  readonly origin: string;
+  readonly token: string;
+  readonly review: Review;
+};
+
+export const sendReview = async ({ origin, token, review }: SendReviewOptions): Promise<void> => {
+  await fetch(`${origin}/${token}/review`, { method: 'POST', body: JSON.stringify(review) });
+};
