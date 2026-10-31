@@ -64,6 +64,41 @@ test.for([
     error: 'metrics.churnDays: Invalid input: expected int, received number',
   },
   {
+    reason: 'a cyclomatic threshold of 0',
+    text: '{"metrics": {"cyclomatic": 0}}',
+    error: 'metrics.cyclomatic: Too small: expected number to be >0',
+  },
+  {
+    reason: 'a cyclomatic threshold in part',
+    text: '{"metrics": {"cyclomatic": 1.5}}',
+    error: 'metrics.cyclomatic: Invalid input: expected int, received number',
+  },
+  {
+    reason: 'an unknown key in the hotspot',
+    text: '{"metrics": {"hotspot": {"churnDays": 6}}}',
+    error: 'metrics.hotspot: Unrecognized key: "churnDays"',
+  },
+  {
+    reason: 'a hotspot churn in part',
+    text: '{"metrics": {"hotspot": {"churn": 1.5}}}',
+    error: 'metrics.hotspot.churn: Invalid input: expected int, received number',
+  },
+  {
+    reason: 'a hotspot cyclomatic of 0',
+    text: '{"metrics": {"hotspot": {"cyclomatic": 0}}}',
+    error: 'metrics.hotspot.cyclomatic: Too small: expected number to be >0',
+  },
+  {
+    reason: 'a lines threshold of 0',
+    text: '{"metrics": {"lines": 0}}',
+    error: 'metrics.lines: Too small: expected number to be >0',
+  },
+  {
+    reason: 'an ABC threshold of 0',
+    text: '{"metrics": {"abc": 0}}',
+    error: 'metrics.abc: Too small: expected number to be >0',
+  },
+  {
     reason: 'a stack neither false nor an object',
     text: '{"stacks": {"web": true}}',
     error: 'stacks.web: Invalid input: expected false or an object',
@@ -343,4 +378,40 @@ test("the config's metrics.churnDays sets how many days before each side's commi
   const range = await readRange({ repo, from: base, to: head });
 
   expect(range.churn).toEqual({ before: { 'src/a.ts': 1 }, after: { 'src/a.ts': 2 } });
+});
+
+test.for([
+  {
+    reason: 'are 10 per function and a hotspot at churn 6 and cyclomatic 8 with no config',
+    files: {},
+    thresholds: { cyclomatic: 10, hotspot: { churn: 6, cyclomatic: 8 } },
+  },
+  {
+    reason: "take the config's metrics.cyclomatic when set",
+    files: { 'visual-review.config.json': '{"metrics": {"cyclomatic": 4}}' },
+    thresholds: { cyclomatic: 4, hotspot: { churn: 6, cyclomatic: 8 } },
+  },
+  {
+    reason: "take the config's hotspot churn alone",
+    files: { 'visual-review.config.json': '{"metrics": {"hotspot": {"churn": 3}}}' },
+    thresholds: { cyclomatic: 10, hotspot: { churn: 3, cyclomatic: 8 } },
+  },
+  {
+    reason: "take the config's hotspot cyclomatic alone",
+    files: { 'visual-review.config.json': '{"metrics": {"hotspot": {"cyclomatic": 5}}}' },
+    thresholds: { cyclomatic: 10, hotspot: { churn: 6, cyclomatic: 5 } },
+  },
+  {
+    reason: "take the config's lines and abc when set",
+    files: { 'visual-review.config.json': '{"metrics": {"lines": 300, "abc": 40.5}}' },
+    thresholds: { cyclomatic: 10, hotspot: { churn: 6, cyclomatic: 8 }, lines: 300, abc: 40.5 },
+  },
+])("the reading's thresholds $reason", async ({ files, thresholds }) => {
+  using repository = gitRepo({ 'package.json': '{}\n', 'src/a.ts': '' });
+  const { repo, root } = repository;
+  const head = commit(repo, { 'src/a.ts': '1', ...files });
+
+  const range = await readRange({ repo, from: root, to: head });
+
+  expect(range.thresholds).toEqual(thresholds);
 });

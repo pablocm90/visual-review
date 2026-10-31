@@ -7,6 +7,7 @@ import type { Reader } from '../../core/reader.ts';
 import { sourcesIn } from '../sources-in.ts';
 import { crateGraph, crateRoots } from './crate-graph.ts';
 import { crateModules } from './crate-modules.ts';
+import { measureRust } from './rust-measure.ts';
 import { readRustTests } from './rust-tests.ts';
 
 const run = promisify(execFile);
@@ -60,4 +61,5 @@ export const rustReader: Reader = {
   graph: ({ directory, root, stack }) => graphAt({ checkout: directory, root, stack }),
   isTestFile: path => path.endsWith('.rs'),
   readTests: readRustTests,
+  measure: measureRust,
 };

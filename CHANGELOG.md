@@ -2,6 +2,13 @@
 
 What changed in each release of `@pablocm90/visual-review`, newest first. Versions follow [semver](https://semver.org); while it is 0.x, a minor version may change the exported types.
 
+## Unreleased
+
+### Added
+
+- Rust files are measured: `metrics` also carries, per side, `lines` (non-blank, non-comment), `functions`, `cyclomatic: { highest, total }` over its functions, `abc` (the ABC size of its summed assignments, branches and conditions), and `fanIn` / `fanOut`, the edges into and out of it on that side. Test code isn't measured. A box takes the highest of each inside it. Readers gain an optional `measure(text, path)`, with its types exported; TS and Rails files get churn and fan only, for now.
+- `metricFindings` lists each measured file over a threshold on the head side: a function's cyclomatic over `metrics.cyclomatic` (10), a hotspot whose churn and highest cyclomatic both reach `metrics.hotspot` (6 and 8), and, when set, `metrics.lines` and `metrics.abc`. Each is `look` when the file is new, wasn't over on the base, or grew (for a hotspot, its cyclomatic), and `info` otherwise.
+
 ## 0.3.2 — 2026-10-31
 
 ### Added

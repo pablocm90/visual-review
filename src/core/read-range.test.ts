@@ -440,6 +440,77 @@ test("each side's churn counts, for each file a node is drawn from, the commits 
   });
 });
 
+const simpleFn = (name: string) => ({
+  name,
+  cyclomatic: 1,
+  abc: { assignments: 0, branches: 0, conditions: 0 },
+});
+
+test("each side measures the files of the changed nodes and their neighbours with their stack's reader, if it measures, and no directory", async () => {
+  using workspace = cargoWorkspace();
+  const { repo } = workspace;
+  const lib = 'crates/core/src/lib.rs';
+  const base = commit(repo, { ...crateFiles('other'), ...rootPackage, [lib]: 'pub fn a() {}\n' });
+  const head = commit(repo, {
+    ...crateFiles('cli'),
+    'src/index.ts': 'export const a = 1;\n',
+    [lib]: 'pub fn a() {}\n\npub fn b() {}\n',
+  });
+
+  const range = await readRange({ repo, from: base, to: head });
+
+  expect(range.measures).toEqual({
+    before: { [lib]: { lines: 1, functions: [simpleFn('a')] } },
+    after: {
+      [lib]: { lines: 2, functions: [simpleFn('a'), simpleFn('b')] },
+      'crates/cli/src/lib.rs': { lines: 0, functions: [] },
+    },
+  });
+});
+
+test('a renamed file is measured at its former path on the before side', async () => {
+  using workspace = cargoWorkspace();
+  const { repo } = workspace;
+  const base = commit(repo, {
+    'crates/core/src/lib.rs': 'mod old;\n',
+    'crates/core/src/old.rs': 'pub fn kept() {}\n',
+  });
+  git(repo, 'mv', 'crates/core/src/old.rs', 'crates/core/src/new.rs');
+  const head = commit(repo, { 'crates/core/src/lib.rs': 'mod new;\n' });
+
+  const range = await readRange({ repo, from: base, to: head });
+
+  expect(range.measures.before).toEqual(
+    expect.objectContaining({
+      'crates/core/src/old.rs': { lines: 1, functions: [simpleFn('kept')] },
+    }),
+  );
+});
+
+test('a stack the head adds is measured on the head side', async () => {
+  using repository = gitRepo(rootPackage);
+  const { repo, root } = repository;
+  const head = commit(repo, {
+    'Cargo.toml': '[workspace]\nmembers = ["crates/*"]\nresolver = "2"\n',
+    ...crateFiles('core'),
+  });
+
+  const range = await readRange({ repo, from: root, to: head });
+
+  expect(range.measures.after).toEqual({ 'crates/core/src/lib.rs': { lines: 0, functions: [] } });
+});
+
+test('a file its reader fails to measure is left unmeasured, and the range is still read', async () => {
+  using workspace = cargoWorkspace();
+  const { repo, root } = workspace;
+  const deep = `pub fn deep() -> u32 { ${Array.from({ length: 5000 }, () => '1').join(' + ')} }\n`;
+  const head = commit(repo, { 'crates/core/src/lib.rs': deep });
+
+  const range = await readRange({ repo, from: root, to: head });
+
+  expect(range.measures.after).toEqual({});
+});
+
 test('a range ending at a branch named like a folder reads its churn', async () => {
   using repository = gitRepo({ 'package.json': '{}\n', 'src/a.ts': '' });
   const { repo } = repository;

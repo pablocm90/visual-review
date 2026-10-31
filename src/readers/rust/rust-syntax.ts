@@ -20,3 +20,21 @@ export const itemsIn = (list: Node): ReadonlyArray<Item> =>
 export const attributeOf = (item: Node) => item.namedChildren[0];
 
 export const isCfgTest = (item: Node): boolean => attributeOf(item)?.text === 'cfg(test)';
+
+export const pathOf = (item: Node) => attributeOf(item)?.namedChildren[0]?.text;
+
+export const isTestAttribute = (item: Node): boolean => pathOf(item)?.split('::').at(-1) === 'test';
+
+export const isComment = (node: Node): boolean => node.type.endsWith('_comment');
+
+const attributesOf = (item: Node): ReadonlyArray<Node> => {
+  const previous = item.previousNamedSibling;
+  if (previous !== null && isComment(previous)) return attributesOf(previous);
+  return previous?.type === 'attribute_item' ? [...attributesOf(previous), previous] : [];
+};
+
+export const isTestItem = (node: Node): boolean =>
+  attributesOf(node).some(attribute => isTestAttribute(attribute) || isCfgTest(attribute));
+
+export const isTestCode = (node: Node): boolean =>
+  isTestItem(node) || (node.parent !== null && isTestCode(node.parent));
