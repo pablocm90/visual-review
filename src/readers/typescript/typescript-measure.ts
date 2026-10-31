@@ -53,6 +53,8 @@ const ownFunction = (text: string, node: Node): OwnFunction | undefined => {
       return { name: sourceOf(text, node.key), fn: node };
     case 'VariableDeclarator':
       return assigned(text, node.id, node.init);
+    case 'AssignmentExpression':
+      return assigned(text, node.left, node.right);
     case 'ClassProperty':
     case 'ClassPrivateProperty':
     case 'ObjectProperty':

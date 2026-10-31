@@ -57,6 +57,7 @@ test('every function with a body is one, named by its declaration, key or the na
       '};',
       'const arrow = () => 1;',
       'const expression = function inner() {};',
+      'module.exports.handler = async () => {};',
     ),
   ).toEqual([
     'declared',
@@ -72,6 +73,7 @@ test('every function with a body is one, named by its declaration, key or the na
     'save',
     'arrow',
     'expression',
+    'module.exports.handler',
   ]);
 });
 
