@@ -9,8 +9,9 @@ import { servedPageHtml } from './core/page.ts';
 const opener = process.platform === 'darwin' ? 'open' : 'xdg-open';
 
 export const servePage = async (page: string | undefined): Promise<string> => {
+  if (page === undefined) throw new Error('Usage: visual-review serve <page.html>');
   const token = randomBytes(16).toString('hex');
-  const html = servedPageHtml({ page: await readFile(page ?? '', 'utf8'), token });
+  const html = servedPageHtml({ page: await readFile(page, 'utf8'), token });
   const server = createServer();
   server.listen(0, '127.0.0.1');
   await once(server, 'listening');

@@ -1,9 +1,10 @@
-import { type ChildProcess, spawn } from 'node:child_process';
+import { type ChildProcess, execFile, spawn } from 'node:child_process';
 import { chmodSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { request } from 'node:http';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { createInterface } from 'node:readline';
+import { promisify } from 'node:util';
 import { expect, test, vi } from 'vitest';
 
 const fakeOpeners = (openers: ReadonlyArray<string>) => {
@@ -136,4 +137,13 @@ test('serve with no opener on PATH still serves the page at the URL it prints', 
   using server = await servedPage({ openers: [] });
 
   expect((await fetch(server.url)).status).toBe(200);
+});
+
+test('serve without a page exits non-zero saying how to call it', async () => {
+  const run = promisify(execFile)(process.execPath, [join(import.meta.dirname, 'cli.ts'), 'serve']);
+
+  await expect(run).rejects.toMatchObject({
+    code: 1,
+    stderr: 'Usage: visual-review serve <page.html>\n',
+  });
 });
