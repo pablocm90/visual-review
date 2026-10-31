@@ -11,6 +11,7 @@ import {
   testCounts,
 } from '../core/test-changes.ts';
 import { deepestStackHolding, testsAlongside } from '../core/tests-alongside.ts';
+import { LevelMark } from './finding-display.tsx';
 
 const TEST_MARKS: Readonly<Record<TestChange, string>> = {
   added: '+',
@@ -112,6 +113,45 @@ const Counts = ({ files }: { readonly files: ReadonlyArray<TestFile> }) => {
 export const changedCount = (files: ReadonlyArray<TestFile>): number =>
   Object.values(testCounts(files)).reduce((sum, count) => sum + count, 0);
 
+const ChangedNodes = ({ review }: { readonly review: PageData }) => {
+  const changed = review.diff.nodes
+    .filter(node => node.kind !== 'stack' && (node.state === 'added' || node.state === 'modified'))
+    .map(node => ({
+      node,
+      count: changedCount(testsAlongside({ nodes: review.diff.nodes, node, tests: review.tests })),
+    }))
+    .toSorted((one, other) => Number(one.count > 0) - Number(other.count > 0));
+  return (
+    <section className="changed-nodes" aria-label="Changed nodes">
+      <h2>Changed nodes</h2>
+      <p>Changed tests alongside each: at or under it, or named after a file in it.</p>
+      <ul>
+        {changed.map(({ node, count }) => (
+          <li
+            key={node.id}
+            data-state={node.state}
+            aria-label={`${node.label}: ${node.state}, tests alongside: ${count || 'none'}`}
+          >
+            <span className="mark" aria-hidden="true">
+              {node.state === 'added' ? TEST_MARKS.added : TEST_MARKS.edited}
+            </span>
+            {node.label}
+            <span className="count">
+              {count > 0 ? (
+                count
+              ) : (
+                <>
+                  <LevelMark level="look" /> none
+                </>
+              )}
+            </span>
+          </li>
+        ))}
+      </ul>
+    </section>
+  );
+};
+
 type TestsScreenProps = {
   readonly review: PageData;
   readonly notes: ReviewNotes | undefined;
@@ -158,6 +198,7 @@ export const TestsScreen = ({ review, notes, selected }: TestsScreenProps) => {
           <p>{forNode ? 'No test changed here.' : 'No test changed.'}</p>
         )}
       </section>
+      <ChangedNodes review={review} />
     </div>
   );
 };

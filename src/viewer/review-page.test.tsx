@@ -718,6 +718,59 @@ test('the Tests tab counts the shown tests by change, a moved pair once, as move
   expect(counts()).toEqual(['+0 0 added', '✎0 0 edited', '−1 1 removed', '↷1 1 moved']);
 });
 
+test('the Tests tab lists the added and modified nodes, not stacks, with the changed tests alongside each, those with none first, marked as needing a look', () => {
+  atHash('#tests');
+  render(
+    <ReviewPage
+      review={pageWith({
+        ...review,
+        diff: {
+          ...review.diff,
+          nodes: [
+            { id: 'rust', kind: 'stack', label: 'rust', path: '', state: 'modified' },
+            crate('domain', 'unchanged'),
+            crate('application', 'modified'),
+            crate('cli-adapter', 'added'),
+            crate('legacy', 'removed'),
+            crate('billing', 'modified'),
+          ],
+        },
+        tests: [
+          {
+            path: 'crates/application/tests/export.rs',
+            statements: [
+              { kind: 'test', name: 'exports a CSV', change: 'added' },
+              { kind: 'test', name: 'names the columns', change: 'edited' },
+              { kind: 'test', name: 'quotes commas', change: 'unchanged' },
+            ],
+          },
+          {
+            path: 'crates/legacy/tests/export.rs',
+            statements: [{ kind: 'test', name: 'exports a CSV', change: 'removed' }],
+          },
+        ],
+      })}
+    />,
+  );
+
+  expect(
+    within(screen.getByRole('region', { name: 'Changed nodes' }))
+      .getAllByRole('listitem')
+      .map(node =>
+        [
+          node.getAttribute('aria-label'),
+          ...within(node)
+            .queryAllByRole('img')
+            .map(mark => mark.getAttribute('aria-label')),
+        ].join(', '),
+      ),
+  ).toEqual([
+    'cli-adapter: added, tests alongside: none, needs a look',
+    'billing: modified, tests alongside: none, needs a look',
+    'application: modified, tests alongside: 2',
+  ]);
+});
+
 test('picking a tab sets the hash and shows it, and back and forward move between the tabs', async () => {
   atHash('');
   const user = userEvent.setup();
