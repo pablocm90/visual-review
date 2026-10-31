@@ -912,6 +912,43 @@ test('the rail reads each metric finding as a sentence on its node: the move fro
   ).toBeDefined();
 });
 
+test("a note's or a metric finding in the rail goes to its node or edge as the summary's links do", async () => {
+  const user = userEvent.setup();
+  render(
+    <ReviewPage
+      review={pageWith({
+        ...review,
+        metricFindings: [
+          { node: 'rust/crate/domain', metric: 'lines', level: 'info', head: 900, threshold: 800 },
+        ],
+      })}
+      notes={{
+        version: 1,
+        tests: '',
+        summary: [],
+        notes: {
+          'rust/crate/cli-adapter -> rust/crate/application': {
+            text: 'The CLI drives the use case.',
+            flag: 'new dependency direction',
+          },
+        },
+      }}
+    />,
+  );
+
+  await user.click(await screen.findByRole('button', { name: 'Show 2 findings' }));
+  await user.click(screen.getByRole('button', { name: /^cli-adapter → application: new/ }));
+  expect(document.activeElement).toBe(
+    screen.getByRole('button', {
+      name: 'cli-adapter → application: added, flagged: new dependency direction',
+    }),
+  );
+  expect(noteShown()).toBe('The CLI drives the use case.');
+
+  await user.click(screen.getByRole('button', { name: 'domain: lines 900, over 800' }));
+  expect(document.activeElement).toBe(screen.getByRole('button', { name: 'domain: unchanged' }));
+});
+
 const webModule = (label: string, state: Diffed = 'unchanged') => ({
   id: `web/module/${label}`,
   kind: 'module' as const,

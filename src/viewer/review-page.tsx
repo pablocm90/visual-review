@@ -917,7 +917,7 @@ export const ReviewPage = ({ review, notes, shownTabs = SHOWN_TABS }: ReviewPage
             <p className="caveat">Calls whose path is built at runtime are not drawn.</p>
           </div>
           <div className="columns">
-            <FindingsRail notes={notes} review={review} />
+            <FindingsRail notes={notes} review={review} onGoTo={goTo} />
             <div className="content">
               {notes && <Summary notes={notes} onGoTo={goTo} />}
               <label className="near-only">

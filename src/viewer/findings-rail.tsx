@@ -8,6 +8,7 @@ import { LevelMark, tenths } from './metrics-tab.tsx';
 type FindingsRailProps = {
   readonly notes: ReviewNotes | undefined;
   readonly review: Pick<PageData, 'diff' | 'metricFindings' | 'dangling' | 'undrawn'>;
+  readonly onGoTo: (id: string) => void;
 };
 
 type Level = MetricFinding['level'];
@@ -16,6 +17,7 @@ type Finding = {
   readonly level: Level;
   readonly sentence: string;
   readonly target: string;
+  readonly go?: string;
   readonly inert?: true;
 };
 
@@ -75,6 +77,7 @@ const groupsOf = ({ notes, review }: FindingsRailProps): ReadonlyArray<Group> =>
                 level: 'look' as const,
                 sentence: `${note.flag}: ${note.text}`,
                 target: targetOf(id),
+                go: id,
               },
             ]
           : [],
@@ -87,6 +90,7 @@ const groupsOf = ({ notes, review }: FindingsRailProps): ReadonlyArray<Group> =>
         level: finding.level,
         sentence: sentenceOf(finding),
         target: targetOf(finding.node),
+        go: finding.node,
       })),
     },
     {
@@ -109,7 +113,12 @@ const groupsOf = ({ notes, review }: FindingsRailProps): ReadonlyArray<Group> =>
   ];
 };
 
-const FindingItem = ({ finding }: { readonly finding: Finding }) => {
+type FindingItemProps = {
+  readonly finding: Finding;
+  readonly onGoTo: (id: string) => void;
+};
+
+const FindingItem = ({ finding, onGoTo }: FindingItemProps) => {
   const said = (
     <>
       <span>{finding.sentence}</span>
@@ -122,7 +131,11 @@ const FindingItem = ({ finding }: { readonly finding: Finding }) => {
       {finding.inert ? (
         <span className="finding-said">{said}</span>
       ) : (
-        <button type="button" aria-label={`${finding.target}: ${finding.sentence}`}>
+        <button
+          type="button"
+          aria-label={`${finding.target}: ${finding.sentence}`}
+          onClick={() => finding.go && onGoTo(finding.go)}
+        >
           {said}
         </button>
       )}
@@ -174,7 +187,11 @@ export const FindingsRail = (props: FindingsRailProps) => {
               <h3>{group.name}</h3>
               <ul>
                 {group.findings.map(finding => (
-                  <FindingItem key={`${finding.target}: ${finding.sentence}`} finding={finding} />
+                  <FindingItem
+                    key={`${finding.target}: ${finding.sentence}`}
+                    finding={finding}
+                    onGoTo={props.onGoTo}
+                  />
                 ))}
               </ul>
             </section>
