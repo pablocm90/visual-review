@@ -1,8 +1,9 @@
 import { useState } from 'react';
 import { measuredLeaves, type SortKey, sortedLeaves } from '../core/metric-rows.ts';
 import { metricTotals } from '../core/metric-totals.ts';
+import type { NodeMeasures } from '../core/metrics.ts';
 import type { PageData } from '../core/page.ts';
-import { signed } from './finding-display.tsx';
+import { signed, tenths } from './finding-display.tsx';
 
 const SORTS: ReadonlyArray<readonly [SortKey, string]> = [
   ['cyclomatic', 'Cyclomatic Δ'],
@@ -10,6 +11,22 @@ const SORTS: ReadonlyArray<readonly [SortKey, string]> = [
   ['lines', 'Lines Δ'],
   ['abc', 'ABC Δ'],
 ];
+
+const COLUMNS: ReadonlyArray<readonly [string, (side: NodeMeasures) => number | undefined]> = [
+  ['Lines', side => ('lines' in side ? side.lines : undefined)],
+  ['Cyclomatic', side => ('lines' in side ? side.cyclomatic.highest : undefined)],
+  ['ABC', side => ('lines' in side ? side.abc : undefined)],
+  ['Fan-out', side => side.fanOut],
+  ['Fan-in', side => side.fanIn],
+  ['Churn', side => side.churn],
+];
+
+const Cell = ({ base, head }: { readonly base: number; readonly head: number }) => (
+  <td>
+    {`${tenths(base)} → ${tenths(head)}`}
+    <small>{signed(head - base)}</small>
+  </td>
+);
 
 const Tile = ({
   name,
@@ -95,13 +112,26 @@ export const MetricsScreen = ({ review }: { readonly review: PageData }) => {
       </label>
       <section aria-label="Metrics per node">
         <table>
+          <thead>
+            <tr>
+              <th scope="col">Node</th>
+              {COLUMNS.map(([name]) => (
+                <th key={name} scope="col">
+                  {name}
+                </th>
+              ))}
+            </tr>
+          </thead>
           <tbody>
-            {shown.map(({ node, stack }) => (
+            {shown.map(({ node, stack, base, head }) => (
               <tr key={node.id}>
                 <th scope="row">
                   <code>{node.label}</code>
                   <span>{stack}</span>
                 </th>
+                {COLUMNS.map(([name, of]) => (
+                  <Cell key={name} base={(base && of(base)) ?? 0} head={(head && of(head)) ?? 0} />
+                ))}
               </tr>
             ))}
           </tbody>

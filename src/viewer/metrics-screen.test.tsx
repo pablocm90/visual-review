@@ -212,3 +212,43 @@ test('the rows go by cyclomatic Δ, highest first, until another "Sort by" is pi
   await user.selectOptions(screen.getByRole('combobox', { name: 'Sort by' }), 'Churn');
   expect(shownNodes()).toEqual(['stripeapi', 'refundsapi']);
 });
+
+const cellsOf = (label: string) =>
+  within(screen.getByRole('row', { name: new RegExp(`^${label}`) }))
+    .getAllByRole('cell')
+    .map(cell => cell.textContent);
+
+test('a row gives each metric base → head and its Δ: lines, highest cyclomatic, ABC, fan-out, fan-in and churn', () => {
+  atMetrics();
+  render(
+    <ReviewPage
+      review={reviewOf({
+        rows: [
+          [
+            crate('refunds', 'modified'),
+            {
+              base: measured({ lines: 120, abc: 18.24, fanOut: 3, fanIn: 1, churn: 6 }),
+              head: measured({
+                lines: 184,
+                cyclomatic: cyclomatic([['refund_order', 14]]),
+                abc: 31.46,
+                fanOut: 5,
+                fanIn: 2,
+                churn: 9,
+              }),
+            },
+          ],
+        ],
+      })}
+    />,
+  );
+
+  expect(cellsOf('refunds')).toEqual([
+    '120 → 184+64',
+    '4 → 14+10',
+    '18.2 → 31.5+13.2',
+    '3 → 5+2',
+    '1 → 2+1',
+    '6 → 9+3',
+  ]);
+});
