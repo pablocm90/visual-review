@@ -1,5 +1,6 @@
 import {
   type KeyboardEvent,
+  type MouseEvent,
   type PointerEvent,
   useEffect,
   useEffectEvent,
@@ -726,6 +727,106 @@ const TABS = { structure: 'Structure', metrics: 'Metrics', tests: 'Tests' } as c
 
 type Tab = keyof typeof TABS;
 
+const useGraphView = (layout: Layout | undefined) => {
+  const [frameElement, setFrameElement] = useState<HTMLDivElement | null>(null);
+  const [frameWidth, setFrameWidth] = useState<number>();
+  useEffect(() => {
+    if (!frameElement) return;
+    const observer = new ResizeObserver(([entry]) => setFrameWidth(entry?.contentRect.width));
+    observer.observe(frameElement);
+    return () => observer.disconnect();
+  }, [frameElement]);
+  const frame =
+    layout && frameWidth !== undefined
+      ? {
+          width: frameWidth,
+          height: frameHeight({ graph: layout, frameWidth, windowHeight: window.innerHeight }),
+        }
+      : undefined;
+  const [chosen, setChosen] = useState<Chosen>();
+  const view = layout && frame && viewOn({ layout, frame, chosen });
+  const placed = layout && frame && view && { graph: layout, frame, view };
+  const choose = (next: (on: NonNullable<typeof placed>) => View, pin?: string) => {
+    if (placed) setChosen({ of: placed.graph, view: next(placed), in: placed.frame, pin });
+  };
+  const dragged = useRef(false);
+  const pan = (down: PointerEvent<HTMLDivElement>) => {
+    dragged.current = false;
+    if (down.button !== 0) return;
+    const follow = (move: globalThis.PointerEvent) => {
+      const by = { x: move.clientX - down.clientX, y: move.clientY - down.clientY };
+      dragged.current ||= Math.hypot(by.x, by.y) >= LEAST_DRAG;
+      if (dragged.current) choose(on => panned({ ...on, by }));
+    };
+    const released = new AbortController();
+    const release = () => released.abort();
+    window.addEventListener('pointermove', follow, { signal: released.signal });
+    window.addEventListener('pointerup', release, { signal: released.signal });
+    window.addEventListener('pointercancel', release, { signal: released.signal });
+  };
+  const zoomAtCentre = (scale: number) =>
+    choose(on => zoomed({ ...on, scale, at: { x: on.frame.width / 2, y: on.frame.height / 2 } }));
+  const fitToFrame = () => setChosen(undefined);
+  const keyed = (event: KeyboardEvent) => {
+    if (!view || event.ctrlKey || event.metaKey || event.altKey) return;
+    const panBy = (x: number, y: number) => () => choose(on => panned({ ...on, by: { x, y } }));
+    const act = {
+      '+': () => zoomAtCentre(view.scale * ZOOM_STEP),
+      '=': () => zoomAtCentre(view.scale * ZOOM_STEP),
+      '-': () => zoomAtCentre(view.scale / ZOOM_STEP),
+      '1': () => zoomAtCentre(1),
+      '0': fitToFrame,
+      ArrowLeft: panBy(PAN_STEP, 0),
+      ArrowRight: panBy(-PAN_STEP, 0),
+      ArrowUp: panBy(0, PAN_STEP),
+      ArrowDown: panBy(0, -PAN_STEP),
+    }[event.key];
+    if (!act) return;
+    event.preventDefault();
+    act();
+  };
+  const wheel = useEffectEvent((event: WheelEvent) => {
+    if (!frameElement || !placed) return;
+    const bounds = frameElement.getBoundingClientRect();
+    const at = { x: event.clientX - bounds.left, y: event.clientY - bounds.top };
+    const by = { x: -event.deltaX, y: -event.deltaY };
+    const zooming = event.ctrlKey || event.metaKey;
+    const next = zooming
+      ? zoomed({
+          ...placed,
+          scale: placed.view.scale * 2 ** (-event.deltaY / WHEEL_PER_DOUBLING),
+          at,
+        })
+      : panned({ ...placed, by });
+    if (!zooming && next.x === placed.view.x && next.y === placed.view.y) return;
+    event.preventDefault();
+    choose(() => next);
+  });
+  useEffect(() => {
+    if (!frameElement) return;
+    const onWheel = (event: WheelEvent) => wheel(event);
+    frameElement.addEventListener('wheel', onWheel, { passive: false });
+    return () => frameElement.removeEventListener('wheel', onWheel);
+  }, [frameElement]);
+  return {
+    frameElement,
+    placed,
+    frameProps: {
+      ref: setFrameElement,
+      style: { height: frame?.height },
+      onKeyDown: keyed,
+      onPointerDown: pan,
+      onClickCapture: (event: MouseEvent) => {
+        if (dragged.current && event.detail > 0) event.stopPropagation();
+      },
+    },
+    zoomAtCentre,
+    fitToFrame,
+    centre: (id: string) => setChosen({ centre: id }),
+    pin: (id: string) => choose(on => on.view, id),
+  };
+};
+
 const TAB_ORDER: ReadonlyArray<Tab> = ['structure', 'metrics', 'tests'];
 
 const tabAt = (hash: string): Tab => TAB_ORDER.find(tab => `#${tab}` === hash) ?? 'structure';
@@ -836,6 +937,8 @@ type ReviewPageProps = {
 export const ReviewPage = ({ review, notes, send }: ReviewPageProps) => {
   const tab = useTab();
   const [layout, setLayout] = useState<Layout>();
+  const { frameElement, placed, frameProps, zoomAtCentre, fitToFrame, centre, pin } =
+    useGraphView(layout);
   const [selected, setSelected] = useState<string>();
   const [outside, setOutside] = useState(false);
   const outsideOpener = useRef<HTMLButtonElement>(null);
@@ -865,7 +968,7 @@ export const ReviewPage = ({ review, notes, send }: ReviewPageProps) => {
     [review, notes, expanded],
   );
   const toggle = (id: string) => {
-    choose(on => on.view, id);
+    pin(id);
     setExpanded(current =>
       current.has(id)
         ? new Set([...current].filter(other => other !== id))
@@ -919,92 +1022,13 @@ export const ReviewPage = ({ review, notes, send }: ReviewPageProps) => {
     if (!isDrawn({ diff: nearChanges(drawnAt({ ...at, allEdges: all })), id })) {
       setNearOnly(false);
     }
-    setChosen({ centre: id });
+    centre(id);
     setFocusTarget(id);
   };
   const goToOnStructure = (id: string) => {
     location.hash = '#structure';
     goTo(id);
   };
-  const [frameElement, setFrameElement] = useState<HTMLDivElement | null>(null);
-  const [frameWidth, setFrameWidth] = useState<number>();
-  useEffect(() => {
-    if (!frameElement) return;
-    const observer = new ResizeObserver(([entry]) => setFrameWidth(entry?.contentRect.width));
-    observer.observe(frameElement);
-    return () => observer.disconnect();
-  }, [frameElement]);
-  const frame =
-    layout && frameWidth !== undefined
-      ? {
-          width: frameWidth,
-          height: frameHeight({ graph: layout, frameWidth, windowHeight: window.innerHeight }),
-        }
-      : undefined;
-  const [chosen, setChosen] = useState<Chosen>();
-  const view = layout && frame && viewOn({ layout, frame, chosen });
-  const placed = layout && frame && view && { graph: layout, frame, view };
-  const choose = (next: (on: NonNullable<typeof placed>) => View, pin?: string) => {
-    if (placed) setChosen({ of: placed.graph, view: next(placed), in: placed.frame, pin });
-  };
-  const dragged = useRef(false);
-  const pan = (down: PointerEvent<HTMLDivElement>) => {
-    dragged.current = false;
-    if (down.button !== 0) return;
-    const follow = (move: globalThis.PointerEvent) => {
-      const by = { x: move.clientX - down.clientX, y: move.clientY - down.clientY };
-      dragged.current ||= Math.hypot(by.x, by.y) >= LEAST_DRAG;
-      if (dragged.current) choose(on => panned({ ...on, by }));
-    };
-    const released = new AbortController();
-    const release = () => released.abort();
-    window.addEventListener('pointermove', follow, { signal: released.signal });
-    window.addEventListener('pointerup', release, { signal: released.signal });
-    window.addEventListener('pointercancel', release, { signal: released.signal });
-  };
-  const zoomAtCentre = (scale: number) =>
-    choose(on => zoomed({ ...on, scale, at: { x: on.frame.width / 2, y: on.frame.height / 2 } }));
-  const keyed = (event: KeyboardEvent) => {
-    if (!view || event.ctrlKey || event.metaKey || event.altKey) return;
-    const panBy = (x: number, y: number) => () => choose(on => panned({ ...on, by: { x, y } }));
-    const act = {
-      '+': () => zoomAtCentre(view.scale * ZOOM_STEP),
-      '=': () => zoomAtCentre(view.scale * ZOOM_STEP),
-      '-': () => zoomAtCentre(view.scale / ZOOM_STEP),
-      '1': () => zoomAtCentre(1),
-      '0': () => setChosen(undefined),
-      ArrowLeft: panBy(PAN_STEP, 0),
-      ArrowRight: panBy(-PAN_STEP, 0),
-      ArrowUp: panBy(0, PAN_STEP),
-      ArrowDown: panBy(0, -PAN_STEP),
-    }[event.key];
-    if (!act) return;
-    event.preventDefault();
-    act();
-  };
-  const wheel = useEffectEvent((event: WheelEvent) => {
-    if (!frameElement || !placed) return;
-    const bounds = frameElement.getBoundingClientRect();
-    const at = { x: event.clientX - bounds.left, y: event.clientY - bounds.top };
-    const by = { x: -event.deltaX, y: -event.deltaY };
-    const zooming = event.ctrlKey || event.metaKey;
-    const next = zooming
-      ? zoomed({
-          ...placed,
-          scale: placed.view.scale * 2 ** (-event.deltaY / WHEEL_PER_DOUBLING),
-          at,
-        })
-      : panned({ ...placed, by });
-    if (!zooming && next.x === placed.view.x && next.y === placed.view.y) return;
-    event.preventDefault();
-    choose(() => next);
-  });
-  useEffect(() => {
-    if (!frameElement) return;
-    const onWheel = (event: WheelEvent) => wheel(event);
-    frameElement.addEventListener('wheel', onWheel, { passive: false });
-    return () => frameElement.removeEventListener('wheel', onWheel);
-  }, [frameElement]);
   useEffect(() => {
     layoutDiff(drawn).then(setLayout);
   }, [drawn]);
@@ -1037,7 +1061,7 @@ export const ReviewPage = ({ review, notes, send }: ReviewPageProps) => {
                       type="checkbox"
                       checked={nearOnly}
                       onChange={event => {
-                        setChosen(undefined);
+                        fitToFrame();
                         setNearOnly(event.target.checked);
                       }}
                     />
@@ -1048,7 +1072,7 @@ export const ReviewPage = ({ review, notes, send }: ReviewPageProps) => {
                       type="checkbox"
                       checked={allEdges}
                       onChange={event => {
-                        setChosen(undefined);
+                        fitToFrame();
                         setAllEdges(event.target.checked);
                       }}
                     />
@@ -1065,23 +1089,13 @@ export const ReviewPage = ({ review, notes, send }: ReviewPageProps) => {
                   className="frame"
                   role="group"
                   aria-label="Graph"
-                  ref={setFrameElement}
-                  style={{ height: frame?.height }}
                   // biome-ignore lint/a11y/noNoninteractiveTabindex: the frame takes the zoom and pan keys
                   tabIndex={0}
-                  onKeyDown={keyed}
-                  onPointerDown={pan}
-                  onClickCapture={event => {
-                    if (dragged.current && event.detail > 0) event.stopPropagation();
-                  }}
+                  {...frameProps}
                 >
-                  {frame && view && (
+                  {placed && (
                     <>
-                      <Zoom
-                        scale={view.scale}
-                        onZoom={zoomAtCentre}
-                        onFit={() => setChosen(undefined)}
-                      />
+                      <Zoom scale={placed.view.scale} onZoom={zoomAtCentre} onFit={fitToFrame} />
                       <svg className="graph" data-colouring={colouring}>
                         <title>{`Structure ${shortRange(review.range)}`}</title>
                         <defs>
@@ -1102,7 +1116,9 @@ export const ReviewPage = ({ review, notes, send }: ReviewPageProps) => {
                             </marker>
                           ))}
                         </defs>
-                        <g transform={`translate(${view.x} ${view.y}) scale(${view.scale})`}>
+                        <g
+                          transform={`translate(${placed.view.x} ${placed.view.y}) scale(${placed.view.scale})`}
+                        >
                           {layout.stacks.map(stack => (
                             <Stack key={stack.id} stack={stack} drawing={drawing} />
                           ))}
