@@ -186,9 +186,9 @@ export const TestsScreen = ({ review, notes, selected, onGoTo }: TestsScreenProp
         </section>
       )}
       <div className="tests-controls">
-        <div className="tests-shown" role="group" aria-label="Tests shown">
+        <div className="segmented" role="group" aria-label="Tests shown">
           <button
-            className="tests-shown-button"
+            className="segmented-button"
             type="button"
             aria-pressed={forNode === undefined}
             onClick={() => setForSelected(false)}
@@ -197,7 +197,7 @@ export const TestsScreen = ({ review, notes, selected, onGoTo }: TestsScreenProp
           </button>
           {selected && alongside && (
             <button
-              className="tests-shown-button"
+              className="segmented-button"
               type="button"
               aria-pressed={forNode !== undefined}
               onClick={() => setForSelected(true)}

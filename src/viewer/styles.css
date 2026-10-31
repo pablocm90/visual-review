@@ -1265,7 +1265,7 @@ pre .hljs-emphasis {
   margin-top: 0;
 }
 
-.tests-shown {
+.segmented {
   display: flex;
   gap: 2px;
   padding: 3px;
@@ -1273,7 +1273,7 @@ pre .hljs-emphasis {
   background: var(--unchanged-fill);
 }
 
-.tests-shown-button {
+.segmented-button {
   min-height: 32px;
   padding: 0 12px;
   border: 0;
@@ -1287,7 +1287,7 @@ pre .hljs-emphasis {
   cursor: pointer;
 }
 
-.tests-shown-button[aria-pressed="true"] {
+.segmented-button[aria-pressed="true"] {
   background: var(--stack);
   color: var(--ink);
   font-weight: 600;
