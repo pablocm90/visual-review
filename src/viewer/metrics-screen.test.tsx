@@ -1,5 +1,6 @@
 // @vitest-environment jsdom
 import { render, screen, within } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { expect, onTestFinished, test } from 'vitest';
 import type { DiffedNode } from '../core/diff-graphs.ts';
 import { metricFindings } from '../core/metric-findings.ts';
@@ -102,4 +103,36 @@ test("the totals give the changed leaves' lines head − base, their functions o
   );
   expect(tile('Lines')).toEqual(['−88', 'across 1 changed node']);
   expect(tile('Functions over 10 cyclomatic')).toEqual(['0 → 0']);
+});
+
+const shownNodes = () =>
+  within(screen.getByRole('region', { name: 'Metrics per node' }))
+    .getAllByRole('rowheader')
+    .map(header => header.textContent);
+
+test('the table lists the changed measured leaves, every measured leaf while "Changed + 1 hop" is pressed', async () => {
+  atMetrics();
+  const user = userEvent.setup();
+  render(
+    <ReviewPage
+      review={reviewOf({
+        rows: [
+          [crate('refunds', 'modified'), { base: measured(), head: measured() }],
+          [crate('domain', 'unchanged'), { base: measured(), head: measured() }],
+          [crate('ledger', 'added'), { head: measured() }],
+        ],
+      })}
+    />,
+  );
+  const changed = screen.getByRole('button', { name: 'Changed 2' });
+
+  expect(changed.getAttribute('aria-pressed')).toBe('true');
+  expect(shownNodes()).toEqual(['refundsapi', 'ledgerapi']);
+
+  await user.click(screen.getByRole('button', { name: 'Changed + 1 hop 3' }));
+  expect(changed.getAttribute('aria-pressed')).toBe('false');
+  expect(shownNodes()).toEqual(['refundsapi', 'domainapi', 'ledgerapi']);
+
+  await user.click(changed);
+  expect(shownNodes()).toEqual(['refundsapi', 'ledgerapi']);
 });

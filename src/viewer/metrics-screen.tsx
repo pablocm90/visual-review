@@ -1,3 +1,5 @@
+import { useState } from 'react';
+import { measuredLeaves } from '../core/metric-rows.ts';
 import { metricTotals } from '../core/metric-totals.ts';
 import type { PageData } from '../core/page.ts';
 import { signed } from './finding-display.tsx';
@@ -21,6 +23,10 @@ const Tile = ({
 export const MetricsScreen = ({ review }: { readonly review: PageData }) => {
   const { lines, over, hotspots } = metricTotals(review);
   const { thresholds, churnDays } = review;
+  const [hop, setHop] = useState(false);
+  const leaves = measuredLeaves(review);
+  const changed = leaves.filter(({ node }) => node.state !== 'unchanged');
+  const shown = hop ? leaves : changed;
   return (
     <div className="metrics-screen">
       <section className="metric-totals" aria-label="Totals">
@@ -39,6 +45,28 @@ export const MetricsScreen = ({ review }: { readonly review: PageData }) => {
           value={`${hotspots.touched} of ${hotspots.of}`}
           caption={`${thresholds.hotspot.churn}+ commits in ${churnDays} days and ${thresholds.hotspot.cyclomatic}+ cyclomatic`}
         />
+      </section>
+      <div role="group" aria-label="Nodes shown">
+        <button type="button" aria-pressed={!hop} onClick={() => setHop(false)}>
+          {`Changed ${changed.length}`}
+        </button>
+        <button type="button" aria-pressed={hop} onClick={() => setHop(true)}>
+          {`Changed + 1 hop ${leaves.length}`}
+        </button>
+      </div>
+      <section aria-label="Metrics per node">
+        <table>
+          <tbody>
+            {shown.map(({ node, stack }) => (
+              <tr key={node.id}>
+                <th scope="row">
+                  <code>{node.label}</code>
+                  <span>{stack}</span>
+                </th>
+              </tr>
+            ))}
+          </tbody>
+        </table>
       </section>
     </div>
   );
