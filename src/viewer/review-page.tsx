@@ -24,6 +24,7 @@ import {
   visibleDiff,
   visibleNodeOf,
 } from '../core/visible-diff.ts';
+import { FindingsRail } from './findings-rail.tsx';
 import { highlightPatch, type PatchLine as Line, type Piece } from './highlight-patch.ts';
 import {
   type Layout,
@@ -916,6 +917,7 @@ export const ReviewPage = ({ review, notes, shownTabs = SHOWN_TABS }: ReviewPage
             <p className="caveat">Calls whose path is built at runtime are not drawn.</p>
           </div>
           <div className="columns">
+            <FindingsRail notes={notes} review={review} />
             <div className="content">
               {notes && <Summary notes={notes} onGoTo={goTo} />}
               <label className="near-only">

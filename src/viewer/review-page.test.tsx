@@ -741,6 +741,65 @@ test('the summary lists its items and then every flagged note, and an item with 
   expect(screen.queryByRole('region', { name: 'Unplaced notes' })).toBeNull();
 });
 
+test("the findings rail starts collapsed to their total and how many need a look or are for information: notes' flags need a look, metric findings keep their level, and each not-drawn line is for information", async () => {
+  const { rerender } = render(
+    <ReviewPage
+      review={pageWith({
+        ...review,
+        metricFindings: [
+          { node: 'rust/crate/domain', metric: 'lines', level: 'info', head: 900, threshold: 800 },
+          {
+            node: 'rust/crate/application',
+            metric: 'cyclomatic',
+            level: 'look',
+            base: 4,
+            head: 14,
+            threshold: 10,
+          },
+        ],
+        dangling: [
+          { from: 'rust/crate/cli-adapter', path: '/api/a' },
+          { from: 'rust/crate/cli-adapter', path: '/api/b' },
+        ],
+        undrawn: [{ path: 'README.md', patch: '' }],
+      })}
+      notes={{
+        version: 1,
+        tests: '',
+        summary: [],
+        notes: {
+          'rust/crate/cli-adapter': { text: 'A second way in.', flag: 'new entry point' },
+          'rust/crate/domain': { text: 'Untouched.' },
+          'rust/crate/cli-adapter -> rust/crate/application': {
+            text: 'The CLI drives the use case.',
+            flag: 'new dependency direction',
+          },
+        },
+      }}
+    />,
+  );
+
+  const rail = await screen.findByRole('navigation', { name: 'Findings' });
+  expect(within(rail).getByRole('button', { name: 'Show 6 findings' })).toBeDefined();
+  const countBy = (level: string) =>
+    within(rail).getByRole('img', { name: level }).parentElement?.textContent;
+  expect(countBy('needs a look')).toBe('3');
+  expect(countBy('for information')).toBe('3');
+
+  rerender(
+    <ReviewPage
+      review={pageWith({
+        ...review,
+        metricFindings: [
+          { node: 'rust/crate/domain', metric: 'lines', level: 'info', head: 900, threshold: 800 },
+        ],
+      })}
+    />,
+  );
+  expect(within(rail).getByRole('button', { name: 'Show 1 findings' })).toBeDefined();
+  expect(countBy('needs a look')).toBe('0');
+});
+
 const webModule = (label: string, state: Diffed = 'unchanged') => ({
   id: `web/module/${label}`,
   kind: 'module' as const,
