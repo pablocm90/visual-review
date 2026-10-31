@@ -1,5 +1,6 @@
 import { type ChildProcess, spawn } from 'node:child_process';
 import { chmodSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { request } from 'node:http';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { createInterface } from 'node:readline';
@@ -39,28 +40,85 @@ const urlOn = async (child: ChildProcess): Promise<string> => {
   throw new Error('serve ended without printing its URL');
 };
 
-const serving = async (options: { readonly page: string; readonly path: string }) => {
+const servedPage = async () => {
+  const openers = fakeOpeners();
+  const written = writtenPage();
   const child = spawn(
     process.execPath,
-    [join(import.meta.dirname, 'cli.ts'), 'serve', options.page],
+    [join(import.meta.dirname, 'cli.ts'), 'serve', written.page],
     {
-      env: { ...process.env, PATH: options.path },
+      env: { ...process.env, PATH: openers.path },
     },
   );
-  return { url: await urlOn(child), [Symbol.dispose]: () => child.kill() };
+  return {
+    url: await urlOn(child),
+    opened: openers.opened,
+    [Symbol.dispose]: () => {
+      child.kill();
+      written[Symbol.dispose]();
+      openers[Symbol.dispose]();
+    },
+  };
 };
 
 test('serve opens the page at a URL holding a fresh token, and the page it serves carries that token', async () => {
-  using openers = fakeOpeners();
-  using written = writtenPage();
+  using server = await servedPage();
 
-  using server = await serving({ page: written.page, path: openers.path });
-
-  await vi.waitFor(() => expect(openers.opened()).toBe(server.url));
+  await vi.waitFor(() => expect(server.opened()).toBe(server.url));
   const token = new URL(server.url).pathname.slice(1);
   expect(server.url).toMatch(/^http:\/\/127\.0\.0\.1:\d+\/[0-9a-f]{32}$/);
   const response = await fetch(server.url);
   expect(response.status).toBe(200);
   expect(response.headers.get('content-type')).toMatch(/^text\/html/);
   expect(await response.text()).toContain(`id="review-serve">"${token}"</script>`);
+});
+
+type Asked = { readonly url: string; readonly path?: string; readonly host?: string };
+
+const statusFor = ({ url, path, host }: Asked): Promise<number> => {
+  const served = new URL(url);
+  return new Promise((resolve, reject) => {
+    request(
+      {
+        hostname: served.hostname,
+        port: served.port,
+        path: path ?? served.pathname,
+        headers: { host: host ?? served.host },
+      },
+      response => {
+        response.resume();
+        resolve(response.statusCode ?? 0);
+      },
+    )
+      .on('error', reject)
+      .end();
+  });
+};
+
+test.for([
+  { request: 'for the root', path: '/' },
+  { request: 'for a path under the token the page has no use for', path: '/:token/other' },
+  { request: 'naming another host, as a DNS-rebinding site would', host: 'evil.example' },
+])(
+  'serve refuses a request $request with 403, and keeps serving the page',
+  async ({ path, host }) => {
+    using server = await servedPage();
+    const { port, pathname } = new URL(server.url);
+
+    const status = await statusFor({
+      url: server.url,
+      ...(path === undefined ? {} : { path: path.replace('/:token', pathname) }),
+      ...(host === undefined ? {} : { host: `${host}:${port}` }),
+    });
+
+    expect(status).toBe(403);
+    expect(await statusFor({ url: server.url })).toBe(200);
+  },
+);
+
+test('serve answers on 127.0.0.1 only, not on the IPv6 loopback', async () => {
+  using server = await servedPage();
+  const { port, pathname } = new URL(server.url);
+
+  await expect(fetch(`http://[::1]:${port}${pathname}`)).rejects.toThrow();
 });
