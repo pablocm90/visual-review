@@ -658,21 +658,25 @@ const SendToClaude = ({ comments, send }: SendProps) => {
       () => setSent(true),
       (error: Error) => setProblem(error.message),
     );
-  return sent ? (
-    <p role="status" aria-label="Review">
-      Sent
-    </p>
-  ) : (
-    <>
-      {problem && (
+  return (
+    <div className="send-review">
+      {sent ? (
         <p role="status" aria-label="Review">
-          {problem}
+          Sent
         </p>
+      ) : (
+        <>
+          {problem && (
+            <p role="status" aria-label="Review" className="send-problem">
+              {problem}
+            </p>
+          )}
+          <button type="button" disabled={written.length === 0} onClick={sendComments}>
+            Send to Claude
+          </button>
+        </>
       )}
-      <button type="button" disabled={written.length === 0} onClick={sendComments}>
-        Send to Claude
-      </button>
-    </>
+    </div>
   );
 };
 

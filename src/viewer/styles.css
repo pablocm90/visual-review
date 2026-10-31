@@ -1700,3 +1700,41 @@ pre .hljs-emphasis {
   font-weight: 400;
   resize: vertical;
 }
+
+.send-review {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-left: auto;
+}
+
+.send-review p {
+  margin: 0;
+  font-size: 13px;
+  color: var(--added);
+  font-weight: 600;
+}
+
+.send-review .send-problem {
+  color: var(--removed);
+  font-weight: 500;
+}
+
+.send-review button {
+  min-height: 32px;
+  padding: 0 14px;
+  border: 0;
+  border-radius: 7px;
+  background: var(--ink);
+  color: var(--stack);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.send-review button:disabled {
+  background: var(--unchanged-fill);
+  color: var(--muted);
+  cursor: default;
+}
