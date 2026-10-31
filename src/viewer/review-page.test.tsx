@@ -801,6 +801,29 @@ test("the Tests tab lists the added and modified nodes, not stacks, with the cha
   expect(within(inspector()).getByRole('heading', { name: 'billing' })).not.toBeNull();
 });
 
+test("a Metrics row's node name goes to it on Structure, focused, its inspector open", async () => {
+  atHash('#metrics');
+  const user = userEvent.setup();
+  render(
+    <ReviewPage
+      review={pageWith({
+        ...review,
+        metrics: { 'rust/crate/application': { base: measured(), head: measured() } },
+      })}
+    />,
+  );
+
+  await user.click(
+    within(screen.getByRole('region', { name: 'Metrics per node' })).getByRole('button', {
+      name: 'application',
+    }),
+  );
+  await waitFor(() => expect(currentTab()).toBe('Structure'));
+  const application = await screen.findByRole('button', { name: 'application: modified' });
+  await waitFor(() => expect(document.activeElement).toBe(application));
+  expect(within(inspector()).getByRole('heading', { name: 'application' })).not.toBeNull();
+});
+
 test('picking a tab sets the hash and shows it, and back and forward move between the tabs', async () => {
   atHash('');
   const user = userEvent.setup();

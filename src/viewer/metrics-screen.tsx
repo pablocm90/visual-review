@@ -69,7 +69,12 @@ const Tile = ({
   </div>
 );
 
-export const MetricsScreen = ({ review }: { readonly review: PageData }) => {
+type MetricsScreenProps = {
+  readonly review: PageData;
+  readonly onGoTo: (id: string) => void;
+};
+
+export const MetricsScreen = ({ review, onGoTo }: MetricsScreenProps) => {
   const { lines, over, hotspots } = metricTotals(review);
   const { thresholds, churnDays } = review;
   const [hop, setHop] = useState(false);
@@ -151,7 +156,9 @@ export const MetricsScreen = ({ review }: { readonly review: PageData }) => {
             {shown.map(({ node, stack, base, head }) => (
               <tr key={node.id}>
                 <th scope="row">
-                  <code>{node.label}</code>
+                  <button type="button" onClick={() => onGoTo(node.id)}>
+                    {node.label}
+                  </button>
                   <span>{stack}</span>
                 </th>
                 {COLUMNS.map(([name, of]) => (

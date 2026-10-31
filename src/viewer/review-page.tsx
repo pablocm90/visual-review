@@ -775,6 +775,10 @@ export const ReviewPage = ({ review, notes }: ReviewPageProps) => {
     setChosen({ centre: id });
     setFocusTarget(id);
   };
+  const goToOnStructure = (id: string) => {
+    location.hash = '#structure';
+    goTo(id);
+  };
   const [frameElement, setFrameElement] = useState<HTMLDivElement | null>(null);
   const [frameWidth, setFrameWidth] = useState<number>();
   useEffect(() => {
@@ -1023,16 +1027,13 @@ export const ReviewPage = ({ review, notes }: ReviewPageProps) => {
           </div>
         </>
       )}
-      {tab === 'metrics' && <MetricsScreen review={review} />}
+      {tab === 'metrics' && <MetricsScreen review={review} onGoTo={goToOnStructure} />}
       {tab === 'tests' && (
         <TestsScreen
           review={review}
           notes={notes}
           selected={selectedNode}
-          onGoTo={id => {
-            location.hash = '#structure';
-            goTo(id);
-          }}
+          onGoTo={goToOnStructure}
         />
       )}
     </main>
