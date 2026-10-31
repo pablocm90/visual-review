@@ -556,8 +556,10 @@ const METRIC_ROWS: ReadonlyArray<MetricRow> = [
 
 const tenths = (value: number) => Math.round(value * 10) / 10;
 
-const shownValue = (value: number | undefined) =>
-  value === undefined ? '—' : String(tenths(value));
+const shownValue = (side: NodeMeasures | undefined, value: number | undefined) => {
+  if (side === undefined) return '—';
+  return value === undefined ? 'not measured' : String(tenths(value));
+};
 
 const difference = (base: number | undefined, head: number | undefined) => {
   if (base === undefined || head === undefined) return '—';
@@ -586,8 +588,8 @@ const MetricsTable = ({ metrics: { base, head } }: { readonly metrics: NodeMetri
               {name}
               {hint && <small>{hint}</small>}
             </th>
-            <td>{shownValue(before)}</td>
-            <td>{shownValue(after)}</td>
+            <td>{shownValue(base, before)}</td>
+            <td>{shownValue(head, after)}</td>
             <td>{difference(before, after)}</td>
           </tr>
         );
