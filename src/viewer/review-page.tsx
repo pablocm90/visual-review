@@ -471,7 +471,7 @@ type InspectorProps = {
   readonly patches: ReadonlyArray<FilePatch>;
   readonly tests: ReadonlyArray<TestFile>;
   readonly comment: string;
-  readonly onComment: (text: string) => void;
+  readonly onComment: ((text: string) => void) | undefined;
   readonly width: number;
   readonly onClose: () => void;
 };
@@ -535,10 +535,12 @@ const Inspector = ({
             {note?.flag && <h2>{flaggedFor(note.flag)}</h2>}
             {unrouted.length > 0 && <h2>{noRouteFor(unrouted)}</h2>}
             <p>{note?.text ?? 'No note'}</p>
-            <label className="comment">
-              Your comment
-              <textarea value={comment} onChange={event => onComment(event.target.value)} />
-            </label>
+            {onComment && (
+              <label className="comment">
+                Your comment
+                <textarea value={comment} onChange={event => onComment(event.target.value)} />
+              </label>
+            )}
           </>
         ) : shown === 'metrics' && measured ? (
           <MetricsTable
@@ -1064,9 +1066,11 @@ export const ReviewPage = ({ review, notes, send }: ReviewPageProps) => {
                     patches={patches}
                     tests={review.tests}
                     comment={(selected && comments[selected]) ?? ''}
-                    onComment={text =>
-                      selected !== undefined &&
-                      setComments(current => ({ ...current, [selected]: text }))
+                    onComment={
+                      send &&
+                      (text =>
+                        selected !== undefined &&
+                        setComments(current => ({ ...current, [selected]: text })))
                     }
                     width={panelWidth}
                     onClose={() => {

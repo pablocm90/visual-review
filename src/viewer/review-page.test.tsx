@@ -137,7 +137,7 @@ test('draws every crate and dependency inside the rust stack with its change sta
 
 test("the Note tab's comment field holds a comment per node or edge, kept while others are selected and the inspector closed", async () => {
   const user = userEvent.setup();
-  render(<ReviewPage review={pageWith(review)} />);
+  render(<ReviewPage review={pageWith(review)} send={async () => {}} />);
   const comment = () => within(noteTab()).getByRole('textbox', { name: 'Your comment' });
 
   const rust = await screen.findByRole('group', { name: 'rust' });
@@ -200,6 +200,22 @@ test('Send to Claude waits for a comment that is more than blanks, and sends no 
       'rust/crate/application -> rust/crate/domain': { text: 'Why this way round?' },
     },
   });
+});
+
+test('a page that is not served has no comment field and no Send to Claude', async () => {
+  const user = userEvent.setup();
+  const { rerender } = render(<ReviewPage review={pageWith(review)} send={async () => {}} />);
+  const comment = () => within(noteTab()).queryByRole('textbox', { name: 'Your comment' });
+  const sendButton = () => screen.queryByRole('button', { name: 'Send to Claude' });
+
+  const rust = await screen.findByRole('group', { name: 'rust' });
+  await user.click(within(rust).getByRole('button', { name: 'domain: unchanged' }));
+  expect(comment()).not.toBeNull();
+  expect(sendButton()).not.toBeNull();
+
+  rerender(<ReviewPage review={pageWith(review)} />);
+  expect(comment()).toBeNull();
+  expect(sendButton()).toBeNull();
 });
 
 test('a send that fails says why and leaves Send to Claude to try again', async () => {
