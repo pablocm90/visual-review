@@ -18,7 +18,7 @@ export const pruneReviews = async ({ directory, keep }: PruneReviewsOptions): Pr
   const older = pages.toSorted((one, other) => other.writtenAt - one.writtenAt).slice(keep);
   await Promise.all(
     older.flatMap(({ name }) =>
-      ['html', 'json', 'notes.json'].map(extension =>
+      ['html', 'json', 'notes.json', 'review.json'].map(extension =>
         rm(join(directory, `${name}.${extension}`), { force: true }),
       ),
     ),
