@@ -741,7 +741,8 @@ test('the summary lists its items and then every flagged note, and an item with 
   expect(screen.queryByRole('region', { name: 'Unplaced notes' })).toBeNull();
 });
 
-test("the findings rail starts collapsed to their total and how many need a look or are for information: notes' flags need a look, metric findings keep their level, and each not-drawn line is for information", async () => {
+test("the findings rail starts collapsed to their total and how many need a look or are for information: notes' flags need a look, metric findings keep their level, and each not-drawn line is for information; opened, it shows the groups holding findings, and hides again", async () => {
+  const user = userEvent.setup();
   const { rerender } = render(
     <ReviewPage
       review={pageWith({
@@ -779,12 +780,25 @@ test("the findings rail starts collapsed to their total and how many need a look
     />,
   );
 
-  const rail = await screen.findByRole('navigation', { name: 'Findings' });
-  expect(within(rail).getByRole('button', { name: 'Show 6 findings' })).toBeDefined();
+  await screen.findByRole('navigation', { name: 'Findings' });
+  const rail = () => screen.getByRole('navigation', { name: 'Findings' });
+  expect(within(rail()).getByRole('button', { name: 'Show 6 findings' })).toBeDefined();
   const countBy = (level: string) =>
-    within(rail).getByRole('img', { name: level }).parentElement?.textContent;
+    within(rail()).getByRole('img', { name: level }).parentElement?.textContent;
   expect(countBy('needs a look')).toBe('3');
   expect(countBy('for information')).toBe('3');
+
+  const groupsShown = async () => {
+    await user.click(screen.getByRole('button', { name: /^Show \d+ findings$/ }));
+    const open = screen.getByRole('complementary', { name: 'Findings' });
+    const groups = within(open)
+      .getAllByRole('heading', { level: 3 })
+      .map(heading => heading.textContent);
+    await user.click(within(open).getByRole('button', { name: 'Hide findings' }));
+    return groups;
+  };
+  expect(await groupsShown()).toEqual(['Flagged in notes', 'Metrics', 'Not drawn']);
+  expect(screen.queryByRole('complementary', { name: 'Findings' })).toBeNull();
 
   rerender(
     <ReviewPage
@@ -796,8 +810,9 @@ test("the findings rail starts collapsed to their total and how many need a look
       })}
     />,
   );
-  expect(within(rail).getByRole('button', { name: 'Show 1 findings' })).toBeDefined();
+  expect(within(rail()).getByRole('button', { name: 'Show 1 findings' })).toBeDefined();
   expect(countBy('needs a look')).toBe('0');
+  expect(await groupsShown()).toEqual(['Metrics']);
 });
 
 const webModule = (label: string, state: Diffed = 'unchanged') => ({

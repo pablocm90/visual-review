@@ -409,6 +409,46 @@ h1 {
   cursor: pointer;
 }
 
+.findings {
+  flex: 0 1 300px;
+  min-width: 260px;
+  margin-right: 16px;
+  padding: 16px 16px 16px 0;
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-content: start;
+  gap: 10px;
+  border-right: 1px solid var(--stack-line);
+}
+
+.findings h2 {
+  margin: 0;
+  align-self: center;
+  color: var(--muted);
+  font-size: 11.5px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.findings > button {
+  width: 36px;
+  height: 36px;
+  border: 1px solid var(--stack-line);
+  border-radius: 8px;
+  background: var(--stack);
+  color: var(--ink);
+  font: inherit;
+  cursor: pointer;
+}
+
+.findings h3 {
+  grid-column: 1 / -1;
+  margin: 8px 0 0;
+  font-size: 12.5px;
+  font-weight: 600;
+}
+
 .findings-count {
   display: flex;
   flex-direction: column;
