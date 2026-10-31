@@ -128,22 +128,25 @@ const ChangedNodes = ({ review, onGoTo }: ChangedNodesProps) => {
     .toSorted((one, other) => Number(one.count > 0) - Number(other.count > 0));
   return (
     <section className="changed-nodes" aria-label="Changed nodes">
-      <h2>Changed nodes</h2>
-      <p>Changed tests alongside each: at or under it, or named after a file in it.</p>
-      <ul>
+      <h2 className="changed-nodes-title">Changed nodes</h2>
+      <p className="changed-nodes-caveat">
+        Changed tests alongside each: at or under it, or named after a file in it.
+      </p>
+      <ul className="changed-nodes-list">
         {changed.map(({ node, count }) => (
           <li
             key={node.id}
+            className="changed-node"
             data-state={node.state}
             aria-label={`${node.label}: ${node.state}, tests alongside: ${count || 'none'}`}
           >
-            <span className="mark" aria-hidden="true">
+            <span className="changed-node-mark" aria-hidden="true">
               {node.state === 'added' ? TEST_MARKS.added : TEST_MARKS.edited}
             </span>
-            <button type="button" onClick={() => onGoTo(node.id)}>
+            <button type="button" className="changed-node-name" onClick={() => onGoTo(node.id)}>
               {node.label}
             </button>
-            <span className="count">
+            <span className="changed-node-count">
               {count > 0 ? (
                 count
               ) : (
@@ -175,31 +178,35 @@ export const TestsScreen = ({ review, notes, selected, onGoTo }: TestsScreenProp
   return (
     <div className="tests-screen">
       {notes && (
-        <section className="summary" aria-label="What they pin">
+        <section className="summary tests-pin" aria-label="What they pin">
           <h2 className="summary-title">What they pin</h2>
           <p>{notes.tests}</p>
         </section>
       )}
-      <div role="group" aria-label="Tests shown">
-        <button
-          type="button"
-          aria-pressed={forNode === undefined}
-          onClick={() => setForSelected(false)}
-        >
-          All {changedCount(review.tests)}
-        </button>
-        {selected && alongside && (
+      <div className="tests-controls">
+        <div className="tests-shown" role="group" aria-label="Tests shown">
           <button
+            className="tests-shown-button"
             type="button"
-            aria-pressed={forNode !== undefined}
-            onClick={() => setForSelected(true)}
+            aria-pressed={forNode === undefined}
+            onClick={() => setForSelected(false)}
           >
-            For {selected.label} {changedCount(alongside)}
+            All {changedCount(review.tests)}
           </button>
-        )}
+          {selected && alongside && (
+            <button
+              className="tests-shown-button"
+              type="button"
+              aria-pressed={forNode !== undefined}
+              onClick={() => setForSelected(true)}
+            >
+              For {selected.label} {changedCount(alongside)}
+            </button>
+          )}
+        </div>
+        <Counts files={shown} />
       </div>
-      <Counts files={shown} />
-      <section className="tests" aria-label="Test changes">
+      <section className="tests tests-files" aria-label="Test changes">
         {shown.length > 0 ? (
           <TestFiles files={shown} nodes={review.diff.nodes} />
         ) : (

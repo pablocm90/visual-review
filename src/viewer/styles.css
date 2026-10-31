@@ -1221,6 +1221,14 @@ pre .hljs-emphasis {
 }
 
 .tests-screen {
+  display: grid;
+  grid-template-areas:
+    "pin pin"
+    "controls nodes"
+    "files nodes";
+  grid-template-columns: minmax(0, 1fr) minmax(220px, 320px);
+  gap: 16px 32px;
+  align-items: start;
   padding: 16px 20px;
 }
 
@@ -1238,4 +1246,129 @@ pre .hljs-emphasis {
 .tests h3 .new {
   border-color: var(--added);
   color: var(--ink);
+}
+
+.tests-pin {
+  grid-area: pin;
+}
+
+.tests-controls {
+  display: flex;
+  flex-wrap: wrap;
+  grid-area: controls;
+  align-items: center;
+  gap: 16px;
+}
+
+.tests-files {
+  grid-area: files;
+  margin-top: 0;
+}
+
+.tests-shown {
+  display: flex;
+  gap: 2px;
+  padding: 3px;
+  border-radius: 9px;
+  background: var(--unchanged-fill);
+}
+
+.tests-shown-button {
+  min-height: 32px;
+  padding: 0 12px;
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--muted);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+  cursor: pointer;
+}
+
+.tests-shown-button[aria-pressed="true"] {
+  background: var(--stack);
+  color: var(--ink);
+  font-weight: 600;
+  box-shadow: 0 1px 2px rgb(0 0 0 / 14%);
+}
+
+.test-counts {
+  display: flex;
+  gap: 12px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  color: var(--muted);
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+}
+
+.changed-nodes {
+  grid-area: nodes;
+}
+
+.changed-nodes-title {
+  margin: 0 0 4px;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.changed-nodes-caveat {
+  margin: 0 0 8px;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.changed-nodes-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.changed-node {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 0;
+}
+
+.changed-node-mark {
+  width: 1.2em;
+  color: var(--line);
+  font-weight: 700;
+}
+
+.changed-node-name {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--ink);
+  font: inherit;
+  text-align: left;
+  text-decoration: underline;
+  text-decoration-color: var(--muted);
+  text-underline-offset: 3px;
+  cursor: pointer;
+}
+
+.changed-node-count {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-left: auto;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+
+@media (max-width: 720px) {
+  .tests-screen {
+    grid-template-areas:
+      "pin"
+      "controls"
+      "files"
+      "nodes";
+    grid-template-columns: minmax(0, 1fr);
+  }
 }
