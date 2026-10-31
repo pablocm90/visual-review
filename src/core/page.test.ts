@@ -187,19 +187,25 @@ test('a changed node that is a file on both sides gets its churn on each', () =>
   });
 });
 
-test('a measured file gets, beside its churn, its lines, functions, highest and total cyclomatic, and the size of its summed ABC parts to one decimal, on each side', () => {
+test("a measured file gets, beside its churn, its lines, functions, highest and total cyclomatic, each function's cyclomatic in the file's order, and the size of its summed ABC parts to one decimal, on each side", () => {
   const graph = { nodes: [webStack, webFile('a.ts')], edges: [] };
   const fn = (
+    name: string,
     cyclomatic: number,
     [assignments, branches, conditions]: readonly [number, number, number],
-  ) => ({ name: 'f', cyclomatic, abc: { assignments, branches, conditions } });
+  ) => ({ name, cyclomatic, abc: { assignments, branches, conditions } });
   const reading = readingWith({
     before: graph,
     after: graph,
     churn: { before: { 'web/src/a.ts': 3 }, after: { 'web/src/a.ts': 4 } },
     measures: {
-      before: { 'web/src/a.ts': { lines: 7, functions: [fn(2, [3, 4, 0])] } },
-      after: { 'web/src/a.ts': { lines: 9, functions: [fn(3, [1, 2, 0]), fn(1, [1, 0, 2])] } },
+      before: { 'web/src/a.ts': { lines: 7, functions: [fn('refund', 2, [3, 4, 0])] } },
+      after: {
+        'web/src/a.ts': {
+          lines: 9,
+          functions: [fn('split', 1, [1, 0, 2]), fn('refund', 3, [1, 2, 0])],
+        },
+      },
     },
   });
 
@@ -212,7 +218,7 @@ test('a measured file gets, beside its churn, its lines, functions, highest and 
       fanOut: 0,
       lines: 7,
       functions: 1,
-      cyclomatic: { highest: 2, total: 2 },
+      cyclomatic: { highest: 2, total: 2, byFunction: [{ name: 'refund', cyclomatic: 2 }] },
       abc: 5,
     },
     head: {
@@ -221,7 +227,14 @@ test('a measured file gets, beside its churn, its lines, functions, highest and 
       fanOut: 0,
       lines: 9,
       functions: 2,
-      cyclomatic: { highest: 3, total: 4 },
+      cyclomatic: {
+        highest: 3,
+        total: 4,
+        byFunction: [
+          { name: 'split', cyclomatic: 1 },
+          { name: 'refund', cyclomatic: 3 },
+        ],
+      },
       abc: 3.5,
     },
   });
@@ -279,7 +292,7 @@ test('a measured file with no functions has a highest and total cyclomatic of 0 
       fanOut: 0,
       lines: 2,
       functions: 0,
-      cyclomatic: { highest: 0, total: 0 },
+      cyclomatic: { highest: 0, total: 0, byFunction: [] },
       abc: 0,
     },
   });

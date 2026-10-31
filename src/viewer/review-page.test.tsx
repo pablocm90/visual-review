@@ -3,6 +3,7 @@ import { act, fireEvent, render, screen, waitFor, within } from '@testing-librar
 import userEvent from '@testing-library/user-event';
 import { expect, onTestFinished, test, vi } from 'vitest';
 import type { GraphDiff } from '../core/diff-graphs.ts';
+import type { NodeMeasures } from '../core/metrics.ts';
 import type { ReviewNotes } from '../core/notes.ts';
 import type { PageData } from '../core/page.ts';
 import { layoutDiff } from './layout.ts';
@@ -96,21 +97,29 @@ const review = {
 const showEverything = (user: ReturnType<typeof userEvent.setup>) =>
   user.click(screen.getByRole('checkbox', { name: 'Changed + 1 hop' }));
 
-const notePanel = () => screen.getByRole('complementary', { name: 'Note' });
+const inspector = () => screen.getByRole('complementary', { name: 'Inspector' });
 
-const noteShown = () => within(notePanel()).getAllByRole('paragraph')[0]?.textContent;
+const noteTab = () => screen.getByRole('tabpanel', { name: 'Note' });
+
+const noteShown = () => within(noteTab()).getAllByRole('paragraph')[0]?.textContent;
+
+const inspectorTabs = () =>
+  within(inspector())
+    .queryAllByRole('tab')
+    .map(tab => tab.textContent);
 
 const reasonsShown = () =>
-  within(notePanel())
+  within(noteTab())
     .queryAllByRole('heading')
     .map(heading => heading.textContent);
 
-test('draws every crate and dependency inside the rust stack with its change state, and opens no note panel until one is clicked', async () => {
+test('draws every crate and dependency inside the rust stack with its change state, and opens no inspector until one is clicked, closing it again from its close button, which hands the keyboard focus back to the node', async () => {
   const user = userEvent.setup();
   render(<ReviewPage review={pageWith(review)} />);
 
   const rust = await screen.findByRole('group', { name: 'rust' });
   expect(screen.getAllByRole('group')).toEqual([
+    screen.getByRole('group', { name: 'Colour by' }),
     screen.getByRole('group', { name: 'Graph' }),
     rust,
   ]);
@@ -127,13 +136,16 @@ test('draws every crate and dependency inside the rust stack with its change sta
   ].forEach(name => {
     expect(drawn).toContain(within(rust).getByRole('button', { name }));
   });
-  expect(screen.queryByRole('complementary', { name: 'Note' })).toBeNull();
+  expect(screen.queryByRole('complementary', { name: 'Inspector' })).toBeNull();
   expect(screen.queryByRole('region', { name: 'Summary' })).toBeNull();
-  expect(screen.queryByRole('region', { name: 'Calls with no route' })).toBeNull();
-  expect(screen.queryByRole('region', { name: 'Not in the graph' })).toBeNull();
 
-  await user.click(within(rust).getByRole('button', { name: 'legacy: removed' }));
+  const legacy = within(rust).getByRole('button', { name: 'legacy: removed' });
+  await user.click(legacy);
   expect(noteShown()).toBe('No note');
+  expect(within(inspector()).getByText('crates/legacy')).not.toBeNull();
+  await user.click(within(inspector()).getByRole('button', { name: 'Close inspector' }));
+  expect(screen.queryByRole('complementary', { name: 'Inspector' })).toBeNull();
+  expect(document.activeElement).toBe(legacy);
 });
 
 type FrameOptions = {
@@ -220,7 +232,7 @@ test('dragging from a node pans the graph and selects nothing, even back near wh
   expect(viewOf(rust)).toBe(pannedBy(40, 30));
   await drag({ clientX: 140, clientY: 130 }, { clientX: 102, clientY: 101 });
   expect(viewOf(rust)).toBe(pannedBy(42, 31));
-  expect(screen.queryByRole('complementary', { name: 'Note' })).toBeNull();
+  expect(screen.queryByRole('complementary', { name: 'Inspector' })).toBeNull();
 
   await drag({ clientX: 103, clientY: 100 });
   expect(viewOf(rust)).toBe(pannedBy(42, 31));
@@ -516,7 +528,8 @@ test('picking a tab sets the hash and shows it, and back and forward move betwee
   await waitFor(() => expect(currentTab()).toBe('Structure'));
 });
 
-test('a reader skipped for want of its tool is named in the header with the stacks it did not read', async () => {
+test('a reader skipped for want of its tool is named at the top of the findings rail, collapsed or open, with the stacks it did not read', async () => {
+  const user = userEvent.setup();
   render(
     <ReviewPage
       review={pageWith({
@@ -526,10 +539,33 @@ test('a reader skipped for want of its tool is named in the header with the stac
     />,
   );
 
-  expect(screen.getByRole('alert').textContent).toBe(
-    'rust, rust~2 not read: cargo not found on PATH',
-  );
-  await screen.findByRole('group', { name: 'rust' });
+  const line = 'rust, rust~2 not read: cargo not found on PATH';
+  const collapsed = await screen.findByRole('navigation', { name: 'Findings' });
+  expect(within(within(collapsed).getByRole('alert')).getByText(line)).toBeDefined();
+  await user.click(within(collapsed).getByRole('button', { name: 'Show 0 findings' }));
+  const open = screen.getByRole('complementary', { name: 'Findings' });
+  expect(within(open).getByRole('alert').textContent).toBe(line);
+  expect(screen.getAllByRole('alert')).toHaveLength(1);
+});
+
+test('the findings rail hands the keyboard focus to its other toggle as it opens and hides, and takes none as the page opens or while a node is picked with the rail open', async () => {
+  const user = userEvent.setup();
+  render(<ReviewPage review={pageWith(review)} />);
+  const show = await screen.findByRole('button', { name: 'Show 0 findings' });
+  expect(document.activeElement).toBe(document.body);
+
+  show.focus();
+  await user.keyboard('{Enter}');
+  const hide = screen.getByRole('button', { name: 'Hide findings' });
+  expect(document.activeElement).toBe(hide);
+
+  const domain = screen.getByRole('button', { name: 'domain: unchanged' });
+  await user.click(domain);
+  expect(document.activeElement).toBe(domain);
+
+  hide.focus();
+  await user.keyboard('{Enter}');
+  expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Show 0 findings' }));
 });
 
 test.for([
@@ -666,9 +702,9 @@ test("a flag's badge says on hover what it is flagged for, and clicking it opens
   expect(reasonsShown()).toEqual([]);
 });
 
-test('the summary lists its items and then every flagged note, and an item with a target takes focus to it and shows its note', async () => {
+test('the summary lists its items, not the flagged notes, and an item with a target takes focus to it and shows its note; with no items there is no summary', async () => {
   const user = userEvent.setup();
-  render(
+  const { rerender } = render(
     <ReviewPage
       review={pageWith({
         ...review,
@@ -700,18 +736,12 @@ test('the summary lists its items and then every flagged note, and an item with 
   expect(items.map(item => item.textContent)).toEqual([
     'The CLI is a new adapter.',
     'Domain is untouched.',
-    'new dependency direction: The CLI drives the use case.',
-    'removed but depended on: Domain still reaches it.',
   ]);
   expect(
     within(summary)
       .getAllByRole('button')
       .map(button => button.textContent),
-  ).toEqual([
-    'The CLI is a new adapter.',
-    'new dependency direction: The CLI drives the use case.',
-    'removed but depended on: Domain still reaches it.',
-  ]);
+  ).toEqual(['The CLI is a new adapter.']);
 
   const focus = vi.spyOn(SVGElement.prototype, 'focus');
   onTestFinished(() => focus.mockRestore());
@@ -720,14 +750,221 @@ test('the summary lists its items and then every flagged note, and an item with 
   expect(focus).toHaveBeenCalledWith({ preventScroll: true });
   expect(noteShown()).toBe('A second way in.');
 
-  await user.click(within(summary).getByRole('button', { name: /^new dependency direction/ }));
+  rerender(
+    <ReviewPage
+      review={pageWith(review)}
+      notes={{ version: 1, tests: '', summary: [], notes: {} }}
+    />,
+  );
+  expect(screen.queryByRole('region', { name: 'Summary' })).toBeNull();
+});
+
+test("the findings rail starts collapsed to their total and how many need a look or are for information: notes' flags need a look, metric findings keep their level, and each not-drawn line is for information; opened, it shows the groups holding findings, and hides again", async () => {
+  const user = userEvent.setup();
+  const { rerender } = render(
+    <ReviewPage
+      review={pageWith({
+        ...review,
+        metricFindings: [
+          { node: 'rust/crate/domain', metric: 'lines', level: 'info', head: 900, threshold: 800 },
+          {
+            node: 'rust/crate/application',
+            metric: 'cyclomatic',
+            level: 'look',
+            base: 4,
+            head: 14,
+            threshold: 10,
+          },
+        ],
+        dangling: [
+          { from: 'rust/crate/cli-adapter', path: '/api/a' },
+          { from: 'rust/crate/cli-adapter', path: '/api/b' },
+        ],
+        undrawn: [{ path: 'README.md', patch: '' }],
+      })}
+      notes={{
+        version: 1,
+        tests: '',
+        summary: [],
+        notes: {
+          'rust/crate/cli-adapter': { text: 'A second way in.', flag: 'new entry point' },
+          'rust/crate/domain': { text: 'Untouched.' },
+          'rust/crate/cli-adapter -> rust/crate/application': {
+            text: 'The CLI drives the use case.',
+            flag: 'new dependency direction',
+          },
+        },
+      }}
+    />,
+  );
+
+  await screen.findByRole('navigation', { name: 'Findings' });
+  const rail = () => screen.getByRole('navigation', { name: 'Findings' });
+  expect(within(rail()).getByRole('button', { name: 'Show 6 findings' })).toBeDefined();
+  const countBy = (level: string) =>
+    within(rail()).getByRole('img', { name: level }).parentElement?.textContent;
+  expect(countBy('needs a look')).toBe('3');
+  expect(countBy('for information')).toBe('3');
+
+  const groupsShown = async () => {
+    await user.click(screen.getByRole('button', { name: /^Show \d+ findings?$/ }));
+    const open = screen.getByRole('complementary', { name: 'Findings' });
+    const groups = within(open)
+      .getAllByRole('heading', { level: 3 })
+      .map(heading => heading.textContent);
+    await user.click(within(open).getByRole('button', { name: 'Hide findings' }));
+    return groups;
+  };
+  expect(await groupsShown()).toEqual(['Flagged in notes', 'Metrics', 'Not drawn']);
+  expect(screen.queryByRole('complementary', { name: 'Findings' })).toBeNull();
+
+  await user.click(screen.getByRole('button', { name: 'Show 6 findings' }));
+  const flagged = within(screen.getByRole('region', { name: 'Flagged in notes' }));
+  expect(
+    flagged.getByRole('button', { name: 'cli-adapter: new entry point: A second way in.' }),
+  ).toBeDefined();
+  expect(
+    flagged.getByRole('button', {
+      name: 'cli-adapter → application: new dependency direction: The CLI drives the use case.',
+    }),
+  ).toBeDefined();
+  const notDrawn = within(screen.getByRole('region', { name: 'Not drawn' }));
+  expect(notDrawn.getByText('2 calls with no route')).toBeDefined();
+  expect(notDrawn.getByText('/api/a, /api/b')).toBeDefined();
+  expect(notDrawn.getAllByRole('button').map(button => button.getAttribute('aria-label'))).toEqual([
+    'README.md: 1 changed file outside the graph',
+  ]);
+
+  const chips = within(screen.getByRole('group', { name: 'Show findings' }));
+  const pressed = () =>
+    chips
+      .getAllByRole('button')
+      .map(chip => `${chip.textContent} ${chip.getAttribute('aria-pressed')}`);
+  expect(pressed()).toEqual([
+    'All 6 true',
+    'Notes 2 false',
+    'Metrics 2 false',
+    'Not drawn 2 false',
+  ]);
+  const headings = () =>
+    within(screen.getByRole('complementary', { name: 'Findings' }))
+      .getAllByRole('heading', { level: 3 })
+      .map(heading => heading.textContent);
+  await user.click(chips.getByRole('button', { name: 'Metrics 2' }));
+  expect(pressed()).toEqual([
+    'All 6 false',
+    'Notes 2 false',
+    'Metrics 2 true',
+    'Not drawn 2 false',
+  ]);
+  expect(headings()).toEqual(['Metrics']);
+  await user.click(chips.getByRole('button', { name: 'All 6' }));
+  expect(headings()).toEqual(['Flagged in notes', 'Metrics', 'Not drawn']);
+  await user.click(screen.getByRole('button', { name: 'Hide findings' }));
+
+  rerender(
+    <ReviewPage
+      review={pageWith({
+        ...review,
+        metricFindings: [
+          { node: 'rust/crate/domain', metric: 'lines', level: 'info', head: 900, threshold: 800 },
+        ],
+      })}
+    />,
+  );
+  expect(within(rail()).getByRole('button', { name: 'Show 1 finding' })).toBeDefined();
+  expect(countBy('needs a look')).toBe('0');
+  expect(await groupsShown()).toEqual(['Metrics']);
+});
+
+test('the rail reads each metric finding as a sentence on its node: the move from base to head, or the head alone, and the threshold it is over; a hotspot names its churn and cyclomatic', async () => {
+  const user = userEvent.setup();
+  render(
+    <ReviewPage
+      review={pageWith({
+        ...review,
+        metricFindings: [
+          {
+            node: 'rust/crate/application',
+            metric: 'cyclomatic',
+            level: 'look',
+            base: 4,
+            head: 14,
+            threshold: 10,
+          },
+          { node: 'rust/crate/domain', metric: 'lines', level: 'info', head: 900, threshold: 800 },
+          {
+            node: 'rust/crate/domain',
+            metric: 'abc',
+            level: 'look',
+            base: 28.25,
+            head: 31.5,
+            threshold: 30,
+          },
+          {
+            node: 'rust/crate/cli-adapter',
+            metric: 'hotspot',
+            level: 'info',
+            base: { churn: 6, cyclomatic: 9 },
+            head: { churn: 7, cyclomatic: 12 },
+            threshold: { churn: 6, cyclomatic: 8 },
+          },
+        ],
+      })}
+    />,
+  );
+
+  await user.click(await screen.findByRole('button', { name: 'Show 4 findings' }));
+  const metrics = within(screen.getByRole('region', { name: 'Metrics' }));
+  expect(
+    metrics.getByRole('button', { name: 'application: cyclomatic 4 → 14, over 10' }),
+  ).toBeDefined();
+  expect(metrics.getByRole('button', { name: 'domain: lines 900, over 800' })).toBeDefined();
+  expect(
+    metrics.getByRole('button', { name: 'domain: ABC size 28.3 → 31.5, over 30' }),
+  ).toBeDefined();
+  expect(
+    metrics.getByRole('button', {
+      name: 'cli-adapter: hotspot, churn 6 → 7 and cyclomatic 9 → 12, over 6 and 8',
+    }),
+  ).toBeDefined();
+});
+
+test("a note's or a metric finding in the rail goes to its node or edge as the summary's links do", async () => {
+  const user = userEvent.setup();
+  render(
+    <ReviewPage
+      review={pageWith({
+        ...review,
+        metricFindings: [
+          { node: 'rust/crate/domain', metric: 'lines', level: 'info', head: 900, threshold: 800 },
+        ],
+      })}
+      notes={{
+        version: 1,
+        tests: '',
+        summary: [],
+        notes: {
+          'rust/crate/cli-adapter -> rust/crate/application': {
+            text: 'The CLI drives the use case.',
+            flag: 'new dependency direction',
+          },
+        },
+      }}
+    />,
+  );
+
+  await user.click(await screen.findByRole('button', { name: 'Show 2 findings' }));
+  await user.click(screen.getByRole('button', { name: /^cli-adapter → application: new/ }));
   expect(document.activeElement).toBe(
     screen.getByRole('button', {
       name: 'cli-adapter → application: added, flagged: new dependency direction',
     }),
   );
   expect(noteShown()).toBe('The CLI drives the use case.');
-  expect(screen.queryByRole('region', { name: 'Unplaced notes' })).toBeNull();
+
+  await user.click(screen.getByRole('button', { name: 'domain: lines 900, over 800' }));
+  expect(document.activeElement).toBe(screen.getByRole('button', { name: 'domain: unchanged' }));
 });
 
 const webModule = (label: string, state: Diffed = 'unchanged') => ({
@@ -759,7 +996,7 @@ const buttonsIn = (element: HTMLElement) =>
     .getAllByRole('button')
     .map(drawn => drawn.getAttribute('aria-label'));
 
-test("modules open collapsed, joined by their files' imports; a module's toggle expands it into its files and back; a note on a hidden import shows on the edge it merges into; a summary item on a hidden file or import expands what hides it and focuses it, without pulling focus back later", async () => {
+test("modules open collapsed, joined by their files' imports; a module's toggle expands it into its files and back; a note on a hidden import shows on the edge it merges into; a summary item on a hidden file or a rail finding on a hidden import expands what hides it and focuses it, without pulling focus back later", async () => {
   const user = userEvent.setup();
   render(
     <ReviewPage
@@ -859,7 +1096,8 @@ test("modules open collapsed, joined by their files' imports; a module's toggle 
 
   await user.click(within(web).getByRole('button', { name: 'Collapse modules/AppInfo' }));
   await user.click(within(web).getByRole('button', { name: 'Collapse utils' }));
-  await user.click(screen.getByRole('button', { name: 'reaches into utils: New helper.' }));
+  await user.click(screen.getByRole('button', { name: /^Show \d+ findings?$/ }));
+  await user.click(screen.getByRole('button', { name: /: reaches into utils: New helper\.$/ }));
 
   const reaching = await within(web).findByRole('button', {
     name: 'api/app-info.ts → x.ts: added, flagged: reaches into utils',
@@ -990,7 +1228,7 @@ test("with 'Changed + 1 hop' ticked, going to a merged module edge or to a hidde
   expect(hop).toHaveProperty('checked', true);
 });
 
-test("web calls to API routes are drawn between the stacks, named by their paths, merged while their module is collapsed and split by file once it's expanded; a call with no route marks the node holding it and is listed", async () => {
+test("web calls to API routes are drawn between the stacks, named by their paths, merged while their module is collapsed and split by file once it's expanded; a call with no route marks the node holding it", async () => {
   const user = userEvent.setup();
   const call = (file: string, path: string, state: GraphDiff['edges'][number]['state']) => ({
     from: `web/file/modules/AppInfo/${file}`,
@@ -1039,11 +1277,6 @@ test("web calls to API routes are drawn between the stacks, named by their paths
   ]);
   await user.click(screen.getByRole('img', { name: 'No route for /api/app-info' }));
   expect(reasonsShown()).toEqual(['No route for /api/app-info']);
-  expect(
-    within(screen.getByRole('region', { name: 'Calls with no route' }))
-      .getAllByRole('listitem')
-      .map(item => item.textContent),
-  ).toEqual(['/api/app-info from web/src/modules/AppInfo/api/users.ts']);
   expect(buttonsIn(screen.getByRole('group', { name: 'rust' }))).toEqual([
     'http-adapter: unchanged',
   ]);
@@ -1070,7 +1303,191 @@ test("web calls to API routes are drawn between the stacks, named by their paths
   expect(noteShown()).toBe('Lists users.');
 });
 
-test("selecting a node lists the patches of the files under it from their first hunk, a module's closed and a file's open with its added and removed lines marked; a file without a patch or an edge lists none", async () => {
+const measured = (overrides: Partial<NodeMeasures> = {}): NodeMeasures => ({
+  churn: 6,
+  fanIn: 1,
+  fanOut: 3,
+  lines: 120,
+  functions: 6,
+  cyclomatic: { highest: 4, total: 19 },
+  abc: 18.24,
+  ...overrides,
+});
+
+const metricCells = (metric: string) => {
+  const panel = screen.getByRole('tabpanel', { name: 'Metrics' });
+  const header = within(panel)
+    .getAllByRole('rowheader')
+    .find(cell => cell.textContent?.startsWith(metric));
+  const row = within(panel)
+    .getAllByRole('row')
+    .find(row => header !== undefined && row.contains(header));
+  return (
+    row &&
+    within(row)
+      .getAllByRole('cell')
+      .map(cell => cell.textContent)
+  );
+};
+
+test("a measured node's Metrics tab gives each measure before and after with the difference, a missing side and its difference as —, and a side without complexity as not measured, and a box's values as the highest inside it, with no functions listed without their cyclomatic; a node or an edge without metrics has no Metrics tab", async () => {
+  const user = userEvent.setup();
+  render(
+    <ReviewPage
+      review={pageWith({
+        ...review,
+        metrics: {
+          'rust/crate/application': {
+            base: measured({ fanIn: 2 }),
+            head: measured({
+              lines: 184,
+              functions: 9,
+              cyclomatic: { highest: 14, total: 41 },
+              abc: 31.5,
+              fanOut: 5,
+            }),
+          },
+          'rust/crate/cli-adapter': { head: { churn: 1, fanIn: 0, fanOut: 1 } },
+          'rust/crate/legacy': { highestInside: true, base: measured() },
+        },
+      })}
+    />,
+  );
+
+  await user.click(await screen.findByRole('button', { name: 'application: modified' }));
+  expect(inspectorTabs()).toEqual(['Note', 'Metrics']);
+  await user.click(within(inspector()).getByRole('tab', { name: 'Metrics' }));
+  expect(metricCells('Lines')).toEqual(['120', '184', '+64']);
+  expect(metricCells('Functions')).toEqual(['6', '9', '+3']);
+  expect(metricCells('Cyclomatic, highest')).toEqual(['4', '14', '+10']);
+  expect(metricCells('Cyclomatic, total')).toEqual(['19', '41', '+22']);
+  expect(metricCells('ABC size')).toEqual(['18.2', '31.5', '+13.3']);
+  expect(metricCells('Fan-out')).toEqual(['3', '5', '+2']);
+  expect(metricCells('Fan-in')).toEqual(['2', '1', '−1']);
+  expect(metricCells('Churn')).toEqual(['6', '6', '±0']);
+  expect(within(inspector()).queryByText(/highest inside/)).toBeNull();
+  expect(screen.queryByRole('list', { name: 'Functions by cyclomatic' })).toBeNull();
+
+  await user.click(screen.getByRole('button', { name: 'cli-adapter: added' }));
+  expect(metricCells('Lines')).toEqual(['—', 'not measured', '—']);
+  expect(metricCells('Fan-out')).toEqual(['—', '1', '—']);
+  await user.click(screen.getByRole('button', { name: 'legacy: removed' }));
+  expect(metricCells('Lines')).toEqual(['120', '—', '—']);
+  expect(within(inspector()).getByText(/highest inside/)).toBeTruthy();
+
+  await user.click(screen.getByRole('button', { name: 'domain: unchanged' }));
+  expect(inspectorTabs()).toEqual(['Note']);
+  await user.click(screen.getByRole('button', { name: 'application → domain: unchanged' }));
+  expect(inspectorTabs()).toEqual(['Note']);
+});
+
+const metricMarks = (metric: string) => {
+  const header = within(screen.getByRole('tabpanel', { name: 'Metrics' }))
+    .getAllByRole('rowheader')
+    .find(cell => cell.textContent?.startsWith(metric));
+  return (
+    header &&
+    within(header)
+      .queryAllByRole('img')
+      .map(mark => mark.getAttribute('aria-label'))
+  );
+};
+
+test("a Metrics row is marked by the level of the node's finding on it, a hotspot marking Churn", async () => {
+  const user = userEvent.setup();
+  const application = 'rust/crate/application';
+  render(
+    <ReviewPage
+      review={pageWith({
+        ...review,
+        metrics: { [application]: { base: measured(), head: measured() } },
+        metricFindings: [
+          {
+            node: 'rust/crate/domain',
+            metric: 'cyclomatic',
+            level: 'info',
+            head: 12,
+            threshold: 10,
+          },
+          { node: application, metric: 'cyclomatic', level: 'look', head: 14, threshold: 10 },
+          { node: application, metric: 'lines', level: 'look', head: 900, threshold: 800 },
+          { node: application, metric: 'abc', level: 'info', head: 31.5, threshold: 30 },
+          {
+            node: application,
+            metric: 'hotspot',
+            level: 'info',
+            head: { churn: 6, cyclomatic: 14 },
+            threshold: { churn: 5, cyclomatic: 10 },
+          },
+        ],
+      })}
+    />,
+  );
+
+  await user.click(await screen.findByRole('button', { name: 'application: modified' }));
+  await user.click(within(inspector()).getByRole('tab', { name: 'Metrics' }));
+  expect(metricMarks('Cyclomatic, highest')).toEqual(['needs a look']);
+  expect(metricMarks('ABC size')).toEqual(['for information']);
+  expect(metricMarks('Churn')).toEqual(['for information']);
+  expect(metricMarks('Lines')).toEqual(['needs a look']);
+  expect(metricMarks('Functions')).toEqual([]);
+});
+
+test("a measured file's Metrics tab lists its functions by cyclomatic base → head, a repeated name paired n-th with n-th, marked added, removed or modified, the highest head first and removed ones last", async () => {
+  const user = userEvent.setup();
+  const byFunction = (pairs: ReadonlyArray<readonly [string, number]>) => ({
+    highest: 14,
+    total: 40,
+    byFunction: pairs.map(([name, cyclomatic]) => ({ name, cyclomatic })),
+  });
+  render(
+    <ReviewPage
+      review={pageWith({
+        ...review,
+        metrics: {
+          'rust/crate/application': {
+            base: measured({
+              cyclomatic: byFunction([
+                ['refund_order', 4],
+                ['validate', 3],
+                ['legacy', 5],
+                ['helper', 2],
+                ['helper', 7],
+              ]),
+            }),
+            head: measured({
+              cyclomatic: byFunction([
+                ['validate', 3],
+                ['refund_order', 14],
+                ['helper', 2],
+                ['split', 6],
+                ['helper', 9],
+              ]),
+            }),
+          },
+        },
+      })}
+    />,
+  );
+
+  await user.click(await screen.findByRole('button', { name: 'application: modified' }));
+  await user.click(within(inspector()).getByRole('tab', { name: 'Metrics' }));
+  const functions = screen.getByRole('list', { name: 'Functions by cyclomatic' });
+  expect(
+    within(functions)
+      .getAllByRole('listitem')
+      .map(item => item.textContent),
+  ).toEqual([
+    '~ refund_order 4 → 14',
+    '~ helper 7 → 9',
+    '+ split — → 6',
+    'validate 3 → 3',
+    'helper 2 → 2',
+    '− legacy 5 → —',
+  ]);
+});
+
+test("a selected node's Diff tab lists the patches of the files under it from their first hunk, a module's closed and a file's open with its added and removed lines marked, and stays picked from one selection to the next; a file without a patch or an edge has no Diff tab and shows its Note", async () => {
   const user = userEvent.setup();
   const patch = [
     'diff --git a/web/src/utils/x.ts b/web/src/utils/x.ts',
@@ -1106,11 +1523,15 @@ test("selecting a node lists the patches of the files under it from their first 
 
   const web = await screen.findByRole('group', { name: 'web' });
   await user.click(within(web).getByRole('button', { name: 'utils: modified' }));
+  expect(inspectorTabs()).toEqual(['Note', 'Diff']);
+  expect(changes()).toBeNull();
+  await user.click(within(inspector()).getByRole('tab', { name: 'Diff' }));
   expect(fileShown().hasAttribute('open')).toBe(false);
 
   await user.click(within(web).getByRole('button', { name: 'Expand utils' }));
   const utils = await within(web).findByRole('group', { name: 'utils' });
   await user.click(within(utils).getByRole('button', { name: 'x.ts: modified' }));
+  expect(within(inspector()).getByRole('tab', { selected: true }).textContent).toBe('Diff');
   const file = fileShown();
   expect(file.hasAttribute('open')).toBe(true);
   expect(within(file).getByText(/^@@ -1,2 \+1,2 @@/)).not.toBeNull();
@@ -1127,15 +1548,19 @@ test("selecting a node lists the patches of the files under it from their first 
   ).toEqual(['-export const x = 1;']);
 
   await user.click(within(utils).getByRole('button', { name: 'y.ts: unchanged' }));
+  expect(inspectorTabs()).toEqual(['Note']);
   expect(changes()).toBeNull();
+  expect(noteShown()).toBe('No note');
 
   await user.click(within(utils).getByRole('button', { name: 'x.ts: modified' }));
+  await user.click(within(inspector()).getByRole('tab', { name: 'Diff' }));
   expect(changes()).not.toBeNull();
   await user.click(within(web).getByRole('button', { name: 'y.ts → x.ts: unchanged' }));
+  expect(inspectorTabs()).toEqual(['Note']);
   expect(changes()).toBeNull();
 });
 
-test('changed files outside the graph are listed under their own heading, each a closed patch that opens on click', async () => {
+test("the rail's changed files outside the graph open in the inspector at the changes' width, each a closed patch that opens on click, until a node is selected or the inspector closed, which hands the keyboard focus back to the rail's button", async () => {
   const user = userEvent.setup();
   render(
     <ReviewPage
@@ -1143,22 +1568,36 @@ test('changed files outside the graph are listed under their own heading, each a
         ...review,
         undrawn: [
           { path: 'README.md', patch: '--- a/README.md\n+++ b/README.md\n@@ -1 +1 @@\n-old\n+new' },
+          { path: 'docs/a.md', patch: '--- a/docs/a.md\n+++ b/docs/a.md\n@@ -1 +1 @@\n-a\n+b' },
         ],
       })}
     />,
   );
 
-  await screen.findByRole('group', { name: 'rust' });
-  const readme = within(screen.getByRole('region', { name: 'Not in the graph' })).getByRole(
-    'group',
-    { name: 'README.md' },
+  await user.click(await screen.findByRole('button', { name: 'Show 1 finding' }));
+  const outside = 'README.md, docs/a.md: 2 changed files outside the graph';
+  await user.click(screen.getByRole('button', { name: outside }));
+  expect(within(inspector()).getByRole('heading', { level: 2 }).textContent).toBe(
+    'Changed files outside the graph',
   );
+  expect(panelWidth()).toBe('600');
+  const readme = within(inspector()).getByRole('group', { name: 'README.md' });
+  expect(within(inspector()).getByRole('group', { name: 'docs/a.md' })).toBeDefined();
   expect(readme.hasAttribute('open')).toBe(false);
   await user.click(within(readme).getByText('README.md'));
   expect(within(readme).getByRole('insertion').textContent).toBe('+new');
+
+  await user.click(screen.getByRole('button', { name: 'domain: unchanged' }));
+  expect(within(inspector()).getByRole('heading', { level: 2 }).textContent).toBe('domain');
+
+  const opener = screen.getByRole('button', { name: outside });
+  await user.click(opener);
+  await user.click(within(inspector()).getByRole('button', { name: 'Close inspector' }));
+  expect(screen.queryByRole('complementary', { name: 'Inspector' })).toBeNull();
+  expect(document.activeElement).toBe(opener);
 });
 
-test('a renamed node shows the label it had under its own, also once expanded, is named with both and its old path, and its panel says what it was renamed from; a node whose label stayed shows no former one', async () => {
+test("a renamed node shows the label it had under its own, also once expanded, is named with both and its old path, and its inspector's head names it with its kind, stack, state and path and what it was renamed from; a node whose label stayed shows no former one", async () => {
   const user = userEvent.setup();
   render(
     <ReviewPage
@@ -1195,13 +1634,23 @@ test('a renamed node shows the label it had under its own, also once expanded, i
   expect(within(models).getByText('was domain')).not.toBeNull();
 
   await user.click(models);
-  expect(notePanel().textContent).toContain('Renamed from crates/domain');
+  expect(within(inspector()).getByRole('heading', { level: 2 }).textContent).toBe('models');
+  expect(within(inspector()).getByText('package · rust')).not.toBeNull();
+  expect(within(inspector()).getByText('modified')).not.toBeNull();
+  expect(within(inspector()).getByText('crates/models, renamed from crates/domain')).not.toBeNull();
 
   await user.click(within(rust).getByRole('button', { name: 'Expand models' }));
   const expanded = await within(rust).findByRole('group', { name: 'models' });
   expect(within(expanded).getByText('was domain')).not.toBeNull();
   const lib = within(expanded).getByRole('button', { name: /^lib\.rs: modified/ });
   expect(within(lib).queryByText(/was/)).toBeNull();
+  await user.click(lib);
+  expect(within(inspector()).getByText('file · rust')).not.toBeNull();
+  expect(
+    within(inspector()).getByText(
+      'crates/models/src/lib.rs, renamed from crates/domain/src/lib.rs',
+    ),
+  ).not.toBeNull();
 });
 
 test('the tests section lists each changed test file with its tests as a tree, each named with its change and any label or where it moved, an unreadable one with the reason and a renamed one with its old path', async () => {
@@ -1290,7 +1739,7 @@ test('the tests section says so when no test changed', async () => {
   ).not.toBeNull();
 });
 
-test("selecting a node narrows the tests section to the test files at or under it, and says so when none changed there, under Claude's tests line", async () => {
+test("selecting a node narrows the tests section to the test files at or under it, and says so when none changed there, under Claude's tests line; the inspector's Tests tab lists those files, counting their changed tests, and is left out where none changed", async () => {
   const user = userEvent.setup();
   const testFile = (path: string) => ({
     path,
@@ -1302,7 +1751,20 @@ test("selecting a node narrows the tests section to the test files at or under i
         ...review,
         tests: [
           testFile('crates/application/src/lib.rs'),
-          testFile('crates/application/tests/export.rs'),
+          {
+            path: 'crates/application/tests/export.rs',
+            statements: [
+              { kind: 'test', name: 'exports a CSV', change: 'removed' },
+              {
+                kind: 'heading',
+                name: 'the export',
+                children: [
+                  { kind: 'test', name: 'names the columns', change: 'unchanged' },
+                  { kind: 'test', name: 'quotes commas', change: 'edited' },
+                ],
+              },
+            ],
+          },
           testFile('tools/visual-review/src/notes.test.ts'),
         ],
       })}
@@ -1327,7 +1789,17 @@ test("selecting a node narrows the tests section to the test files at or under i
     'crates/application/tests/export.rs',
   ]);
   expect(within(tests).queryByText('No test changed here.')).toBeNull();
+  expect(inspectorTabs()).toEqual(['Note', 'Tests 3']);
+  await user.click(within(inspector()).getByRole('tab', { name: 'Tests 3' }));
+  expect(
+    within(screen.getByRole('tabpanel', { name: 'Tests' }))
+      .getAllByRole('region')
+      .map(file => file.getAttribute('aria-label')),
+  ).toEqual(['crates/application/src/lib.rs', 'crates/application/tests/export.rs']);
+  await user.click(screen.getByRole('button', { name: 'application → domain: unchanged' }));
+  expect(inspectorTabs()).toEqual(['Note']);
   await user.click(screen.getByRole('button', { name: 'domain: unchanged' }));
+  expect(inspectorTabs()).toEqual(['Note']);
   expect(filesListed()).toEqual([]);
   expect(within(tests).getByText('No test changed here.')).not.toBeNull();
   expect(within(tests).getByText('The notes check is pinned; the CLI is not.')).not.toBeNull();
@@ -1431,11 +1903,14 @@ const withChangesUnderApplication = {
 const panelWidth = () =>
   screen.getByRole('separator', { name: 'Panel width' }).getAttribute('aria-valuenow');
 
-test('a selected node opens its panel beside a divider that gives its width: 360 for a note alone, 600 with changes; arrow keys move the divider, other keys leave it, and it stops at 280 and where the graph would get narrower than 320; the width it sets holds for later selections', async () => {
+test('a selected node opens its panel beside a divider that gives its width: 360 for a note alone, 600 with changes; arrow keys move the divider, other keys leave it, and it stops at 280 and where the graph, right of the findings rail, would get narrower than 320; the width it sets holds for later selections', async () => {
   const user = userEvent.setup();
   render(<ReviewPage review={pageWith(withChangesUnderApplication)} />);
 
   const rust = await screen.findByRole('group', { name: 'rust' });
+  vi.spyOn(screen.getByRole('group', { name: 'Graph' }), 'getBoundingClientRect').mockReturnValue(
+    DOMRect.fromRect({ x: 101, y: 0, width: 600, height: 400 }),
+  );
   expect(screen.queryByRole('separator')).toBeNull();
 
   await user.click(within(rust).getByRole('button', { name: 'application: modified' }));
@@ -1452,15 +1927,15 @@ test('a selected node opens its panel beside a divider that gives its width: 360
   await user.keyboard('{ArrowRight}');
   expect(panelWidth()).toBe('280');
 
-  await user.keyboard('{ArrowLeft>8/}');
-  expect(panelWidth()).toBe('600');
+  await user.keyboard('{ArrowLeft>6/}');
+  expect(panelWidth()).toBe('520');
   await user.keyboard('{ArrowLeft}');
-  expect(panelWidth()).toBe('632');
+  expect(panelWidth()).toBe('555');
   await user.keyboard('{Tab}');
-  expect(panelWidth()).toBe('632');
+  expect(panelWidth()).toBe('555');
 
   await user.click(within(rust).getByRole('button', { name: 'application: modified' }));
-  expect(panelWidth()).toBe('632');
+  expect(panelWidth()).toBe('555');
 });
 
 test('dragging the divider sets the panel width until the button is let go, within the same limits', async () => {
@@ -1484,4 +1959,116 @@ test('dragging the divider sets the panel width until the button is let go, with
   expect(fireEvent.pointerDown(divider, { clientX: 500 }), 'a drag selects no page text').toBe(
     false,
   );
+});
+
+const churned = (churn: number) => ({ head: { churn, fanIn: 0, fanOut: 0 } });
+
+const eightCrates = {
+  range: 'abc123..def456',
+  diff: {
+    nodes: [
+      { id: 'rust', kind: 'stack' as const, label: 'rust', path: '', state: 'unchanged' as const },
+      crate('domain', 'modified'),
+      crate('application', 'modified'),
+      crate('billing', 'modified'),
+      crate('shipping', 'modified'),
+      crate('search', 'modified'),
+      crate('cli-adapter', 'added'),
+      crate('legacy', 'removed'),
+      crate('audit', 'modified'),
+    ],
+    edges: [],
+  },
+};
+
+const scaleSteps = () =>
+  within(screen.getByRole('list', { name: 'Scale' }))
+    .getAllByRole('listitem')
+    .map(step => step.textContent);
+
+const colourBy = (name: string) =>
+  within(screen.getByRole('group', { name: 'Colour by' })).getByRole('button', { name });
+
+test('Colour by starts on Change; on Churn each measured node is named with its churn and the step of the ramp holding it, cut at 3, 6 and 9, a removed node by its base, an unmeasured one with nothing; back on Change they go', async () => {
+  const user = userEvent.setup();
+  render(
+    <ReviewPage
+      review={pageWith({
+        ...eightCrates,
+        metrics: {
+          'rust/crate/domain': { base: { churn: 7, fanIn: 0, fanOut: 0 }, ...churned(2) },
+          'rust/crate/cli-adapter': churned(3),
+          'rust/crate/billing': churned(5),
+          'rust/crate/shipping': churned(6),
+          'rust/crate/search': churned(8),
+          'rust/crate/application': churned(9),
+          'rust/crate/legacy': { base: { churn: 4, fanIn: 0, fanOut: 0 } },
+        },
+      })}
+    />,
+  );
+  const rust = await screen.findByRole('group', { name: 'rust' });
+  expect(colourBy('Change').getAttribute('aria-pressed')).toBe('true');
+  expect(colourBy('Churn').getAttribute('aria-pressed')).toBe('false');
+  expect(screen.getByRole('list', { name: 'Legend' })).toBeTruthy();
+  expect(screen.queryByRole('list', { name: 'Scale' })).toBeNull();
+
+  await user.click(colourBy('Churn'));
+  expect(screen.queryByRole('list', { name: 'Legend' })).toBeNull();
+  expect(scaleSteps()).toEqual(['0–2', '3–5', '6–8', '9+']);
+  expect(colourBy('Churn').getAttribute('aria-pressed')).toBe('true');
+  expect(colourBy('Change').getAttribute('aria-pressed')).toBe('false');
+  expect(buttonsIn(rust)).toEqual([
+    'domain: modified, churn 2 (0–2)',
+    'application: modified, churn 9 (9+)',
+    'billing: modified, churn 5 (3–5)',
+    'shipping: modified, churn 6 (6–8)',
+    'search: modified, churn 8 (6–8)',
+    'cli-adapter: added, churn 3 (3–5)',
+    'legacy: removed, churn 4 (3–5)',
+    'audit: modified',
+  ]);
+
+  await user.click(colourBy('Change'));
+  expect(within(rust).getByRole('button', { name: 'application: modified' })).toBeTruthy();
+  expect(screen.getByRole('list', { name: 'Legend' })).toBeTruthy();
+  expect(screen.queryByRole('list', { name: 'Scale' })).toBeNull();
+});
+
+const complex = (highest: number) => measured({ cyclomatic: { highest, total: highest } });
+
+test("on Complexity each node is named with its head's highest cyclomatic and the step holding it, cut at 5, 8 and 11; a removed node or a head without complexity with nothing", async () => {
+  const user = userEvent.setup();
+  render(
+    <ReviewPage
+      review={pageWith({
+        ...eightCrates,
+        metrics: {
+          'rust/crate/domain': { base: complex(12), head: complex(4) },
+          'rust/crate/application': { head: complex(5) },
+          'rust/crate/billing': { head: complex(7) },
+          'rust/crate/shipping': { head: complex(8) },
+          'rust/crate/search': { head: complex(10) },
+          'rust/crate/cli-adapter': { head: complex(11) },
+          'rust/crate/legacy': { base: complex(12) },
+          'rust/crate/audit': churned(9),
+        },
+      })}
+    />,
+  );
+  const rust = await screen.findByRole('group', { name: 'rust' });
+
+  await user.click(colourBy('Complexity'));
+  expect(colourBy('Complexity').getAttribute('aria-pressed')).toBe('true');
+  expect(scaleSteps()).toEqual(['0–4', '5–7', '8–10', '11+']);
+  expect(buttonsIn(rust)).toEqual([
+    'domain: modified, cyclomatic 4 (0–4)',
+    'application: modified, cyclomatic 5 (5–7)',
+    'billing: modified, cyclomatic 7 (5–7)',
+    'shipping: modified, cyclomatic 8 (8–10)',
+    'search: modified, cyclomatic 10 (8–10)',
+    'cli-adapter: added, cyclomatic 11 (11+)',
+    'legacy: removed',
+    'audit: modified',
+  ]);
 });

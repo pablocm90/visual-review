@@ -10,10 +10,11 @@ import {
 import type { FilePatch, GraphDiff } from '../core/diff-graphs.ts';
 import { isAtOrUnder } from '../core/diff-graphs.ts';
 import { edgeId } from '../core/graph.ts';
+import type { MetricFinding } from '../core/metric-findings.ts';
+import type { NodeMetrics } from '../core/metrics.ts';
 import { type Note, type ReviewNotes, visibleNotes } from '../core/notes.ts';
 import { type PageData, UNCOMMITTED } from '../core/page.ts';
-import { notReadLine } from '../core/skipped.ts';
-import type { MarkedTest, TestChange, TestStatement } from '../core/test-changes.ts';
+import type { MarkedTest, TestChange, TestFile, TestStatement } from '../core/test-changes.ts';
 import {
   expandedToShow,
   isDrawn,
@@ -22,6 +23,8 @@ import {
   visibleDiff,
   visibleNodeOf,
 } from '../core/visible-diff.ts';
+import { ColourBy, type Colouring, ScaleLegend, type Shade, shadeOf } from './colour-by.tsx';
+import { FindingsRail } from './findings-rail.tsx';
 import { highlightPatch, type PatchLine as Line, type Piece } from './highlight-patch.ts';
 import {
   type Layout,
@@ -30,6 +33,7 @@ import {
   type PlacedNode,
   type PlacedStack,
 } from './layout.ts';
+import { MetricsTable } from './metrics-tab.tsx';
 import {
   boxOf,
   centred,
@@ -49,14 +53,17 @@ const NOTE_WIDTH = 360;
 const CHANGES_WIDTH = 600;
 const PANEL_MIN = 280;
 const GRAPH_MIN = 320;
-const PAGE_PADDING_AND_DIVIDER = 72;
+const DIVIDER_AND_PADDING = 48;
 const DIVIDER_STEP = 40;
 const LEAST_DRAG = 4;
 const WHEEL_PER_DOUBLING = 100;
 const PAN_STEP = 40;
 
-const panelWidthWithin = (width: number) =>
-  Math.min(Math.max(width, PANEL_MIN), window.innerWidth - PAGE_PADDING_AND_DIVIDER - GRAPH_MIN);
+const panelWidthWithin = (width: number, graphLeft: number) =>
+  Math.min(
+    Math.max(width, PANEL_MIN),
+    window.innerWidth - graphLeft - DIVIDER_AND_PADDING - GRAPH_MIN,
+  );
 
 const edgePath = (points: PlacedEdge['points']): string =>
   points.map((point, index) => `${index === 0 ? 'M' : 'L'} ${point.x} ${point.y}`).join(' ');
@@ -128,6 +135,7 @@ type Drawing = {
   readonly expanded: ReadonlySet<string>;
   readonly onToggle: (id: string) => void;
   readonly unroutedOf: (id: string) => ReadonlyArray<string>;
+  readonly shadeOf: (id: string) => Shade | undefined;
 };
 
 type ToggleProps = {
@@ -152,8 +160,10 @@ const Toggle = ({ node, expanded, onToggle }: ToggleProps) => (
 );
 
 const NodeView = ({ node, drawing }: { readonly node: PlacedNode; readonly drawing: Drawing }) => {
-  const { notes, onSelect, register, expandable, expanded, onToggle, unroutedOf } = drawing;
+  const { notes, onSelect, register, expandable, expanded, onToggle, unroutedOf, shadeOf } =
+    drawing;
   const unrouted = unroutedOf(node.id);
+  const shade = shadeOf(node.id);
   const flag = notes[node.id]?.flag;
   const toggle = expandable.has(node.id) && (
     <Toggle node={node} expanded={expanded.has(node.id)} onToggle={onToggle} />
@@ -195,6 +205,7 @@ const NodeView = ({ node, drawing }: { readonly node: PlacedNode; readonly drawi
             ...(node.formerLabel === undefined ? [] : [`was ${node.formerLabel}`]),
             ...(node.renamedFrom === undefined ? [] : [`renamed from ${node.renamedFrom}`]),
             ...(unrouted.length > 0 ? [`no route for ${unrouted.join(', ')}`] : []),
+            ...(shade === undefined ? [] : [shade.name]),
           ].join(', '),
           note: notes[node.id],
           onSelect,
@@ -202,9 +213,12 @@ const NodeView = ({ node, drawing }: { readonly node: PlacedNode; readonly drawi
         })}
         className="node"
         data-state={node.state}
+        data-step={shade?.step}
         transform={`translate(${node.x} ${node.y})`}
       >
-        <title>{`${node.path} — ${node.state}`}</title>
+        <title>
+          {`${node.path} — ${[node.state, ...(shade === undefined ? [] : [shade.name])].join(', ')}`}
+        </title>
         <rect width={node.width} height={node.height} rx={6} />
         <text x={node.width / 2} y={node.height / 2}>
           {node.formerLabel === undefined ? (
@@ -292,13 +306,11 @@ type SummaryProps = {
 };
 
 const Summary = ({ notes, onGoTo }: SummaryProps) => {
-  const flagged = Object.entries(notes.notes).flatMap(([id, note]) =>
-    note.flag ? [{ text: `${note.flag}: ${note.text}`, target: id }] : [],
-  );
   return (
     <section className="summary" aria-label="Summary">
+      <h2 className="summary-title">Summary</h2>
       <ul>
-        {[...notes.summary, ...flagged].map(({ text, target }) => (
+        {notes.summary.map(({ text, target }) => (
           <li key={`${target}:${text}`}>
             {target === undefined ? (
               text
@@ -469,6 +481,175 @@ const TestTree = ({ statements }: { readonly statements: ReadonlyArray<TestState
   </ul>
 );
 
+const TestFiles = ({ files }: { readonly files: ReadonlyArray<TestFile> }) =>
+  files.map(file => (
+    <section key={file.path} aria-label={file.path}>
+      <h3>
+        <code>{file.path}</code>
+        {file.renamedFrom && <span className="renamed">renamed from {file.renamedFrom}</span>}
+      </h3>
+      {'statements' in file ? (
+        <TestTree statements={file.statements} />
+      ) : (
+        <p>Couldn't read its tests: {file.unreadable}</p>
+      )}
+    </section>
+  ));
+
+const changedTests = (statements: ReadonlyArray<TestStatement>): number =>
+  statements.reduce(
+    (count, statement) =>
+      count +
+      (statement.kind === 'heading'
+        ? changedTests(statement.children)
+        : Number(statement.change !== 'unchanged')),
+    0,
+  );
+
+type DiffNode = GraphDiff['nodes'][number];
+
+const stackOf = (nodes: ReadonlyArray<DiffNode>, node: DiffNode): DiffNode => {
+  const parent = nodes.find(other => other.id === node.parent);
+  return parent ? stackOf(nodes, parent) : node;
+};
+
+const InspectorHead = ({
+  nodes,
+  node,
+}: {
+  readonly nodes: ReadonlyArray<DiffNode>;
+  readonly node: DiffNode;
+}) => (
+  <header className="inspector-head">
+    <p className="chips">
+      <span>
+        {node.kind} · {stackOf(nodes, node).label}
+      </span>
+      <span data-state={node.state}>{node.state}</span>
+    </p>
+    <h2>{node.label}</h2>
+    <p className="path">
+      {node.renamedFrom === undefined
+        ? node.path
+        : `${node.path}, renamed from ${node.renamedFrom}`}
+    </p>
+  </header>
+);
+
+type InspectorProps = {
+  readonly nodes: ReadonlyArray<DiffNode>;
+  readonly node: DiffNode | undefined;
+  readonly metrics: Readonly<Record<string, NodeMetrics>>;
+  readonly findings: ReadonlyArray<MetricFinding>;
+  readonly note: Note | undefined;
+  readonly unrouted: ReadonlyArray<string>;
+  readonly patches: ReadonlyArray<FilePatch>;
+  readonly tests: ReadonlyArray<TestFile>;
+  readonly width: number;
+  readonly onClose: () => void;
+};
+
+type InspectorTab = 'note' | 'metrics' | 'diff' | 'tests';
+
+const INSPECTOR_TABS: Readonly<Record<InspectorTab, string>> = {
+  note: 'Note',
+  metrics: 'Metrics',
+  diff: 'Diff',
+  tests: 'Tests',
+};
+
+const Inspector = ({
+  nodes,
+  node,
+  metrics,
+  findings,
+  note,
+  unrouted,
+  patches,
+  tests,
+  width,
+  onClose,
+}: InspectorProps) => {
+  const [picked, setPicked] = useState<InspectorTab>('note');
+  const testsHere = node ? tests.filter(({ path }) => isAtOrUnder(path, node)) : [];
+  const measured = node && metrics[node.id];
+  const offered: ReadonlyArray<InspectorTab> = [
+    'note',
+    ...(measured ? ['metrics' as const] : []),
+    ...(patches.length > 0 ? ['diff' as const] : []),
+    ...(testsHere.length > 0 ? ['tests' as const] : []),
+  ];
+  const shown = offered.includes(picked) ? picked : 'note';
+  const count = testsHere.reduce(
+    (sum, file) => sum + ('statements' in file ? changedTests(file.statements) : 0),
+    0,
+  );
+  return (
+    <aside className="note" aria-label="Inspector" style={{ width }}>
+      <button type="button" className="close" aria-label="Close inspector" onClick={onClose}>
+        ×
+      </button>
+      {node && <InspectorHead nodes={nodes} node={node} />}
+      <div className="inspector-tabs" role="tablist" aria-label="Inspector sections">
+        {offered.map(tab => (
+          <button
+            key={tab}
+            type="button"
+            role="tab"
+            aria-selected={tab === shown}
+            onClick={() => setPicked(tab)}
+          >
+            {INSPECTOR_TABS[tab]}
+            {tab === 'tests' && ` ${count}`}
+          </button>
+        ))}
+      </div>
+      <div role="tabpanel" aria-label={INSPECTOR_TABS[shown]}>
+        {shown === 'note' ? (
+          <>
+            {note?.flag && <h2>{flaggedFor(note.flag)}</h2>}
+            {unrouted.length > 0 && <h2>{noRouteFor(unrouted)}</h2>}
+            <p>{note?.text ?? 'No note'}</p>
+          </>
+        ) : shown === 'metrics' && measured ? (
+          <MetricsTable
+            metrics={measured}
+            findings={findings.filter(finding => finding.node === node?.id)}
+          />
+        ) : shown === 'diff' ? (
+          <section className="changes" aria-label="Changes">
+            {patches.map(patch => (
+              <Patch key={patch.path} {...patch} open={node?.kind === 'file'} />
+            ))}
+          </section>
+        ) : (
+          <TestFiles files={testsHere} />
+        )}
+      </div>
+    </aside>
+  );
+};
+
+type OutsideFilesProps = {
+  readonly patches: ReadonlyArray<FilePatch>;
+  readonly width: number;
+  readonly onClose: () => void;
+};
+
+const OutsideFiles = ({ patches, width, onClose }: OutsideFilesProps) => (
+  <aside className="note" aria-label="Inspector" style={{ width }}>
+    <button type="button" className="close" aria-label="Close inspector" onClick={onClose}>
+      ×
+    </button>
+    <h2>Changed files outside the graph</h2>
+    <section className="changes" aria-label="Changes">
+      {patches.map(patch => (
+        <Patch key={patch.path} {...patch} open={false} />
+      ))}
+    </section>
+  </aside>
+);
+
 type DrawnAtOptions = {
   readonly diff: GraphDiff;
   readonly expanded: ReadonlySet<string>;
@@ -575,6 +756,12 @@ export const ReviewPage = ({ review, notes, shownTabs = SHOWN_TABS }: ReviewPage
   const tab = useTab(shownTabs);
   const [layout, setLayout] = useState<Layout>();
   const [selected, setSelected] = useState<string>();
+  const [outside, setOutside] = useState(false);
+  const outsideOpener = useRef<HTMLButtonElement>(null);
+  const select = (id: string | undefined) => {
+    setOutside(false);
+    setSelected(id);
+  };
   const [chosenWidth, setChosenWidth] = useState<number>();
   const [expanded, setExpanded] = useState<ReadonlySet<string>>(new Set());
   const expandable = useMemo(
@@ -585,6 +772,7 @@ export const ReviewPage = ({ review, notes, shownTabs = SHOWN_TABS }: ReviewPage
   const [allEdges, setAllEdges] = useState(false);
   const noted = useMemo(() => new Set(Object.keys(notes?.notes ?? {})), [notes]);
   const [nearOnly, setNearOnly] = useState(true);
+  const [colouring, setColouring] = useState<Colouring>('change');
   const drawn = useMemo(() => {
     const atExpansion = drawnAt({ diff: review.diff, expanded, noted, allEdges });
     return nearOnly ? nearChanges(atExpansion) : atExpansion;
@@ -607,35 +795,38 @@ export const ReviewPage = ({ review, notes, shownTabs = SHOWN_TABS }: ReviewPage
   };
   const labelOf = new Map(visible.nodes.map(node => [node.id, node.label]));
   const dangling = review.dangling;
-  const undrawn = review.undrawn;
   const visibleOf = visibleNodeOf({ diff: review.diff, expanded });
   const drawing = {
     notes: shown,
-    onSelect: setSelected,
+    onSelect: select,
     register,
     expandable,
     expanded,
     onToggle: toggle,
     unroutedOf: (id: string) =>
       dangling.filter(call => visibleOf(call.from) === id).map(call => call.path),
+    shadeOf: (id: string) => shadeOf(colouring, review.metrics[id]),
   };
   const selectedNode = review.diff.nodes.find(node => node.id === selected);
   const selectedNote = selected === undefined ? undefined : shown[selected];
   const selectedUnrouted = selected === undefined ? [] : drawing.unroutedOf(selected);
-  const patches = selectedNode
-    ? review.patches.filter(({ path }) => isAtOrUnder(path, selectedNode))
-    : [];
+  const patches = outside
+    ? review.undrawn
+    : selectedNode
+      ? review.patches.filter(({ path }) => isAtOrUnder(path, selectedNode))
+      : [];
   const panelWidth = chosenWidth ?? (patches.length > 0 ? CHANGES_WIDTH : NOTE_WIDTH);
+  const graphLeft = () => frameElement?.getBoundingClientRect().left ?? 0;
   const moveDivider = (event: KeyboardEvent) => {
     const step = { ArrowLeft: DIVIDER_STEP, ArrowRight: -DIVIDER_STEP }[event.key];
     if (step === undefined) return;
-    setChosenWidth(panelWidthWithin(panelWidth + step));
+    setChosenWidth(panelWidthWithin(panelWidth + step, graphLeft()));
   };
   const dragDivider = (down: PointerEvent<HTMLDivElement>) => {
     down.preventDefault();
     down.currentTarget.focus();
     const follow = (move: globalThis.PointerEvent) =>
-      setChosenWidth(panelWidthWithin(panelWidth + down.clientX - move.clientX));
+      setChosenWidth(panelWidthWithin(panelWidth + down.clientX - move.clientX, graphLeft()));
     window.addEventListener('pointermove', follow);
     window.addEventListener('pointerup', () => window.removeEventListener('pointermove', follow), {
       once: true,
@@ -646,7 +837,7 @@ export const ReviewPage = ({ review, notes, shownTabs = SHOWN_TABS }: ReviewPage
   );
   const [focusTarget, setFocusTarget] = useState<string>();
   const goTo = (id: string) => {
-    setSelected(id);
+    select(id);
     const opened = expandedToShow({ diff: review.diff, expanded, id });
     setExpanded(opened);
     const at = { diff: review.diff, expanded: opened, noted };
@@ -755,39 +946,51 @@ export const ReviewPage = ({ review, notes, shownTabs = SHOWN_TABS }: ReviewPage
       {tab === 'structure' && (
         <>
           <div className="structure-head">
-            {review.skipped.map(skip => (
-              <p key={skip.reader} className="skipped" role="alert">
-                {notReadLine(skip)}
-              </p>
-            ))}
-            <Legend />
             <p className="caveat">Calls whose path is built at runtime are not drawn.</p>
           </div>
           <div className="columns">
+            <FindingsRail
+              notes={notes}
+              review={review}
+              onGoTo={goTo}
+              onShowOutside={opener => {
+                outsideOpener.current = opener;
+                setSelected(undefined);
+                setOutside(true);
+              }}
+            />
             <div className="content">
-              {notes && <Summary notes={notes} onGoTo={goTo} />}
-              <label className="near-only">
-                <input
-                  type="checkbox"
-                  checked={nearOnly}
-                  onChange={event => {
-                    setChosen(undefined);
-                    setNearOnly(event.target.checked);
-                  }}
-                />
-                Changed + 1 hop
-              </label>
-              <label className="near-only">
-                <input
-                  type="checkbox"
-                  checked={allEdges}
-                  onChange={event => {
-                    setChosen(undefined);
-                    setAllEdges(event.target.checked);
-                  }}
-                />
-                All edges
-              </label>
+              {notes && notes.summary.length > 0 && <Summary notes={notes} onGoTo={goTo} />}
+              <div className="graph-controls">
+                <ColourBy colouring={colouring} onPick={setColouring} />
+                <div className="graph-filters">
+                  <label className="near-only">
+                    <input
+                      type="checkbox"
+                      checked={nearOnly}
+                      onChange={event => {
+                        setChosen(undefined);
+                        setNearOnly(event.target.checked);
+                      }}
+                    />
+                    Changed + 1 hop
+                  </label>
+                  <label className="near-only">
+                    <input
+                      type="checkbox"
+                      checked={allEdges}
+                      onChange={event => {
+                        setChosen(undefined);
+                        setAllEdges(event.target.checked);
+                      }}
+                    />
+                    All edges
+                  </label>
+                </div>
+              </div>
+              <div className="graph-key">
+                {colouring === 'change' ? <Legend /> : <ScaleLegend colouring={colouring} />}
+              </div>
               {drawn.nodes.length === 0 && <p className="caveat">Nothing in the graph changed.</p>}
               {layout && (
                 <div
@@ -811,7 +1014,7 @@ export const ReviewPage = ({ review, notes, shownTabs = SHOWN_TABS }: ReviewPage
                         onZoom={zoomAtCentre}
                         onFit={() => setChosen(undefined)}
                       />
-                      <svg className="graph">
+                      <svg className="graph" data-colouring={colouring}>
                         <title>{`Structure ${shortRange(review.range)}`}</title>
                         <defs>
                           {STATES.map(state => (
@@ -849,52 +1052,17 @@ export const ReviewPage = ({ review, notes, shownTabs = SHOWN_TABS }: ReviewPage
                   )}
                 </div>
               )}
-              {dangling.length > 0 && (
-                <section className="unplaced" aria-label="Calls with no route">
-                  <h2>Calls with no route</h2>
-                  <ul>
-                    {dangling.map(call => (
-                      <li key={`${call.from} ${call.path}`}>
-                        <code>{call.path}</code> from{' '}
-                        <code>{review.diff.nodes.find(node => node.id === call.from)?.path}</code>
-                      </li>
-                    ))}
-                  </ul>
-                </section>
-              )}
               <section className="tests" aria-label="Tests">
                 <h2>Tests</h2>
                 {notes && <p className="tests-line">{notes.tests}</p>}
                 {tests.length === 0 ? (
                   <p>{selectedNode ? 'No test changed here.' : 'No test changed.'}</p>
                 ) : (
-                  tests.map(file => (
-                    <section key={file.path} aria-label={file.path}>
-                      <h3>
-                        <code>{file.path}</code>
-                        {file.renamedFrom && (
-                          <span className="renamed">renamed from {file.renamedFrom}</span>
-                        )}
-                      </h3>
-                      {'statements' in file ? (
-                        <TestTree statements={file.statements} />
-                      ) : (
-                        <p>Couldn't read its tests: {file.unreadable}</p>
-                      )}
-                    </section>
-                  ))
+                  <TestFiles files={tests} />
                 )}
               </section>
-              {undrawn.length > 0 && (
-                <section className="undrawn" aria-label="Not in the graph">
-                  <h2>Not in the graph</h2>
-                  {undrawn.map(patch => (
-                    <Patch key={patch.path} {...patch} open={false} />
-                  ))}
-                </section>
-              )}
             </div>
-            {selected !== undefined && (
+            {(selected !== undefined || outside) && (
               <>
                 <div
                   className="divider"
@@ -906,21 +1074,33 @@ export const ReviewPage = ({ review, notes, shownTabs = SHOWN_TABS }: ReviewPage
                   onKeyDown={moveDivider}
                   onPointerDown={dragDivider}
                 />
-                <aside className="note" aria-label="Note" style={{ width: panelWidth }}>
-                  {selectedNote?.flag && <h2>{flaggedFor(selectedNote.flag)}</h2>}
-                  {selectedUnrouted.length > 0 && <h2>{noRouteFor(selectedUnrouted)}</h2>}
-                  <p>{selectedNote?.text ?? 'No note'}</p>
-                  {selectedNode?.renamedFrom !== undefined && (
-                    <p className="renamed">Renamed from {selectedNode.renamedFrom}</p>
-                  )}
-                  {patches.length > 0 && (
-                    <section className="changes" aria-label="Changes">
-                      {patches.map(patch => (
-                        <Patch key={patch.path} {...patch} open={selectedNode?.kind === 'file'} />
-                      ))}
-                    </section>
-                  )}
-                </aside>
+                {outside ? (
+                  <OutsideFiles
+                    patches={patches}
+                    width={panelWidth}
+                    onClose={() => {
+                      outsideOpener.current?.focus();
+                      setOutside(false);
+                    }}
+                  />
+                ) : (
+                  <Inspector
+                    nodes={review.diff.nodes}
+                    node={selectedNode}
+                    metrics={review.metrics}
+                    findings={review.metricFindings}
+                    note={selectedNote}
+                    unrouted={selectedUnrouted}
+                    patches={patches}
+                    tests={review.tests}
+                    width={panelWidth}
+                    onClose={() => {
+                      if (selected !== undefined)
+                        elements.current.get(selected)?.focus({ preventScroll: true });
+                      select(undefined);
+                    }}
+                  />
+                )}
               </>
             )}
           </div>
