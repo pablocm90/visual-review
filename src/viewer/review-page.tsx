@@ -503,15 +503,8 @@ const TestFiles = ({ files }: { readonly files: ReadonlyArray<TestFile> }) =>
     </section>
   ));
 
-const changedTests = (statements: ReadonlyArray<TestStatement>): number =>
-  statements.reduce(
-    (count, statement) =>
-      count +
-      (statement.kind === 'heading'
-        ? changedTests(statement.children)
-        : Number(statement.change !== 'unchanged')),
-    0,
-  );
+const changedCount = (files: ReadonlyArray<TestFile>): number =>
+  Object.values(testCounts(files)).reduce((sum, count) => sum + count, 0);
 
 type DiffNode = GraphDiff['nodes'][number];
 
@@ -587,10 +580,6 @@ const Inspector = ({
     ...(testsHere.length > 0 ? ['tests' as const] : []),
   ];
   const shown = offered.includes(picked) ? picked : 'note';
-  const count = testsHere.reduce(
-    (sum, file) => sum + ('statements' in file ? changedTests(file.statements) : 0),
-    0,
-  );
   return (
     <aside className="note" aria-label="Inspector" style={{ width }}>
       <button type="button" className="close" aria-label="Close inspector" onClick={onClose}>
@@ -607,7 +596,7 @@ const Inspector = ({
             onClick={() => setPicked(tab)}
           >
             {INSPECTOR_TABS[tab]}
-            {tab === 'tests' && ` ${count}`}
+            {tab === 'tests' && ` ${changedCount(testsHere)}`}
           </button>
         ))}
       </div>
@@ -721,9 +710,6 @@ type HeaderProps = {
   readonly tab: Tab;
   readonly shownTabs: ReadonlyArray<Tab>;
 };
-
-const changedCount = (files: ReadonlyArray<TestFile>): number =>
-  Object.values(testCounts(files)).reduce((sum, count) => sum + count, 0);
 
 const Header = ({ review, tab, shownTabs }: HeaderProps) => {
   const changed = changedCount(review.tests);

@@ -1886,6 +1886,45 @@ test("a node's Tests tab also lists the test files named after a file inside it,
   ).toEqual(['web/tests/refund.test.ts']);
 });
 
+test("a node's Tests tab counts a test moved between two of its files once", async () => {
+  const user = userEvent.setup();
+  render(
+    <ReviewPage
+      review={pageWith({
+        ...review,
+        tests: [
+          {
+            path: 'crates/application/src/lib.rs',
+            statements: [
+              { kind: 'test', name: 'reads the notes', change: 'edited' },
+              {
+                kind: 'test',
+                name: 'exports a CSV',
+                change: 'removed',
+                movedTo: 'crates/application/tests/export.rs',
+              },
+            ],
+          },
+          {
+            path: 'crates/application/tests/export.rs',
+            statements: [
+              {
+                kind: 'test',
+                name: 'exports a CSV',
+                change: 'added',
+                movedFrom: 'crates/application/src/lib.rs',
+              },
+            ],
+          },
+        ],
+      })}
+    />,
+  );
+
+  await user.click(await screen.findByRole('button', { name: 'application: modified' }));
+  expect(inspectorTabs()).toEqual(['Note', 'Tests 2']);
+});
+
 test("'Changed + 1 hop' starts ticked, hiding what is more than one edge from a change; going to a shown node or edge keeps it, and going to a hidden node unticks it", async () => {
   const user = userEvent.setup();
   render(
