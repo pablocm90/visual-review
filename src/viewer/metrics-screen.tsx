@@ -1,7 +1,12 @@
 import { useState } from 'react';
 import type { DiffedNode } from '../core/diff-graphs.ts';
 import type { MetricFinding } from '../core/metric-findings.ts';
-import { measuredLeaves, type SortKey, sortedLeaves } from '../core/metric-rows.ts';
+import {
+  type MeasuredLeaf,
+  measuredLeaves,
+  type SortKey,
+  sortedLeaves,
+} from '../core/metric-rows.ts';
 import { metricTotals } from '../core/metric-totals.ts';
 import type { NodeMeasures } from '../core/metrics.ts';
 import type { PageData } from '../core/page.ts';
@@ -100,19 +105,41 @@ const Tile = ({
   </div>
 );
 
-type MetricsScreenProps = {
-  readonly review: PageData;
+const Totals = ({ review }: { readonly review: PageData }) => {
+  const { lines, over, hotspots } = metricTotals(review);
+  const { thresholds, churnDays } = review;
+  return (
+    <section className="metric-totals" aria-label="Totals">
+      <Tile
+        name="Lines"
+        value={signed(lines.by)}
+        caption={`across ${lines.across} changed ${lines.across === 1 ? 'node' : 'nodes'}`}
+      />
+      <Tile
+        name={`Functions over ${thresholds.cyclomatic} cyclomatic`}
+        value={`${over.base} → ${over.head}`}
+        caption={over.highest && `${over.highest.name} at ${over.highest.cyclomatic}`}
+      />
+      <Tile
+        name="Hotspots touched"
+        value={`${hotspots.touched} of ${hotspots.of}`}
+        caption={`${thresholds.hotspot.churn}+ commits in ${churnDays} days and ${thresholds.hotspot.cyclomatic}+ cyclomatic`}
+      />
+    </section>
+  );
+};
+
+type LeafTableProps = {
+  readonly leaves: ReadonlyArray<MeasuredLeaf>;
+  readonly findings: ReadonlyArray<MetricFinding>;
   readonly onGoTo: (id: string) => void;
 };
 
-export const MetricsScreen = ({ review, onGoTo }: MetricsScreenProps) => {
-  const { lines, over, hotspots } = metricTotals(review);
-  const { thresholds, churnDays } = review;
+const LeafTable = ({ leaves, findings, onGoTo }: LeafTableProps) => {
   const [hop, setHop] = useState(false);
-  const leaves = measuredLeaves(review);
-  const changed = leaves.filter(({ node }) => node.state !== 'unchanged');
   const [picked, setPicked] = useState('');
   const [by, setBy] = useState<SortKey>('cyclomatic');
+  const changed = leaves.filter(({ node }) => node.state !== 'unchanged');
   const nodesShown = hop ? leaves : changed;
   const stacks = [...new Set(nodesShown.map(({ stack }) => stack))];
   const inStack = stacks.includes(picked) ? picked : '';
@@ -120,100 +147,96 @@ export const MetricsScreen = ({ review, onGoTo }: MetricsScreenProps) => {
     ({ stack }) => inStack === '' || stack === inStack,
   );
   return (
-    <div className="metrics-screen">
-      <section className="metric-totals" aria-label="Totals">
-        <Tile
-          name="Lines"
-          value={signed(lines.by)}
-          caption={`across ${lines.across} changed ${lines.across === 1 ? 'node' : 'nodes'}`}
-        />
-        <Tile
-          name={`Functions over ${thresholds.cyclomatic} cyclomatic`}
-          value={`${over.base} → ${over.head}`}
-          caption={over.highest && `${over.highest.name} at ${over.highest.cyclomatic}`}
-        />
-        <Tile
-          name="Hotspots touched"
-          value={`${hotspots.touched} of ${hotspots.of}`}
-          caption={`${thresholds.hotspot.churn}+ commits in ${churnDays} days and ${thresholds.hotspot.cyclomatic}+ cyclomatic`}
-        />
+    <>
+      <div role="group" aria-label="Nodes shown">
+        <button type="button" aria-pressed={!hop} onClick={() => setHop(false)}>
+          {`Changed ${changed.length}`}
+        </button>
+        <button type="button" aria-pressed={hop} onClick={() => setHop(true)}>
+          {`Changed + 1 hop ${leaves.length}`}
+        </button>
+      </div>
+      <label>
+        Stack
+        <select value={inStack} onChange={event => setPicked(event.target.value)}>
+          <option value="">All stacks</option>
+          {stacks.map(stack => (
+            <option key={stack}>{stack}</option>
+          ))}
+        </select>
+      </label>
+      <label>
+        Sort by
+        <select
+          value={by}
+          onChange={event => {
+            const sort = SORTS.find(([key]) => key === event.target.value);
+            if (sort) setBy(sort[0]);
+          }}
+        >
+          {SORTS.map(([key, name]) => (
+            <option key={key} value={key}>
+              {name}
+            </option>
+          ))}
+        </select>
+      </label>
+      <section aria-label="Metrics per node">
+        <table>
+          <thead>
+            <tr>
+              <th scope="col">Node</th>
+              {COLUMNS.map(({ name }) => (
+                <th key={name} scope="col">
+                  {name}
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {shown.map(({ node, stack, base, head }) => (
+              <tr key={node.id}>
+                <th scope="row">
+                  <ChangeMark state={node.state} />
+                  <button type="button" onClick={() => onGoTo(node.id)}>
+                    {node.label}
+                  </button>
+                  <span>{stack}</span>
+                </th>
+                {COLUMNS.map(({ name, of, finding }) => (
+                  <Cell
+                    key={name}
+                    of={of}
+                    base={base}
+                    head={head}
+                    finding={findings.find(
+                      ({ node: at, metric }) => at === node.id && metric === finding,
+                    )}
+                  />
+                ))}
+              </tr>
+            ))}
+          </tbody>
+        </table>
       </section>
+    </>
+  );
+};
+
+type MetricsScreenProps = {
+  readonly review: PageData;
+  readonly onGoTo: (id: string) => void;
+};
+
+export const MetricsScreen = ({ review, onGoTo }: MetricsScreenProps) => {
+  const leaves = measuredLeaves(review);
+  return (
+    <div className="metrics-screen">
+      <Totals review={review} />
       {leaves.length === 0 ? (
         <p>No node measured.</p>
       ) : (
-        <>
-          <div role="group" aria-label="Nodes shown">
-            <button type="button" aria-pressed={!hop} onClick={() => setHop(false)}>
-              {`Changed ${changed.length}`}
-            </button>
-            <button type="button" aria-pressed={hop} onClick={() => setHop(true)}>
-              {`Changed + 1 hop ${leaves.length}`}
-            </button>
-          </div>
-          <label>
-            Stack
-            <select value={inStack} onChange={event => setPicked(event.target.value)}>
-              <option value="">All stacks</option>
-              {stacks.map(stack => (
-                <option key={stack}>{stack}</option>
-              ))}
-            </select>
-          </label>
-          <label>
-            Sort by
-            <select
-              value={by}
-              onChange={event => {
-                const sort = SORTS.find(([key]) => key === event.target.value);
-                if (sort) setBy(sort[0]);
-              }}
-            >
-              {SORTS.map(([key, name]) => (
-                <option key={key} value={key}>
-                  {name}
-                </option>
-              ))}
-            </select>
-          </label>
-          <section aria-label="Metrics per node">
-            <table>
-              <thead>
-                <tr>
-                  <th scope="col">Node</th>
-                  {COLUMNS.map(({ name }) => (
-                    <th key={name} scope="col">
-                      {name}
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {shown.map(({ node, stack, base, head }) => (
-                  <tr key={node.id}>
-                    <th scope="row">
-                      <ChangeMark state={node.state} />
-                      <button type="button" onClick={() => onGoTo(node.id)}>
-                        {node.label}
-                      </button>
-                      <span>{stack}</span>
-                    </th>
-                    {COLUMNS.map(({ name, of, finding }) => (
-                      <Cell
-                        key={name}
-                        of={of}
-                        base={base}
-                        head={head}
-                        finding={review.metricFindings.find(
-                          ({ node: at, metric }) => at === node.id && metric === finding,
-                        )}
-                      />
-                    ))}
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </section>
-        </>
+        <LeafTable leaves={leaves} findings={review.metricFindings} onGoTo={onGoTo} />
       )}
     </div>
   );
