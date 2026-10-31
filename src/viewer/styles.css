@@ -527,13 +527,6 @@ h1 {
   font-weight: 600;
 }
 
-.note [role="tabpanel"] h2 {
-  margin: 0 0 8px;
-  color: var(--removed);
-  font-size: 14px;
-  font-weight: 600;
-}
-
 .changes details {
   margin-top: 12px;
 }
@@ -703,10 +696,6 @@ pre .hljs-emphasis {
   line-height: 1.5;
 }
 
-.summary li + li {
-  margin-top: 4px;
-}
-
 .summary button {
   display: block;
   padding: 0;
@@ -728,6 +717,13 @@ pre .hljs-emphasis {
 
 .tests h2 {
   margin: 0 0 8px;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.note [role="tabpanel"] h2 {
+  margin: 0 0 8px;
+  color: var(--removed);
   font-size: 14px;
   font-weight: 600;
 }
@@ -914,6 +910,10 @@ pre .hljs-emphasis {
   gap: 12px;
 }
 
+.summary li + li {
+  margin-top: 4px;
+}
+
 .functions .added code:first-child {
   color: var(--added);
 }
@@ -1020,6 +1020,9 @@ pre .hljs-emphasis {
   font: inherit;
   font-size: 13.5px;
   text-align: left;
+}
+
+.finding button {
   cursor: pointer;
 }
 
