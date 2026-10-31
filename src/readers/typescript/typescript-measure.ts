@@ -1,18 +1,42 @@
 import { type ParserPlugin, parse } from '@babel/parser';
 import type { Node } from '@babel/types';
-import { z } from 'zod';
 import type { FileMeasures } from '../../core/reader.ts';
 
-const RowSchema = z.object({ line: z.number() });
+type Row = { readonly line: number };
 
-const TokenSchema = z.object({
-  type: z.union([z.string(), z.object({ label: z.string() }).transform(({ label }) => label)]),
-  loc: z.object({ start: RowSchema, end: RowSchema }),
-});
+type Token = {
+  readonly type: string | { readonly label: string };
+  readonly loc: { readonly start: Row; readonly end: Row };
+};
+
+const isRow = (value: unknown): value is Row =>
+  typeof value === 'object' && value !== null && 'line' in value && typeof value.line === 'number';
+
+const isLabel = (value: unknown): value is { readonly label: string } =>
+  typeof value === 'object' &&
+  value !== null &&
+  'label' in value &&
+  typeof value.label === 'string';
+
+const isToken = (value: unknown): value is Token =>
+  typeof value === 'object' &&
+  value !== null &&
+  'type' in value &&
+  (typeof value.type === 'string' || isLabel(value.type)) &&
+  'loc' in value &&
+  typeof value.loc === 'object' &&
+  value.loc !== null &&
+  'start' in value.loc &&
+  isRow(value.loc.start) &&
+  'end' in value.loc &&
+  isRow(value.loc.end);
 
 const NOT_CODE = new Set(['CommentLine', 'CommentBlock', 'eof']);
 
-const rowsOf = ({ loc: { start, end } }: z.infer<typeof TokenSchema>): ReadonlyArray<number> =>
+const isCode = ({ type }: Token): boolean =>
+  !NOT_CODE.has(typeof type === 'string' ? type : type.label);
+
+const rowsOf = ({ loc: { start, end } }: Token): ReadonlyArray<number> =>
   Array.from({ length: end.line - start.line + 1 }, (_, index) => start.line + index);
 
 const TYPESCRIPT: Array<ParserPlugin> = [
@@ -170,10 +194,8 @@ export const measureTypeScript = (text: string, path: string): FileMeasures | un
     plugins: pluginsFor(path),
     tokens: true,
   });
-  const code = z
-    .array(TokenSchema)
-    .parse(tokens)
-    .filter(({ type }) => !NOT_CODE.has(type));
+  const tokenList: ReadonlyArray<unknown> = tokens ?? [];
+  const code = tokenList.filter(isToken).filter(isCode);
   const functions = functionsIn(text, program, { inFunction: false, holder: undefined });
   const bodies = new Set(functions.map(({ fn }) => fn));
   return {
