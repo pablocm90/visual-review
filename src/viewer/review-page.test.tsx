@@ -3,6 +3,7 @@ import { act, fireEvent, render, screen, waitFor, within } from '@testing-librar
 import userEvent from '@testing-library/user-event';
 import { expect, onTestFinished, test, vi } from 'vitest';
 import type { GraphDiff } from '../core/diff-graphs.ts';
+import type { NodeMeasures } from '../core/metrics.ts';
 import type { ReviewNotes } from '../core/notes.ts';
 import type { PageData } from '../core/page.ts';
 import { layoutDiff } from './layout.ts';
@@ -1078,6 +1079,68 @@ test("web calls to API routes are drawn between the stacks, named by their paths
     screen.getByRole('button', { name: 'api/users.ts ⇢ http-adapter: added (/api/users)' }),
   );
   expect(noteShown()).toBe('Lists users.');
+});
+
+const measured = (overrides: Partial<NodeMeasures> = {}): NodeMeasures => ({
+  churn: 6,
+  fanIn: 1,
+  fanOut: 3,
+  lines: 120,
+  functions: 6,
+  cyclomatic: { highest: 4, total: 19 },
+  abc: 18.24,
+  ...overrides,
+});
+
+const metricCells = (metric: string) => {
+  const panel = screen.getByRole('tabpanel', { name: 'Metrics' });
+  const header = within(panel)
+    .getAllByRole('rowheader')
+    .find(cell => cell.textContent?.startsWith(metric));
+  const row = within(panel)
+    .getAllByRole('row')
+    .find(row => header !== undefined && row.contains(header));
+  return row && within(row).getAllByRole('cell').map(cell => cell.textContent);
+};
+
+test("a measured node's Metrics tab gives each measure before and after with the difference; a node or an edge without metrics has no Metrics tab", async () => {
+  const user = userEvent.setup();
+  render(
+    <ReviewPage
+      review={pageWith({
+        ...review,
+        metrics: {
+          'rust/crate/application': {
+            base: measured({ fanIn: 2 }),
+            head: measured({
+              lines: 184,
+              functions: 9,
+              cyclomatic: { highest: 14, total: 41 },
+              abc: 31.5,
+              fanOut: 5,
+            }),
+          },
+        },
+      })}
+    />,
+  );
+
+  await user.click(await screen.findByRole('button', { name: 'application: modified' }));
+  expect(inspectorTabs()).toEqual(['Note', 'Metrics']);
+  await user.click(within(inspector()).getByRole('tab', { name: 'Metrics' }));
+  expect(metricCells('Lines')).toEqual(['120', '184', '+64']);
+  expect(metricCells('Functions')).toEqual(['6', '9', '+3']);
+  expect(metricCells('Cyclomatic, highest')).toEqual(['4', '14', '+10']);
+  expect(metricCells('Cyclomatic, total')).toEqual(['19', '41', '+22']);
+  expect(metricCells('ABC size')).toEqual(['18.2', '31.5', '+13.3']);
+  expect(metricCells('Fan-out')).toEqual(['3', '5', '+2']);
+  expect(metricCells('Fan-in')).toEqual(['2', '1', '−1']);
+  expect(metricCells('Churn')).toEqual(['6', '6', '±0']);
+
+  await user.click(screen.getByRole('button', { name: 'domain: unchanged' }));
+  expect(inspectorTabs()).toEqual(['Note']);
+  await user.click(screen.getByRole('button', { name: 'application → domain: unchanged' }));
+  expect(inspectorTabs()).toEqual(['Note']);
 });
 
 test("a selected node's Diff tab lists the patches of the files under it from their first hunk, a module's closed and a file's open with its added and removed lines marked, and stays picked from one selection to the next; a file without a patch or an edge has no Diff tab and shows its Note", async () => {

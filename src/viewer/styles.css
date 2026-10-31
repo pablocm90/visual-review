@@ -831,3 +831,41 @@ pre .hljs-emphasis {
   color: var(--muted);
   font-weight: 400;
 }
+
+.metrics {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.metrics th,
+.metrics td {
+  padding: 6px 0 6px 8px;
+  border-bottom: 1px solid var(--stack-line);
+  text-align: right;
+  vertical-align: top;
+  font-variant-numeric: tabular-nums;
+}
+
+.metrics thead th {
+  color: var(--muted);
+  font-size: 11.5px;
+  font-weight: 600;
+  text-transform: uppercase;
+}
+
+.metrics :is(thead th, tbody th):first-child {
+  padding-left: 0;
+  text-align: left;
+}
+
+.metrics tbody th {
+  font-weight: 500;
+}
+
+.metrics small {
+  display: block;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 400;
+}

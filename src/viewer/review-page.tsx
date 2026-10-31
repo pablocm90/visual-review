@@ -10,6 +10,7 @@ import {
 import type { FilePatch, GraphDiff } from '../core/diff-graphs.ts';
 import { isAtOrUnder } from '../core/diff-graphs.ts';
 import { edgeId } from '../core/graph.ts';
+import type { NodeMeasures, NodeMetrics } from '../core/metrics.ts';
 import { type Note, type ReviewNotes, visibleNotes } from '../core/notes.ts';
 import { type PageData, UNCOMMITTED } from '../core/page.ts';
 import { notReadLine } from '../core/skipped.ts';
@@ -524,9 +525,81 @@ const InspectorHead = ({
   </header>
 );
 
+type MetricRow = {
+  readonly name: string;
+  readonly hint: string;
+  readonly of: (measures: NodeMeasures) => number | undefined;
+};
+
+const METRIC_ROWS: ReadonlyArray<MetricRow> = [
+  { name: 'Lines', hint: 'non-blank, non-comment', of: m => ('lines' in m ? m.lines : undefined) },
+  { name: 'Functions', hint: '', of: m => ('lines' in m ? m.functions : undefined) },
+  {
+    name: 'Cyclomatic, highest',
+    hint: 'its most branching function',
+    of: m => ('lines' in m ? m.cyclomatic.highest : undefined),
+  },
+  {
+    name: 'Cyclomatic, total',
+    hint: 'summed over its functions',
+    of: m => ('lines' in m ? m.cyclomatic.total : undefined),
+  },
+  {
+    name: 'ABC size',
+    hint: 'assignments, branches, conditions',
+    of: m => ('lines' in m ? m.abc : undefined),
+  },
+  { name: 'Fan-out', hint: 'nodes it depends on', of: m => m.fanOut },
+  { name: 'Fan-in', hint: 'nodes depending on it', of: m => m.fanIn },
+  { name: 'Churn', hint: 'commits in the window before each side', of: m => m.churn },
+];
+
+const tenths = (value: number) => Math.round(value * 10) / 10;
+
+const shownValue = (value: number | undefined) =>
+  value === undefined ? '—' : String(tenths(value));
+
+const difference = (base: number | undefined, head: number | undefined) => {
+  if (base === undefined || head === undefined) return '—';
+  const by = tenths(head - base);
+  if (by > 0) return `+${by}`;
+  return by < 0 ? `−${-by}` : '±0';
+};
+
+const MetricsTable = ({ metrics: { base, head } }: { readonly metrics: NodeMetrics }) => (
+  <table className="metrics">
+    <thead>
+      <tr>
+        <th scope="col">Metric</th>
+        <th scope="col">Before</th>
+        <th scope="col">After</th>
+        <th scope="col">Δ</th>
+      </tr>
+    </thead>
+    <tbody>
+      {METRIC_ROWS.map(({ name, hint, of }) => {
+        const before = base && of(base);
+        const after = head && of(head);
+        return (
+          <tr key={name}>
+            <th scope="row">
+              {name}
+              {hint && <small>{hint}</small>}
+            </th>
+            <td>{shownValue(before)}</td>
+            <td>{shownValue(after)}</td>
+            <td>{difference(before, after)}</td>
+          </tr>
+        );
+      })}
+    </tbody>
+  </table>
+);
+
 type InspectorProps = {
   readonly nodes: ReadonlyArray<DiffNode>;
   readonly node: DiffNode | undefined;
+  readonly metrics: Readonly<Record<string, NodeMetrics>>;
   readonly note: Note | undefined;
   readonly unrouted: ReadonlyArray<string>;
   readonly patches: ReadonlyArray<FilePatch>;
@@ -535,10 +608,11 @@ type InspectorProps = {
   readonly onClose: () => void;
 };
 
-type InspectorTab = 'note' | 'diff' | 'tests';
+type InspectorTab = 'note' | 'metrics' | 'diff' | 'tests';
 
 const INSPECTOR_TABS: Readonly<Record<InspectorTab, string>> = {
   note: 'Note',
+  metrics: 'Metrics',
   diff: 'Diff',
   tests: 'Tests',
 };
@@ -546,6 +620,7 @@ const INSPECTOR_TABS: Readonly<Record<InspectorTab, string>> = {
 const Inspector = ({
   nodes,
   node,
+  metrics,
   note,
   unrouted,
   patches,
@@ -555,8 +630,10 @@ const Inspector = ({
 }: InspectorProps) => {
   const [picked, setPicked] = useState<InspectorTab>('note');
   const testsHere = node ? tests.filter(({ path }) => isAtOrUnder(path, node)) : [];
+  const measured = node && metrics[node.id];
   const offered: ReadonlyArray<InspectorTab> = [
     'note',
+    ...(measured ? ['metrics' as const] : []),
     ...(patches.length > 0 ? ['diff' as const] : []),
     ...(testsHere.length > 0 ? ['tests' as const] : []),
   ];
@@ -592,6 +669,8 @@ const Inspector = ({
             {unrouted.length > 0 && <h2>{noRouteFor(unrouted)}</h2>}
             <p>{note?.text ?? 'No note'}</p>
           </>
+        ) : shown === 'metrics' && measured ? (
+          <MetricsTable metrics={measured} />
         ) : shown === 'diff' ? (
           <section className="changes" aria-label="Changes">
             {patches.map(patch => (
@@ -1032,6 +1111,7 @@ export const ReviewPage = ({ review, notes, shownTabs = SHOWN_TABS }: ReviewPage
                 <Inspector
                   nodes={review.diff.nodes}
                   node={selectedNode}
+                  metrics={review.metrics}
                   note={selectedNote}
                   unrouted={selectedUnrouted}
                   patches={patches}
