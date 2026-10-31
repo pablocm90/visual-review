@@ -79,7 +79,7 @@ Stacks are detected: a Cargo workspace at the repo root, every `package.json` wh
 
 ```json
 {
-  "$schema": "https://unpkg.com/@pablocm90/visual-review@0.2/dist/config.schema.json",
+  "$schema": "https://unpkg.com/@pablocm90/visual-review@0.3/dist/config.schema.json",
   "stacks": {
     "web": { "boxes": ["modules/*"], "label": "Web app" },
     "e2e": false,
