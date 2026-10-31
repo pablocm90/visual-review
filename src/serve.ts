@@ -31,6 +31,8 @@ export const servePage = async (page: string | undefined): Promise<string> => {
   });
   const url = `http://${host}/${token}`;
   console.error(`Serving ${url}`);
-  spawn(opener, [url], { stdio: 'ignore', detached: true }).unref();
+  spawn(opener, [url], { stdio: 'ignore', detached: true })
+    .on('error', () => {})
+    .unref();
   return new Promise(() => {});
 };

@@ -6,16 +6,16 @@ import { join } from 'node:path';
 import { createInterface } from 'node:readline';
 import { expect, test, vi } from 'vitest';
 
-const fakeOpeners = () => {
+const fakeOpeners = (openers: ReadonlyArray<string>) => {
   const bin = mkdtempSync(join(tmpdir(), 'visual-review-opener-'));
   const opened = join(bin, 'opened');
-  ['xdg-open', 'open'].forEach(opener => {
+  openers.forEach(opener => {
     const file = join(bin, opener);
     writeFileSync(file, `#!/bin/sh\nprintf '%s' "$1" > '${opened}'\n`);
     chmodSync(file, 0o755);
   });
   return {
-    path: `${bin}:${process.env['PATH']}`,
+    path: bin,
     opened: () => readFileSync(opened, 'utf8'),
     [Symbol.dispose]: () => rmSync(bin, { recursive: true, force: true }),
   };
@@ -40,23 +40,23 @@ const urlOn = async (child: ChildProcess): Promise<string> => {
   throw new Error('serve ended without printing its URL');
 };
 
-const servedPage = async () => {
-  const openers = fakeOpeners();
+const servedPage = async ({ openers = ['xdg-open', 'open'] } = {}) => {
+  const bin = fakeOpeners(openers);
   const written = writtenPage();
   const child = spawn(
     process.execPath,
     [join(import.meta.dirname, 'cli.ts'), 'serve', written.page],
     {
-      env: { ...process.env, PATH: openers.path },
+      env: { ...process.env, PATH: bin.path },
     },
   );
   return {
     url: await urlOn(child),
-    opened: openers.opened,
+    opened: bin.opened,
     [Symbol.dispose]: () => {
       child.kill();
       written[Symbol.dispose]();
-      openers[Symbol.dispose]();
+      bin[Symbol.dispose]();
     },
   };
 };
@@ -130,4 +130,10 @@ test('the served page keeps its token URL out of caches and out of the referrer 
 
   expect(headers.get('cache-control')).toBe('no-store');
   expect(headers.get('referrer-policy')).toBe('no-referrer');
+});
+
+test('serve with no opener on PATH still serves the page at the URL it prints', async () => {
+  using server = await servedPage({ openers: [] });
+
+  expect((await fetch(server.url)).status).toBe(200);
 });
