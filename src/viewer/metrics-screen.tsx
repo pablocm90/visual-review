@@ -11,6 +11,7 @@ import { metricTotals } from '../core/metric-totals.ts';
 import type { NodeMeasures } from '../core/metrics.ts';
 import type { PageData } from '../core/page.ts';
 import { LevelMark, signed, tenths } from './finding-display.tsx';
+import { HotspotChart } from './hotspot-chart.tsx';
 
 const SORTS: ReadonlyArray<readonly [SortKey, string]> = [
   ['cyclomatic', 'Cyclomatic Δ'],
@@ -240,12 +241,15 @@ export const MetricsScreen = ({ review, onGoTo }: MetricsScreenProps) => {
       {leaves.length === 0 ? (
         <p>No node measured.</p>
       ) : (
-        <LeafTable
-          leaves={leaves}
-          findings={review.metricFindings}
-          churnDays={review.churnDays}
-          onGoTo={onGoTo}
-        />
+        <>
+          <LeafTable
+            leaves={leaves}
+            findings={review.metricFindings}
+            churnDays={review.churnDays}
+            onGoTo={onGoTo}
+          />
+          <HotspotChart review={review} />
+        </>
       )}
     </div>
   );

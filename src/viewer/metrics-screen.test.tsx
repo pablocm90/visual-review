@@ -401,3 +401,32 @@ test('with no measured node, "No node measured." stands in for the table', () =>
   expect(screen.getByText('No node measured.')).toBeTruthy();
   expect(screen.queryByRole('table')).toBeNull();
 });
+
+test("the hotspot chart names each changed leaf's move, base to head, and an added one's head alone", () => {
+  atMetrics();
+  render(
+    <ReviewPage
+      review={reviewOf({
+        rows: [
+          [
+            crate('refunds', 'modified'),
+            {
+              base: measured({ churn: 6, cyclomatic: cyclomatic([['a', 4]]) }),
+              head: measured({ churn: 9, cyclomatic: cyclomatic([['a', 14]]) }),
+            },
+          ],
+          [
+            crate('ledger', 'added'),
+            { head: measured({ churn: 1, cyclomatic: cyclomatic([['b', 3]]) }) },
+          ],
+        ],
+      })}
+    />,
+  );
+
+  expect(
+    within(screen.getByRole('group', { name: 'Hotspots' }))
+      .getAllByRole('img')
+      .map(point => point.getAttribute('aria-label')),
+  ).toEqual(['refunds: 6 → 9 commits, cyclomatic 4 → 14', 'ledger: new, 1 commit, cyclomatic 3']);
+});
