@@ -13,7 +13,7 @@ import { edgeId } from '../core/graph.ts';
 import { type Note, type ReviewNotes, visibleNotes } from '../core/notes.ts';
 import { type PageData, UNCOMMITTED } from '../core/page.ts';
 import { notReadLine } from '../core/skipped.ts';
-import type { MarkedTest, TestChange, TestStatement } from '../core/test-changes.ts';
+import type { MarkedTest, TestChange, TestFile, TestStatement } from '../core/test-changes.ts';
 import {
   expandedToShow,
   isDrawn,
@@ -469,23 +469,62 @@ const TestTree = ({ statements }: { readonly statements: ReadonlyArray<TestState
   </ul>
 );
 
+const TestFiles = ({ files }: { readonly files: ReadonlyArray<TestFile> }) =>
+  files.map(file => (
+    <section key={file.path} aria-label={file.path}>
+      <h3>
+        <code>{file.path}</code>
+        {file.renamedFrom && <span className="renamed">renamed from {file.renamedFrom}</span>}
+      </h3>
+      {'statements' in file ? (
+        <TestTree statements={file.statements} />
+      ) : (
+        <p>Couldn't read its tests: {file.unreadable}</p>
+      )}
+    </section>
+  ));
+
+const changedTests = (statements: ReadonlyArray<TestStatement>): number =>
+  statements.reduce(
+    (count, statement) =>
+      count +
+      (statement.kind === 'heading'
+        ? changedTests(statement.children)
+        : Number(statement.change !== 'unchanged')),
+    0,
+  );
+
 type InspectorProps = {
   readonly node: GraphDiff['nodes'][number] | undefined;
   readonly note: Note | undefined;
   readonly unrouted: ReadonlyArray<string>;
   readonly patches: ReadonlyArray<FilePatch>;
+  readonly tests: ReadonlyArray<TestFile>;
   readonly width: number;
   readonly onClose: () => void;
 };
 
-type InspectorTab = 'note' | 'diff';
+type InspectorTab = 'note' | 'diff' | 'tests';
 
-const INSPECTOR_TABS: Readonly<Record<InspectorTab, string>> = { note: 'Note', diff: 'Diff' };
+const INSPECTOR_TABS: Readonly<Record<InspectorTab, string>> = {
+  note: 'Note',
+  diff: 'Diff',
+  tests: 'Tests',
+};
 
-const Inspector = ({ node, note, unrouted, patches, width, onClose }: InspectorProps) => {
+const Inspector = ({ node, note, unrouted, patches, tests, width, onClose }: InspectorProps) => {
   const [picked, setPicked] = useState<InspectorTab>('note');
-  const offered: ReadonlyArray<InspectorTab> = patches.length > 0 ? ['note', 'diff'] : ['note'];
+  const testsHere = node ? tests.filter(({ path }) => isAtOrUnder(path, node)) : [];
+  const offered: ReadonlyArray<InspectorTab> = [
+    'note',
+    ...(patches.length > 0 ? ['diff' as const] : []),
+    ...(testsHere.length > 0 ? ['tests' as const] : []),
+  ];
   const shown = offered.includes(picked) ? picked : 'note';
+  const count = testsHere.reduce(
+    (sum, file) => sum + ('statements' in file ? changedTests(file.statements) : 0),
+    0,
+  );
   return (
     <aside className="note" aria-label="Inspector" style={{ width }}>
       <button type="button" className="close" aria-label="Close inspector" onClick={onClose}>
@@ -501,6 +540,7 @@ const Inspector = ({ node, note, unrouted, patches, width, onClose }: InspectorP
             onClick={() => setPicked(tab)}
           >
             {INSPECTOR_TABS[tab]}
+            {tab === 'tests' && ` ${count}`}
           </button>
         ))}
       </div>
@@ -514,12 +554,14 @@ const Inspector = ({ node, note, unrouted, patches, width, onClose }: InspectorP
               <p className="renamed">Renamed from {node.renamedFrom}</p>
             )}
           </>
-        ) : (
+        ) : shown === 'diff' ? (
           <section className="changes" aria-label="Changes">
             {patches.map(patch => (
               <Patch key={patch.path} {...patch} open={node?.kind === 'file'} />
             ))}
           </section>
+        ) : (
+          <TestFiles files={testsHere} />
         )}
       </div>
     </aside>
@@ -925,21 +967,7 @@ export const ReviewPage = ({ review, notes, shownTabs = SHOWN_TABS }: ReviewPage
                 {tests.length === 0 ? (
                   <p>{selectedNode ? 'No test changed here.' : 'No test changed.'}</p>
                 ) : (
-                  tests.map(file => (
-                    <section key={file.path} aria-label={file.path}>
-                      <h3>
-                        <code>{file.path}</code>
-                        {file.renamedFrom && (
-                          <span className="renamed">renamed from {file.renamedFrom}</span>
-                        )}
-                      </h3>
-                      {'statements' in file ? (
-                        <TestTree statements={file.statements} />
-                      ) : (
-                        <p>Couldn't read its tests: {file.unreadable}</p>
-                      )}
-                    </section>
-                  ))
+                  <TestFiles files={tests} />
                 )}
               </section>
               {undrawn.length > 0 && (
@@ -968,6 +996,7 @@ export const ReviewPage = ({ review, notes, shownTabs = SHOWN_TABS }: ReviewPage
                   note={selectedNote}
                   unrouted={selectedUnrouted}
                   patches={patches}
+                  tests={review.tests}
                   width={panelWidth}
                   onClose={() => setSelected(undefined)}
                 />

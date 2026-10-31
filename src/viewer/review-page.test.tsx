@@ -1305,7 +1305,7 @@ test('the tests section says so when no test changed', async () => {
   ).not.toBeNull();
 });
 
-test("selecting a node narrows the tests section to the test files at or under it, and says so when none changed there, under Claude's tests line", async () => {
+test("selecting a node narrows the tests section to the test files at or under it, and says so when none changed there, under Claude's tests line; the inspector's Tests tab lists those files, counting their changed tests, and is left out where none changed", async () => {
   const user = userEvent.setup();
   const testFile = (path: string) => ({
     path,
@@ -1317,7 +1317,20 @@ test("selecting a node narrows the tests section to the test files at or under i
         ...review,
         tests: [
           testFile('crates/application/src/lib.rs'),
-          testFile('crates/application/tests/export.rs'),
+          {
+            path: 'crates/application/tests/export.rs',
+            statements: [
+              { kind: 'test', name: 'exports a CSV', change: 'removed' },
+              {
+                kind: 'heading',
+                name: 'the export',
+                children: [
+                  { kind: 'test', name: 'names the columns', change: 'unchanged' },
+                  { kind: 'test', name: 'quotes commas', change: 'edited' },
+                ],
+              },
+            ],
+          },
           testFile('tools/visual-review/src/notes.test.ts'),
         ],
       })}
@@ -1342,7 +1355,17 @@ test("selecting a node narrows the tests section to the test files at or under i
     'crates/application/tests/export.rs',
   ]);
   expect(within(tests).queryByText('No test changed here.')).toBeNull();
+  expect(inspectorTabs()).toEqual(['Note', 'Tests 3']);
+  await user.click(within(notePanel()).getByRole('tab', { name: 'Tests 3' }));
+  expect(
+    within(screen.getByRole('tabpanel', { name: 'Tests' }))
+      .getAllByRole('region')
+      .map(file => file.getAttribute('aria-label')),
+  ).toEqual(['crates/application/src/lib.rs', 'crates/application/tests/export.rs']);
+  await user.click(screen.getByRole('button', { name: 'application → domain: unchanged' }));
+  expect(inspectorTabs()).toEqual(['Note']);
   await user.click(screen.getByRole('button', { name: 'domain: unchanged' }));
+  expect(inspectorTabs()).toEqual(['Note']);
   expect(filesListed()).toEqual([]);
   expect(within(tests).getByText('No test changed here.')).not.toBeNull();
   expect(within(tests).getByText('The notes check is pinned; the CLI is not.')).not.toBeNull();
