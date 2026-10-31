@@ -1,7 +1,7 @@
 import { expect, test } from 'vitest';
 import { readRustTests } from '../readers/rust/rust-tests.ts';
 import { readTypeScriptTests } from '../readers/typescript/typescript-tests.ts';
-import { type TestStatement, testChanges, withMovedTests } from './test-changes.ts';
+import { type TestStatement, testChanges, testCounts, withMovedTests } from './test-changes.ts';
 
 test('reads a new file as a tree of its describe blocks and tests, in source order', () => {
   const after = [
@@ -409,4 +409,39 @@ test.for([
   },
 ])('a test is not moved when $case', ({ files }) => {
   expect(withMovedTests(files)).toStrictEqual(files);
+});
+
+const signUpMoved = () =>
+  withMovedTests([
+    {
+      path: 'crates/application/src/sign_up.rs',
+      statements: [
+        marked(PASSWORD_LENGTH, 'removed'),
+        marked('records nothing', 'edited'),
+        marked('sends a welcome email', 'removed'),
+        marked('logs the attempt', 'removed'),
+        marked('keeps the session', 'removed'),
+      ],
+    },
+    {
+      path: 'crates/models/src/password.rs',
+      statements: [
+        { kind: 'heading', name: 'tests', children: [marked(PASSWORD_LENGTH, 'added')] },
+        marked('hashes with argon2id', 'added'),
+        marked('rejects an empty password', 'edited'),
+        { kind: 'test', name: 'trims the password', change: 'unchanged' },
+      ],
+    },
+    { path: 'crates/models/src/broken.rs', unreadable: 'expected `fn`' },
+  ]);
+
+test('counts the changed tests by change, under any heading, a moved pair once as moved and not as its removed and added ends', () => {
+  expect(testCounts(signUpMoved())).toStrictEqual({ added: 1, edited: 2, removed: 3, moved: 1 });
+});
+
+test.for([
+  { end: 'the file it left', path: 'crates/application/src/sign_up.rs' },
+  { end: 'the file it arrived in', path: 'crates/models/src/password.rs' },
+])('counts a moved test as moved with only $end counted', ({ path }) => {
+  expect(testCounts(signUpMoved().filter(file => file.path === path)).moved).toBe(1);
 });

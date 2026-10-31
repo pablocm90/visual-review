@@ -152,3 +152,23 @@ export const withMovedTests = (files: ReadonlyArray<TestFile>): ReadonlyArray<Te
     'statements' in file ? { ...file, statements: file.statements.map(marked) } : file,
   );
 };
+
+export type TestCounts = {
+  readonly added: number;
+  readonly edited: number;
+  readonly removed: number;
+  readonly moved: number;
+};
+
+export const testCounts = (files: ReadonlyArray<TestFile>): TestCounts => {
+  const tests = files.flatMap(file => ('statements' in file ? testsUnder(file.statements) : []));
+  const isMoved = (test: MarkedTest) => test.movedTo !== undefined || test.movedFrom !== undefined;
+  const counted = (change: TestChange) =>
+    tests.filter(test => !isMoved(test) && test.change === change).length;
+  return {
+    added: counted('added'),
+    edited: counted('edited'),
+    removed: counted('removed'),
+    moved: new Set(tests.filter(isMoved).map(test => test.name)).size,
+  };
+};
