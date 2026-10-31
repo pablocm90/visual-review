@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { endsOfId } from '../core/graph.ts';
 import type { MetricFinding } from '../core/metric-findings.ts';
 import type { ReviewNotes } from '../core/notes.ts';
@@ -147,6 +147,16 @@ const FindingItem = ({ finding }: { readonly finding: Finding }) => {
 export const FindingsRail = (props: FindingsRailProps) => {
   const [open, setOpen] = useState(false);
   const [picked, setPicked] = useState<string>();
+  const toggled = useRef(false);
+  const toggle = (opening: boolean) => {
+    toggled.current = true;
+    setOpen(opening);
+  };
+  const takeFocus = (button: HTMLButtonElement | null) => {
+    if (!button || !toggled.current) return;
+    toggled.current = false;
+    button.focus();
+  };
   const groups = groupsOf(props).filter(group => group.findings.length > 0);
   const levels: ReadonlyArray<Level> = groups.flatMap(group =>
     group.findings.map(finding => finding.level),
@@ -170,7 +180,12 @@ export const FindingsRail = (props: FindingsRailProps) => {
           </p>
         ))}
         <h2 className="findings-title">Findings</h2>
-        <button type="button" aria-label="Hide findings" onClick={() => setOpen(false)}>
+        <button
+          type="button"
+          aria-label="Hide findings"
+          ref={takeFocus}
+          onClick={() => toggle(false)}
+        >
           ‹
         </button>
         <div className="rail-chips" role="group" aria-label="Show findings">
@@ -212,7 +227,8 @@ export const FindingsRail = (props: FindingsRailProps) => {
       <button
         type="button"
         aria-label={`Show ${levels.length} ${levels.length === 1 ? 'finding' : 'findings'}`}
-        onClick={() => setOpen(true)}
+        ref={takeFocus}
+        onClick={() => toggle(true)}
       >
         {levels.length}
       </button>

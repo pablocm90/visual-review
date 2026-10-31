@@ -546,6 +546,26 @@ test('a reader skipped for want of its tool is named at the top of the findings 
   expect(screen.getAllByRole('alert')).toHaveLength(1);
 });
 
+test('the findings rail hands the keyboard focus to its other toggle as it opens and hides, and takes none as the page opens or while a node is picked with the rail open', async () => {
+  const user = userEvent.setup();
+  render(<ReviewPage review={pageWith(review)} />);
+  const show = await screen.findByRole('button', { name: 'Show 0 findings' });
+  expect(document.activeElement).toBe(document.body);
+
+  show.focus();
+  await user.keyboard('{Enter}');
+  const hide = screen.getByRole('button', { name: 'Hide findings' });
+  expect(document.activeElement).toBe(hide);
+
+  const domain = screen.getByRole('button', { name: 'domain: unchanged' });
+  await user.click(domain);
+  expect(document.activeElement).toBe(domain);
+
+  hide.focus();
+  await user.keyboard('{Enter}');
+  expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Show 0 findings' }));
+});
+
 test.for([
   {
     range: '646f56cfd31dbe78c3b93e793c174efe85d8f666..fe2b80f6d56a89db7649e4e59a7b73790e5f8202',
