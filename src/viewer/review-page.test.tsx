@@ -3,9 +3,9 @@ import { act, fireEvent, render, screen, waitFor, within } from '@testing-librar
 import userEvent from '@testing-library/user-event';
 import { expect, onTestFinished, test, vi } from 'vitest';
 import type { GraphDiff } from '../core/diff-graphs.ts';
-import type { NodeMeasures } from '../core/metrics.ts';
 import type { ReviewNotes } from '../core/notes.ts';
 import type { PageData } from '../core/page.ts';
+import { measured, pageWith } from '../test-support/page-data.ts';
 import { layoutDiff } from './layout.ts';
 import { ReviewPage } from './review-page.tsx';
 
@@ -61,19 +61,6 @@ const dependency = (from: string, to: string, state: GraphDiff['edges'][number][
   from: `rust/crate/${from}`,
   to: `rust/crate/${to}`,
   state,
-});
-
-const pageWith = (data: Pick<PageData, 'range' | 'diff'> & Partial<PageData>): PageData => ({
-  repo: 'acme/shop',
-  version: '0.1.0',
-  metrics: {},
-  metricFindings: [],
-  dangling: [],
-  patches: [],
-  undrawn: [],
-  tests: [],
-  skipped: [],
-  ...data,
 });
 
 const review = {
@@ -477,11 +464,11 @@ test("a PR's page is headed by the PR's number and title, as a link to it", asyn
   await screen.findByRole('group', { name: 'rust' });
 });
 
-test('the Review nav links each shown tab, Structure and Tests for now, and marks Structure the current page', async () => {
+test('the Review nav links Structure, Metrics and Tests, and marks Structure the current page', async () => {
   render(<ReviewPage review={pageWith(review)} />);
 
   const links = within(screen.getByRole('navigation', { name: 'Review' })).getAllByRole('link');
-  expect(links.map(link => link.textContent)).toEqual(['Structure', 'Tests']);
+  expect(links.map(link => link.textContent)).toEqual(['Structure', 'Metrics', 'Tests']);
   expect(links[0]?.getAttribute('href')).toBe('#structure');
   expect(links[0]?.getAttribute('aria-current')).toBe('page');
   await screen.findByRole('group', { name: 'rust' });
@@ -498,10 +485,10 @@ const currentTab = () =>
 
 test.for([
   { hash: '#metrics', tab: 'Metrics' },
-  { hash: '#tests', tab: 'Structure' },
-])('at $hash, with Tests hidden, the page opens on $tab', ({ hash, tab }) => {
+  { hash: '#elsewhere', tab: 'Structure' },
+])('at $hash the page opens on $tab', ({ hash, tab }) => {
   atHash(hash);
-  render(<ReviewPage review={pageWith(review)} shownTabs={['structure', 'metrics']} />);
+  render(<ReviewPage review={pageWith(review)} />);
 
   expect(currentTab()).toBe(tab);
   expect(screen.queryByRole('checkbox', { name: 'Changed + 1 hop' }) !== null).toBe(
@@ -551,7 +538,7 @@ test("the Tests tab's link counts the review's changed tests, a moved pair once,
     within(screen.getByRole('navigation', { name: 'Review' }))
       .getAllByRole('link')
       .map(link => link.textContent),
-  ).toEqual(['Structure', 'Tests 2']);
+  ).toEqual(['Structure', 'Metrics', 'Tests 2']);
   await user.click(screen.getByRole('link', { name: 'Tests 2' }));
   await waitFor(() => expect(currentTab()).toBe('Tests 2'));
   expect(screen.queryByRole('group', { name: 'rust' })).toBeNull();
@@ -814,10 +801,33 @@ test("the Tests tab lists the added and modified nodes, not stacks, with the cha
   expect(within(inspector()).getByRole('heading', { name: 'billing' })).not.toBeNull();
 });
 
+test("a Metrics row's node name goes to it on Structure, focused, its inspector open", async () => {
+  atHash('#metrics');
+  const user = userEvent.setup();
+  render(
+    <ReviewPage
+      review={pageWith({
+        ...review,
+        metrics: { 'rust/crate/application': { base: measured(), head: measured() } },
+      })}
+    />,
+  );
+
+  await user.click(
+    within(screen.getByRole('region', { name: 'Metrics per node' })).getByRole('button', {
+      name: 'application',
+    }),
+  );
+  await waitFor(() => expect(currentTab()).toBe('Structure'));
+  const application = await screen.findByRole('button', { name: 'application: modified' });
+  await waitFor(() => expect(document.activeElement).toBe(application));
+  expect(within(inspector()).getByRole('heading', { name: 'application' })).not.toBeNull();
+});
+
 test('picking a tab sets the hash and shows it, and back and forward move between the tabs', async () => {
   atHash('');
   const user = userEvent.setup();
-  render(<ReviewPage review={pageWith(review)} shownTabs={['structure', 'metrics']} />);
+  render(<ReviewPage review={pageWith(review)} />);
   await screen.findByRole('group', { name: 'rust' });
 
   await user.click(screen.getByRole('link', { name: 'Metrics' }));
@@ -830,7 +840,7 @@ test('picking a tab sets the hash and shows it, and back and forward move betwee
   history.forward();
   await waitFor(() => expect(currentTab()).toBe('Metrics'));
   location.hash = '#tests';
-  await waitFor(() => expect(currentTab()).toBe('Structure'));
+  await waitFor(() => expect(currentTab()).toBe('Tests'));
 });
 
 test('a reader skipped for want of its tool is named at the top of the findings rail, collapsed or open, with the stacks it did not read', async () => {
@@ -1606,17 +1616,6 @@ test("web calls to API routes are drawn between the stacks, named by their paths
     screen.getByRole('button', { name: 'api/users.ts ⇢ http-adapter: added (/api/users)' }),
   );
   expect(noteShown()).toBe('Lists users.');
-});
-
-const measured = (overrides: Partial<NodeMeasures> = {}): NodeMeasures => ({
-  churn: 6,
-  fanIn: 1,
-  fanOut: 3,
-  lines: 120,
-  functions: 6,
-  cyclomatic: { highest: 4, total: 19 },
-  abc: 18.24,
-  ...overrides,
 });
 
 const metricCells = (metric: string) => {

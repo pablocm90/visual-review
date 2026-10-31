@@ -38,6 +38,7 @@ export type RangeReading = {
   readonly danglingCalls: ReadonlyArray<DanglingCall>;
   readonly skipped: ReadonlyArray<Skipped>;
   readonly thresholds: Omit<Config['metrics'], 'churnDays'>;
+  readonly churnDays: number;
 };
 
 type ReadRangeOptions = Adapters & {
@@ -278,6 +279,7 @@ export const readRange = async ({
       danglingCalls: after.danglingCalls,
       skipped: skippedAcross([...before.skipped, ...after.skipped]),
       thresholds,
+      churnDays,
       changedPaths,
       renames,
       tests: withMovedTests(

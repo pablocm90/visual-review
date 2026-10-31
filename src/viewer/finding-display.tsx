@@ -2,6 +2,12 @@ import type { MetricFinding } from '../core/metric-findings.ts';
 
 export const tenths = (value: number) => Math.round(value * 10) / 10;
 
+export const signed = (value: number) => {
+  const by = tenths(value);
+  if (by > 0) return `+${by}`;
+  return by < 0 ? `−${-by}` : '±0';
+};
+
 const LEVELS: Readonly<Record<MetricFinding['level'], string>> = {
   look: 'needs a look',
   info: 'for information',

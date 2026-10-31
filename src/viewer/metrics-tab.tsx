@@ -1,6 +1,6 @@
 import type { MetricFinding } from '../core/metric-findings.ts';
 import type { FunctionCyclomatic, NodeMeasures, NodeMetrics } from '../core/metrics.ts';
-import { LevelMark, tenths } from './finding-display.tsx';
+import { LevelMark, signed, tenths } from './finding-display.tsx';
 
 type MetricRow = {
   readonly name: string;
@@ -49,12 +49,8 @@ const shownValue = (side: NodeMeasures | undefined, value: number | undefined) =
   return value === undefined ? 'not measured' : String(tenths(value));
 };
 
-const difference = (base: number | undefined, head: number | undefined) => {
-  if (base === undefined || head === undefined) return '—';
-  const by = tenths(head - base);
-  if (by > 0) return `+${by}`;
-  return by < 0 ? `−${-by}` : '±0';
-};
+const difference = (base: number | undefined, head: number | undefined) =>
+  base === undefined || head === undefined ? '—' : signed(head - base);
 
 type MetricsTableProps = {
   readonly metrics: NodeMetrics;

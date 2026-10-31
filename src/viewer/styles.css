@@ -1265,7 +1265,7 @@ pre .hljs-emphasis {
   margin-top: 0;
 }
 
-.tests-shown {
+.segmented {
   display: flex;
   gap: 2px;
   padding: 3px;
@@ -1273,7 +1273,7 @@ pre .hljs-emphasis {
   background: var(--unchanged-fill);
 }
 
-.tests-shown-button {
+.segmented-button {
   min-height: 32px;
   padding: 0 12px;
   border: 0;
@@ -1287,7 +1287,7 @@ pre .hljs-emphasis {
   cursor: pointer;
 }
 
-.tests-shown-button[aria-pressed="true"] {
+.segmented-button[aria-pressed="true"] {
   background: var(--stack);
   color: var(--ink);
   font-weight: 600;
@@ -1370,5 +1370,289 @@ pre .hljs-emphasis {
       "files"
       "nodes";
     grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.metrics-screen {
+  display: grid;
+  grid-template-areas:
+    "totals totals"
+    "controls controls"
+    "table chart";
+  grid-template-columns: minmax(0, 1fr) minmax(300px, 400px);
+  gap: 20px;
+  align-items: start;
+  max-width: 1400px;
+  margin: 0 auto;
+  padding: 20px 24px 32px;
+}
+
+.metric-totals {
+  display: grid;
+  grid-area: totals;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 12px;
+}
+
+.metric-tile {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 14px 16px;
+  border: 1px solid var(--stack-line);
+  border-radius: 10px;
+  background: var(--stack);
+}
+
+.metric-tile-name {
+  margin: 0;
+  color: var(--muted);
+  font-size: 12.5px;
+  font-weight: 400;
+}
+
+.metric-tile-value {
+  margin: 0;
+  font-size: 24px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.metric-tile-caption {
+  margin: 0;
+  font-size: 12.5px;
+}
+
+.metric-controls {
+  display: flex;
+  flex-wrap: wrap;
+  grid-area: controls;
+  align-items: center;
+  gap: 10px 16px;
+}
+
+.metric-pick {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+}
+
+.metric-select {
+  min-height: 36px;
+  padding: 0 8px;
+  border: 1px solid var(--stack-line);
+  border-radius: 8px;
+  background: var(--stack);
+  color: var(--ink);
+  font: inherit;
+}
+
+.metric-panel {
+  min-width: 0;
+  border: 1px solid var(--stack-line);
+  border-radius: 10px;
+  background: var(--stack);
+}
+
+.metric-table-panel {
+  grid-area: table;
+  overflow-x: auto;
+}
+
+.metric-table {
+  width: 100%;
+  min-width: 760px;
+  border-collapse: collapse;
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+}
+
+.metric-table-caption {
+  caption-side: bottom;
+  padding: 12px 16px;
+  border-top: 1px solid var(--stack-line);
+  color: var(--muted);
+  font-size: 12.5px;
+  text-align: left;
+}
+
+.metric-table-panel thead th {
+  padding: 12px 10px;
+  border-bottom: 1px solid var(--stack-line);
+  color: var(--muted);
+  font-size: 11.5px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-align: right;
+  text-transform: uppercase;
+}
+
+.metric-table-panel thead th:first-child {
+  padding-left: 16px;
+  text-align: left;
+}
+
+.metric-node {
+  padding: 10px 16px;
+  border-bottom: 1px solid var(--unchanged-fill);
+  font-weight: 400;
+  text-align: left;
+  white-space: nowrap;
+}
+
+.metric-node-name {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--ink);
+  font: inherit;
+  font-weight: 500;
+  text-decoration: underline;
+  text-decoration-color: var(--muted);
+  text-underline-offset: 3px;
+  cursor: pointer;
+}
+
+.metric-node-stack {
+  margin-left: 8px;
+  padding: 0 6px;
+  border: 1px solid var(--stack-line);
+  border-radius: 4px;
+  color: var(--muted);
+  font-size: 11.5px;
+}
+
+.change-mark {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  margin-right: 8px;
+  border: 2px solid var(--line);
+  border-radius: 4px;
+  background: var(--fill);
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.metric-node[data-state="removed"] .change-mark {
+  border-style: dashed;
+}
+
+.metric-cell {
+  padding: 10px;
+  border-bottom: 1px solid var(--unchanged-fill);
+  text-align: right;
+  vertical-align: top;
+  white-space: nowrap;
+}
+
+.metric-delta {
+  display: block;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.metric-empty {
+  grid-area: table;
+  margin: 0;
+  color: var(--muted);
+}
+
+.hotspot-chart {
+  display: flex;
+  flex-direction: column;
+  grid-area: chart;
+  gap: 12px;
+  padding: 16px;
+}
+
+.hotspot-title {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.hotspot-caption {
+  margin: 0;
+  color: var(--muted);
+  font-size: 12.5px;
+}
+
+.hotspot-plot {
+  width: 100%;
+  max-width: 420px;
+  font-size: 10.5px;
+}
+
+.hotspot-corner {
+  fill: var(--unchanged-fill);
+}
+
+.hotspot-note {
+  fill: var(--muted);
+}
+
+.hotspot-tick {
+  fill: var(--muted);
+  font-size: 10px;
+}
+
+.hotspot-axes {
+  fill: none;
+  stroke: var(--unchanged);
+}
+
+.hotspot-threshold {
+  stroke: var(--ink);
+  stroke-dasharray: 3 3;
+}
+
+.hotspot-path {
+  stroke: var(--ink);
+  stroke-width: 1.5;
+}
+
+.hotspot-base {
+  fill: var(--stack);
+  stroke: var(--muted);
+  stroke-width: 1.5;
+}
+
+.hotspot-head {
+  fill: var(--ink);
+}
+
+.hotspot-label {
+  fill: var(--ink);
+  font-weight: 600;
+}
+
+.hotspot-moves {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 0;
+  padding-left: 20px;
+  font-size: 13px;
+}
+
+.hotspot-move-node {
+  font-size: 12.5px;
+  font-weight: 600;
+}
+
+@media (max-width: 900px) {
+  .metrics-screen {
+    grid-template-areas:
+      "totals"
+      "controls"
+      "table"
+      "chart";
+    grid-template-columns: minmax(0, 1fr);
+    padding: 16px;
   }
 }

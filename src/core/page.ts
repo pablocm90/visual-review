@@ -26,6 +26,8 @@ export type PageData = {
   readonly undrawn: ReadonlyArray<FilePatch>;
   readonly tests: ReadonlyArray<TestFile>;
   readonly skipped: ReadonlyArray<Skipped>;
+  readonly thresholds: RangeReading['thresholds'];
+  readonly churnDays: number;
 };
 
 type PageDataOptions = {
@@ -62,6 +64,8 @@ export const pageData = ({
     undrawn: reading.patches.filter(patch => !isDrawn(patch)),
     tests: reading.tests,
     skipped: reading.skipped,
+    thresholds: reading.thresholds,
+    churnDays: reading.churnDays,
   };
 };
 

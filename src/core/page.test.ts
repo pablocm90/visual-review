@@ -43,12 +43,16 @@ const readingWith = (overrides: Partial<RangeReading>): RangeReading => ({
   danglingCalls: [],
   skipped: [],
   thresholds: { cyclomatic: 10, hotspot: { churn: 6, cyclomatic: 8 } },
+  churnDays: 90,
   ...overrides,
 });
 
-test("a reading's page data holds its diff, its dangling calls and test files, the patches of drawn files apart from the rest, and an empty list of skipped stacks", () => {
+test("a reading's page data holds its diff, its dangling calls and test files, the patches of drawn files apart from the rest, its metric thresholds and churn window, and an empty list of skipped stacks", () => {
   const tests = [{ path: 'web/a.test.ts', stack: 'web', unreadable: 'SyntaxError' }];
+  const thresholds = { cyclomatic: 12, hotspot: { churn: 5, cyclomatic: 9 }, lines: 300 };
   const reading = readingWith({
+    thresholds,
+    churnDays: 30,
     patches: [patch('web/src/a.ts'), patch('README.md')],
     danglingCalls: [{ from: 'web/file/a.ts', path: '/api/x' }],
     tests,
@@ -74,6 +78,8 @@ test("a reading's page data holds its diff, its dangling calls and test files, t
     undrawn: [patch('README.md')],
     tests,
     skipped: [],
+    thresholds: { cyclomatic: 12, hotspot: { churn: 5, cyclomatic: 9 }, lines: 300 },
+    churnDays: 30,
   });
 });
 

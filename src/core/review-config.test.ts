@@ -364,7 +364,7 @@ test.for([
   },
 );
 
-test("the config's metrics.churnDays sets how many days before each side's commit its churn counts", async () => {
+test("the config's metrics.churnDays sets how many days before each side's commit its churn counts, and is the reading's churn window", async () => {
   using repository = gitRepo({ 'package.json': '{}\n', 'src/a.ts': '' });
   const { repo } = repository;
   commit(repo, { 'src/a.ts': '1' }, { date: '2090-06-01T00:00:00Z' });
@@ -378,6 +378,7 @@ test("the config's metrics.churnDays sets how many days before each side's commi
   const range = await readRange({ repo, from: base, to: head });
 
   expect(range.churn).toEqual({ before: { 'src/a.ts': 1 }, after: { 'src/a.ts': 2 } });
+  expect(range.churnDays).toBe(15);
 });
 
 test.for([
