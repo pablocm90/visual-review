@@ -401,6 +401,11 @@ test.for([
     files: { 'visual-review.config.json': '{"metrics": {"hotspot": {"cyclomatic": 5}}}' },
     thresholds: { cyclomatic: 10, hotspot: { churn: 6, cyclomatic: 5 } },
   },
+  {
+    reason: "take the config's lines and abc when set",
+    files: { 'visual-review.config.json': '{"metrics": {"lines": 300, "abc": 40.5}}' },
+    thresholds: { cyclomatic: 10, hotspot: { churn: 6, cyclomatic: 8 }, lines: 300, abc: 40.5 },
+  },
 ])("the reading's thresholds $reason", async ({ files, thresholds }) => {
   using repository = gitRepo({ 'package.json': '{}\n', 'src/a.ts': '' });
   const { repo, root } = repository;

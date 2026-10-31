@@ -37,10 +37,7 @@ export type RangeReading = {
   readonly tests: ReadonlyArray<TestFile>;
   readonly danglingCalls: ReadonlyArray<DanglingCall>;
   readonly skipped: ReadonlyArray<Skipped>;
-  readonly thresholds: {
-    readonly cyclomatic: number;
-    readonly hotspot: { readonly churn: number; readonly cyclomatic: number };
-  };
+  readonly thresholds: Omit<Config['metrics'], 'churnDays'>;
 };
 
 type ReadRangeOptions = Adapters & {
@@ -243,20 +240,21 @@ export const readRange = async ({
         files: measured.map(({ id, headPath }) => ({ stack: stackOf(id), path: headPath })),
       }),
     };
+    const { churnDays, ...thresholds } = config.metrics;
     const churn = {
       before: await churnAt({
         repo,
         revision: base,
         directory: join(scratch, 'before'),
         graph: before.graph,
-        days: config.metrics.churnDays,
+        days: churnDays,
       }),
       after: await churnAt({
         repo,
         revision: churnTo,
         directory: join(scratch, 'after'),
         graph: after.graph,
-        days: config.metrics.churnDays,
+        days: churnDays,
       }),
     };
     return {
@@ -266,7 +264,7 @@ export const readRange = async ({
       measures,
       danglingCalls: after.danglingCalls,
       skipped: skippedAcross([...before.skipped, ...after.skipped]),
-      thresholds: { cyclomatic: config.metrics.cyclomatic, hotspot: config.metrics.hotspot },
+      thresholds,
       changedPaths,
       renames,
       tests: withMovedTests(
