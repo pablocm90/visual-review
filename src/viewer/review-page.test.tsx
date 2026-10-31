@@ -135,6 +135,25 @@ test('draws every crate and dependency inside the rust stack with its change sta
   expect(document.activeElement).toBe(legacy);
 });
 
+test("the Note tab's comment field holds a comment per node or edge, kept while others are selected and the inspector closed", async () => {
+  const user = userEvent.setup();
+  render(<ReviewPage review={pageWith(review)} />);
+  const comment = () => within(noteTab()).getByRole('textbox', { name: 'Your comment' });
+
+  const rust = await screen.findByRole('group', { name: 'rust' });
+  await user.click(within(rust).getByRole('button', { name: 'domain: unchanged' }));
+  await user.type(comment(), 'Keep domain free of IO.');
+  await user.click(within(rust).getByRole('button', { name: 'application → domain: unchanged' }));
+  expect(comment()).toHaveProperty('value', '');
+  await user.type(comment(), 'Why this way round?');
+  await user.click(within(inspector()).getByRole('button', { name: 'Close inspector' }));
+
+  await user.click(within(rust).getByRole('button', { name: 'domain: unchanged' }));
+  expect(comment()).toHaveProperty('value', 'Keep domain free of IO.');
+  await user.click(within(rust).getByRole('button', { name: 'application → domain: unchanged' }));
+  expect(comment()).toHaveProperty('value', 'Why this way round?');
+});
+
 type FrameOptions = {
   readonly width: number;
   readonly windowHeight: number;

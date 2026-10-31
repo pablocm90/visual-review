@@ -469,6 +469,8 @@ type InspectorProps = {
   readonly unrouted: ReadonlyArray<string>;
   readonly patches: ReadonlyArray<FilePatch>;
   readonly tests: ReadonlyArray<TestFile>;
+  readonly comment: string;
+  readonly onComment: (text: string) => void;
   readonly width: number;
   readonly onClose: () => void;
 };
@@ -491,6 +493,8 @@ const Inspector = ({
   unrouted,
   patches,
   tests,
+  comment,
+  onComment,
   width,
   onClose,
 }: InspectorProps) => {
@@ -530,6 +534,10 @@ const Inspector = ({
             {note?.flag && <h2>{flaggedFor(note.flag)}</h2>}
             {unrouted.length > 0 && <h2>{noRouteFor(unrouted)}</h2>}
             <p>{note?.text ?? 'No note'}</p>
+            <label className="comment">
+              Your comment
+              <textarea value={comment} onChange={event => onComment(event.target.value)} />
+            </label>
           </>
         ) : shown === 'metrics' && measured ? (
           <MetricsTable
@@ -691,6 +699,7 @@ export const ReviewPage = ({ review, notes }: ReviewPageProps) => {
     setSelected(id);
   };
   const [chosenWidth, setChosenWidth] = useState<number>();
+  const [comments, setComments] = useState<Readonly<Record<string, string>>>({});
   const [expanded, setExpanded] = useState<ReadonlySet<string>>(new Set());
   const expandable = useMemo(
     () => new Set(review.diff.nodes.flatMap(node => node.parent ?? [])),
@@ -1014,6 +1023,11 @@ export const ReviewPage = ({ review, notes }: ReviewPageProps) => {
                     unrouted={selectedUnrouted}
                     patches={patches}
                     tests={review.tests}
+                    comment={(selected && comments[selected]) ?? ''}
+                    onComment={text =>
+                      selected !== undefined &&
+                      setComments(current => ({ ...current, [selected]: text }))
+                    }
                     width={panelWidth}
                     onClose={() => {
                       if (selected !== undefined)

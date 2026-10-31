@@ -1681,3 +1681,22 @@ pre .hljs-emphasis {
     padding: 16px;
   }
 }
+
+.comment {
+  display: grid;
+  gap: 6px;
+  margin-top: 16px;
+  font-weight: 600;
+}
+
+.comment textarea {
+  min-height: 96px;
+  padding: 8px;
+  border: 1px solid var(--stack-line);
+  border-radius: 6px;
+  background: var(--stack);
+  color: var(--ink);
+  font: inherit;
+  font-weight: 400;
+  resize: vertical;
+}
