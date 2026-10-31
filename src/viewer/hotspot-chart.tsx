@@ -9,6 +9,21 @@ const nameOf = ({ node, base, head }: HotspotMove) =>
     ? `${node.label}: new, ${commits(head.churn)}, cyclomatic ${head.cyclomatic}`
     : `${node.label}: ${base.churn} → ${commits(head.churn)}, cyclomatic ${base.cyclomatic} → ${head.cyclomatic}`;
 
+const CORNER_LINES: Readonly<
+  Record<NonNullable<HotspotMove['corner']>, (head: Hotspot) => string>
+> = {
+  enters: head => ` enters the corner: ${commits(head.churn)}, cyclomatic ${head.cyclomatic}.`,
+  stays: () => ' was already there and changed again.',
+};
+
+const CornerLine = ({ move: { node, head, corner } }: { readonly move: HotspotMove }) =>
+  corner && (
+    <li>
+      <code>{node.label}</code>
+      {CORNER_LINES[corner](head)}
+    </li>
+  );
+
 const PLOT = { left: 40, right: 300, top: 40, bottom: 280 };
 
 type Place = (point: Hotspot) => { readonly x: number; readonly y: number };
@@ -53,6 +68,11 @@ export const HotspotChart = ({ review }: { readonly review: PageData }) => {
           <Point key={move.node.id} move={move} place={place} />
         ))}
       </svg>
+      <ol aria-label="Hotspot moves">
+        {moves.map(move => (
+          <CornerLine key={move.node.id} move={move} />
+        ))}
+      </ol>
     </section>
   );
 };

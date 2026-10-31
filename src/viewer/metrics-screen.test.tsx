@@ -430,3 +430,45 @@ test("the hotspot chart names each changed leaf's move, base to head, and an add
       .map(point => point.getAttribute('aria-label')),
   ).toEqual(['refunds: 6 → 9 commits, cyclomatic 4 → 14', 'ledger: new, 1 commit, cyclomatic 3']);
 });
+
+test('under the hotspot chart, a line per leaf entering the corner and per leaf already in it that changed', () => {
+  atMetrics();
+  render(
+    <ReviewPage
+      review={reviewOf({
+        rows: [
+          [
+            crate('refunds', 'modified'),
+            {
+              base: measured({ churn: 6, cyclomatic: cyclomatic([['a', 4]]) }),
+              head: measured({ churn: 9, cyclomatic: cyclomatic([['a', 14]]) }),
+            },
+          ],
+          [
+            crate('stripe', 'modified'),
+            {
+              base: measured({ churn: 7, cyclomatic: cyclomatic([['b', 9]]) }),
+              head: measured({ churn: 8, cyclomatic: cyclomatic([['b', 10]]) }),
+            },
+          ],
+          [
+            crate('routes', 'modified'),
+            {
+              base: measured({ churn: 2, cyclomatic: cyclomatic([['c', 3]]) }),
+              head: measured({ churn: 3, cyclomatic: cyclomatic([['c', 4]]) }),
+            },
+          ],
+        ],
+      })}
+    />,
+  );
+
+  expect(
+    within(screen.getByRole('list', { name: 'Hotspot moves' }))
+      .getAllByRole('listitem')
+      .map(line => line.textContent),
+  ).toEqual([
+    'refunds enters the corner: 9 commits, cyclomatic 14.',
+    'stripe was already there and changed again.',
+  ]);
+});
