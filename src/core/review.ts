@@ -14,6 +14,8 @@ const ReviewSchema = z
 
 export type Review = z.infer<typeof ReviewSchema>;
 
+export const reviewJsonSchema = () => z.toJSONSchema(ReviewSchema, { io: 'input' });
+
 const VersionedSchema = z.object({ version: z.unknown() });
 
 const invalidReview = (reason: unknown): Error => new Error(`Invalid review: ${reason}`);
