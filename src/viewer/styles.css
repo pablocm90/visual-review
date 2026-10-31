@@ -13,6 +13,11 @@
   --removed-fill: #fbe7e5;
   --modified: #c27a0e;
   --modified-fill: #fdf0d9;
+  --ramp-0: #eef2fa;
+  --ramp-1: #cfdaf2;
+  --ramp-2: #94afe3;
+  --ramp-3: #3f66c4;
+  --ramp-3-ink: #ffffff;
   --code-keyword: #cf222e;
   --code-title: #8250df;
   --code-constant: #0550ae;
@@ -38,6 +43,11 @@
     --removed-fill: #3d1d1b;
     --modified: #f0a53a;
     --modified-fill: #3b2b12;
+    --ramp-0: #1f2533;
+    --ramp-1: #26375c;
+    --ramp-2: #3a5ba3;
+    --ramp-3: #8eaaf0;
+    --ramp-3-ink: #10131a;
     --code-keyword: #ff7b72;
     --code-title: #d2a8ff;
     --code-constant: #79c0ff;
@@ -1086,4 +1096,130 @@ pre .hljs-emphasis {
   font-weight: 600;
   letter-spacing: 0.06em;
   text-transform: uppercase;
+}
+
+.graph-controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px 20px;
+  margin-bottom: 8px;
+}
+
+.graph-filters {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 16px;
+}
+
+.graph-filters .near-only {
+  min-height: 36px;
+  margin: 0;
+}
+
+.colour-by {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  color: var(--muted);
+  font-size: 12.5px;
+}
+
+.colour-by [role="group"] {
+  display: flex;
+  gap: 2px;
+  padding: 3px;
+  border-radius: 9px;
+  background: var(--unchanged-fill);
+}
+
+.colour-by button {
+  min-height: 32px;
+  padding: 0 12px;
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--muted);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.colour-by button[aria-pressed="true"] {
+  background: var(--stack);
+  color: var(--ink);
+  font-weight: 600;
+  box-shadow: 0 1px 2px rgb(0 0 0 / 14%);
+}
+
+.graph-key {
+  margin-bottom: 12px;
+}
+
+.scale-legend {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 14px;
+  color: var(--muted);
+  font-size: 12.5px;
+}
+
+.scale {
+  display: flex;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+[data-step="0"] {
+  --step-fill: var(--ramp-0);
+  --step-ink: var(--ink);
+}
+
+[data-step="1"] {
+  --step-fill: var(--ramp-1);
+  --step-ink: var(--ink);
+}
+
+[data-step="2"] {
+  --step-fill: var(--ramp-2);
+  --step-ink: var(--ink);
+}
+
+[data-step="3"] {
+  --step-fill: var(--ramp-3);
+  --step-ink: var(--ramp-3-ink);
+}
+
+.scale-step {
+  padding: 2px 10px;
+  background: var(--step-fill);
+  color: var(--step-ink);
+  font-size: 12px;
+}
+
+.scale-step:first-child {
+  border-radius: 4px 0 0 4px;
+}
+
+.scale-step:last-child {
+  border-radius: 0 4px 4px 0;
+}
+
+.graph:not([data-colouring="change"]) .node rect {
+  fill: var(--unchanged-fill);
+}
+
+.graph .node[data-step] rect {
+  fill: var(--step-fill);
+}
+
+.graph .node[data-step] text,
+.graph .node[data-step] .former {
+  fill: var(--step-ink);
 }

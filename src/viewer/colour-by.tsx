@@ -14,7 +14,7 @@ type Scale = {
   readonly measure: string;
   readonly cuts: ReadonlyArray<number>;
   readonly steps: ReadonlyArray<string>;
-  readonly valueOf: (metrics: NodeMetrics) => number | undefined;
+  readonly read: (metrics: NodeMetrics) => number | undefined;
 };
 
 const SCALES: Readonly<Record<Exclude<Colouring, 'change'>, Scale>> = {
@@ -23,14 +23,14 @@ const SCALES: Readonly<Record<Exclude<Colouring, 'change'>, Scale>> = {
     measure: 'churn',
     cuts: [3, 6, 9],
     steps: ['0–2', '3–5', '6–8', '9+'],
-    valueOf: ({ head, base }) => (head ?? base)?.churn,
+    read: ({ head, base }) => (head ?? base)?.churn,
   },
   complexity: {
     title: 'Cyclomatic of its most complex function, at the head',
     measure: 'cyclomatic',
     cuts: [5, 8, 11],
-    steps: ['1–4', '5–7', '8–10', '11+'],
-    valueOf: ({ head }) => (head && 'lines' in head ? head.cyclomatic.highest : undefined),
+    steps: ['0–4', '5–7', '8–10', '11+'],
+    read: ({ head }) => (head && 'lines' in head ? head.cyclomatic.highest : undefined),
   },
 };
 
@@ -41,8 +41,8 @@ export const shadeOf = (
   metrics: NodeMetrics | undefined,
 ): Shade | undefined => {
   if (colouring === 'change' || metrics === undefined) return undefined;
-  const { measure, cuts, steps, valueOf } = SCALES[colouring];
-  const value = valueOf(metrics);
+  const { measure, cuts, steps, read } = SCALES[colouring];
+  const value = read(metrics);
   if (value === undefined) return undefined;
   const step = cuts.filter(cut => value >= cut).length;
   return { step, name: `${measure} ${value} (${steps[step]})` };
@@ -59,7 +59,7 @@ export const ScaleLegend = ({
       <span>{title}</span>
       <ul className="scale" aria-label="Scale">
         {steps.map((step, at) => (
-          <li key={step} data-step={at}>
+          <li key={step} className="scale-step" data-step={at}>
             {step}
           </li>
         ))}

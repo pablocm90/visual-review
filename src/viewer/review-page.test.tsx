@@ -2033,9 +2033,9 @@ test("on Complexity each node is named with its head's highest cyclomatic and th
 
   await user.click(colourBy('Complexity'));
   expect(colourBy('Complexity').getAttribute('aria-pressed')).toBe('true');
-  expect(scaleSteps()).toEqual(['1–4', '5–7', '8–10', '11+']);
+  expect(scaleSteps()).toEqual(['0–4', '5–7', '8–10', '11+']);
   expect(buttonsIn(rust)).toEqual([
-    'domain: modified, cyclomatic 4 (1–4)',
+    'domain: modified, cyclomatic 4 (0–4)',
     'application: modified, cyclomatic 5 (5–7)',
     'billing: modified, cyclomatic 7 (5–7)',
     'shipping: modified, cyclomatic 8 (8–10)',

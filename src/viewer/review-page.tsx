@@ -210,9 +210,12 @@ const NodeView = ({ node, drawing }: { readonly node: PlacedNode; readonly drawi
         })}
         className="node"
         data-state={node.state}
+        data-step={shade?.step}
         transform={`translate(${node.x} ${node.y})`}
       >
-        <title>{`${node.path} — ${node.state}`}</title>
+        <title>
+          {`${node.path} — ${[node.state, ...(shade === undefined ? [] : [shade.name])].join(', ')}`}
+        </title>
         <rect width={node.width} height={node.height} rx={6} />
         <text x={node.width / 2} y={node.height / 2}>
           {node.formerLabel === undefined ? (
@@ -938,7 +941,6 @@ export const ReviewPage = ({ review, notes, shownTabs = SHOWN_TABS }: ReviewPage
       {tab === 'structure' && (
         <>
           <div className="structure-head">
-            {colouring === 'change' ? <Legend /> : <ScaleLegend colouring={colouring} />}
             <p className="caveat">Calls whose path is built at runtime are not drawn.</p>
           </div>
           <div className="columns">
@@ -953,29 +955,36 @@ export const ReviewPage = ({ review, notes, shownTabs = SHOWN_TABS }: ReviewPage
             />
             <div className="content">
               {notes && notes.summary.length > 0 && <Summary notes={notes} onGoTo={goTo} />}
-              <ColourBy colouring={colouring} onPick={setColouring} />
-              <label className="near-only">
-                <input
-                  type="checkbox"
-                  checked={nearOnly}
-                  onChange={event => {
-                    setChosen(undefined);
-                    setNearOnly(event.target.checked);
-                  }}
-                />
-                Changed + 1 hop
-              </label>
-              <label className="near-only">
-                <input
-                  type="checkbox"
-                  checked={allEdges}
-                  onChange={event => {
-                    setChosen(undefined);
-                    setAllEdges(event.target.checked);
-                  }}
-                />
-                All edges
-              </label>
+              <div className="graph-controls">
+                <ColourBy colouring={colouring} onPick={setColouring} />
+                <div className="graph-filters">
+                  <label className="near-only">
+                    <input
+                      type="checkbox"
+                      checked={nearOnly}
+                      onChange={event => {
+                        setChosen(undefined);
+                        setNearOnly(event.target.checked);
+                      }}
+                    />
+                    Changed + 1 hop
+                  </label>
+                  <label className="near-only">
+                    <input
+                      type="checkbox"
+                      checked={allEdges}
+                      onChange={event => {
+                        setChosen(undefined);
+                        setAllEdges(event.target.checked);
+                      }}
+                    />
+                    All edges
+                  </label>
+                </div>
+              </div>
+              <div className="graph-key">
+                {colouring === 'change' ? <Legend /> : <ScaleLegend colouring={colouring} />}
+              </div>
               {drawn.nodes.length === 0 && <p className="caveat">Nothing in the graph changed.</p>}
               {layout && (
                 <div
@@ -999,7 +1008,7 @@ export const ReviewPage = ({ review, notes, shownTabs = SHOWN_TABS }: ReviewPage
                         onZoom={zoomAtCentre}
                         onFit={() => setChosen(undefined)}
                       />
-                      <svg className="graph">
+                      <svg className="graph" data-colouring={colouring}>
                         <title>{`Structure ${shortRange(review.range)}`}</title>
                         <defs>
                           {STATES.map(state => (
