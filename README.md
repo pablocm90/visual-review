@@ -114,9 +114,21 @@ A notes file is JSON in notes version 1, whose schema is [`notes.schema.json`](h
 
 `--notes <file>` with the same argument fills the notes into the page already written for it. A missing or unknown `version`, an unknown key, an id the graph doesn't have, or a changed part without a note fails it, naming the file.
 
+## Your review
+
+`serve <page.html>` serves a page that's already written and opens it in your browser:
+
+```sh
+npx @pablocm90/visual-review serve .reviews/<sha>..<sha>.html
+```
+
+It listens on `127.0.0.1` at a free port and prints the page's URL on stderr; the URL holds a token made for this serve, and any other path or host is refused with 403. On the served page, the inspector's Note tab has a **Your comment** field for the selected node or edge, and the header a **Send to Claude** button, enabled once a comment holds more than blanks. Sending writes the comments beside the page as `<name>.review.json`, prints that file's path on stdout, and ends `serve` with exit 0. A page opened as a file has neither the field nor the button.
+
+A review file is JSON in review version 1, whose schema is [`review.schema.json`](https://unpkg.com/@pablocm90/visual-review@0.5/dist/review.schema.json): `comments` maps a node id, or `<from> -> <to>` for an edge, to `{ text }`, keyed as notes are.
+
 ## Where pages go
 
-Pages go to `.reviews/` at the repo root, which git ignores. Each page is named by its range, for example `<sha>..<sha>.html` for a PR, with its data (`.json`) and Claude's notes (`.notes.json`) beside it. Only the 20 most recently written pages are kept. Pages aren't hosted: each person runs the review they want to see.
+Pages go to `.reviews/` at the repo root, which git ignores. Each page is named by its range, for example `<sha>..<sha>.html` for a PR, with its data (`.json`), Claude's notes (`.notes.json`) and your review (`.review.json`) beside it. Only the 20 most recently written pages are kept. Pages aren't hosted: each person runs the review they want to see.
 
 ## Contributing
 

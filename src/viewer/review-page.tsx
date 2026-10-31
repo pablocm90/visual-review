@@ -14,6 +14,7 @@ import type { MetricFinding } from '../core/metric-findings.ts';
 import type { NodeMetrics } from '../core/metrics.ts';
 import { type Note, type ReviewNotes, visibleNotes } from '../core/notes.ts';
 import { type PageData, UNCOMMITTED } from '../core/page.ts';
+import type { Review } from '../core/review.ts';
 import type { TestFile } from '../core/test-changes.ts';
 import { testsAlongside } from '../core/tests-alongside.ts';
 import {
@@ -469,6 +470,9 @@ type InspectorProps = {
   readonly unrouted: ReadonlyArray<string>;
   readonly patches: ReadonlyArray<FilePatch>;
   readonly tests: ReadonlyArray<TestFile>;
+  readonly comment: string;
+  readonly onComment: ((text: string) => void) | undefined;
+  readonly commentable: boolean;
   readonly width: number;
   readonly onClose: () => void;
 };
@@ -491,6 +495,9 @@ const Inspector = ({
   unrouted,
   patches,
   tests,
+  comment,
+  onComment,
+  commentable,
   width,
   onClose,
 }: InspectorProps) => {
@@ -530,6 +537,15 @@ const Inspector = ({
             {note?.flag && <h2>{flaggedFor(note.flag)}</h2>}
             {unrouted.length > 0 && <h2>{noRouteFor(unrouted)}</h2>}
             <p>{note?.text ?? 'No note'}</p>
+            {onComment &&
+              (commentable ? (
+                <label className="comment">
+                  Your comment
+                  <textarea value={comment} onChange={event => onComment(event.target.value)} />
+                </label>
+              ) : (
+                <p>Drawn for several edges: open its ends to comment on one of them.</p>
+              ))}
           </>
         ) : shown === 'metrics' && measured ? (
           <MetricsTable
@@ -630,12 +646,53 @@ const useTab = (): Tab => {
   return tab;
 };
 
+type SendProps = {
+  readonly comments: Readonly<Record<string, string>>;
+  readonly send: (review: Review) => Promise<void>;
+};
+
+const SendToClaude = ({ comments, send }: SendProps) => {
+  const [sent, setSent] = useState(false);
+  const [problem, setProblem] = useState<string>();
+  const written = Object.entries(comments).filter(([, text]) => text.trim() !== '');
+  const sendComments = () =>
+    send({
+      version: 1,
+      comments: Object.fromEntries(written.map(([id, text]) => [id, { text }])),
+    }).then(
+      () => setSent(true),
+      (error: Error) => setProblem(error.message),
+    );
+  return (
+    <div className="send-review">
+      {sent ? (
+        <p role="status" aria-label="Review">
+          Sent
+        </p>
+      ) : (
+        <>
+          {problem && (
+            <p role="status" aria-label="Review" className="send-problem">
+              {problem}
+            </p>
+          )}
+          <button type="button" disabled={written.length === 0} onClick={sendComments}>
+            Send to Claude
+          </button>
+        </>
+      )}
+    </div>
+  );
+};
+
 type HeaderProps = {
   readonly review: PageData;
   readonly tab: Tab;
+  readonly comments: Readonly<Record<string, string>>;
+  readonly send: ((review: Review) => Promise<void>) | undefined;
 };
 
-const Header = ({ review, tab }: HeaderProps) => {
+const Header = ({ review, tab, comments, send }: HeaderProps) => {
   const changed = changedCount(review.tests);
   return (
     <header className="review">
@@ -671,6 +728,7 @@ const Header = ({ review, tab }: HeaderProps) => {
           </a>
         ))}
       </nav>
+      {send && <SendToClaude comments={comments} send={send} />}
     </header>
   );
 };
@@ -678,9 +736,10 @@ const Header = ({ review, tab }: HeaderProps) => {
 type ReviewPageProps = {
   readonly review: PageData;
   readonly notes?: ReviewNotes | undefined;
+  readonly send?: ((review: Review) => Promise<void>) | undefined;
 };
 
-export const ReviewPage = ({ review, notes }: ReviewPageProps) => {
+export const ReviewPage = ({ review, notes, send }: ReviewPageProps) => {
   const tab = useTab();
   const [layout, setLayout] = useState<Layout>();
   const [selected, setSelected] = useState<string>();
@@ -691,6 +750,7 @@ export const ReviewPage = ({ review, notes }: ReviewPageProps) => {
     setSelected(id);
   };
   const [chosenWidth, setChosenWidth] = useState<number>();
+  const [comments, setComments] = useState<Readonly<Record<string, string>>>({});
   const [expanded, setExpanded] = useState<ReadonlySet<string>>(new Set());
   const expandable = useMemo(
     () => new Set(review.diff.nodes.flatMap(node => node.parent ?? [])),
@@ -872,7 +932,7 @@ export const ReviewPage = ({ review, notes }: ReviewPageProps) => {
   }, [layout, focusTarget, frameElement]);
   return (
     <main>
-      <Header review={review} tab={tab} />
+      <Header review={review} tab={tab} comments={comments} send={send} />
       {tab === 'structure' && (
         <>
           <div className="structure-head">
@@ -1014,6 +1074,17 @@ export const ReviewPage = ({ review, notes }: ReviewPageProps) => {
                     unrouted={selectedUnrouted}
                     patches={patches}
                     tests={review.tests}
+                    comment={(selected && comments[selected]) ?? ''}
+                    onComment={
+                      send &&
+                      (text =>
+                        selected !== undefined &&
+                        setComments(current => ({ ...current, [selected]: text })))
+                    }
+                    commentable={
+                      selectedNode !== undefined ||
+                      review.diff.edges.some(edge => edgeId(edge) === selected)
+                    }
                     width={panelWidth}
                     onClose={() => {
                       if (selected !== undefined)

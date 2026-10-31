@@ -4,6 +4,7 @@ import { type MetricFinding, metricFindings } from './metric-findings.ts';
 import { type NodeMetrics, nodeMetrics } from './metrics.ts';
 import { notesProblems, type ReviewNotes } from './notes.ts';
 import type { RangeReading } from './read-range.ts';
+import type { Review } from './review.ts';
 import type { Skipped } from './skipped.ts';
 import type { TestFile } from './test-changes.ts';
 
@@ -73,6 +74,8 @@ const DATA_SLOT = 'review-data';
 
 const NOTES_SLOT = 'review-notes';
 
+const SERVE_SLOT = 'review-serve';
+
 const slot = (id: string, content: string) =>
   `<script type="application/json" id="${id}">${content}</script>`;
 
@@ -92,12 +95,14 @@ export const pageHtml = ({ viewer, data }: PageHtmlOptions): string =>
 type Page = {
   readonly data: PageData;
   readonly notes: ReviewNotes | undefined;
+  readonly token: string | undefined;
 };
 
 export const pageIn = (slotText: (id: string) => string | undefined): Page => {
   const data: PageData = JSON.parse(slotText(DATA_SLOT) ?? '{}');
   const notes: ReviewNotes | null = JSON.parse(slotText(NOTES_SLOT) ?? 'null');
-  return { data, notes: notes ?? undefined };
+  const token: string | null = JSON.parse(slotText(SERVE_SLOT) ?? 'null');
+  return { data, notes: notes ?? undefined, token: token ?? undefined };
 };
 
 const slotsIn =
@@ -107,6 +112,22 @@ const slotsIn =
 
 const writerOf = (version: string | undefined): string =>
   version === undefined ? 'an older visual-review' : `visual-review ${version}`;
+
+type WrittenByOptions = {
+  readonly page: string;
+  readonly version: string;
+  readonly advice: string;
+};
+
+const writtenBy = ({ page, version, advice }: WrittenByOptions): PageData => {
+  const { data } = pageIn(slotsIn(page));
+  if (data.version !== version) {
+    throw new Error(
+      `The page for ${data.range} was written by ${writerOf(data.version)}: ${advice}`,
+    );
+  }
+  return data;
+};
 
 type NotedPageHtmlOptions = {
   readonly page: string;
@@ -121,15 +142,37 @@ export const notedPageHtml = ({
   notesFile,
   version,
 }: NotedPageHtmlOptions): string => {
-  const { data } = pageIn(slotsIn(page));
-  if (data.version !== version) {
-    throw new Error(
-      `The page for ${data.range} was written by ${writerOf(data.version)}: run visual-review without --notes first`,
-    );
-  }
+  const data = writtenBy({ page, version, advice: 'run visual-review without --notes first' });
   const problems = notesProblems({ diff: data.diff, notes });
   if (problems.length > 0) {
     throw new Error(`Notes in ${notesFile} don't match the graph:\n${problems.join('\n')}`);
   }
   return filledSlot(page, NOTES_SLOT, notes);
+};
+
+type ServedPageHtmlOptions = {
+  readonly page: string;
+  readonly token: string;
+  readonly version: string;
+};
+
+export const servedPageHtml = ({ page, token, version }: ServedPageHtmlOptions): string => {
+  writtenBy({ page, version, advice: 'run visual-review again to serve it' });
+  return filledSlot(page, SERVE_SLOT, token);
+};
+
+type SendReviewOptions = {
+  readonly origin: string;
+  readonly token: string;
+  readonly review: Review;
+};
+
+export const sendReview = async ({ origin, token, review }: SendReviewOptions): Promise<void> => {
+  const response = await fetch(`${origin}/${token}/review`, {
+    method: 'POST',
+    body: JSON.stringify(review),
+  });
+  if (!response.ok) {
+    throw new Error(`The review was not sent: ${response.status} ${response.statusText}`);
+  }
 };
