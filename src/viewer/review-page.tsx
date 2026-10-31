@@ -340,6 +340,8 @@ const Zoom = ({ scale, onZoom, onFit }: ZoomProps) => (
   </div>
 );
 
+const UNCOMMITTED = 'HEAD..worktree';
+
 const isFullSha = (ref: string) => /^[0-9a-f]{40}$/.test(ref);
 
 const shortRef = (ref: string) => (isFullSha(ref) ? ref.slice(0, 7) : ref);
@@ -693,20 +695,26 @@ export const ReviewPage = ({ review, notes }: ReviewPageProps) => {
   }, [layout, focusTarget, frameElement]);
   return (
     <main>
-      <header>
-        {review.pullRequest && (
-          <p className="pull-request">
-            <a href={review.pullRequest.url}>
-              PR #{review.pullRequest.number} {review.pullRequest.title}
-            </a>
-          </p>
-        )}
-        <h1>
-          Structure{' '}
+      <header className="review">
+        <p className="where">
+          {review.repo} ·{' '}
           <code>
             <ShortRange range={review.range} />
           </code>
+        </p>
+        <h1>
+          {review.pullRequest ? (
+            <a href={review.pullRequest.url}>
+              #{review.pullRequest.number} {review.pullRequest.title}
+            </a>
+          ) : review.range === UNCOMMITTED ? (
+            'Uncommitted work'
+          ) : (
+            <ShortRange range={review.range} />
+          )}
         </h1>
+      </header>
+      <div className="structure-head">
         {review.skipped.map(skip => (
           <p key={skip.reader} className="skipped" role="alert">
             {notReadLine(skip)}
@@ -714,7 +722,7 @@ export const ReviewPage = ({ review, notes }: ReviewPageProps) => {
         ))}
         <Legend />
         <p className="caveat">Calls whose path is built at runtime are not drawn.</p>
-      </header>
+      </div>
       <div className="columns">
         <div className="content">
           {notes && <Summary notes={notes} onGoTo={goTo} />}

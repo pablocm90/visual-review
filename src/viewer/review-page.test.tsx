@@ -443,7 +443,7 @@ test('going to a hidden file from the summary opens its module and lands it cent
   expect(scrolledIntoView.mock.contexts).toContain(frame);
 });
 
-test("a PR's page names the PR above its range, as a link to it", async () => {
+test("a PR's page is headed by the PR's number and title, as a link to it", async () => {
   render(
     <ReviewPage
       review={pageWith({
@@ -457,10 +457,11 @@ test("a PR's page names the PR above its range, as a link to it", async () => {
     />,
   );
 
-  expect(screen.getByRole('link', { name: 'PR #7 Add the cli crate' })).toHaveProperty(
-    'href',
-    'https://github.com/acme/shop/pull/7',
-  );
+  expect(
+    within(screen.getByRole('heading', { level: 1 })).getByRole('link', {
+      name: '#7 Add the cli crate',
+    }),
+  ).toHaveProperty('href', 'https://github.com/acme/shop/pull/7');
   await screen.findByRole('group', { name: 'rust' });
 });
 
@@ -483,22 +484,32 @@ test('a reader skipped for want of its tool is named in the header with the stac
 test.for([
   {
     range: '646f56cfd31dbe78c3b93e793c174efe85d8f666..fe2b80f6d56a89db7649e4e59a7b73790e5f8202',
-    heading: 'Structure 646f56c..fe2b80f',
+    heading: '646f56c..fe2b80f',
+    graph: 'Structure 646f56c..fe2b80f',
   },
-  { range: 'main..my-branch', heading: 'Structure main..my-branch' },
-])('the header and the graph name $range by short SHAs', async ({ range, heading }) => {
-  render(<ReviewPage review={pageWith({ ...review, range })} />);
+  { range: 'main..my-branch', heading: 'main..my-branch', graph: 'Structure main..my-branch' },
+  { range: 'HEAD..worktree', heading: 'Uncommitted work', graph: 'Structure HEAD..worktree' },
+])(
+  'a page with no PR is headed by $range, by short SHAs, and so is its graph',
+  async ({ range, heading, graph }) => {
+    render(<ReviewPage review={pageWith({ ...review, range })} />);
 
-  expect(screen.getByRole('heading', { level: 1 }).textContent).toBe(heading);
-  await screen.findByRole('group', { name: 'rust' });
-  expect(screen.getByTitle(heading).tagName).toBe('title');
-});
+    expect(screen.getByRole('heading', { level: 1 }).textContent).toBe(heading);
+    await screen.findByRole('group', { name: 'rust' });
+    expect(screen.getByTitle(graph).tagName).toBe('title');
+  },
+);
 
-test('a short SHA in the header shows its full SHA on hover', async () => {
+test("a short SHA in the header's range shows its full SHA on hover", async () => {
   render(
     <ReviewPage
       review={pageWith({
         ...review,
+        pullRequest: {
+          number: 7,
+          title: 'Add the cli crate',
+          url: 'https://github.com/acme/shop/pull/7',
+        },
         range: '646f56cfd31dbe78c3b93e793c174efe85d8f666..fe2b80f6d56a89db7649e4e59a7b73790e5f8202',
       })}
     />,
