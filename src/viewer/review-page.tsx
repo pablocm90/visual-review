@@ -568,34 +568,41 @@ const difference = (base: number | undefined, head: number | undefined) => {
   return by < 0 ? `−${-by}` : '±0';
 };
 
-const MetricsTable = ({ metrics: { base, head } }: { readonly metrics: NodeMetrics }) => (
-  <table className="metrics">
-    <thead>
-      <tr>
-        <th scope="col">Metric</th>
-        <th scope="col">Before</th>
-        <th scope="col">After</th>
-        <th scope="col">Δ</th>
-      </tr>
-    </thead>
-    <tbody>
-      {METRIC_ROWS.map(({ name, hint, of }) => {
-        const before = base && of(base);
-        const after = head && of(head);
-        return (
-          <tr key={name}>
-            <th scope="row">
-              {name}
-              {hint && <small>{hint}</small>}
-            </th>
-            <td>{shownValue(base, before)}</td>
-            <td>{shownValue(head, after)}</td>
-            <td>{difference(before, after)}</td>
-          </tr>
-        );
-      })}
-    </tbody>
-  </table>
+const MetricsTable = ({
+  metrics: { highestInside, base, head },
+}: {
+  readonly metrics: NodeMetrics;
+}) => (
+  <>
+    {highestInside && <p>Each value is the highest inside it.</p>}
+    <table className="metrics">
+      <thead>
+        <tr>
+          <th scope="col">Metric</th>
+          <th scope="col">Before</th>
+          <th scope="col">After</th>
+          <th scope="col">Δ</th>
+        </tr>
+      </thead>
+      <tbody>
+        {METRIC_ROWS.map(({ name, hint, of }) => {
+          const before = base && of(base);
+          const after = head && of(head);
+          return (
+            <tr key={name}>
+              <th scope="row">
+                {name}
+                {hint && <small>{hint}</small>}
+              </th>
+              <td>{shownValue(base, before)}</td>
+              <td>{shownValue(head, after)}</td>
+              <td>{difference(before, after)}</td>
+            </tr>
+          );
+        })}
+      </tbody>
+    </table>
+  </>
 );
 
 type InspectorProps = {

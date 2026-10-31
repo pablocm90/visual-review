@@ -1108,7 +1108,7 @@ const metricCells = (metric: string) => {
   );
 };
 
-test("a measured node's Metrics tab gives each measure before and after with the difference, a missing side and its difference as —, and a side without complexity as not measured; a node or an edge without metrics has no Metrics tab", async () => {
+test("a measured node's Metrics tab gives each measure before and after with the difference, a missing side and its difference as —, and a side without complexity as not measured, and a box's values as the highest inside it; a node or an edge without metrics has no Metrics tab", async () => {
   const user = userEvent.setup();
   render(
     <ReviewPage
@@ -1126,7 +1126,7 @@ test("a measured node's Metrics tab gives each measure before and after with the
             }),
           },
           'rust/crate/cli-adapter': { head: { churn: 1, fanIn: 0, fanOut: 1 } },
-          'rust/crate/legacy': { base: measured() },
+          'rust/crate/legacy': { highestInside: true, base: measured() },
         },
       })}
     />,
@@ -1143,12 +1143,14 @@ test("a measured node's Metrics tab gives each measure before and after with the
   expect(metricCells('Fan-out')).toEqual(['3', '5', '+2']);
   expect(metricCells('Fan-in')).toEqual(['2', '1', '−1']);
   expect(metricCells('Churn')).toEqual(['6', '6', '±0']);
+  expect(within(inspector()).queryByText(/highest inside/)).toBeNull();
 
   await user.click(screen.getByRole('button', { name: 'cli-adapter: added' }));
   expect(metricCells('Lines')).toEqual(['—', 'not measured', '—']);
   expect(metricCells('Fan-out')).toEqual(['—', '1', '—']);
   await user.click(screen.getByRole('button', { name: 'legacy: removed' }));
   expect(metricCells('Lines')).toEqual(['120', '—', '—']);
+  expect(within(inspector()).getByText(/highest inside/)).toBeTruthy();
 
   await user.click(screen.getByRole('button', { name: 'domain: unchanged' }));
   expect(inspectorTabs()).toEqual(['Note']);
