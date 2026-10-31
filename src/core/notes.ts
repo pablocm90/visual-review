@@ -37,7 +37,8 @@ const ReviewNotesSchema = z
           .readonly(),
       )
       .readonly()
-      .describe('Notes by node id, or by `<from> -> <to>` for an edge'),
+      .default({})
+      .describe('Notes by node id, or by `<from> -> <to>` for an edge; left out, there are none'),
   })
   .readonly();
 

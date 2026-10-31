@@ -305,6 +305,12 @@ test('a notes file may name its schema', () => {
   expect(parseNotes({ text, file })).toMatchObject(notesWith());
 });
 
+test('a notes file with nothing to note may leave out notes', () => {
+  const { notes: _, ...rest } = notesWith();
+
+  expect(parseNotes({ text: JSON.stringify(rest), file })).toEqual({ ...rest, notes: {} });
+});
+
 test('the published notes schema marks no field read-only, since notes are written by hand or by agents', () => {
   expect(JSON.stringify(notesJsonSchema())).not.toContain('readOnly');
 });

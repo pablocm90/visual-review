@@ -2,6 +2,12 @@
 
 What changed in each release of `@pablocm90/visual-review`, newest first. Versions follow [semver](https://semver.org); while it is 0.x, a minor version may change the exported types.
 
+## 0.4.1 — 2026-10-31
+
+### Changed
+
+- A notes file may leave out `notes` when there is nothing to note, as for a review that touches no drawn part; it no longer has to write `"notes": {}`.
+
 ## 0.4.0 — 2026-10-31
 
 ### Added
