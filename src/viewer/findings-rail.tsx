@@ -154,7 +154,7 @@ export const FindingsRail = (props: FindingsRailProps) => {
         <button type="button" aria-label="Hide findings" onClick={() => setOpen(false)}>
           ‹
         </button>
-        <div className="chips" role="group" aria-label="Show findings">
+        <div className="rail-chips" role="group" aria-label="Show findings">
           {chips.map(({ chip, pick, count }) => (
             <button
               key={chip}
