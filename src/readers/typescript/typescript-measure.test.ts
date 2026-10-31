@@ -94,11 +94,22 @@ test('an anonymous function is no function of its own, a named one inside anothe
     namesIn(
       'function load(items: Array<number>) {',
       '  items.forEach(item => { save(item); });',
+      '  const saved = items.map(item => item);',
       '  const helper = () => {};',
       '}',
       'items.map(function (item) {});',
     ),
   ).toEqual(['load', 'helper']);
+});
+
+test('an anonymous function no function holds is named by the declaration, assignment or export it sits in', () => {
+  expect(
+    namesIn(
+      'const Button = forwardRef((props, ref) => { items.forEach(item => {}); });',
+      'exports.GET = withAuth(async req => {});',
+      'export default memo(() => {});',
+    ),
+  ).toEqual(['Button', 'exports.GET', 'default']);
 });
 
 const cyclomaticOf = (body: string, params = '') =>

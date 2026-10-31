@@ -80,9 +80,30 @@ const ownFunction = (text: string, node: Node): OwnFunction | undefined => {
   }
 };
 
-const functionsIn = (text: string, node: Node): ReadonlyArray<OwnFunction> => {
-  const own = ownFunction(text, node);
-  const inner = childrenOf(node).flatMap(child => functionsIn(text, child));
+const holderOf = (text: string, node: Node): string | undefined => {
+  if (node.type === 'VariableDeclarator') return sourceOf(text, node.id);
+  if (node.type === 'AssignmentExpression') return sourceOf(text, node.left);
+  return node.type === 'ExportDefaultDeclaration' ? 'default' : undefined;
+};
+
+type Scope = { readonly inFunction: boolean; readonly holder: string | undefined };
+
+const heldFunction = (node: Node, holder: string | undefined): OwnFunction | undefined =>
+  holder === undefined || functionValue(node) === undefined
+    ? undefined
+    : { name: holder, fn: node };
+
+const functionsIn = (text: string, node: Node, scope: Scope): ReadonlyArray<OwnFunction> => {
+  const own = ownFunction(text, node) ?? heldFunction(node, scope.holder);
+  const inner = childrenOf(node).flatMap(child =>
+    functionsIn(
+      text,
+      child,
+      own !== undefined || scope.inFunction
+        ? { inFunction: true, holder: undefined }
+        : { inFunction: false, holder: holderOf(text, node) ?? scope.holder },
+    ),
+  );
   return own === undefined ? inner : [own, ...inner];
 };
 
@@ -145,7 +166,7 @@ export const measureTypeScript = (text: string, path: string): FileMeasures => {
     .array(TokenSchema)
     .parse(tokens)
     .filter(({ type }) => !NOT_CODE.has(type));
-  const functions = functionsIn(text, program);
+  const functions = functionsIn(text, program, { inFunction: false, holder: undefined });
   const bodies = new Set(functions.map(({ fn }) => fn));
   return {
     lines: new Set(code.flatMap(rowsOf)).size,
