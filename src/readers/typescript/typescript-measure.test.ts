@@ -58,6 +58,10 @@ test('every function with a body is one, named by its declaration, key or the na
       'const arrow = () => 1;',
       'const expression = function inner() {};',
       'module.exports.handler = async () => {};',
+      'const cast = (() => {}) as unknown as Handler;',
+      'const checked = (() => {}) satisfies Handler;',
+      'const sure = (() => {})!;',
+      'const old = <Handler>(() => {});',
     ),
   ).toEqual([
     'declared',
@@ -74,6 +78,10 @@ test('every function with a body is one, named by its declaration, key or the na
     'arrow',
     'expression',
     'module.exports.handler',
+    'cast',
+    'checked',
+    'sure',
+    'old',
   ]);
 });
 

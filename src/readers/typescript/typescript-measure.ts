@@ -33,10 +33,20 @@ type OwnFunction = { readonly name: string; readonly fn: Node };
 const sourceOf = (text: string, node: Node): string =>
   text.slice(node.start ?? undefined, node.end ?? undefined);
 
-const functionValue = (node: Node | null | undefined): Node | undefined =>
-  node?.type === 'ArrowFunctionExpression' || node?.type === 'FunctionExpression'
+const unwrapped = (node: Node): Node =>
+  node.type === 'TSAsExpression' ||
+  node.type === 'TSSatisfiesExpression' ||
+  node.type === 'TSNonNullExpression' ||
+  node.type === 'TSTypeAssertion'
+    ? unwrapped(node.expression)
+    : node;
+
+const functionValue = (value: Node | null | undefined): Node | undefined => {
+  const node = value ? unwrapped(value) : undefined;
+  return node?.type === 'ArrowFunctionExpression' || node?.type === 'FunctionExpression'
     ? node
     : undefined;
+};
 
 const assigned = (text: string, name: Node, value: Node | null | undefined) => {
   const fn = functionValue(value);
