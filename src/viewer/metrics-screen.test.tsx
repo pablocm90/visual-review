@@ -408,7 +408,7 @@ test('with no measured node, "No node measured." stands in for the table', () =>
   expect(screen.queryByRole('table')).toBeNull();
 });
 
-test("the hotspot chart names each changed leaf's move, base to head, and an added one's head alone", () => {
+test("the hotspot chart names each changed leaf's move, base to head, an added one's head alone as new, and one whose base wasn't measured as such", () => {
   atMetrics();
   render(
     <ReviewPage
@@ -425,6 +425,13 @@ test("the hotspot chart names each changed leaf's move, base to head, and an add
             crate('ledger', 'added'),
             { head: measured({ churn: 1, cyclomatic: cyclomatic([['b', 3]]) }) },
           ],
+          [
+            crate('stripe', 'modified'),
+            {
+              base: { churn: 2, fanIn: 1, fanOut: 1 },
+              head: measured({ churn: 3, cyclomatic: cyclomatic([['c', 5]]) }),
+            },
+          ],
         ],
       })}
     />,
@@ -434,7 +441,11 @@ test("the hotspot chart names each changed leaf's move, base to head, and an add
     within(screen.getByRole('group', { name: 'Hotspots' }))
       .getAllByRole('img')
       .map(point => point.getAttribute('aria-label')),
-  ).toEqual(['refunds: 6 → 9 commits, cyclomatic 4 → 14', 'ledger: new, 1 commit, cyclomatic 3']);
+  ).toEqual([
+    'refunds: 6 → 9 commits, cyclomatic 4 → 14',
+    'ledger: new, 1 commit, cyclomatic 3',
+    'stripe: base not measured, 3 commits, cyclomatic 5',
+  ]);
 });
 
 test('under the hotspot chart, a line per leaf entering the corner and per leaf already in it that changed', () => {

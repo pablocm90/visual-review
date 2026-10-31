@@ -6,7 +6,7 @@ const commits = (count: number) => `${count} ${count === 1 ? 'commit' : 'commits
 
 const nameOf = ({ node, base, head }: HotspotMove) =>
   base === undefined
-    ? `${node.label}: new, ${commits(head.churn)}, cyclomatic ${head.cyclomatic}`
+    ? `${node.label}: ${node.state === 'added' ? 'new' : 'base not measured'}, ${commits(head.churn)}, cyclomatic ${head.cyclomatic}`
     : `${node.label}: ${base.churn} → ${commits(head.churn)}, cyclomatic ${base.cyclomatic} → ${head.cyclomatic}`;
 
 const CORNER_LINES: Readonly<
