@@ -169,6 +169,7 @@ test("a served page's Send to Claude sends each comment under its node's id or i
 
   expect(sent).toHaveBeenCalledExactlyOnceWith({
     version: 1,
+    verdict: 'comment',
     comments: {
       'rust/crate/domain': { text: 'Keep domain free of IO.' },
       'rust/crate/application -> rust/crate/domain': { text: 'Why this way round?' },
@@ -196,6 +197,7 @@ test('Send to Claude waits for a comment that is more than blanks, and sends no 
 
   expect(sent).toHaveBeenCalledExactlyOnceWith({
     version: 1,
+    verdict: 'comment',
     comments: {
       'rust/crate/application -> rust/crate/domain': { text: 'Why this way round?' },
     },

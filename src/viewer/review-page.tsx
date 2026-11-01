@@ -856,6 +856,7 @@ const SendToClaude = ({ comments, send }: SendProps) => {
   const sendComments = () =>
     send({
       version: 1,
+      verdict: 'comment',
       comments: Object.fromEntries(written.map(([id, text]) => [id, { text }])),
     }).then(
       () => setSent(true),

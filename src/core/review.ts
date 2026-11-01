@@ -5,6 +5,9 @@ const reviewVersion = 1;
 const ReviewSchema = z
   .strictObject({
     version: z.literal(reviewVersion).describe('The review format this file is written in'),
+    verdict: z
+      .enum(['approve', 'comment', 'request-changes'])
+      .describe("The reviewer's verdict on the whole change"),
     comments: z
       .record(z.string(), z.strictObject({ text: z.string() }).readonly())
       .readonly()
