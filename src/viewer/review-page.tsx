@@ -1,5 +1,6 @@
 import {
   type KeyboardEvent,
+  type MouseEvent,
   type PointerEvent,
   useEffect,
   useEffectEvent,
@@ -14,6 +15,7 @@ import type { MetricFinding } from '../core/metric-findings.ts';
 import type { NodeMetrics } from '../core/metrics.ts';
 import { type Note, type ReviewNotes, visibleNotes } from '../core/notes.ts';
 import { type PageData, UNCOMMITTED } from '../core/page.ts';
+import type { Review } from '../core/review.ts';
 import type { TestFile } from '../core/test-changes.ts';
 import { testsAlongside } from '../core/tests-alongside.ts';
 import {
@@ -469,6 +471,9 @@ type InspectorProps = {
   readonly unrouted: ReadonlyArray<string>;
   readonly patches: ReadonlyArray<FilePatch>;
   readonly tests: ReadonlyArray<TestFile>;
+  readonly comment: string;
+  readonly onComment: ((text: string) => void) | undefined;
+  readonly commentable: boolean;
   readonly width: number;
   readonly onClose: () => void;
 };
@@ -491,6 +496,9 @@ const Inspector = ({
   unrouted,
   patches,
   tests,
+  comment,
+  onComment,
+  commentable,
   width,
   onClose,
 }: InspectorProps) => {
@@ -530,6 +538,15 @@ const Inspector = ({
             {note?.flag && <h2>{flaggedFor(note.flag)}</h2>}
             {unrouted.length > 0 && <h2>{noRouteFor(unrouted)}</h2>}
             <p>{note?.text ?? 'No note'}</p>
+            {onComment &&
+              (commentable ? (
+                <label className="comment">
+                  Your comment
+                  <textarea value={comment} onChange={event => onComment(event.target.value)} />
+                </label>
+              ) : (
+                <p>Drawn for several edges: open its ends to comment on one of them.</p>
+              ))}
           </>
         ) : shown === 'metrics' && measured ? (
           <MetricsTable
@@ -571,6 +588,103 @@ const OutsideFiles = ({ patches, width, onClose }: OutsideFilesProps) => (
     </section>
   </aside>
 );
+
+type SidePanelProps = {
+  readonly review: PageData;
+  readonly selected: string | undefined;
+  readonly node: DiffNode | undefined;
+  readonly outside: boolean;
+  readonly note: Note | undefined;
+  readonly unrouted: ReadonlyArray<string>;
+  readonly comments: Readonly<Record<string, string>>;
+  readonly onComment: ((id: string, text: string) => void) | undefined;
+  readonly chosenWidth: number | undefined;
+  readonly onChooseWidth: (width: number) => void;
+  readonly graphLeft: () => number;
+  readonly onCloseOutside: () => void;
+  readonly onCloseInspector: (id: string) => void;
+};
+
+const SidePanel = ({
+  review,
+  selected,
+  node,
+  outside,
+  note,
+  unrouted,
+  comments,
+  onComment,
+  chosenWidth,
+  onChooseWidth,
+  graphLeft,
+  onCloseOutside,
+  onCloseInspector,
+}: SidePanelProps) => {
+  const patches = outside
+    ? review.undrawn
+    : node
+      ? review.patches.filter(({ path }) => isAtOrUnder(path, node))
+      : [];
+  const width = chosenWidth ?? (patches.length > 0 ? CHANGES_WIDTH : NOTE_WIDTH);
+  const moveDivider = (event: KeyboardEvent) => {
+    const step = { ArrowLeft: DIVIDER_STEP, ArrowRight: -DIVIDER_STEP }[event.key];
+    if (step === undefined) return;
+    onChooseWidth(panelWidthWithin(width + step, graphLeft()));
+  };
+  const dragDivider = (down: PointerEvent<HTMLDivElement>) => {
+    down.preventDefault();
+    down.currentTarget.focus();
+    const follow = (move: globalThis.PointerEvent) =>
+      onChooseWidth(panelWidthWithin(width + down.clientX - move.clientX, graphLeft()));
+    window.addEventListener('pointermove', follow);
+    window.addEventListener('pointerup', () => window.removeEventListener('pointermove', follow), {
+      once: true,
+    });
+  };
+  const divider = (
+    <div
+      className="divider"
+      role="separator"
+      aria-orientation="vertical"
+      aria-label="Panel width"
+      aria-valuenow={width}
+      tabIndex={0}
+      onKeyDown={moveDivider}
+      onPointerDown={dragDivider}
+    />
+  );
+  if (outside) {
+    return (
+      <>
+        {divider}
+        <OutsideFiles patches={patches} width={width} onClose={onCloseOutside} />
+      </>
+    );
+  }
+  if (selected === undefined) return null;
+  return (
+    <>
+      {divider}
+      <Inspector
+        nodes={review.diff.nodes}
+        node={node}
+        metrics={review.metrics}
+        findings={review.metricFindings}
+        note={note}
+        unrouted={unrouted}
+        patches={patches}
+        tests={review.tests}
+        comment={comments[selected] ?? ''}
+        onComment={onComment && (text => onComment(selected, text))}
+        commentable={
+          node !== undefined || review.diff.edges.some(edge => edgeId(edge) === selected)
+        }
+        width={width}
+        onClose={() => onCloseInspector(selected)}
+      />
+    </>
+  );
+};
 
 type DrawnAtOptions = {
   readonly diff: GraphDiff;
@@ -616,169 +730,7 @@ const TABS = { structure: 'Structure', metrics: 'Metrics', tests: 'Tests' } as c
 
 type Tab = keyof typeof TABS;
 
-const TAB_ORDER: ReadonlyArray<Tab> = ['structure', 'metrics', 'tests'];
-
-const tabAt = (hash: string): Tab => TAB_ORDER.find(tab => `#${tab}` === hash) ?? 'structure';
-
-const useTab = (): Tab => {
-  const [tab, setTab] = useState(() => tabAt(location.hash));
-  useEffect(() => {
-    const follow = () => setTab(tabAt(location.hash));
-    addEventListener('hashchange', follow);
-    return () => removeEventListener('hashchange', follow);
-  }, []);
-  return tab;
-};
-
-type HeaderProps = {
-  readonly review: PageData;
-  readonly tab: Tab;
-};
-
-const Header = ({ review, tab }: HeaderProps) => {
-  const changed = changedCount(review.tests);
-  return (
-    <header className="review">
-      <div className="title">
-        <p className="where">
-          {review.repo} ·{' '}
-          <code>
-            <ShortRange range={review.range} />
-          </code>
-        </p>
-        <h1>
-          {review.pullRequest ? (
-            <a href={review.pullRequest.url}>
-              #{review.pullRequest.number} {review.pullRequest.title}
-            </a>
-          ) : review.range === UNCOMMITTED ? (
-            'Uncommitted work'
-          ) : (
-            <ShortRange range={review.range} />
-          )}
-        </h1>
-      </div>
-      <nav aria-label="Review">
-        {TAB_ORDER.map(shown => (
-          <a key={shown} href={`#${shown}`} aria-current={shown === tab ? 'page' : undefined}>
-            {TABS[shown]}
-            {shown === 'tests' && changed > 0 && (
-              <>
-                {' '}
-                <span className="badge">{changed}</span>
-              </>
-            )}
-          </a>
-        ))}
-      </nav>
-    </header>
-  );
-};
-
-type ReviewPageProps = {
-  readonly review: PageData;
-  readonly notes?: ReviewNotes | undefined;
-};
-
-export const ReviewPage = ({ review, notes }: ReviewPageProps) => {
-  const tab = useTab();
-  const [layout, setLayout] = useState<Layout>();
-  const [selected, setSelected] = useState<string>();
-  const [outside, setOutside] = useState(false);
-  const outsideOpener = useRef<HTMLButtonElement>(null);
-  const select = (id: string | undefined) => {
-    setOutside(false);
-    setSelected(id);
-  };
-  const [chosenWidth, setChosenWidth] = useState<number>();
-  const [expanded, setExpanded] = useState<ReadonlySet<string>>(new Set());
-  const expandable = useMemo(
-    () => new Set(review.diff.nodes.flatMap(node => node.parent ?? [])),
-    [review],
-  );
-  const visible = useMemo(() => visibleDiff({ diff: review.diff, expanded }), [review, expanded]);
-  const [allEdges, setAllEdges] = useState(false);
-  const noted = useMemo(() => new Set(Object.keys(notes?.notes ?? {})), [notes]);
-  const [nearOnly, setNearOnly] = useState(true);
-  const [colouring, setColouring] = useState<Colouring>('change');
-  const drawn = useMemo(() => {
-    const atExpansion = drawnAt({ diff: review.diff, expanded, noted, allEdges });
-    return nearOnly ? nearChanges(atExpansion) : atExpansion;
-  }, [review, expanded, noted, allEdges, nearOnly]);
-  const shown = useMemo(
-    () => visibleNotes({ diff: review.diff, expanded, notes: notes?.notes ?? {} }),
-    [review, notes, expanded],
-  );
-  const toggle = (id: string) => {
-    choose(on => on.view, id);
-    setExpanded(current =>
-      current.has(id)
-        ? new Set([...current].filter(other => other !== id))
-        : new Set([...current, id]),
-    );
-  };
-  const elements = useRef(new Map<string, SVGElement | null>());
-  const register = (id: string, element: SVGElement | null) => {
-    elements.current.set(id, element);
-  };
-  const labelOf = new Map(visible.nodes.map(node => [node.id, node.label]));
-  const dangling = review.dangling;
-  const visibleOf = visibleNodeOf({ diff: review.diff, expanded });
-  const drawing = {
-    notes: shown,
-    onSelect: select,
-    register,
-    expandable,
-    expanded,
-    onToggle: toggle,
-    unroutedOf: (id: string) =>
-      dangling.filter(call => visibleOf(call.from) === id).map(call => call.path),
-    shadeOf: (id: string) => shadeOf(colouring, review.metrics[id]),
-  };
-  const selectedNode = review.diff.nodes.find(node => node.id === selected);
-  const selectedNote = selected === undefined ? undefined : shown[selected];
-  const selectedUnrouted = selected === undefined ? [] : drawing.unroutedOf(selected);
-  const patches = outside
-    ? review.undrawn
-    : selectedNode
-      ? review.patches.filter(({ path }) => isAtOrUnder(path, selectedNode))
-      : [];
-  const panelWidth = chosenWidth ?? (patches.length > 0 ? CHANGES_WIDTH : NOTE_WIDTH);
-  const graphLeft = () => frameElement?.getBoundingClientRect().left ?? 0;
-  const moveDivider = (event: KeyboardEvent) => {
-    const step = { ArrowLeft: DIVIDER_STEP, ArrowRight: -DIVIDER_STEP }[event.key];
-    if (step === undefined) return;
-    setChosenWidth(panelWidthWithin(panelWidth + step, graphLeft()));
-  };
-  const dragDivider = (down: PointerEvent<HTMLDivElement>) => {
-    down.preventDefault();
-    down.currentTarget.focus();
-    const follow = (move: globalThis.PointerEvent) =>
-      setChosenWidth(panelWidthWithin(panelWidth + down.clientX - move.clientX, graphLeft()));
-    window.addEventListener('pointermove', follow);
-    window.addEventListener('pointerup', () => window.removeEventListener('pointermove', follow), {
-      once: true,
-    });
-  };
-
-  const [focusTarget, setFocusTarget] = useState<string>();
-  const goTo = (id: string) => {
-    select(id);
-    const opened = expandedToShow({ diff: review.diff, expanded, id });
-    setExpanded(opened);
-    const at = { diff: review.diff, expanded: opened, noted };
-    const all = allEdges || !isDrawn({ diff: drawnAt({ ...at, allEdges: false }), id });
-    if (all) setAllEdges(true);
-    if (!isDrawn({ diff: nearChanges(drawnAt({ ...at, allEdges: all })), id })) {
-      setNearOnly(false);
-    }
-    setChosen({ centre: id });
-    setFocusTarget(id);
-  };
-  const goToOnStructure = (id: string) => {
-    location.hash = '#structure';
-    goTo(id);
-  };
+const useGraphView = (layout: Layout | undefined) => {
   const [frameElement, setFrameElement] = useState<HTMLDivElement | null>(null);
   const [frameWidth, setFrameWidth] = useState<number>();
   useEffect(() => {
@@ -817,6 +769,7 @@ export const ReviewPage = ({ review, notes }: ReviewPageProps) => {
   };
   const zoomAtCentre = (scale: number) =>
     choose(on => zoomed({ ...on, scale, at: { x: on.frame.width / 2, y: on.frame.height / 2 } }));
+  const fitToFrame = () => setChosen(undefined);
   const keyed = (event: KeyboardEvent) => {
     if (!view || event.ctrlKey || event.metaKey || event.altKey) return;
     const panBy = (x: number, y: number) => () => choose(on => panned({ ...on, by: { x, y } }));
@@ -825,7 +778,7 @@ export const ReviewPage = ({ review, notes }: ReviewPageProps) => {
       '=': () => zoomAtCentre(view.scale * ZOOM_STEP),
       '-': () => zoomAtCentre(view.scale / ZOOM_STEP),
       '1': () => zoomAtCentre(1),
-      '0': () => setChosen(undefined),
+      '0': fitToFrame,
       ArrowLeft: panBy(PAN_STEP, 0),
       ArrowRight: panBy(-PAN_STEP, 0),
       ArrowUp: panBy(0, PAN_STEP),
@@ -858,6 +811,228 @@ export const ReviewPage = ({ review, notes }: ReviewPageProps) => {
     frameElement.addEventListener('wheel', onWheel, { passive: false });
     return () => frameElement.removeEventListener('wheel', onWheel);
   }, [frameElement]);
+  return {
+    frameElement,
+    placed,
+    frameProps: {
+      ref: setFrameElement,
+      style: { height: frame?.height },
+      onKeyDown: keyed,
+      onPointerDown: pan,
+      onClickCapture: (event: MouseEvent) => {
+        if (dragged.current && event.detail > 0) event.stopPropagation();
+      },
+    },
+    zoomAtCentre,
+    fitToFrame,
+    centre: (id: string) => setChosen({ centre: id }),
+    pin: (id: string) => choose(on => on.view, id),
+  };
+};
+
+const TAB_ORDER: ReadonlyArray<Tab> = ['structure', 'metrics', 'tests'];
+
+const tabAt = (hash: string): Tab => TAB_ORDER.find(tab => `#${tab}` === hash) ?? 'structure';
+
+const useTab = (): Tab => {
+  const [tab, setTab] = useState(() => tabAt(location.hash));
+  useEffect(() => {
+    const follow = () => setTab(tabAt(location.hash));
+    addEventListener('hashchange', follow);
+    return () => removeEventListener('hashchange', follow);
+  }, []);
+  return tab;
+};
+
+type SendProps = {
+  readonly comments: Readonly<Record<string, string>>;
+  readonly send: (review: Review) => Promise<void>;
+};
+
+const SendToClaude = ({ comments, send }: SendProps) => {
+  const [sent, setSent] = useState(false);
+  const [problem, setProblem] = useState<string>();
+  const written = Object.entries(comments).filter(([, text]) => text.trim() !== '');
+  const sendComments = () =>
+    send({
+      version: 1,
+      comments: Object.fromEntries(written.map(([id, text]) => [id, { text }])),
+    }).then(
+      () => setSent(true),
+      (error: Error) => setProblem(error.message),
+    );
+  return (
+    <div className="send-review">
+      {sent ? (
+        <p role="status" aria-label="Review">
+          Sent
+        </p>
+      ) : (
+        <>
+          {problem && (
+            <p role="status" aria-label="Review" className="send-problem">
+              {problem}
+            </p>
+          )}
+          <button type="button" disabled={written.length === 0} onClick={sendComments}>
+            Send to Claude
+          </button>
+        </>
+      )}
+    </div>
+  );
+};
+
+type HeaderProps = {
+  readonly review: PageData;
+  readonly tab: Tab;
+  readonly comments: Readonly<Record<string, string>>;
+  readonly send: ((review: Review) => Promise<void>) | undefined;
+};
+
+const Header = ({ review, tab, comments, send }: HeaderProps) => {
+  const changed = changedCount(review.tests);
+  return (
+    <header className="review">
+      <div className="title">
+        <p className="where">
+          {review.repo} ·{' '}
+          <code>
+            <ShortRange range={review.range} />
+          </code>
+        </p>
+        <h1>
+          {review.pullRequest ? (
+            <a href={review.pullRequest.url}>
+              #{review.pullRequest.number} {review.pullRequest.title}
+            </a>
+          ) : review.range === UNCOMMITTED ? (
+            'Uncommitted work'
+          ) : (
+            <ShortRange range={review.range} />
+          )}
+        </h1>
+      </div>
+      <nav aria-label="Review">
+        {TAB_ORDER.map(shown => (
+          <a key={shown} href={`#${shown}`} aria-current={shown === tab ? 'page' : undefined}>
+            {TABS[shown]}
+            {shown === 'tests' && changed > 0 && (
+              <>
+                {' '}
+                <span className="badge">{changed}</span>
+              </>
+            )}
+          </a>
+        ))}
+      </nav>
+      {send && <SendToClaude comments={comments} send={send} />}
+    </header>
+  );
+};
+
+type ReviewPageProps = {
+  readonly review: PageData;
+  readonly notes?: ReviewNotes | undefined;
+  readonly send?: ((review: Review) => Promise<void>) | undefined;
+};
+
+export const ReviewPage = ({ review, notes, send }: ReviewPageProps) => {
+  const tab = useTab();
+  const [layout, setLayout] = useState<Layout>();
+  const { frameElement, placed, frameProps, zoomAtCentre, fitToFrame, centre, pin } =
+    useGraphView(layout);
+  const [selected, setSelected] = useState<string>();
+  const [outside, setOutside] = useState(false);
+  const outsideOpener = useRef<HTMLButtonElement>(null);
+  const select = (id: string | undefined) => {
+    setOutside(false);
+    setSelected(id);
+  };
+  const [comments, setComments] = useState<Readonly<Record<string, string>>>({});
+  const [chosenWidth, setChosenWidth] = useState<number>();
+  const comment = (id: string, text: string) =>
+    setComments(current => ({ ...current, [id]: text }));
+  const [expanded, setExpanded] = useState<ReadonlySet<string>>(new Set());
+  const expandable = useMemo(
+    () => new Set(review.diff.nodes.flatMap(node => node.parent ?? [])),
+    [review],
+  );
+  const visible = useMemo(() => visibleDiff({ diff: review.diff, expanded }), [review, expanded]);
+  const [allEdges, setAllEdges] = useState(false);
+  const noted = useMemo(() => new Set(Object.keys(notes?.notes ?? {})), [notes]);
+  const [nearOnly, setNearOnly] = useState(true);
+  const [colouring, setColouring] = useState<Colouring>('change');
+  const drawn = useMemo(() => {
+    const atExpansion = drawnAt({ diff: review.diff, expanded, noted, allEdges });
+    return nearOnly ? nearChanges(atExpansion) : atExpansion;
+  }, [review, expanded, noted, allEdges, nearOnly]);
+  const shown = useMemo(
+    () => visibleNotes({ diff: review.diff, expanded, notes: notes?.notes ?? {} }),
+    [review, notes, expanded],
+  );
+  const toggle = (id: string) => {
+    pin(id);
+    setExpanded(current =>
+      current.has(id)
+        ? new Set([...current].filter(other => other !== id))
+        : new Set([...current, id]),
+    );
+  };
+  const elements = useRef(new Map<string, SVGElement | null>());
+  const register = (id: string, element: SVGElement | null) => {
+    elements.current.set(id, element);
+  };
+  const labelOf = new Map(visible.nodes.map(node => [node.id, node.label]));
+  const dangling = review.dangling;
+  const visibleOf = visibleNodeOf({ diff: review.diff, expanded });
+  const drawing = {
+    notes: shown,
+    onSelect: select,
+    register,
+    expandable,
+    expanded,
+    onToggle: toggle,
+    unroutedOf: (id: string) =>
+      dangling.filter(call => visibleOf(call.from) === id).map(call => call.path),
+    shadeOf: (id: string) => shadeOf(colouring, review.metrics[id]),
+  };
+  const selectedNode = review.diff.nodes.find(node => node.id === selected);
+  const selectedNote = selected === undefined ? undefined : shown[selected];
+  const selectedUnrouted = selected === undefined ? [] : drawing.unroutedOf(selected);
+  const graphLeft = () => frameElement?.getBoundingClientRect().left ?? 0;
+  const showOutside = (opener: HTMLButtonElement) => {
+    outsideOpener.current = opener;
+    setSelected(undefined);
+    setOutside(true);
+  };
+  const closeOutside = () => {
+    outsideOpener.current?.focus();
+    setOutside(false);
+  };
+  const closeInspector = (id: string) => {
+    elements.current.get(id)?.focus({ preventScroll: true });
+    select(undefined);
+  };
+
+  const [focusTarget, setFocusTarget] = useState<string>();
+  const goTo = (id: string) => {
+    select(id);
+    const opened = expandedToShow({ diff: review.diff, expanded, id });
+    setExpanded(opened);
+    const at = { diff: review.diff, expanded: opened, noted };
+    const all = allEdges || !isDrawn({ diff: drawnAt({ ...at, allEdges: false }), id });
+    if (all) setAllEdges(true);
+    if (!isDrawn({ diff: nearChanges(drawnAt({ ...at, allEdges: all })), id })) {
+      setNearOnly(false);
+    }
+    centre(id);
+    setFocusTarget(id);
+  };
+  const goToOnStructure = (id: string) => {
+    location.hash = '#structure';
+    goTo(id);
+  };
   useEffect(() => {
     layoutDiff(drawn).then(setLayout);
   }, [drawn]);
@@ -872,23 +1047,14 @@ export const ReviewPage = ({ review, notes }: ReviewPageProps) => {
   }, [layout, focusTarget, frameElement]);
   return (
     <main>
-      <Header review={review} tab={tab} />
+      <Header review={review} tab={tab} comments={comments} send={send} />
       {tab === 'structure' && (
         <>
           <div className="structure-head">
             <p className="caveat">Calls whose path is built at runtime are not drawn.</p>
           </div>
           <div className="columns">
-            <FindingsRail
-              notes={notes}
-              review={review}
-              onGoTo={goTo}
-              onShowOutside={opener => {
-                outsideOpener.current = opener;
-                setSelected(undefined);
-                setOutside(true);
-              }}
-            />
+            <FindingsRail notes={notes} review={review} onGoTo={goTo} onShowOutside={showOutside} />
             <div className="content">
               {notes && notes.summary.length > 0 && <Summary notes={notes} onGoTo={goTo} />}
               <div className="graph-controls">
@@ -899,7 +1065,7 @@ export const ReviewPage = ({ review, notes }: ReviewPageProps) => {
                       type="checkbox"
                       checked={nearOnly}
                       onChange={event => {
-                        setChosen(undefined);
+                        fitToFrame();
                         setNearOnly(event.target.checked);
                       }}
                     />
@@ -910,7 +1076,7 @@ export const ReviewPage = ({ review, notes }: ReviewPageProps) => {
                       type="checkbox"
                       checked={allEdges}
                       onChange={event => {
-                        setChosen(undefined);
+                        fitToFrame();
                         setAllEdges(event.target.checked);
                       }}
                     />
@@ -927,23 +1093,13 @@ export const ReviewPage = ({ review, notes }: ReviewPageProps) => {
                   className="frame"
                   role="group"
                   aria-label="Graph"
-                  ref={setFrameElement}
-                  style={{ height: frame?.height }}
                   // biome-ignore lint/a11y/noNoninteractiveTabindex: the frame takes the zoom and pan keys
                   tabIndex={0}
-                  onKeyDown={keyed}
-                  onPointerDown={pan}
-                  onClickCapture={event => {
-                    if (dragged.current && event.detail > 0) event.stopPropagation();
-                  }}
+                  {...frameProps}
                 >
-                  {frame && view && (
+                  {placed && (
                     <>
-                      <Zoom
-                        scale={view.scale}
-                        onZoom={zoomAtCentre}
-                        onFit={() => setChosen(undefined)}
-                      />
+                      <Zoom scale={placed.view.scale} onZoom={zoomAtCentre} onFit={fitToFrame} />
                       <svg className="graph" data-colouring={colouring}>
                         <title>{`Structure ${shortRange(review.range)}`}</title>
                         <defs>
@@ -964,7 +1120,9 @@ export const ReviewPage = ({ review, notes }: ReviewPageProps) => {
                             </marker>
                           ))}
                         </defs>
-                        <g transform={`translate(${view.x} ${view.y}) scale(${view.scale})`}>
+                        <g
+                          transform={`translate(${placed.view.x} ${placed.view.y}) scale(${placed.view.scale})`}
+                        >
                           {layout.stacks.map(stack => (
                             <Stack key={stack.id} stack={stack} drawing={drawing} />
                           ))}
@@ -983,47 +1141,21 @@ export const ReviewPage = ({ review, notes }: ReviewPageProps) => {
                 </div>
               )}
             </div>
-            {(selected !== undefined || outside) && (
-              <>
-                <div
-                  className="divider"
-                  role="separator"
-                  aria-orientation="vertical"
-                  aria-label="Panel width"
-                  aria-valuenow={panelWidth}
-                  tabIndex={0}
-                  onKeyDown={moveDivider}
-                  onPointerDown={dragDivider}
-                />
-                {outside ? (
-                  <OutsideFiles
-                    patches={patches}
-                    width={panelWidth}
-                    onClose={() => {
-                      outsideOpener.current?.focus();
-                      setOutside(false);
-                    }}
-                  />
-                ) : (
-                  <Inspector
-                    nodes={review.diff.nodes}
-                    node={selectedNode}
-                    metrics={review.metrics}
-                    findings={review.metricFindings}
-                    note={selectedNote}
-                    unrouted={selectedUnrouted}
-                    patches={patches}
-                    tests={review.tests}
-                    width={panelWidth}
-                    onClose={() => {
-                      if (selected !== undefined)
-                        elements.current.get(selected)?.focus({ preventScroll: true });
-                      select(undefined);
-                    }}
-                  />
-                )}
-              </>
-            )}
+            <SidePanel
+              review={review}
+              selected={selected}
+              node={selectedNode}
+              outside={outside}
+              note={selectedNote}
+              unrouted={selectedUnrouted}
+              comments={comments}
+              onComment={send && comment}
+              chosenWidth={chosenWidth}
+              onChooseWidth={setChosenWidth}
+              graphLeft={graphLeft}
+              onCloseOutside={closeOutside}
+              onCloseInspector={closeInspector}
+            />
           </div>
         </>
       )}

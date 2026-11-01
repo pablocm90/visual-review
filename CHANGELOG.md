@@ -2,6 +2,13 @@
 
 What changed in each release of `@pablocm90/visual-review`, newest first. Versions follow [semver](https://semver.org); while it is 0.x, a minor version may change the exported types.
 
+## Unreleased
+
+### Added
+
+- `visual-review serve <page.html>` serves a written page on `127.0.0.1` at a free port, under a URL holding a token made for that serve, opens it, and prints the URL on stderr; any other path or `Host` gets 403, and a missing `xdg-open` / `open` isn't fatal. On the served page, the inspector's Note tab has a "Your comment" field per node or edge, kept across selections, and the header a "Send to Claude" button, enabled once a comment holds more than blanks. Sending writes the non-blank comments as `<name>.review.json` beside the page, prints its path on stdout and exits 0; a failed send shows why and keeps the button. A body the server can't read as a review gets 400 naming the problem, and it keeps serving. A page opened as a file has no comment field and no button.
+- Review files are versioned and validated like notes: `{ "version": 1, "comments": { "<id>": { "text": "…" } } }`, keyed by node id or `<from> -> <to>`. `pnpm build` writes its JSON schema as `dist/review.schema.json`.
+
 ## 0.4.1 — 2026-10-31
 
 ### Changed

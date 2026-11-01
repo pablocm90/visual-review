@@ -135,6 +135,108 @@ test('draws every crate and dependency inside the rust stack with its change sta
   expect(document.activeElement).toBe(legacy);
 });
 
+test("the Note tab's comment field holds a comment per node or edge, kept while others are selected and the inspector closed", async () => {
+  const user = userEvent.setup();
+  render(<ReviewPage review={pageWith(review)} send={async () => {}} />);
+  const comment = () => within(noteTab()).getByRole('textbox', { name: 'Your comment' });
+
+  const rust = await screen.findByRole('group', { name: 'rust' });
+  await user.click(within(rust).getByRole('button', { name: 'domain: unchanged' }));
+  await user.type(comment(), 'Keep domain free of IO.');
+  await user.click(within(rust).getByRole('button', { name: 'application → domain: unchanged' }));
+  expect(comment()).toHaveProperty('value', '');
+  await user.type(comment(), 'Why this way round?');
+  await user.click(within(inspector()).getByRole('button', { name: 'Close inspector' }));
+
+  await user.click(within(rust).getByRole('button', { name: 'domain: unchanged' }));
+  expect(comment()).toHaveProperty('value', 'Keep domain free of IO.');
+  await user.click(within(rust).getByRole('button', { name: 'application → domain: unchanged' }));
+  expect(comment()).toHaveProperty('value', 'Why this way round?');
+});
+
+test("a served page's Send to Claude sends each comment under its node's id or its edge's, then says it was sent", async () => {
+  const user = userEvent.setup();
+  const sent = vi.fn(async () => {});
+  render(<ReviewPage review={pageWith(review)} send={sent} />);
+  const comment = () => within(noteTab()).getByRole('textbox', { name: 'Your comment' });
+
+  const rust = await screen.findByRole('group', { name: 'rust' });
+  await user.click(within(rust).getByRole('button', { name: 'domain: unchanged' }));
+  await user.type(comment(), 'Keep domain free of IO.');
+  await user.click(within(rust).getByRole('button', { name: 'application → domain: unchanged' }));
+  await user.type(comment(), 'Why this way round?');
+  await user.click(screen.getByRole('button', { name: 'Send to Claude' }));
+
+  expect(sent).toHaveBeenCalledExactlyOnceWith({
+    version: 1,
+    comments: {
+      'rust/crate/domain': { text: 'Keep domain free of IO.' },
+      'rust/crate/application -> rust/crate/domain': { text: 'Why this way round?' },
+    },
+  });
+  expect((await screen.findByRole('status', { name: 'Review' })).textContent).toBe('Sent');
+  expect(screen.queryByRole('button', { name: 'Send to Claude' })).toBeNull();
+});
+
+test('Send to Claude waits for a comment that is more than blanks, and sends no blank one', async () => {
+  const user = userEvent.setup();
+  const sent = vi.fn(async () => {});
+  render(<ReviewPage review={pageWith(review)} send={sent} />);
+  const comment = () => within(noteTab()).getByRole('textbox', { name: 'Your comment' });
+  const sendButton = () => screen.getByRole('button', { name: 'Send to Claude' });
+
+  const rust = await screen.findByRole('group', { name: 'rust' });
+  expect(sendButton()).toHaveProperty('disabled', true);
+  await user.click(within(rust).getByRole('button', { name: 'domain: unchanged' }));
+  await user.type(comment(), '  ');
+  expect(sendButton()).toHaveProperty('disabled', true);
+  await user.click(within(rust).getByRole('button', { name: 'application → domain: unchanged' }));
+  await user.type(comment(), 'Why this way round?');
+  await user.click(sendButton());
+
+  expect(sent).toHaveBeenCalledExactlyOnceWith({
+    version: 1,
+    comments: {
+      'rust/crate/application -> rust/crate/domain': { text: 'Why this way round?' },
+    },
+  });
+});
+
+test('a page that is not served has no comment field and no Send to Claude', async () => {
+  const user = userEvent.setup();
+  const { rerender } = render(<ReviewPage review={pageWith(review)} send={async () => {}} />);
+  const comment = () => within(noteTab()).queryByRole('textbox', { name: 'Your comment' });
+  const sendButton = () => screen.queryByRole('button', { name: 'Send to Claude' });
+
+  const rust = await screen.findByRole('group', { name: 'rust' });
+  await user.click(within(rust).getByRole('button', { name: 'domain: unchanged' }));
+  expect(comment()).not.toBeNull();
+  expect(sendButton()).not.toBeNull();
+
+  rerender(<ReviewPage review={pageWith(review)} />);
+  expect(comment()).toBeNull();
+  expect(sendButton()).toBeNull();
+});
+
+test('a send that fails says why and leaves Send to Claude to try again', async () => {
+  const user = userEvent.setup();
+  const send = vi.fn(() => Promise.reject(new Error('The review was not sent: 403 Forbidden')));
+  render(<ReviewPage review={pageWith(review)} send={send} />);
+
+  const rust = await screen.findByRole('group', { name: 'rust' });
+  await user.click(within(rust).getByRole('button', { name: 'domain: unchanged' }));
+  await user.type(
+    within(noteTab()).getByRole('textbox', { name: 'Your comment' }),
+    'Keep domain free of IO.',
+  );
+  await user.click(screen.getByRole('button', { name: 'Send to Claude' }));
+
+  expect((await screen.findByRole('status', { name: 'Review' })).textContent).toBe(
+    'The review was not sent: 403 Forbidden',
+  );
+  expect(screen.getByRole('button', { name: 'Send to Claude' })).not.toBeNull();
+});
+
 type FrameOptions = {
   readonly width: number;
   readonly windowHeight: number;
@@ -1491,6 +1593,38 @@ test("with 'All edges' unticked, an unchanged import between two open modules is
   );
 });
 
+test('a served page offers no comment on an edge drawn between closed modules, which stands for imports and is none of them, and says to open its ends', async () => {
+  const user = userEvent.setup();
+  render(
+    <ReviewPage
+      review={pageWith({
+        range: 'abc123..def456',
+        diff: {
+          nodes: [
+            { id: 'web', kind: 'stack', label: 'web', path: '', state: 'unchanged' },
+            webModule('orders'),
+            webModule('billing'),
+            webFile('orders', 'cart.ts'),
+            webFile('billing', 'invoice.ts'),
+          ],
+          edges: [webImport('orders/cart.ts', 'billing/invoice.ts', 'unchanged')],
+        },
+      })}
+      send={async () => {}}
+    />,
+  );
+  await showEverything(user);
+  const web = await screen.findByRole('group', { name: 'web' });
+  const comment = () => within(noteTab()).queryByRole('textbox', { name: 'Your comment' });
+
+  await user.click(within(web).getByRole('button', { name: 'orders: unchanged' }));
+  expect(comment()).not.toBeNull();
+  await user.click(within(web).getByRole('button', { name: 'orders → billing: unchanged' }));
+
+  expect(comment()).toBeNull();
+  expect(within(noteTab()).getByText(/open its ends/)).not.toBeNull();
+});
+
 test("with 'Changed + 1 hop' ticked, going to a merged module edge or to a hidden import near a change keeps it ticked", async () => {
   const user = userEvent.setup();
   render(
@@ -2260,7 +2394,7 @@ const withChangesUnderApplication = {
 const panelWidth = () =>
   screen.getByRole('separator', { name: 'Panel width' }).getAttribute('aria-valuenow');
 
-test('a selected node opens its panel beside a divider that gives its width: 360 for a note alone, 600 with changes; arrow keys move the divider, other keys leave it, and it stops at 280 and where the graph, right of the findings rail, would get narrower than 320; the width it sets holds for later selections', async () => {
+test('a selected node opens its panel beside a divider that gives its width: 360 for a note alone, 600 with changes; arrow keys move the divider, other keys leave it, and it stops at 280 and where the graph, right of the findings rail, would get narrower than 320; the width it sets holds for later selections and across tabs', async () => {
   const user = userEvent.setup();
   render(<ReviewPage review={pageWith(withChangesUnderApplication)} />);
 
@@ -2292,6 +2426,12 @@ test('a selected node opens its panel beside a divider that gives its width: 360
   expect(panelWidth()).toBe('555');
 
   await user.click(within(rust).getByRole('button', { name: 'application: modified' }));
+  expect(panelWidth()).toBe('555');
+
+  await user.click(screen.getByRole('link', { name: 'Metrics' }));
+  await waitFor(() => expect(currentTab()).toBe('Metrics'));
+  await user.click(screen.getByRole('link', { name: 'Structure' }));
+  await waitFor(() => expect(currentTab()).toBe('Structure'));
   expect(panelWidth()).toBe('555');
 });
 

@@ -2,6 +2,7 @@ import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { configJsonSchema } from './core/config.ts';
 import { notesJsonSchema } from './core/notes.ts';
+import { reviewJsonSchema } from './core/review.ts';
 
 const write = (name: string, schema: unknown): void =>
   writeFileSync(
@@ -11,3 +12,4 @@ const write = (name: string, schema: unknown): void =>
 
 write('config.schema.json', configJsonSchema());
 write('notes.schema.json', notesJsonSchema());
+write('review.schema.json', reviewJsonSchema());
