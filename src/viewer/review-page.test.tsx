@@ -228,6 +228,18 @@ test('Send to Claude waits for a comment that is more than blanks, and sends no 
   });
 });
 
+test('an Approve can be sent with no comment', async () => {
+  const user = userEvent.setup();
+  const sent = vi.fn(async () => {});
+  render(<ReviewPage review={pageWith(review)} send={sent} />);
+
+  await screen.findByRole('group', { name: 'rust' });
+  await user.click(screen.getByRole('radio', { name: 'Approve' }));
+  await user.click(screen.getByRole('button', { name: 'Send to Claude' }));
+
+  expect(sent).toHaveBeenCalledExactlyOnceWith({ version: 1, verdict: 'approve', comments: {} });
+});
+
 test('a page that is not served has no comment field and no Send to Claude', async () => {
   const user = userEvent.setup();
   const { rerender } = render(<ReviewPage review={pageWith(review)} send={async () => {}} />);

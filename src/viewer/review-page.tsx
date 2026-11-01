@@ -895,7 +895,11 @@ const SendToClaude = ({ comments, send }: SendProps) => {
               </label>
             ))}
           </div>
-          <button type="button" disabled={written.length === 0} onClick={sendComments}>
+          <button
+            type="button"
+            disabled={verdict !== 'approve' && written.length === 0}
+            onClick={sendComments}
+          >
             Send to Claude
           </button>
         </>
