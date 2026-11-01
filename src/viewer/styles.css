@@ -1738,3 +1738,37 @@ pre .hljs-emphasis {
   color: var(--muted);
   cursor: default;
 }
+
+.verdict {
+  display: flex;
+  padding: 2px;
+  border: 1px solid var(--stack-line);
+  border-radius: 8px;
+  background: var(--stack);
+}
+
+.verdict label {
+  position: relative;
+  padding: 5px 10px;
+  border-radius: 6px;
+  font-size: 13px;
+  color: var(--muted);
+  cursor: pointer;
+}
+
+.verdict input {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.verdict label:has(:checked) {
+  background: var(--unchanged-fill);
+  color: var(--ink);
+  font-weight: 600;
+}
+
+.verdict label:has(:focus-visible) {
+  outline: 2px solid var(--ramp-3);
+  outline-offset: 1px;
+}
