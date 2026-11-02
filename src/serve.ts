@@ -120,5 +120,5 @@ export const servePage = async ({
   const url = urlOf({ port, token });
   console.error(`Serving ${url}`);
   openInBrowser(url);
-  return sent.promise;
+  return sent.promise.finally(() => rm(lockFile, { force: true }));
 };

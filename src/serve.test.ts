@@ -2,6 +2,7 @@ import { type ChildProcess, execFile, spawn } from 'node:child_process';
 import { once } from 'node:events';
 import {
   chmodSync,
+  existsSync,
   mkdirSync,
   mkdtempSync,
   readFileSync,
@@ -221,7 +222,7 @@ test('serve without a page exits non-zero saying how to call it', async () => {
   });
 });
 
-test('a review sent from the served page is written beside it as <name>.review.json, its path the only output, and serve exits 0', async () => {
+test('a review sent from the served page is written beside it as <name>.review.json, its path the only output, and serve exits 0 leaving no lock', async () => {
   using server = await servedPage();
   const { origin, pathname } = new URL(server.url);
   const review = {
@@ -238,6 +239,7 @@ test('a review sent from the served page is written beside it as <name>.review.j
   const reviewFile = server.page.replace(/\.html$/, '.review.json');
   expect(await server.exited).toMatchObject({ code: 0, stdout: `${reviewFile}\n` });
   expect(JSON.parse(readFileSync(reviewFile, 'utf8'))).toEqual(review);
+  expect(existsSync(server.page.replace(/\.html$/, '.serve'))).toBe(false);
 });
 
 test('a review the page could not have sent is refused with 400 naming the problem, and serve keeps serving', async () => {
@@ -284,7 +286,7 @@ test('sending a review the served page would refuse rejects with its answer, so 
   ).rejects.toThrow('The review was not sent: 403 Forbidden');
 });
 
-test('serve that hears nothing from the page for its idle time exits non-zero saying no review was sent', async () => {
+test('serve that hears nothing from the page for its idle time exits non-zero saying no review was sent, leaving no lock', async () => {
   using server = await servedPage({ idleMs: 200 });
 
   expect(await server.exited).toMatchObject({
@@ -292,6 +294,7 @@ test('serve that hears nothing from the page for its idle time exits non-zero sa
     stdout: '',
     stderr: expect.stringContaining('No review sent'),
   });
+  expect(existsSync(server.page.replace(/\.html$/, '.serve'))).toBe(false);
 });
 
 test('serve the page keeps pinging stays up past its idle time, and exits once the pings stop', async () => {
