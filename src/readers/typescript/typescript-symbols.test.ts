@@ -5,10 +5,10 @@ const source = (...lines: ReadonlyArray<string>) => lines.join('\n');
 
 const symbolsIn = (...lines: ReadonlyArray<string>) =>
   symbolsOfTypeScript(source(...lines), 'src/shop.ts').symbols.map(
-    ({ kind, name }) => `${kind} ${name}`,
+    ({ kind, scope, name }) => `${kind} ${scope === undefined ? '' : `${scope}.`}${name}`,
   );
 
-test('a function is a symbol, and a function in a class or object a method', () => {
+test('a function is a symbol, a method one scoped by its class or object, an inner function by the symbols around it', () => {
   expect(
     symbolsIn(
       'export function declared() {}',
@@ -33,15 +33,15 @@ test('a function is a symbol, and a function in a class or object a method', () 
     'function default',
     'function arrow',
     'function load',
-    'function helper',
-    'method get',
-    'method open',
-    'function inner',
-    'method close',
-    'method #secret',
-    'method #hidden',
-    'method load',
-    'method save',
+    'function load.helper',
+    'method load.api.get',
+    'method Shop.open',
+    'function Shop.open.inner',
+    'method Shop.close',
+    'method Shop.#secret',
+    'method Shop.#hidden',
+    'method store.load',
+    'method store.save',
     'function Button',
   ]);
 });

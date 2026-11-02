@@ -75,7 +75,11 @@ const holderOf = (text: string, node: Node): string | undefined => {
   return node.type === 'ExportDefaultDeclaration' ? 'default' : undefined;
 };
 
-type Scope = { readonly inFunction: boolean; readonly holder: string | undefined };
+type Scope = {
+  readonly inFunction: boolean;
+  readonly holder: string | undefined;
+  readonly scope: string | undefined;
+};
 
 const heldFunction = (node: Node, holder: string | undefined): OwnFunction | undefined =>
   holder === undefined || functionValue(node) === undefined
@@ -93,27 +97,43 @@ const METHODS = new Set([
 
 const kindOf = (node: Node): SymbolKind => (METHODS.has(node.type) ? 'method' : 'function');
 
-const symbolOf = (node: Node, own: OwnFunction): WalkedSymbol => ({
-  symbol: { name: own.name, kind: kindOf(node) },
+const qualified = (scope: string | undefined, name: string): string =>
+  scope === undefined ? name : `${scope}.${name}`;
+
+const scopeNameOf = (text: string, node: Node): string | undefined => {
+  if (node.type === 'ClassDeclaration' && node.id) return sourceOf(text, node.id);
+  return node.type === 'VariableDeclarator' && node.init?.type === 'ObjectExpression'
+    ? sourceOf(text, node.id)
+    : undefined;
+};
+
+const placeOf = (text: string, node: Node, own: OwnFunction | undefined, scope: Scope) => {
+  const name = own?.name ?? scopeNameOf(text, node);
+  return name === undefined ? scope.scope : qualified(scope.scope, name);
+};
+
+const symbolOf = (node: Node, own: OwnFunction, scope: string | undefined): WalkedSymbol => ({
+  symbol: { name: own.name, kind: kindOf(node), ...(scope === undefined ? {} : { scope }) },
   node: own.fn,
 });
 
 const functionsUnder = (text: string, node: Node, scope: Scope): ReadonlyArray<WalkedSymbol> => {
   const own = ownFunction(text, node) ?? heldFunction(node, scope.holder);
+  const place = placeOf(text, node, own, scope);
   const inner = childrenOf(node).flatMap(child =>
     functionsUnder(
       text,
       child,
       own !== undefined || scope.inFunction
-        ? { inFunction: true, holder: undefined }
-        : { inFunction: false, holder: holderOf(text, node) ?? scope.holder },
+        ? { inFunction: true, holder: undefined, scope: place }
+        : { inFunction: false, holder: holderOf(text, node) ?? scope.holder, scope: place },
     ),
   );
-  return own === undefined ? inner : [symbolOf(node, own), ...inner];
+  return own === undefined ? inner : [symbolOf(node, own, scope.scope), ...inner];
 };
 
 export const functionsIn = (text: string, program: Node): ReadonlyArray<WalkedSymbol> =>
-  functionsUnder(text, program, { inFunction: false, holder: undefined });
+  functionsUnder(text, program, { inFunction: false, holder: undefined, scope: undefined });
 
 export const parseTypeScript = (text: string, path: string) =>
   parse(text, { sourceType: 'module', plugins: pluginsFor(path), tokens: true });

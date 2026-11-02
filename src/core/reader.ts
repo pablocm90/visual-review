@@ -34,6 +34,7 @@ export type SymbolKind = 'function' | 'method';
 
 export type ReadSymbol = {
   readonly name: string;
+  readonly scope?: string;
   readonly kind: SymbolKind;
 };
 
