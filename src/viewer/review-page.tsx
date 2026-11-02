@@ -11,7 +11,7 @@ import {
 import type { FilePatch, GraphDiff } from '../core/diff-graphs.ts';
 import { isAtOrUnder } from '../core/diff-graphs.ts';
 import { edgeId } from '../core/graph.ts';
-import type { MetricFinding } from '../core/metric-findings.ts';
+import { type MetricFinding, metricFindings } from '../core/metric-findings.ts';
 import type { NodeMetrics } from '../core/metrics.ts';
 import { type Note, type ReviewNotes, visibleNotes } from '../core/notes.ts';
 import { type PageData, UNCOMMITTED } from '../core/page.ts';
@@ -669,7 +669,7 @@ const SidePanel = ({
         nodes={review.diff.nodes}
         node={node}
         metrics={review.metrics}
-        findings={review.metricFindings}
+        findings={metricFindings(review)}
         note={note}
         unrouted={unrouted}
         patches={patches}

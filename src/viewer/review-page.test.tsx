@@ -1859,33 +1859,26 @@ test("a Metrics row is marked by the level of the node's finding on it, a hotspo
     <ReviewPage
       review={pageWith({
         ...review,
-        metrics: { [application]: { base: measured(), head: measured() } },
-        metricFindings: [
-          {
-            node: 'rust/crate/domain',
-            metric: 'cyclomatic',
-            level: 'info',
-            head: 12,
-            threshold: 10,
+        metrics: {
+          'rust/crate/domain': { head: measured({ cyclomatic: { highest: 20, total: 20 } }) },
+          [application]: {
+            base: measured({ lines: 850, cyclomatic: { highest: 14, total: 30 }, abc: 31.5 }),
+            head: measured({ lines: 900, cyclomatic: { highest: 14, total: 30 }, abc: 31.5 }),
           },
-          { node: application, metric: 'cyclomatic', level: 'look', head: 14, threshold: 10 },
-          { node: application, metric: 'lines', level: 'look', head: 900, threshold: 800 },
-          { node: application, metric: 'abc', level: 'info', head: 31.5, threshold: 30 },
-          {
-            node: application,
-            metric: 'hotspot',
-            level: 'info',
-            head: { churn: 6, cyclomatic: 14 },
-            threshold: { churn: 5, cyclomatic: 10 },
-          },
-        ],
+        },
+        thresholds: {
+          cyclomatic: 10,
+          hotspot: { churn: 5, cyclomatic: 10 },
+          lines: 800,
+          abc: 30,
+        },
       })}
     />,
   );
 
   await user.click(await screen.findByRole('button', { name: 'application: modified' }));
   await user.click(within(inspector()).getByRole('tab', { name: 'Metrics' }));
-  expect(metricMarks('Cyclomatic, highest')).toEqual(['needs a look']);
+  expect(metricMarks('Cyclomatic, highest')).toEqual(['for information']);
   expect(metricMarks('ABC size')).toEqual(['for information']);
   expect(metricMarks('Churn')).toEqual(['for information']);
   expect(metricMarks('Lines')).toEqual(['needs a look']);

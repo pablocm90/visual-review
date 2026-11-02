@@ -3,6 +3,7 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { expect, test } from 'vitest';
 import type { GraphNode } from './graph.ts';
+import { metricFindings } from './metric-findings.ts';
 import type { ReviewNotes } from './notes.ts';
 import { notedPageHtml, pageData, pageHtml, pageIn, servedPageHtml } from './page.ts';
 import type { RangeReading } from './read-range.ts';
@@ -72,7 +73,6 @@ test("a reading's page data holds its diff, its dangling calls and test files, t
       edges: [],
     },
     metrics: {},
-    metricFindings: [],
     findings: expect.any(Array),
     dangling: [{ from: 'web/file/a.ts', path: '/api/x' }],
     patches: [patch('web/src/a.ts')],
@@ -621,7 +621,7 @@ test.for([
     });
 
     expect(
-      pageData({ repo: 'shop', reading, range: 'main..feature', version }).metricFindings,
+      metricFindings(pageData({ repo: 'shop', reading, range: 'main..feature', version })),
     ).toStrictEqual(
       level === undefined
         ? []
@@ -687,7 +687,7 @@ test.for([
   const reading = readingOfA({ base, head, thresholds: { cyclomatic: 20, hotspot: threshold } });
 
   expect(
-    pageData({ repo: 'shop', reading, range: 'main..feature', version }).metricFindings,
+    metricFindings(pageData({ repo: 'shop', reading, range: 'main..feature', version })),
   ).toStrictEqual(
     level === undefined || head === undefined
       ? []
@@ -734,7 +734,7 @@ test.for([
   });
 
   expect(
-    pageData({ repo: 'shop', reading, range: 'main..feature', version }).metricFindings,
+    metricFindings(pageData({ repo: 'shop', reading, range: 'main..feature', version })),
   ).toStrictEqual(findings.map(finding => ({ node: 'web/file/a.ts', ...finding })));
 });
 

@@ -6,7 +6,6 @@ export const pageWith = (data: Pick<PageData, 'range' | 'diff'> & Partial<PageDa
   repo: 'acme/shop',
   version: '0.1.0',
   metrics: {},
-  metricFindings: [],
   findings: [],
   dangling: [],
   patches: [],
