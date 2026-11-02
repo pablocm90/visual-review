@@ -31,7 +31,7 @@ const liveLock = async (lockFile: string): Promise<Lock | undefined> => {
     .catch(() => undefined);
   const answered =
     lock !== undefined &&
-    (await fetch(`${urlOf(lock)}/ping`, { method: 'POST', signal: AbortSignal.timeout(1000) })
+    (await fetch(`${urlOf(lock)}/alive`, { method: 'POST', signal: AbortSignal.timeout(1000) })
       .then(response => response.ok)
       .catch(() => false));
   return answered ? lock : undefined;
@@ -107,22 +107,69 @@ const answerWithPage = async ({ response, pageNow }: AnswerWithPageOptions): Pro
     .end(html);
 };
 
+type AnswerOptions = {
+  readonly request: IncomingMessage;
+  readonly response: ServerResponse;
+  readonly host: string;
+  readonly token: string;
+  readonly reviewFile: string;
+  readonly pageNow: () => Promise<string>;
+  readonly reviewed: () => void;
+  readonly pinged: () => Promise<void>;
+};
+
+const answer = async ({
+  request,
+  response,
+  host,
+  token,
+  reviewFile,
+  pageNow,
+  reviewed,
+  pinged,
+}: AnswerOptions): Promise<void> => {
+  const route = routeOf({ request, host });
+  if (route === `POST /${token}/review`) {
+    if (await tookReview({ request, response, reviewFile })) reviewed();
+    return;
+  }
+  if (route === `POST /${token}/alive`) {
+    response.writeHead(204).end();
+    return;
+  }
+  if (route === `POST /${token}/ping`) {
+    await pinged();
+    response.writeHead(204).end();
+    return;
+  }
+  if (route !== `GET /${token}`) {
+    response.writeHead(403).end();
+    return;
+  }
+  await answerWithPage({ response, pageNow });
+};
+
 type ServePageOptions = {
   readonly page: string | undefined;
   readonly version: string;
   readonly idleMs: number;
+  readonly firstPingMs: number;
+  readonly open: boolean;
 };
 
 export const servePage = async ({
   page,
   version,
   idleMs,
+  firstPingMs,
+  open,
 }: ServePageOptions): Promise<string | undefined> => {
-  if (page === undefined) throw new Error('Usage: visual-review serve <page.html>');
+  if (page === undefined) throw new Error('Usage: visual-review serve [--no-open] <page.html>');
   const lockFile = beside(page, 'serve');
   const lock = await liveLock(lockFile);
   if (lock !== undefined) {
-    openInBrowser(urlOf(lock));
+    if (open) openInBrowser(urlOf(lock));
+    else console.error(`Serving ${urlOf(lock)}`);
     return undefined;
   }
   const token = randomBytes(16).toString('hex');
@@ -148,34 +195,39 @@ export const servePage = async ({
     server.close();
     sent.reject(new Error(`No review sent: ${reason}`));
   };
-  const idle = setTimeout(unsent('the page was not open in a tab'), idleMs);
+  const notOpen = unsent('the page was not open in a tab');
+  const unpinged = setTimeout(notOpen, firstPingMs);
+  const firstPing = Promise.withResolvers<void>();
+  const idle = firstPing.promise.then(() => {
+    clearTimeout(unpinged);
+    return setTimeout(notOpen, idleMs);
+  });
   const stopped = unsent('serve was stopped');
-  server.on('request', async (request, response) => {
-    const route = routeOf({ request, host });
-    if (route === `POST /${token}/review`) {
-      if (await tookReview({ request, response, reviewFile })) {
+  server.on('request', (request, response) =>
+    answer({
+      request,
+      response,
+      host,
+      token,
+      reviewFile,
+      pageNow,
+      reviewed: () => {
         server.close();
         sent.resolve(reviewFile);
-      }
-      return;
-    }
-    if (route === `POST /${token}/ping`) {
-      idle.refresh();
-      response.writeHead(204).end();
-      return;
-    }
-    if (route !== `GET /${token}`) {
-      response.writeHead(403).end();
-      return;
-    }
-    await answerWithPage({ response, pageNow });
-  });
+      },
+      pinged: async () => {
+        firstPing.resolve();
+        (await idle).refresh();
+      },
+    }),
+  );
   process.once('SIGINT', stopped).once('SIGTERM', stopped);
   const url = urlOf({ port, token });
   console.error(`Serving ${url}`);
-  openInBrowser(url);
+  if (open) openInBrowser(url);
   return sent.promise.finally(() => {
-    clearTimeout(idle);
+    clearTimeout(unpinged);
+    void idle.then(clearTimeout);
     process.off('SIGINT', stopped).off('SIGTERM', stopped);
     return rm(lockFile, { force: true });
   });

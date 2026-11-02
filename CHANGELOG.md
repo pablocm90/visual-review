@@ -2,6 +2,18 @@
 
 What changed in each release of `@pablocm90/visual-review`, newest first. Versions follow [semver](https://semver.org); while it is 0.x, a minor version may change the exported types.
 
+## 0.6.0 — 2026-11-02
+
+### Added
+
+- The served page's header has a **Review** button opening a review panel, as GitHub's "Finish your review" does: a General comment on the whole change, the verdict and Send to Claude. The general comment goes in the review as `body`, an optional string; a non-blank one alone enables Send for Comment and Request changes.
+- `serve --no-open <page.html>` serves the page and prints `Serving <url>` on stderr without opening a browser; for an already-served page it prints the live server's URL on stderr and exits 0, nothing on stdout.
+
+### Changed
+
+- `serve` waits up to 24 hours for the page's first ping, then 10 minutes after each ping, so a page can wait for its reader; an unopened page now ends `serve` after the day, not 10 minutes. `VISUAL_REVIEW_FIRST_PING_MS` changes the day; `VISUAL_REVIEW_IDLE_MS` still changes the 10 minutes.
+- The plugin's skill reads the review's general comment first and answers it under the verdict, as it does a node's comment.
+
 ## 0.5.0 — 2026-11-02
 
 ### Added

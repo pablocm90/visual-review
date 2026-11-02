@@ -857,13 +857,17 @@ const VERDICTS: ReadonlyArray<readonly [Review['verdict'], string]> = [
 
 const SendToClaude = ({ comments, send }: SendProps) => {
   const [verdict, setVerdict] = useState<Review['verdict']>('comment');
+  const [open, setOpen] = useState(false);
+  const [body, setBody] = useState('');
   const [sent, setSent] = useState(false);
   const [problem, setProblem] = useState<string>();
   const written = Object.entries(comments).filter(([, text]) => text.trim() !== '');
+  const hasBody = body.trim() !== '';
   const sendComments = () =>
     send({
       version: 1,
       verdict,
+      ...(hasBody ? { body } : {}),
       comments: Object.fromEntries(written.map(([id, text]) => [id, { text }])),
     }).then(
       () => setSent(true),
@@ -877,31 +881,47 @@ const SendToClaude = ({ comments, send }: SendProps) => {
         </p>
       ) : (
         <>
-          {problem && (
-            <p role="status" aria-label="Review" className="send-problem">
-              {problem}
-            </p>
-          )}
-          <div role="radiogroup" aria-label="Verdict" className="verdict">
-            {VERDICTS.map(([value, label]) => (
-              <label key={value}>
-                <input
-                  type="radio"
-                  name="verdict"
-                  checked={verdict === value}
-                  onChange={() => setVerdict(value)}
-                />
-                {label}
-              </label>
-            ))}
-          </div>
           <button
             type="button"
-            disabled={verdict !== 'approve' && written.length === 0}
-            onClick={sendComments}
+            aria-expanded={open}
+            aria-controls="review-panel"
+            onClick={() => setOpen(wasOpen => !wasOpen)}
           >
-            Send to Claude
+            Review
           </button>
+          {open && (
+            <div id="review-panel" className="review-panel">
+              {problem && (
+                <p role="status" aria-label="Review" className="send-problem">
+                  {problem}
+                </p>
+              )}
+              <label className="general-comment">
+                General comment
+                <textarea value={body} onChange={event => setBody(event.target.value)} />
+              </label>
+              <div role="radiogroup" aria-label="Verdict" className="verdict">
+                {VERDICTS.map(([value, label]) => (
+                  <label key={value}>
+                    <input
+                      type="radio"
+                      name="verdict"
+                      checked={verdict === value}
+                      onChange={() => setVerdict(value)}
+                    />
+                    {label}
+                  </label>
+                ))}
+              </div>
+              <button
+                type="button"
+                disabled={verdict !== 'approve' && written.length === 0 && !hasBody}
+                onClick={sendComments}
+              >
+                Send to Claude
+              </button>
+            </div>
+          )}
         </>
       )}
     </div>
