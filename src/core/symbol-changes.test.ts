@@ -1,0 +1,46 @@
+import { expect, test } from 'vitest';
+import { symbolsOfTypeScript } from '../readers/typescript/typescript-symbols.ts';
+import { symbolChanges } from './symbol-changes.ts';
+
+const read = (...lines: ReadonlyArray<string>) =>
+  symbolsOfTypeScript(lines.join('\n'), 'src/shop.ts');
+
+test('a symbol is paired by scope, name and kind: unchanged with the same text, edited with another, added or removed when on one side only', () => {
+  const before = read(
+    'export function kept() { return 1; }',
+    'function charge() { return 1; }',
+    'class Shop { open() { return 1; } }',
+  );
+  const after = read(
+    'export function kept() { return 1; }',
+    'function charge() { return 2; }',
+    'class Shop {}',
+    'export type Id = string;',
+  );
+
+  expect(symbolChanges({ before, after }).symbols).toEqual([
+    { name: 'kept', kind: 'function', exported: { base: true, head: true }, change: 'unchanged' },
+    { name: 'charge', kind: 'function', exported: { base: false, head: false }, change: 'edited' },
+    { name: 'Shop', kind: 'class', exported: { base: false, head: false }, change: 'edited' },
+    { name: 'Id', kind: 'type', exported: { head: true }, change: 'added' },
+    { name: 'open', scope: 'Shop', kind: 'method', exported: { base: false }, change: 'removed' },
+  ]);
+});
+
+test('a symbol of the same name but another kind or scope is another symbol', () => {
+  const before = read('function Order() {}', 'class Shop { open() {} }');
+  const after = read('interface Order {}', 'class Shop {}', 'class Till { open() {} }');
+
+  expect(
+    symbolChanges({ before, after }).symbols.map(
+      ({ change, kind, scope, name }) => `${change} ${kind} ${scope ?? ''}.${name}`,
+    ),
+  ).toEqual([
+    'added type .Order',
+    'edited class .Shop',
+    'added class .Till',
+    'added method Till.open',
+    'removed function .Order',
+    'removed method Shop.open',
+  ]);
+});
