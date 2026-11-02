@@ -1,6 +1,7 @@
 import { expect, test } from 'vitest';
 import { findingOn } from '../test-support/page-data.ts';
-import { type Finding, findingsOf, lookFirst } from './findings.ts';
+import type { GraphDiff } from './diff-graphs.ts';
+import { type Finding, findingsAt, findingsOf, lookFirst } from './findings.ts';
 import { parseNotes } from './notes.ts';
 
 const notesWith = (notes: Readonly<Record<string, unknown>>) =>
@@ -76,4 +77,39 @@ test('look first holds the findings to look at: untargeted ones first, then by t
     'on a',
     'on d, unmeasured',
   ]);
+});
+
+const boxed = (id: string, parent: string) => ({
+  id,
+  kind: 'module' as const,
+  label: id,
+  parent,
+  path: id,
+  state: 'unchanged' as const,
+});
+
+test('a finding is drawn on its node, or on the closed box holding it, an edge finding on the edge drawn in its place, and an untargeted one nowhere', () => {
+  const diff: GraphDiff = {
+    nodes: [
+      { id: 'web', kind: 'stack', label: 'web', path: '', state: 'unchanged' },
+      boxed('pages', 'web'),
+      boxed('pages/home', 'pages'),
+      boxed('utils', 'web'),
+      boxed('utils/format', 'utils'),
+    ],
+    edges: [{ from: 'pages/home', to: 'utils/format', state: 'added' }],
+  };
+  const onHome = findingOn('pages/home');
+  const onFormat = findingOn('utils/format');
+  const onEdge = findingOn('pages/home -> utils/format', { id: 'edge' });
+  const untargeted = look(undefined, 'untargeted');
+  const findings = [onHome, onFormat, onEdge, untargeted];
+
+  expect(findingsAt({ diff, expanded: new Set(['pages']), findings })).toStrictEqual(
+    new Map([
+      ['pages/home', [onHome]],
+      ['utils', [onFormat]],
+      ['pages/home -> utils', [onEdge]],
+    ]),
+  );
 });

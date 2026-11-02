@@ -1,4 +1,4 @@
-import type { FilePatch } from './diff-graphs.ts';
+import type { FilePatch, GraphDiff } from './diff-graphs.ts';
 import { endsOfId } from './graph.ts';
 import type { DanglingCall } from './linker.ts';
 import type { MetricFinding } from './metric-findings.ts';
@@ -6,6 +6,7 @@ import { type NodeMetrics, tenths } from './metrics.ts';
 import type { ReviewNotes } from './notes.ts';
 import type { PageData } from './page.ts';
 import { notReadLine, type Skipped } from './skipped.ts';
+import { visibleNodeOf } from './visible-diff.ts';
 
 export const DIMENSIONS = [
   'structure',
@@ -137,4 +138,25 @@ export const lookFirst = ({ findings, metrics }: LookFirstOptions): ReadonlyArra
     highest(other.target, 'churn') - highest(one.target, 'churn') ||
     (one.id < other.id ? -1 : 1);
   return findings.filter(finding => finding.level === 'look').toSorted(before);
+};
+
+type FindingsAtOptions = {
+  readonly diff: GraphDiff;
+  readonly expanded: ReadonlySet<string>;
+  readonly findings: ReadonlyArray<Finding>;
+};
+
+export const findingsAt = ({
+  diff,
+  expanded,
+  findings,
+}: FindingsAtOptions): ReadonlyMap<string, ReadonlyArray<Finding>> => {
+  const visibleOf = visibleNodeOf({ diff, expanded });
+  const drawnOf = (target: string) => endsOfId(target).map(visibleOf).join(' -> ');
+  return Map.groupBy(
+    findings.filter(
+      (finding): finding is Finding & { target: string } => finding.target !== undefined,
+    ),
+    finding => drawnOf(finding.target),
+  );
 };
