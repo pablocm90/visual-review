@@ -5,10 +5,21 @@ import type { SymbolStatement } from './symbol-changes.ts';
 const qualified = ({ scope, name }: SymbolStatement): string =>
   scope === undefined ? name : `${scope}.${name}`;
 
-const removedTitle = (statement: SymbolStatement): string | undefined => {
+type Removal = { readonly former: string; readonly how: string };
+
+const removalOf = (statement: SymbolStatement): Removal | undefined => {
   if (statement.exported.base !== true) return undefined;
-  if (statement.change === 'removed') return 'removed';
-  return statement.exported.head === false ? 'no longer exported' : undefined;
+  const name = qualified(statement);
+  if (statement.renamedFrom !== undefined) {
+    const renamed = statement.probably ? 'probably renamed' : 'renamed';
+    return { former: statement.renamedFrom, how: `${renamed} to ${name}` };
+  }
+  if (statement.movedTo !== undefined)
+    return { former: name, how: `moved to ${statement.movedTo}` };
+  if (statement.change === 'removed') return { former: name, how: 'removed' };
+  return statement.exported.head === false
+    ? { former: name, how: 'no longer exported' }
+    : undefined;
 };
 
 export const symbolFindings = (files: ReadonlyArray<SymbolFile>): ReadonlyArray<Finding> =>
@@ -16,16 +27,16 @@ export const symbolFindings = (files: ReadonlyArray<SymbolFile>): ReadonlyArray<
     'unreadable' in file
       ? []
       : file.symbols.flatMap((statement): ReadonlyArray<Finding> => {
-          const title = removedTitle(statement);
-          return title === undefined
+          const removal = removalOf(statement);
+          return removal === undefined
             ? []
             : [
                 {
-                  id: `api:removed:${file.node}#${qualified(statement)}`,
+                  id: `api:removed:${file.node}#${removal.former}`,
                   dimension: 'api',
                   level: 'look',
                   target: file.node,
-                  title: `${statement.kind} ${qualified(statement)} ${title}`,
+                  title: `${statement.kind} ${removal.former} ${removal.how}`,
                 },
               ];
         }),

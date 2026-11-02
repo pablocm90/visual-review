@@ -230,6 +230,67 @@ test('an exported symbol removed, or no longer exported, is an api finding to lo
   ]);
 });
 
+test('an exported symbol renamed or moved away is removed under its former name, the title saying where it went; one moved in raises none', () => {
+  const symbols = [
+    symbolFile([
+      {
+        name: 'bill',
+        scope: 'Orders',
+        kind: 'method',
+        exported: { base: true, head: true },
+        change: 'renamed',
+        renamedFrom: 'Orders.charge',
+      },
+      {
+        name: 'pay',
+        kind: 'function',
+        exported: { base: true, head: false },
+        change: 'renamed',
+        renamedFrom: 'settle',
+        probably: true,
+      },
+      {
+        name: 'total',
+        kind: 'function',
+        exported: { base: true },
+        change: 'moved',
+        movedTo: 'web/file/b.ts',
+      },
+      {
+        name: 'tax',
+        kind: 'function',
+        exported: { head: true },
+        change: 'moved',
+        movedFrom: 'web/file/c.ts',
+      },
+    ]),
+  ];
+
+  expect(findingsOfSymbols(symbols)).toStrictEqual([
+    {
+      id: 'api:removed:web/file/a.ts#Orders.charge',
+      dimension: 'api',
+      level: 'look',
+      target: 'web/file/a.ts',
+      title: 'method Orders.charge renamed to Orders.bill',
+    },
+    {
+      id: 'api:removed:web/file/a.ts#settle',
+      dimension: 'api',
+      level: 'look',
+      target: 'web/file/a.ts',
+      title: 'function settle probably renamed to pay',
+    },
+    {
+      id: 'api:removed:web/file/a.ts#total',
+      dimension: 'api',
+      level: 'look',
+      target: 'web/file/a.ts',
+      title: 'function total moved to web/file/b.ts',
+    },
+  ]);
+});
+
 const notesFile = 'x.notes.json';
 
 const notesWith = (notes: ReviewNotes['notes']): ReviewNotes => ({
