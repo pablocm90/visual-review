@@ -73,6 +73,7 @@ export const pageData = ({
       metricFindings: metricFindings({ metrics, thresholds: reading.thresholds }),
       symbols: reading.symbols,
       symbolsNotRead: reading.symbolsNotRead,
+      nodes: diff.nodes,
     }),
     dangling: reading.danglingCalls,
     patches: reading.patches.filter(isDrawn),

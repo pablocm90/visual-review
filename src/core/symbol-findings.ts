@@ -1,10 +1,13 @@
 import type { Finding } from './findings.ts';
+import type { GraphNode } from './graph.ts';
 import type { SymbolFile } from './read-range.ts';
 import { type FileSymbolChanges, qualified, type SymbolStatement } from './symbol-changes.ts';
 
 type Removal = { readonly former: string; readonly how: string };
 
-const removalOf = (statement: SymbolStatement): Removal | undefined => {
+type PathOf = (id: string) => string;
+
+const removalOf = (statement: SymbolStatement, pathOf: PathOf): Removal | undefined => {
   if (statement.exported.base !== true) return undefined;
   const name = qualified(statement);
   if (statement.renamedFrom !== undefined) {
@@ -12,33 +15,37 @@ const removalOf = (statement: SymbolStatement): Removal | undefined => {
     return { former: statement.renamedFrom, how: `${renamed} to ${name}` };
   }
   if (statement.movedTo !== undefined)
-    return { former: name, how: `moved to ${statement.movedTo}` };
+    return { former: name, how: `moved to ${pathOf(statement.movedTo)}` };
   if (statement.change === 'removed') return { former: name, how: 'removed' };
   return statement.exported.head === false
     ? { former: name, how: 'no longer exported' }
     : undefined;
 };
 
-const addedHow = ({ change, movedFrom }: SymbolStatement): string => {
+const addedHow = ({ change, movedFrom }: SymbolStatement, pathOf: PathOf): string => {
   if (change === 'added') return 'added';
-  return movedFrom === undefined ? 'now exported' : `moved from ${movedFrom}`;
+  return movedFrom === undefined ? 'now exported' : `moved from ${pathOf(movedFrom)}`;
 };
 
 const isAddedExport = ({ exported }: SymbolStatement): boolean =>
   exported.base !== true && exported.head === true;
 
 const raisesItsOwn = (statement: SymbolStatement): boolean =>
-  removalOf(statement) !== undefined || isAddedExport(statement);
+  removalOf(statement, id => id) !== undefined || isAddedExport(statement);
 
 const unheld = (statements: ReadonlyArray<SymbolStatement>): ReadonlyArray<SymbolStatement> => {
   const holders = new Set(statements.filter(raisesItsOwn).map(qualified));
   return statements.filter(({ scope }) => scope === undefined || !holders.has(scope));
 };
 
-type Placed = { readonly node: string; readonly statement: SymbolStatement };
+type Placed = {
+  readonly node: string;
+  readonly statement: SymbolStatement;
+  readonly pathOf: PathOf;
+};
 
-const findingOf = ({ node, statement }: Placed): Finding | undefined => {
-  const removal = removalOf(statement);
+const findingOf = ({ node, statement, pathOf }: Placed): Finding | undefined => {
+  const removal = removalOf(statement, pathOf);
   const on = { dimension: 'api', level: 'look', target: node } as const;
   if (removal !== undefined)
     return {
@@ -53,7 +60,7 @@ const findingOf = ({ node, statement }: Placed): Finding | undefined => {
       id: `api:added:${node}#${name}`,
       ...on,
       level: 'info',
-      title: `${statement.kind} ${name} ${addedHow(statement)}`,
+      title: `${statement.kind} ${name} ${addedHow(statement, pathOf)}`,
     };
   if (signature === undefined || exported.base !== true) return undefined;
   return {
@@ -86,8 +93,14 @@ const exportsFinding = (file: FileSymbolChanges): ReadonlyArray<Finding> => {
   ];
 };
 
-export const symbolFindings = (files: ReadonlyArray<SymbolFile>): ReadonlyArray<Finding> =>
-  files.flatMap(file =>
+type SymbolFindingsOptions = {
+  readonly files: ReadonlyArray<SymbolFile>;
+  readonly nodes: ReadonlyArray<GraphNode>;
+};
+
+export const symbolFindings = ({ files, nodes }: SymbolFindingsOptions): ReadonlyArray<Finding> => {
+  const pathOf = (id: string) => nodes.find(node => node.id === id)?.path ?? id;
+  return files.flatMap(file =>
     'unreadable' in file
       ? [
           {
@@ -101,8 +114,9 @@ export const symbolFindings = (files: ReadonlyArray<SymbolFile>): ReadonlyArray<
         ]
       : [
           ...unheld(file.symbols).flatMap(
-            statement => findingOf({ node: file.node, statement }) ?? [],
+            statement => findingOf({ node: file.node, statement, pathOf }) ?? [],
           ),
           ...exportsFinding(file),
         ],
   );
+};

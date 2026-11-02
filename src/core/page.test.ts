@@ -216,8 +216,17 @@ const symbolFile = (symbols: ReadonlyArray<SymbolStatement>): SymbolFile => ({
 });
 
 const findingsOfSymbols = (symbols: ReadonlyArray<SymbolFile>) =>
-  pageData({ repo: 'shop', reading: readingWith({ symbols }), range: 'a..b', version, parsers })
-    .findings;
+  pageData({
+    repo: 'shop',
+    reading: readingWith({
+      symbols,
+      before: { nodes: [webStack, webFile('a.ts'), webFile('c.ts')], edges: [] },
+      after: { nodes: [webStack, webFile('a.ts'), webFile('b.ts')], edges: [] },
+    }),
+    range: 'a..b',
+    version,
+    parsers,
+  }).findings;
 
 test('an exported symbol removed, or no longer exported, is an api finding to look at on its file, named by its kind and qualified name', () => {
   const symbols = [
@@ -254,7 +263,7 @@ test('an exported symbol removed, or no longer exported, is an api finding to lo
   ]);
 });
 
-test('an exported symbol renamed or moved away is removed under its former name, the title saying where it went', () => {
+test('an exported symbol renamed or moved away is removed under its former name, the title saying where it went, a file by its path', () => {
   const symbols = [
     symbolFile([
       {
@@ -303,7 +312,7 @@ test('an exported symbol renamed or moved away is removed under its former name,
       dimension: 'api',
       level: 'look',
       target: 'web/file/a.ts',
-      title: 'function total moved to web/file/b.ts',
+      title: 'function total moved to web/src/b.ts',
     },
   ]);
 });
@@ -377,7 +386,7 @@ test('an export added, moved in or newly exported is an api finding for informat
       dimension: 'api',
       level: 'info',
       target: 'web/file/a.ts',
-      title: 'function tax moved from web/file/c.ts',
+      title: 'function tax moved from web/src/c.ts',
     },
     {
       id: 'api:added:web/file/a.ts#Order',

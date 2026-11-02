@@ -1,5 +1,5 @@
 import type { FilePatch, GraphDiff } from './diff-graphs.ts';
-import { endsOfId } from './graph.ts';
+import { endsOfId, type GraphNode } from './graph.ts';
 import type { DanglingCall } from './linker.ts';
 import type { MetricFinding } from './metric-findings.ts';
 import { type NodeMetrics, tenths } from './metrics.ts';
@@ -65,6 +65,7 @@ type RaisedOptions = {
   readonly metricFindings: ReadonlyArray<MetricFinding>;
   readonly symbols: ReadonlyArray<SymbolFile>;
   readonly symbolsNotRead: ReadonlyArray<string>;
+  readonly nodes: ReadonlyArray<GraphNode>;
 };
 
 export const skippedFindingId = (skip: Skipped) => `structure:skipped:${skip.reader}`;
@@ -76,6 +77,7 @@ export const raisedFindings = ({
   metricFindings,
   symbols,
   symbolsNotRead,
+  nodes,
 }: RaisedOptions): ReadonlyArray<Finding> => [
   ...skipped.map(
     (skip): Finding => ({
@@ -115,7 +117,7 @@ export const raisedFindings = ({
       title: metricTitle(finding),
     }),
   ),
-  ...symbolFindings(symbols),
+  ...symbolFindings({ files: symbols, nodes }),
   ...symbolsNotRead.map(
     (stack): Finding => ({
       id: `structure:symbols-not-read:${stack}`,
