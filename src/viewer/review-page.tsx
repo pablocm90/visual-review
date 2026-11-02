@@ -1011,6 +1011,7 @@ export const ReviewPage = ({ review, notes, send }: ReviewPageProps) => {
   const [colouring, setColouring] = useState<Colouring>('change');
   const [picked, setPicked] = useState<Dimension>();
   const findings = findingsOf({ data: review, notes });
+  const triaged = findings.filter(finding => picked === undefined || finding.dimension === picked);
   const drawn = useMemo(() => {
     const atExpansion = drawnAt({ diff: review.diff, expanded, noted, allEdges });
     return nearOnly ? nearChanges(atExpansion) : atExpansion;
@@ -1103,8 +1104,7 @@ export const ReviewPage = ({ review, notes, send }: ReviewPageProps) => {
           </div>
           <div className="columns">
             <FindingsRail
-              findings={findings}
-              picked={picked}
+              findings={triaged}
               review={review}
               onGoTo={goTo}
               onShowOutside={showOutside}
@@ -1113,7 +1113,7 @@ export const ReviewPage = ({ review, notes, send }: ReviewPageProps) => {
               {notes && notes.summary.length > 0 && <Summary notes={notes} onGoTo={goTo} />}
               <TriageStrip findings={findings} picked={picked} onPick={setPicked} />
               <LookFirst
-                findings={findings}
+                findings={triaged}
                 review={review}
                 onGoTo={goTo}
                 onShowOutside={showOutside}

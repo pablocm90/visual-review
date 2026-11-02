@@ -1404,7 +1404,7 @@ test("a note's or a metric finding in the rail goes to its node or edge as the s
   expect(document.activeElement).toBe(screen.getByRole('button', { name: 'domain: unchanged' }));
 });
 
-test('look first lists the findings to look at in rank order, each going to its node, seven at most, and is absent when none needs a look', async () => {
+test('look first lists the findings to look at in rank order, in the dimension a triage chip picks, each going to its node, seven at most, and is absent when none needs a look', async () => {
   const user = userEvent.setup();
   const looks = (count: number) =>
     Array.from({ length: count }, (_, index) =>
@@ -1418,6 +1418,12 @@ test('look first lists the findings to look at in rank order, each going to its 
           findingOn('rust/crate/application'),
           findingOn('rust/crate/domain', { id: 'b', level: 'look', title: 'second' }),
           findingOn('rust/crate/cli-adapter', { id: 'a', level: 'look', title: 'first' }),
+          findingOn('rust/crate/application', {
+            id: 'c',
+            dimension: 'routes',
+            level: 'look',
+            title: 'third',
+          }),
         ],
       })}
     />,
@@ -1429,7 +1435,13 @@ test('look first lists the findings to look at in rank order, each going to its 
     band()
       .getAllByRole('listitem')
       .map(item => within(item).getByRole('button').getAttribute('aria-label'));
-  expect(items()).toEqual(['cli-adapter: first', 'domain: second']);
+  expect(items()).toEqual(['cli-adapter: first', 'domain: second', 'application: third']);
+  const routes = () =>
+    within(screen.getByRole('group', { name: 'Triage' })).getByRole('button', { name: /Routes/ });
+  await user.click(routes());
+  expect(items()).toEqual(['application: third']);
+  await user.click(routes());
+  expect(items()).toHaveLength(3);
   await user.click(band().getByRole('button', { name: 'domain: second' }));
   expect(document.activeElement).toBe(screen.getByRole('button', { name: 'domain: unchanged' }));
 

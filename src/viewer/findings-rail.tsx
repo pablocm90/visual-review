@@ -7,7 +7,6 @@ import { LevelMark } from './finding-display.tsx';
 
 type FindingsRailProps = {
   readonly findings: ReadonlyArray<Finding>;
-  readonly picked: Dimension | undefined;
   readonly review: Pick<PageData, 'diff' | 'skipped'>;
   readonly onGoTo: (id: string) => void;
   readonly onShowOutside: (opener: HTMLButtonElement) => void;
@@ -23,7 +22,6 @@ type Line = {
 };
 
 type Group = {
-  readonly dimension: Dimension;
   readonly name: string;
   readonly findings: ReadonlyArray<Line>;
 };
@@ -62,7 +60,6 @@ const linesOf = ({ review, onGoTo, onShowOutside }: LineOptions) => {
 const groupsOf = (props: FindingsRailProps): ReadonlyArray<Group> => {
   const lineOf = linesOf(props);
   return DIMENSIONS.map(dimension => ({
-    dimension,
     name: nameOf(dimension),
     findings: props.findings.filter(finding => finding.dimension === dimension).map(lineOf),
   }));
@@ -132,18 +129,16 @@ export const FindingsRail = (props: FindingsRailProps) => {
         >
           ‹
         </button>
-        {groups
-          .filter(group => props.picked === undefined || group.dimension === props.picked)
-          .map(group => (
-            <section key={group.name} aria-label={group.name}>
-              <h3>{group.name}</h3>
-              <ul>
-                {group.findings.map(finding => (
-                  <FindingItem key={`${finding.target}: ${finding.sentence}`} finding={finding} />
-                ))}
-              </ul>
-            </section>
-          ))}
+        {groups.map(group => (
+          <section key={group.name} aria-label={group.name}>
+            <h3>{group.name}</h3>
+            <ul>
+              {group.findings.map(finding => (
+                <FindingItem key={`${finding.target}: ${finding.sentence}`} finding={finding} />
+              ))}
+            </ul>
+          </section>
+        ))}
       </aside>
     );
   }
