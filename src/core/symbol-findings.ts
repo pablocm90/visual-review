@@ -1,9 +1,6 @@
 import type { Finding } from './findings.ts';
 import type { SymbolFile } from './read-range.ts';
-import type { FileSymbolChanges, SymbolStatement } from './symbol-changes.ts';
-
-const qualified = ({ scope, name }: SymbolStatement): string =>
-  scope === undefined ? name : `${scope}.${name}`;
+import { type FileSymbolChanges, qualified, type SymbolStatement } from './symbol-changes.ts';
 
 type Removal = { readonly former: string; readonly how: string };
 

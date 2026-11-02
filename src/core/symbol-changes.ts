@@ -50,7 +50,7 @@ const sameSymbol = (one: Keyed, other: Keyed): boolean =>
 const named = ({ name, scope, kind }: ReadSymbol) =>
   scope === undefined ? { name, kind } : { name, scope, kind };
 
-const qualified = ({ scope, name }: ReadSymbol): string =>
+export const qualified = ({ scope, name }: Pick<ReadSymbol, 'scope' | 'name'>): string =>
   scope === undefined ? name : `${scope}.${name}`;
 
 const changeOf = (old: ReadSymbol, symbol: ReadSymbol): SymbolChange => {

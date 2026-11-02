@@ -1,5 +1,5 @@
 import type { SymbolFile } from '../core/read-range.ts';
-import type { SymbolChange, SymbolStatement } from '../core/symbol-changes.ts';
+import { qualified, type SymbolChange, type SymbolStatement } from '../core/symbol-changes.ts';
 
 const GROUPS: ReadonlyArray<readonly [SymbolChange, string]> = [
   ['edited', 'Edited'],
@@ -8,9 +8,6 @@ const GROUPS: ReadonlyArray<readonly [SymbolChange, string]> = [
   ['added', 'Added'],
   ['removed', 'Removed'],
 ];
-
-const qualified = ({ scope, name }: SymbolStatement): string =>
-  scope === undefined ? name : `${scope}.${name}`;
 
 const symbolsIn = (files: ReadonlyArray<SymbolFile>): ReadonlyArray<SymbolStatement> =>
   files.flatMap(file => ('symbols' in file ? file.symbols : []));
