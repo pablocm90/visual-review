@@ -78,8 +78,8 @@ const groupsOf = ({
     {
       name: 'Metrics',
       chip: 'Metrics',
-      findings: review.findings.flatMap(({ level, target, title }) =>
-        target !== undefined
+      findings: review.findings.flatMap(({ dimension, level, target, title }) =>
+        dimension === 'metrics' && target !== undefined
           ? [{ level, sentence: title, target: targetOf(target), act: () => onGoTo(target) }]
           : [],
       ),

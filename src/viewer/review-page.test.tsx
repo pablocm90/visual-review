@@ -1265,6 +1265,11 @@ test("the findings rail starts collapsed to their total and how many need a look
             id: 'metrics:cyclomatic:rust/crate/application',
             level: 'look',
           }),
+          findingOn('rust/crate/cli-adapter', {
+            id: 'routes:dangling:rust/crate/cli-adapter',
+            dimension: 'routes',
+            title: '2 calls with no route',
+          }),
         ],
         dangling: [
           { from: 'rust/crate/cli-adapter', path: '/api/a' },
