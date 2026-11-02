@@ -28,7 +28,7 @@ import {
   visibleNodeOf,
 } from '../core/visible-diff.ts';
 import { ColourBy, type Colouring, ScaleLegend, type Shade, shadeOf } from './colour-by.tsx';
-import { LEVELS, LevelMark } from './finding-display.tsx';
+import { findingLine, LEVELS, LevelMark } from './finding-display.tsx';
 import { FindingsRail, LookFirst, nameOf, TriageStrip } from './findings-rail.tsx';
 import { highlightPatch, type PatchLine as Line, type Piece } from './highlight-patch.ts';
 import {
@@ -113,7 +113,7 @@ const worstOf = (findings: ReadonlyArray<Finding>) =>
   findings.some(finding => finding.level === 'look') ? 'look' : 'info';
 
 const badgeName = (findings: ReadonlyArray<Finding>) =>
-  `${LEVELS[worstOf(findings)]}, ${findings.length} ${findings.length === 1 ? 'finding' : 'findings'}: ${findings.map(finding => finding.title).join('; ')}`;
+  `${LEVELS[worstOf(findings)]}, ${findings.length} ${findings.length === 1 ? 'finding' : 'findings'}: ${findings.map(findingLine).join('; ')}`;
 
 type FindingsBadgeProps = {
   readonly x: number;
@@ -554,9 +554,7 @@ const Inspector = ({
                 {found.map(finding => (
                   <li key={finding.id}>
                     <LevelMark level={finding.level} />
-                    {finding.detail === undefined
-                      ? finding.title
-                      : `${finding.title}: ${finding.detail}`}
+                    {findingLine(finding)}
                   </li>
                 ))}
               </ul>

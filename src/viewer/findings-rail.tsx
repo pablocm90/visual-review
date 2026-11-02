@@ -3,7 +3,7 @@ import { DIMENSIONS, type Dimension, type Finding, lookFirst } from '../core/fin
 import { endsOfId } from '../core/graph.ts';
 import type { PageData } from '../core/page.ts';
 import { notReadLine } from '../core/skipped.ts';
-import { LevelMark } from './finding-display.tsx';
+import { findingLine, LevelMark } from './finding-display.tsx';
 
 type FindingsRailProps = {
   readonly findings: ReadonlyArray<Finding>;
@@ -45,9 +45,15 @@ const linesOf = ({ review, onGoTo, onShowOutside }: LineOptions) => {
     endsOfId(id)
       .map(end => labelOf.get(end) ?? end)
       .join(' → ');
-  const lineOf = ({ id, level, target, title, detail }: Finding): Line => {
+  const lineOf = (finding: Finding): Line => {
+    const { id, level, target, title, detail } = finding;
     if (target !== undefined) {
-      return { level, sentence: title, target: targetOf(target), act: () => onGoTo(target) };
+      return {
+        level,
+        sentence: findingLine(finding),
+        target: targetOf(target),
+        act: () => onGoTo(target),
+      };
     }
     return {
       level,

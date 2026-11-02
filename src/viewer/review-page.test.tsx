@@ -1282,7 +1282,7 @@ test('the summary lists its items, not the flagged notes, and an item with a tar
   expect(screen.queryByRole('region', { name: 'Summary' })).toBeNull();
 });
 
-test("the findings rail starts collapsed to their total and how many need a look or are for information, notes' flags among them; opened, it groups them by dimension, each line its title and its target, else its detail, and hides again; the triage strip has a chip per dimension with findings, marked when one needs a look, that filters the rail until clicked again, and none without findings", async () => {
+test("the findings rail starts collapsed to their total and how many need a look or are for information, notes' flags among them; opened, it groups them by dimension, each line its title, with its detail if any, and its target, else its detail, and hides again; the triage strip has a chip per dimension with findings, marked when one needs a look, that filters the rail until clicked again, and none without findings", async () => {
   const user = userEvent.setup();
   const { rerender } = render(
     <ReviewPage
@@ -1298,6 +1298,7 @@ test("the findings rail starts collapsed to their total and how many need a look
             id: 'routes:dangling:rust/crate/cli-adapter',
             dimension: 'routes',
             title: '2 calls with no route',
+            detail: '/api/info, /api/users',
           }),
           {
             id: 'structure:undrawn',
@@ -1355,7 +1356,7 @@ test("the findings rail starts collapsed to their total and how many need a look
     'cli-adapter: new entry point',
     'cli-adapter → application: new dependency direction',
   ]);
-  expect(lines('Routes')).toEqual(['cli-adapter: 2 calls with no route']);
+  expect(lines('Routes')).toEqual(['cli-adapter: 2 calls with no route: /api/info, /api/users']);
 
   const strip = () => within(screen.getByRole('group', { name: 'Triage' }));
   const chips = () =>
@@ -1854,7 +1855,9 @@ test("web calls to API routes are drawn between the stacks, named by their paths
     'Expand modules/AppInfo',
   ]);
   await user.click(
-    screen.getByRole('img', { name: 'for information, 1 finding: 1 call with no route' }),
+    screen.getByRole('img', {
+      name: 'for information, 1 finding: 1 call with no route: /api/app-info',
+    }),
   );
   expect(findingsShown()).toEqual(['1 call with no route: /api/app-info']);
   expect(buttonsIn(screen.getByRole('group', { name: 'rust' }))).toEqual([
