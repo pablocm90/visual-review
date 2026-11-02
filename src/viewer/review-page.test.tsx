@@ -2929,3 +2929,43 @@ test('a renamed symbol says what it was renamed from, probably when its body cha
     'method Refunds.void probably renamed from Refunds.cancel',
   );
 });
+
+test('a moved symbol names the file it moved to or from, and goes to that file', async () => {
+  const user = userEvent.setup();
+  const moved = {
+    name: 'tax',
+    kind: 'function' as const,
+    exported: { base: false, head: false },
+    change: 'moved' as const,
+  };
+  render(
+    <ReviewPage
+      review={pageWith({
+        range: 'abc123..def456',
+        diff: {
+          nodes: [
+            { id: 'web', kind: 'stack', label: 'web', path: '', state: 'unchanged' },
+            topFile('refund.ts', 'modified'),
+            topFile('tax.ts', 'modified'),
+          ],
+          edges: [],
+        },
+        symbols: [
+          symbolsOf('web/file/refund.ts', [{ ...moved, movedTo: 'web/file/tax.ts' }]),
+          symbolsOf('web/file/tax.ts', [{ ...moved, movedFrom: 'web/file/refund.ts' }]),
+        ],
+      })}
+    />,
+  );
+
+  await user.click(await screen.findByRole('button', { name: 'refund.ts: modified' }));
+  await user.click(within(inspector()).getByRole('tab', { name: 'Symbols 1' }));
+  const movedTo = screen.getByRole('listitem', { name: 'function tax: moved' });
+  expect(movedTo.textContent).toBe('function tax moved to tax.ts');
+  await user.click(within(movedTo).getByRole('button', { name: 'tax.ts' }));
+  expect(within(inspector()).getByRole('heading', { level: 2 }).textContent).toBe('tax.ts');
+  const movedFrom = screen.getByRole('listitem', { name: 'function tax: moved' });
+  expect(movedFrom.textContent).toBe('function tax moved from refund.ts');
+  await user.click(within(movedFrom).getByRole('button', { name: 'refund.ts' }));
+  expect(within(inspector()).getByRole('heading', { level: 2 }).textContent).toBe('refund.ts');
+});

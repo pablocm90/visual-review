@@ -488,6 +488,7 @@ type InspectorProps = {
   readonly patches: ReadonlyArray<FilePatch>;
   readonly tests: ReadonlyArray<TestFile>;
   readonly symbols: ReadonlyArray<SymbolFile>;
+  readonly onGoTo: (id: string) => void;
   readonly comment: string;
   readonly onComment: ((text: string) => void) | undefined;
   readonly commentable: boolean;
@@ -515,6 +516,7 @@ const Inspector = ({
   patches,
   tests,
   symbols,
+  onGoTo,
   comment,
   onComment,
   commentable,
@@ -591,7 +593,7 @@ const Inspector = ({
           </section>
         ) : shown === 'symbols' ? (
           <div className="symbols">
-            <SymbolFiles files={symbolsHere} />
+            <SymbolFiles files={symbolsHere} nodes={nodes} onGoTo={onGoTo} />
           </div>
         ) : (
           <div className="tests">
@@ -637,6 +639,7 @@ type SidePanelProps = {
   readonly graphLeft: () => number;
   readonly onCloseOutside: () => void;
   readonly onCloseInspector: (id: string) => void;
+  readonly onGoTo: (id: string) => void;
 };
 
 const SidePanel = ({
@@ -653,6 +656,7 @@ const SidePanel = ({
   graphLeft,
   onCloseOutside,
   onCloseInspector,
+  onGoTo,
 }: SidePanelProps) => {
   const patches = outside
     ? review.undrawn
@@ -709,6 +713,7 @@ const SidePanel = ({
         patches={patches}
         tests={review.tests}
         symbols={review.symbols}
+        onGoTo={onGoTo}
         comment={comments[selected] ?? ''}
         onComment={onComment && (text => onComment(selected, text))}
         commentable={
@@ -1257,6 +1262,7 @@ export const ReviewPage = ({ review, notes, send }: ReviewPageProps) => {
               graphLeft={graphLeft}
               onCloseOutside={closeOutside}
               onCloseInspector={closeInspector}
+              onGoTo={goTo}
             />
           </div>
         </>
