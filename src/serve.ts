@@ -107,6 +107,48 @@ const answerWithPage = async ({ response, pageNow }: AnswerWithPageOptions): Pro
     .end(html);
 };
 
+type AnswerOptions = {
+  readonly request: IncomingMessage;
+  readonly response: ServerResponse;
+  readonly host: string;
+  readonly token: string;
+  readonly reviewFile: string;
+  readonly pageNow: () => Promise<string>;
+  readonly reviewed: () => void;
+  readonly pinged: () => Promise<void>;
+};
+
+const answer = async ({
+  request,
+  response,
+  host,
+  token,
+  reviewFile,
+  pageNow,
+  reviewed,
+  pinged,
+}: AnswerOptions): Promise<void> => {
+  const route = routeOf({ request, host });
+  if (route === `POST /${token}/review`) {
+    if (await tookReview({ request, response, reviewFile })) reviewed();
+    return;
+  }
+  if (route === `POST /${token}/alive`) {
+    response.writeHead(204).end();
+    return;
+  }
+  if (route === `POST /${token}/ping`) {
+    await pinged();
+    response.writeHead(204).end();
+    return;
+  }
+  if (route !== `GET /${token}`) {
+    response.writeHead(403).end();
+    return;
+  }
+  await answerWithPage({ response, pageNow });
+};
+
 type ServePageOptions = {
   readonly page: string | undefined;
   readonly version: string;
@@ -161,31 +203,24 @@ export const servePage = async ({
     return setTimeout(notOpen, idleMs);
   });
   const stopped = unsent('serve was stopped');
-  server.on('request', async (request, response) => {
-    const route = routeOf({ request, host });
-    if (route === `POST /${token}/review`) {
-      if (await tookReview({ request, response, reviewFile })) {
+  server.on('request', (request, response) =>
+    answer({
+      request,
+      response,
+      host,
+      token,
+      reviewFile,
+      pageNow,
+      reviewed: () => {
         server.close();
         sent.resolve(reviewFile);
-      }
-      return;
-    }
-    if (route === `POST /${token}/alive`) {
-      response.writeHead(204).end();
-      return;
-    }
-    if (route === `POST /${token}/ping`) {
-      firstPing.resolve();
-      (await idle).refresh();
-      response.writeHead(204).end();
-      return;
-    }
-    if (route !== `GET /${token}`) {
-      response.writeHead(403).end();
-      return;
-    }
-    await answerWithPage({ response, pageNow });
-  });
+      },
+      pinged: async () => {
+        firstPing.resolve();
+        (await idle).refresh();
+      },
+    }),
+  );
   process.once('SIGINT', stopped).once('SIGTERM', stopped);
   const url = urlOf({ port, token });
   console.error(`Serving ${url}`);
