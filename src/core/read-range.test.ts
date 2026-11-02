@@ -584,6 +584,22 @@ test("each changed file of a stack whose reader reads symbols comes with its sym
   ]);
 });
 
+test('a changed file whose symbols do not parse is listed with the parser message', async () => {
+  using repository = gitRepo(rootPackage);
+  const { repo, root } = repository;
+  const head = commit(repo, { 'src/index.ts': 'export function (\n' });
+
+  const range = await readRange({ repo, from: root, to: head });
+
+  expect(range.symbols).toEqual([
+    {
+      node: `${basename(repo)}/file/index.ts`,
+      stack: basename(repo),
+      unreadable: expect.stringMatching(/\(1:16\)$/),
+    },
+  ]);
+});
+
 test('the files of a stack only one side has are read on that side', async () => {
   using repository = gitRepo({
     'admin/package.json': '{}\n',

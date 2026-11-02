@@ -27,7 +27,10 @@ export type Churn = Readonly<Record<string, number>>;
 
 export type Measures = Readonly<Record<string, FileMeasures>>;
 
-export type SymbolFile = FileSymbolChanges & { readonly stack: string };
+export type SymbolFile = { readonly stack: string } & (
+  | FileSymbolChanges
+  | { readonly node: string; readonly unreadable: string }
+);
 
 export type RangeReading = {
   readonly before: Graph;
@@ -284,17 +287,25 @@ export const readRange = async ({
         .map(async ({ id, basePath, headPath }) => {
           const read = symbolsReaderOf(stackOf(id));
           if (read === undefined) return [];
-          const sides = {
-            before: await symbolsAt({ directory: join(scratch, 'before'), read, path: basePath }),
-            after: await symbolsAt({ directory: join(scratch, 'after'), read, path: headPath }),
-          };
+          const sides = await Promise.all([
+            symbolsAt({ directory: join(scratch, 'before'), read, path: basePath }),
+            symbolsAt({ directory: join(scratch, 'after'), read, path: headPath }),
+          ]).then(
+            ([before, after]) => ({ before, after }),
+            error => ({ unreadable: String(error) }),
+          );
+          if ('unreadable' in sides) return [{ node: id, ...sides }];
           if (sides.before === undefined && sides.after === undefined) return [];
           return [
             { node: id, before: sides.before ?? NO_SYMBOLS, after: sides.after ?? NO_SYMBOLS },
           ];
         }),
     );
-    const symbols = symbolChangesOf(sidedFiles.flat()).map(file => ({
+    const files = sidedFiles.flat();
+    const symbols = [
+      ...symbolChangesOf(files.filter(file => 'before' in file)),
+      ...files.filter(file => 'unreadable' in file),
+    ].map(file => ({
       ...file,
       stack: stackOf(file.node),
     }));
