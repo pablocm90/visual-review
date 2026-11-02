@@ -2,6 +2,21 @@
 
 What changed in each release of `@pablocm90/visual-review`, newest first. Versions follow [semver](https://semver.org); while it is 0.x, a minor version may change the exported types.
 
+## Unreleased
+
+### Added
+
+- One findings model: the review data's `findings` lists everything worth the reader's attention, each `{ id, dimension, level, target?, title, detail? }`, with a stable `id` (`<dimension>:<check>[:<target>]`). The review raises them for each threshold a file crosses at the head (`metrics`), the stacks not read and the changed files outside the graph (`structure`) and each file's calls with no route (`routes`); on the page, each note's flag is one more, needing a look.
+- A note takes an optional `dimension` (the same list, `structure` when left out), the dimension its flag's finding is filed under. Notes stay version 1.
+- Above the graph, a triage strip with a chip per dimension with findings, which filters Look first and the rail and dims the other badges, and a **Look first** band listing up to seven findings that need a look, ranked, with **Show all** opening the rail.
+- `GLOSSARY.md` defines finding, dimension, level, fact and Look first.
+
+### Changed
+
+- **Breaking for readers of the `.json`:** `metricFindings` is gone; its crossings are `findings` in the `metrics` dimension.
+- The findings rail groups the findings by dimension; its All / Notes / Metrics / Not drawn chips moved to the triage strip.
+- One badge per drawn node or edge names its findings, under the worst level, replacing the flag and no-route badges; the inspector's Note tab lists the selected part's findings in place of its "Flagged" and "No route for" headings.
+
 ## 0.6.0 — 2026-11-02
 
 ### Added
