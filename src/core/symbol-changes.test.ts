@@ -29,7 +29,7 @@ test('a symbol is paired by scope, name and kind: unchanged with the same text, 
 
 test('a symbol of the same name but another kind or scope is another symbol', () => {
   const before = read('function Order() {}', 'class Shop { open() {} }');
-  const after = read('interface Order {}', 'class Shop {}', 'class Till { open() {} }');
+  const after = read('interface Order {}', 'class Shop {}', 'class Till { open() { return 1; } }');
 
   expect(
     symbolChanges({ before, after }).symbols.map(
@@ -87,5 +87,62 @@ test("an edited symbol carries both signatures when its signature changed, and n
       signature: { base: '(amount: number)', head: '(amount: string)' },
     },
     { name: 'refund', kind: 'function', exported: { base: false, head: false }, change: 'edited' },
+  ]);
+});
+
+test('a symbol gone from the base and new at the head with the same kind and body is renamed', () => {
+  const before = read(
+    'export function charge(amount: number) { return amount * 2; }',
+    'const open = () => 1;',
+  );
+  const after = read(
+    'export function bill(amount: number) { return amount * 2; }',
+    'class Shop { static close = () => 1; }',
+  );
+
+  expect(symbolChanges({ before, after }).symbols).toEqual([
+    {
+      name: 'bill',
+      kind: 'function',
+      exported: { base: true, head: true },
+      change: 'renamed',
+      renamedFrom: 'charge',
+    },
+    { name: 'Shop', kind: 'class', exported: { head: false }, change: 'added' },
+    { name: 'close', scope: 'Shop', kind: 'method', exported: { head: false }, change: 'added' },
+    { name: 'open', kind: 'function', exported: { base: false }, change: 'removed' },
+  ]);
+});
+
+test("a renamed class's methods are renamed from its former name's, and a function moved in from the top from its bare name", () => {
+  const before = read('class Shop { open() { return 1; } }', 'const pick = () => 2;');
+  const after = read(
+    'class Till { open() { return 1; } }',
+    'function load() { const pick = () => 2; }',
+  );
+
+  expect(
+    symbolChanges({ before, after }).symbols.map(({ name, change, renamedFrom }) => [
+      name,
+      change,
+      renamedFrom,
+    ]),
+  ).toEqual([
+    ['Till', 'renamed', 'Shop'],
+    ['open', 'renamed', 'Shop.open'],
+    ['load', 'added', undefined],
+    ['pick', 'renamed', 'pick'],
+  ]);
+});
+
+test('a removed symbol with the body of a symbol kept by name is removed, not renamed', () => {
+  const before = read('function kept() { return 1; }', 'function twin() { return 1; }');
+  const after = read('function kept() { return 1; }');
+
+  expect(
+    symbolChanges({ before, after }).symbols.map(({ name, change }) => [name, change]),
+  ).toEqual([
+    ['kept', 'unchanged'],
+    ['twin', 'removed'],
   ]);
 });

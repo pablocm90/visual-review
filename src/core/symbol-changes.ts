@@ -1,6 +1,6 @@
 import type { FileSymbols, ReadSymbol, SymbolKind } from './reader.ts';
 
-export type SymbolChange = 'added' | 'removed' | 'edited' | 'formatting' | 'unchanged';
+export type SymbolChange = 'added' | 'removed' | 'edited' | 'renamed' | 'formatting' | 'unchanged';
 
 export type SymbolStatement = {
   readonly name: string;
@@ -9,6 +9,7 @@ export type SymbolStatement = {
   readonly exported: { readonly base?: boolean; readonly head?: boolean };
   readonly change: SymbolChange;
   readonly signature?: { readonly base: string; readonly head: string };
+  readonly renamedFrom?: string;
 };
 
 export type SymbolChanges = {
@@ -26,6 +27,9 @@ const sameSymbol = (one: ReadSymbol, other: ReadSymbol): boolean =>
 const named = ({ name, scope, kind }: ReadSymbol) =>
   scope === undefined ? { name, kind } : { name, scope, kind };
 
+const qualified = ({ scope, name }: ReadSymbol): string =>
+  scope === undefined ? name : `${scope}.${name}`;
+
 const changeOf = (old: ReadSymbol, symbol: ReadSymbol): SymbolChange => {
   if (old.textHash === symbol.textHash) return 'unchanged';
   return old.bodyHash === symbol.bodyHash && old.signatureHash === symbol.signatureHash
@@ -33,30 +37,57 @@ const changeOf = (old: ReadSymbol, symbol: ReadSymbol): SymbolChange => {
     : 'edited';
 };
 
-export const symbolChanges = ({ before, after }: SymbolChangesOptions): SymbolChanges => ({
-  symbols: [
-    ...after.symbols.map((symbol): SymbolStatement => {
-      const old = before.symbols.find(candidate => sameSymbol(candidate, symbol));
-      if (old === undefined) {
-        return { ...named(symbol), exported: { head: symbol.exported }, change: 'added' };
-      }
-      return {
-        ...named(symbol),
-        exported: { base: old.exported, head: symbol.exported },
-        change: changeOf(old, symbol),
-        ...(old.signatureHash === symbol.signatureHash
-          ? {}
-          : { signature: { base: old.signature, head: symbol.signature } }),
-      };
-    }),
-    ...before.symbols
-      .filter(symbol => !after.symbols.some(candidate => sameSymbol(candidate, symbol)))
-      .map(
-        (symbol): SymbolStatement => ({
-          ...named(symbol),
-          exported: { base: symbol.exported },
-          change: 'removed',
-        }),
-      ),
-  ],
+const isRenamed = (old: ReadSymbol, symbol: ReadSymbol): boolean =>
+  old.kind === symbol.kind && old.bodyHash === symbol.bodyHash;
+
+const pairedWith = (old: ReadSymbol, symbol: ReadSymbol): SymbolStatement => ({
+  ...named(symbol),
+  exported: { base: old.exported, head: symbol.exported },
+  change: changeOf(old, symbol),
+  ...(old.signatureHash === symbol.signatureHash
+    ? {}
+    : { signature: { base: old.signature, head: symbol.signature } }),
 });
+
+export const symbolChanges = ({ before, after }: SymbolChangesOptions): SymbolChanges => {
+  const removed = before.symbols.filter(
+    symbol => !after.symbols.some(candidate => sameSymbol(candidate, symbol)),
+  );
+  const partnerOf = (symbol: ReadSymbol) =>
+    before.symbols.find(candidate => sameSymbol(candidate, symbol));
+  const renames = new Map(
+    after.symbols
+      .filter(symbol => partnerOf(symbol) === undefined)
+      .flatMap(symbol => {
+        const former = removed.find(candidate => isRenamed(candidate, symbol));
+        return former === undefined ? [] : [[symbol, former] as const];
+      }),
+  );
+  const renamed = new Set(renames.values());
+  return {
+    symbols: [
+      ...after.symbols.map((symbol): SymbolStatement => {
+        const old = partnerOf(symbol);
+        if (old !== undefined) return pairedWith(old, symbol);
+        const former = renames.get(symbol);
+        if (former !== undefined) {
+          return {
+            ...pairedWith(former, symbol),
+            change: 'renamed',
+            renamedFrom: qualified(former),
+          };
+        }
+        return { ...named(symbol), exported: { head: symbol.exported }, change: 'added' };
+      }),
+      ...removed
+        .filter(symbol => !renamed.has(symbol))
+        .map(
+          (symbol): SymbolStatement => ({
+            ...named(symbol),
+            exported: { base: symbol.exported },
+            change: 'removed',
+          }),
+        ),
+    ],
+  };
+};
