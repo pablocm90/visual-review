@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import type { GraphDiff } from './diff-graphs.ts';
+import { DIMENSIONS } from './findings.ts';
 import { edgeId } from './graph.ts';
 import {
   boxesAboveIn,
@@ -33,6 +34,10 @@ const ReviewNotesSchema = z
           .strictObject({
             text: z.string(),
             flag: z.string().optional().describe('A short label for a structural concern'),
+            dimension: z
+              .enum(DIMENSIONS)
+              .optional()
+              .describe('What the flag is about; left out, structure'),
           })
           .readonly(),
       )

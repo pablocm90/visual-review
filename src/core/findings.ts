@@ -2,9 +2,11 @@ import type { FilePatch } from './diff-graphs.ts';
 import type { DanglingCall } from './linker.ts';
 import type { MetricFinding } from './metric-findings.ts';
 import { tenths } from './metrics.ts';
+import type { ReviewNotes } from './notes.ts';
+import type { PageData } from './page.ts';
 import { notReadLine, type Skipped } from './skipped.ts';
 
-const DIMENSIONS = [
+export const DIMENSIONS = [
   'structure',
   'logic',
   'api',
@@ -102,5 +104,19 @@ export const raisedFindings = ({
       target: finding.node,
       title: metricTitle(finding),
     }),
+  ),
+];
+
+type FindingsOfOptions = {
+  readonly data: Pick<PageData, 'findings'>;
+  readonly notes: ReviewNotes | undefined;
+};
+
+export const findingsOf = ({ data, notes }: FindingsOfOptions): ReadonlyArray<Finding> => [
+  ...data.findings,
+  ...Object.entries(notes?.notes ?? {}).flatMap(([id, { flag, dimension = 'structure' }]) =>
+    flag === undefined
+      ? []
+      : [{ id: `notes:${id}`, dimension, level: 'look' as const, target: id, title: flag }],
   ),
 ];
