@@ -123,6 +123,7 @@ const servedPage = async ({
         },
       ),
     exited,
+    signal: (signal: NodeJS.Signals) => child.kill(signal),
     [Symbol.dispose]: () => {
       child.kill();
       written[Symbol.dispose]();
@@ -304,6 +305,22 @@ test('serve that hears nothing from the page for its idle time exits non-zero sa
   });
   expect(existsSync(server.page.replace(/\.html$/, '.serve'))).toBe(false);
 });
+
+test.for(['SIGINT', 'SIGTERM'] as const)(
+  'serve stopped by %s exits non-zero saying no review was sent, leaving no lock',
+  async signal => {
+    using server = await servedPage();
+
+    server.signal(signal);
+
+    expect(await server.exited).toMatchObject({
+      code: 1,
+      stdout: '',
+      stderr: expect.stringContaining('No review sent'),
+    });
+    expect(existsSync(server.page.replace(/\.html$/, '.serve'))).toBe(false);
+  },
+);
 
 test('serve the page keeps pinging stays up past its idle time, and exits once the pings stop', async () => {
   using server = await servedPage({ idleMs: 1000 });

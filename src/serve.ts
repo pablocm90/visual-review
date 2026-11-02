@@ -110,16 +110,17 @@ export const servePage = async ({
   const host = `127.0.0.1:${port}`;
   const reviewFile = beside(page, 'review.json');
   const sent = Promise.withResolvers<string>();
-  const idle = setTimeout(() => {
+  const unsent = (reason: string) => () => {
     server.close();
-    sent.reject(new Error('No review sent: the page was not open in a tab'));
-  }, idleMs);
+    sent.reject(new Error(`No review sent: ${reason}`));
+  };
+  const idle = setTimeout(unsent('the page was not open in a tab'), idleMs);
+  const stopped = unsent('serve was stopped');
   server.on('request', async (request, response) => {
     const route = request.headers.host === host ? `${request.method} ${request.url}` : undefined;
     if (route === `POST /${token}/review`) {
       if (await tookReview({ request, response, reviewFile })) {
         server.close();
-        clearTimeout(idle);
         sent.resolve(reviewFile);
       }
       return;
@@ -143,8 +144,13 @@ export const servePage = async ({
   });
   await rm(lockFile, { force: true });
   await writeFile(lockFile, JSON.stringify({ pid: process.pid, port, token }), { mode: 0o600 });
+  process.once('SIGINT', stopped).once('SIGTERM', stopped);
   const url = urlOf({ port, token });
   console.error(`Serving ${url}`);
   openInBrowser(url);
-  return sent.promise.finally(() => rm(lockFile, { force: true }));
+  return sent.promise.finally(() => {
+    clearTimeout(idle);
+    process.off('SIGINT', stopped).off('SIGTERM', stopped);
+    return rm(lockFile, { force: true });
+  });
 };
