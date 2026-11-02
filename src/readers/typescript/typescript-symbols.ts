@@ -87,16 +87,35 @@ const UNHASHED = new Set([
   'innerComments',
 ]);
 
-const bodyHashOf = (node: Node, nested: ReadonlySet<unknown>): string =>
+type Replacer = (holder: unknown, key: string, value: unknown) => unknown;
+
+const hashOf = (value: unknown, replace: Replacer): string =>
   createHash('sha1')
     .update(
-      JSON.stringify(node, function (this: unknown, key: string, value: unknown) {
-        if (UNHASHED.has(key) || (this === node && (key === 'id' || key === 'key')))
-          return undefined;
-        return value !== node && nested.has(value) ? 'symbol' : value;
+      JSON.stringify(value, function (this: unknown, key: string, inner: unknown) {
+        return UNHASHED.has(key) ? undefined : replace(this, key, inner);
       }),
     )
     .digest('hex');
+
+const bodyHashOf = (node: Node, nested: ReadonlySet<unknown>): string =>
+  hashOf(node, (holder, key, value) => {
+    if (holder === node && (key === 'id' || key === 'key')) return undefined;
+    return value !== node && nested.has(value) ? 'symbol' : value;
+  });
+
+const signatureNodesOf = (node: Node): unknown => {
+  if (node.type === 'ClassDeclaration')
+    return [
+      node.abstract,
+      node.typeParameters,
+      node.superClass,
+      node.superTypeArguments,
+      node.implements,
+    ];
+  if (!isFunctionNode(node)) return node;
+  return [node.async, node.generator, node.typeParameters, node.params, node.returnType];
+};
 
 export const symbolsOfTypeScript = (text: string, path: string): FileSymbols => {
   const { program } = parseTypeScript(text, path);
@@ -108,6 +127,7 @@ export const symbolsOfTypeScript = (text: string, path: string): FileSymbols => 
       ...walked.symbol,
       exported: isExported(names, walked),
       signature: signatureOf(text, walked.node),
+      signatureHash: hashOf(signatureNodesOf(walked.node), (_holder, _key, value) => value),
       bodyHash: bodyHashOf(walked.node, nested),
     })),
   };

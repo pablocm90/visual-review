@@ -205,3 +205,78 @@ test.each([
 ])('bodies hash alike unless their logic changed: $change', ({ base, head, alike }) => {
   expect(bodiesAlike(base, head)).toEqual(alike);
 });
+
+const signaturesAlike = (base: ReadonlyArray<string>, head: ReadonlyArray<string>) => {
+  const heads = symbolsOfTypeScript(source(...head), 'src/shop.ts').symbols;
+  return symbolsOfTypeScript(source(...base), 'src/shop.ts').symbols.map(
+    ({ name, signatureHash }, index) => `${name} ${signatureHash === heads[index]?.signatureHash}`,
+  );
+};
+
+test.each([
+  {
+    change: 'rewrapped with separators and quotes',
+    base: [
+      "function charge(order: { id: string; kind: 'card' }) { return 1; }",
+      'interface Order { readonly id: string }',
+      'class Shop<T> extends Store<T> implements Open {}',
+    ],
+    head: [
+      'function charge(order: {',
+      '  id: string;',
+      '  kind: "card";',
+      '}) { return 2; }',
+      'interface Order {',
+      '  readonly id: string;',
+      '}',
+      'class Shop<T>',
+      '  extends Store<T>',
+      '  implements Open { open() {} }',
+    ],
+    alike: ['charge true', 'Order true', 'Shop true'],
+  },
+  {
+    change: 'changed',
+    base: [
+      'function charge(order: Order) {}',
+      'async function refund() {}',
+      'function* items() {}',
+      'function pick<T>(): T {}',
+      'function total(): string {}',
+      'class Shop<T> extends Store<T> {}',
+      'class Cart<T> {}',
+      'class Basket extends Store {}',
+      'class Bag extends Store<string> {}',
+      'abstract class Till {}',
+      'interface Order { readonly id: string }',
+    ],
+    head: [
+      'function charge(order: Order, retry: boolean) {}',
+      'function refund() {}',
+      'function items() {}',
+      'function pick<T, U>(): T {}',
+      'function total(): number {}',
+      'class Shop<T> extends Store<T> implements Open {}',
+      'class Cart<T, U> {}',
+      'class Basket extends Till {}',
+      'class Bag extends Store<number> {}',
+      'class Till {}',
+      'interface Order { readonly id: number }',
+    ],
+    alike: [
+      'charge false',
+      'refund false',
+      'items false',
+      'pick false',
+      'total false',
+      'Shop false',
+      'Cart false',
+      'Basket false',
+      'Bag false',
+      'Till false',
+      'Order false',
+    ],
+  },
+])('signatures hash alike unless their API changed: $change', ({ base, head, alike }) => {
+  expect(signaturesAlike(base, head)).toEqual(alike);
+});
