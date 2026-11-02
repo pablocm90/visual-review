@@ -84,6 +84,9 @@ const review = {
 const showEverything = (user: ReturnType<typeof userEvent.setup>) =>
   user.click(screen.getByRole('checkbox', { name: 'Changed + 1 hop' }));
 
+const openReview = (user: ReturnType<typeof userEvent.setup>) =>
+  user.click(screen.getByRole('button', { name: 'Review' }));
+
 const inspector = () => screen.getByRole('complementary', { name: 'Inspector' });
 
 const noteTab = () => screen.getByRole('tabpanel', { name: 'Note' });
@@ -154,17 +157,22 @@ test("the Note tab's comment field holds a comment per node or edge, kept while 
   expect(comment()).toHaveProperty('value', 'Why this way round?');
 });
 
-test("a served page's Send to Claude sends each comment under its node's id or its edge's, then says it was sent", async () => {
+test("a served page's Review button opens the review, whose Send to Claude sends each comment under its node's id or its edge's, then says it was sent", async () => {
   const user = userEvent.setup();
   const sent = vi.fn(async () => {});
   render(<ReviewPage review={pageWith(review)} send={sent} />);
   const comment = () => within(noteTab()).getByRole('textbox', { name: 'Your comment' });
+  const reviewButton = () => screen.getByRole('button', { name: 'Review' });
 
   const rust = await screen.findByRole('group', { name: 'rust' });
   await user.click(within(rust).getByRole('button', { name: 'domain: unchanged' }));
   await user.type(comment(), 'Keep domain free of IO.');
   await user.click(within(rust).getByRole('button', { name: 'application → domain: unchanged' }));
   await user.type(comment(), 'Why this way round?');
+  expect(reviewButton().getAttribute('aria-expanded')).toBe('false');
+  expect(screen.queryByRole('button', { name: 'Send to Claude' })).toBeNull();
+  await openReview(user);
+  expect(reviewButton().getAttribute('aria-expanded')).toBe('true');
   await user.click(screen.getByRole('button', { name: 'Send to Claude' }));
 
   expect(sent).toHaveBeenCalledExactlyOnceWith({
@@ -179,7 +187,7 @@ test("a served page's Send to Claude sends each comment under its node's id or i
   expect(screen.queryByRole('button', { name: 'Send to Claude' })).toBeNull();
 });
 
-test('the verdict picked beside Send to Claude goes with the review, Comment until another is picked', async () => {
+test('the verdict picked beside Send to Claude goes with the review, Comment until another is picked, and kept while the review is closed', async () => {
   const user = userEvent.setup();
   const sent = vi.fn(async () => {});
   render(<ReviewPage review={pageWith(review)} send={sent} />);
@@ -187,6 +195,7 @@ test('the verdict picked beside Send to Claude goes with the review, Comment unt
     within(screen.getByRole('radiogroup', { name: 'Verdict' })).getByRole('radio', { name });
 
   const rust = await screen.findByRole('group', { name: 'rust' });
+  await openReview(user);
   expect(verdict('Comment')).toHaveProperty('checked', true);
   await user.click(within(rust).getByRole('button', { name: 'domain: unchanged' }));
   await user.type(
@@ -194,6 +203,10 @@ test('the verdict picked beside Send to Claude goes with the review, Comment unt
     'Keep domain free of IO.',
   );
   await user.click(verdict('Request changes'));
+  await openReview(user);
+  expect(screen.queryByRole('radiogroup', { name: 'Verdict' })).toBeNull();
+  await openReview(user);
+  expect(verdict('Request changes')).toHaveProperty('checked', true);
   await user.click(screen.getByRole('button', { name: 'Send to Claude' }));
 
   expect(sent).toHaveBeenCalledExactlyOnceWith({
@@ -211,6 +224,7 @@ test('Send to Claude waits for a comment that is more than blanks, and sends no 
   const sendButton = () => screen.getByRole('button', { name: 'Send to Claude' });
 
   const rust = await screen.findByRole('group', { name: 'rust' });
+  await openReview(user);
   expect(sendButton()).toHaveProperty('disabled', true);
   await user.click(within(rust).getByRole('button', { name: 'domain: unchanged' }));
   await user.type(comment(), '  ');
@@ -234,26 +248,27 @@ test('an Approve can be sent with no comment', async () => {
   render(<ReviewPage review={pageWith(review)} send={sent} />);
 
   await screen.findByRole('group', { name: 'rust' });
+  await openReview(user);
   await user.click(screen.getByRole('radio', { name: 'Approve' }));
   await user.click(screen.getByRole('button', { name: 'Send to Claude' }));
 
   expect(sent).toHaveBeenCalledExactlyOnceWith({ version: 1, verdict: 'approve', comments: {} });
 });
 
-test('a page that is not served has no comment field and no Send to Claude', async () => {
+test('a page that is not served has no comment field and no Review button', async () => {
   const user = userEvent.setup();
   const { rerender } = render(<ReviewPage review={pageWith(review)} send={async () => {}} />);
   const comment = () => within(noteTab()).queryByRole('textbox', { name: 'Your comment' });
-  const sendButton = () => screen.queryByRole('button', { name: 'Send to Claude' });
+  const reviewButton = () => screen.queryByRole('button', { name: 'Review' });
 
   const rust = await screen.findByRole('group', { name: 'rust' });
   await user.click(within(rust).getByRole('button', { name: 'domain: unchanged' }));
   expect(comment()).not.toBeNull();
-  expect(sendButton()).not.toBeNull();
+  expect(reviewButton()).not.toBeNull();
 
   rerender(<ReviewPage review={pageWith(review)} />);
   expect(comment()).toBeNull();
-  expect(sendButton()).toBeNull();
+  expect(reviewButton()).toBeNull();
 });
 
 test('a send that fails says why and leaves Send to Claude to try again', async () => {
@@ -267,6 +282,7 @@ test('a send that fails says why and leaves Send to Claude to try again', async 
     within(noteTab()).getByRole('textbox', { name: 'Your comment' }),
     'Keep domain free of IO.',
   );
+  await openReview(user);
   await user.click(screen.getByRole('button', { name: 'Send to Claude' }));
 
   expect((await screen.findByRole('status', { name: 'Review' })).textContent).toBe(
