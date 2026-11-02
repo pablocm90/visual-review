@@ -858,13 +858,16 @@ const VERDICTS: ReadonlyArray<readonly [Review['verdict'], string]> = [
 const SendToClaude = ({ comments, send }: SendProps) => {
   const [verdict, setVerdict] = useState<Review['verdict']>('comment');
   const [open, setOpen] = useState(false);
+  const [body, setBody] = useState('');
   const [sent, setSent] = useState(false);
   const [problem, setProblem] = useState<string>();
   const written = Object.entries(comments).filter(([, text]) => text.trim() !== '');
+  const hasBody = body.trim() !== '';
   const sendComments = () =>
     send({
       version: 1,
       verdict,
+      ...(hasBody ? { body } : {}),
       comments: Object.fromEntries(written.map(([id, text]) => [id, { text }])),
     }).then(
       () => setSent(true),
@@ -893,6 +896,10 @@ const SendToClaude = ({ comments, send }: SendProps) => {
                   {problem}
                 </p>
               )}
+              <label>
+                General comment
+                <textarea value={body} onChange={event => setBody(event.target.value)} />
+              </label>
               <div role="radiogroup" aria-label="Verdict" className="verdict">
                 {VERDICTS.map(([value, label]) => (
                   <label key={value}>
@@ -908,7 +915,7 @@ const SendToClaude = ({ comments, send }: SendProps) => {
               </div>
               <button
                 type="button"
-                disabled={verdict !== 'approve' && written.length === 0}
+                disabled={verdict !== 'approve' && written.length === 0 && !hasBody}
                 onClick={sendComments}
               >
                 Send to Claude

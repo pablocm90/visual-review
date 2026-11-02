@@ -226,6 +226,8 @@ test('Send to Claude waits for a comment that is more than blanks, and sends no 
   const rust = await screen.findByRole('group', { name: 'rust' });
   await openReview(user);
   expect(sendButton()).toHaveProperty('disabled', true);
+  await user.type(screen.getByRole('textbox', { name: 'General comment' }), '  ');
+  expect(sendButton()).toHaveProperty('disabled', true);
   await user.click(within(rust).getByRole('button', { name: 'domain: unchanged' }));
   await user.type(comment(), '  ');
   expect(sendButton()).toHaveProperty('disabled', true);
@@ -239,6 +241,27 @@ test('Send to Claude waits for a comment that is more than blanks, and sends no 
     comments: {
       'rust/crate/application -> rust/crate/domain': { text: 'Why this way round?' },
     },
+  });
+});
+
+test('the general comment goes with the review as its body, and alone lets a Comment be sent', async () => {
+  const user = userEvent.setup();
+  const sent = vi.fn(async () => {});
+  render(<ReviewPage review={pageWith(review)} send={sent} />);
+
+  await screen.findByRole('group', { name: 'rust' });
+  await openReview(user);
+  await user.type(
+    screen.getByRole('textbox', { name: 'General comment' }),
+    'Ship it once the fetch moves.',
+  );
+  await user.click(screen.getByRole('button', { name: 'Send to Claude' }));
+
+  expect(sent).toHaveBeenCalledExactlyOnceWith({
+    version: 1,
+    verdict: 'comment',
+    body: 'Ship it once the fetch moves.',
+    comments: {},
   });
 });
 
