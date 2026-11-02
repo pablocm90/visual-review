@@ -1,7 +1,7 @@
 import { spawn } from 'node:child_process';
 import { randomBytes } from 'node:crypto';
 import { once } from 'node:events';
-import { readFile, writeFile } from 'node:fs/promises';
+import { readFile, rm, writeFile } from 'node:fs/promises';
 import { createServer, type ServerResponse } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { basename, dirname, join } from 'node:path';
@@ -115,7 +115,8 @@ export const servePage = async ({
       })
       .end(html);
   });
-  await writeFile(lockFile, JSON.stringify({ pid: process.pid, port, token }));
+  await rm(lockFile, { force: true });
+  await writeFile(lockFile, JSON.stringify({ pid: process.pid, port, token }), { mode: 0o600 });
   const url = urlOf({ port, token });
   console.error(`Serving ${url}`);
   openInBrowser(url);

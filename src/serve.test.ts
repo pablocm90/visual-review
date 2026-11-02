@@ -1,6 +1,14 @@
 import { type ChildProcess, execFile, spawn } from 'node:child_process';
 import { once } from 'node:events';
-import { chmodSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import {
+  chmodSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  statSync,
+  writeFileSync,
+} from 'node:fs';
 import { request } from 'node:http';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -326,4 +334,13 @@ test.for([
   using server = await servedPage({ lock: await written() });
 
   expect((await fetch(server.url)).status).toBe(200);
+});
+
+test('the lock holding the token is readable by its owner only, even when it replaces one anyone could read', async () => {
+  using server = await servedPage({
+    lock: JSON.stringify({ pid: await endedPid(), port: 9, token: 'ended' }),
+  });
+  const lockFile = server.page.replace(/\.html$/, '.serve');
+
+  expect(statSync(lockFile).mode & 0o777).toBe(0o600);
 });
