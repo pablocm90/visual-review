@@ -6,6 +6,7 @@ import { z } from 'zod';
 import { folderOf, type StackSettings } from '../../core/config.ts';
 import type { CandidateRoot, Reader } from '../../core/reader.ts';
 import { measureTypeScript } from './typescript-measure.ts';
+import { symbolsOfTypeScript } from './typescript-symbols.ts';
 import { readTypeScriptTests } from './typescript-tests.ts';
 import { webGraph } from './web-graph.ts';
 
@@ -140,4 +141,5 @@ export const typeScriptReader: Reader = {
   isTestFile: path => TEST_FILE.test(path),
   readTests: readTypeScriptTests,
   measure: (text, path) => (TEST_FILE.test(path) ? undefined : measureTypeScript(text, path)),
+  symbols: (text, path) => (TEST_FILE.test(path) ? undefined : symbolsOfTypeScript(text, path)),
 };

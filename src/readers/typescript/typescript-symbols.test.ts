@@ -1,4 +1,5 @@
 import { expect, test } from 'vitest';
+import { typeScriptReader } from './reader.ts';
 import { symbolsOfTypeScript } from './typescript-symbols.ts';
 
 const source = (...lines: ReadonlyArray<string>) => lines.join('\n');
@@ -435,4 +436,11 @@ test.each([
   },
 ])('a file hashes alike unless its logic changed: $change', ({ base, head, alike }) => {
   expect(filesAlike(base, head)).toBe(alike);
+});
+
+test("the TS reader reads a source file's symbols, and none of a test file's", () => {
+  const read = (path: string) =>
+    typeScriptReader.symbols?.('export const charge = () => 1;', path)?.exports;
+
+  expect([read('src/shop.ts'), read('src/shop.test.ts')]).toEqual([['charge'], undefined]);
 });
