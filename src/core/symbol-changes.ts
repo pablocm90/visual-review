@@ -49,6 +49,12 @@ const pairedWith = (old: ReadSymbol, symbol: ReadSymbol): SymbolStatement => ({
     : { signature: { base: old.signature, head: symbol.signature } }),
 });
 
+type Rename = readonly [symbol: ReadSymbol, former: ReadSymbol];
+
+const byNames = ([symbol, former]: Rename, [other, otherFormer]: Rename): number =>
+  qualified(symbol).localeCompare(qualified(other)) ||
+  qualified(former).localeCompare(qualified(otherFormer));
+
 export const symbolChanges = ({ before, after }: SymbolChangesOptions): SymbolChanges => {
   const removed = before.symbols.filter(
     symbol => !after.symbols.some(candidate => sameSymbol(candidate, symbol)),
@@ -58,10 +64,19 @@ export const symbolChanges = ({ before, after }: SymbolChangesOptions): SymbolCh
   const renames = new Map(
     after.symbols
       .filter(symbol => partnerOf(symbol) === undefined)
-      .flatMap(symbol => {
-        const former = removed.find(candidate => isRenamed(candidate, symbol));
-        return former === undefined ? [] : [[symbol, former] as const];
-      }),
+      .flatMap(symbol =>
+        removed
+          .filter(former => isRenamed(former, symbol))
+          .map(former => [symbol, former] as const),
+      )
+      .toSorted(byNames)
+      .reduce<ReadonlyArray<Rename>>(
+        (taken, [symbol, former]) =>
+          taken.some(([head, base]) => head === symbol || base === former)
+            ? taken
+            : taken.concat([[symbol, former]]),
+        [],
+      ),
   );
   const renamed = new Set(renames.values());
   return {

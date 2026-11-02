@@ -146,3 +146,34 @@ test('a removed symbol with the body of a symbol kept by name is removed, not re
     ['twin', 'removed'],
   ]);
 });
+
+test('renames pair one to one, equal candidates by name', () => {
+  const before = read(
+    'function b() { return 1; }',
+    'function a() { return 1; }',
+    'function h() { return 3; }',
+    'function i() { return 3; }',
+    'function e() { return 2; }',
+  );
+  const after = read(
+    'function c() { return 1; }',
+    'function d() { return 1; }',
+    'function k() { return 3; }',
+    'function j() { return 3; }',
+    'function f() { return 2; }',
+    'function g() { return 2; }',
+  );
+
+  expect(
+    symbolChanges({ before, after }).symbols.map(({ name, change, renamedFrom }) =>
+      [name, change, renamedFrom].join(' '),
+    ),
+  ).toEqual([
+    'c renamed a',
+    'd renamed b',
+    'k renamed i',
+    'j renamed h',
+    'f renamed e',
+    'g added ',
+  ]);
+});
