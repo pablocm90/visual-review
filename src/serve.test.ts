@@ -6,9 +6,10 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { createInterface } from 'node:readline';
 import { text } from 'node:stream/consumers';
+import { setTimeout as delay } from 'node:timers/promises';
 import { promisify } from 'node:util';
 import { expect, test, vi } from 'vitest';
-import { sendReview } from './core/page.ts';
+import { pingServe, sendReview } from './core/page.ts';
 
 const fakeOpeners = (openers: ReadonlyArray<string>) => {
   const bin = mkdtempSync(join(tmpdir(), 'visual-review-opener-'));
@@ -266,4 +267,17 @@ test('serve that hears nothing from the page for its idle time exits non-zero sa
     stdout: '',
     stderr: expect.stringContaining('No review sent'),
   });
+});
+
+test('serve the page keeps pinging stays up past its idle time, and exits once the pings stop', async () => {
+  using server = await servedPage({ idleMs: 1000 });
+  const { origin, pathname } = new URL(server.url);
+
+  for (const _ping of [1, 2, 3, 4]) {
+    await delay(300);
+    await pingServe({ origin, token: pathname.slice(1) });
+  }
+
+  expect(await statusFor({ url: server.url })).toBe(200);
+  expect(await server.exited).toMatchObject({ code: 1 });
 });

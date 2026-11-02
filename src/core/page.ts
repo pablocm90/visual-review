@@ -161,6 +161,15 @@ export const servedPageHtml = ({ page, token, version }: ServedPageHtmlOptions):
   return filledSlot(page, SERVE_SLOT, token);
 };
 
+type PingServeOptions = {
+  readonly origin: string;
+  readonly token: string;
+};
+
+export const pingServe = async ({ origin, token }: PingServeOptions): Promise<void> => {
+  await fetch(`${origin}/${token}/ping`, { method: 'POST' });
+};
+
 type SendReviewOptions = {
   readonly origin: string;
   readonly token: string;

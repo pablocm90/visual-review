@@ -65,6 +65,11 @@ export const servePage = async ({ page, version, idleMs }: ServePageOptions): Pr
       sent.resolve(reviewFile);
       return;
     }
+    if (route === `POST /${token}/ping`) {
+      idle.refresh();
+      response.writeHead(204).end();
+      return;
+    }
     if (route !== `GET /${token}`) {
       response.writeHead(403).end();
       return;
