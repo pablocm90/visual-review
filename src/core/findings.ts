@@ -1,3 +1,4 @@
+import type { FilePatch } from './diff-graphs.ts';
 import type { MetricFinding } from './metric-findings.ts';
 import { tenths } from './metrics.ts';
 import { notReadLine, type Skipped } from './skipped.ts';
@@ -47,13 +48,18 @@ const metricTitle = (finding: MetricFinding) => {
   return `hotspot, churn ${move(base?.churn, head.churn)} and cyclomatic ${move(base?.cyclomatic, head.cyclomatic)}, over ${threshold.churn} and ${threshold.cyclomatic}`;
 };
 
+const counted = (count: number, one: string, many: string) =>
+  `${count} ${count === 1 ? one : many}`;
+
 type RaisedOptions = {
   readonly skipped: ReadonlyArray<Skipped>;
+  readonly undrawn: ReadonlyArray<FilePatch>;
   readonly metricFindings: ReadonlyArray<MetricFinding>;
 };
 
 export const raisedFindings = ({
   skipped,
+  undrawn,
   metricFindings,
 }: RaisedOptions): ReadonlyArray<Finding> => [
   ...skipped.map(
@@ -64,6 +70,17 @@ export const raisedFindings = ({
       title: notReadLine(skip),
     }),
   ),
+  ...(undrawn.length === 0
+    ? []
+    : [
+        {
+          id: 'structure:undrawn',
+          dimension: 'structure' as const,
+          level: 'info' as const,
+          title: `${counted(undrawn.length, 'changed file', 'changed files')} outside the graph`,
+          detail: undrawn.map(patch => patch.path).join(', '),
+        },
+      ]),
   ...metricFindings.map(
     (finding): Finding => ({
       id: `metrics:${finding.metric}:${finding.node}`,

@@ -55,6 +55,7 @@ export const pageData = ({
     diff.nodes.some(node => isAtOrUnder(path, node));
   const metrics = nodeMetrics({ diff, ...reading });
   const raised = metricFindings({ metrics, thresholds: reading.thresholds });
+  const undrawn = reading.patches.filter(patch => !isDrawn(patch));
   return {
     repo,
     range,
@@ -63,10 +64,10 @@ export const pageData = ({
     diff,
     metrics,
     metricFindings: raised,
-    findings: raisedFindings({ skipped: reading.skipped, metricFindings: raised }),
+    findings: raisedFindings({ skipped: reading.skipped, undrawn, metricFindings: raised }),
     dangling: reading.danglingCalls,
     patches: reading.patches.filter(isDrawn),
-    undrawn: reading.patches.filter(patch => !isDrawn(patch)),
+    undrawn,
     tests: reading.tests,
     skipped: reading.skipped,
     thresholds: reading.thresholds,

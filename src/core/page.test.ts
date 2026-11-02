@@ -73,7 +73,7 @@ test("a reading's page data holds its diff, its dangling calls and test files, t
     },
     metrics: {},
     metricFindings: [],
-    findings: [],
+    findings: expect.any(Array),
     dangling: [{ from: 'web/file/a.ts', path: '/api/x' }],
     patches: [patch('web/src/a.ts')],
     undrawn: [patch('README.md')],
@@ -100,6 +100,26 @@ test("a pull request's page data names it, and lists the stacks a missing tool k
 });
 
 const version = '1.2.3';
+
+test.for([
+  { paths: ['README.md'], title: '1 changed file outside the graph' },
+  { paths: ['README.md', 'docs/x.md'], title: '2 changed files outside the graph' },
+])(
+  'changed files outside the graph are one structure finding for information, listing them: $title',
+  ({ paths, title }) => {
+    const reading = readingWith({ patches: [patch('web/src/a.ts'), ...paths.map(patch)] });
+
+    expect(pageData({ repo: 'shop', reading, range: 'a..b', version }).findings).toStrictEqual([
+      {
+        id: 'structure:undrawn',
+        dimension: 'structure',
+        level: 'info',
+        title,
+        detail: paths.join(', '),
+      },
+    ]);
+  },
+);
 
 test('stacks a missing tool kept from being read are a structure finding to look at, on no node', () => {
   const skipped = [{ reader: 'rust' as const, tool: 'cargo', stacks: ['api', 'worker'] }];
