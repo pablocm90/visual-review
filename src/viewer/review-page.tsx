@@ -10,7 +10,7 @@ import {
 } from 'react';
 import type { FilePatch, GraphDiff } from '../core/diff-graphs.ts';
 import { isAtOrUnder } from '../core/diff-graphs.ts';
-import { findingsOf } from '../core/findings.ts';
+import { type Dimension, findingsOf } from '../core/findings.ts';
 import { edgeId } from '../core/graph.ts';
 import { type MetricFinding, metricFindings } from '../core/metric-findings.ts';
 import type { NodeMetrics } from '../core/metrics.ts';
@@ -28,7 +28,7 @@ import {
   visibleNodeOf,
 } from '../core/visible-diff.ts';
 import { ColourBy, type Colouring, ScaleLegend, type Shade, shadeOf } from './colour-by.tsx';
-import { FindingsRail } from './findings-rail.tsx';
+import { FindingsRail, TriageStrip } from './findings-rail.tsx';
 import { highlightPatch, type PatchLine as Line, type Piece } from './highlight-patch.ts';
 import {
   type Layout,
@@ -1009,6 +1009,8 @@ export const ReviewPage = ({ review, notes, send }: ReviewPageProps) => {
   const noted = useMemo(() => new Set(Object.keys(notes?.notes ?? {})), [notes]);
   const [nearOnly, setNearOnly] = useState(true);
   const [colouring, setColouring] = useState<Colouring>('change');
+  const [picked, setPicked] = useState<Dimension>();
+  const findings = findingsOf({ data: review, notes });
   const drawn = useMemo(() => {
     const atExpansion = drawnAt({ diff: review.diff, expanded, noted, allEdges });
     return nearOnly ? nearChanges(atExpansion) : atExpansion;
@@ -1101,13 +1103,15 @@ export const ReviewPage = ({ review, notes, send }: ReviewPageProps) => {
           </div>
           <div className="columns">
             <FindingsRail
-              findings={findingsOf({ data: review, notes })}
+              findings={findings}
+              picked={picked}
               review={review}
               onGoTo={goTo}
               onShowOutside={showOutside}
             />
             <div className="content">
               {notes && notes.summary.length > 0 && <Summary notes={notes} onGoTo={goTo} />}
+              <TriageStrip findings={findings} picked={picked} onPick={setPicked} />
               <div className="graph-controls">
                 <ColourBy colouring={colouring} onPick={setColouring} />
                 <div className="graph-filters">

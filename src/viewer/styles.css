@@ -1015,14 +1015,16 @@ pre .hljs-emphasis {
   font-size: 12px;
 }
 
-.rail-chips {
-  grid-column: 1 / -1;
+.triage {
   display: flex;
   flex-wrap: wrap;
   gap: 6px;
 }
 
 .chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
   min-height: 32px;
   padding: 0 10px;
   border: 1px solid var(--stack-line);

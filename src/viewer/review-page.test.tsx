@@ -1253,7 +1253,7 @@ test('the summary lists its items, not the flagged notes, and an item with a tar
   expect(screen.queryByRole('region', { name: 'Summary' })).toBeNull();
 });
 
-test("the findings rail starts collapsed to their total and how many need a look or are for information, notes' flags among them; opened, it groups them by dimension, each line its title and its target, else its detail, and hides again", async () => {
+test("the findings rail starts collapsed to their total and how many need a look or are for information, notes' flags among them; opened, it groups them by dimension, each line its title and its target, else its detail, and hides again; the triage strip has a chip per dimension with findings, marked when one needs a look, that filters the rail until clicked again, and none without findings", async () => {
   const user = userEvent.setup();
   const { rerender } = render(
     <ReviewPage
@@ -1328,30 +1328,25 @@ test("the findings rail starts collapsed to their total and how many need a look
   ]);
   expect(lines('Routes')).toEqual(['cli-adapter: 2 calls with no route']);
 
-  const chips = within(screen.getByRole('group', { name: 'Show findings' }));
-  const pressed = () =>
-    chips
+  const strip = () => within(screen.getByRole('group', { name: 'Triage' }));
+  const chips = () =>
+    strip()
       .getAllByRole('button')
-      .map(chip => `${chip.textContent} ${chip.getAttribute('aria-pressed')}`);
-  expect(pressed()).toEqual([
-    'All 6 true',
-    'Structure 3 false',
-    'Metrics 2 false',
-    'Routes 1 false',
-  ]);
+      .map(
+        chip =>
+          `${chip.textContent}${within(chip).queryByRole('img', { name: 'needs a look' }) ? ' ▲' : ''} ${chip.getAttribute('aria-pressed')}`,
+      );
+  expect(chips()).toEqual(['Structure 3 ▲ false', 'Metrics 2 ▲ false', 'Routes 1 false']);
   const headings = () =>
     within(screen.getByRole('complementary', { name: 'Findings' }))
       .getAllByRole('heading', { level: 3 })
       .map(heading => heading.textContent);
-  await user.click(chips.getByRole('button', { name: 'Metrics 2' }));
-  expect(pressed()).toEqual([
-    'All 6 false',
-    'Structure 3 false',
-    'Metrics 2 true',
-    'Routes 1 false',
-  ]);
+  const metricsChip = () => strip().getByRole('button', { name: /Metrics/ });
+  await user.click(metricsChip());
+  expect(chips()).toEqual(['Structure 3 ▲ false', 'Metrics 2 ▲ true', 'Routes 1 false']);
   expect(headings()).toEqual(['Metrics']);
-  await user.click(chips.getByRole('button', { name: 'All 6' }));
+  await user.click(metricsChip());
+  expect(chips()).toEqual(['Structure 3 ▲ false', 'Metrics 2 ▲ false', 'Routes 1 false']);
   expect(headings()).toEqual(['Structure', 'Metrics', 'Routes']);
   await user.click(screen.getByRole('button', { name: 'Hide findings' }));
 
@@ -1366,6 +1361,11 @@ test("the findings rail starts collapsed to their total and how many need a look
   expect(within(rail()).getByRole('button', { name: 'Show 1 finding' })).toBeDefined();
   expect(countBy('needs a look')).toBe('0');
   expect(await groupsShown()).toEqual(['Metrics']);
+  expect(chips()).toEqual(['Metrics 1 false']);
+
+  rerender(<ReviewPage review={pageWith({ ...review, findings: [] })} />);
+  expect(within(rail()).getByRole('button', { name: 'Show 0 findings' })).toBeDefined();
+  expect(screen.queryByRole('group', { name: 'Triage' })).toBeNull();
 });
 
 test("a note's or a metric finding in the rail goes to its node or edge as the summary's links do", async () => {

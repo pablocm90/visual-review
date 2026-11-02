@@ -7,6 +7,7 @@ import { LevelMark } from './finding-display.tsx';
 
 type FindingsRailProps = {
   readonly findings: ReadonlyArray<Finding>;
+  readonly picked: Dimension | undefined;
   readonly review: Pick<PageData, 'diff' | 'skipped'>;
   readonly onGoTo: (id: string) => void;
   readonly onShowOutside: (opener: HTMLButtonElement) => void;
@@ -22,6 +23,7 @@ type Line = {
 };
 
 type Group = {
+  readonly dimension: Dimension;
   readonly name: string;
   readonly findings: ReadonlyArray<Line>;
 };
@@ -54,6 +56,7 @@ const groupsOf = ({
     };
   };
   return DIMENSIONS.map(dimension => ({
+    dimension,
     name: nameOf(dimension),
     findings: findings.filter(finding => finding.dimension === dimension).map(lineOf),
   }));
@@ -86,7 +89,6 @@ const FindingItem = ({ finding }: { readonly finding: Line }) => {
 
 export const FindingsRail = (props: FindingsRailProps) => {
   const [open, setOpen] = useState(false);
-  const [picked, setPicked] = useState<string>();
   const toggled = useRef(false);
   const toggle = (opening: boolean) => {
     toggled.current = true;
@@ -101,10 +103,6 @@ export const FindingsRail = (props: FindingsRailProps) => {
   const levels: ReadonlyArray<Level> = groups.flatMap(group =>
     group.findings.map(finding => finding.level),
   );
-  const chips = [
-    { chip: 'All', pick: undefined, count: levels.length },
-    ...groups.map(group => ({ chip: group.name, pick: group.name, count: group.findings.length })),
-  ];
   const counted = (level: Level) => (
     <span className="findings-count">
       <LevelMark level={level} />
@@ -128,21 +126,8 @@ export const FindingsRail = (props: FindingsRailProps) => {
         >
           ‹
         </button>
-        <div className="rail-chips" role="group" aria-label="Show findings">
-          {chips.map(({ chip, pick, count }) => (
-            <button
-              key={chip}
-              className="chip"
-              type="button"
-              aria-pressed={pick === picked}
-              onClick={() => setPicked(pick)}
-            >
-              {`${chip} ${count}`}
-            </button>
-          ))}
-        </div>
         {groups
-          .filter(group => picked === undefined || group.name === picked)
+          .filter(group => props.picked === undefined || group.dimension === props.picked)
           .map(group => (
             <section key={group.name} aria-label={group.name}>
               <h3>{group.name}</h3>
@@ -175,5 +160,35 @@ export const FindingsRail = (props: FindingsRailProps) => {
       {counted('look')}
       {counted('info')}
     </nav>
+  );
+};
+
+type TriageStripProps = {
+  readonly findings: ReadonlyArray<Finding>;
+  readonly picked: Dimension | undefined;
+  readonly onPick: (dimension: Dimension | undefined) => void;
+};
+
+export const TriageStrip = ({ findings, picked, onPick }: TriageStripProps) => {
+  const chips = DIMENSIONS.map(dimension => ({
+    dimension,
+    found: findings.filter(finding => finding.dimension === dimension),
+  })).filter(({ found }) => found.length > 0);
+  if (chips.length === 0) return null;
+  return (
+    <div className="triage" role="group" aria-label="Triage">
+      {chips.map(({ dimension, found }) => (
+        <button
+          key={dimension}
+          className="chip"
+          type="button"
+          aria-pressed={dimension === picked}
+          onClick={() => onPick(dimension === picked ? undefined : dimension)}
+        >
+          {found.some(finding => finding.level === 'look') && <LevelMark level="look" />}
+          {`${nameOf(dimension)} ${found.length}`}
+        </button>
+      ))}
+    </div>
   );
 };
