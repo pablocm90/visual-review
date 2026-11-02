@@ -30,7 +30,7 @@ export type FileMeasures = {
   readonly functions: ReadonlyArray<FunctionMeasures>;
 };
 
-export type SymbolKind = 'function' | 'method';
+export type SymbolKind = 'function' | 'method' | 'class' | 'type';
 
 export type ReadSymbol = {
   readonly name: string;

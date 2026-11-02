@@ -122,8 +122,9 @@ test('an anonymous function no function holds is named by the declaration, assig
       'const Button = forwardRef((props, ref) => { items.forEach(item => {}); });',
       'exports.GET = withAuth(async req => {});',
       'export default memo(() => {});',
+      'export default class { handler = withAuth(() => {}); }',
     ),
-  ).toEqual(['Button', 'exports.GET', 'default']);
+  ).toEqual(['Button', 'exports.GET', 'default', 'default']);
 });
 
 const cyclomaticOf = (body: string, params = '') =>

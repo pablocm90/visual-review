@@ -100,40 +100,56 @@ const kindOf = (node: Node): SymbolKind => (METHODS.has(node.type) ? 'method' : 
 const qualified = (scope: string | undefined, name: string): string =>
   scope === undefined ? name : `${scope}.${name}`;
 
-const scopeNameOf = (text: string, node: Node): string | undefined => {
-  if (node.type === 'ClassDeclaration' && node.id) return sourceOf(text, node.id);
-  return node.type === 'VariableDeclarator' && node.init?.type === 'ObjectExpression'
-    ? sourceOf(text, node.id)
+type OwnSymbol = { readonly name: string; readonly kind: SymbolKind; readonly node: Node };
+
+const TYPES = new Set(['TSTypeAliasDeclaration', 'TSInterfaceDeclaration', 'TSEnumDeclaration']);
+
+const declaredSymbol = (text: string, node: Node): OwnSymbol | undefined => {
+  if (node.type === 'ClassDeclaration')
+    return { name: node.id ? sourceOf(text, node.id) : 'default', kind: 'class', node };
+  return TYPES.has(node.type) && 'id' in node && node.id
+    ? { name: sourceOf(text, node.id), kind: 'type', node }
     : undefined;
 };
 
-const placeOf = (text: string, node: Node, own: OwnFunction | undefined, scope: Scope) => {
-  const name = own?.name ?? scopeNameOf(text, node);
-  return name === undefined ? scope.scope : qualified(scope.scope, name);
+const ownSymbol = (text: string, node: Node, holder: string | undefined) => {
+  const own = ownFunction(text, node) ?? heldFunction(node, holder);
+  return own === undefined
+    ? declaredSymbol(text, node)
+    : { name: own.name, kind: kindOf(node), node: own.fn };
 };
 
-const symbolOf = (node: Node, own: OwnFunction, scope: string | undefined): WalkedSymbol => ({
-  symbol: { name: own.name, kind: kindOf(node), ...(scope === undefined ? {} : { scope }) },
-  node: own.fn,
+const objectNameOf = (text: string, node: Node): string | undefined =>
+  node.type === 'VariableDeclarator' && node.init?.type === 'ObjectExpression'
+    ? sourceOf(text, node.id)
+    : undefined;
+
+export const isFunction = ({ kind }: { readonly kind: SymbolKind }): boolean =>
+  kind === 'function' || kind === 'method';
+
+const symbolOf = ({ name, kind, node }: OwnSymbol, scope: string | undefined): WalkedSymbol => ({
+  symbol: { name, kind, ...(scope === undefined ? {} : { scope }) },
+  node,
 });
 
-const functionsUnder = (text: string, node: Node, scope: Scope): ReadonlyArray<WalkedSymbol> => {
-  const own = ownFunction(text, node) ?? heldFunction(node, scope.holder);
-  const place = placeOf(text, node, own, scope);
+const symbolsUnder = (text: string, node: Node, scope: Scope): ReadonlyArray<WalkedSymbol> => {
+  const own = ownSymbol(text, node, scope.holder);
+  const name = own?.name ?? objectNameOf(text, node);
+  const place = name === undefined ? scope.scope : qualified(scope.scope, name);
   const inner = childrenOf(node).flatMap(child =>
-    functionsUnder(
+    symbolsUnder(
       text,
       child,
-      own !== undefined || scope.inFunction
+      (own !== undefined && isFunction(own)) || scope.inFunction
         ? { inFunction: true, holder: undefined, scope: place }
         : { inFunction: false, holder: holderOf(text, node) ?? scope.holder, scope: place },
     ),
   );
-  return own === undefined ? inner : [symbolOf(node, own, scope.scope), ...inner];
+  return own === undefined ? inner : [symbolOf(own, scope.scope), ...inner];
 };
 
-export const functionsIn = (text: string, program: Node): ReadonlyArray<WalkedSymbol> =>
-  functionsUnder(text, program, { inFunction: false, holder: undefined, scope: undefined });
+export const symbolsIn = (text: string, program: Node): ReadonlyArray<WalkedSymbol> =>
+  symbolsUnder(text, program, { inFunction: false, holder: undefined, scope: undefined });
 
 export const parseTypeScript = (text: string, path: string) =>
   parse(text, { sourceType: 'module', plugins: pluginsFor(path), tokens: true });
