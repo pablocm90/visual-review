@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import type { DiffedNode } from '../core/diff-graphs.ts';
-import type { MetricFinding } from '../core/metric-findings.ts';
+import { type MetricFinding, metricFindings } from '../core/metric-findings.ts';
 import {
   type MeasuredLeaf,
   measuredLeaves,
@@ -9,8 +9,9 @@ import {
 } from '../core/metric-rows.ts';
 import { metricTotals } from '../core/metric-totals.ts';
 import type { NodeMeasures } from '../core/metrics.ts';
+import { tenths } from '../core/metrics.ts';
 import type { PageData } from '../core/page.ts';
-import { LevelMark, signed, tenths } from './finding-display.tsx';
+import { LevelMark, signed } from './finding-display.tsx';
 import { HotspotChart } from './hotspot-chart.tsx';
 
 const SORTS: ReadonlyArray<readonly [SortKey, string]> = [
@@ -315,7 +316,7 @@ export const MetricsScreen = ({ review, onGoTo }: MetricsScreenProps) => {
         <>
           <LeafTable
             leaves={leaves}
-            findings={review.metricFindings}
+            findings={metricFindings(review)}
             churnDays={review.churnDays}
             labelOf={stack => review.diff.nodes.find(({ id }) => id === stack)?.label ?? stack}
             onGoTo={onGoTo}

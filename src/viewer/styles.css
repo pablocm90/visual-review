@@ -1015,14 +1015,16 @@ pre .hljs-emphasis {
   font-size: 12px;
 }
 
-.rail-chips {
-  grid-column: 1 / -1;
+.triage {
   display: flex;
   flex-wrap: wrap;
   gap: 6px;
 }
 
 .chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
   min-height: 32px;
   padding: 0 10px;
   border: 1px solid var(--stack-line);
@@ -1813,4 +1815,82 @@ pre .hljs-emphasis {
   font: inherit;
   font-weight: 400;
   resize: vertical;
+}
+
+.triage {
+  margin-bottom: 8px;
+}
+
+.look-first {
+  margin-bottom: 8px;
+  padding: 6px 12px;
+  border: 1px solid var(--stack-line);
+  border-radius: 8px;
+  background: var(--stack);
+}
+
+.look-first-title {
+  margin: 0;
+  font-size: 13px;
+}
+
+.look-first ul {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+  gap: 0 16px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.look-first .finding {
+  padding: 2px 0;
+  align-items: center;
+}
+
+.look-first .finding button,
+.look-first .finding-said {
+  flex-direction: row;
+  align-items: baseline;
+  gap: 8px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.look-first-toggle,
+.show-all {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+
+.show-all {
+  font-size: 12.5px;
+  text-decoration: underline;
+}
+
+.flag-badge[data-level="info"] circle {
+  fill: var(--muted);
+}
+
+.flag-badge[data-outside="true"] {
+  opacity: 0.35;
+}
+
+.note-findings {
+  margin: 0 0 12px;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-weight: 600;
+}
+
+.note-findings .level-mark {
+  margin: 0 6px 0 0;
 }

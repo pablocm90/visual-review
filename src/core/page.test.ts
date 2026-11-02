@@ -3,6 +3,7 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { expect, test } from 'vitest';
 import type { GraphNode } from './graph.ts';
+import { metricFindings } from './metric-findings.ts';
 import type { ReviewNotes } from './notes.ts';
 import { notedPageHtml, pageData, pageHtml, pageIn, servedPageHtml } from './page.ts';
 import type { RangeReading } from './read-range.ts';
@@ -72,7 +73,7 @@ test("a reading's page data holds its diff, its dangling calls and test files, t
       edges: [],
     },
     metrics: {},
-    metricFindings: [],
+    findings: expect.any(Array),
     dangling: [{ from: 'web/file/a.ts', path: '/api/x' }],
     patches: [patch('web/src/a.ts')],
     undrawn: [patch('README.md')],
@@ -99,6 +100,71 @@ test("a pull request's page data names it, and lists the stacks a missing tool k
 });
 
 const version = '1.2.3';
+
+test.for([
+  { paths: ['README.md'], title: '1 changed file outside the graph' },
+  { paths: ['README.md', 'docs/x.md'], title: '2 changed files outside the graph' },
+])(
+  'changed files outside the graph are one structure finding for information, listing them: $title',
+  ({ paths, title }) => {
+    const reading = readingWith({ patches: [patch('web/src/a.ts'), ...paths.map(patch)] });
+
+    expect(pageData({ repo: 'shop', reading, range: 'a..b', version }).findings).toStrictEqual([
+      {
+        id: 'structure:undrawn',
+        dimension: 'structure',
+        level: 'info',
+        title,
+        detail: paths.join(', '),
+      },
+    ]);
+  },
+);
+
+test('fetch calls with no route are a routes finding for information on each calling file, listing its paths', () => {
+  const danglingCalls = [
+    { from: 'web/file/a.ts', path: '/api/a' },
+    { from: 'web/file/b.ts', path: '/api/c' },
+    { from: 'web/file/a.ts', path: '/api/b' },
+  ];
+
+  expect(
+    pageData({ repo: 'shop', reading: readingWith({ danglingCalls }), range: 'a..b', version })
+      .findings,
+  ).toStrictEqual([
+    {
+      id: 'routes:dangling:web/file/a.ts',
+      dimension: 'routes',
+      level: 'info',
+      target: 'web/file/a.ts',
+      title: '2 calls with no route',
+      detail: '/api/a, /api/b',
+    },
+    {
+      id: 'routes:dangling:web/file/b.ts',
+      dimension: 'routes',
+      level: 'info',
+      target: 'web/file/b.ts',
+      title: '1 call with no route',
+      detail: '/api/c',
+    },
+  ]);
+});
+
+test('stacks a missing tool kept from being read are a structure finding to look at, on no node', () => {
+  const skipped = [{ reader: 'rust' as const, tool: 'cargo', stacks: ['api', 'worker'] }];
+
+  expect(
+    pageData({ repo: 'shop', reading: readingWith({ skipped }), range: 'a..b', version }).findings,
+  ).toStrictEqual([
+    {
+      id: 'structure:skipped:rust',
+      dimension: 'structure',
+      level: 'look',
+      title: 'api, worker not read: cargo not found on PATH',
+    },
+  ]);
+});
 
 const notesFile = 'x.notes.json';
 
@@ -555,7 +621,7 @@ test.for([
     });
 
     expect(
-      pageData({ repo: 'shop', reading, range: 'main..feature', version }).metricFindings,
+      metricFindings(pageData({ repo: 'shop', reading, range: 'main..feature', version })),
     ).toStrictEqual(
       level === undefined
         ? []
@@ -621,7 +687,7 @@ test.for([
   const reading = readingOfA({ base, head, thresholds: { cyclomatic: 20, hotspot: threshold } });
 
   expect(
-    pageData({ repo: 'shop', reading, range: 'main..feature', version }).metricFindings,
+    metricFindings(pageData({ repo: 'shop', reading, range: 'main..feature', version })),
   ).toStrictEqual(
     level === undefined || head === undefined
       ? []
@@ -668,6 +734,47 @@ test.for([
   });
 
   expect(
-    pageData({ repo: 'shop', reading, range: 'main..feature', version }).metricFindings,
+    metricFindings(pageData({ repo: 'shop', reading, range: 'main..feature', version })),
   ).toStrictEqual(findings.map(finding => ({ node: 'web/file/a.ts', ...finding })));
 });
+
+test.for([
+  {
+    reason: 'a file that changed',
+    base: { churn: 2, cyclomatic: 4, abc: 31.46 },
+    said: [
+      { level: 'look', title: 'cyclomatic 4 → 14, over 4' },
+      { level: 'look', title: 'hotspot, churn 2 → 3 and cyclomatic 4 → 14, over 3 and 5' },
+      { level: 'info', title: 'ABC size 31.5 → 31.5, over 30' },
+    ],
+  },
+  {
+    reason: 'a new file',
+    base: undefined,
+    said: [
+      { level: 'look', title: 'cyclomatic 14, over 4' },
+      { level: 'look', title: 'hotspot, churn 3 and cyclomatic 14, over 3 and 5' },
+      { level: 'look', title: 'ABC size 31.5, over 30' },
+    ],
+  },
+])(
+  'lists each metric finding on $reason as a metrics finding on its node, titled by what moved past which threshold',
+  ({ base, said }) => {
+    const reading = readingOfA({
+      base,
+      head: { churn: 3, cyclomatic: 14, abc: 31.46 },
+      thresholds: { cyclomatic: 4, hotspot: { churn: 3, cyclomatic: 5 }, abc: 30 },
+    });
+
+    expect(
+      pageData({ repo: 'shop', reading, range: 'main..feature', version }).findings,
+    ).toStrictEqual(
+      ['cyclomatic', 'hotspot', 'abc'].map((metric, at) => ({
+        id: `metrics:${metric}:web/file/a.ts`,
+        dimension: 'metrics',
+        target: 'web/file/a.ts',
+        ...said[at],
+      })),
+    );
+  },
+);

@@ -1,6 +1,5 @@
 import { expect, test } from 'vitest';
 import type { DiffedNode, GraphDiff } from './diff-graphs.ts';
-import { metricFindings } from './metric-findings.ts';
 import { metricTotals } from './metric-totals.ts';
 import type { NodeMeasures, NodeMetrics } from './metrics.ts';
 
@@ -47,7 +46,7 @@ const reviewOf = (rows: ReadonlyArray<readonly [DiffedNode, NodeMetrics]>) => {
     ],
     edges: [],
   };
-  return { diff, metrics, thresholds, metricFindings: metricFindings({ metrics, thresholds }) };
+  return { diff, metrics, thresholds };
 };
 
 test("the lines total sums the changed leaves' head − base lines, a missing side as none, across the changed leaves with lines on a side; unchanged leaves, boxes and leaves without complexity count for nothing", () => {

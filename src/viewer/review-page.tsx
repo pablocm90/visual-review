@@ -10,8 +10,9 @@ import {
 } from 'react';
 import type { FilePatch, GraphDiff } from '../core/diff-graphs.ts';
 import { isAtOrUnder } from '../core/diff-graphs.ts';
+import { type Dimension, type Finding, findingsAt, findingsOf } from '../core/findings.ts';
 import { edgeId } from '../core/graph.ts';
-import type { MetricFinding } from '../core/metric-findings.ts';
+import { type MetricFinding, metricFindings } from '../core/metric-findings.ts';
 import type { NodeMetrics } from '../core/metrics.ts';
 import { type Note, type ReviewNotes, visibleNotes } from '../core/notes.ts';
 import { type PageData, UNCOMMITTED } from '../core/page.ts';
@@ -27,7 +28,8 @@ import {
   visibleNodeOf,
 } from '../core/visible-diff.ts';
 import { ColourBy, type Colouring, ScaleLegend, type Shade, shadeOf } from './colour-by.tsx';
-import { FindingsRail } from './findings-rail.tsx';
+import { findingLine, LEVELS, LevelMark } from './finding-display.tsx';
+import { FindingsRail, LookFirst, nameOf, TriageStrip } from './findings-rail.tsx';
 import { highlightPatch, type PatchLine as Line, type Piece } from './highlight-patch.ts';
 import {
   type Layout,
@@ -107,32 +109,43 @@ const middleOf = (points: PlacedEdge['points']) => {
     : { x: 0, y: 0 };
 };
 
-const flaggedFor = (flag: string) => `Flagged: ${flag}`;
+const worstOf = (findings: ReadonlyArray<Finding>) =>
+  findings.some(finding => finding.level === 'look') ? 'look' : 'info';
 
-const noRouteFor = (paths: ReadonlyArray<string>) => `No route for ${paths.join(', ')}`;
+const badgeName = (findings: ReadonlyArray<Finding>) =>
+  `${LEVELS[worstOf(findings)]}, ${findings.length} ${findings.length === 1 ? 'finding' : 'findings'}: ${findings.map(findingLine).join('; ')}`;
 
-type FlagBadgeProps = {
+type FindingsBadgeProps = {
   readonly x: number;
   readonly y: number;
-  readonly reason: string;
+  readonly findings: ReadonlyArray<Finding>;
+  readonly picked: Dimension | undefined;
   readonly onPress?: () => void;
 };
 
-const FlagBadge = ({ x, y, reason, onPress }: FlagBadgeProps) => (
-  <g
-    className="flag-badge"
-    role="img"
-    aria-label={reason}
-    onClick={onPress}
-    transform={`translate(${x} ${y})`}
-  >
-    <title>{reason}</title>
-    <circle r={8} />
-    <path d="M 0 -4.5 V 1 M 0 3.5 V 4" />
-  </g>
-);
+const FindingsBadge = ({ x, y, findings, picked, onPress }: FindingsBadgeProps) => {
+  const outside = picked !== undefined && !findings.some(finding => finding.dimension === picked);
+  const name = `${badgeName(findings)}${outside ? `, outside ${nameOf(picked)}` : ''}`;
+  return (
+    <g
+      className="flag-badge"
+      data-level={worstOf(findings)}
+      data-outside={outside}
+      role="img"
+      aria-label={name}
+      onClick={onPress}
+      transform={`translate(${x} ${y})`}
+    >
+      <title>{name}</title>
+      <circle r={8} />
+      <path d="M 0 -4.5 V 1 M 0 3.5 V 4" />
+    </g>
+  );
+};
 
 type Drawing = {
+  readonly findingsOn: (id: string) => ReadonlyArray<Finding>;
+  readonly picked: Dimension | undefined;
   readonly notes: Readonly<Record<string, Note>>;
   readonly onSelect: (id: string) => void;
   readonly register: (id: string, element: SVGElement | null) => void;
@@ -169,7 +182,7 @@ const NodeView = ({ node, drawing }: { readonly node: PlacedNode; readonly drawi
     drawing;
   const unrouted = unroutedOf(node.id);
   const shade = shadeOf(node.id);
-  const flag = notes[node.id]?.flag;
+  const found = drawing.findingsOn(node.id);
   const toggle = expandable.has(node.id) && (
     <Toggle node={node} expanded={expanded.has(node.id)} onToggle={onToggle} />
   );
@@ -239,9 +252,8 @@ const NodeView = ({ node, drawing }: { readonly node: PlacedNode; readonly drawi
             </>
           )}
         </text>
-        {flag && <FlagBadge x={node.width} y={0} reason={flaggedFor(flag)} />}
-        {unrouted.length > 0 && (
-          <FlagBadge x={node.width} y={node.height} reason={noRouteFor(unrouted)} />
+        {found.length > 0 && (
+          <FindingsBadge x={node.width} y={0} findings={found} picked={drawing.picked} />
         )}
       </g>
       {toggle}
@@ -259,9 +271,10 @@ type EdgeViewProps = {
 };
 
 const EdgeView = ({ edge, name, drawing }: EdgeViewProps) => {
-  const { notes, onSelect, register } = drawing;
+  const { notes, onSelect, register, findingsOn } = drawing;
   const id = edgeId(edge);
   const note = notes[id];
+  const found = findingsOn(id);
   return (
     <>
       <path
@@ -271,10 +284,11 @@ const EdgeView = ({ edge, name, drawing }: EdgeViewProps) => {
         d={edgePath(edge.points)}
         markerEnd={`url(#arrow-${edge.state})`}
       />
-      {note?.flag && (
-        <FlagBadge
+      {found.length > 0 && (
+        <FindingsBadge
           {...middleOf(edge.points)}
-          reason={flaggedFor(note.flag)}
+          findings={found}
+          picked={drawing.picked}
           onPress={() => onSelect(id)}
         />
       )}
@@ -468,7 +482,7 @@ type InspectorProps = {
   readonly metrics: Readonly<Record<string, NodeMetrics>>;
   readonly findings: ReadonlyArray<MetricFinding>;
   readonly note: Note | undefined;
-  readonly unrouted: ReadonlyArray<string>;
+  readonly found: ReadonlyArray<Finding>;
   readonly patches: ReadonlyArray<FilePatch>;
   readonly tests: ReadonlyArray<TestFile>;
   readonly comment: string;
@@ -493,7 +507,7 @@ const Inspector = ({
   metrics,
   findings,
   note,
-  unrouted,
+  found,
   patches,
   tests,
   comment,
@@ -535,8 +549,16 @@ const Inspector = ({
       <div role="tabpanel" aria-label={INSPECTOR_TABS[shown]}>
         {shown === 'note' ? (
           <>
-            {note?.flag && <h2>{flaggedFor(note.flag)}</h2>}
-            {unrouted.length > 0 && <h2>{noRouteFor(unrouted)}</h2>}
+            {found.length > 0 && (
+              <ul className="note-findings" aria-label="Findings">
+                {found.map(finding => (
+                  <li key={finding.id}>
+                    <LevelMark level={finding.level} />
+                    {findingLine(finding)}
+                  </li>
+                ))}
+              </ul>
+            )}
             <p>{note?.text ?? 'No note'}</p>
             {onComment &&
               (commentable ? (
@@ -595,7 +617,7 @@ type SidePanelProps = {
   readonly node: DiffNode | undefined;
   readonly outside: boolean;
   readonly note: Note | undefined;
-  readonly unrouted: ReadonlyArray<string>;
+  readonly found: ReadonlyArray<Finding>;
   readonly comments: Readonly<Record<string, string>>;
   readonly onComment: ((id: string, text: string) => void) | undefined;
   readonly chosenWidth: number | undefined;
@@ -611,7 +633,7 @@ const SidePanel = ({
   node,
   outside,
   note,
-  unrouted,
+  found,
   comments,
   onComment,
   chosenWidth,
@@ -669,9 +691,9 @@ const SidePanel = ({
         nodes={review.diff.nodes}
         node={node}
         metrics={review.metrics}
-        findings={review.metricFindings}
+        findings={metricFindings(review)}
         note={note}
-        unrouted={unrouted}
+        found={found}
         patches={patches}
         tests={review.tests}
         comment={comments[selected] ?? ''}
@@ -1008,6 +1030,10 @@ export const ReviewPage = ({ review, notes, send }: ReviewPageProps) => {
   const noted = useMemo(() => new Set(Object.keys(notes?.notes ?? {})), [notes]);
   const [nearOnly, setNearOnly] = useState(true);
   const [colouring, setColouring] = useState<Colouring>('change');
+  const [picked, setPicked] = useState<Dimension>();
+  const [railOpen, setRailOpen] = useState(false);
+  const findings = findingsOf({ data: review, notes });
+  const triaged = findings.filter(finding => picked === undefined || finding.dimension === picked);
   const drawn = useMemo(() => {
     const atExpansion = drawnAt({ diff: review.diff, expanded, noted, allEdges });
     return nearOnly ? nearChanges(atExpansion) : atExpansion;
@@ -1031,7 +1057,10 @@ export const ReviewPage = ({ review, notes, send }: ReviewPageProps) => {
   const labelOf = new Map(visible.nodes.map(node => [node.id, node.label]));
   const dangling = review.dangling;
   const visibleOf = visibleNodeOf({ diff: review.diff, expanded });
+  const placedFindings = findingsAt({ diff: review.diff, expanded, findings });
   const drawing = {
+    findingsOn: (id: string) => placedFindings.get(id) ?? [],
+    picked,
     notes: shown,
     onSelect: select,
     register,
@@ -1044,7 +1073,7 @@ export const ReviewPage = ({ review, notes, send }: ReviewPageProps) => {
   };
   const selectedNode = review.diff.nodes.find(node => node.id === selected);
   const selectedNote = selected === undefined ? undefined : shown[selected];
-  const selectedUnrouted = selected === undefined ? [] : drawing.unroutedOf(selected);
+  const selectedFindings = selected === undefined ? [] : drawing.findingsOn(selected);
   const graphLeft = () => frameElement?.getBoundingClientRect().left ?? 0;
   const showOutside = (opener: HTMLButtonElement) => {
     outsideOpener.current = opener;
@@ -1099,9 +1128,24 @@ export const ReviewPage = ({ review, notes, send }: ReviewPageProps) => {
             <p className="caveat">Calls whose path is built at runtime are not drawn.</p>
           </div>
           <div className="columns">
-            <FindingsRail notes={notes} review={review} onGoTo={goTo} onShowOutside={showOutside} />
+            <FindingsRail
+              findings={triaged}
+              open={railOpen}
+              onOpen={setRailOpen}
+              review={review}
+              onGoTo={goTo}
+              onShowOutside={showOutside}
+            />
             <div className="content">
               {notes && notes.summary.length > 0 && <Summary notes={notes} onGoTo={goTo} />}
+              <TriageStrip findings={findings} picked={picked} onPick={setPicked} />
+              <LookFirst
+                findings={triaged}
+                onShowAll={() => setRailOpen(true)}
+                review={review}
+                onGoTo={goTo}
+                onShowOutside={showOutside}
+              />
               <div className="graph-controls">
                 <ColourBy colouring={colouring} onPick={setColouring} />
                 <div className="graph-filters">
@@ -1192,7 +1236,7 @@ export const ReviewPage = ({ review, notes, send }: ReviewPageProps) => {
               node={selectedNode}
               outside={outside}
               note={selectedNote}
-              unrouted={selectedUnrouted}
+              found={selectedFindings}
               comments={comments}
               onComment={send && comment}
               chosenWidth={chosenWidth}

@@ -1,6 +1,7 @@
 import type { MetricFinding } from '../core/metric-findings.ts';
 import type { FunctionCyclomatic, NodeMeasures, NodeMetrics } from '../core/metrics.ts';
-import { LevelMark, signed, tenths } from './finding-display.tsx';
+import { tenths } from '../core/metrics.ts';
+import { LevelMark, signed } from './finding-display.tsx';
 
 type MetricRow = {
   readonly name: string;

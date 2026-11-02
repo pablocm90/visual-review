@@ -1,125 +1,90 @@
 import { useRef, useState } from 'react';
+import {
+  DIMENSIONS,
+  type Dimension,
+  type Finding,
+  lookFirst,
+  skippedFindingId,
+} from '../core/findings.ts';
 import { endsOfId } from '../core/graph.ts';
-import type { MetricFinding } from '../core/metric-findings.ts';
-import type { ReviewNotes } from '../core/notes.ts';
 import type { PageData } from '../core/page.ts';
 import { notReadLine } from '../core/skipped.ts';
-import { LevelMark, tenths } from './finding-display.tsx';
+import { findingLine, LevelMark } from './finding-display.tsx';
 
 type FindingsRailProps = {
-  readonly notes: ReviewNotes | undefined;
-  readonly review: Pick<PageData, 'diff' | 'metricFindings' | 'dangling' | 'undrawn' | 'skipped'>;
+  readonly findings: ReadonlyArray<Finding>;
+  readonly open: boolean;
+  readonly onOpen: (open: boolean) => void;
+  readonly review: Pick<PageData, 'diff' | 'skipped'>;
   readonly onGoTo: (id: string) => void;
   readonly onShowOutside: (opener: HTMLButtonElement) => void;
 };
 
-type Level = MetricFinding['level'];
+type Level = Finding['level'];
 
-type Finding = {
+type Line = {
+  readonly id: string;
   readonly level: Level;
   readonly sentence: string;
   readonly target: string;
   readonly act?: (opener: HTMLButtonElement) => void;
 };
 
-type NotDrawnOptions = {
-  readonly paths: ReadonlyArray<string>;
-  readonly one: string;
-  readonly many: string;
-  readonly act?: (opener: HTMLButtonElement) => void;
-};
-
-const notDrawn = ({ paths, one, many, ...rest }: NotDrawnOptions): ReadonlyArray<Finding> =>
-  paths.length === 0
-    ? []
-    : [
-        {
-          level: 'info',
-          sentence: `${paths.length} ${paths.length === 1 ? one : many}`,
-          target: paths.join(', '),
-          ...rest,
-        },
-      ];
-
-const METRIC_NAMES = { cyclomatic: 'cyclomatic', lines: 'lines', abc: 'ABC size' } as const;
-
-const move = (base: number | undefined, head: number) =>
-  base === undefined ? `${tenths(head)}` : `${tenths(base)} → ${tenths(head)}`;
-
-const sentenceOf = (finding: MetricFinding) => {
-  if (finding.metric !== 'hotspot') {
-    const { metric, base, head, threshold } = finding;
-    return `${METRIC_NAMES[metric]} ${move(base, head)}, over ${threshold}`;
-  }
-  const { base, head, threshold } = finding;
-  return `hotspot, churn ${move(base?.churn, head.churn)} and cyclomatic ${move(base?.cyclomatic, head.cyclomatic)}, over ${threshold.churn} and ${threshold.cyclomatic}`;
-};
-
 type Group = {
   readonly name: string;
-  readonly chip: string;
-  readonly findings: ReadonlyArray<Finding>;
+  readonly findings: ReadonlyArray<Line>;
 };
 
-const groupsOf = ({
-  notes,
-  review,
-  onGoTo,
-  onShowOutside,
-}: FindingsRailProps): ReadonlyArray<Group> => {
+export const nameOf = (dimension: Dimension) => {
+  const words = dimension.replace('-', ' ');
+  return `${words.charAt(0).toUpperCase()}${words.slice(1)}`;
+};
+
+type LineOptions = {
+  readonly review: Pick<PageData, 'diff'>;
+  readonly onGoTo: (id: string) => void;
+  readonly onShowOutside: (opener: HTMLButtonElement) => void;
+};
+
+const linesOf = ({ review, onGoTo, onShowOutside }: LineOptions) => {
   const labelOf = new Map(review.diff.nodes.map(node => [node.id, node.label]));
   const targetOf = (id: string) =>
     endsOfId(id)
       .map(end => labelOf.get(end) ?? end)
       .join(' → ');
-  return [
-    {
-      name: 'Flagged in notes',
-      chip: 'Notes',
-      findings: Object.entries(notes?.notes ?? {}).flatMap(([id, note]) =>
-        note.flag
-          ? [
-              {
-                level: 'look' as const,
-                sentence: `${note.flag}: ${note.text}`,
-                target: targetOf(id),
-                act: () => onGoTo(id),
-              },
-            ]
-          : [],
-      ),
-    },
-    {
-      name: 'Metrics',
-      chip: 'Metrics',
-      findings: review.metricFindings.map(finding => ({
-        level: finding.level,
-        sentence: sentenceOf(finding),
-        target: targetOf(finding.node),
-        act: () => onGoTo(finding.node),
-      })),
-    },
-    {
-      name: 'Not drawn',
-      chip: 'Not drawn',
-      findings: [
-        ...notDrawn({
-          paths: review.dangling.map(call => call.path),
-          one: 'call with no route',
-          many: 'calls with no route',
-        }),
-        ...notDrawn({
-          paths: review.undrawn.map(patch => patch.path),
-          one: 'changed file outside the graph',
-          many: 'changed files outside the graph',
-          act: onShowOutside,
-        }),
-      ],
-    },
-  ];
+  const lineOf = (finding: Finding): Line => {
+    const { id, level, target, title, detail } = finding;
+    if (target !== undefined) {
+      return {
+        id,
+        level,
+        sentence: findingLine(finding),
+        target: targetOf(target),
+        act: () => onGoTo(target),
+      };
+    }
+    return {
+      id,
+      level,
+      sentence: title,
+      target: detail ?? '',
+      ...(id === 'structure:undrawn' && { act: onShowOutside }),
+    };
+  };
+  return lineOf;
 };
 
-const FindingItem = ({ finding }: { readonly finding: Finding }) => {
+const groupsOf = (props: FindingsRailProps): ReadonlyArray<Group> => {
+  const lineOf = linesOf(props);
+  const alerted = new Set(props.review.skipped.map(skippedFindingId));
+  const listed = props.findings.filter(finding => !alerted.has(finding.id));
+  return DIMENSIONS.map(dimension => ({
+    name: nameOf(dimension),
+    findings: listed.filter(finding => finding.dimension === dimension).map(lineOf),
+  }));
+};
+
+const FindingItem = ({ finding }: { readonly finding: Line }) => {
   const said = (
     <>
       <span>{finding.sentence}</span>
@@ -145,12 +110,11 @@ const FindingItem = ({ finding }: { readonly finding: Finding }) => {
 };
 
 export const FindingsRail = (props: FindingsRailProps) => {
-  const [open, setOpen] = useState(false);
-  const [picked, setPicked] = useState<string>();
+  const { open } = props;
   const toggled = useRef(false);
   const toggle = (opening: boolean) => {
     toggled.current = true;
-    setOpen(opening);
+    props.onOpen(opening);
   };
   const takeFocus = (button: HTMLButtonElement | null) => {
     if (!button || !toggled.current) return;
@@ -161,10 +125,6 @@ export const FindingsRail = (props: FindingsRailProps) => {
   const levels: ReadonlyArray<Level> = groups.flatMap(group =>
     group.findings.map(finding => finding.level),
   );
-  const chips = [
-    { chip: 'All', pick: undefined, count: levels.length },
-    ...groups.map(group => ({ chip: group.chip, pick: group.chip, count: group.findings.length })),
-  ];
   const counted = (level: Level) => (
     <span className="findings-count">
       <LevelMark level={level} />
@@ -188,31 +148,16 @@ export const FindingsRail = (props: FindingsRailProps) => {
         >
           ‹
         </button>
-        <div className="rail-chips" role="group" aria-label="Show findings">
-          {chips.map(({ chip, pick, count }) => (
-            <button
-              key={chip}
-              className="chip"
-              type="button"
-              aria-pressed={pick === picked}
-              onClick={() => setPicked(pick)}
-            >
-              {`${chip} ${count}`}
-            </button>
-          ))}
-        </div>
-        {groups
-          .filter(group => picked === undefined || group.chip === picked)
-          .map(group => (
-            <section key={group.name} aria-label={group.name}>
-              <h3>{group.name}</h3>
-              <ul>
-                {group.findings.map(finding => (
-                  <FindingItem key={`${finding.target}: ${finding.sentence}`} finding={finding} />
-                ))}
-              </ul>
-            </section>
-          ))}
+        {groups.map(group => (
+          <section key={group.name} aria-label={group.name}>
+            <h3>{group.name}</h3>
+            <ul>
+              {group.findings.map(finding => (
+                <FindingItem key={finding.id} finding={finding} />
+              ))}
+            </ul>
+          </section>
+        ))}
       </aside>
     );
   }
@@ -235,5 +180,78 @@ export const FindingsRail = (props: FindingsRailProps) => {
       {counted('look')}
       {counted('info')}
     </nav>
+  );
+};
+
+type TriageStripProps = {
+  readonly findings: ReadonlyArray<Finding>;
+  readonly picked: Dimension | undefined;
+  readonly onPick: (dimension: Dimension | undefined) => void;
+};
+
+export const TriageStrip = ({ findings, picked, onPick }: TriageStripProps) => {
+  const chips = DIMENSIONS.map(dimension => ({
+    dimension,
+    found: findings.filter(finding => finding.dimension === dimension),
+  })).filter(({ found }) => found.length > 0);
+  if (chips.length === 0) return null;
+  return (
+    <div className="triage" role="group" aria-label="Triage">
+      {chips.map(({ dimension, found }) => (
+        <button
+          key={dimension}
+          className="chip"
+          type="button"
+          aria-pressed={dimension === picked}
+          onClick={() => onPick(dimension === picked ? undefined : dimension)}
+        >
+          {found.some(finding => finding.level === 'look') && <LevelMark level="look" />}
+          {`${nameOf(dimension)} ${found.length}`}
+        </button>
+      ))}
+    </div>
+  );
+};
+
+type LookFirstProps = LineOptions & {
+  readonly findings: ReadonlyArray<Finding>;
+  readonly onShowAll: () => void;
+  readonly review: Pick<PageData, 'diff' | 'metrics'>;
+};
+
+const LOOK_FIRST_SHOWN = 7;
+
+export const LookFirst = (props: LookFirstProps) => {
+  const [open, setOpen] = useState(true);
+  const ranked = lookFirst({ findings: props.findings, metrics: props.review.metrics });
+  if (ranked.length === 0) return null;
+  const lineOf = linesOf(props);
+  return (
+    <section className="look-first" aria-label="Look first">
+      <h2 className="look-first-title">
+        <button
+          type="button"
+          className="look-first-toggle"
+          aria-expanded={open}
+          onClick={() => setOpen(!open)}
+        >
+          {`Look first: ${ranked.length}`}
+        </button>
+      </h2>
+      {open && (
+        <>
+          <ul>
+            {ranked.slice(0, LOOK_FIRST_SHOWN).map(finding => (
+              <FindingItem key={finding.id} finding={lineOf(finding)} />
+            ))}
+          </ul>
+          {ranked.length > LOOK_FIRST_SHOWN && (
+            <button type="button" className="show-all" onClick={props.onShowAll}>
+              {`Show all ${ranked.length}`}
+            </button>
+          )}
+        </>
+      )}
+    </section>
   );
 };

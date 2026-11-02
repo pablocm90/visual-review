@@ -3,7 +3,6 @@ import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { expect, onTestFinished, test } from 'vitest';
 import type { DiffedNode } from '../core/diff-graphs.ts';
-import { metricFindings } from '../core/metric-findings.ts';
 import type { NodeMetrics } from '../core/metrics.ts';
 import type { PageData } from '../core/page.ts';
 import { measured, pageWith } from '../test-support/page-data.ts';
@@ -59,7 +58,6 @@ const reviewOf = ({
       edges: [],
     },
     metrics,
-    metricFindings: metricFindings({ metrics, thresholds }),
     thresholds,
     churnDays,
   });

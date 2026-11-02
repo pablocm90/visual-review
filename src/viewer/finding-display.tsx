@@ -1,6 +1,6 @@
+import type { Finding } from '../core/findings.ts';
 import type { MetricFinding } from '../core/metric-findings.ts';
-
-export const tenths = (value: number) => Math.round(value * 10) / 10;
+import { tenths } from '../core/metrics.ts';
 
 export const signed = (value: number) => {
   const by = tenths(value);
@@ -8,7 +8,7 @@ export const signed = (value: number) => {
   return by < 0 ? `−${-by}` : '±0';
 };
 
-const LEVELS: Readonly<Record<MetricFinding['level'], string>> = {
+export const LEVELS: Readonly<Record<MetricFinding['level'], string>> = {
   look: 'needs a look',
   info: 'for information',
 };
@@ -18,3 +18,6 @@ export const LevelMark = ({ level }: { readonly level: MetricFinding['level'] })
     {level === 'look' ? <path d="M8 2 L14.5 13.5 H1.5 Z" /> : <circle cx={8} cy={8} r={6} />}
   </svg>
 );
+
+export const findingLine = ({ title, detail }: Finding) =>
+  detail === undefined ? title : `${title}: ${detail}`;

@@ -3,9 +3,11 @@ import { act, fireEvent, render, screen, waitFor, within } from '@testing-librar
 import userEvent from '@testing-library/user-event';
 import { expect, onTestFinished, test, vi } from 'vitest';
 import type { GraphDiff } from '../core/diff-graphs.ts';
+import { raisedFindings } from '../core/findings.ts';
 import type { ReviewNotes } from '../core/notes.ts';
 import type { PageData } from '../core/page.ts';
-import { measured, pageWith } from '../test-support/page-data.ts';
+import type { Skipped } from '../core/skipped.ts';
+import { findingOn, measured, pageWith } from '../test-support/page-data.ts';
 import { layoutDiff } from './layout.ts';
 import { ReviewPage } from './review-page.tsx';
 
@@ -98,10 +100,10 @@ const inspectorTabs = () =>
     .queryAllByRole('tab')
     .map(tab => tab.textContent);
 
-const reasonsShown = () =>
+const findingsShown = () =>
   within(noteTab())
-    .queryAllByRole('heading')
-    .map(heading => heading.textContent);
+    .queryAllByRole('listitem')
+    .map(item => item.textContent);
 
 test('draws every crate and dependency inside the rust stack with its change state, and opens no inspector until one is clicked, closing it again from its close button, which hands the keyboard focus back to the node', async () => {
   const user = userEvent.setup();
@@ -1022,13 +1024,17 @@ test('picking a tab sets the hash and shows it, and back and forward move betwee
   await waitFor(() => expect(currentTab()).toBe('Tests'));
 });
 
-test('a reader skipped for want of its tool is named at the top of the findings rail, collapsed or open, with the stacks it did not read', async () => {
+test('a reader skipped for want of its tool is named once, at the top of the findings rail, collapsed or open, with the stacks it did not read', async () => {
   const user = userEvent.setup();
+  const skipped: ReadonlyArray<Skipped> = [
+    { reader: 'rust', tool: 'cargo', stacks: ['rust', 'rust~2'] },
+  ];
   render(
     <ReviewPage
       review={pageWith({
         ...review,
-        skipped: [{ reader: 'rust', tool: 'cargo', stacks: ['rust', 'rust~2'] }],
+        skipped,
+        findings: raisedFindings({ skipped, undrawn: [], dangling: [], metricFindings: [] }),
       })}
     />,
   );
@@ -1039,6 +1045,7 @@ test('a reader skipped for want of its tool is named at the top of the findings 
   await user.click(within(collapsed).getByRole('button', { name: 'Show 0 findings' }));
   const open = screen.getByRole('complementary', { name: 'Findings' });
   expect(within(open).getByRole('alert').textContent).toBe(line);
+  expect(within(open).getAllByText(line)).toHaveLength(1);
   expect(screen.getAllByRole('alert')).toHaveLength(1);
 });
 
@@ -1157,11 +1164,17 @@ test('clicking a crate or a dependency, or pressing Enter or Space on it, shows 
   expect(noteShown()).toBe('The CLI drives the use case.');
 });
 
-test("a flag's badge says on hover what it is flagged for, and clicking it opens the note of what it marks", async () => {
+test("a drawn node's or edge's badge names its findings under the worst level, says so on hover, and clicking it opens its note, which lists them", async () => {
   const user = userEvent.setup();
   render(
     <ReviewPage
-      review={pageWith(review)}
+      review={pageWith({
+        ...review,
+        findings: [
+          findingOn('rust/crate/domain'),
+          findingOn('rust/crate/cli-adapter', { title: 'cyclomatic 4 → 14, over 10' }),
+        ],
+      })}
       notes={{
         version: 1,
         tests: '',
@@ -1177,23 +1190,46 @@ test("a flag's badge says on hover what it is flagged for, and clicking it opens
     />,
   );
 
-  await screen.findByRole('group', { name: 'rust' });
-  expect(screen.getByRole('img', { name: 'Flagged: new entry point' })).toBeTruthy();
-  expect(screen.getByRole('img', { name: 'Flagged: new dependency direction' })).toBeTruthy();
+  await showEverything(user);
+  await screen.findByRole('button', { name: 'domain: unchanged' });
+  const entry = screen.getByRole('img', {
+    name: 'needs a look, 2 findings: cyclomatic 4 → 14, over 10; new entry point',
+  });
+  expect(entry.querySelector('title')?.textContent).toBe(
+    'needs a look, 2 findings: cyclomatic 4 → 14, over 10; new entry point',
+  );
   expect(
-    screen.getByRole('img', { name: 'Flagged: new entry point' }).querySelector('title')
-      ?.textContent,
-  ).toBe('Flagged: new entry point');
+    screen.getByRole('img', { name: 'for information, 1 finding: lines 900, over 800' }),
+  ).toBeTruthy();
+  expect(screen.getAllByRole('img', { name: /finding/ })).toHaveLength(3);
 
-  await user.click(screen.getByRole('img', { name: 'Flagged: new dependency direction' }));
+  await user.click(
+    screen.getByRole('img', { name: 'needs a look, 1 finding: new dependency direction' }),
+  );
   expect(noteShown()).toBe('The CLI drives the use case.');
-  expect(reasonsShown()).toEqual(['Flagged: new dependency direction']);
-  await user.click(screen.getByRole('img', { name: 'Flagged: new entry point' }));
+  await user.click(entry);
   expect(noteShown()).toBe('A second way in.');
-  expect(reasonsShown()).toEqual(['Flagged: new entry point']);
+  expect(findingsShown()).toEqual(['cyclomatic 4 → 14, over 10', 'new entry point']);
 
   await user.click(screen.getByRole('button', { name: 'domain: unchanged' }));
-  expect(reasonsShown()).toEqual([]);
+  expect(findingsShown()).toEqual(['lines 900, over 800']);
+  await user.click(screen.getByRole('button', { name: 'application: modified' }));
+  expect(within(noteTab()).queryByRole('list', { name: 'Findings' })).toBeNull();
+
+  const structure = () =>
+    within(screen.getByRole('group', { name: 'Triage' })).getByRole('button', {
+      name: /Structure/,
+    });
+  await user.click(structure());
+  expect(screen.getAllByRole('img', { name: /finding/ }).map(badge => badge.ariaLabel)).toEqual([
+    'needs a look, 1 finding: new dependency direction',
+    'for information, 1 finding: lines 900, over 800, outside Structure',
+    'needs a look, 2 findings: cyclomatic 4 → 14, over 10; new entry point',
+  ]);
+  await user.click(structure());
+  expect(
+    screen.getByRole('img', { name: 'for information, 1 finding: lines 900, over 800' }),
+  ).toBeTruthy();
 });
 
 test('the summary lists its items, not the flagged notes, and an item with a target takes focus to it and shows its note; with no items there is no summary', async () => {
@@ -1253,26 +1289,31 @@ test('the summary lists its items, not the flagged notes, and an item with a tar
   expect(screen.queryByRole('region', { name: 'Summary' })).toBeNull();
 });
 
-test("the findings rail starts collapsed to their total and how many need a look or are for information: notes' flags need a look, metric findings keep their level, and each not-drawn line is for information; opened, it shows the groups holding findings, and hides again", async () => {
+test("the findings rail starts collapsed to their total and how many need a look or are for information, notes' flags among them; opened, it groups them by dimension, each line its title, with its detail if any, and its target, else its detail, and hides again; the triage strip has a chip per dimension with findings, marked when one needs a look, that filters the rail until clicked again, and none without findings", async () => {
   const user = userEvent.setup();
   const { rerender } = render(
     <ReviewPage
       review={pageWith({
         ...review,
-        metricFindings: [
-          { node: 'rust/crate/domain', metric: 'lines', level: 'info', head: 900, threshold: 800 },
-          {
-            node: 'rust/crate/application',
-            metric: 'cyclomatic',
+        findings: [
+          findingOn('rust/crate/domain'),
+          findingOn('rust/crate/application', {
+            id: 'metrics:cyclomatic:rust/crate/application',
             level: 'look',
-            base: 4,
-            head: 14,
-            threshold: 10,
+          }),
+          findingOn('rust/crate/cli-adapter', {
+            id: 'routes:dangling:rust/crate/cli-adapter',
+            dimension: 'routes',
+            title: '2 calls with no route',
+            detail: '/api/info, /api/users',
+          }),
+          {
+            id: 'structure:undrawn',
+            dimension: 'structure',
+            level: 'info',
+            title: '1 changed file outside the graph',
+            detail: 'README.md',
           },
-        ],
-        dangling: [
-          { from: 'rust/crate/cli-adapter', path: '/api/a' },
-          { from: 'rust/crate/cli-adapter', path: '/api/b' },
         ],
         undrawn: [{ path: 'README.md', patch: '' }],
       })}
@@ -1309,119 +1350,59 @@ test("the findings rail starts collapsed to their total and how many need a look
     await user.click(within(open).getByRole('button', { name: 'Hide findings' }));
     return groups;
   };
-  expect(await groupsShown()).toEqual(['Flagged in notes', 'Metrics', 'Not drawn']);
+  expect(await groupsShown()).toEqual(['Structure', 'Metrics', 'Routes']);
   expect(screen.queryByRole('complementary', { name: 'Findings' })).toBeNull();
 
   await user.click(screen.getByRole('button', { name: 'Show 6 findings' }));
-  const flagged = within(screen.getByRole('region', { name: 'Flagged in notes' }));
-  expect(
-    flagged.getByRole('button', { name: 'cli-adapter: new entry point: A second way in.' }),
-  ).toBeDefined();
-  expect(
-    flagged.getByRole('button', {
-      name: 'cli-adapter → application: new dependency direction: The CLI drives the use case.',
-    }),
-  ).toBeDefined();
-  const notDrawn = within(screen.getByRole('region', { name: 'Not drawn' }));
-  expect(notDrawn.getByText('2 calls with no route')).toBeDefined();
-  expect(notDrawn.getByText('/api/a, /api/b')).toBeDefined();
-  expect(notDrawn.getAllByRole('button').map(button => button.getAttribute('aria-label'))).toEqual([
-    'README.md: 1 changed file outside the graph',
-  ]);
-
-  const chips = within(screen.getByRole('group', { name: 'Show findings' }));
-  const pressed = () =>
-    chips
+  const lines = (group: string) =>
+    within(screen.getByRole('region', { name: group }))
       .getAllByRole('button')
-      .map(chip => `${chip.textContent} ${chip.getAttribute('aria-pressed')}`);
-  expect(pressed()).toEqual([
-    'All 6 true',
-    'Notes 2 false',
-    'Metrics 2 false',
-    'Not drawn 2 false',
+      .map(button => button.getAttribute('aria-label'));
+  expect(lines('Structure')).toEqual([
+    'README.md: 1 changed file outside the graph',
+    'cli-adapter: new entry point',
+    'cli-adapter → application: new dependency direction',
   ]);
+  expect(lines('Routes')).toEqual(['cli-adapter: 2 calls with no route: /api/info, /api/users']);
+
+  const strip = () => within(screen.getByRole('group', { name: 'Triage' }));
+  const chips = () =>
+    strip()
+      .getAllByRole('button')
+      .map(
+        chip =>
+          `${chip.textContent}${within(chip).queryByRole('img', { name: 'needs a look' }) ? ' ▲' : ''} ${chip.getAttribute('aria-pressed')}`,
+      );
+  expect(chips()).toEqual(['Structure 3 ▲ false', 'Metrics 2 ▲ false', 'Routes 1 false']);
   const headings = () =>
     within(screen.getByRole('complementary', { name: 'Findings' }))
       .getAllByRole('heading', { level: 3 })
       .map(heading => heading.textContent);
-  await user.click(chips.getByRole('button', { name: 'Metrics 2' }));
-  expect(pressed()).toEqual([
-    'All 6 false',
-    'Notes 2 false',
-    'Metrics 2 true',
-    'Not drawn 2 false',
-  ]);
+  const metricsChip = () => strip().getByRole('button', { name: /Metrics/ });
+  await user.click(metricsChip());
+  expect(chips()).toEqual(['Structure 3 ▲ false', 'Metrics 2 ▲ true', 'Routes 1 false']);
   expect(headings()).toEqual(['Metrics']);
-  await user.click(chips.getByRole('button', { name: 'All 6' }));
-  expect(headings()).toEqual(['Flagged in notes', 'Metrics', 'Not drawn']);
+  await user.click(metricsChip());
+  expect(chips()).toEqual(['Structure 3 ▲ false', 'Metrics 2 ▲ false', 'Routes 1 false']);
+  expect(headings()).toEqual(['Structure', 'Metrics', 'Routes']);
   await user.click(screen.getByRole('button', { name: 'Hide findings' }));
 
   rerender(
     <ReviewPage
       review={pageWith({
         ...review,
-        metricFindings: [
-          { node: 'rust/crate/domain', metric: 'lines', level: 'info', head: 900, threshold: 800 },
-        ],
+        findings: [findingOn('rust/crate/domain')],
       })}
     />,
   );
   expect(within(rail()).getByRole('button', { name: 'Show 1 finding' })).toBeDefined();
   expect(countBy('needs a look')).toBe('0');
   expect(await groupsShown()).toEqual(['Metrics']);
-});
+  expect(chips()).toEqual(['Metrics 1 false']);
 
-test('the rail reads each metric finding as a sentence on its node: the move from base to head, or the head alone, and the threshold it is over; a hotspot names its churn and cyclomatic', async () => {
-  const user = userEvent.setup();
-  render(
-    <ReviewPage
-      review={pageWith({
-        ...review,
-        metricFindings: [
-          {
-            node: 'rust/crate/application',
-            metric: 'cyclomatic',
-            level: 'look',
-            base: 4,
-            head: 14,
-            threshold: 10,
-          },
-          { node: 'rust/crate/domain', metric: 'lines', level: 'info', head: 900, threshold: 800 },
-          {
-            node: 'rust/crate/domain',
-            metric: 'abc',
-            level: 'look',
-            base: 28.25,
-            head: 31.5,
-            threshold: 30,
-          },
-          {
-            node: 'rust/crate/cli-adapter',
-            metric: 'hotspot',
-            level: 'info',
-            base: { churn: 6, cyclomatic: 9 },
-            head: { churn: 7, cyclomatic: 12 },
-            threshold: { churn: 6, cyclomatic: 8 },
-          },
-        ],
-      })}
-    />,
-  );
-
-  await user.click(await screen.findByRole('button', { name: 'Show 4 findings' }));
-  const metrics = within(screen.getByRole('region', { name: 'Metrics' }));
-  expect(
-    metrics.getByRole('button', { name: 'application: cyclomatic 4 → 14, over 10' }),
-  ).toBeDefined();
-  expect(metrics.getByRole('button', { name: 'domain: lines 900, over 800' })).toBeDefined();
-  expect(
-    metrics.getByRole('button', { name: 'domain: ABC size 28.3 → 31.5, over 30' }),
-  ).toBeDefined();
-  expect(
-    metrics.getByRole('button', {
-      name: 'cli-adapter: hotspot, churn 6 → 7 and cyclomatic 9 → 12, over 6 and 8',
-    }),
-  ).toBeDefined();
+  rerender(<ReviewPage review={pageWith({ ...review, findings: [] })} />);
+  expect(within(rail()).getByRole('button', { name: 'Show 0 findings' })).toBeDefined();
+  expect(screen.queryByRole('group', { name: 'Triage' })).toBeNull();
 });
 
 test("a note's or a metric finding in the rail goes to its node or edge as the summary's links do", async () => {
@@ -1430,9 +1411,7 @@ test("a note's or a metric finding in the rail goes to its node or edge as the s
     <ReviewPage
       review={pageWith({
         ...review,
-        metricFindings: [
-          { node: 'rust/crate/domain', metric: 'lines', level: 'info', head: 900, threshold: 800 },
-        ],
+        findings: [findingOn('rust/crate/domain')],
       })}
       notes={{
         version: 1,
@@ -1449,7 +1428,8 @@ test("a note's or a metric finding in the rail goes to its node or edge as the s
   );
 
   await user.click(await screen.findByRole('button', { name: 'Show 2 findings' }));
-  await user.click(screen.getByRole('button', { name: /^cli-adapter → application: new/ }));
+  const rail = () => within(screen.getByRole('complementary', { name: 'Findings' }));
+  await user.click(rail().getByRole('button', { name: /^cli-adapter → application: new/ }));
   expect(document.activeElement).toBe(
     screen.getByRole('button', {
       name: 'cli-adapter → application: added, flagged: new dependency direction',
@@ -1457,8 +1437,76 @@ test("a note's or a metric finding in the rail goes to its node or edge as the s
   );
   expect(noteShown()).toBe('The CLI drives the use case.');
 
-  await user.click(screen.getByRole('button', { name: 'domain: lines 900, over 800' }));
+  await user.click(rail().getByRole('button', { name: 'domain: lines 900, over 800' }));
   expect(document.activeElement).toBe(screen.getByRole('button', { name: 'domain: unchanged' }));
+});
+
+test('look first lists the findings to look at in rank order, in the dimension a triage chip picks, collapsing to their count, each going to its node, seven at most and Show all opening the rail past them, and is absent when none needs a look', async () => {
+  const user = userEvent.setup();
+  const looks = (count: number) =>
+    Array.from({ length: count }, (_, index) =>
+      findingOn('rust/crate/domain', { id: `look ${index}`, level: 'look', title: `${index}` }),
+    );
+  const { rerender } = render(
+    <ReviewPage
+      review={pageWith({
+        ...review,
+        findings: [
+          findingOn('rust/crate/application'),
+          findingOn('rust/crate/domain', { id: 'b', level: 'look', title: 'second' }),
+          findingOn('rust/crate/cli-adapter', { id: 'a', level: 'look', title: 'first' }),
+          findingOn('rust/crate/application', {
+            id: 'c',
+            dimension: 'routes',
+            level: 'look',
+            title: 'third',
+          }),
+        ],
+      })}
+    />,
+  );
+
+  const band = () => within(screen.getByRole('region', { name: 'Look first' }));
+  await screen.findByRole('region', { name: 'Look first' });
+  const items = () =>
+    band()
+      .getAllByRole('listitem')
+      .map(item => within(item).getByRole('button').getAttribute('aria-label'));
+  expect(items()).toEqual(['cli-adapter: first', 'domain: second', 'application: third']);
+  const routes = () =>
+    within(screen.getByRole('group', { name: 'Triage' })).getByRole('button', { name: /Routes/ });
+  await user.click(routes());
+  expect(items()).toEqual(['application: third']);
+  await user.click(routes());
+  expect(items()).toHaveLength(3);
+  const toggle = () => band().getByRole('button', { name: /^Look first/ });
+  expect(toggle().getAttribute('aria-expanded')).toBe('true');
+  await user.click(toggle());
+  expect(band().queryAllByRole('listitem')).toHaveLength(0);
+  expect(toggle().textContent).toBe('Look first: 3');
+  expect(toggle().getAttribute('aria-expanded')).toBe('false');
+  await user.click(toggle());
+  expect(items()).toHaveLength(3);
+  await user.click(band().getByRole('button', { name: 'domain: second' }));
+  expect(document.activeElement).toBe(screen.getByRole('button', { name: 'domain: unchanged' }));
+
+  rerender(<ReviewPage review={pageWith({ ...review, findings: looks(7) })} />);
+  expect(items()).toHaveLength(7);
+  const showAll = () => band().queryByRole('button', { name: /^Show all/ });
+  expect(showAll()).toBeNull();
+  rerender(<ReviewPage review={pageWith({ ...review, findings: looks(8) })} />);
+  expect(items()).toEqual(['0', '1', '2', '3', '4', '5', '6'].map(title => `domain: ${title}`));
+  expect(screen.queryByRole('complementary', { name: 'Findings' })).toBeNull();
+  await user.click(band().getByRole('button', { name: 'Show all 8' }));
+  expect(screen.getByRole('complementary', { name: 'Findings' })).toBeDefined();
+  await user.click(screen.getByRole('button', { name: 'Hide findings' }));
+
+  rerender(
+    <ReviewPage
+      review={pageWith({ ...review, findings: [findingOn('rust/crate/application')] })}
+    />,
+  );
+  expect(screen.queryByRole('region', { name: 'Look first' })).toBeNull();
 });
 
 const webModule = (label: string, state: Diffed = 'unchanged') => ({
@@ -1591,7 +1639,11 @@ test("modules open collapsed, joined by their files' imports; a module's toggle 
   await user.click(within(web).getByRole('button', { name: 'Collapse modules/AppInfo' }));
   await user.click(within(web).getByRole('button', { name: 'Collapse utils' }));
   await user.click(screen.getByRole('button', { name: /^Show \d+ findings?$/ }));
-  await user.click(screen.getByRole('button', { name: /: reaches into utils: New helper\.$/ }));
+  await user.click(
+    within(screen.getByRole('complementary', { name: 'Findings' })).getByRole('button', {
+      name: /: reaches into utils$/,
+    }),
+  );
 
   const reaching = await within(web).findByRole('button', {
     name: 'api/app-info.ts → x.ts: added, flagged: reaches into utils',
@@ -1781,6 +1833,14 @@ test("web calls to API routes are drawn between the stacks, named by their paths
           ],
         },
         dangling: [{ from: 'web/file/modules/AppInfo/api/users.ts', path: '/api/app-info' }],
+        findings: [
+          findingOn('web/file/modules/AppInfo/api/users.ts', {
+            id: 'routes:dangling:web/file/modules/AppInfo/api/users.ts',
+            dimension: 'routes',
+            title: '1 call with no route',
+            detail: '/api/app-info',
+          }),
+        ],
       })}
       notes={{
         version: 1,
@@ -1801,8 +1861,12 @@ test("web calls to API routes are drawn between the stacks, named by their paths
     'modules/AppInfo: unchanged, no route for /api/app-info',
     'Expand modules/AppInfo',
   ]);
-  await user.click(screen.getByRole('img', { name: 'No route for /api/app-info' }));
-  expect(reasonsShown()).toEqual(['No route for /api/app-info']);
+  await user.click(
+    screen.getByRole('img', {
+      name: 'for information, 1 finding: 1 call with no route: /api/app-info',
+    }),
+  );
+  expect(findingsShown()).toEqual(['1 call with no route: /api/app-info']);
   expect(buttonsIn(screen.getByRole('group', { name: 'rust' }))).toEqual([
     'http-adapter: unchanged',
   ]);
@@ -1915,33 +1979,26 @@ test("a Metrics row is marked by the level of the node's finding on it, a hotspo
     <ReviewPage
       review={pageWith({
         ...review,
-        metrics: { [application]: { base: measured(), head: measured() } },
-        metricFindings: [
-          {
-            node: 'rust/crate/domain',
-            metric: 'cyclomatic',
-            level: 'info',
-            head: 12,
-            threshold: 10,
+        metrics: {
+          'rust/crate/domain': { head: measured({ cyclomatic: { highest: 20, total: 20 } }) },
+          [application]: {
+            base: measured({ lines: 850, cyclomatic: { highest: 14, total: 30 }, abc: 31.5 }),
+            head: measured({ lines: 900, cyclomatic: { highest: 14, total: 30 }, abc: 31.5 }),
           },
-          { node: application, metric: 'cyclomatic', level: 'look', head: 14, threshold: 10 },
-          { node: application, metric: 'lines', level: 'look', head: 900, threshold: 800 },
-          { node: application, metric: 'abc', level: 'info', head: 31.5, threshold: 30 },
-          {
-            node: application,
-            metric: 'hotspot',
-            level: 'info',
-            head: { churn: 6, cyclomatic: 14 },
-            threshold: { churn: 5, cyclomatic: 10 },
-          },
-        ],
+        },
+        thresholds: {
+          cyclomatic: 10,
+          hotspot: { churn: 5, cyclomatic: 10 },
+          lines: 800,
+          abc: 30,
+        },
       })}
     />,
   );
 
   await user.click(await screen.findByRole('button', { name: 'application: modified' }));
   await user.click(within(inspector()).getByRole('tab', { name: 'Metrics' }));
-  expect(metricMarks('Cyclomatic, highest')).toEqual(['needs a look']);
+  expect(metricMarks('Cyclomatic, highest')).toEqual(['for information']);
   expect(metricMarks('ABC size')).toEqual(['for information']);
   expect(metricMarks('Churn')).toEqual(['for information']);
   expect(metricMarks('Lines')).toEqual(['needs a look']);
@@ -2084,6 +2141,15 @@ test("the rail's changed files outside the graph open in the inspector at the ch
         undrawn: [
           { path: 'README.md', patch: '--- a/README.md\n+++ b/README.md\n@@ -1 +1 @@\n-old\n+new' },
           { path: 'docs/a.md', patch: '--- a/docs/a.md\n+++ b/docs/a.md\n@@ -1 +1 @@\n-a\n+b' },
+        ],
+        findings: [
+          {
+            id: 'structure:undrawn',
+            dimension: 'structure',
+            level: 'info',
+            title: '2 changed files outside the graph',
+            detail: 'README.md, docs/a.md',
+          },
         ],
       })}
     />,

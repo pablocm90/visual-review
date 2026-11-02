@@ -3,6 +3,8 @@ import type { Graph, GraphEdge } from './graph.ts';
 import type { Churn, Measures, RangeReading } from './read-range.ts';
 import type { FileMeasures } from './reader.ts';
 
+export const tenths = (value: number) => Math.round(value * 10) / 10;
+
 export type FunctionCyclomatic = { readonly name: string; readonly cyclomatic: number };
 
 type Complexity = {
