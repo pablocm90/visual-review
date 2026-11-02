@@ -1,54 +1,38 @@
 import { useRef, useState } from 'react';
-import type { Finding as RaisedFinding } from '../core/findings.ts';
+import { DIMENSIONS, type Dimension, type Finding } from '../core/findings.ts';
 import { endsOfId } from '../core/graph.ts';
-import type { ReviewNotes } from '../core/notes.ts';
 import type { PageData } from '../core/page.ts';
 import { notReadLine } from '../core/skipped.ts';
 import { LevelMark } from './finding-display.tsx';
 
 type FindingsRailProps = {
-  readonly notes: ReviewNotes | undefined;
-  readonly review: Pick<PageData, 'diff' | 'findings' | 'dangling' | 'undrawn' | 'skipped'>;
+  readonly findings: ReadonlyArray<Finding>;
+  readonly review: Pick<PageData, 'diff' | 'skipped'>;
   readonly onGoTo: (id: string) => void;
   readonly onShowOutside: (opener: HTMLButtonElement) => void;
 };
 
-type Level = RaisedFinding['level'];
+type Level = Finding['level'];
 
-type Finding = {
+type Line = {
   readonly level: Level;
   readonly sentence: string;
   readonly target: string;
   readonly act?: (opener: HTMLButtonElement) => void;
 };
 
-type NotDrawnOptions = {
-  readonly paths: ReadonlyArray<string>;
-  readonly one: string;
-  readonly many: string;
-  readonly act?: (opener: HTMLButtonElement) => void;
-};
-
-const notDrawn = ({ paths, one, many, ...rest }: NotDrawnOptions): ReadonlyArray<Finding> =>
-  paths.length === 0
-    ? []
-    : [
-        {
-          level: 'info',
-          sentence: `${paths.length} ${paths.length === 1 ? one : many}`,
-          target: paths.join(', '),
-          ...rest,
-        },
-      ];
-
 type Group = {
   readonly name: string;
-  readonly chip: string;
-  readonly findings: ReadonlyArray<Finding>;
+  readonly findings: ReadonlyArray<Line>;
+};
+
+const nameOf = (dimension: Dimension) => {
+  const words = dimension.replace('-', ' ');
+  return `${words.charAt(0).toUpperCase()}${words.slice(1)}`;
 };
 
 const groupsOf = ({
-  notes,
+  findings,
   review,
   onGoTo,
   onShowOutside,
@@ -58,53 +42,24 @@ const groupsOf = ({
     endsOfId(id)
       .map(end => labelOf.get(end) ?? end)
       .join(' → ');
-  return [
-    {
-      name: 'Flagged in notes',
-      chip: 'Notes',
-      findings: Object.entries(notes?.notes ?? {}).flatMap(([id, note]) =>
-        note.flag
-          ? [
-              {
-                level: 'look' as const,
-                sentence: `${note.flag}: ${note.text}`,
-                target: targetOf(id),
-                act: () => onGoTo(id),
-              },
-            ]
-          : [],
-      ),
-    },
-    {
-      name: 'Metrics',
-      chip: 'Metrics',
-      findings: review.findings.flatMap(({ dimension, level, target, title }) =>
-        dimension === 'metrics' && target !== undefined
-          ? [{ level, sentence: title, target: targetOf(target), act: () => onGoTo(target) }]
-          : [],
-      ),
-    },
-    {
-      name: 'Not drawn',
-      chip: 'Not drawn',
-      findings: [
-        ...notDrawn({
-          paths: review.dangling.map(call => call.path),
-          one: 'call with no route',
-          many: 'calls with no route',
-        }),
-        ...notDrawn({
-          paths: review.undrawn.map(patch => patch.path),
-          one: 'changed file outside the graph',
-          many: 'changed files outside the graph',
-          act: onShowOutside,
-        }),
-      ],
-    },
-  ];
+  const lineOf = ({ id, level, target, title, detail }: Finding): Line => {
+    if (target !== undefined) {
+      return { level, sentence: title, target: targetOf(target), act: () => onGoTo(target) };
+    }
+    return {
+      level,
+      sentence: title,
+      target: detail ?? '',
+      ...(id === 'structure:undrawn' && { act: onShowOutside }),
+    };
+  };
+  return DIMENSIONS.map(dimension => ({
+    name: nameOf(dimension),
+    findings: findings.filter(finding => finding.dimension === dimension).map(lineOf),
+  }));
 };
 
-const FindingItem = ({ finding }: { readonly finding: Finding }) => {
+const FindingItem = ({ finding }: { readonly finding: Line }) => {
   const said = (
     <>
       <span>{finding.sentence}</span>
@@ -148,7 +103,7 @@ export const FindingsRail = (props: FindingsRailProps) => {
   );
   const chips = [
     { chip: 'All', pick: undefined, count: levels.length },
-    ...groups.map(group => ({ chip: group.chip, pick: group.chip, count: group.findings.length })),
+    ...groups.map(group => ({ chip: group.name, pick: group.name, count: group.findings.length })),
   ];
   const counted = (level: Level) => (
     <span className="findings-count">
@@ -187,7 +142,7 @@ export const FindingsRail = (props: FindingsRailProps) => {
           ))}
         </div>
         {groups
-          .filter(group => picked === undefined || group.chip === picked)
+          .filter(group => picked === undefined || group.name === picked)
           .map(group => (
             <section key={group.name} aria-label={group.name}>
               <h3>{group.name}</h3>

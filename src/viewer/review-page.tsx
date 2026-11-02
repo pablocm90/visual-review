@@ -10,6 +10,7 @@ import {
 } from 'react';
 import type { FilePatch, GraphDiff } from '../core/diff-graphs.ts';
 import { isAtOrUnder } from '../core/diff-graphs.ts';
+import { findingsOf } from '../core/findings.ts';
 import { edgeId } from '../core/graph.ts';
 import { type MetricFinding, metricFindings } from '../core/metric-findings.ts';
 import type { NodeMetrics } from '../core/metrics.ts';
@@ -1099,7 +1100,12 @@ export const ReviewPage = ({ review, notes, send }: ReviewPageProps) => {
             <p className="caveat">Calls whose path is built at runtime are not drawn.</p>
           </div>
           <div className="columns">
-            <FindingsRail notes={notes} review={review} onGoTo={goTo} onShowOutside={showOutside} />
+            <FindingsRail
+              findings={findingsOf({ data: review, notes })}
+              review={review}
+              onGoTo={goTo}
+              onShowOutside={showOutside}
+            />
             <div className="content">
               {notes && notes.summary.length > 0 && <Summary notes={notes} onGoTo={goTo} />}
               <div className="graph-controls">

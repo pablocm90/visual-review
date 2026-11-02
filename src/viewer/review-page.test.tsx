@@ -1253,7 +1253,7 @@ test('the summary lists its items, not the flagged notes, and an item with a tar
   expect(screen.queryByRole('region', { name: 'Summary' })).toBeNull();
 });
 
-test("the findings rail starts collapsed to their total and how many need a look or are for information: notes' flags need a look, metric findings keep their level, and each not-drawn line is for information; opened, it shows the groups holding findings, and hides again", async () => {
+test("the findings rail starts collapsed to their total and how many need a look or are for information, notes' flags among them; opened, it groups them by dimension, each line its title and its target, else its detail, and hides again", async () => {
   const user = userEvent.setup();
   const { rerender } = render(
     <ReviewPage
@@ -1270,10 +1270,13 @@ test("the findings rail starts collapsed to their total and how many need a look
             dimension: 'routes',
             title: '2 calls with no route',
           }),
-        ],
-        dangling: [
-          { from: 'rust/crate/cli-adapter', path: '/api/a' },
-          { from: 'rust/crate/cli-adapter', path: '/api/b' },
+          {
+            id: 'structure:undrawn',
+            dimension: 'structure',
+            level: 'info',
+            title: '1 changed file outside the graph',
+            detail: 'README.md',
+          },
         ],
         undrawn: [{ path: 'README.md', patch: '' }],
       })}
@@ -1310,25 +1313,20 @@ test("the findings rail starts collapsed to their total and how many need a look
     await user.click(within(open).getByRole('button', { name: 'Hide findings' }));
     return groups;
   };
-  expect(await groupsShown()).toEqual(['Flagged in notes', 'Metrics', 'Not drawn']);
+  expect(await groupsShown()).toEqual(['Structure', 'Metrics', 'Routes']);
   expect(screen.queryByRole('complementary', { name: 'Findings' })).toBeNull();
 
   await user.click(screen.getByRole('button', { name: 'Show 6 findings' }));
-  const flagged = within(screen.getByRole('region', { name: 'Flagged in notes' }));
-  expect(
-    flagged.getByRole('button', { name: 'cli-adapter: new entry point: A second way in.' }),
-  ).toBeDefined();
-  expect(
-    flagged.getByRole('button', {
-      name: 'cli-adapter → application: new dependency direction: The CLI drives the use case.',
-    }),
-  ).toBeDefined();
-  const notDrawn = within(screen.getByRole('region', { name: 'Not drawn' }));
-  expect(notDrawn.getByText('2 calls with no route')).toBeDefined();
-  expect(notDrawn.getByText('/api/a, /api/b')).toBeDefined();
-  expect(notDrawn.getAllByRole('button').map(button => button.getAttribute('aria-label'))).toEqual([
+  const lines = (group: string) =>
+    within(screen.getByRole('region', { name: group }))
+      .getAllByRole('button')
+      .map(button => button.getAttribute('aria-label'));
+  expect(lines('Structure')).toEqual([
     'README.md: 1 changed file outside the graph',
+    'cli-adapter: new entry point',
+    'cli-adapter → application: new dependency direction',
   ]);
+  expect(lines('Routes')).toEqual(['cli-adapter: 2 calls with no route']);
 
   const chips = within(screen.getByRole('group', { name: 'Show findings' }));
   const pressed = () =>
@@ -1337,9 +1335,9 @@ test("the findings rail starts collapsed to their total and how many need a look
       .map(chip => `${chip.textContent} ${chip.getAttribute('aria-pressed')}`);
   expect(pressed()).toEqual([
     'All 6 true',
-    'Notes 2 false',
+    'Structure 3 false',
     'Metrics 2 false',
-    'Not drawn 2 false',
+    'Routes 1 false',
   ]);
   const headings = () =>
     within(screen.getByRole('complementary', { name: 'Findings' }))
@@ -1348,13 +1346,13 @@ test("the findings rail starts collapsed to their total and how many need a look
   await user.click(chips.getByRole('button', { name: 'Metrics 2' }));
   expect(pressed()).toEqual([
     'All 6 false',
-    'Notes 2 false',
+    'Structure 3 false',
     'Metrics 2 true',
-    'Not drawn 2 false',
+    'Routes 1 false',
   ]);
   expect(headings()).toEqual(['Metrics']);
   await user.click(chips.getByRole('button', { name: 'All 6' }));
-  expect(headings()).toEqual(['Flagged in notes', 'Metrics', 'Not drawn']);
+  expect(headings()).toEqual(['Structure', 'Metrics', 'Routes']);
   await user.click(screen.getByRole('button', { name: 'Hide findings' }));
 
   rerender(
@@ -1535,7 +1533,11 @@ test("modules open collapsed, joined by their files' imports; a module's toggle 
   await user.click(within(web).getByRole('button', { name: 'Collapse modules/AppInfo' }));
   await user.click(within(web).getByRole('button', { name: 'Collapse utils' }));
   await user.click(screen.getByRole('button', { name: /^Show \d+ findings?$/ }));
-  await user.click(screen.getByRole('button', { name: /: reaches into utils: New helper\.$/ }));
+  await user.click(
+    within(screen.getByRole('complementary', { name: 'Findings' })).getByRole('button', {
+      name: /: reaches into utils$/,
+    }),
+  );
 
   const reaching = await within(web).findByRole('button', {
     name: 'api/app-info.ts → x.ts: added, flagged: reaches into utils',
@@ -2021,6 +2023,15 @@ test("the rail's changed files outside the graph open in the inspector at the ch
         undrawn: [
           { path: 'README.md', patch: '--- a/README.md\n+++ b/README.md\n@@ -1 +1 @@\n-old\n+new' },
           { path: 'docs/a.md', patch: '--- a/docs/a.md\n+++ b/docs/a.md\n@@ -1 +1 @@\n-a\n+b' },
+        ],
+        findings: [
+          {
+            id: 'structure:undrawn',
+            dimension: 'structure',
+            level: 'info',
+            title: '2 changed files outside the graph',
+            detail: 'README.md, docs/a.md',
+          },
         ],
       })}
     />,
