@@ -417,6 +417,21 @@ test('a file whose export names changed only by its symbols raises no export lis
   expect(findingsOfSymbols(symbols)).toStrictEqual([]);
 });
 
+test("a changed file whose symbols wouldn't parse is a structure finding for information on it, its detail the parse error", () => {
+  const symbols = [{ node: 'web/file/a.ts', stack: 'web', unreadable: 'Unexpected token (3:4)' }];
+
+  expect(findingsOfSymbols(symbols)).toStrictEqual([
+    {
+      id: 'structure:unreadable-symbols:web/file/a.ts',
+      dimension: 'structure',
+      level: 'info',
+      target: 'web/file/a.ts',
+      title: 'symbols not read',
+      detail: 'Unexpected token (3:4)',
+    },
+  ]);
+});
+
 const notesFile = 'x.notes.json';
 
 const notesWith = (notes: ReviewNotes['notes']): ReviewNotes => ({

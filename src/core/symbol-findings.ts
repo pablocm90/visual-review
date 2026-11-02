@@ -83,7 +83,16 @@ const exportsFinding = (file: FileSymbolChanges): ReadonlyArray<Finding> => {
 export const symbolFindings = (files: ReadonlyArray<SymbolFile>): ReadonlyArray<Finding> =>
   files.flatMap(file =>
     'unreadable' in file
-      ? []
+      ? [
+          {
+            id: `structure:unreadable-symbols:${file.node}`,
+            dimension: 'structure',
+            level: 'info',
+            target: file.node,
+            title: 'symbols not read',
+            detail: file.unreadable,
+          },
+        ]
       : [
           ...file.symbols.flatMap(statement => findingOf({ node: file.node, statement }) ?? []),
           ...exportsFinding(file),
