@@ -23,6 +23,7 @@ type FindingsRailProps = {
 type Level = Finding['level'];
 
 type Line = {
+  readonly id: string;
   readonly level: Level;
   readonly sentence: string;
   readonly target: string;
@@ -55,6 +56,7 @@ const linesOf = ({ review, onGoTo, onShowOutside }: LineOptions) => {
     const { id, level, target, title, detail } = finding;
     if (target !== undefined) {
       return {
+        id,
         level,
         sentence: findingLine(finding),
         target: targetOf(target),
@@ -62,6 +64,7 @@ const linesOf = ({ review, onGoTo, onShowOutside }: LineOptions) => {
       };
     }
     return {
+      id,
       level,
       sentence: title,
       target: detail ?? '',
@@ -150,7 +153,7 @@ export const FindingsRail = (props: FindingsRailProps) => {
             <h3>{group.name}</h3>
             <ul>
               {group.findings.map(finding => (
-                <FindingItem key={`${finding.target}: ${finding.sentence}`} finding={finding} />
+                <FindingItem key={finding.id} finding={finding} />
               ))}
             </ul>
           </section>
