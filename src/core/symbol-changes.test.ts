@@ -283,7 +283,7 @@ test('a symbol removed from one changed file and added to another with the same 
         },
       ],
       exports: { added: ['charge'], removed: [] },
-      kind: 'logic',
+      kind: 'api',
     },
   ]);
 });
@@ -358,6 +358,54 @@ test.each([
     head: ["import { bill } from './bill';", 'function charge() { return 1; }'],
     kind: 'logic',
   },
-])('a file with $change changed is a $kind change', ({ base, head, kind }) => {
+  {
+    change: 'a symbol no longer exported',
+    base: ['export function charge() {}'],
+    head: ['function charge() {}'],
+    kind: 'api',
+  },
+  {
+    change: "an exported function's signature",
+    base: ['export function charge(a: number) {}'],
+    head: ['export function charge(a: string) {}'],
+    kind: 'api',
+  },
+  {
+    change: "a private function's signature",
+    base: ['function charge(a: number) {}'],
+    head: ['function charge(a: string) {}'],
+    kind: 'logic',
+  },
+  {
+    change: "an exported function's body",
+    base: ['export function charge() { return 1; }'],
+    head: ['export function charge() { return 2; }'],
+    kind: 'logic',
+  },
+  {
+    change: 'a public method added to an exported class',
+    base: ['export class Shop {}'],
+    head: ['export class Shop { open() {} }'],
+    kind: 'api',
+  },
+  {
+    change: 'a public method of an exported class renamed',
+    base: ['export class Shop { open() { return 1; } }'],
+    head: ['export class Shop { start() { return 1; } }'],
+    kind: 'api',
+  },
+  {
+    change: 'a re-export added',
+    base: ['export function charge() {}'],
+    head: ['export function charge() {}', "export * from './cart';"],
+    kind: 'api',
+  },
+  {
+    change: 'a public method removed from an exported class',
+    base: ['export class Shop { open() {} }'],
+    head: ['export class Shop {}'],
+    kind: 'api',
+  },
+])('$kind: a file with $change changed', ({ base, head, kind }) => {
   expect(symbolChanges({ before: read(...base), after: read(...head) }).kind).toBe(kind);
 });

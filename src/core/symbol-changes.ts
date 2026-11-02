@@ -97,6 +97,23 @@ const byLikenessThenNames = (one: Rename, other: Rename): number =>
   qualified(one.symbol).localeCompare(qualified(other.symbol)) ||
   qualified(one.former).localeCompare(qualified(other.former));
 
+const API_CHANGES: ReadonlyArray<SymbolChange> = ['added', 'removed', 'renamed'];
+
+const changesApi = ({ exported, change, signature }: SymbolStatement): boolean =>
+  (exported.base === true || exported.head === true) &&
+  (signature !== undefined || API_CHANGES.includes(change));
+
+const kindOf = ({
+  before,
+  after,
+  exports,
+  symbols,
+}: SymbolChangesOptions & Omit<SymbolChanges, 'kind'>): KindOfChange => {
+  if (exports.added.length > 0 || exports.removed.length > 0) return 'api';
+  if (symbols.some(changesApi)) return 'api';
+  return before.astHash === after.astHash ? 'formatting' : 'logic';
+};
+
 export const symbolChanges = ({ before, after }: SymbolChangesOptions): SymbolChanges => {
   const removed = before.symbols.filter(
     symbol => !after.symbols.some(candidate => sameSymbol(candidate, symbol)),
@@ -123,38 +140,36 @@ export const symbolChanges = ({ before, after }: SymbolChangesOptions): SymbolCh
       .map(({ symbol, former }) => [symbol, former] as const),
   );
   const renamed = new Set(renames.values());
-  return {
-    kind: before.astHash === after.astHash ? 'formatting' : 'logic',
-    exports: {
-      added: after.exports.filter(name => !before.exports.includes(name)),
-      removed: before.exports.filter(name => !after.exports.includes(name)),
-    },
-    symbols: [
-      ...after.symbols.map((symbol): SymbolStatement => {
-        const old = partnerOf(symbol);
-        if (old !== undefined) return pairedWith(old, symbol);
-        const former = renames.get(symbol);
-        if (former !== undefined) {
-          return {
-            ...pairedWith(former, symbol),
-            change: 'renamed',
-            renamedFrom: qualified(former),
-            ...(former.bodyHash === symbol.bodyHash ? {} : { probably: true }),
-          };
-        }
-        return { ...named(symbol), exported: { head: symbol.exported }, change: 'added' };
-      }),
-      ...removed
-        .filter(symbol => !renamed.has(symbol))
-        .map(
-          (symbol): SymbolStatement => ({
-            ...named(symbol),
-            exported: { base: symbol.exported },
-            change: 'removed',
-          }),
-        ),
-    ],
+  const exports = {
+    added: after.exports.filter(name => !before.exports.includes(name)),
+    removed: before.exports.filter(name => !after.exports.includes(name)),
   };
+  const symbols = [
+    ...after.symbols.map((symbol): SymbolStatement => {
+      const old = partnerOf(symbol);
+      if (old !== undefined) return pairedWith(old, symbol);
+      const former = renames.get(symbol);
+      if (former !== undefined) {
+        return {
+          ...pairedWith(former, symbol),
+          change: 'renamed',
+          renamedFrom: qualified(former),
+          ...(former.bodyHash === symbol.bodyHash ? {} : { probably: true }),
+        };
+      }
+      return { ...named(symbol), exported: { head: symbol.exported }, change: 'added' };
+    }),
+    ...removed
+      .filter(symbol => !renamed.has(symbol))
+      .map(
+        (symbol): SymbolStatement => ({
+          ...named(symbol),
+          exported: { base: symbol.exported },
+          change: 'removed',
+        }),
+      ),
+  ];
+  return { symbols, exports, kind: kindOf({ before, after, exports, symbols }) };
 };
 
 type SidedFile = SymbolChangesOptions & { readonly node: string };
