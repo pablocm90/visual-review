@@ -169,6 +169,7 @@ test("a served page's Send to Claude sends each comment under its node's id or i
 
   expect(sent).toHaveBeenCalledExactlyOnceWith({
     version: 1,
+    verdict: 'comment',
     comments: {
       'rust/crate/domain': { text: 'Keep domain free of IO.' },
       'rust/crate/application -> rust/crate/domain': { text: 'Why this way round?' },
@@ -176,6 +177,30 @@ test("a served page's Send to Claude sends each comment under its node's id or i
   });
   expect((await screen.findByRole('status', { name: 'Review' })).textContent).toBe('Sent');
   expect(screen.queryByRole('button', { name: 'Send to Claude' })).toBeNull();
+});
+
+test('the verdict picked beside Send to Claude goes with the review, Comment until another is picked', async () => {
+  const user = userEvent.setup();
+  const sent = vi.fn(async () => {});
+  render(<ReviewPage review={pageWith(review)} send={sent} />);
+  const verdict = (name: string) =>
+    within(screen.getByRole('radiogroup', { name: 'Verdict' })).getByRole('radio', { name });
+
+  const rust = await screen.findByRole('group', { name: 'rust' });
+  expect(verdict('Comment')).toHaveProperty('checked', true);
+  await user.click(within(rust).getByRole('button', { name: 'domain: unchanged' }));
+  await user.type(
+    within(noteTab()).getByRole('textbox', { name: 'Your comment' }),
+    'Keep domain free of IO.',
+  );
+  await user.click(verdict('Request changes'));
+  await user.click(screen.getByRole('button', { name: 'Send to Claude' }));
+
+  expect(sent).toHaveBeenCalledExactlyOnceWith({
+    version: 1,
+    verdict: 'request-changes',
+    comments: { 'rust/crate/domain': { text: 'Keep domain free of IO.' } },
+  });
 });
 
 test('Send to Claude waits for a comment that is more than blanks, and sends no blank one', async () => {
@@ -196,10 +221,23 @@ test('Send to Claude waits for a comment that is more than blanks, and sends no 
 
   expect(sent).toHaveBeenCalledExactlyOnceWith({
     version: 1,
+    verdict: 'comment',
     comments: {
       'rust/crate/application -> rust/crate/domain': { text: 'Why this way round?' },
     },
   });
+});
+
+test('an Approve can be sent with no comment', async () => {
+  const user = userEvent.setup();
+  const sent = vi.fn(async () => {});
+  render(<ReviewPage review={pageWith(review)} send={sent} />);
+
+  await screen.findByRole('group', { name: 'rust' });
+  await user.click(screen.getByRole('radio', { name: 'Approve' }));
+  await user.click(screen.getByRole('button', { name: 'Send to Claude' }));
+
+  expect(sent).toHaveBeenCalledExactlyOnceWith({ version: 1, verdict: 'approve', comments: {} });
 });
 
 test('a page that is not served has no comment field and no Send to Claude', async () => {

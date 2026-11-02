@@ -849,13 +849,21 @@ type SendProps = {
   readonly send: (review: Review) => Promise<void>;
 };
 
+const VERDICTS: ReadonlyArray<readonly [Review['verdict'], string]> = [
+  ['approve', 'Approve'],
+  ['comment', 'Comment'],
+  ['request-changes', 'Request changes'],
+];
+
 const SendToClaude = ({ comments, send }: SendProps) => {
+  const [verdict, setVerdict] = useState<Review['verdict']>('comment');
   const [sent, setSent] = useState(false);
   const [problem, setProblem] = useState<string>();
   const written = Object.entries(comments).filter(([, text]) => text.trim() !== '');
   const sendComments = () =>
     send({
       version: 1,
+      verdict,
       comments: Object.fromEntries(written.map(([id, text]) => [id, { text }])),
     }).then(
       () => setSent(true),
@@ -874,7 +882,24 @@ const SendToClaude = ({ comments, send }: SendProps) => {
               {problem}
             </p>
           )}
-          <button type="button" disabled={written.length === 0} onClick={sendComments}>
+          <div role="radiogroup" aria-label="Verdict" className="verdict">
+            {VERDICTS.map(([value, label]) => (
+              <label key={value}>
+                <input
+                  type="radio"
+                  name="verdict"
+                  checked={verdict === value}
+                  onChange={() => setVerdict(value)}
+                />
+                {label}
+              </label>
+            ))}
+          </div>
+          <button
+            type="button"
+            disabled={verdict !== 'approve' && written.length === 0}
+            onClick={sendComments}
+          >
             Send to Claude
           </button>
         </>
