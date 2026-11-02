@@ -50,6 +50,14 @@ const refuse = ({ response, status, error }: RefuseOptions): void => {
   response.writeHead(status, { 'content-type': 'text/plain; charset=utf-8' }).end(error.message);
 };
 
+type RouteOfOptions = {
+  readonly request: IncomingMessage;
+  readonly host: string;
+};
+
+const routeOf = ({ request, host }: RouteOfOptions): string | undefined =>
+  request.headers.host === host ? `${request.method} ${request.url}` : undefined;
+
 type TakeReviewOptions = {
   readonly request: IncomingMessage;
   readonly response: ServerResponse;
@@ -143,7 +151,7 @@ export const servePage = async ({
   const idle = setTimeout(unsent('the page was not open in a tab'), idleMs);
   const stopped = unsent('serve was stopped');
   server.on('request', async (request, response) => {
-    const route = request.headers.host === host ? `${request.method} ${request.url}` : undefined;
+    const route = routeOf({ request, host });
     if (route === `POST /${token}/review`) {
       if (await tookReview({ request, response, reviewFile })) {
         server.close();
