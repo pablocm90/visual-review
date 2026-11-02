@@ -5,7 +5,9 @@ import type { MetricFinding } from './metric-findings.ts';
 import { type NodeMetrics, tenths } from './metrics.ts';
 import type { ReviewNotes } from './notes.ts';
 import type { PageData } from './page.ts';
+import type { SymbolFile } from './read-range.ts';
 import { notReadLine, type Skipped } from './skipped.ts';
+import { symbolFindings } from './symbol-findings.ts';
 import { visibleNodeOf } from './visible-diff.ts';
 
 export const DIMENSIONS = [
@@ -61,6 +63,7 @@ type RaisedOptions = {
   readonly undrawn: ReadonlyArray<FilePatch>;
   readonly dangling: ReadonlyArray<DanglingCall>;
   readonly metricFindings: ReadonlyArray<MetricFinding>;
+  readonly symbols: ReadonlyArray<SymbolFile>;
 };
 
 export const skippedFindingId = (skip: Skipped) => `structure:skipped:${skip.reader}`;
@@ -70,6 +73,7 @@ export const raisedFindings = ({
   undrawn,
   dangling,
   metricFindings,
+  symbols,
 }: RaisedOptions): ReadonlyArray<Finding> => [
   ...skipped.map(
     (skip): Finding => ({
@@ -109,6 +113,7 @@ export const raisedFindings = ({
       title: metricTitle(finding),
     }),
   ),
+  ...symbolFindings(symbols),
 ];
 
 type FindingsOfOptions = {

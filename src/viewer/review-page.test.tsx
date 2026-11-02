@@ -1034,7 +1034,13 @@ test('a reader skipped for want of its tool is named once, at the top of the fin
       review={pageWith({
         ...review,
         skipped,
-        findings: raisedFindings({ skipped, undrawn: [], dangling: [], metricFindings: [] }),
+        findings: raisedFindings({
+          skipped,
+          undrawn: [],
+          dangling: [],
+          metricFindings: [],
+          symbols: [],
+        }),
       })}
     />,
   );

@@ -6,7 +6,8 @@ import type { GraphNode } from './graph.ts';
 import { metricFindings } from './metric-findings.ts';
 import type { ReviewNotes } from './notes.ts';
 import { notedPageHtml, pageData, pageHtml, pageIn, servedPageHtml } from './page.ts';
-import type { RangeReading } from './read-range.ts';
+import type { RangeReading, SymbolFile } from './read-range.ts';
+import type { SymbolStatement } from './symbol-changes.ts';
 
 const webFile = (path: string): GraphNode => ({
   id: `web/file/${path}`,
@@ -178,6 +179,53 @@ test('stacks a missing tool kept from being read are a structure finding to look
       dimension: 'structure',
       level: 'look',
       title: 'api, worker not read: cargo not found on PATH',
+    },
+  ]);
+});
+
+const symbolFile = (symbols: ReadonlyArray<SymbolStatement>): SymbolFile => ({
+  node: 'web/file/a.ts',
+  stack: 'web',
+  symbols,
+  exports: { added: [], removed: [] },
+  kind: 'api',
+});
+
+const findingsOfSymbols = (symbols: ReadonlyArray<SymbolFile>) =>
+  pageData({ repo: 'shop', reading: readingWith({ symbols }), range: 'a..b', version, parsers })
+    .findings;
+
+test('an exported symbol removed, or no longer exported, is an api finding to look at on its file, named by its kind and qualified name', () => {
+  const symbols = [
+    symbolFile([
+      { name: 'charge', kind: 'function', exported: { base: true }, change: 'removed' },
+      {
+        name: 'refund',
+        scope: 'Orders',
+        kind: 'method',
+        exported: { base: true, head: false },
+        change: 'edited',
+      },
+      { name: 'helper', kind: 'function', exported: { base: false }, change: 'removed' },
+      { name: 'fresh', kind: 'function', exported: { head: false }, change: 'added' },
+      { name: 'total', kind: 'function', exported: { base: true, head: true }, change: 'edited' },
+    ]),
+  ];
+
+  expect(findingsOfSymbols(symbols)).toStrictEqual([
+    {
+      id: 'api:removed:web/file/a.ts#charge',
+      dimension: 'api',
+      level: 'look',
+      target: 'web/file/a.ts',
+      title: 'function charge removed',
+    },
+    {
+      id: 'api:removed:web/file/a.ts#Orders.refund',
+      dimension: 'api',
+      level: 'look',
+      target: 'web/file/a.ts',
+      title: 'method Orders.refund no longer exported',
     },
   ]);
 });
