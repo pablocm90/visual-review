@@ -22,6 +22,11 @@ const removalOf = (statement: SymbolStatement): Removal | undefined => {
     : undefined;
 };
 
+const addedHow = ({ change, movedFrom }: SymbolStatement): string => {
+  if (change === 'added') return 'added';
+  return movedFrom === undefined ? 'now exported' : `moved from ${movedFrom}`;
+};
+
 type Placed = { readonly node: string; readonly statement: SymbolStatement };
 
 const findingOf = ({ node, statement }: Placed): Finding | undefined => {
@@ -34,8 +39,17 @@ const findingOf = ({ node, statement }: Placed): Finding | undefined => {
       title: `${statement.kind} ${removal.former} ${removal.how}`,
     };
   const { signature, exported } = statement;
-  if (signature === undefined || exported.base !== true) return undefined;
   const name = qualified(statement);
+  if (exported.base !== true)
+    return exported.head === true
+      ? {
+          id: `api:added:${node}#${name}`,
+          ...on,
+          level: 'info',
+          title: `${statement.kind} ${name} ${addedHow(statement)}`,
+        }
+      : undefined;
+  if (signature === undefined) return undefined;
   return {
     id: `api:signature:${node}#${name}`,
     ...on,

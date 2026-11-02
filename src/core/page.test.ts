@@ -230,7 +230,7 @@ test('an exported symbol removed, or no longer exported, is an api finding to lo
   ]);
 });
 
-test('an exported symbol renamed or moved away is removed under its former name, the title saying where it went; one moved in raises none', () => {
+test('an exported symbol renamed or moved away is removed under its former name, the title saying where it went', () => {
   const symbols = [
     symbolFile([
       {
@@ -255,13 +255,6 @@ test('an exported symbol renamed or moved away is removed under its former name,
         exported: { base: true },
         change: 'moved',
         movedTo: 'web/file/b.ts',
-      },
-      {
-        name: 'tax',
-        kind: 'function',
-        exported: { head: true },
-        change: 'moved',
-        movedFrom: 'web/file/c.ts',
       },
     ]),
   ];
@@ -322,6 +315,52 @@ test('an exported symbol whose signature changed is an api finding to look at, i
       target: 'web/file/a.ts',
       title: "method Orders.charge's signature changed",
       detail: '(order: Order) → (order: Order, at: Date)',
+    },
+  ]);
+});
+
+test('an export added, moved in or newly exported is an api finding for information', () => {
+  const symbols = [
+    symbolFile([
+      { name: 'charge', kind: 'function', exported: { head: true }, change: 'added' },
+      {
+        name: 'tax',
+        kind: 'function',
+        exported: { head: true },
+        change: 'moved',
+        movedFrom: 'web/file/c.ts',
+      },
+      {
+        name: 'Order',
+        kind: 'type',
+        exported: { base: false, head: true },
+        change: 'unchanged',
+      },
+      { name: 'helper', kind: 'function', exported: { head: false }, change: 'added' },
+    ]),
+  ];
+
+  expect(findingsOfSymbols(symbols)).toStrictEqual([
+    {
+      id: 'api:added:web/file/a.ts#charge',
+      dimension: 'api',
+      level: 'info',
+      target: 'web/file/a.ts',
+      title: 'function charge added',
+    },
+    {
+      id: 'api:added:web/file/a.ts#tax',
+      dimension: 'api',
+      level: 'info',
+      target: 'web/file/a.ts',
+      title: 'function tax moved from web/file/c.ts',
+    },
+    {
+      id: 'api:added:web/file/a.ts#Order',
+      dimension: 'api',
+      level: 'info',
+      target: 'web/file/a.ts',
+      title: 'type Order now exported',
     },
   ]);
 });
