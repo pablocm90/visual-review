@@ -377,3 +377,30 @@ test('a file lists the names it exports, re-exports included', () => {
     'default',
   ]);
 });
+
+const filesAlike = (base: ReadonlyArray<string>, head: ReadonlyArray<string>) =>
+  symbolsOfTypeScript(source(...base), 'src/shop.ts').astHash ===
+  symbolsOfTypeScript(source(...head), 'src/shop.ts').astHash;
+
+test.each([
+  {
+    change: 'reformatted and commented',
+    base: ["import { a } from './a';", 'const RATE = 2;'],
+    head: ['// rates', 'import { a } from "./a";', '', 'const RATE = (2);'],
+    alike: true,
+  },
+  {
+    change: 'given an import',
+    base: ["import { a } from './a';", 'const RATE = 2;'],
+    head: ["import { a } from './a';", "import { b } from './b';", 'const RATE = 2;'],
+    alike: false,
+  },
+  {
+    change: 'given another constant',
+    base: ["import { a } from './a';", 'const RATE = 2;'],
+    head: ["import { a } from './a';", 'const RATE = 3;'],
+    alike: false,
+  },
+])('a file hashes alike unless its logic changed: $change', ({ base, head, alike }) => {
+  expect(filesAlike(base, head)).toBe(alike);
+});

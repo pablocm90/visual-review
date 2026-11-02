@@ -98,6 +98,8 @@ const UNHASHED = new Set([
 
 type Replacer = (holder: unknown, key: string, value: unknown) => unknown;
 
+const asIs: Replacer = (_holder, _key, value) => value;
+
 const sha1 = (text: string): string => createHash('sha1').update(text).digest('hex');
 
 const hashOf = (value: unknown, replace: Replacer): string =>
@@ -187,11 +189,12 @@ export const symbolsOfTypeScript = (text: string, path: string): FileSymbols => 
       ...walked.symbol,
       exported: isExported(names, walked),
       signature: signatureOf(text, walked.node),
-      signatureHash: hashOf(signatureNodesOf(walked.node), (_holder, _key, value) => value),
+      signatureHash: hashOf(signatureNodesOf(walked.node), asIs),
       bodyHash: bodyHashOf(walked.node, nested),
       textHash: sha1(ownText(text, walked.node, declarations)),
       bodyTokens: tokensOf(text, walked.node, code, declarations),
     })),
+    astHash: hashOf(program, asIs),
     exports: program.body.flatMap(statement => namesExportedBy(text, statement)),
   };
 };
