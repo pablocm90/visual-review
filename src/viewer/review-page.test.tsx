@@ -1157,7 +1157,7 @@ test('clicking a crate or a dependency, or pressing Enter or Space on it, shows 
   expect(noteShown()).toBe('The CLI drives the use case.');
 });
 
-test("a drawn node's badge names its findings under the worst level, says so on hover, and clicking it opens the node's note", async () => {
+test("a drawn node's or edge's badge names its findings under the worst level, says so on hover, and clicking it opens its note", async () => {
   const user = userEvent.setup();
   render(
     <ReviewPage
@@ -1194,10 +1194,11 @@ test("a drawn node's badge names its findings under the worst level, says so on 
   expect(
     screen.getByRole('img', { name: 'for information, 1 finding: lines 900, over 800' }),
   ).toBeTruthy();
-  expect(screen.getAllByRole('img', { name: /finding/ })).toHaveLength(2);
-  expect(screen.getByRole('img', { name: 'Flagged: new dependency direction' })).toBeTruthy();
+  expect(screen.getAllByRole('img', { name: /finding/ })).toHaveLength(3);
 
-  await user.click(screen.getByRole('img', { name: 'Flagged: new dependency direction' }));
+  await user.click(
+    screen.getByRole('img', { name: 'needs a look, 1 finding: new dependency direction' }),
+  );
   expect(noteShown()).toBe('The CLI drives the use case.');
   await user.click(entry);
   expect(noteShown()).toBe('A second way in.');

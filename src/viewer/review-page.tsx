@@ -113,34 +113,33 @@ const flaggedFor = (flag: string) => `Flagged: ${flag}`;
 
 const noRouteFor = (paths: ReadonlyArray<string>) => `No route for ${paths.join(', ')}`;
 
-type FlagBadgeProps = {
-  readonly x: number;
-  readonly y: number;
-  readonly reason: string;
-  readonly level?: Finding['level'];
-  readonly onPress?: () => void;
-};
-
-const FlagBadge = ({ x, y, reason, level = 'look', onPress }: FlagBadgeProps) => (
-  <g
-    className="flag-badge"
-    data-level={level}
-    role="img"
-    aria-label={reason}
-    onClick={onPress}
-    transform={`translate(${x} ${y})`}
-  >
-    <title>{reason}</title>
-    <circle r={8} />
-    <path d="M 0 -4.5 V 1 M 0 3.5 V 4" />
-  </g>
-);
-
 const worstOf = (findings: ReadonlyArray<Finding>) =>
   findings.some(finding => finding.level === 'look') ? 'look' : 'info';
 
 const badgeName = (findings: ReadonlyArray<Finding>) =>
   `${LEVELS[worstOf(findings)]}, ${findings.length} ${findings.length === 1 ? 'finding' : 'findings'}: ${findings.map(finding => finding.title).join('; ')}`;
+
+type FindingsBadgeProps = {
+  readonly x: number;
+  readonly y: number;
+  readonly findings: ReadonlyArray<Finding>;
+  readonly onPress?: () => void;
+};
+
+const FindingsBadge = ({ x, y, findings, onPress }: FindingsBadgeProps) => (
+  <g
+    className="flag-badge"
+    data-level={worstOf(findings)}
+    role="img"
+    aria-label={badgeName(findings)}
+    onClick={onPress}
+    transform={`translate(${x} ${y})`}
+  >
+    <title>{badgeName(findings)}</title>
+    <circle r={8} />
+    <path d="M 0 -4.5 V 1 M 0 3.5 V 4" />
+  </g>
+);
 
 type Drawing = {
   readonly findingsOn: (id: string) => ReadonlyArray<Finding>;
@@ -250,9 +249,7 @@ const NodeView = ({ node, drawing }: { readonly node: PlacedNode; readonly drawi
             </>
           )}
         </text>
-        {found.length > 0 && (
-          <FlagBadge x={node.width} y={0} reason={badgeName(found)} level={worstOf(found)} />
-        )}
+        {found.length > 0 && <FindingsBadge x={node.width} y={0} findings={found} />}
       </g>
       {toggle}
     </>
@@ -269,9 +266,10 @@ type EdgeViewProps = {
 };
 
 const EdgeView = ({ edge, name, drawing }: EdgeViewProps) => {
-  const { notes, onSelect, register } = drawing;
+  const { notes, onSelect, register, findingsOn } = drawing;
   const id = edgeId(edge);
   const note = notes[id];
+  const found = findingsOn(id);
   return (
     <>
       <path
@@ -281,12 +279,8 @@ const EdgeView = ({ edge, name, drawing }: EdgeViewProps) => {
         d={edgePath(edge.points)}
         markerEnd={`url(#arrow-${edge.state})`}
       />
-      {note?.flag && (
-        <FlagBadge
-          {...middleOf(edge.points)}
-          reason={flaggedFor(note.flag)}
-          onPress={() => onSelect(id)}
-        />
+      {found.length > 0 && (
+        <FindingsBadge {...middleOf(edge.points)} findings={found} onPress={() => onSelect(id)} />
       )}
     </>
   );
