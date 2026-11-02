@@ -177,3 +177,42 @@ test('renames pair one to one, equal candidates by name', () => {
     'g added ',
   ]);
 });
+
+const nineTerms = 'function charge(a) { return a + 1 + 2 + 3 + 4 + 5 + 6 + 7 + 8 + 9; }';
+
+test.each([
+  {
+    similar: 'at 0.8',
+    base: nineTerms,
+    head: 'function bill(a) { return a + 1 + 2 + 3 + 4 + 5 + 6 + 0 + 0; }',
+    changes: ['bill renamed charge true'],
+  },
+  {
+    similar: 'just below 0.8',
+    base: nineTerms,
+    head: 'function bill(a) { return a + 1 + 2 + 3 + 4 + 5 + 6 + 0 + 0 + 0; }',
+    changes: ['bill added  ', 'charge removed  '],
+  },
+  {
+    similar: 'counting each repeated pair of tokens',
+    base: 'function charge(a) { return a + a + a + a + a + 1; }',
+    head: 'function bill(a) { return a + a + a + a + a + 2; }',
+    changes: ['bill renamed charge true'],
+  },
+  {
+    similar: 'or surely renamed when equal but for parentheses',
+    base: 'const charge = () => (1);',
+    head: 'const bill = () => 1;',
+    changes: ['bill renamed charge '],
+  },
+])(
+  'a symbol whose body is only similar to a gone one is probably renamed from it, $similar',
+  ({ base, head, changes }) => {
+    expect(
+      symbolChanges({ before: read(base), after: read(head) }).symbols.map(
+        ({ name, change, renamedFrom, probably }) =>
+          [name, change, renamedFrom, probably].join(' '),
+      ),
+    ).toEqual(changes);
+  },
+);

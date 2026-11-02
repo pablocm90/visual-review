@@ -10,11 +10,14 @@ export type SymbolStatement = {
   readonly change: SymbolChange;
   readonly signature?: { readonly base: string; readonly head: string };
   readonly renamedFrom?: string;
+  readonly probably?: true;
 };
 
 export type SymbolChanges = {
   readonly symbols: ReadonlyArray<SymbolStatement>;
 };
+
+const PROBABLY_RENAMED = 0.8;
 
 type SymbolChangesOptions = {
   readonly before: FileSymbols;
@@ -37,8 +40,23 @@ const changeOf = (old: ReadSymbol, symbol: ReadSymbol): SymbolChange => {
     : 'edited';
 };
 
+const bigramsOf = (tokens: ReadonlyArray<string>): ReadonlyArray<string> =>
+  tokens.slice(1).map((token, index) => `${tokens[index]} ${token}`);
+
+const similarity = (one: ReadSymbol, other: ReadSymbol): number => {
+  const bigrams = bigramsOf(one.bodyTokens);
+  const others = bigramsOf(other.bodyTokens);
+  const counted = Map.groupBy(others, bigram => bigram);
+  const shared = [...Map.groupBy(bigrams, bigram => bigram)].reduce(
+    (sum, [bigram, all]) => sum + Math.min(all.length, counted.get(bigram)?.length ?? 0),
+    0,
+  );
+  return (2 * shared) / (bigrams.length + others.length);
+};
+
 const isRenamed = (old: ReadSymbol, symbol: ReadSymbol): boolean =>
-  old.kind === symbol.kind && old.bodyHash === symbol.bodyHash;
+  old.kind === symbol.kind &&
+  (old.bodyHash === symbol.bodyHash || similarity(old, symbol) >= PROBABLY_RENAMED);
 
 const pairedWith = (old: ReadSymbol, symbol: ReadSymbol): SymbolStatement => ({
   ...named(symbol),
@@ -90,6 +108,7 @@ export const symbolChanges = ({ before, after }: SymbolChangesOptions): SymbolCh
             ...pairedWith(former, symbol),
             change: 'renamed',
             renamedFrom: qualified(former),
+            ...(former.bodyHash === symbol.bodyHash ? {} : { probably: true }),
           };
         }
         return { ...named(symbol), exported: { head: symbol.exported }, change: 'added' };
