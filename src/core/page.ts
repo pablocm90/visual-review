@@ -19,6 +19,7 @@ export type PageData = {
   readonly repo: string;
   readonly range: string;
   readonly version: string;
+  readonly parsers: Readonly<Record<string, string>>;
   readonly pullRequest?: PullRequest;
   readonly diff: GraphDiff;
   readonly metrics: Readonly<Record<string, NodeMetrics>>;
@@ -38,6 +39,7 @@ type PageDataOptions = {
   readonly repo: string;
   readonly range: string;
   readonly version: string;
+  readonly parsers: PageData['parsers'];
   readonly pullRequest?: PullRequest | undefined;
 };
 
@@ -48,6 +50,7 @@ export const pageData = ({
   repo,
   range,
   version,
+  parsers,
   pullRequest,
 }: PageDataOptions): PageData => {
   const diff = diffGraphs(reading);
@@ -59,6 +62,7 @@ export const pageData = ({
     repo,
     range,
     version,
+    parsers,
     ...(pullRequest === undefined ? {} : { pullRequest }),
     diff,
     metrics,

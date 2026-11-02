@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import { execFile } from 'node:child_process';
 import { lstat, mkdir, readFile, writeFile } from 'node:fs/promises';
+import { findPackageJSON } from 'node:module';
 import { basename, join } from 'node:path';
 import { parseArgs, promisify } from 'node:util';
 import { z } from 'zod';
@@ -78,6 +79,19 @@ const ownVersion = async (): Promise<string> =>
     JSON.parse(await readFile(join(import.meta.dirname, '..', 'package.json'), 'utf8')),
   ).version;
 
+const PARSERS = ['@babel/parser', 'tree-sitter-ruby', 'tree-sitter-rust', 'web-tree-sitter'];
+
+const parserVersions = async (): Promise<Readonly<Record<string, string>>> => {
+  const versions = await Promise.all(
+    PARSERS.map(async name => {
+      const path = findPackageJSON(name, import.meta.url);
+      if (path === undefined) return [];
+      return [[name, PackageSchema.parse(JSON.parse(await readFile(path, 'utf8'))).version]];
+    }),
+  );
+  return Object.fromEntries(versions.flat());
+};
+
 type FillNotesOptions = {
   readonly range: string;
   readonly page: string;
@@ -128,6 +142,7 @@ const writeReview = async (args: ReadonlyArray<string>): Promise<string> => {
     repo: repository,
     range,
     version: await ownVersion(),
+    parsers: await parserVersions(),
     pullRequest,
   });
   await mkdir(directory, { recursive: true });
