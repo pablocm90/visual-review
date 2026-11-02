@@ -117,26 +117,58 @@ const signatureNodesOf = (node: Node): unknown => {
   return [node.async, node.generator, node.typeParameters, node.params, node.returnType];
 };
 
-const startOf = (node: Node): number => node.start ?? 0;
-const endOf = (node: Node): number => node.end ?? 0;
+type Range = { readonly start?: number | null; readonly end?: number | null };
+
+const startOf = (range: Range): number => range.start ?? 0;
+const endOf = (range: Range): number => range.end ?? 0;
+
+const within = (outer: Range, inner: Range): boolean =>
+  startOf(inner) >= startOf(outer) && endOf(inner) <= endOf(outer);
+
+const holesIn = (node: Node, holes: ReadonlyArray<Node>): ReadonlyArray<Node> =>
+  holes.filter(hole => hole !== node && within(node, hole));
 
 type Cut = { readonly pieces: ReadonlyArray<string>; readonly cursor: number };
 
 const ownText = (text: string, node: Node, holes: ReadonlyArray<Node>): string => {
-  const { pieces, cursor } = holes
-    .filter(hole => hole !== node && startOf(hole) >= startOf(node) && endOf(hole) <= endOf(node))
-    .reduce<Cut>(
-      (cut, hole) => ({
-        pieces: [...cut.pieces, text.slice(cut.cursor, startOf(hole))],
-        cursor: Math.max(cut.cursor, endOf(hole)),
-      }),
-      { pieces: [], cursor: startOf(node) },
-    );
+  const { pieces, cursor } = holesIn(node, holes).reduce<Cut>(
+    (cut, hole) => ({
+      pieces: [...cut.pieces, text.slice(cut.cursor, startOf(hole))],
+      cursor: Math.max(cut.cursor, endOf(hole)),
+    }),
+    { pieces: [], cursor: startOf(node) },
+  );
   return [...pieces, text.slice(cursor, endOf(node))].join('');
 };
 
+type Token = Range & { readonly type: unknown };
+
+const isToken = (value: unknown): value is Token =>
+  typeof value === 'object' && value !== null && 'type' in value;
+
+const isCode = (token: Token): boolean =>
+  endOf(token) > startOf(token) && token.type !== 'CommentLine' && token.type !== 'CommentBlock';
+
+const nameOfNode = (node: Node): ReadonlyArray<Node> => {
+  if ('id' in node && node.id) return [node.id];
+  return 'key' in node ? [node.key] : [];
+};
+
+const tokensOf = (
+  text: string,
+  node: Node,
+  tokens: ReadonlyArray<Token>,
+  holes: ReadonlyArray<Node>,
+): ReadonlyArray<string> => {
+  const skipped = [...holesIn(node, holes), ...nameOfNode(node)];
+  return tokens
+    .filter(token => within(node, token) && !skipped.some(hole => within(hole, token)))
+    .map(token => text.slice(startOf(token), endOf(token)));
+};
+
 export const symbolsOfTypeScript = (text: string, path: string): FileSymbols => {
-  const { program } = parseTypeScript(text, path);
+  const { program, tokens } = parseTypeScript(text, path);
+  const code = (tokens ?? []).filter(isToken).filter(isCode);
   const names = new Set(program.body.flatMap(statement => exportedBy(text, statement)));
   const walk = symbolsIn(text, program);
   const declarations = walk.map(({ declaration }) => declaration);
@@ -148,9 +180,8 @@ export const symbolsOfTypeScript = (text: string, path: string): FileSymbols => 
       signature: signatureOf(text, walked.node),
       signatureHash: hashOf(signatureNodesOf(walked.node), (_holder, _key, value) => value),
       bodyHash: bodyHashOf(walked.node, nested),
-      textHash: createHash('sha1')
-        .update(ownText(text, walked.node, declarations))
-        .digest('hex'),
+      textHash: sha1(ownText(text, walked.node, declarations)),
+      bodyTokens: tokensOf(text, walked.node, code, declarations),
     })),
   };
 };

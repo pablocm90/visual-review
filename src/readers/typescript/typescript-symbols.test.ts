@@ -326,3 +326,21 @@ test('a symbol hashes its own text apart from the symbols inside it, so a reform
     'b true',
   ]);
 });
+
+test("a symbol's body tokens are its source's tokens without its name, comments or the symbols inside it", () => {
+  expect(
+    symbolsOfTypeScript(
+      source(
+        'function charge(a) { /* add */ return a + 1; // one more',
+        '}',
+        'class Shop { open() { const inner = () => 1; } }',
+      ),
+      'src/shop.ts',
+    ).symbols.map(({ name, bodyTokens }) => `${name}: ${bodyTokens.join(' ')}`),
+  ).toEqual([
+    'charge: function ( a ) { return a + 1 ; }',
+    'Shop: class { }',
+    'open: ( ) { const ; }',
+    'inner: ( ) => 1',
+  ]);
+});
