@@ -28,6 +28,9 @@ export type WalkedSymbol = { readonly symbol: ReadSymbol; readonly node: Node };
 const sourceOf = (text: string, node: Node): string =>
   text.slice(node.start ?? undefined, node.end ?? undefined);
 
+const nameOf = (text: string, node: Node): string =>
+  node.type === 'Identifier' ? node.name : sourceOf(text, node);
+
 const unwrapped = (node: Node): Node =>
   node.type === 'TSAsExpression' ||
   node.type === 'TSSatisfiesExpression' ||
@@ -45,7 +48,7 @@ const functionValue = (value: Node | null | undefined): Node | undefined => {
 
 const assigned = (text: string, name: Node, value: Node | null | undefined) => {
   const fn = functionValue(value);
-  return fn === undefined ? undefined : { name: sourceOf(text, name), fn };
+  return fn === undefined ? undefined : { name: nameOf(text, name), fn };
 };
 
 const ownFunction = (text: string, node: Node): OwnFunction | undefined => {
@@ -70,7 +73,7 @@ const ownFunction = (text: string, node: Node): OwnFunction | undefined => {
 };
 
 const holderOf = (text: string, node: Node): string | undefined => {
-  if (node.type === 'VariableDeclarator') return sourceOf(text, node.id);
+  if (node.type === 'VariableDeclarator') return nameOf(text, node.id);
   if (node.type === 'AssignmentExpression') return sourceOf(text, node.left);
   return node.type === 'ExportDefaultDeclaration' ? 'default' : undefined;
 };
