@@ -438,6 +438,15 @@ test('serving an already served page with --no-open prints the live URL, opens n
   expect(server.openedAny()).toBe(false);
 });
 
+test('serving an already served page leaves the live server waiting for its first ping, past its idle time', async () => {
+  using server = await servedPage({ flags: ['--no-open'], idleMs: 200 });
+
+  await server.serveAgain(['--no-open']);
+  await delay(600);
+
+  expect(await statusFor({ url: server.url })).toBe(200);
+});
+
 test('serving a page rewritten since it was first served opens the live server, which serves the page as it is now', async () => {
   using server = await servedPage();
   writeFileSync(

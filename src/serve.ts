@@ -31,7 +31,7 @@ const liveLock = async (lockFile: string): Promise<Lock | undefined> => {
     .catch(() => undefined);
   const answered =
     lock !== undefined &&
-    (await fetch(`${urlOf(lock)}/ping`, { method: 'POST', signal: AbortSignal.timeout(1000) })
+    (await fetch(`${urlOf(lock)}/alive`, { method: 'POST', signal: AbortSignal.timeout(1000) })
       .then(response => response.ok)
       .catch(() => false));
   return answered ? lock : undefined;
@@ -168,6 +168,10 @@ export const servePage = async ({
         server.close();
         sent.resolve(reviewFile);
       }
+      return;
+    }
+    if (route === `POST /${token}/alive`) {
+      response.writeHead(204).end();
       return;
     }
     if (route === `POST /${token}/ping`) {
