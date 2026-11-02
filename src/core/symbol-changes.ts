@@ -22,8 +22,14 @@ export type SymbolStatement = {
   readonly movedFrom?: string;
 };
 
+export type ExportChanges = {
+  readonly added: ReadonlyArray<string>;
+  readonly removed: ReadonlyArray<string>;
+};
+
 export type SymbolChanges = {
   readonly symbols: ReadonlyArray<SymbolStatement>;
+  readonly exports: ExportChanges;
 };
 
 const PROBABLY_RENAMED = 0.8;
@@ -115,6 +121,10 @@ export const symbolChanges = ({ before, after }: SymbolChangesOptions): SymbolCh
   );
   const renamed = new Set(renames.values());
   return {
+    exports: {
+      added: after.exports.filter(name => !before.exports.includes(name)),
+      removed: before.exports.filter(name => !after.exports.includes(name)),
+    },
     symbols: [
       ...after.symbols.map((symbol): SymbolStatement => {
         const old = partnerOf(symbol);
@@ -158,12 +168,12 @@ export const symbolChangesOf = (
 ): ReadonlyArray<FileSymbolChanges> => {
   const paired = files.map(({ node, before, after }) => {
     const sides: Partial<Record<SymbolChange, FileSymbols>> = { added: after, removed: before };
-    const { symbols } = symbolChanges({ before, after });
-    const ends = symbols.flatMap(statement => {
+    const changes = symbolChanges({ before, after });
+    const ends = changes.symbols.flatMap(statement => {
       const symbol = sides[statement.change]?.symbols.find(read => sameSymbol(read, statement));
       return symbol === undefined ? [] : [{ node, statement, symbol }];
     });
-    return { node, symbols, ends };
+    return { node, changes, ends };
   });
   const ends = paired.flatMap(file => file.ends);
   const onlyEndOf = (end: End): End | undefined => {
@@ -183,8 +193,9 @@ export const symbolChangesOf = (
       ? { change: 'moved', movedTo: other.node }
       : { change: 'moved', movedFrom: other.node };
   };
-  return paired.map(({ node, symbols }) => ({
+  return paired.map(({ node, changes }) => ({
     node,
-    symbols: symbols.map(statement => ({ ...statement, ...moved(statement) })),
+    ...changes,
+    symbols: changes.symbols.map(statement => ({ ...statement, ...moved(statement) })),
   }));
 };

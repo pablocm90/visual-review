@@ -268,6 +268,7 @@ test('a symbol removed from one changed file and added to another with the same 
           movedTo: 'web/src/till.ts',
         },
       ],
+      exports: { added: [], removed: [] },
     },
     {
       node: 'web/src/till.ts',
@@ -280,6 +281,7 @@ test('a symbol removed from one changed file and added to another with the same 
           movedFrom: 'web/src/shop.ts',
         },
       ],
+      exports: { added: ['charge'], removed: [] },
     },
   ]);
 });
@@ -326,3 +328,17 @@ test.each([
     ).toEqual(changes);
   },
 );
+
+test("a file's exports are added and removed by name, re-exports included", () => {
+  const before = read(
+    'export function kept() {}',
+    "export * from './cart';",
+    'export const old = 1;',
+  );
+  const after = read('export function kept() {}', 'function old() {}', 'export { old as bill };');
+
+  expect(symbolChanges({ before, after }).exports).toEqual({
+    added: ['bill'],
+    removed: ['* from ./cart', 'old'],
+  });
+});
