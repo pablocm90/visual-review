@@ -269,6 +269,7 @@ test('a symbol removed from one changed file and added to another with the same 
         },
       ],
       exports: { added: [], removed: [] },
+      kind: 'logic',
     },
     {
       node: 'web/src/till.ts',
@@ -282,6 +283,7 @@ test('a symbol removed from one changed file and added to another with the same 
         },
       ],
       exports: { added: ['charge'], removed: [] },
+      kind: 'logic',
     },
   ]);
 });
@@ -341,4 +343,21 @@ test("a file's exports are added and removed by name, re-exports included", () =
     added: ['bill'],
     removed: ['* from ./cart', 'old'],
   });
+});
+
+test.each([
+  {
+    change: 'a comment and spacing only',
+    base: ['function charge() { return 1; }'],
+    head: ['// charges', 'function charge() {', '  return 1;', '}'],
+    kind: 'formatting',
+  },
+  {
+    change: 'an import outside every symbol',
+    base: ['function charge() { return 1; }'],
+    head: ["import { bill } from './bill';", 'function charge() { return 1; }'],
+    kind: 'logic',
+  },
+])('a file with $change changed is a $kind change', ({ base, head, kind }) => {
+  expect(symbolChanges({ before: read(...base), after: read(...head) }).kind).toBe(kind);
 });

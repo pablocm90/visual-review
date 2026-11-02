@@ -27,9 +27,12 @@ export type ExportChanges = {
   readonly removed: ReadonlyArray<string>;
 };
 
+export type KindOfChange = 'api' | 'logic' | 'formatting';
+
 export type SymbolChanges = {
   readonly symbols: ReadonlyArray<SymbolStatement>;
   readonly exports: ExportChanges;
+  readonly kind: KindOfChange;
 };
 
 const PROBABLY_RENAMED = 0.8;
@@ -121,6 +124,7 @@ export const symbolChanges = ({ before, after }: SymbolChangesOptions): SymbolCh
   );
   const renamed = new Set(renames.values());
   return {
+    kind: before.astHash === after.astHash ? 'formatting' : 'logic',
     exports: {
       added: after.exports.filter(name => !before.exports.includes(name)),
       removed: before.exports.filter(name => !after.exports.includes(name)),
