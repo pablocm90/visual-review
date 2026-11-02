@@ -4,7 +4,7 @@ import type { DanglingCall } from './linker.ts';
 import { metricFindings } from './metric-findings.ts';
 import { type NodeMetrics, nodeMetrics } from './metrics.ts';
 import { notesProblems, type ReviewNotes } from './notes.ts';
-import type { RangeReading } from './read-range.ts';
+import type { RangeReading, SymbolFile } from './read-range.ts';
 import type { Review } from './review.ts';
 import type { Skipped } from './skipped.ts';
 import type { TestFile } from './test-changes.ts';
@@ -27,6 +27,7 @@ export type PageData = {
   readonly patches: ReadonlyArray<FilePatch>;
   readonly undrawn: ReadonlyArray<FilePatch>;
   readonly tests: ReadonlyArray<TestFile>;
+  readonly symbols: ReadonlyArray<SymbolFile>;
   readonly skipped: ReadonlyArray<Skipped>;
   readonly thresholds: RangeReading['thresholds'];
   readonly churnDays: number;
@@ -71,6 +72,7 @@ export const pageData = ({
     patches: reading.patches.filter(isDrawn),
     undrawn,
     tests: reading.tests,
+    symbols: reading.symbols,
     skipped: reading.skipped,
     thresholds: reading.thresholds,
     churnDays: reading.churnDays,

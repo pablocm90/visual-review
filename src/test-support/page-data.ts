@@ -11,6 +11,7 @@ export const pageWith = (data: Pick<PageData, 'range' | 'diff'> & Partial<PageDa
   patches: [],
   undrawn: [],
   tests: [],
+  symbols: [],
   skipped: [],
   thresholds: { cyclomatic: 10, hotspot: { churn: 6, cyclomatic: 8 } },
   churnDays: 90,
