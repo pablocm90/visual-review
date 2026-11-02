@@ -36,6 +36,9 @@ type Places = {
   readonly onGoTo: (id: string) => void;
 };
 
+const labelOf = (nodes: ReadonlyArray<DiffedNode>, id: string): string | undefined =>
+  nodes.find(node => node.id === id)?.label;
+
 const Moved = ({
   words,
   id,
@@ -46,7 +49,7 @@ const Moved = ({
     {' '}
     {words}{' '}
     <button type="button" className="go-to" onClick={() => onGoTo(id)}>
-      {nodes.find(node => node.id === id)?.label}
+      {labelOf(nodes, id)}
     </button>
   </span>
 );
@@ -88,7 +91,7 @@ const SymbolList = ({
   </ul>
 );
 
-export const SymbolFiles = ({
+const SymbolFiles = ({
   files,
   ...places
 }: Places & { readonly files: ReadonlyArray<SymbolFile> }) => {
@@ -115,3 +118,25 @@ export const SymbolFiles = ({
     </>
   );
 };
+
+export const SymbolsOf = ({
+  node,
+  files,
+  ...places
+}: Places & { readonly node: DiffedNode; readonly files: ReadonlyArray<SymbolFile> }) =>
+  node.kind === 'file' ? (
+    <SymbolFiles files={files} {...places} />
+  ) : (
+    files
+      .filter(file => changedSymbolCount([file]) > 0)
+      .map(file => (
+        <section
+          key={file.node}
+          className="symbol-file"
+          aria-label={labelOf(places.nodes, file.node)}
+        >
+          <h3>{labelOf(places.nodes, file.node)}</h3>
+          <SymbolFiles files={[file]} {...places} />
+        </section>
+      ))
+  );

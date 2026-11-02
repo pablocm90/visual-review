@@ -21,6 +21,7 @@ import type { Review } from '../core/review.ts';
 import type { TestFile } from '../core/test-changes.ts';
 import { testsAlongside } from '../core/tests-alongside.ts';
 import {
+  boxesAboveIn,
   expandedToShow,
   isDrawn,
   mergedDiff,
@@ -41,7 +42,7 @@ import {
 } from './layout.ts';
 import { MetricsScreen } from './metrics-screen.tsx';
 import { MetricsTable } from './metrics-tab.tsx';
-import { changedSymbolCount, SymbolFiles } from './symbols-tab.tsx';
+import { changedSymbolCount, SymbolsOf } from './symbols-tab.tsx';
 import { changedCount, TestFiles, TestsScreen } from './tests-screen.tsx';
 import {
   boxOf,
@@ -526,7 +527,11 @@ const Inspector = ({
   const [picked, setPicked] = useState<InspectorTab>('note');
   const testsHere = node ? testsAlongside({ nodes, node, tests }) : [];
   const measured = node && metrics[node.id];
-  const symbolsHere = symbols.filter(file => file.node === node?.id);
+  const boxesAbove = boxesAboveIn(nodes);
+  const symbolsHere = symbols.filter(
+    file =>
+      file.node === node?.id || (node !== undefined && boxesAbove(file.node).includes(node.id)),
+  );
   const offered: ReadonlyArray<InspectorTab> = [
     'note',
     ...(measured ? ['metrics' as const] : []),
@@ -593,7 +598,7 @@ const Inspector = ({
           </section>
         ) : shown === 'symbols' ? (
           <div className="symbols">
-            <SymbolFiles files={symbolsHere} nodes={nodes} onGoTo={onGoTo} />
+            {node && <SymbolsOf node={node} files={symbolsHere} nodes={nodes} onGoTo={onGoTo} />}
           </div>
         ) : (
           <div className="tests">

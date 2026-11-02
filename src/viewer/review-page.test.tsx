@@ -2806,6 +2806,9 @@ test("a file's Symbols tab lists its changed symbols grouped by change, counting
     ['Unchanged', ['function round: unchanged', 'function format: formatting']],
   ]);
   expect(
+    within(screen.getByRole('tabpanel', { name: 'Symbols' })).queryAllByRole('region'),
+  ).toEqual([]);
+  expect(
     within(screen.getByRole('tabpanel', { name: 'Symbols' })).getByText('2 unchanged'),
   ).toBeTruthy();
   await user.click(screen.getByRole('button', { name: 'total.ts: modified' }));
@@ -2968,4 +2971,76 @@ test('a moved symbol names the file it moved to or from, and goes to that file',
   expect(movedFrom.textContent).toBe('function tax moved from refund.ts');
   await user.click(within(movedFrom).getByRole('button', { name: 'refund.ts' }));
   expect(within(inspector()).getByRole('heading', { level: 2 }).textContent).toBe('refund.ts');
+});
+
+test("a box's Symbols tab lists each file inside it with symbol changes, each with its own groups", async () => {
+  const user = userEvent.setup();
+  const inBilling = (label: string) => ({
+    ...topFile(label, 'modified'),
+    parent: 'web/module/billing',
+    path: `web/src/billing/${label}`,
+  });
+  const symbol = (name: string, change: SymbolStatement['change']): SymbolStatement => ({
+    name,
+    kind: 'function',
+    exported: { base: false, head: false },
+    change,
+  });
+  render(
+    <ReviewPage
+      review={pageWith({
+        range: 'abc123..def456',
+        diff: {
+          nodes: [
+            { id: 'web', kind: 'stack', label: 'web', path: '', state: 'unchanged' },
+            {
+              id: 'web/module/billing',
+              kind: 'module',
+              label: 'billing',
+              parent: 'web',
+              path: 'web/src/billing',
+              state: 'modified',
+            },
+            inBilling('refund.ts'),
+            inBilling('tax.ts'),
+            inBilling('total.ts'),
+            topFile('outside.ts', 'modified'),
+          ],
+          edges: [],
+        },
+        symbols: [
+          symbolsOf('web/file/refund.ts', [symbol('refund', 'edited')]),
+          symbolsOf('web/file/tax.ts', [symbol('tax', 'added'), symbol('round', 'unchanged')]),
+          symbolsOf('web/file/total.ts', [symbol('total', 'unchanged')]),
+          symbolsOf('web/file/outside.ts', [symbol('outside', 'edited')]),
+        ],
+      })}
+    />,
+  );
+
+  await user.click(await screen.findByRole('button', { name: 'billing: modified' }));
+  await user.click(within(inspector()).getByRole('tab', { name: 'Symbols 2' }));
+  const files = within(screen.getByRole('tabpanel', { name: 'Symbols' })).getAllByRole('region');
+  expect(
+    files.map(file => [
+      file.getAttribute('aria-label'),
+      within(file)
+        .getAllByRole('list')
+        .map(list => [
+          list.getAttribute('aria-label'),
+          within(list)
+            .getAllByRole('listitem')
+            .map(item => item.getAttribute('aria-label')),
+        ]),
+    ]),
+  ).toEqual([
+    ['refund.ts', [['Edited', ['function refund: edited']]]],
+    [
+      'tax.ts',
+      [
+        ['Added', ['function tax: added']],
+        ['Unchanged', ['function round: unchanged']],
+      ],
+    ],
+  ]);
 });
