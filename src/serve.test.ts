@@ -65,11 +65,17 @@ const stderrOf = (child: ChildProcess) => {
 type ServedPageOptions = {
   readonly openers?: ReadonlyArray<string>;
   readonly idleMs?: number;
+  readonly lock?: string;
 };
 
-const servedPage = async ({ openers = ['xdg-open', 'open'], idleMs }: ServedPageOptions = {}) => {
+const servedPage = async ({
+  openers = ['xdg-open', 'open'],
+  idleMs,
+  lock,
+}: ServedPageOptions = {}) => {
   const bin = fakeOpeners(openers);
   const written = writtenPage();
+  if (lock !== undefined) writeFileSync(written.page.replace(/\.html$/, '.serve'), lock);
   const child = spawn(
     process.execPath,
     [join(import.meta.dirname, 'cli.ts'), 'serve', written.page],
@@ -302,4 +308,18 @@ test('serving a page that is already served opens the live server instead of sta
 
   expect(again.stdout).toBe('');
   await vi.waitFor(() => expect(server.opened()).toBe(server.url));
+});
+
+const endedPid = async (): Promise<number> => {
+  const ended = spawn(process.execPath, ['-e', '']);
+  await once(ended, 'close');
+  return ended.pid ?? 0;
+};
+
+test('a lock left by a serve that has ended is replaced by a new server', async () => {
+  const lock = JSON.stringify({ pid: await endedPid(), port: 9, token: 'ended' });
+
+  using server = await servedPage({ lock });
+
+  expect((await fetch(server.url)).status).toBe(200);
 });

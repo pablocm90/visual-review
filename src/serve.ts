@@ -20,6 +20,15 @@ const openInBrowser = (url: string): void => {
 
 const LockSchema = z.strictObject({ pid: z.number(), port: z.number(), token: z.string() });
 
+const isRunning = (pid: number): boolean => {
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch {
+    return false;
+  }
+};
+
 const urlOf = ({ port, token }: { readonly port: number; readonly token: string }): string =>
   `http://127.0.0.1:${port}/${token}`;
 
@@ -50,7 +59,7 @@ export const servePage = async ({
     written => LockSchema.parse(JSON.parse(written)),
     () => undefined,
   );
-  if (lock !== undefined) {
+  if (lock !== undefined && isRunning(lock.pid)) {
     openInBrowser(urlOf(lock));
     return undefined;
   }
