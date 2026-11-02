@@ -356,10 +356,28 @@ test('the lock holding the token is readable by its owner only, even when it rep
   expect(statSync(lockFile).mode & 0o777).toBe(0o600);
 });
 
-test('another page in the same folder is served by a server of its own', async () => {
+test('another page in the same folder is served by a server of its own, and each writes its own review', async () => {
   using first = await servedPage();
-
   using second = await servedPage({ directory: dirname(first.page), range: 'main..other' });
 
-  expect((await fetch(second.url)).status).toBe(200);
+  await Promise.all(
+    [
+      { server: first, text: 'on the first page' },
+      { server: second, text: 'on the second page' },
+    ].map(({ server, text }) => {
+      const { origin, pathname } = new URL(server.url);
+      return sendReview({
+        origin,
+        token: pathname.slice(1),
+        review: { version: 1, verdict: 'comment', comments: { 'web/file/App.tsx': { text } } },
+      });
+    }),
+  );
+
+  const reviewed = async (server: typeof first) =>
+    JSON.parse(readFileSync((await server.exited).stdout.trim(), 'utf8')).comments[
+      'web/file/App.tsx'
+    ].text;
+  expect(await reviewed(first)).toBe('on the first page');
+  expect(await reviewed(second)).toBe('on the second page');
 });
