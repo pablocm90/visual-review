@@ -184,6 +184,29 @@ test('stacks a missing tool kept from being read are a structure finding to look
   ]);
 });
 
+test('each stack with changed files whose reader reads no symbols is a structure finding for information on that stack', () => {
+  const reading = readingWith({ symbolsNotRead: ['api', 'admin'] });
+
+  expect(
+    pageData({ repo: 'shop', reading, range: 'a..b', version, parsers }).findings,
+  ).toStrictEqual([
+    {
+      id: 'structure:symbols-not-read:api',
+      dimension: 'structure',
+      level: 'info',
+      target: 'api',
+      title: 'symbols not read for api',
+    },
+    {
+      id: 'structure:symbols-not-read:admin',
+      dimension: 'structure',
+      level: 'info',
+      target: 'admin',
+      title: 'symbols not read for admin',
+    },
+  ]);
+});
+
 const symbolFile = (symbols: ReadonlyArray<SymbolStatement>): SymbolFile => ({
   node: 'web/file/a.ts',
   stack: 'web',

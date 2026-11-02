@@ -64,6 +64,7 @@ type RaisedOptions = {
   readonly dangling: ReadonlyArray<DanglingCall>;
   readonly metricFindings: ReadonlyArray<MetricFinding>;
   readonly symbols: ReadonlyArray<SymbolFile>;
+  readonly symbolsNotRead: ReadonlyArray<string>;
 };
 
 export const skippedFindingId = (skip: Skipped) => `structure:skipped:${skip.reader}`;
@@ -74,6 +75,7 @@ export const raisedFindings = ({
   dangling,
   metricFindings,
   symbols,
+  symbolsNotRead,
 }: RaisedOptions): ReadonlyArray<Finding> => [
   ...skipped.map(
     (skip): Finding => ({
@@ -114,6 +116,15 @@ export const raisedFindings = ({
     }),
   ),
   ...symbolFindings(symbols),
+  ...symbolsNotRead.map(
+    (stack): Finding => ({
+      id: `structure:symbols-not-read:${stack}`,
+      dimension: 'structure',
+      level: 'info',
+      target: stack,
+      title: `symbols not read for ${stack}`,
+    }),
+  ),
 ];
 
 type FindingsOfOptions = {
