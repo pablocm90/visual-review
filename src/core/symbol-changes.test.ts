@@ -1,6 +1,6 @@
 import { expect, test } from 'vitest';
 import { symbolsOfTypeScript } from '../readers/typescript/typescript-symbols.ts';
-import { symbolChanges } from './symbol-changes.ts';
+import { symbolChanges, symbolChangesOf } from './symbol-changes.ts';
 
 const read = (...lines: ReadonlyArray<string>) =>
   symbolsOfTypeScript(lines.join('\n'), 'src/shop.ts');
@@ -243,3 +243,86 @@ test.each([
     ),
   ).toEqual(changes);
 });
+
+const none = read();
+
+test('a symbol removed from one changed file and added to another with the same kind, name and body moved between them', () => {
+  const files = symbolChangesOf([
+    { node: 'web/src/shop.ts', before: read('function charge() { return 1; }'), after: none },
+    {
+      node: 'web/src/till.ts',
+      before: none,
+      after: read('export function charge() { return 1; }'),
+    },
+  ]);
+
+  expect(files).toEqual([
+    {
+      node: 'web/src/shop.ts',
+      symbols: [
+        {
+          name: 'charge',
+          kind: 'function',
+          exported: { base: false },
+          change: 'moved',
+          movedTo: 'web/src/till.ts',
+        },
+      ],
+    },
+    {
+      node: 'web/src/till.ts',
+      symbols: [
+        {
+          name: 'charge',
+          kind: 'function',
+          exported: { head: true },
+          change: 'moved',
+          movedFrom: 'web/src/shop.ts',
+        },
+      ],
+    },
+  ]);
+});
+
+test.each([
+  {
+    unlike: 'another name',
+    files: [
+      { node: 'shop.ts', before: ['function charge() { return 1; }'], after: [] },
+      { node: 'till.ts', before: [], after: ['function bill() { return 1; }'] },
+    ],
+    changes: ['shop.ts charge removed', 'till.ts bill added'],
+  },
+  {
+    unlike: 'another body',
+    files: [
+      { node: 'shop.ts', before: ['function charge() { return 1; }'], after: [] },
+      { node: 'till.ts', before: [], after: ['function charge() { return 2; }'] },
+    ],
+    changes: ['shop.ts charge removed', 'till.ts charge added'],
+  },
+  {
+    unlike: 'two files it could have come from',
+    files: [
+      { node: 'shop.ts', before: ['function charge() { return 1; }'], after: [] },
+      { node: 'cart.ts', before: ['function charge() { return 1; }'], after: [] },
+      { node: 'till.ts', before: [], after: ['function charge() { return 1; }'] },
+    ],
+    changes: ['shop.ts charge removed', 'cart.ts charge removed', 'till.ts charge added'],
+  },
+])(
+  'a symbol gone from one file and new in another did not move with $unlike',
+  ({ files, changes }) => {
+    expect(
+      symbolChangesOf(
+        files.map(({ node, before, after }) => ({
+          node,
+          before: read(...before),
+          after: read(...after),
+        })),
+      ).flatMap(({ node, symbols }) =>
+        symbols.map(({ name, change }) => `${node} ${name} ${change}`),
+      ),
+    ).toEqual(changes);
+  },
+);

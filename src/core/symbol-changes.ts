@@ -1,6 +1,13 @@
 import type { FileSymbols, ReadSymbol, SymbolKind } from './reader.ts';
 
-export type SymbolChange = 'added' | 'removed' | 'edited' | 'renamed' | 'formatting' | 'unchanged';
+export type SymbolChange =
+  | 'added'
+  | 'removed'
+  | 'edited'
+  | 'renamed'
+  | 'moved'
+  | 'formatting'
+  | 'unchanged';
 
 export type SymbolStatement = {
   readonly name: string;
@@ -11,6 +18,8 @@ export type SymbolStatement = {
   readonly signature?: { readonly base: string; readonly head: string };
   readonly renamedFrom?: string;
   readonly probably?: true;
+  readonly movedTo?: string;
+  readonly movedFrom?: string;
 };
 
 export type SymbolChanges = {
@@ -24,7 +33,9 @@ type SymbolChangesOptions = {
   readonly after: FileSymbols;
 };
 
-const sameSymbol = (one: ReadSymbol, other: ReadSymbol): boolean =>
+type Keyed = Pick<ReadSymbol, 'name' | 'scope' | 'kind'>;
+
+const sameSymbol = (one: Keyed, other: Keyed): boolean =>
   one.kind === other.kind && one.name === other.name && one.scope === other.scope;
 
 const named = ({ name, scope, kind }: ReadSymbol) =>
@@ -130,4 +141,50 @@ export const symbolChanges = ({ before, after }: SymbolChangesOptions): SymbolCh
         ),
     ],
   };
+};
+
+type SidedFile = SymbolChangesOptions & { readonly node: string };
+
+export type FileSymbolChanges = SymbolChanges & { readonly node: string };
+
+type End = {
+  readonly node: string;
+  readonly statement: SymbolStatement;
+  readonly symbol: ReadSymbol;
+};
+
+export const symbolChangesOf = (
+  files: ReadonlyArray<SidedFile>,
+): ReadonlyArray<FileSymbolChanges> => {
+  const paired = files.map(({ node, before, after }) => {
+    const sides: Partial<Record<SymbolChange, FileSymbols>> = { added: after, removed: before };
+    const { symbols } = symbolChanges({ before, after });
+    const ends = symbols.flatMap(statement => {
+      const symbol = sides[statement.change]?.symbols.find(read => sameSymbol(read, statement));
+      return symbol === undefined ? [] : [{ node, statement, symbol }];
+    });
+    return { node, symbols, ends };
+  });
+  const ends = paired.flatMap(file => file.ends);
+  const onlyEndOf = (end: End): End | undefined => {
+    const [other, ...more] = ends.filter(
+      other =>
+        other.statement.change !== end.statement.change &&
+        sameSymbol(other.symbol, end.symbol) &&
+        other.symbol.bodyHash === end.symbol.bodyHash,
+    );
+    return more.length === 0 ? other : undefined;
+  };
+  const moved = (statement: SymbolStatement): Partial<SymbolStatement> => {
+    const end = ends.find(end => end.statement === statement);
+    const other = end && onlyEndOf(end);
+    if (other === undefined || onlyEndOf(other) !== end) return {};
+    return statement.change === 'removed'
+      ? { change: 'moved', movedTo: other.node }
+      : { change: 'moved', movedFrom: other.node };
+  };
+  return paired.map(({ node, symbols }) => ({
+    node,
+    symbols: symbols.map(statement => ({ ...statement, ...moved(statement) })),
+  }));
 };
