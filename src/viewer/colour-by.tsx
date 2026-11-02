@@ -50,12 +50,15 @@ const NOT_READ: Shade = { step: 3, name: 'symbols not read' };
 
 type Shading = {
   readonly metrics: NodeMetrics | undefined;
-  readonly kind: KindOfChange | undefined;
+  readonly kinds: ReadonlyArray<KindOfChange>;
   readonly changed: boolean;
 };
 
-const kindShadeOf = ({ kind, changed }: Shading): Shade | undefined => {
-  if (kind !== undefined) return KINDS[kind];
+const kindShadeOf = ({ kinds, changed }: Shading): Shade | undefined => {
+  const [strongest] = kinds
+    .map(kind => KINDS[kind])
+    .toSorted((one, other) => one.step - other.step);
+  if (strongest !== undefined) return strongest;
   return changed ? NOT_READ : undefined;
 };
 

@@ -2780,6 +2780,45 @@ test('on Kind of change a changed file is named with the strongest kind of its s
   ]);
 });
 
+test('on Kind of change a closed box is named with the strongest kind among the files inside it', async () => {
+  const user = userEvent.setup();
+  const kinded = (node: string, kind: KindOfChange) => ({ ...symbolsOf(node, []), kind });
+  render(
+    <ReviewPage
+      review={pageWith({
+        range: 'abc123..def456',
+        diff: {
+          nodes: [
+            { id: 'web', kind: 'stack', label: 'web', path: '', state: 'unchanged' },
+            webModule('checkout', 'modified'),
+            webFile('checkout', 'pay.ts', 'modified'),
+            webFile('checkout', 'api.ts', 'modified'),
+            webModule('cart', 'modified'),
+            webFile('cart', 'total.ts', 'modified'),
+            webFile('cart', 'line.ts', 'modified'),
+          ],
+          edges: [],
+        },
+        symbols: [
+          kinded('web/file/checkout/pay.ts', 'logic'),
+          kinded('web/file/checkout/api.ts', 'api'),
+          kinded('web/file/cart/total.ts', 'formatting'),
+          kinded('web/file/cart/line.ts', 'logic'),
+        ],
+      })}
+    />,
+  );
+  const web = await screen.findByRole('group', { name: 'web' });
+
+  await user.click(colourBy('Kind of change'));
+  expect(buttonsIn(web)).toEqual([
+    'checkout: modified, API change',
+    'Expand checkout',
+    'cart: modified, logic change',
+    'Expand cart',
+  ]);
+});
+
 const symbolGroups = () =>
   within(screen.getByRole('tabpanel', { name: 'Symbols' }))
     .getAllByRole('list')

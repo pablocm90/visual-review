@@ -1082,6 +1082,7 @@ export const ReviewPage = ({ review, notes, send }: ReviewPageProps) => {
   const labelOf = new Map(visible.nodes.map(node => [node.id, node.label]));
   const dangling = review.dangling;
   const visibleOf = visibleNodeOf({ diff: review.diff, expanded });
+  const boxesAbove = boxesAboveIn(review.diff.nodes);
   const placedFindings = findingsAt({ diff: review.diff, expanded, findings });
   const drawing = {
     findingsOn: (id: string) => placedFindings.get(id) ?? [],
@@ -1098,9 +1099,11 @@ export const ReviewPage = ({ review, notes, send }: ReviewPageProps) => {
       shadeOf(colouring, {
         metrics: review.metrics[id],
         changed: state !== 'unchanged',
-        kind: review.symbols.flatMap(file =>
-          file.node === id && 'kind' in file ? [file.kind] : [],
-        )[0],
+        kinds: review.symbols.flatMap(file =>
+          (file.node === id || boxesAbove(file.node).includes(id)) && 'kind' in file
+            ? [file.kind]
+            : [],
+        ),
       }),
   };
   const selectedNode = review.diff.nodes.find(node => node.id === selected);
