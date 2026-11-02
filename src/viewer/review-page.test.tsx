@@ -1206,6 +1206,21 @@ test("a drawn node's or edge's badge names its findings under the worst level, s
 
   await user.click(screen.getByRole('button', { name: 'domain: unchanged' }));
   expect(reasonsShown()).toEqual([]);
+
+  const structure = () =>
+    within(screen.getByRole('group', { name: 'Triage' })).getByRole('button', {
+      name: /Structure/,
+    });
+  await user.click(structure());
+  expect(screen.getAllByRole('img', { name: /finding/ }).map(badge => badge.ariaLabel)).toEqual([
+    'needs a look, 1 finding: new dependency direction',
+    'for information, 1 finding: lines 900, over 800, outside Structure',
+    'needs a look, 2 findings: cyclomatic 4 → 14, over 10; new entry point',
+  ]);
+  await user.click(structure());
+  expect(
+    screen.getByRole('img', { name: 'for information, 1 finding: lines 900, over 800' }),
+  ).toBeTruthy();
 });
 
 test('the summary lists its items, not the flagged notes, and an item with a target takes focus to it and shows its note; with no items there is no summary', async () => {

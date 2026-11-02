@@ -28,7 +28,7 @@ type Group = {
   readonly findings: ReadonlyArray<Line>;
 };
 
-const nameOf = (dimension: Dimension) => {
+export const nameOf = (dimension: Dimension) => {
   const words = dimension.replace('-', ' ');
   return `${words.charAt(0).toUpperCase()}${words.slice(1)}`;
 };

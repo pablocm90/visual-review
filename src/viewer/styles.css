@@ -1876,3 +1876,7 @@ pre .hljs-emphasis {
 .flag-badge[data-level="info"] circle {
   fill: var(--muted);
 }
+
+.flag-badge[data-outside="true"] {
+  opacity: 0.35;
+}

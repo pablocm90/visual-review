@@ -29,7 +29,7 @@ import {
 } from '../core/visible-diff.ts';
 import { ColourBy, type Colouring, ScaleLegend, type Shade, shadeOf } from './colour-by.tsx';
 import { LEVELS } from './finding-display.tsx';
-import { FindingsRail, LookFirst, TriageStrip } from './findings-rail.tsx';
+import { FindingsRail, LookFirst, nameOf, TriageStrip } from './findings-rail.tsx';
 import { highlightPatch, type PatchLine as Line, type Piece } from './highlight-patch.ts';
 import {
   type Layout,
@@ -123,26 +123,33 @@ type FindingsBadgeProps = {
   readonly x: number;
   readonly y: number;
   readonly findings: ReadonlyArray<Finding>;
+  readonly picked: Dimension | undefined;
   readonly onPress?: () => void;
 };
 
-const FindingsBadge = ({ x, y, findings, onPress }: FindingsBadgeProps) => (
-  <g
-    className="flag-badge"
-    data-level={worstOf(findings)}
-    role="img"
-    aria-label={badgeName(findings)}
-    onClick={onPress}
-    transform={`translate(${x} ${y})`}
-  >
-    <title>{badgeName(findings)}</title>
-    <circle r={8} />
-    <path d="M 0 -4.5 V 1 M 0 3.5 V 4" />
-  </g>
-);
+const FindingsBadge = ({ x, y, findings, picked, onPress }: FindingsBadgeProps) => {
+  const outside = picked !== undefined && !findings.some(finding => finding.dimension === picked);
+  const name = `${badgeName(findings)}${outside ? `, outside ${nameOf(picked)}` : ''}`;
+  return (
+    <g
+      className="flag-badge"
+      data-level={worstOf(findings)}
+      data-outside={outside}
+      role="img"
+      aria-label={name}
+      onClick={onPress}
+      transform={`translate(${x} ${y})`}
+    >
+      <title>{name}</title>
+      <circle r={8} />
+      <path d="M 0 -4.5 V 1 M 0 3.5 V 4" />
+    </g>
+  );
+};
 
 type Drawing = {
   readonly findingsOn: (id: string) => ReadonlyArray<Finding>;
+  readonly picked: Dimension | undefined;
   readonly notes: Readonly<Record<string, Note>>;
   readonly onSelect: (id: string) => void;
   readonly register: (id: string, element: SVGElement | null) => void;
@@ -249,7 +256,9 @@ const NodeView = ({ node, drawing }: { readonly node: PlacedNode; readonly drawi
             </>
           )}
         </text>
-        {found.length > 0 && <FindingsBadge x={node.width} y={0} findings={found} />}
+        {found.length > 0 && (
+          <FindingsBadge x={node.width} y={0} findings={found} picked={drawing.picked} />
+        )}
       </g>
       {toggle}
     </>
@@ -280,7 +289,12 @@ const EdgeView = ({ edge, name, drawing }: EdgeViewProps) => {
         markerEnd={`url(#arrow-${edge.state})`}
       />
       {found.length > 0 && (
-        <FindingsBadge {...middleOf(edge.points)} findings={found} onPress={() => onSelect(id)} />
+        <FindingsBadge
+          {...middleOf(edge.points)}
+          findings={found}
+          picked={drawing.picked}
+          onPress={() => onSelect(id)}
+        />
       )}
     </>
   );
@@ -1042,6 +1056,7 @@ export const ReviewPage = ({ review, notes, send }: ReviewPageProps) => {
   const placedFindings = findingsAt({ diff: review.diff, expanded, findings });
   const drawing = {
     findingsOn: (id: string) => placedFindings.get(id) ?? [],
+    picked,
     notes: shown,
     onSelect: select,
     register,
