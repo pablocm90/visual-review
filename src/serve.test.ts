@@ -295,6 +295,25 @@ test('sending a review the served page would refuse rejects with its answer, so 
   ).rejects.toThrow('The review was not sent: 403 Forbidden');
 });
 
+test('serve that cannot write its lock exits non-zero at once, saying why', async () => {
+  using bin = fakeOpeners(['xdg-open', 'open']);
+  using written = writtenPage({});
+  chmodSync(dirname(written.page), 0o555);
+  using _writableAgain = { [Symbol.dispose]: () => chmodSync(dirname(written.page), 0o755) };
+
+  const serving = promisify(execFile)(
+    process.execPath,
+    [join(import.meta.dirname, 'cli.ts'), 'serve', written.page],
+    { env: { ...process.env, PATH: bin.path }, timeout: 3000 },
+  );
+
+  await expect(serving).rejects.toMatchObject({
+    code: 1,
+    killed: false,
+    stderr: expect.stringContaining('EACCES'),
+  });
+});
+
 test('serve that hears nothing from the page for its idle time exits non-zero saying no review was sent, leaving no lock', async () => {
   using server = await servedPage({ idleMs: 200 });
 

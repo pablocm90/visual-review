@@ -107,6 +107,14 @@ export const servePage = async ({
   server.listen(0, '127.0.0.1');
   await once(server, 'listening');
   const { port } = server.address() as AddressInfo;
+  await rm(lockFile, { force: true })
+    .then(() =>
+      writeFile(lockFile, JSON.stringify({ pid: process.pid, port, token }), { mode: 0o600 }),
+    )
+    .catch((error: Error) => {
+      server.close();
+      throw error;
+    });
   const host = `127.0.0.1:${port}`;
   const reviewFile = beside(page, 'review.json');
   const sent = Promise.withResolvers<string>();
@@ -142,8 +150,6 @@ export const servePage = async ({
       })
       .end(html);
   });
-  await rm(lockFile, { force: true });
-  await writeFile(lockFile, JSON.stringify({ pid: process.pid, port, token }), { mode: 0o600 });
   process.once('SIGINT', stopped).once('SIGTERM', stopped);
   const url = urlOf({ port, token });
   console.error(`Serving ${url}`);
