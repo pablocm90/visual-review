@@ -2879,5 +2879,53 @@ test("a file's Symbols tab lists its API changes first: exported symbols added, 
   expect(within(charge).getByRole('deletion').textContent).toBe('()');
   expect(within(charge).getByRole('insertion').textContent).toBe('(at: Date)');
   const total = screen.getByRole('listitem', { name: 'function total: edited' });
+  expect(total.textContent).toBe('function total');
   expect(within(total).queryByRole('deletion')).toBeNull();
+});
+
+test('a renamed symbol says what it was renamed from, probably when its body changed too', async () => {
+  const user = userEvent.setup();
+  render(
+    <ReviewPage
+      review={pageWith({
+        range: 'abc123..def456',
+        diff: {
+          nodes: [
+            { id: 'web', kind: 'stack', label: 'web', path: '', state: 'unchanged' },
+            topFile('refund.ts', 'modified'),
+          ],
+          edges: [],
+        },
+        symbols: [
+          symbolsOf('web/file/refund.ts', [
+            {
+              name: 'settle',
+              kind: 'function',
+              exported: { base: false, head: false },
+              change: 'renamed',
+              renamedFrom: 'pay',
+            },
+            {
+              name: 'void',
+              scope: 'Refunds',
+              kind: 'method',
+              exported: { base: false, head: false },
+              change: 'renamed',
+              renamedFrom: 'Refunds.cancel',
+              probably: true,
+            },
+          ]),
+        ],
+      })}
+    />,
+  );
+
+  await user.click(await screen.findByRole('button', { name: 'refund.ts: modified' }));
+  await user.click(within(inspector()).getByRole('tab', { name: 'Symbols 2' }));
+  expect(screen.getByRole('listitem', { name: 'function settle: renamed' }).textContent).toBe(
+    'function settle renamed from pay',
+  );
+  expect(screen.getByRole('listitem', { name: 'method Refunds.void: renamed' }).textContent).toBe(
+    'method Refunds.void probably renamed from Refunds.cancel',
+  );
 });
