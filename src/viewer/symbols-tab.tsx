@@ -44,6 +44,12 @@ const SymbolList = ({
         aria-label={`${symbol.kind} ${qualified(symbol)}: ${symbol.change}`}
       >
         <span className="kind">{symbol.kind}</span> <code>{qualified(symbol)}</code>
+        {symbol.signature && (
+          <span className="signature">
+            <del>{symbol.signature.base}</del>
+            <ins>{symbol.signature.head}</ins>
+          </span>
+        )}
       </li>
     ))}
   </ul>

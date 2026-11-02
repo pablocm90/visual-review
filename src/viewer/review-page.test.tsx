@@ -2812,7 +2812,7 @@ test("a file's Symbols tab lists its changed symbols grouped by change, counting
   expect(inspectorTabs()).toEqual(['Note']);
 });
 
-test("a file's Symbols tab lists its API changes first: exported symbols added, removed, renamed, moved, un-exported or whose signature changed", async () => {
+test("a file's Symbols tab lists its API changes first: exported symbols added, removed, renamed, moved, un-exported or whose signature changed, a changed signature shown base then head", async () => {
   const user = userEvent.setup();
   const exported = (base?: boolean, head?: boolean) => ({
     ...(base !== undefined && { base }),
@@ -2875,4 +2875,9 @@ test("a file's Symbols tab lists its API changes first: exported symbols added, 
     ['Edited', ['function total: edited']],
     ['Added', ['function helper: added']],
   ]);
+  const charge = screen.getByRole('listitem', { name: 'function charge: edited' });
+  expect(within(charge).getByRole('deletion').textContent).toBe('()');
+  expect(within(charge).getByRole('insertion').textContent).toBe('(at: Date)');
+  const total = screen.getByRole('listitem', { name: 'function total: edited' });
+  expect(within(total).queryByRole('deletion')).toBeNull();
 });
