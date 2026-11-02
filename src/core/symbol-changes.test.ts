@@ -67,3 +67,25 @@ test('a symbol whose signature changed but not its body is edited, as an overloa
 
   expect(symbolChanges({ before, after }).symbols.map(({ change }) => change)).toEqual(['edited']);
 });
+
+test("an edited symbol carries both signatures when its signature changed, and neither when it didn't", () => {
+  const before = read(
+    'function charge(amount: number) { return 1; }',
+    'function refund(amount: number) { return 1; }',
+  );
+  const after = read(
+    'function charge(amount: string) { return 1; }',
+    'function refund(amount: number) { return 2; }',
+  );
+
+  expect(symbolChanges({ before, after }).symbols).toEqual([
+    {
+      name: 'charge',
+      kind: 'function',
+      exported: { base: false, head: false },
+      change: 'edited',
+      signature: { base: '(amount: number)', head: '(amount: string)' },
+    },
+    { name: 'refund', kind: 'function', exported: { base: false, head: false }, change: 'edited' },
+  ]);
+});

@@ -8,6 +8,7 @@ export type SymbolStatement = {
   readonly kind: SymbolKind;
   readonly exported: { readonly base?: boolean; readonly head?: boolean };
   readonly change: SymbolChange;
+  readonly signature?: { readonly base: string; readonly head: string };
 };
 
 export type SymbolChanges = {
@@ -43,6 +44,9 @@ export const symbolChanges = ({ before, after }: SymbolChangesOptions): SymbolCh
         ...named(symbol),
         exported: { base: old.exported, head: symbol.exported },
         change: changeOf(old, symbol),
+        ...(old.signatureHash === symbol.signatureHash
+          ? {}
+          : { signature: { base: old.signature, head: symbol.signature } }),
       };
     }),
     ...before.symbols
