@@ -3,8 +3,10 @@ import { act, fireEvent, render, screen, waitFor, within } from '@testing-librar
 import userEvent from '@testing-library/user-event';
 import { expect, onTestFinished, test, vi } from 'vitest';
 import type { GraphDiff } from '../core/diff-graphs.ts';
+import { raisedFindings } from '../core/findings.ts';
 import type { ReviewNotes } from '../core/notes.ts';
 import type { PageData } from '../core/page.ts';
+import type { Skipped } from '../core/skipped.ts';
 import { findingOn, measured, pageWith } from '../test-support/page-data.ts';
 import { layoutDiff } from './layout.ts';
 import { ReviewPage } from './review-page.tsx';
@@ -1022,13 +1024,17 @@ test('picking a tab sets the hash and shows it, and back and forward move betwee
   await waitFor(() => expect(currentTab()).toBe('Tests'));
 });
 
-test('a reader skipped for want of its tool is named at the top of the findings rail, collapsed or open, with the stacks it did not read', async () => {
+test('a reader skipped for want of its tool is named once, at the top of the findings rail, collapsed or open, with the stacks it did not read', async () => {
   const user = userEvent.setup();
+  const skipped: ReadonlyArray<Skipped> = [
+    { reader: 'rust', tool: 'cargo', stacks: ['rust', 'rust~2'] },
+  ];
   render(
     <ReviewPage
       review={pageWith({
         ...review,
-        skipped: [{ reader: 'rust', tool: 'cargo', stacks: ['rust', 'rust~2'] }],
+        skipped,
+        findings: raisedFindings({ skipped, undrawn: [], dangling: [], metricFindings: [] }),
       })}
     />,
   );
@@ -1039,6 +1045,7 @@ test('a reader skipped for want of its tool is named at the top of the findings 
   await user.click(within(collapsed).getByRole('button', { name: 'Show 0 findings' }));
   const open = screen.getByRole('complementary', { name: 'Findings' });
   expect(within(open).getByRole('alert').textContent).toBe(line);
+  expect(within(open).getAllByText(line)).toHaveLength(1);
   expect(screen.getAllByRole('alert')).toHaveLength(1);
 });
 

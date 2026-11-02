@@ -1,5 +1,11 @@
 import { useRef, useState } from 'react';
-import { DIMENSIONS, type Dimension, type Finding, lookFirst } from '../core/findings.ts';
+import {
+  DIMENSIONS,
+  type Dimension,
+  type Finding,
+  lookFirst,
+  skippedFindingId,
+} from '../core/findings.ts';
 import { endsOfId } from '../core/graph.ts';
 import type { PageData } from '../core/page.ts';
 import { notReadLine } from '../core/skipped.ts';
@@ -67,9 +73,11 @@ const linesOf = ({ review, onGoTo, onShowOutside }: LineOptions) => {
 
 const groupsOf = (props: FindingsRailProps): ReadonlyArray<Group> => {
   const lineOf = linesOf(props);
+  const alerted = new Set(props.review.skipped.map(skippedFindingId));
+  const listed = props.findings.filter(finding => !alerted.has(finding.id));
   return DIMENSIONS.map(dimension => ({
     name: nameOf(dimension),
-    findings: props.findings.filter(finding => finding.dimension === dimension).map(lineOf),
+    findings: listed.filter(finding => finding.dimension === dimension).map(lineOf),
   }));
 };
 

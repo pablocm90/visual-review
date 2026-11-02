@@ -63,6 +63,8 @@ type RaisedOptions = {
   readonly metricFindings: ReadonlyArray<MetricFinding>;
 };
 
+export const skippedFindingId = (skip: Skipped) => `structure:skipped:${skip.reader}`;
+
 export const raisedFindings = ({
   skipped,
   undrawn,
@@ -71,7 +73,7 @@ export const raisedFindings = ({
 }: RaisedOptions): ReadonlyArray<Finding> => [
   ...skipped.map(
     (skip): Finding => ({
-      id: `structure:skipped:${skip.reader}`,
+      id: skippedFindingId(skip),
       dimension: 'structure',
       level: 'look',
       title: notReadLine(skip),
