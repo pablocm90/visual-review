@@ -432,6 +432,39 @@ test("a changed file whose symbols wouldn't parse is a structure finding for inf
   ]);
 });
 
+test("a class's methods raise no api finding of their own when the class itself was removed, renamed or added; under a class kept, a method's change is its own", () => {
+  const method = (
+    scope: string,
+    exported: SymbolStatement['exported'],
+    change: SymbolStatement['change'],
+  ): SymbolStatement => ({ name: 'charge', scope, kind: 'method', exported, change });
+  const symbols = [
+    symbolFile([
+      { name: 'Orders', kind: 'class', exported: { base: true }, change: 'removed' },
+      method('Orders', { base: true }, 'removed'),
+      {
+        name: 'Billing',
+        kind: 'class',
+        exported: { base: true, head: true },
+        change: 'renamed',
+        renamedFrom: 'Bills',
+      },
+      { ...method('Billing', { base: true, head: true }, 'renamed'), renamedFrom: 'Bills.charge' },
+      { name: 'Cart', kind: 'class', exported: { head: true }, change: 'added' },
+      method('Cart', { head: true }, 'added'),
+      { name: 'Till', kind: 'class', exported: { base: true, head: true }, change: 'edited' },
+      method('Till', { base: true }, 'removed'),
+    ]),
+  ];
+
+  expect(findingsOfSymbols(symbols).map(finding => finding.title)).toStrictEqual([
+    'class Orders removed',
+    'class Bills renamed to Billing',
+    'class Cart added',
+    'method Till.charge removed',
+  ]);
+});
+
 const notesFile = 'x.notes.json';
 
 const notesWith = (notes: ReviewNotes['notes']): ReviewNotes => ({

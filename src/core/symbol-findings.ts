@@ -27,6 +27,17 @@ const addedHow = ({ change, movedFrom }: SymbolStatement): string => {
   return movedFrom === undefined ? 'now exported' : `moved from ${movedFrom}`;
 };
 
+const isAddedExport = ({ exported }: SymbolStatement): boolean =>
+  exported.base !== true && exported.head === true;
+
+const raisesItsOwn = (statement: SymbolStatement): boolean =>
+  removalOf(statement) !== undefined || isAddedExport(statement);
+
+const unheld = (statements: ReadonlyArray<SymbolStatement>): ReadonlyArray<SymbolStatement> => {
+  const holders = new Set(statements.filter(raisesItsOwn).map(qualified));
+  return statements.filter(({ scope }) => scope === undefined || !holders.has(scope));
+};
+
 type Placed = { readonly node: string; readonly statement: SymbolStatement };
 
 const findingOf = ({ node, statement }: Placed): Finding | undefined => {
@@ -40,16 +51,14 @@ const findingOf = ({ node, statement }: Placed): Finding | undefined => {
     };
   const { signature, exported } = statement;
   const name = qualified(statement);
-  if (exported.base !== true)
-    return exported.head === true
-      ? {
-          id: `api:added:${node}#${name}`,
-          ...on,
-          level: 'info',
-          title: `${statement.kind} ${name} ${addedHow(statement)}`,
-        }
-      : undefined;
-  if (signature === undefined) return undefined;
+  if (isAddedExport(statement))
+    return {
+      id: `api:added:${node}#${name}`,
+      ...on,
+      level: 'info',
+      title: `${statement.kind} ${name} ${addedHow(statement)}`,
+    };
+  if (signature === undefined || exported.base !== true) return undefined;
   return {
     id: `api:signature:${node}#${name}`,
     ...on,
@@ -94,7 +103,9 @@ export const symbolFindings = (files: ReadonlyArray<SymbolFile>): ReadonlyArray<
           },
         ]
       : [
-          ...file.symbols.flatMap(statement => findingOf({ node: file.node, statement }) ?? []),
+          ...unheld(file.symbols).flatMap(
+            statement => findingOf({ node: file.node, statement }) ?? [],
+          ),
           ...exportsFinding(file),
         ],
   );
