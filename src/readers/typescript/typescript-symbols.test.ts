@@ -280,3 +280,49 @@ test.each([
 ])('signatures hash alike unless their API changed: $change', ({ base, head, alike }) => {
   expect(signaturesAlike(base, head)).toEqual(alike);
 });
+
+const textsAlike = (base: ReadonlyArray<string>, head: ReadonlyArray<string>) => {
+  const heads = symbolsOfTypeScript(source(...head), 'src/shop.ts').symbols;
+  return symbolsOfTypeScript(source(...base), 'src/shop.ts').symbols.map(
+    ({ name, textHash }, index) => `${name} ${textHash === heads[index]?.textHash}`,
+  );
+};
+
+test('a symbol hashes its own text apart from the symbols inside it, so a reformatted one shows', () => {
+  expect(
+    textsAlike(
+      [
+        'function charge(a) { return a; }',
+        'const refund = () => 1;',
+        'function same() { return 1; }',
+        'class Shop { open() { return 1; } close() { function inner() {} } }',
+        'class Till { count() { function add() {} } }',
+        'function load() { const a = 1; const b = () => a; }',
+      ],
+      [
+        'function charge(a) {',
+        '  return a; // as is',
+        '}',
+        'const refund = () =>  1;',
+        'function same() { return 1; }',
+        '',
+        'class Shop { open() { return 1; } close() { function inner() { } } }',
+        'class Till { count() { function add() {} /* added */ } }',
+        'function load() { const a =  1; const b = () => a; }',
+      ],
+    ),
+  ).toEqual([
+    'charge false',
+    'refund false',
+    'same true',
+    'Shop true',
+    'open true',
+    'close true',
+    'inner false',
+    'Till true',
+    'count false',
+    'add true',
+    'load false',
+    'b true',
+  ]);
+});

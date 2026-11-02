@@ -89,14 +89,14 @@ const UNHASHED = new Set([
 
 type Replacer = (holder: unknown, key: string, value: unknown) => unknown;
 
+const sha1 = (text: string): string => createHash('sha1').update(text).digest('hex');
+
 const hashOf = (value: unknown, replace: Replacer): string =>
-  createHash('sha1')
-    .update(
-      JSON.stringify(value, function (this: unknown, key: string, inner: unknown) {
-        return UNHASHED.has(key) ? undefined : replace(this, key, inner);
-      }),
-    )
-    .digest('hex');
+  sha1(
+    JSON.stringify(value, function (this: unknown, key: string, inner: unknown) {
+      return UNHASHED.has(key) ? undefined : replace(this, key, inner);
+    }),
+  );
 
 const bodyHashOf = (node: Node, nested: ReadonlySet<unknown>): string =>
   hashOf(node, (holder, key, value) => {
@@ -117,11 +117,30 @@ const signatureNodesOf = (node: Node): unknown => {
   return [node.async, node.generator, node.typeParameters, node.params, node.returnType];
 };
 
+const startOf = (node: Node): number => node.start ?? 0;
+const endOf = (node: Node): number => node.end ?? 0;
+
+type Cut = { readonly pieces: ReadonlyArray<string>; readonly cursor: number };
+
+const ownText = (text: string, node: Node, holes: ReadonlyArray<Node>): string => {
+  const { pieces, cursor } = holes
+    .filter(hole => hole !== node && startOf(hole) >= startOf(node) && endOf(hole) <= endOf(node))
+    .reduce<Cut>(
+      (cut, hole) => ({
+        pieces: [...cut.pieces, text.slice(cut.cursor, startOf(hole))],
+        cursor: Math.max(cut.cursor, endOf(hole)),
+      }),
+      { pieces: [], cursor: startOf(node) },
+    );
+  return [...pieces, text.slice(cursor, endOf(node))].join('');
+};
+
 export const symbolsOfTypeScript = (text: string, path: string): FileSymbols => {
   const { program } = parseTypeScript(text, path);
   const names = new Set(program.body.flatMap(statement => exportedBy(text, statement)));
   const walk = symbolsIn(text, program);
-  const nested = new Set<unknown>(walk.map(({ declaration }) => declaration));
+  const declarations = walk.map(({ declaration }) => declaration);
+  const nested = new Set<unknown>(declarations);
   return {
     symbols: walk.map(walked => ({
       ...walked.symbol,
@@ -129,6 +148,9 @@ export const symbolsOfTypeScript = (text: string, path: string): FileSymbols => 
       signature: signatureOf(text, walked.node),
       signatureHash: hashOf(signatureNodesOf(walked.node), (_holder, _key, value) => value),
       bodyHash: bodyHashOf(walked.node, nested),
+      textHash: createHash('sha1')
+        .update(ownText(text, walked.node, declarations))
+        .digest('hex'),
     })),
   };
 };
