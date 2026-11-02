@@ -2770,6 +2770,13 @@ test('on Kind of change a changed file is named with the strongest kind of its s
 
   await user.click(colourBy('Kind of change'));
   expect(colourBy('Kind of change').getAttribute('aria-pressed')).toBe('true');
+  expect(screen.queryByRole('list', { name: 'Legend' })).toBeNull();
+  expect(scaleSteps()).toEqual([
+    'API change',
+    'logic change',
+    'formatting only',
+    'symbols not read',
+  ]);
   expect(buttonsIn(web)).toEqual([
     'api.ts → same.ts: unchanged',
     'api.ts: modified, API change',

@@ -1209,11 +1209,7 @@ export const ReviewPage = ({ review, notes, send }: ReviewPageProps) => {
                 </div>
               </div>
               <div className="graph-key">
-                {colouring === 'change' || colouring === 'kind' ? (
-                  <Legend />
-                ) : (
-                  <ScaleLegend colouring={colouring} />
-                )}
+                {colouring === 'change' ? <Legend /> : <ScaleLegend colouring={colouring} />}
               </div>
               {drawn.nodes.length === 0 && <p className="caveat">Nothing in the graph changed.</p>}
               {layout && (

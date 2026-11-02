@@ -73,8 +73,19 @@ export const shadeOf = (colouring: Colouring, shading: Shading): Shade | undefin
   return { step, name: `${measure} ${value} (${steps[step]})` };
 };
 
-export const ScaleLegend = ({ colouring }: { readonly colouring: Scaled }) => {
-  const { title, steps } = SCALES[colouring];
+type Legend = { readonly title: string; readonly steps: ReadonlyArray<string> };
+
+const KIND_LEGEND: Legend = {
+  title: 'Kind of change: the strongest among its symbols',
+  steps: [...Object.values(KINDS), NOT_READ].map(({ name }) => name),
+};
+
+export const ScaleLegend = ({
+  colouring,
+}: {
+  readonly colouring: Exclude<Colouring, 'change'>;
+}) => {
+  const { title, steps } = colouring === 'kind' ? KIND_LEGEND : SCALES[colouring];
   return (
     <div className="scale-legend">
       <span>{title}</span>
