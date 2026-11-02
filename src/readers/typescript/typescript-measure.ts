@@ -1,6 +1,12 @@
 import type { Node } from '@babel/types';
 import type { FileMeasures } from '../../core/reader.ts';
-import { childrenOf, isFunction, parseTypeScript, symbolsIn } from './typescript-syntax.ts';
+import {
+  childrenOf,
+  isFunction,
+  isOverload,
+  parseTypeScript,
+  symbolsIn,
+} from './typescript-syntax.ts';
 
 type Row = { readonly line: number };
 
@@ -103,7 +109,9 @@ export const measureTypeScript = (text: string, path: string): FileMeasures | un
   const { program, tokens } = parseTypeScript(text, path);
   const tokenList: ReadonlyArray<unknown> = tokens ?? [];
   const code = tokenList.filter(isToken).filter(isCode);
-  const functions = symbolsIn(text, program).filter(({ symbol }) => isFunction(symbol));
+  const functions = symbolsIn(text, program).filter(
+    ({ symbol, node }) => isFunction(symbol) && !isOverload(node),
+  );
   const bodies = new Set(functions.map(({ node }) => node));
   return {
     lines: new Set(code.flatMap(rowsOf)).size,

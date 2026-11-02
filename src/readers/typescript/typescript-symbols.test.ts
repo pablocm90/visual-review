@@ -134,6 +134,33 @@ test("a function's signature is its type parameters, parameters and return type,
   ]);
 });
 
+test("an overloaded function's signature is its overloads, joined, and it is one symbol", () => {
+  expect(
+    signaturesIn(
+      'export function charge(order: Order): Receipt;',
+      'export function charge(orders: Order[]): Receipt[];',
+      'export function charge(input) { return input; }',
+      'class Shop {',
+      '  open(): void;',
+      '  open(at: Date): void;',
+      '  open(at?) {}',
+      '  get size() { return 1; }',
+      '  set size(value) {}',
+      '}',
+      'abstract class Till { abstract open(): void; }',
+      'function open(at) {}',
+    ),
+  ).toEqual([
+    'charge (order: Order): Receipt; (orders: Order[]): Receipt[]',
+    'Shop ',
+    'open (): void; (at: Date): void',
+    'size ()',
+    'size (value)',
+    'Till abstract',
+    'open (at)',
+  ]);
+});
+
 test("a class's signature is its type parameters and heritage, a type's its whole declaration", () => {
   expect(
     signaturesIn(
@@ -249,6 +276,8 @@ test.each([
       'class Bag extends Store<string> {}',
       'abstract class Till {}',
       'interface Order { readonly id: string }',
+      'function bill(a: string): void;',
+      'function bill(a) {}',
     ],
     head: [
       'function charge(order: Order, retry: boolean) {}',
@@ -262,6 +291,8 @@ test.each([
       'class Bag extends Store<number> {}',
       'class Till {}',
       'interface Order { readonly id: number }',
+      'function bill(a: number): void;',
+      'function bill(a) {}',
     ],
     alike: [
       'charge false',
@@ -275,6 +306,7 @@ test.each([
       'Bag false',
       'Till false',
       'Order false',
+      'bill false',
     ],
   },
 ])('signatures hash alike unless their API changed: $change', ({ base, head, alike }) => {

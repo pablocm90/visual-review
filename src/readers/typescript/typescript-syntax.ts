@@ -58,10 +58,12 @@ const assigned = (text: string, name: Node, value: Node | null | undefined) => {
 const ownFunction = (text: string, node: Node): OwnFunction | undefined => {
   switch (node.type) {
     case 'FunctionDeclaration':
+    case 'TSDeclareFunction':
       return { name: node.id ? sourceOf(text, node.id) : 'default', fn: node };
     case 'ClassMethod':
     case 'ClassPrivateMethod':
     case 'ObjectMethod':
+    case 'TSDeclareMethod':
       return { name: sourceOf(text, node.key), fn: node };
     case 'VariableDeclarator':
       return assigned(text, node.id, node.init);
@@ -130,6 +132,9 @@ const objectNameOf = (text: string, node: Node): string | undefined =>
   node.type === 'VariableDeclarator' && node.init?.type === 'ObjectExpression'
     ? sourceOf(text, node.id)
     : undefined;
+
+export const isOverload = (node: Node): boolean =>
+  node.type === 'TSDeclareFunction' || node.type === 'TSDeclareMethod';
 
 export const isFunction = ({ kind }: { readonly kind: SymbolKind }): boolean =>
   kind === 'function' || kind === 'method';

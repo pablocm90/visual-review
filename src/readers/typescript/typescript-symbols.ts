@@ -1,7 +1,14 @@
 import { createHash } from 'node:crypto';
-import type { ClassDeclaration, Function as FunctionNode, Node } from '@babel/types';
+import type {
+  ClassDeclaration,
+  Function as FunctionNode,
+  Node,
+  TSDeclareFunction,
+  TSDeclareMethod,
+} from '@babel/types';
 import type { FileSymbols } from '../../core/reader.ts';
 import {
+  isOverload,
   nameOf,
   parseTypeScript,
   sourceOf,
@@ -61,9 +68,31 @@ const FUNCTIONS = new Set([
   'ClassMethod',
   'ClassPrivateMethod',
   'ObjectMethod',
+  'TSDeclareFunction',
+  'TSDeclareMethod',
 ]);
 
-const isFunctionNode = (node: Node): node is FunctionNode => FUNCTIONS.has(node.type);
+const isFunctionNode = (node: Node): node is FunctionNode | TSDeclareFunction | TSDeclareMethod =>
+  FUNCTIONS.has(node.type);
+
+const keyOf = ({ symbol }: WalkedSymbol): string => `${symbol.scope}.${symbol.name}`;
+
+const overloadsBefore = (
+  walk: ReadonlyArray<WalkedSymbol>,
+  index: number,
+  key: string,
+): ReadonlyArray<Node> => {
+  const previous = walk[index - 1];
+  return previous && isOverload(previous.node) && keyOf(previous) === key
+    ? [...overloadsBefore(walk, index - 1, key), previous.node]
+    : [];
+};
+
+const withHeads = (walked: WalkedSymbol, index: number, walk: ReadonlyArray<WalkedSymbol>) => {
+  if (isOverload(walked.node)) return [];
+  const overloads = overloadsBefore(walk, index, keyOf(walked));
+  return [{ ...walked, heads: overloads.length > 0 ? overloads : [walked.node] }];
+};
 
 const heritageOf = (text: string, node: ClassDeclaration): string =>
   [
@@ -181,15 +210,15 @@ export const symbolsOfTypeScript = (text: string, path: string): FileSymbols => 
   const { program, tokens } = parseTypeScript(text, path);
   const code = (tokens ?? []).filter(isToken).filter(isCode);
   const names = new Set(program.body.flatMap(statement => exportedBy(text, statement)));
-  const walk = symbolsIn(text, program);
+  const walk = symbolsIn(text, program).flatMap(withHeads);
   const declarations = walk.map(({ declaration }) => declaration);
   const nested = new Set<unknown>(declarations);
   return {
     symbols: walk.map(walked => ({
       ...walked.symbol,
       exported: isExported(names, walked),
-      signature: signatureOf(text, walked.node),
-      signatureHash: hashOf(signatureNodesOf(walked.node), asIs),
+      signature: walked.heads.map(head => signatureOf(text, head)).join('; '),
+      signatureHash: hashOf(walked.heads.map(signatureNodesOf), asIs),
       bodyHash: bodyHashOf(walked.node, nested),
       textHash: sha1(ownText(text, walked.node, declarations)),
       bodyTokens: tokensOf(text, walked.node, code, declarations),
