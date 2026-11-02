@@ -100,3 +100,36 @@ test.each([
 ])('symbols exported $exports are exported, their public methods too', ({ lines, exported }) => {
   expect(exportedIn(...lines)).toEqual(exported);
 });
+
+const signaturesIn = (...lines: ReadonlyArray<string>) =>
+  symbolsOfTypeScript(source(...lines), 'src/shop.ts').symbols.map(
+    ({ name, signature }) => `${name} ${signature}`,
+  );
+
+test("a function's signature is its type parameters, parameters and return type, whitespace collapsed", () => {
+  expect(
+    signaturesIn(
+      'function plain(a, b) {}',
+      'export async function charge<T extends Order>(',
+      '  order: T,',
+      '  { amount,',
+      '    currency }: Money = ZERO,',
+      '  ...rest: ReadonlyArray<string>',
+      '): Promise<Receipt> {}',
+      'const refund = async (id: string): Promise<void> => {};',
+      'const save = function (draft: Draft) {};',
+      'class Shop { *items(): Iterable<Item> {} close = () => {}; #lock(key) {} }',
+      'const store = { load(id) {} };',
+    ),
+  ).toEqual([
+    'plain (a, b)',
+    'charge async <T extends Order>(order: T, { amount, currency }: Money = ZERO, ...rest: ReadonlyArray<string>): Promise<Receipt>',
+    'refund async (id: string): Promise<void>',
+    'save (draft: Draft)',
+    'Shop ',
+    'items *(): Iterable<Item>',
+    'close ()',
+    '#lock (key)',
+    'load (id)',
+  ]);
+});

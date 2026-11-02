@@ -29,7 +29,7 @@ export type WalkedSymbol = {
   readonly declaration: Node;
 };
 
-const sourceOf = (text: string, node: Node): string =>
+export const sourceOf = (text: string, node: Node): string =>
   text.slice(node.start ?? undefined, node.end ?? undefined);
 
 export const nameOf = (text: string, node: Node): string =>

@@ -37,6 +37,7 @@ export type ReadSymbol = {
   readonly scope?: string;
   readonly kind: SymbolKind;
   readonly exported: boolean;
+  readonly signature: string;
 };
 
 export type FileSymbols = {
