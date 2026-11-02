@@ -10,6 +10,10 @@ What changed in each release of `@pablocm90/visual-review`, newest first. Versio
 - `serve` ends by itself: the served page pings it every 30 s, and after 10 minutes with no ping (`VISUAL_REVIEW_IDLE_MS` to change it) it exits 1 with "No review sent". One server per page: a lock `<name>.serve` (pid, port, token; mode 600) is written beside the page and removed on exit; serving an already-served page opens that server and exits 0, printing nothing on stdout; a lock whose server no longer answers, or that isn't a lock, is replaced. Locks are pruned with their page.
 - Review files are versioned and validated like notes: `{ "version": 1, "verdict": "approve" | "comment" | "request-changes", "comments": { "<id>": { "text": "…" } } }`, keyed by node id or `<from> -> <to>`. `pnpm build` writes its JSON schema as `dist/review.schema.json`.
 
+### Changed
+
+- The Claude Code plugin's skill serves the page with `serve` in the background instead of opening the file, and acts on the review sent from it: on Request changes it works through each comment, on Comment it replies to each and changes nothing, and on Approve it answers any comments and stops.
+
 ## 0.4.1 — 2026-10-31
 
 ### Changed

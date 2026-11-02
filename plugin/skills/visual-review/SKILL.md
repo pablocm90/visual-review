@@ -1,6 +1,6 @@
 ---
 name: visual-review
-description: Visual review of a pull request by number, a commit range, or uncommitted work when given none — draws the Rust crates and modules, the web modules and the Rails layers and classes before and after the PR's merge base and head, `<from>..<to>`, or `HEAD` and the working tree, with added, removed and modified nodes and edges coloured, annotates it with Claude's notes and structural flags, and opens it in the browser. Use when the user runs /visual-review or asks to see what a PR, a range or their uncommitted work changed structurally.
+description: Visual review of a pull request by number, a commit range, or uncommitted work when given none — draws the Rust crates and modules, the web modules and the Rails layers and classes before and after the PR's merge base and head, `<from>..<to>`, or `HEAD` and the working tree, with added, removed and modified nodes and edges coloured, annotates it with Claude's notes and structural flags, serves it in the browser, and acts on the review the user sends back from the page. Use when the user runs /visual-review or asks to see what a PR, a range or their uncommitted work changed structurally.
 argument-hint: [<pr number> | <from>..<to>]
 ---
 
@@ -48,5 +48,12 @@ Run every command from the repository root (`git rev-parse --show-toplevel`, whi
 
    Done when every touched crate, module, root file, Rails layer and class, and every added or removed edge between them as drawn with modules collapsed, has a note. A note on a file import counts for the module edge it is drawn into.
 4. Run `visual-review '<range>' --notes '<notes file>'`. It fills the notes into the page from step 1 without reading the range again. A non-zero exit names the notes file and either the contract error or one line per problem (`unknown id <id>`, `no note on <id>`): fix the file and rerun. Done when it exits 0.
-5. Open the page with `xdg-open <path>` on Linux, or `open <path>` on macOS. Done when the opener has returned.
-6. Reply with the page's path and the flags you raised, one line each, or "no flags".
+5. Run `visual-review serve '<page path>'` in the background, so you are told when it exits. It opens the page in the browser and prints its URL on stderr. Done when it has started.
+6. Reply with the page's path and the flags you raised, one line each, or "no flags", and say that a review sent from the page with **Send to Claude** comes back to you.
+7. When `serve` exits, act on how it ended:
+   - Exit 0 with a path on stdout: the user sent a review, written at that path. Read it: `verdict` is `approve`, `comment` or `request-changes`, and `comments` maps a node id, or `<from> -> <to>` for an edge, to `{ text }`, keyed as your notes are.
+     - `request-changes`: each comment is a task on the part its key names. Work through them as you would a PR review's requested changes. Done when every comment is either addressed or answered with why not.
+     - `comment`: reply to each comment, naming the part its key names, and change nothing until the user says to. Done when every comment has a reply.
+     - `approve`: reply to each comment, if any, then say the user approved and stop.
+   - Exit 0 with nothing on stdout: the page was already served by an earlier `serve`, which receives its review. Say so and stop.
+   - Exit 1: relay its stderr (`No review sent` when the tab was closed or left idle for ten minutes, or the user stopped it) and stop.
