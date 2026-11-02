@@ -12,7 +12,7 @@ import {
 } from 'node:fs';
 import { request } from 'node:http';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
 import { createInterface } from 'node:readline';
 import { text } from 'node:stream/consumers';
 import { setTimeout as delay } from 'node:timers/promises';
@@ -36,9 +36,16 @@ const fakeOpeners = (openers: ReadonlyArray<string>) => {
   };
 };
 
-const writtenPage = () => {
-  const directory = mkdtempSync(join(tmpdir(), 'visual-review-reviews-'));
-  const page = join(directory, 'main..feature.html');
+type WrittenPageOptions = {
+  readonly directory?: string;
+  readonly range?: string;
+};
+
+const writtenPage = ({
+  directory = mkdtempSync(join(tmpdir(), 'visual-review-reviews-')),
+  range = 'main..feature',
+}: WrittenPageOptions) => {
+  const page = join(directory, `${range}.html`);
   const { version } = JSON.parse(
     readFileSync(join(import.meta.dirname, '..', 'package.json'), 'utf8'),
   );
@@ -47,7 +54,7 @@ const writtenPage = () => {
     readFileSync(join(import.meta.dirname, '..', 'dist', 'viewer.html'), 'utf8').replace(
       '<script type="application/json" id="review-data">{}</script>',
       () =>
-        `<script type="application/json" id="review-data">${JSON.stringify({ version, range: 'main..feature' })}</script>`,
+        `<script type="application/json" id="review-data">${JSON.stringify({ version, range })}</script>`,
     ),
   );
   return {
@@ -75,15 +82,16 @@ type ServedPageOptions = {
   readonly openers?: ReadonlyArray<string>;
   readonly idleMs?: number;
   readonly lock?: string;
-};
+} & WrittenPageOptions;
 
 const servedPage = async ({
   openers = ['xdg-open', 'open'],
   idleMs,
   lock,
+  ...page
 }: ServedPageOptions = {}) => {
   const bin = fakeOpeners(openers);
-  const written = writtenPage();
+  const written = writtenPage(page);
   if (lock !== undefined) writeFileSync(written.page.replace(/\.html$/, '.serve'), lock);
   const child = spawn(
     process.execPath,
@@ -346,4 +354,12 @@ test('the lock holding the token is readable by its owner only, even when it rep
   const lockFile = server.page.replace(/\.html$/, '.serve');
 
   expect(statSync(lockFile).mode & 0o777).toBe(0o600);
+});
+
+test('another page in the same folder is served by a server of its own', async () => {
+  using first = await servedPage();
+
+  using second = await servedPage({ directory: dirname(first.page), range: 'main..other' });
+
+  expect((await fetch(second.url)).status).toBe(200);
 });
