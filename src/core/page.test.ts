@@ -291,6 +291,41 @@ test('an exported symbol renamed or moved away is removed under its former name,
   ]);
 });
 
+test('an exported symbol whose signature changed is an api finding to look at, its detail the signature before and after; one changed on a symbol not exported raises none', () => {
+  const signature = { base: '(order: Order)', head: '(order: Order, at: Date)' };
+  const symbols = [
+    symbolFile([
+      {
+        name: 'charge',
+        scope: 'Orders',
+        kind: 'method',
+        exported: { base: true, head: true },
+        change: 'edited',
+        signature,
+      },
+      {
+        name: 'quiet',
+        kind: 'function',
+        exported: { base: false, head: false },
+        change: 'edited',
+        signature,
+      },
+      { name: 'total', kind: 'function', exported: { base: true, head: true }, change: 'edited' },
+    ]),
+  ];
+
+  expect(findingsOfSymbols(symbols)).toStrictEqual([
+    {
+      id: 'api:signature:web/file/a.ts#Orders.charge',
+      dimension: 'api',
+      level: 'look',
+      target: 'web/file/a.ts',
+      title: "method Orders.charge's signature changed",
+      detail: '(order: Order) → (order: Order, at: Date)',
+    },
+  ]);
+});
+
 const notesFile = 'x.notes.json';
 
 const notesWith = (notes: ReviewNotes['notes']): ReviewNotes => ({

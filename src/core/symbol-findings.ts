@@ -22,22 +22,31 @@ const removalOf = (statement: SymbolStatement): Removal | undefined => {
     : undefined;
 };
 
+type Placed = { readonly node: string; readonly statement: SymbolStatement };
+
+const findingOf = ({ node, statement }: Placed): Finding | undefined => {
+  const removal = removalOf(statement);
+  const on = { dimension: 'api', level: 'look', target: node } as const;
+  if (removal !== undefined)
+    return {
+      id: `api:removed:${node}#${removal.former}`,
+      ...on,
+      title: `${statement.kind} ${removal.former} ${removal.how}`,
+    };
+  const { signature, exported } = statement;
+  if (signature === undefined || exported.base !== true) return undefined;
+  const name = qualified(statement);
+  return {
+    id: `api:signature:${node}#${name}`,
+    ...on,
+    title: `${statement.kind} ${name}'s signature changed`,
+    detail: `${signature.base} → ${signature.head}`,
+  };
+};
+
 export const symbolFindings = (files: ReadonlyArray<SymbolFile>): ReadonlyArray<Finding> =>
   files.flatMap(file =>
     'unreadable' in file
       ? []
-      : file.symbols.flatMap((statement): ReadonlyArray<Finding> => {
-          const removal = removalOf(statement);
-          return removal === undefined
-            ? []
-            : [
-                {
-                  id: `api:removed:${file.node}#${removal.former}`,
-                  dimension: 'api',
-                  level: 'look',
-                  target: file.node,
-                  title: `${statement.kind} ${removal.former} ${removal.how}`,
-                },
-              ];
-        }),
+      : file.symbols.flatMap(statement => findingOf({ node: file.node, statement }) ?? []),
   );
