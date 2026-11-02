@@ -1,6 +1,6 @@
 import { expect, test } from 'vitest';
 import { findingOn } from '../test-support/page-data.ts';
-import { findingsOf } from './findings.ts';
+import { type Finding, findingsOf, lookFirst } from './findings.ts';
 import { parseNotes } from './notes.ts';
 
 const notesWith = (notes: Readonly<Record<string, unknown>>) =>
@@ -40,4 +40,40 @@ test('without notes, the findings are the raised ones', () => {
   const raised = findingOn('web/file/a.ts');
 
   expect(findingsOf({ data: { findings: [raised] }, notes: undefined })).toStrictEqual([raised]);
+});
+
+const look = (target: string | undefined, id: string): Finding => ({
+  id,
+  dimension: 'structure',
+  level: 'look',
+  ...(target !== undefined && { target }),
+  title: id,
+});
+
+const measured = (fanIn: number, churn: number) => ({ head: { fanIn, fanOut: 0, churn } });
+
+test('look first holds the findings to look at: untargeted ones first, then by the fan-in of their target, or of the busier end of an edge, then by its churn, then by id; one with no metrics last', () => {
+  const findings = [
+    findingOn('a', { id: 'info on a' }),
+    look('d', 'on d, unmeasured'),
+    look('a', 'on a'),
+    look('c', 'on c'),
+    look('b', 'on b'),
+    look('d -> b', 'on d -> b'),
+    look('b -> d', 'on b -> d'),
+    look(undefined, 'untargeted z'),
+    look(undefined, 'untargeted y'),
+  ];
+  const metrics = { a: measured(3, 1), b: measured(5, 0), c: measured(3, 4) };
+
+  expect(lookFirst({ findings, metrics }).map(finding => finding.id)).toStrictEqual([
+    'untargeted y',
+    'untargeted z',
+    'on b',
+    'on b -> d',
+    'on d -> b',
+    'on c',
+    'on a',
+    'on d, unmeasured',
+  ]);
 });

@@ -1,7 +1,8 @@
 import type { FilePatch } from './diff-graphs.ts';
+import { endsOfId } from './graph.ts';
 import type { DanglingCall } from './linker.ts';
 import type { MetricFinding } from './metric-findings.ts';
-import { tenths } from './metrics.ts';
+import { type NodeMetrics, tenths } from './metrics.ts';
 import type { ReviewNotes } from './notes.ts';
 import type { PageData } from './page.ts';
 import { notReadLine, type Skipped } from './skipped.ts';
@@ -120,3 +121,20 @@ export const findingsOf = ({ data, notes }: FindingsOfOptions): ReadonlyArray<Fi
       : [{ id: `notes:${id}`, dimension, level: 'look' as const, target: id, title: flag }],
   ),
 ];
+
+type LookFirstOptions = {
+  readonly findings: ReadonlyArray<Finding>;
+  readonly metrics: Readonly<Record<string, NodeMetrics>>;
+};
+
+export const lookFirst = ({ findings, metrics }: LookFirstOptions): ReadonlyArray<Finding> => {
+  const highest = (target: string | undefined, measure: 'fanIn' | 'churn') =>
+    target === undefined
+      ? Number.POSITIVE_INFINITY
+      : Math.max(...endsOfId(target).map(end => metrics[end]?.head?.[measure] ?? 0));
+  const before = (one: Finding, other: Finding) =>
+    highest(other.target, 'fanIn') - highest(one.target, 'fanIn') ||
+    highest(other.target, 'churn') - highest(one.target, 'churn') ||
+    (one.id < other.id ? -1 : 1);
+  return findings.filter(finding => finding.level === 'look').toSorted(before);
+};
