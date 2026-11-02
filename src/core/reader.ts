@@ -30,6 +30,17 @@ export type FileMeasures = {
   readonly functions: ReadonlyArray<FunctionMeasures>;
 };
 
+export type SymbolKind = 'function' | 'method';
+
+export type ReadSymbol = {
+  readonly name: string;
+  readonly kind: SymbolKind;
+};
+
+export type FileSymbols = {
+  readonly symbols: ReadonlyArray<ReadSymbol>;
+};
+
 export type StackOptions = HoldsOptions & {
   readonly stack: string;
   readonly stacks: ReadonlyMap<string, string>;

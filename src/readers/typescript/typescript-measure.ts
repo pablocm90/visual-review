@@ -104,11 +104,11 @@ export const measureTypeScript = (text: string, path: string): FileMeasures | un
   const tokenList: ReadonlyArray<unknown> = tokens ?? [];
   const code = tokenList.filter(isToken).filter(isCode);
   const functions = functionsIn(text, program);
-  const bodies = new Set(functions.map(({ fn }) => fn));
+  const bodies = new Set(functions.map(({ node }) => node));
   return {
     lines: new Set(code.flatMap(rowsOf)).size,
-    functions: functions.map(({ name, fn }) => {
-      const nodes = ownNodes(fn, bodies);
+    functions: functions.map(({ symbol: { name }, node }) => {
+      const nodes = ownNodes(node, bodies);
       return {
         name,
         cyclomatic: 1 + nodes.filter(isDecision).length,

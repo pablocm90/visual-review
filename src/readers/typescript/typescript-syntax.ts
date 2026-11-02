@@ -1,5 +1,6 @@
 import { type ParserPlugin, parse } from '@babel/parser';
 import type { Node } from '@babel/types';
+import type { ReadSymbol, SymbolKind } from '../../core/reader.ts';
 
 const TYPESCRIPT: Array<ParserPlugin> = [
   'typescript',
@@ -21,6 +22,8 @@ export const childrenOf = (node: Node): ReadonlyArray<Node> =>
     .filter(isNode);
 
 type OwnFunction = { readonly name: string; readonly fn: Node };
+
+export type WalkedSymbol = { readonly symbol: ReadSymbol; readonly node: Node };
 
 const sourceOf = (text: string, node: Node): string =>
   text.slice(node.start ?? undefined, node.end ?? undefined);
@@ -79,7 +82,23 @@ const heldFunction = (node: Node, holder: string | undefined): OwnFunction | und
     ? undefined
     : { name: holder, fn: node };
 
-const functionsUnder = (text: string, node: Node, scope: Scope): ReadonlyArray<OwnFunction> => {
+const METHODS = new Set([
+  'ClassMethod',
+  'ClassPrivateMethod',
+  'ClassProperty',
+  'ClassPrivateProperty',
+  'ObjectMethod',
+  'ObjectProperty',
+]);
+
+const kindOf = (node: Node): SymbolKind => (METHODS.has(node.type) ? 'method' : 'function');
+
+const symbolOf = (node: Node, own: OwnFunction): WalkedSymbol => ({
+  symbol: { name: own.name, kind: kindOf(node) },
+  node: own.fn,
+});
+
+const functionsUnder = (text: string, node: Node, scope: Scope): ReadonlyArray<WalkedSymbol> => {
   const own = ownFunction(text, node) ?? heldFunction(node, scope.holder);
   const inner = childrenOf(node).flatMap(child =>
     functionsUnder(
@@ -90,10 +109,10 @@ const functionsUnder = (text: string, node: Node, scope: Scope): ReadonlyArray<O
         : { inFunction: false, holder: holderOf(text, node) ?? scope.holder },
     ),
   );
-  return own === undefined ? inner : [own, ...inner];
+  return own === undefined ? inner : [symbolOf(node, own), ...inner];
 };
 
-export const functionsIn = (text: string, program: Node): ReadonlyArray<OwnFunction> =>
+export const functionsIn = (text: string, program: Node): ReadonlyArray<WalkedSymbol> =>
   functionsUnder(text, program, { inFunction: false, holder: undefined });
 
 export const parseTypeScript = (text: string, path: string) =>
