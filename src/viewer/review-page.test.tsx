@@ -2748,7 +2748,7 @@ const symbolGroups = () =>
         .map(item => item.getAttribute('aria-label')),
     ]);
 
-test("a file's Symbols tab lists its changed symbols grouped by change, counting them on the tab, and is left out on a node with no symbol changes", async () => {
+test("a file's Symbols tab lists its changed symbols grouped by change, counting them on the tab, its unchanged and formatting-only ones collapsed under a count, and is left out on a node with no symbol changes", async () => {
   const user = userEvent.setup();
   render(
     <ReviewPage
@@ -2785,6 +2785,12 @@ test("a file's Symbols tab lists its changed symbols grouped by change, counting
               exported: { base: false, head: false },
               change: 'unchanged',
             },
+            {
+              name: 'format',
+              kind: 'function',
+              exported: { base: false, head: false },
+              change: 'formatting',
+            },
           ]),
         ],
       })}
@@ -2797,7 +2803,11 @@ test("a file's Symbols tab lists its changed symbols grouped by change, counting
     ['Edited', ['function refund: edited']],
     ['Added', ['class Refunds: added', 'method Refunds.void: added']],
     ['Removed', ['function cancel: removed']],
+    ['Unchanged', ['function round: unchanged', 'function format: formatting']],
   ]);
+  expect(
+    within(screen.getByRole('tabpanel', { name: 'Symbols' })).getByText('2 unchanged'),
+  ).toBeTruthy();
   await user.click(screen.getByRole('button', { name: 'total.ts: modified' }));
   expect(inspectorTabs()).toEqual(['Note']);
 });

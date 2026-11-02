@@ -25,27 +25,51 @@ const GROUPS: ReadonlyArray<Group> = [
 const symbolsIn = (files: ReadonlyArray<SymbolFile>): ReadonlyArray<SymbolStatement> =>
   files.flatMap(file => ('symbols' in file ? file.symbols : []));
 
-export const changedSymbolCount = (files: ReadonlyArray<SymbolFile>): number =>
-  symbolsIn(files).filter(symbol => GROUPS.some(([, holds]) => holds(symbol))).length;
+const isQuiet = (symbol: SymbolStatement): boolean => !GROUPS.some(([, holds]) => holds(symbol));
 
-export const SymbolFiles = ({ files }: { readonly files: ReadonlyArray<SymbolFile> }) =>
-  GROUPS.flatMap(([title, holds]) => {
-    const grouped = symbolsIn(files).filter(holds);
-    return grouped.length === 0
-      ? []
-      : [
-          <section key={title} className="symbol-group">
-            <h4>{title}</h4>
-            <ul aria-label={title}>
-              {grouped.map(symbol => (
-                <li
-                  key={`${symbol.kind} ${qualified(symbol)}`}
-                  aria-label={`${symbol.kind} ${qualified(symbol)}: ${symbol.change}`}
-                >
-                  <span className="kind">{symbol.kind}</span> <code>{qualified(symbol)}</code>
-                </li>
-              ))}
-            </ul>
-          </section>,
-        ];
-  });
+export const changedSymbolCount = (files: ReadonlyArray<SymbolFile>): number =>
+  symbolsIn(files).filter(symbol => !isQuiet(symbol)).length;
+
+const SymbolList = ({
+  title,
+  symbols,
+}: {
+  readonly title: string;
+  readonly symbols: ReadonlyArray<SymbolStatement>;
+}) => (
+  <ul aria-label={title}>
+    {symbols.map(symbol => (
+      <li
+        key={`${symbol.kind} ${qualified(symbol)}`}
+        aria-label={`${symbol.kind} ${qualified(symbol)}: ${symbol.change}`}
+      >
+        <span className="kind">{symbol.kind}</span> <code>{qualified(symbol)}</code>
+      </li>
+    ))}
+  </ul>
+);
+
+export const SymbolFiles = ({ files }: { readonly files: ReadonlyArray<SymbolFile> }) => {
+  const quiet = symbolsIn(files).filter(isQuiet);
+  return (
+    <>
+      {GROUPS.flatMap(([title, holds]) => {
+        const grouped = symbolsIn(files).filter(holds);
+        return grouped.length === 0
+          ? []
+          : [
+              <section key={title} className="symbol-group">
+                <h4>{title}</h4>
+                <SymbolList title={title} symbols={grouped} />
+              </section>,
+            ];
+      })}
+      {quiet.length > 0 && (
+        <details className="symbol-group">
+          <summary>{quiet.length} unchanged</summary>
+          <SymbolList title="Unchanged" symbols={quiet} />
+        </details>
+      )}
+    </>
+  );
+};
