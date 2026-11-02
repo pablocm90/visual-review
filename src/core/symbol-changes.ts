@@ -54,9 +54,8 @@ const similarity = (one: ReadSymbol, other: ReadSymbol): number => {
   return (2 * shared) / (bigrams.length + others.length);
 };
 
-const isRenamed = (old: ReadSymbol, symbol: ReadSymbol): boolean =>
-  old.kind === symbol.kind &&
-  (old.bodyHash === symbol.bodyHash || similarity(old, symbol) >= PROBABLY_RENAMED);
+const likenessOf = (former: ReadSymbol, symbol: ReadSymbol): number =>
+  former.bodyHash === symbol.bodyHash ? 1 : similarity(former, symbol);
 
 const pairedWith = (old: ReadSymbol, symbol: ReadSymbol): SymbolStatement => ({
   ...named(symbol),
@@ -67,11 +66,16 @@ const pairedWith = (old: ReadSymbol, symbol: ReadSymbol): SymbolStatement => ({
     : { signature: { base: old.signature, head: symbol.signature } }),
 });
 
-type Rename = readonly [symbol: ReadSymbol, former: ReadSymbol];
+type Rename = {
+  readonly symbol: ReadSymbol;
+  readonly former: ReadSymbol;
+  readonly likeness: number;
+};
 
-const byNames = ([symbol, former]: Rename, [other, otherFormer]: Rename): number =>
-  qualified(symbol).localeCompare(qualified(other)) ||
-  qualified(former).localeCompare(qualified(otherFormer));
+const byLikenessThenNames = (one: Rename, other: Rename): number =>
+  other.likeness - one.likeness ||
+  qualified(one.symbol).localeCompare(qualified(other.symbol)) ||
+  qualified(one.former).localeCompare(qualified(other.former));
 
 export const symbolChanges = ({ before, after }: SymbolChangesOptions): SymbolChanges => {
   const removed = before.symbols.filter(
@@ -84,17 +88,19 @@ export const symbolChanges = ({ before, after }: SymbolChangesOptions): SymbolCh
       .filter(symbol => partnerOf(symbol) === undefined)
       .flatMap(symbol =>
         removed
-          .filter(former => isRenamed(former, symbol))
-          .map(former => [symbol, former] as const),
+          .filter(former => former.kind === symbol.kind)
+          .map(former => ({ symbol, former, likeness: likenessOf(former, symbol) })),
       )
-      .toSorted(byNames)
+      .filter(({ likeness }) => likeness >= PROBABLY_RENAMED)
+      .toSorted(byLikenessThenNames)
       .reduce<ReadonlyArray<Rename>>(
-        (taken, [symbol, former]) =>
-          taken.some(([head, base]) => head === symbol || base === former)
+        (taken, rename) =>
+          taken.some(({ symbol, former }) => symbol === rename.symbol || former === rename.former)
             ? taken
-            : taken.concat([[symbol, former]]),
+            : taken.concat([rename]),
         [],
-      ),
+      )
+      .map(({ symbol, former }) => [symbol, former] as const),
   );
   const renamed = new Set(renames.values());
   return {

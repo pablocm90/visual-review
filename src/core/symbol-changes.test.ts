@@ -216,3 +216,30 @@ test.each([
     ).toEqual(changes);
   },
 );
+
+test.each([
+  {
+    ranked: 'the more similar body first',
+    base: [nineTerms],
+    head: [
+      'function amount(a) { return a + 1 + 2 + 3 + 4 + 5 + 6 + 0 + 0; }',
+      'function bill(a) { return a + 1 + 2 + 3 + 4 + 5 + 6 + 7 + 0; }',
+    ],
+    changes: ['amount added  ', 'bill renamed charge true'],
+  },
+  {
+    ranked: 'an equal body before any similar one',
+    base: ['const charge = () => (a + b + c + d + e + f + g + h);'],
+    head: [
+      'const amp = () => (a + b + c + d + e + f + g + i);',
+      'const zed = () => a + b + c + d + e + f + g + h;',
+    ],
+    changes: ['amp added  ', 'zed renamed charge '],
+  },
+])('a gone symbol is renamed into its best candidate: $ranked', ({ base, head, changes }) => {
+  expect(
+    symbolChanges({ before: read(...base), after: read(...head) }).symbols.map(
+      ({ name, change, renamedFrom, probably }) => [name, change, renamedFrom, probably].join(' '),
+    ),
+  ).toEqual(changes);
+});
