@@ -525,7 +525,7 @@ test('a file its reader fails to measure is left unmeasured, and the range is st
   expect(range.measures.after).toEqual({});
 });
 
-test("each changed file of a stack whose reader reads symbols comes with its symbols' changes across the sides, a renamed file read at its former path, a file absent from one side having none there", async () => {
+test("each changed file of a stack whose reader reads symbols comes with its symbols' changes across the sides, a renamed file read at its former path, a file absent from one side having none there, and a stack whose reader doesn't is listed as not read", async () => {
   using workspace = cargoWorkspace();
   const { repo } = workspace;
   const base = commit(repo, {
@@ -538,7 +538,8 @@ test("each changed file of a stack whose reader reads symbols comes with its sym
   const head = commit(repo, {
     'src/a.ts': 'export const b = () => 1;\n',
     'src/c.ts': 'export function c() {}\n',
-    'crates/core/src/lib.rs': 'pub fn a() {}\n',
+    'crates/core/src/lib.rs': 'mod x;\npub fn a() {}\n',
+    'crates/core/src/x.rs': 'pub fn x() {}\n',
   });
 
   const range = await readRange({ repo, from: base, to: head });
@@ -582,6 +583,7 @@ test("each changed file of a stack whose reader reads symbols comes with its sym
       kind: 'formatting',
     },
   ]);
+  expect(range.symbolsNotRead).toEqual(['rust']);
 });
 
 test('a changed file whose symbols do not parse is listed with the parser message', async () => {

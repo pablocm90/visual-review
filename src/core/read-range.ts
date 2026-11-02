@@ -42,6 +42,7 @@ export type RangeReading = {
   readonly patches: ReadonlyArray<FilePatch>;
   readonly tests: ReadonlyArray<TestFile>;
   readonly symbols: ReadonlyArray<SymbolFile>;
+  readonly symbolsNotRead: ReadonlyArray<string>;
   readonly danglingCalls: ReadonlyArray<DanglingCall>;
   readonly skipped: ReadonlyArray<Skipped>;
   readonly thresholds: Omit<Config['metrics'], 'churnDays'>;
@@ -281,27 +282,29 @@ export const readRange = async ({
     const changed = new Set(diff.nodes.filter(node => node.state !== 'unchanged').map(n => n.id));
     const symbolsReaderOf = (stack: string) =>
       [...before.stacks, ...after.stacks].find(each => each.stack === stack)?.reader.symbols;
+    const changedFiles = measured.filter(({ id }) => changed.has(id));
     const sidedFiles = await Promise.all(
-      measured
-        .filter(({ id }) => changed.has(id))
-        .map(async ({ id, basePath, headPath }) => {
-          const read = symbolsReaderOf(stackOf(id));
-          if (read === undefined) return [];
-          const sides = await Promise.all([
-            symbolsAt({ directory: join(scratch, 'before'), read, path: basePath }),
-            symbolsAt({ directory: join(scratch, 'after'), read, path: headPath }),
-          ]).then(
-            ([before, after]) => ({ before, after }),
-            error => ({ unreadable: String(error) }),
-          );
-          if ('unreadable' in sides) return [{ node: id, ...sides }];
-          if (sides.before === undefined && sides.after === undefined) return [];
-          return [
-            { node: id, before: sides.before ?? NO_SYMBOLS, after: sides.after ?? NO_SYMBOLS },
-          ];
-        }),
+      changedFiles.map(async ({ id, basePath, headPath }) => {
+        const read = symbolsReaderOf(stackOf(id));
+        if (read === undefined) return [];
+        const sides = await Promise.all([
+          symbolsAt({ directory: join(scratch, 'before'), read, path: basePath }),
+          symbolsAt({ directory: join(scratch, 'after'), read, path: headPath }),
+        ]).then(
+          ([before, after]) => ({ before, after }),
+          error => ({ unreadable: String(error) }),
+        );
+        if ('unreadable' in sides) return [{ node: id, ...sides }];
+        if (sides.before === undefined && sides.after === undefined) return [];
+        return [{ node: id, before: sides.before ?? NO_SYMBOLS, after: sides.after ?? NO_SYMBOLS }];
+      }),
     );
     const files = sidedFiles.flat();
+    const symbolsNotRead = [
+      ...new Set(
+        changedFiles.map(({ id }) => stackOf(id)).filter(stack => !symbolsReaderOf(stack)),
+      ),
+    ];
     const symbols = [
       ...symbolChangesOf(files.filter(file => 'before' in file)),
       ...files.filter(file => 'unreadable' in file),
@@ -332,6 +335,7 @@ export const readRange = async ({
       churn,
       measures,
       symbols,
+      symbolsNotRead,
       danglingCalls: after.danglingCalls,
       skipped: skippedAcross([...before.skipped, ...after.skipped]),
       thresholds,
