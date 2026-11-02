@@ -16,6 +16,7 @@ import { type MetricFinding, metricFindings } from '../core/metric-findings.ts';
 import type { NodeMetrics } from '../core/metrics.ts';
 import { type Note, type ReviewNotes, visibleNotes } from '../core/notes.ts';
 import { type PageData, UNCOMMITTED } from '../core/page.ts';
+import type { SymbolFile } from '../core/read-range.ts';
 import type { Review } from '../core/review.ts';
 import type { TestFile } from '../core/test-changes.ts';
 import { testsAlongside } from '../core/tests-alongside.ts';
@@ -40,6 +41,7 @@ import {
 } from './layout.ts';
 import { MetricsScreen } from './metrics-screen.tsx';
 import { MetricsTable } from './metrics-tab.tsx';
+import { changedSymbolCount, SymbolFiles } from './symbols-tab.tsx';
 import { changedCount, TestFiles, TestsScreen } from './tests-screen.tsx';
 import {
   boxOf,
@@ -485,6 +487,7 @@ type InspectorProps = {
   readonly found: ReadonlyArray<Finding>;
   readonly patches: ReadonlyArray<FilePatch>;
   readonly tests: ReadonlyArray<TestFile>;
+  readonly symbols: ReadonlyArray<SymbolFile>;
   readonly comment: string;
   readonly onComment: ((text: string) => void) | undefined;
   readonly commentable: boolean;
@@ -492,13 +495,14 @@ type InspectorProps = {
   readonly onClose: () => void;
 };
 
-type InspectorTab = 'note' | 'metrics' | 'diff' | 'tests';
+type InspectorTab = 'note' | 'metrics' | 'diff' | 'tests' | 'symbols';
 
 const INSPECTOR_TABS: Readonly<Record<InspectorTab, string>> = {
   note: 'Note',
   metrics: 'Metrics',
   diff: 'Diff',
   tests: 'Tests',
+  symbols: 'Symbols',
 };
 
 const Inspector = ({
@@ -510,6 +514,7 @@ const Inspector = ({
   found,
   patches,
   tests,
+  symbols,
   comment,
   onComment,
   commentable,
@@ -519,11 +524,13 @@ const Inspector = ({
   const [picked, setPicked] = useState<InspectorTab>('note');
   const testsHere = node ? testsAlongside({ nodes, node, tests }) : [];
   const measured = node && metrics[node.id];
+  const symbolsHere = symbols.filter(file => file.node === node?.id);
   const offered: ReadonlyArray<InspectorTab> = [
     'note',
     ...(measured ? ['metrics' as const] : []),
     ...(patches.length > 0 ? ['diff' as const] : []),
     ...(testsHere.length > 0 ? ['tests' as const] : []),
+    ...(changedSymbolCount(symbolsHere) > 0 ? ['symbols' as const] : []),
   ];
   const shown = offered.includes(picked) ? picked : 'note';
   return (
@@ -543,6 +550,7 @@ const Inspector = ({
           >
             {INSPECTOR_TABS[tab]}
             {tab === 'tests' && ` ${changedCount(testsHere)}`}
+            {tab === 'symbols' && ` ${changedSymbolCount(symbolsHere)}`}
           </button>
         ))}
       </div>
@@ -581,6 +589,10 @@ const Inspector = ({
               <Patch key={patch.path} {...patch} open={node?.kind === 'file'} />
             ))}
           </section>
+        ) : shown === 'symbols' ? (
+          <div className="symbols">
+            <SymbolFiles files={symbolsHere} />
+          </div>
         ) : (
           <div className="tests">
             <TestFiles files={testsHere} nodes={nodes} />
@@ -696,6 +708,7 @@ const SidePanel = ({
         found={found}
         patches={patches}
         tests={review.tests}
+        symbols={review.symbols}
         comment={comments[selected] ?? ''}
         onComment={onComment && (text => onComment(selected, text))}
         commentable={

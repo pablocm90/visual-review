@@ -6,7 +6,9 @@ import type { GraphDiff } from '../core/diff-graphs.ts';
 import { raisedFindings } from '../core/findings.ts';
 import type { ReviewNotes } from '../core/notes.ts';
 import type { PageData } from '../core/page.ts';
+import type { SymbolFile } from '../core/read-range.ts';
 import type { Skipped } from '../core/skipped.ts';
+import type { SymbolStatement } from '../core/symbol-changes.ts';
 import { findingOn, measured, pageWith } from '../test-support/page-data.ts';
 import { layoutDiff } from './layout.ts';
 import { ReviewPage } from './review-page.tsx';
@@ -2717,4 +2719,85 @@ test("on Complexity each node is named with its head's highest cyclomatic and th
     'legacy: removed',
     'audit: modified',
   ]);
+});
+
+const topFile = (label: string, state: Diffed = 'unchanged') => ({
+  id: `web/file/${label}`,
+  kind: 'file' as const,
+  label,
+  parent: 'web',
+  path: `web/src/${label}`,
+  state,
+});
+
+const symbolsOf = (node: string, symbols: ReadonlyArray<SymbolStatement>): SymbolFile => ({
+  node,
+  stack: 'web',
+  symbols,
+  exports: { added: [], removed: [] },
+  kind: 'logic',
+});
+
+const symbolGroups = () =>
+  within(screen.getByRole('tabpanel', { name: 'Symbols' }))
+    .getAllByRole('list')
+    .map(list => [
+      list.getAttribute('aria-label'),
+      within(list)
+        .getAllByRole('listitem')
+        .map(item => item.getAttribute('aria-label')),
+    ]);
+
+test("a file's Symbols tab lists its changed symbols grouped by change, counting them on the tab, and is left out on a node with no symbol changes", async () => {
+  const user = userEvent.setup();
+  render(
+    <ReviewPage
+      review={pageWith({
+        range: 'abc123..def456',
+        diff: {
+          nodes: [
+            { id: 'web', kind: 'stack', label: 'web', path: '', state: 'unchanged' },
+            topFile('refund.ts', 'modified'),
+            topFile('total.ts', 'modified'),
+          ],
+          edges: [],
+        },
+        symbols: [
+          symbolsOf('web/file/refund.ts', [
+            {
+              name: 'refund',
+              kind: 'function',
+              exported: { base: false, head: false },
+              change: 'edited',
+            },
+            { name: 'Refunds', kind: 'class', exported: { head: false }, change: 'added' },
+            {
+              name: 'void',
+              scope: 'Refunds',
+              kind: 'method',
+              exported: { head: false },
+              change: 'added',
+            },
+            { name: 'cancel', kind: 'function', exported: { base: false }, change: 'removed' },
+            {
+              name: 'round',
+              kind: 'function',
+              exported: { base: false, head: false },
+              change: 'unchanged',
+            },
+          ]),
+        ],
+      })}
+    />,
+  );
+
+  await user.click(await screen.findByRole('button', { name: 'refund.ts: modified' }));
+  await user.click(within(inspector()).getByRole('tab', { name: 'Symbols 4' }));
+  expect(symbolGroups()).toEqual([
+    ['Edited', ['function refund: edited']],
+    ['Added', ['class Refunds: added', 'method Refunds.void: added']],
+    ['Removed', ['function cancel: removed']],
+  ]);
+  await user.click(screen.getByRole('button', { name: 'total.ts: modified' }));
+  expect(inspectorTabs()).toEqual(['Note']);
 });
