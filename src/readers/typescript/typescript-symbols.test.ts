@@ -448,9 +448,13 @@ test.each([
   expect(filesAlike(base, head)).toBe(alike);
 });
 
-test("the TS reader reads a source file's symbols, and none of a test file's", () => {
+test("the TS reader reads a source file's symbols, and none of a test file's or of a non-script file the graph draws, such as a JSON import", () => {
   const read = (path: string) =>
     typeScriptReader.symbols?.('export const charge = () => 1;', path)?.exports;
 
-  expect([read('src/shop.ts'), read('src/shop.test.ts')]).toEqual([['charge'], undefined]);
+  expect([read('src/shop.ts'), read('src/shop.test.ts'), read('src/rates.json')]).toEqual([
+    ['charge'],
+    undefined,
+    undefined,
+  ]);
 });
