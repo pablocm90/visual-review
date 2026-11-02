@@ -220,7 +220,9 @@ export const symbolsOfTypeScript = (text: string, path: string): FileSymbols => 
       signature: walked.heads.map(head => signatureOf(text, head)).join('; '),
       signatureHash: hashOf(walked.heads.map(signatureNodesOf), asIs),
       bodyHash: bodyHashOf(walked.node, nested),
-      textHash: sha1(ownText(text, walked.node, declarations)),
+      textHash: sha1(
+        [...walked.heads, walked.node].map(node => ownText(text, node, declarations)).join(''),
+      ),
       bodyTokens: tokensOf(text, walked.node, code, declarations),
     })),
     astHash: hashOf(program, asIs),

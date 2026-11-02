@@ -331,6 +331,10 @@ test('a symbol hashes its own text apart from the symbols inside it, so a reform
         'class Shop { open() { return 1; } close() { function inner() {} } }',
         'class Till { count() { function add() {} } }',
         'function load() { const a = 1; const b = () => a; }',
+        'function bill(a: number): number;',
+        'function bill(a: unknown) { return 1; }',
+        'function pay(a: number): number;',
+        'function pay(a: unknown) { return 1; }',
       ],
       [
         'function charge(a) {',
@@ -342,6 +346,10 @@ test('a symbol hashes its own text apart from the symbols inside it, so a reform
         'class Shop { open() { return 1; } close() { function inner() { } } }',
         'class Till { count() { function add() {} /* added */ } }',
         'function load() { const a =  1; const b = () => a; }',
+        'function bill(a:  number): number;',
+        'function bill(a: unknown) { return 1; }',
+        'function pay(a: number): number;',
+        'function pay(a: unknown) { return  1; }',
       ],
     ),
   ).toEqual([
@@ -357,6 +365,8 @@ test('a symbol hashes its own text apart from the symbols inside it, so a reform
     'add true',
     'load false',
     'b true',
+    'bill false',
+    'pay false',
   ]);
 });
 
