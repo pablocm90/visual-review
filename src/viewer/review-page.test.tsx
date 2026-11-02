@@ -1157,11 +1157,17 @@ test('clicking a crate or a dependency, or pressing Enter or Space on it, shows 
   expect(noteShown()).toBe('The CLI drives the use case.');
 });
 
-test("a flag's badge says on hover what it is flagged for, and clicking it opens the note of what it marks", async () => {
+test("a drawn node's badge names its findings under the worst level, says so on hover, and clicking it opens the node's note", async () => {
   const user = userEvent.setup();
   render(
     <ReviewPage
-      review={pageWith(review)}
+      review={pageWith({
+        ...review,
+        findings: [
+          findingOn('rust/crate/domain'),
+          findingOn('rust/crate/cli-adapter', { title: 'cyclomatic 4 → 14, over 10' }),
+        ],
+      })}
       notes={{
         version: 1,
         tests: '',
@@ -1177,18 +1183,23 @@ test("a flag's badge says on hover what it is flagged for, and clicking it opens
     />,
   );
 
-  await screen.findByRole('group', { name: 'rust' });
-  expect(screen.getByRole('img', { name: 'Flagged: new entry point' })).toBeTruthy();
-  expect(screen.getByRole('img', { name: 'Flagged: new dependency direction' })).toBeTruthy();
+  await showEverything(user);
+  await screen.findByRole('button', { name: 'domain: unchanged' });
+  const entry = screen.getByRole('img', {
+    name: 'needs a look, 2 findings: cyclomatic 4 → 14, over 10; new entry point',
+  });
+  expect(entry.querySelector('title')?.textContent).toBe(
+    'needs a look, 2 findings: cyclomatic 4 → 14, over 10; new entry point',
+  );
   expect(
-    screen.getByRole('img', { name: 'Flagged: new entry point' }).querySelector('title')
-      ?.textContent,
-  ).toBe('Flagged: new entry point');
+    screen.getByRole('img', { name: 'for information, 1 finding: lines 900, over 800' }),
+  ).toBeTruthy();
+  expect(screen.getAllByRole('img', { name: /finding/ })).toHaveLength(2);
+  expect(screen.getByRole('img', { name: 'Flagged: new dependency direction' })).toBeTruthy();
 
   await user.click(screen.getByRole('img', { name: 'Flagged: new dependency direction' }));
   expect(noteShown()).toBe('The CLI drives the use case.');
-  expect(reasonsShown()).toEqual(['Flagged: new dependency direction']);
-  await user.click(screen.getByRole('img', { name: 'Flagged: new entry point' }));
+  await user.click(entry);
   expect(noteShown()).toBe('A second way in.');
   expect(reasonsShown()).toEqual(['Flagged: new entry point']);
 
@@ -1796,6 +1807,14 @@ test("web calls to API routes are drawn between the stacks, named by their paths
           ],
         },
         dangling: [{ from: 'web/file/modules/AppInfo/api/users.ts', path: '/api/app-info' }],
+        findings: [
+          findingOn('web/file/modules/AppInfo/api/users.ts', {
+            id: 'routes:dangling:web/file/modules/AppInfo/api/users.ts',
+            dimension: 'routes',
+            title: '1 call with no route',
+            detail: '/api/app-info',
+          }),
+        ],
       })}
       notes={{
         version: 1,
@@ -1816,7 +1835,9 @@ test("web calls to API routes are drawn between the stacks, named by their paths
     'modules/AppInfo: unchanged, no route for /api/app-info',
     'Expand modules/AppInfo',
   ]);
-  await user.click(screen.getByRole('img', { name: 'No route for /api/app-info' }));
+  await user.click(
+    screen.getByRole('img', { name: 'for information, 1 finding: 1 call with no route' }),
+  );
   expect(reasonsShown()).toEqual(['No route for /api/app-info']);
   expect(buttonsIn(screen.getByRole('group', { name: 'rust' }))).toEqual([
     'http-adapter: unchanged',

@@ -10,7 +10,7 @@ import {
 } from 'react';
 import type { FilePatch, GraphDiff } from '../core/diff-graphs.ts';
 import { isAtOrUnder } from '../core/diff-graphs.ts';
-import { type Dimension, findingsOf } from '../core/findings.ts';
+import { type Dimension, type Finding, findingsAt, findingsOf } from '../core/findings.ts';
 import { edgeId } from '../core/graph.ts';
 import { type MetricFinding, metricFindings } from '../core/metric-findings.ts';
 import type { NodeMetrics } from '../core/metrics.ts';
@@ -28,6 +28,7 @@ import {
   visibleNodeOf,
 } from '../core/visible-diff.ts';
 import { ColourBy, type Colouring, ScaleLegend, type Shade, shadeOf } from './colour-by.tsx';
+import { LEVELS } from './finding-display.tsx';
 import { FindingsRail, LookFirst, TriageStrip } from './findings-rail.tsx';
 import { highlightPatch, type PatchLine as Line, type Piece } from './highlight-patch.ts';
 import {
@@ -116,12 +117,14 @@ type FlagBadgeProps = {
   readonly x: number;
   readonly y: number;
   readonly reason: string;
+  readonly level?: Finding['level'];
   readonly onPress?: () => void;
 };
 
-const FlagBadge = ({ x, y, reason, onPress }: FlagBadgeProps) => (
+const FlagBadge = ({ x, y, reason, level = 'look', onPress }: FlagBadgeProps) => (
   <g
     className="flag-badge"
+    data-level={level}
     role="img"
     aria-label={reason}
     onClick={onPress}
@@ -133,7 +136,14 @@ const FlagBadge = ({ x, y, reason, onPress }: FlagBadgeProps) => (
   </g>
 );
 
+const worstOf = (findings: ReadonlyArray<Finding>) =>
+  findings.some(finding => finding.level === 'look') ? 'look' : 'info';
+
+const badgeName = (findings: ReadonlyArray<Finding>) =>
+  `${LEVELS[worstOf(findings)]}, ${findings.length} ${findings.length === 1 ? 'finding' : 'findings'}: ${findings.map(finding => finding.title).join('; ')}`;
+
 type Drawing = {
+  readonly findingsOn: (id: string) => ReadonlyArray<Finding>;
   readonly notes: Readonly<Record<string, Note>>;
   readonly onSelect: (id: string) => void;
   readonly register: (id: string, element: SVGElement | null) => void;
@@ -170,7 +180,7 @@ const NodeView = ({ node, drawing }: { readonly node: PlacedNode; readonly drawi
     drawing;
   const unrouted = unroutedOf(node.id);
   const shade = shadeOf(node.id);
-  const flag = notes[node.id]?.flag;
+  const found = drawing.findingsOn(node.id);
   const toggle = expandable.has(node.id) && (
     <Toggle node={node} expanded={expanded.has(node.id)} onToggle={onToggle} />
   );
@@ -240,9 +250,8 @@ const NodeView = ({ node, drawing }: { readonly node: PlacedNode; readonly drawi
             </>
           )}
         </text>
-        {flag && <FlagBadge x={node.width} y={0} reason={flaggedFor(flag)} />}
-        {unrouted.length > 0 && (
-          <FlagBadge x={node.width} y={node.height} reason={noRouteFor(unrouted)} />
+        {found.length > 0 && (
+          <FlagBadge x={node.width} y={0} reason={badgeName(found)} level={worstOf(found)} />
         )}
       </g>
       {toggle}
@@ -1036,7 +1045,9 @@ export const ReviewPage = ({ review, notes, send }: ReviewPageProps) => {
   const labelOf = new Map(visible.nodes.map(node => [node.id, node.label]));
   const dangling = review.dangling;
   const visibleOf = visibleNodeOf({ diff: review.diff, expanded });
+  const placedFindings = findingsAt({ diff: review.diff, expanded, findings });
   const drawing = {
+    findingsOn: (id: string) => placedFindings.get(id) ?? [],
     notes: shown,
     onSelect: select,
     register,

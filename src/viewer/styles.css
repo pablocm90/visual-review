@@ -1872,3 +1872,7 @@ pre .hljs-emphasis {
   font-size: 12.5px;
   text-decoration: underline;
 }
+
+.flag-badge[data-level="info"] circle {
+  fill: var(--muted);
+}

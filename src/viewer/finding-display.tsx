@@ -7,7 +7,7 @@ export const signed = (value: number) => {
   return by < 0 ? `−${-by}` : '±0';
 };
 
-const LEVELS: Readonly<Record<MetricFinding['level'], string>> = {
+export const LEVELS: Readonly<Record<MetricFinding['level'], string>> = {
   look: 'needs a look',
   info: 'for information',
 };
