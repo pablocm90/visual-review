@@ -98,10 +98,10 @@ const inspectorTabs = () =>
     .queryAllByRole('tab')
     .map(tab => tab.textContent);
 
-const reasonsShown = () =>
+const findingsShown = () =>
   within(noteTab())
-    .queryAllByRole('heading')
-    .map(heading => heading.textContent);
+    .queryAllByRole('listitem')
+    .map(item => item.textContent);
 
 test('draws every crate and dependency inside the rust stack with its change state, and opens no inspector until one is clicked, closing it again from its close button, which hands the keyboard focus back to the node', async () => {
   const user = userEvent.setup();
@@ -1157,7 +1157,7 @@ test('clicking a crate or a dependency, or pressing Enter or Space on it, shows 
   expect(noteShown()).toBe('The CLI drives the use case.');
 });
 
-test("a drawn node's or edge's badge names its findings under the worst level, says so on hover, and clicking it opens its note", async () => {
+test("a drawn node's or edge's badge names its findings under the worst level, says so on hover, and clicking it opens its note, which lists them", async () => {
   const user = userEvent.setup();
   render(
     <ReviewPage
@@ -1202,10 +1202,12 @@ test("a drawn node's or edge's badge names its findings under the worst level, s
   expect(noteShown()).toBe('The CLI drives the use case.');
   await user.click(entry);
   expect(noteShown()).toBe('A second way in.');
-  expect(reasonsShown()).toEqual(['Flagged: new entry point']);
+  expect(findingsShown()).toEqual(['cyclomatic 4 → 14, over 10', 'new entry point']);
 
   await user.click(screen.getByRole('button', { name: 'domain: unchanged' }));
-  expect(reasonsShown()).toEqual([]);
+  expect(findingsShown()).toEqual(['lines 900, over 800']);
+  await user.click(screen.getByRole('button', { name: 'application: modified' }));
+  expect(within(noteTab()).queryByRole('list', { name: 'Findings' })).toBeNull();
 
   const structure = () =>
     within(screen.getByRole('group', { name: 'Triage' })).getByRole('button', {
@@ -1854,7 +1856,7 @@ test("web calls to API routes are drawn between the stacks, named by their paths
   await user.click(
     screen.getByRole('img', { name: 'for information, 1 finding: 1 call with no route' }),
   );
-  expect(reasonsShown()).toEqual(['No route for /api/app-info']);
+  expect(findingsShown()).toEqual(['1 call with no route: /api/app-info']);
   expect(buttonsIn(screen.getByRole('group', { name: 'rust' }))).toEqual([
     'http-adapter: unchanged',
   ]);

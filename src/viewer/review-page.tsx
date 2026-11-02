@@ -28,7 +28,7 @@ import {
   visibleNodeOf,
 } from '../core/visible-diff.ts';
 import { ColourBy, type Colouring, ScaleLegend, type Shade, shadeOf } from './colour-by.tsx';
-import { LEVELS } from './finding-display.tsx';
+import { LEVELS, LevelMark } from './finding-display.tsx';
 import { FindingsRail, LookFirst, nameOf, TriageStrip } from './findings-rail.tsx';
 import { highlightPatch, type PatchLine as Line, type Piece } from './highlight-patch.ts';
 import {
@@ -108,10 +108,6 @@ const middleOf = (points: PlacedEdge['points']) => {
     ? { x: (before.x + after.x) / 2, y: (before.y + after.y) / 2 }
     : { x: 0, y: 0 };
 };
-
-const flaggedFor = (flag: string) => `Flagged: ${flag}`;
-
-const noRouteFor = (paths: ReadonlyArray<string>) => `No route for ${paths.join(', ')}`;
 
 const worstOf = (findings: ReadonlyArray<Finding>) =>
   findings.some(finding => finding.level === 'look') ? 'look' : 'info';
@@ -486,7 +482,7 @@ type InspectorProps = {
   readonly metrics: Readonly<Record<string, NodeMetrics>>;
   readonly findings: ReadonlyArray<MetricFinding>;
   readonly note: Note | undefined;
-  readonly unrouted: ReadonlyArray<string>;
+  readonly found: ReadonlyArray<Finding>;
   readonly patches: ReadonlyArray<FilePatch>;
   readonly tests: ReadonlyArray<TestFile>;
   readonly comment: string;
@@ -511,7 +507,7 @@ const Inspector = ({
   metrics,
   findings,
   note,
-  unrouted,
+  found,
   patches,
   tests,
   comment,
@@ -553,8 +549,18 @@ const Inspector = ({
       <div role="tabpanel" aria-label={INSPECTOR_TABS[shown]}>
         {shown === 'note' ? (
           <>
-            {note?.flag && <h2>{flaggedFor(note.flag)}</h2>}
-            {unrouted.length > 0 && <h2>{noRouteFor(unrouted)}</h2>}
+            {found.length > 0 && (
+              <ul className="note-findings" aria-label="Findings">
+                {found.map(finding => (
+                  <li key={finding.id}>
+                    <LevelMark level={finding.level} />
+                    {finding.detail === undefined
+                      ? finding.title
+                      : `${finding.title}: ${finding.detail}`}
+                  </li>
+                ))}
+              </ul>
+            )}
             <p>{note?.text ?? 'No note'}</p>
             {onComment &&
               (commentable ? (
@@ -613,7 +619,7 @@ type SidePanelProps = {
   readonly node: DiffNode | undefined;
   readonly outside: boolean;
   readonly note: Note | undefined;
-  readonly unrouted: ReadonlyArray<string>;
+  readonly found: ReadonlyArray<Finding>;
   readonly comments: Readonly<Record<string, string>>;
   readonly onComment: ((id: string, text: string) => void) | undefined;
   readonly chosenWidth: number | undefined;
@@ -629,7 +635,7 @@ const SidePanel = ({
   node,
   outside,
   note,
-  unrouted,
+  found,
   comments,
   onComment,
   chosenWidth,
@@ -689,7 +695,7 @@ const SidePanel = ({
         metrics={review.metrics}
         findings={metricFindings(review)}
         note={note}
-        unrouted={unrouted}
+        found={found}
         patches={patches}
         tests={review.tests}
         comment={comments[selected] ?? ''}
@@ -1069,7 +1075,7 @@ export const ReviewPage = ({ review, notes, send }: ReviewPageProps) => {
   };
   const selectedNode = review.diff.nodes.find(node => node.id === selected);
   const selectedNote = selected === undefined ? undefined : shown[selected];
-  const selectedUnrouted = selected === undefined ? [] : drawing.unroutedOf(selected);
+  const selectedFindings = selected === undefined ? [] : drawing.findingsOn(selected);
   const graphLeft = () => frameElement?.getBoundingClientRect().left ?? 0;
   const showOutside = (opener: HTMLButtonElement) => {
     outsideOpener.current = opener;
@@ -1232,7 +1238,7 @@ export const ReviewPage = ({ review, notes, send }: ReviewPageProps) => {
               node={selectedNode}
               outside={outside}
               note={selectedNote}
-              unrouted={selectedUnrouted}
+              found={selectedFindings}
               comments={comments}
               onComment={send && comment}
               chosenWidth={chosenWidth}

@@ -1880,3 +1880,17 @@ pre .hljs-emphasis {
 .flag-badge[data-outside="true"] {
   opacity: 0.35;
 }
+
+.note-findings {
+  margin: 0 0 12px;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-weight: 600;
+}
+
+.note-findings .level-mark {
+  margin: 0 6px 0 0;
+}
