@@ -29,11 +29,22 @@ _Avoid_: top findings, priorities
 **Flag**:
 A note's short label for a concern; on the page it becomes a finding that needs a look, in the note's dimension.
 
+**Symbol**:
+A named function, method, class, type, interface or enum in a file, scoped by what holds it, paired across the sides by scope, name and kind, and marked added, removed, edited, renamed, moved, formatting only or unchanged.
+_Avoid_: declaration, member
+_In code_: `ReadSymbol` (one side's reading), `SymbolStatement` (paired across the sides)
+
+**Kind of change**:
+What a changed file's change is, the strongest that holds: an API change when its exports or an exported symbol's signature changed, else a logic change when its code changed, else formatting only. A box takes the strongest inside it.
+_Avoid_: change type, severity
+_In code_: `'api' | 'logic' | 'formatting'`
+
 ## Relationships
 
 - A **fact** may raise **findings**; a **finding** is never the only record of a fact.
 - Each **finding** has one **dimension** and one **level**; a **flag** is the only way a note raises one.
 - **Look first** holds only findings whose **level** is "needs a look".
+- A changed exported **symbol** raises a **finding** in the api dimension; a file's **kind of change** raises none of its own.
 
 ## Flagged ambiguities
 
