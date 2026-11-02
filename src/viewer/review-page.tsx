@@ -42,7 +42,7 @@ import {
 } from './layout.ts';
 import { MetricsScreen } from './metrics-screen.tsx';
 import { MetricsTable } from './metrics-tab.tsx';
-import { changedSymbolCount, SymbolsOf } from './symbols-tab.tsx';
+import { changedSymbolCount, hasSymbolNews, SymbolsOf } from './symbols-tab.tsx';
 import { changedCount, TestFiles, TestsScreen } from './tests-screen.tsx';
 import {
   boxOf,
@@ -537,7 +537,7 @@ const Inspector = ({
     ...(measured ? ['metrics' as const] : []),
     ...(patches.length > 0 ? ['diff' as const] : []),
     ...(testsHere.length > 0 ? ['tests' as const] : []),
-    ...(changedSymbolCount(symbolsHere) > 0 ? ['symbols' as const] : []),
+    ...(symbolsHere.some(hasSymbolNews) ? ['symbols' as const] : []),
   ];
   const shown = offered.includes(picked) ? picked : 'note';
   return (
@@ -557,7 +557,9 @@ const Inspector = ({
           >
             {INSPECTOR_TABS[tab]}
             {tab === 'tests' && ` ${changedCount(testsHere)}`}
-            {tab === 'symbols' && ` ${changedSymbolCount(symbolsHere)}`}
+            {tab === 'symbols' &&
+              changedSymbolCount(symbolsHere) > 0 &&
+              ` ${changedSymbolCount(symbolsHere)}`}
           </button>
         ))}
       </div>

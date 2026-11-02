@@ -54,6 +54,9 @@ const Moved = ({
   </span>
 );
 
+export const hasSymbolNews = (file: SymbolFile): boolean =>
+  'unreadable' in file || changedSymbolCount([file]) > 0;
+
 const SymbolList = ({
   title,
   symbols,
@@ -98,6 +101,15 @@ const SymbolFiles = ({
   const quiet = symbolsIn(files).filter(isQuiet);
   return (
     <>
+      {files.flatMap(file =>
+        'unreadable' in file
+          ? [
+              <p key={file.node} className="unreadable">
+                Its symbols couldn't be read: {file.unreadable}
+              </p>,
+            ]
+          : [],
+      )}
       {GROUPS.flatMap(([title, holds]) => {
         const grouped = symbolsIn(files).filter(holds);
         return grouped.length === 0
@@ -127,16 +139,14 @@ export const SymbolsOf = ({
   node.kind === 'file' ? (
     <SymbolFiles files={files} {...places} />
   ) : (
-    files
-      .filter(file => changedSymbolCount([file]) > 0)
-      .map(file => (
-        <section
-          key={file.node}
-          className="symbol-file"
-          aria-label={labelOf(places.nodes, file.node)}
-        >
-          <h3>{labelOf(places.nodes, file.node)}</h3>
-          <SymbolFiles files={[file]} {...places} />
-        </section>
-      ))
+    files.filter(hasSymbolNews).map(file => (
+      <section
+        key={file.node}
+        className="symbol-file"
+        aria-label={labelOf(places.nodes, file.node)}
+      >
+        <h3>{labelOf(places.nodes, file.node)}</h3>
+        <SymbolFiles files={[file]} {...places} />
+      </section>
+    ))
   );

@@ -3044,3 +3044,50 @@ test("a box's Symbols tab lists each file inside it with symbol changes, each wi
     ],
   ]);
 });
+
+test("a file whose symbols wouldn't parse shows the parse error on its Symbols tab, and in its box's", async () => {
+  const user = userEvent.setup();
+  render(
+    <ReviewPage
+      review={pageWith({
+        range: 'abc123..def456',
+        diff: {
+          nodes: [
+            { id: 'web', kind: 'stack', label: 'web', path: '', state: 'unchanged' },
+            {
+              id: 'web/module/billing',
+              kind: 'module',
+              label: 'billing',
+              parent: 'web',
+              path: 'web/src/billing',
+              state: 'modified',
+            },
+            {
+              ...topFile('refund.ts', 'modified'),
+              parent: 'web/module/billing',
+              path: 'web/src/billing/refund.ts',
+            },
+            topFile('total.ts', 'modified'),
+          ],
+          edges: [],
+        },
+        symbols: [
+          { node: 'web/file/refund.ts', stack: 'web', unreadable: 'Unexpected token (3:4)' },
+          { node: 'web/file/total.ts', stack: 'web', unreadable: 'Missing semicolon (7:1)' },
+        ],
+      })}
+    />,
+  );
+  const symbolsTab = () => screen.getByRole('tabpanel', { name: 'Symbols' });
+
+  await user.click(await screen.findByRole('button', { name: 'billing: modified' }));
+  await user.click(within(inspector()).getByRole('tab', { name: 'Symbols' }));
+  expect(
+    within(within(symbolsTab()).getByRole('region', { name: 'refund.ts' })).getByText(
+      'Unexpected token (3:4)',
+      { exact: false },
+    ),
+  ).toBeTruthy();
+  await user.click(screen.getByRole('button', { name: 'total.ts: modified' }));
+  expect(within(symbolsTab()).getByText('Missing semicolon (7:1)', { exact: false })).toBeTruthy();
+});
