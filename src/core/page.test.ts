@@ -365,6 +365,58 @@ test('an export added, moved in or newly exported is an api finding for informat
   ]);
 });
 
+test.for([
+  {
+    exports: { added: ['* from ./x'], removed: ['LIMIT', 'charge', 'settle'] },
+    level: 'look',
+    detail: 'removed LIMIT; added * from ./x',
+  },
+  { exports: { added: ['LIMIT', 'bill'], removed: [] }, level: 'info', detail: 'added LIMIT' },
+])(
+  'export names changed with no symbol of the file behind them are one api finding on the file, to look at when one was removed: $detail',
+  ({ exports, level, detail }) => {
+    const symbols = [
+      {
+        ...symbolFile([
+          { name: 'charge', kind: 'function', exported: { base: false }, change: 'removed' },
+          {
+            name: 'bill',
+            kind: 'function',
+            exported: { base: false, head: false },
+            change: 'renamed',
+            renamedFrom: 'settle',
+          },
+        ]),
+        exports,
+      },
+    ];
+
+    expect(findingsOfSymbols(symbols)).toStrictEqual([
+      {
+        id: 'api:exports:web/file/a.ts',
+        dimension: 'api',
+        level,
+        target: 'web/file/a.ts',
+        title: 'export list changed',
+        detail,
+      },
+    ]);
+  },
+);
+
+test('a file whose export names changed only by its symbols raises no export list finding', () => {
+  const symbols = [
+    {
+      ...symbolFile([
+        { name: 'charge', kind: 'function', exported: { head: false }, change: 'added' },
+      ]),
+      exports: { added: ['charge'], removed: [] },
+    },
+  ];
+
+  expect(findingsOfSymbols(symbols)).toStrictEqual([]);
+});
+
 const notesFile = 'x.notes.json';
 
 const notesWith = (notes: ReviewNotes['notes']): ReviewNotes => ({

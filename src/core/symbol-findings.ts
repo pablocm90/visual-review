@@ -1,6 +1,6 @@
 import type { Finding } from './findings.ts';
 import type { SymbolFile } from './read-range.ts';
-import type { SymbolStatement } from './symbol-changes.ts';
+import type { FileSymbolChanges, SymbolStatement } from './symbol-changes.ts';
 
 const qualified = ({ scope, name }: SymbolStatement): string =>
   scope === undefined ? name : `${scope}.${name}`;
@@ -58,9 +58,34 @@ const findingOf = ({ node, statement }: Placed): Finding | undefined => {
   };
 };
 
+const exportsFinding = (file: FileSymbolChanges): ReadonlyArray<Finding> => {
+  const behind = new Set(file.symbols.flatMap(({ name, renamedFrom }) => [name, renamedFrom]));
+  const unbacked = (names: ReadonlyArray<string>) => names.filter(name => !behind.has(name));
+  const removed = unbacked(file.exports.removed);
+  const added = unbacked(file.exports.added);
+  const parts = [
+    ...(removed.length === 0 ? [] : [`removed ${removed.join(', ')}`]),
+    ...(added.length === 0 ? [] : [`added ${added.join(', ')}`]),
+  ];
+  if (parts.length === 0) return [];
+  return [
+    {
+      id: `api:exports:${file.node}`,
+      dimension: 'api',
+      level: removed.length === 0 ? 'info' : 'look',
+      target: file.node,
+      title: 'export list changed',
+      detail: parts.join('; '),
+    },
+  ];
+};
+
 export const symbolFindings = (files: ReadonlyArray<SymbolFile>): ReadonlyArray<Finding> =>
   files.flatMap(file =>
     'unreadable' in file
       ? []
-      : file.symbols.flatMap(statement => findingOf({ node: file.node, statement }) ?? []),
+      : [
+          ...file.symbols.flatMap(statement => findingOf({ node: file.node, statement }) ?? []),
+          ...exportsFinding(file),
+        ],
   );
