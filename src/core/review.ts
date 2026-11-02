@@ -8,6 +8,7 @@ const ReviewSchema = z
     verdict: z
       .enum(['approve', 'comment', 'request-changes'])
       .describe("The reviewer's verdict on the whole change"),
+    body: z.string().optional().describe("The reviewer's general comment on the whole change"),
     comments: z
       .record(z.string(), z.strictObject({ text: z.string() }).readonly())
       .readonly()

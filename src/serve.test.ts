@@ -244,6 +244,7 @@ test('a review sent from the served page is written beside it as <name>.review.j
   const review = {
     version: 1,
     verdict: 'comment',
+    body: 'The fetch belongs in AppInfo; the rest reads well.',
     comments: {
       'web/file/App.tsx': { text: 'Why does App fetch this itself?' },
       'web/file/App.tsx -> web/module/modules/AppInfo': { text: 'Keep this edge.' },
