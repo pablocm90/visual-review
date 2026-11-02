@@ -26,6 +26,7 @@ type OwnFunction = { readonly name: string; readonly fn: Node };
 export type WalkedSymbol = {
   readonly symbol: Pick<ReadSymbol, 'name' | 'scope' | 'kind'>;
   readonly node: Node;
+  readonly declaration: Node;
 };
 
 const sourceOf = (text: string, node: Node): string =>
@@ -133,9 +134,14 @@ const objectNameOf = (text: string, node: Node): string | undefined =>
 export const isFunction = ({ kind }: { readonly kind: SymbolKind }): boolean =>
   kind === 'function' || kind === 'method';
 
-const symbolOf = ({ name, kind, node }: OwnSymbol, scope: string | undefined): WalkedSymbol => ({
+const symbolOf = (
+  { name, kind, node }: OwnSymbol,
+  scope: string | undefined,
+  declaration: Node,
+): WalkedSymbol => ({
   symbol: { name, kind, ...(scope === undefined ? {} : { scope }) },
   node,
+  declaration,
 });
 
 const symbolsUnder = (text: string, node: Node, scope: Scope): ReadonlyArray<WalkedSymbol> => {
@@ -151,7 +157,7 @@ const symbolsUnder = (text: string, node: Node, scope: Scope): ReadonlyArray<Wal
         : { inFunction: false, holder: holderOf(text, node) ?? scope.holder, scope: place },
     ),
   );
-  return own === undefined ? inner : [symbolOf(own, scope.scope), ...inner];
+  return own === undefined ? inner : [symbolOf(own, scope.scope, node), ...inner];
 };
 
 export const symbolsIn = (text: string, program: Node): ReadonlyArray<WalkedSymbol> =>

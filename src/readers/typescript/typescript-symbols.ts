@@ -25,10 +25,15 @@ const exportedBy = (text: string, statement: Node): ReadonlyArray<string> => {
       );
 };
 
-const isExported = (names: ReadonlySet<string>, { symbol }: WalkedSymbol) =>
+const isPrivate = (declaration: Node): boolean =>
+  declaration.type === 'ClassPrivateMethod' ||
+  declaration.type === 'ClassPrivateProperty' ||
+  ('accessibility' in declaration && declaration.accessibility === 'private');
+
+const isExported = (names: ReadonlySet<string>, { symbol, declaration }: WalkedSymbol) =>
   symbol.scope === undefined
     ? names.has(symbol.name)
-    : symbol.kind === 'method' && names.has(symbol.scope);
+    : symbol.kind === 'method' && names.has(symbol.scope) && !isPrivate(declaration);
 
 export const symbolsOfTypeScript = (text: string, path: string): FileSymbols => {
   const { program } = parseTypeScript(text, path);

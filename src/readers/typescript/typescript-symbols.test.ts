@@ -69,13 +69,18 @@ test.each([
       'export const refund = () => {}, rate = 2;',
       'export class Shop {',
       '  open() {}',
+      '  protected refresh() {}',
+      '  private close() {}',
+      '  private static reset = () => {};',
+      '  #secret() {}',
+      '  #hidden = () => {};',
       '}',
       'export type Id = string;',
       'export default function () {}',
       'function local() {}',
       'class Hidden { open() {} }',
     ],
-    exported: ['charge', 'refund', 'Shop', 'Shop.open', 'Id', 'default'],
+    exported: ['charge', 'refund', 'Shop', 'Shop.open', 'Shop.refresh', 'Id', 'default'],
   },
   {
     exports: 'in an export list, renamed or not, with a default naming a local',
@@ -92,6 +97,6 @@ test.each([
     ],
     exported: ['charge', 'refund', 'store.load', 'store.save', 'Order'],
   },
-])('symbols exported $exports are exported, their methods too', ({ lines, exported }) => {
+])('symbols exported $exports are exported, their public methods too', ({ lines, exported }) => {
   expect(exportedIn(...lines)).toEqual(exported);
 });
