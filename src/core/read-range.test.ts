@@ -525,6 +525,97 @@ test('a file its reader fails to measure is left unmeasured, and the range is st
   expect(range.measures.after).toEqual({});
 });
 
+test("each changed file of a stack whose reader reads symbols comes with its symbols' changes across the sides, a renamed file read at its former path, a file absent from one side having none there", async () => {
+  using workspace = cargoWorkspace();
+  const { repo } = workspace;
+  const base = commit(repo, {
+    ...rootPackage,
+    'src/index.ts': "import { a } from './a.ts';\n",
+    'src/a.ts': 'export const a = () => 1;\n',
+    'src/old.ts': 'export function kept() {}\n',
+  });
+  git(repo, 'mv', 'src/old.ts', 'src/new.ts');
+  const head = commit(repo, {
+    'src/a.ts': 'export const b = () => 1;\n',
+    'src/c.ts': 'export function c() {}\n',
+    'crates/core/src/lib.rs': 'pub fn a() {}\n',
+  });
+
+  const range = await readRange({ repo, from: base, to: head });
+
+  const stack = basename(repo);
+  expect(range.symbols).toEqual([
+    {
+      node: `${stack}/file/a.ts`,
+      stack,
+      symbols: [
+        {
+          name: 'b',
+          kind: 'function',
+          exported: { base: true, head: true },
+          change: 'renamed',
+          renamedFrom: 'a',
+        },
+      ],
+      exports: { added: ['b'], removed: ['a'] },
+      kind: 'api',
+    },
+    {
+      node: `${stack}/file/c.ts`,
+      stack,
+      symbols: [{ name: 'c', kind: 'function', exported: { head: true }, change: 'added' }],
+      exports: { added: ['c'], removed: [] },
+      kind: 'api',
+    },
+    {
+      node: `${stack}/file/new.ts`,
+      stack,
+      symbols: [
+        {
+          name: 'kept',
+          kind: 'function',
+          exported: { base: true, head: true },
+          change: 'unchanged',
+        },
+      ],
+      exports: { added: [], removed: [] },
+      kind: 'formatting',
+    },
+  ]);
+});
+
+test('the files of a stack only one side has are read on that side', async () => {
+  using repository = gitRepo({
+    'admin/package.json': '{}\n',
+    'admin/src/x.ts': 'export type X = 1;\n',
+  });
+  const { repo, root } = repository;
+  git(repo, 'rm', '--quiet', '-r', 'admin');
+  const head = commit(repo, {
+    'shop/package.json': '{}\n',
+    'shop/src/y.ts': 'export type Y = 2;\n',
+  });
+
+  const range = await readRange({ repo, from: root, to: head });
+
+  expect(range.symbols).toEqual([
+    {
+      node: 'shop/file/y.ts',
+      stack: 'shop',
+      symbols: [{ name: 'Y', kind: 'type', exported: { head: true }, change: 'added' }],
+      exports: { added: ['Y'], removed: [] },
+      kind: 'api',
+    },
+    {
+      node: 'admin/file/x.ts',
+      stack: 'admin',
+      symbols: [{ name: 'X', kind: 'type', exported: { base: true }, change: 'removed' }],
+      exports: { added: [], removed: ['X'] },
+      kind: 'api',
+    },
+  ]);
+});
+
 test('a range ending at a branch named like a folder reads its churn', async () => {
   using repository = gitRepo({ 'package.json': '{}\n', 'src/a.ts': '' });
   const { repo } = repository;
