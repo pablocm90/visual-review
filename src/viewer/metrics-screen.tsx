@@ -9,8 +9,9 @@ import {
 } from '../core/metric-rows.ts';
 import { metricTotals } from '../core/metric-totals.ts';
 import type { NodeMeasures } from '../core/metrics.ts';
+import { tenths } from '../core/metrics.ts';
 import type { PageData } from '../core/page.ts';
-import { LevelMark, signed, tenths } from './finding-display.tsx';
+import { LevelMark, signed } from './finding-display.tsx';
 import { HotspotChart } from './hotspot-chart.tsx';
 
 const SORTS: ReadonlyArray<readonly [SortKey, string]> = [

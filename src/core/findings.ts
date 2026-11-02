@@ -1,4 +1,5 @@
 import type { MetricFinding } from './metric-findings.ts';
+import { tenths } from './metrics.ts';
 
 const DIMENSIONS = [
   'structure',
@@ -32,8 +33,6 @@ export type Finding = {
 };
 
 const METRIC_NAMES = { cyclomatic: 'cyclomatic', lines: 'lines', abc: 'ABC size' } as const;
-
-const tenths = (value: number) => Math.round(value * 10) / 10;
 
 const move = (base: number | undefined, head: number) =>
   base === undefined ? `${tenths(head)}` : `${tenths(base)} → ${tenths(head)}`;

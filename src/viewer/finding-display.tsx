@@ -1,6 +1,5 @@
 import type { MetricFinding } from '../core/metric-findings.ts';
-
-export const tenths = (value: number) => Math.round(value * 10) / 10;
+import { tenths } from '../core/metrics.ts';
 
 export const signed = (value: number) => {
   const by = tenths(value);
