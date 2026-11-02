@@ -133,3 +133,27 @@ test("a function's signature is its type parameters, parameters and return type,
     'load (id)',
   ]);
 });
+
+test("a class's signature is its type parameters and heritage, a type's its whole declaration", () => {
+  expect(
+    signaturesIn(
+      'class Plain {}',
+      'export abstract class Shop<T extends Item>',
+      '  extends Store<T>',
+      '  implements Open, Close {}',
+      'export default class extends Base {}',
+      'type Id = string;',
+      'export interface Order {',
+      '  readonly id: Id;',
+      '}',
+      'enum Size { Small, Large }',
+    ),
+  ).toEqual([
+    'Plain ',
+    'Shop abstract <T extends Item> extends Store<T> implements Open, Close',
+    'default extends Base',
+    'Id type Id = string;',
+    'Order interface Order { readonly id: Id; }',
+    'Size enum Size { Small, Large }',
+  ]);
+});

@@ -1,4 +1,4 @@
-import type { Function as FunctionNode, Node } from '@babel/types';
+import type { ClassDeclaration, Function as FunctionNode, Node } from '@babel/types';
 import type { FileSymbols } from '../../core/reader.ts';
 import {
   nameOf,
@@ -55,8 +55,23 @@ const FUNCTIONS = new Set([
 
 const isFunctionNode = (node: Node): node is FunctionNode => FUNCTIONS.has(node.type);
 
+const heritageOf = (text: string, node: ClassDeclaration): string =>
+  [
+    node.abstract ? 'abstract' : '',
+    collapsed(text, node.typeParameters),
+    node.superClass
+      ? `extends ${collapsed(text, node.superClass)}${collapsed(text, node.superTypeArguments)}`
+      : '',
+    node.implements
+      ? `implements ${node.implements.map(type => collapsed(text, type)).join(', ')}`
+      : '',
+  ]
+    .filter(part => part !== '')
+    .join(' ');
+
 const signatureOf = (text: string, node: Node): string => {
-  if (!isFunctionNode(node)) return '';
+  if (node.type === 'ClassDeclaration') return heritageOf(text, node);
+  if (!isFunctionNode(node)) return collapsed(text, node);
   const prefix = `${node.async ? 'async ' : ''}${node.generator ? '*' : ''}`;
   const params = node.params.map(param => collapsed(text, param)).join(', ');
   return `${prefix}${collapsed(text, node.typeParameters)}(${params})${collapsed(text, node.returnType)}`;
