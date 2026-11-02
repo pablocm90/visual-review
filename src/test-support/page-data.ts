@@ -1,3 +1,4 @@
+import type { Finding } from '../core/findings.ts';
 import type { NodeMeasures } from '../core/metrics.ts';
 import type { PageData } from '../core/page.ts';
 
@@ -25,5 +26,14 @@ export const measured = (overrides: Partial<NodeMeasures> = {}): NodeMeasures =>
   functions: 6,
   cyclomatic: { highest: 4, total: 19 },
   abc: 18.24,
+  ...overrides,
+});
+
+export const findingOn = (target: string, overrides: Partial<Finding> = {}): Finding => ({
+  id: `metrics:lines:${target}`,
+  dimension: 'metrics',
+  level: 'info',
+  target,
+  title: 'lines 900, over 800',
   ...overrides,
 });

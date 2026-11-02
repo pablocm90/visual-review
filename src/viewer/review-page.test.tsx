@@ -5,7 +5,7 @@ import { expect, onTestFinished, test, vi } from 'vitest';
 import type { GraphDiff } from '../core/diff-graphs.ts';
 import type { ReviewNotes } from '../core/notes.ts';
 import type { PageData } from '../core/page.ts';
-import { measured, pageWith } from '../test-support/page-data.ts';
+import { findingOn, measured, pageWith } from '../test-support/page-data.ts';
 import { layoutDiff } from './layout.ts';
 import { ReviewPage } from './review-page.tsx';
 
@@ -1259,16 +1259,12 @@ test("the findings rail starts collapsed to their total and how many need a look
     <ReviewPage
       review={pageWith({
         ...review,
-        metricFindings: [
-          { node: 'rust/crate/domain', metric: 'lines', level: 'info', head: 900, threshold: 800 },
-          {
-            node: 'rust/crate/application',
-            metric: 'cyclomatic',
+        findings: [
+          findingOn('rust/crate/domain'),
+          findingOn('rust/crate/application', {
+            id: 'metrics:cyclomatic:rust/crate/application',
             level: 'look',
-            base: 4,
-            head: 14,
-            threshold: 10,
-          },
+          }),
         ],
         dangling: [
           { from: 'rust/crate/cli-adapter', path: '/api/a' },
@@ -1360,9 +1356,7 @@ test("the findings rail starts collapsed to their total and how many need a look
     <ReviewPage
       review={pageWith({
         ...review,
-        metricFindings: [
-          { node: 'rust/crate/domain', metric: 'lines', level: 'info', head: 900, threshold: 800 },
-        ],
+        findings: [findingOn('rust/crate/domain')],
       })}
     />,
   );
@@ -1371,68 +1365,13 @@ test("the findings rail starts collapsed to their total and how many need a look
   expect(await groupsShown()).toEqual(['Metrics']);
 });
 
-test('the rail reads each metric finding as a sentence on its node: the move from base to head, or the head alone, and the threshold it is over; a hotspot names its churn and cyclomatic', async () => {
-  const user = userEvent.setup();
-  render(
-    <ReviewPage
-      review={pageWith({
-        ...review,
-        metricFindings: [
-          {
-            node: 'rust/crate/application',
-            metric: 'cyclomatic',
-            level: 'look',
-            base: 4,
-            head: 14,
-            threshold: 10,
-          },
-          { node: 'rust/crate/domain', metric: 'lines', level: 'info', head: 900, threshold: 800 },
-          {
-            node: 'rust/crate/domain',
-            metric: 'abc',
-            level: 'look',
-            base: 28.25,
-            head: 31.5,
-            threshold: 30,
-          },
-          {
-            node: 'rust/crate/cli-adapter',
-            metric: 'hotspot',
-            level: 'info',
-            base: { churn: 6, cyclomatic: 9 },
-            head: { churn: 7, cyclomatic: 12 },
-            threshold: { churn: 6, cyclomatic: 8 },
-          },
-        ],
-      })}
-    />,
-  );
-
-  await user.click(await screen.findByRole('button', { name: 'Show 4 findings' }));
-  const metrics = within(screen.getByRole('region', { name: 'Metrics' }));
-  expect(
-    metrics.getByRole('button', { name: 'application: cyclomatic 4 → 14, over 10' }),
-  ).toBeDefined();
-  expect(metrics.getByRole('button', { name: 'domain: lines 900, over 800' })).toBeDefined();
-  expect(
-    metrics.getByRole('button', { name: 'domain: ABC size 28.3 → 31.5, over 30' }),
-  ).toBeDefined();
-  expect(
-    metrics.getByRole('button', {
-      name: 'cli-adapter: hotspot, churn 6 → 7 and cyclomatic 9 → 12, over 6 and 8',
-    }),
-  ).toBeDefined();
-});
-
 test("a note's or a metric finding in the rail goes to its node or edge as the summary's links do", async () => {
   const user = userEvent.setup();
   render(
     <ReviewPage
       review={pageWith({
         ...review,
-        metricFindings: [
-          { node: 'rust/crate/domain', metric: 'lines', level: 'info', head: 900, threshold: 800 },
-        ],
+        findings: [findingOn('rust/crate/domain')],
       })}
       notes={{
         version: 1,

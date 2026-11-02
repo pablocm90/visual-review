@@ -1,19 +1,19 @@
 import { useRef, useState } from 'react';
+import type { Finding as RaisedFinding } from '../core/findings.ts';
 import { endsOfId } from '../core/graph.ts';
-import type { MetricFinding } from '../core/metric-findings.ts';
 import type { ReviewNotes } from '../core/notes.ts';
 import type { PageData } from '../core/page.ts';
 import { notReadLine } from '../core/skipped.ts';
-import { LevelMark, tenths } from './finding-display.tsx';
+import { LevelMark } from './finding-display.tsx';
 
 type FindingsRailProps = {
   readonly notes: ReviewNotes | undefined;
-  readonly review: Pick<PageData, 'diff' | 'metricFindings' | 'dangling' | 'undrawn' | 'skipped'>;
+  readonly review: Pick<PageData, 'diff' | 'findings' | 'dangling' | 'undrawn' | 'skipped'>;
   readonly onGoTo: (id: string) => void;
   readonly onShowOutside: (opener: HTMLButtonElement) => void;
 };
 
-type Level = MetricFinding['level'];
+type Level = RaisedFinding['level'];
 
 type Finding = {
   readonly level: Level;
@@ -40,20 +40,6 @@ const notDrawn = ({ paths, one, many, ...rest }: NotDrawnOptions): ReadonlyArray
           ...rest,
         },
       ];
-
-const METRIC_NAMES = { cyclomatic: 'cyclomatic', lines: 'lines', abc: 'ABC size' } as const;
-
-const move = (base: number | undefined, head: number) =>
-  base === undefined ? `${tenths(head)}` : `${tenths(base)} → ${tenths(head)}`;
-
-const sentenceOf = (finding: MetricFinding) => {
-  if (finding.metric !== 'hotspot') {
-    const { metric, base, head, threshold } = finding;
-    return `${METRIC_NAMES[metric]} ${move(base, head)}, over ${threshold}`;
-  }
-  const { base, head, threshold } = finding;
-  return `hotspot, churn ${move(base?.churn, head.churn)} and cyclomatic ${move(base?.cyclomatic, head.cyclomatic)}, over ${threshold.churn} and ${threshold.cyclomatic}`;
-};
 
 type Group = {
   readonly name: string;
@@ -92,12 +78,11 @@ const groupsOf = ({
     {
       name: 'Metrics',
       chip: 'Metrics',
-      findings: review.metricFindings.map(finding => ({
-        level: finding.level,
-        sentence: sentenceOf(finding),
-        target: targetOf(finding.node),
-        act: () => onGoTo(finding.node),
-      })),
+      findings: review.findings.flatMap(({ level, target, title }) =>
+        target !== undefined
+          ? [{ level, sentence: title, target: targetOf(target), act: () => onGoTo(target) }]
+          : [],
+      ),
     },
     {
       name: 'Not drawn',
