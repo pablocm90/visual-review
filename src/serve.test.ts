@@ -365,6 +365,31 @@ test('serving a page that is already served opens the live server instead of sta
   await vi.waitFor(() => expect(server.opened()).toBe(server.url));
 });
 
+test('serving a page rewritten since it was first served opens the live server, which serves the page as it is now', async () => {
+  using server = await servedPage();
+  writeFileSync(
+    server.page,
+    readFileSync(server.page, 'utf8').replace(
+      '"range":"main..feature"',
+      '"range":"main..rewritten"',
+    ),
+  );
+
+  await server.serveAgain();
+
+  expect(await (await fetch(server.url)).text()).toContain('"range":"main..rewritten"');
+});
+
+test('a page removed since it was served is answered 500 naming why', async () => {
+  using server = await servedPage();
+  rmSync(server.page);
+
+  const response = await fetch(server.url);
+
+  expect(response.status).toBe(500);
+  expect(await response.text()).toMatch(/^ENOENT/);
+});
+
 const endedPid = async (): Promise<number> => {
   const ended = spawn(process.execPath, ['-e', '']);
   await once(ended, 'close');

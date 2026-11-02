@@ -98,7 +98,9 @@ export const servePage = async ({
     return undefined;
   }
   const token = randomBytes(16).toString('hex');
-  const html = servedPageHtml({ page: await readFile(page, 'utf8'), token, version });
+  const pageNow = () =>
+    readFile(page, 'utf8').then(written => servedPageHtml({ page: written, token, version }));
+  await pageNow();
   const server = createServer();
   server.listen(0, '127.0.0.1');
   await once(server, 'listening');
@@ -136,6 +138,11 @@ export const servePage = async ({
     }
     if (route !== `GET /${token}`) {
       response.writeHead(403).end();
+      return;
+    }
+    const html = await pageNow().catch((error: Error) => error);
+    if (html instanceof Error) {
+      refuse({ response, status: 500, error: html });
       return;
     }
     response
