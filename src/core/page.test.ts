@@ -101,6 +101,21 @@ test("a pull request's page data names it, and lists the stacks a missing tool k
 
 const version = '1.2.3';
 
+test('stacks a missing tool kept from being read are a structure finding to look at, on no node', () => {
+  const skipped = [{ reader: 'rust' as const, tool: 'cargo', stacks: ['api', 'worker'] }];
+
+  expect(
+    pageData({ repo: 'shop', reading: readingWith({ skipped }), range: 'a..b', version }).findings,
+  ).toStrictEqual([
+    {
+      id: 'structure:skipped:rust',
+      dimension: 'structure',
+      level: 'look',
+      title: 'api, worker not read: cargo not found on PATH',
+    },
+  ]);
+});
+
 const notesFile = 'x.notes.json';
 
 const notesWith = (notes: ReviewNotes['notes']): ReviewNotes => ({

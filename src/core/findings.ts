@@ -1,5 +1,6 @@
 import type { MetricFinding } from './metric-findings.ts';
 import { tenths } from './metrics.ts';
+import { notReadLine, type Skipped } from './skipped.ts';
 
 const DIMENSIONS = [
   'structure',
@@ -46,13 +47,30 @@ const metricTitle = (finding: MetricFinding) => {
   return `hotspot, churn ${move(base?.churn, head.churn)} and cyclomatic ${move(base?.cyclomatic, head.cyclomatic)}, over ${threshold.churn} and ${threshold.cyclomatic}`;
 };
 
-export const metricsFindings = (
-  metricFindings: ReadonlyArray<MetricFinding>,
-): ReadonlyArray<Finding> =>
-  metricFindings.map(finding => ({
-    id: `metrics:${finding.metric}:${finding.node}`,
-    dimension: 'metrics',
-    level: finding.level,
-    target: finding.node,
-    title: metricTitle(finding),
-  }));
+type RaisedOptions = {
+  readonly skipped: ReadonlyArray<Skipped>;
+  readonly metricFindings: ReadonlyArray<MetricFinding>;
+};
+
+export const raisedFindings = ({
+  skipped,
+  metricFindings,
+}: RaisedOptions): ReadonlyArray<Finding> => [
+  ...skipped.map(
+    (skip): Finding => ({
+      id: `structure:skipped:${skip.reader}`,
+      dimension: 'structure',
+      level: 'look',
+      title: notReadLine(skip),
+    }),
+  ),
+  ...metricFindings.map(
+    (finding): Finding => ({
+      id: `metrics:${finding.metric}:${finding.node}`,
+      dimension: 'metrics',
+      level: finding.level,
+      target: finding.node,
+      title: metricTitle(finding),
+    }),
+  ),
+];

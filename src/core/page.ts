@@ -1,5 +1,5 @@
 import { diffGraphs, type FilePatch, type GraphDiff, isAtOrUnder } from './diff-graphs.ts';
-import { type Finding, metricsFindings } from './findings.ts';
+import { type Finding, raisedFindings } from './findings.ts';
 import type { DanglingCall } from './linker.ts';
 import { type MetricFinding, metricFindings } from './metric-findings.ts';
 import { type NodeMetrics, nodeMetrics } from './metrics.ts';
@@ -63,7 +63,7 @@ export const pageData = ({
     diff,
     metrics,
     metricFindings: raised,
-    findings: metricsFindings(raised),
+    findings: raisedFindings({ skipped: reading.skipped, metricFindings: raised }),
     dangling: reading.danglingCalls,
     patches: reading.patches.filter(isDrawn),
     undrawn: reading.patches.filter(patch => !isDrawn(patch)),
