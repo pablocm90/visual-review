@@ -1,4 +1,5 @@
 import { diffGraphs, type FilePatch, type GraphDiff, isAtOrUnder } from './diff-graphs.ts';
+import { type Finding, metricsFindings } from './findings.ts';
 import type { DanglingCall } from './linker.ts';
 import { type MetricFinding, metricFindings } from './metric-findings.ts';
 import { type NodeMetrics, nodeMetrics } from './metrics.ts';
@@ -22,6 +23,7 @@ export type PageData = {
   readonly diff: GraphDiff;
   readonly metrics: Readonly<Record<string, NodeMetrics>>;
   readonly metricFindings: ReadonlyArray<MetricFinding>;
+  readonly findings: ReadonlyArray<Finding>;
   readonly dangling: ReadonlyArray<DanglingCall>;
   readonly patches: ReadonlyArray<FilePatch>;
   readonly undrawn: ReadonlyArray<FilePatch>;
@@ -52,6 +54,7 @@ export const pageData = ({
   const isDrawn = ({ path }: FilePatch): boolean =>
     diff.nodes.some(node => isAtOrUnder(path, node));
   const metrics = nodeMetrics({ diff, ...reading });
+  const raised = metricFindings({ metrics, thresholds: reading.thresholds });
   return {
     repo,
     range,
@@ -59,7 +62,8 @@ export const pageData = ({
     ...(pullRequest === undefined ? {} : { pullRequest }),
     diff,
     metrics,
-    metricFindings: metricFindings({ metrics, thresholds: reading.thresholds }),
+    metricFindings: raised,
+    findings: metricsFindings(raised),
     dangling: reading.danglingCalls,
     patches: reading.patches.filter(isDrawn),
     undrawn: reading.patches.filter(patch => !isDrawn(patch)),

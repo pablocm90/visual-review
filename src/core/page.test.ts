@@ -73,6 +73,7 @@ test("a reading's page data holds its diff, its dangling calls and test files, t
     },
     metrics: {},
     metricFindings: [],
+    findings: [],
     dangling: [{ from: 'web/file/a.ts', path: '/api/x' }],
     patches: [patch('web/src/a.ts')],
     undrawn: [patch('README.md')],
@@ -671,3 +672,44 @@ test.for([
     pageData({ repo: 'shop', reading, range: 'main..feature', version }).metricFindings,
   ).toStrictEqual(findings.map(finding => ({ node: 'web/file/a.ts', ...finding })));
 });
+
+test.for([
+  {
+    reason: 'a file that changed',
+    base: { churn: 2, cyclomatic: 4, abc: 31.46 },
+    said: [
+      { level: 'look', title: 'cyclomatic 4 → 14, over 4' },
+      { level: 'look', title: 'hotspot, churn 2 → 3 and cyclomatic 4 → 14, over 3 and 5' },
+      { level: 'info', title: 'ABC size 31.5 → 31.5, over 30' },
+    ],
+  },
+  {
+    reason: 'a new file',
+    base: undefined,
+    said: [
+      { level: 'look', title: 'cyclomatic 14, over 4' },
+      { level: 'look', title: 'hotspot, churn 3 and cyclomatic 14, over 3 and 5' },
+      { level: 'look', title: 'ABC size 31.5, over 30' },
+    ],
+  },
+])(
+  'lists each metric finding on $reason as a metrics finding on its node, titled by what moved past which threshold',
+  ({ base, said }) => {
+    const reading = readingOfA({
+      base,
+      head: { churn: 3, cyclomatic: 14, abc: 31.46 },
+      thresholds: { cyclomatic: 4, hotspot: { churn: 3, cyclomatic: 5 }, abc: 30 },
+    });
+
+    expect(
+      pageData({ repo: 'shop', reading, range: 'main..feature', version }).findings,
+    ).toStrictEqual(
+      ['cyclomatic', 'hotspot', 'abc'].map((metric, at) => ({
+        id: `metrics:${metric}:web/file/a.ts`,
+        dimension: 'metrics',
+        target: 'web/file/a.ts',
+        ...said[at],
+      })),
+    );
+  },
+);
