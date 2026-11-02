@@ -1404,7 +1404,7 @@ test("a note's or a metric finding in the rail goes to its node or edge as the s
   expect(document.activeElement).toBe(screen.getByRole('button', { name: 'domain: unchanged' }));
 });
 
-test('look first lists the findings to look at in rank order, in the dimension a triage chip picks, each going to its node, seven at most and Show all opening the rail past them, and is absent when none needs a look', async () => {
+test('look first lists the findings to look at in rank order, in the dimension a triage chip picks, collapsing to their count, each going to its node, seven at most and Show all opening the rail past them, and is absent when none needs a look', async () => {
   const user = userEvent.setup();
   const looks = (count: number) =>
     Array.from({ length: count }, (_, index) =>
@@ -1441,6 +1441,14 @@ test('look first lists the findings to look at in rank order, in the dimension a
   await user.click(routes());
   expect(items()).toEqual(['application: third']);
   await user.click(routes());
+  expect(items()).toHaveLength(3);
+  const toggle = () => band().getByRole('button', { name: /^Look first/ });
+  expect(toggle().getAttribute('aria-expanded')).toBe('true');
+  await user.click(toggle());
+  expect(band().queryAllByRole('listitem')).toHaveLength(0);
+  expect(toggle().textContent).toBe('Look first: 3');
+  expect(toggle().getAttribute('aria-expanded')).toBe('false');
+  await user.click(toggle());
   expect(items()).toHaveLength(3);
   await user.click(band().getByRole('button', { name: 'domain: second' }));
   expect(document.activeElement).toBe(screen.getByRole('button', { name: 'domain: unchanged' }));

@@ -1857,3 +1857,18 @@ pre .hljs-emphasis {
   overflow: hidden;
   text-overflow: ellipsis;
 }
+
+.look-first-toggle,
+.show-all {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+
+.show-all {
+  font-size: 12.5px;
+  text-decoration: underline;
+}

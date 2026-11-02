@@ -1,4 +1,4 @@
-import { useRef } from 'react';
+import { useRef, useState } from 'react';
 import { DIMENSIONS, type Dimension, type Finding, lookFirst } from '../core/findings.ts';
 import { endsOfId } from '../core/graph.ts';
 import type { PageData } from '../core/page.ts';
@@ -205,21 +205,35 @@ type LookFirstProps = LineOptions & {
 const LOOK_FIRST_SHOWN = 7;
 
 export const LookFirst = (props: LookFirstProps) => {
+  const [open, setOpen] = useState(true);
   const ranked = lookFirst({ findings: props.findings, metrics: props.review.metrics });
   if (ranked.length === 0) return null;
   const lineOf = linesOf(props);
   return (
     <section className="look-first" aria-label="Look first">
-      <h2 className="look-first-title">Look first</h2>
-      <ul>
-        {ranked.slice(0, LOOK_FIRST_SHOWN).map(finding => (
-          <FindingItem key={finding.id} finding={lineOf(finding)} />
-        ))}
-      </ul>
-      {ranked.length > LOOK_FIRST_SHOWN && (
-        <button type="button" className="show-all" onClick={props.onShowAll}>
-          {`Show all ${ranked.length}`}
+      <h2 className="look-first-title">
+        <button
+          type="button"
+          className="look-first-toggle"
+          aria-expanded={open}
+          onClick={() => setOpen(!open)}
+        >
+          {`Look first: ${ranked.length}`}
         </button>
+      </h2>
+      {open && (
+        <>
+          <ul>
+            {ranked.slice(0, LOOK_FIRST_SHOWN).map(finding => (
+              <FindingItem key={finding.id} finding={lineOf(finding)} />
+            ))}
+          </ul>
+          {ranked.length > LOOK_FIRST_SHOWN && (
+            <button type="button" className="show-all" onClick={props.onShowAll}>
+              {`Show all ${ranked.length}`}
+            </button>
+          )}
+        </>
       )}
     </section>
   );
