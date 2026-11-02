@@ -138,13 +138,26 @@ const writeReview = async (args: ReadonlyArray<string>): Promise<string> => {
   return page;
 };
 
+const IdleMsSchema = z.coerce.number().int().min(1).max(2_147_483_647);
+
+const idleMs = (): number => {
+  const written = process.env['VISUAL_REVIEW_IDLE_MS'];
+  if (written === undefined) return 10 * 60 * 1000;
+  const parsed = IdleMsSchema.safeParse(written);
+  if (!parsed.success)
+    throw new Error(
+      `VISUAL_REVIEW_IDLE_MS must be a whole number of milliseconds from 1 to 2147483647, not ${JSON.stringify(written)}`,
+    );
+  return parsed.data;
+};
+
 const run = (args: ReadonlyArray<string>): Promise<string | undefined> =>
   args[0] === 'serve'
     ? ownVersion().then(version =>
         servePage({
           page: args[1],
           version,
-          idleMs: Number(process.env['VISUAL_REVIEW_IDLE_MS'] ?? 10 * 60 * 1000),
+          idleMs: idleMs(),
         }),
       )
     : writeReview(args);

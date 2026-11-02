@@ -314,6 +314,27 @@ test('serve that cannot write its lock exits non-zero at once, saying why', asyn
   });
 });
 
+test.for(['10m', '', '0', '1.5', '3000000000'])(
+  'serve with VISUAL_REVIEW_IDLE_MS=%j exits non-zero naming it, serving nothing',
+  async idleMs => {
+    using bin = fakeOpeners(['xdg-open', 'open']);
+    using written = writtenPage({});
+
+    const serving = promisify(execFile)(
+      process.execPath,
+      [join(import.meta.dirname, 'cli.ts'), 'serve', written.page],
+      { env: { ...process.env, PATH: bin.path, VISUAL_REVIEW_IDLE_MS: idleMs }, timeout: 3000 },
+    );
+
+    await expect(serving).rejects.toMatchObject({
+      code: 1,
+      stderr: expect.stringMatching(
+        /^VISUAL_REVIEW_IDLE_MS must be a whole number of milliseconds/,
+      ),
+    });
+  },
+);
+
 test('serve that hears nothing from the page for its idle time exits non-zero saying no review was sent, leaving no lock', async () => {
   using server = await servedPage({ idleMs: 200 });
 
