@@ -46,13 +46,22 @@ const KINDS: Readonly<Record<KindOfChange, Shade>> = {
   formatting: { step: 2, name: 'formatting only' },
 };
 
+const NOT_READ: Shade = { step: 3, name: 'symbols not read' };
+
 type Shading = {
   readonly metrics: NodeMetrics | undefined;
   readonly kind: KindOfChange | undefined;
+  readonly changed: boolean;
 };
 
-export const shadeOf = (colouring: Colouring, { metrics, kind }: Shading): Shade | undefined => {
-  if (colouring === 'kind') return kind === undefined ? undefined : KINDS[kind];
+const kindShadeOf = ({ kind, changed }: Shading): Shade | undefined => {
+  if (kind !== undefined) return KINDS[kind];
+  return changed ? NOT_READ : undefined;
+};
+
+export const shadeOf = (colouring: Colouring, shading: Shading): Shade | undefined => {
+  const { metrics } = shading;
+  if (colouring === 'kind') return kindShadeOf(shading);
   if (colouring === 'change' || metrics === undefined) return undefined;
   const { measure, cuts, steps, read } = SCALES[colouring];
   const value = read(metrics);

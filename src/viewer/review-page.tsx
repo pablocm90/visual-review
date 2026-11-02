@@ -8,7 +8,7 @@ import {
   useRef,
   useState,
 } from 'react';
-import type { FilePatch, GraphDiff } from '../core/diff-graphs.ts';
+import type { DiffedNode, FilePatch, GraphDiff } from '../core/diff-graphs.ts';
 import { isAtOrUnder } from '../core/diff-graphs.ts';
 import { type Dimension, type Finding, findingsAt, findingsOf } from '../core/findings.ts';
 import { edgeId } from '../core/graph.ts';
@@ -156,7 +156,7 @@ type Drawing = {
   readonly expanded: ReadonlySet<string>;
   readonly onToggle: (id: string) => void;
   readonly unroutedOf: (id: string) => ReadonlyArray<string>;
-  readonly shadeOf: (id: string) => Shade | undefined;
+  readonly shadeOf: (node: DiffedNode) => Shade | undefined;
 };
 
 type ToggleProps = {
@@ -184,7 +184,7 @@ const NodeView = ({ node, drawing }: { readonly node: PlacedNode; readonly drawi
   const { notes, onSelect, register, expandable, expanded, onToggle, unroutedOf, shadeOf } =
     drawing;
   const unrouted = unroutedOf(node.id);
-  const shade = shadeOf(node.id);
+  const shade = shadeOf(node);
   const found = drawing.findingsOn(node.id);
   const toggle = expandable.has(node.id) && (
     <Toggle node={node} expanded={expanded.has(node.id)} onToggle={onToggle} />
@@ -1094,9 +1094,10 @@ export const ReviewPage = ({ review, notes, send }: ReviewPageProps) => {
     onToggle: toggle,
     unroutedOf: (id: string) =>
       dangling.filter(call => visibleOf(call.from) === id).map(call => call.path),
-    shadeOf: (id: string) =>
+    shadeOf: ({ id, state }: DiffedNode) =>
       shadeOf(colouring, {
         metrics: review.metrics[id],
+        changed: state !== 'unchanged',
         kind: review.symbols.flatMap(file =>
           file.node === id && 'kind' in file ? [file.kind] : [],
         )[0],

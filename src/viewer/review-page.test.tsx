@@ -2740,7 +2740,7 @@ const symbolsOf = (node: string, symbols: ReadonlyArray<SymbolStatement>): Symbo
   kind: 'logic',
 });
 
-test('on Kind of change a changed file is named with the strongest kind of its symbol changes: API change, logic change or formatting only', async () => {
+test('on Kind of change a changed file is named with the strongest kind of its symbol changes: API change, logic change or formatting only; a changed file with no symbols read as symbols not read, an unchanged one with nothing', async () => {
   const user = userEvent.setup();
   const kinded = (node: string, kind: KindOfChange) => ({ ...symbolsOf(node, []), kind });
   render(
@@ -2753,8 +2753,10 @@ test('on Kind of change a changed file is named with the strongest kind of its s
             topFile('api.ts', 'modified'),
             topFile('logic.ts', 'modified'),
             topFile('format.ts', 'modified'),
+            topFile('styles.css', 'modified'),
+            topFile('same.ts'),
           ],
-          edges: [],
+          edges: [webImport('api.ts', 'same.ts', 'unchanged')],
         },
         symbols: [
           kinded('web/file/api.ts', 'api'),
@@ -2769,9 +2771,12 @@ test('on Kind of change a changed file is named with the strongest kind of its s
   await user.click(colourBy('Kind of change'));
   expect(colourBy('Kind of change').getAttribute('aria-pressed')).toBe('true');
   expect(buttonsIn(web)).toEqual([
+    'api.ts → same.ts: unchanged',
     'api.ts: modified, API change',
     'logic.ts: modified, logic change',
     'format.ts: modified, formatting only',
+    'styles.css: modified, symbols not read',
+    'same.ts: unchanged',
   ]);
 });
 
