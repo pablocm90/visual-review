@@ -23,12 +23,15 @@ export const childrenOf = (node: Node): ReadonlyArray<Node> =>
 
 type OwnFunction = { readonly name: string; readonly fn: Node };
 
-export type WalkedSymbol = { readonly symbol: ReadSymbol; readonly node: Node };
+export type WalkedSymbol = {
+  readonly symbol: Pick<ReadSymbol, 'name' | 'scope' | 'kind'>;
+  readonly node: Node;
+};
 
 const sourceOf = (text: string, node: Node): string =>
   text.slice(node.start ?? undefined, node.end ?? undefined);
 
-const nameOf = (text: string, node: Node): string =>
+export const nameOf = (text: string, node: Node): string =>
   node.type === 'Identifier' ? node.name : sourceOf(text, node);
 
 const unwrapped = (node: Node): Node =>

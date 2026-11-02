@@ -55,3 +55,43 @@ test('a function, class or type is a symbol, a method one scoped by its class or
     'type Size',
   ]);
 });
+
+const exportedIn = (...lines: ReadonlyArray<string>) =>
+  symbolsOfTypeScript(source(...lines), 'src/shop.ts')
+    .symbols.filter(({ exported }) => exported)
+    .map(({ scope, name }) => `${scope === undefined ? '' : `${scope}.`}${name}`);
+
+test.each([
+  {
+    exports: 'on their declarations, with an anonymous default',
+    lines: [
+      'export function charge() { function inner() {} }',
+      'export const refund = () => {}, rate = 2;',
+      'export class Shop {',
+      '  open() {}',
+      '}',
+      'export type Id = string;',
+      'export default function () {}',
+      'function local() {}',
+      'class Hidden { open() {} }',
+    ],
+    exported: ['charge', 'refund', 'Shop', 'Shop.open', 'Id', 'default'],
+  },
+  {
+    exports: 'in an export list, renamed or not, with a default naming a local',
+    lines: [
+      'function charge() {}',
+      'const refund = () => {};',
+      'const store = { load() {}, save: () => {} };',
+      'function local() {}',
+      'interface Order {}',
+      'export { charge, refund as giveBack };',
+      'export type { Order };',
+      'export { local } from "./elsewhere";',
+      'export default store;',
+    ],
+    exported: ['charge', 'refund', 'store.load', 'store.save', 'Order'],
+  },
+])('symbols exported $exports are exported, their methods too', ({ lines, exported }) => {
+  expect(exportedIn(...lines)).toEqual(exported);
+});
