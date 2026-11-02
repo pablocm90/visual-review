@@ -1,14 +1,24 @@
 import { type ChildProcess, execFile, spawn } from 'node:child_process';
 import { once } from 'node:events';
-import { chmodSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import {
+  chmodSync,
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  statSync,
+  writeFileSync,
+} from 'node:fs';
 import { request } from 'node:http';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
 import { createInterface } from 'node:readline';
 import { text } from 'node:stream/consumers';
+import { setTimeout as delay } from 'node:timers/promises';
 import { promisify } from 'node:util';
 import { expect, test, vi } from 'vitest';
-import { sendReview } from './core/page.ts';
+import { pingServe, sendReview } from './core/page.ts';
 
 const fakeOpeners = (openers: ReadonlyArray<string>) => {
   const bin = mkdtempSync(join(tmpdir(), 'visual-review-opener-'));
@@ -21,13 +31,21 @@ const fakeOpeners = (openers: ReadonlyArray<string>) => {
   return {
     path: bin,
     opened: () => readFileSync(opened, 'utf8'),
+    forget: () => rmSync(opened, { force: true }),
     [Symbol.dispose]: () => rmSync(bin, { recursive: true, force: true }),
   };
 };
 
-const writtenPage = () => {
-  const directory = mkdtempSync(join(tmpdir(), 'visual-review-reviews-'));
-  const page = join(directory, 'main..feature.html');
+type WrittenPageOptions = {
+  readonly directory?: string;
+  readonly range?: string;
+};
+
+const writtenPage = ({
+  directory = mkdtempSync(join(tmpdir(), 'visual-review-reviews-')),
+  range = 'main..feature',
+}: WrittenPageOptions) => {
+  const page = join(directory, `${range}.html`);
   const { version } = JSON.parse(
     readFileSync(join(import.meta.dirname, '..', 'package.json'), 'utf8'),
   );
@@ -36,7 +54,7 @@ const writtenPage = () => {
     readFileSync(join(import.meta.dirname, '..', 'dist', 'viewer.html'), 'utf8').replace(
       '<script type="application/json" id="review-data">{}</script>',
       () =>
-        `<script type="application/json" id="review-data">${JSON.stringify({ version, range: 'main..feature' })}</script>`,
+        `<script type="application/json" id="review-data">${JSON.stringify({ version, range })}</script>`,
     ),
   );
   return {
@@ -45,33 +63,67 @@ const writtenPage = () => {
   };
 };
 
-const urlOn = async (child: ChildProcess): Promise<string> => {
-  const lines = child.stderr ? createInterface(child.stderr) : [];
-  for await (const line of lines) {
-    const url = /http:\/\/\S+/.exec(line)?.[0];
-    if (url) return url;
-  }
-  throw new Error('serve ended without printing its URL');
+const stderrOf = (child: ChildProcess) => {
+  const url = Promise.withResolvers<string>();
+  const read = async (): Promise<string> => {
+    const lines: Array<string> = [];
+    for await (const line of child.stderr ? createInterface(child.stderr) : []) {
+      lines.push(line);
+      const found = /http:\/\/\S+/.exec(line)?.[0];
+      if (found) url.resolve(found);
+    }
+    url.reject(new Error('serve ended without printing its URL'));
+    return lines.join('\n');
+  };
+  return { url: url.promise, written: read() };
 };
 
-const servedPage = async ({ openers = ['xdg-open', 'open'] } = {}) => {
+type ServedPageOptions = {
+  readonly openers?: ReadonlyArray<string>;
+  readonly idleMs?: number;
+  readonly lock?: string;
+} & WrittenPageOptions;
+
+const servedPage = async ({
+  openers = ['xdg-open', 'open'],
+  idleMs,
+  lock,
+  ...page
+}: ServedPageOptions = {}) => {
   const bin = fakeOpeners(openers);
-  const written = writtenPage();
+  const written = writtenPage(page);
+  if (lock !== undefined) writeFileSync(written.page.replace(/\.html$/, '.serve'), lock);
   const child = spawn(
     process.execPath,
     [join(import.meta.dirname, 'cli.ts'), 'serve', written.page],
     {
-      env: { ...process.env, PATH: bin.path },
+      env: {
+        ...process.env,
+        PATH: bin.path,
+        ...(idleMs === undefined ? {} : { VISUAL_REVIEW_IDLE_MS: String(idleMs) }),
+      },
     },
   );
-  const exited = Promise.all([once(child, 'close'), text(child.stdout)]).then(
-    ([[code], stdout]) => ({ code, stdout }),
+  const stderr = stderrOf(child);
+  const exited = Promise.all([once(child, 'close'), text(child.stdout), stderr.written]).then(
+    ([[code], stdout, errors]) => ({ code, stdout, stderr: errors }),
   );
   return {
-    url: await urlOn(child),
+    url: await stderr.url,
     page: written.page,
     opened: bin.opened,
+    forgetOpened: bin.forget,
+    serveAgain: () =>
+      promisify(execFile)(
+        process.execPath,
+        [join(import.meta.dirname, 'cli.ts'), 'serve', written.page],
+        {
+          env: { ...process.env, PATH: bin.path },
+          timeout: 3000,
+        },
+      ),
     exited,
+    signal: (signal: NodeJS.Signals) => child.kill(signal),
     [Symbol.dispose]: () => {
       child.kill();
       written[Symbol.dispose]();
@@ -179,7 +231,7 @@ test('serve without a page exits non-zero saying how to call it', async () => {
   });
 });
 
-test('a review sent from the served page is written beside it as <name>.review.json, its path the only output, and serve exits 0', async () => {
+test('a review sent from the served page is written beside it as <name>.review.json, its path the only output, and serve exits 0 leaving no lock', async () => {
   using server = await servedPage();
   const { origin, pathname } = new URL(server.url);
   const review = {
@@ -194,8 +246,9 @@ test('a review sent from the served page is written beside it as <name>.review.j
   await sendReview({ origin, token: pathname.slice(1), review });
 
   const reviewFile = server.page.replace(/\.html$/, '.review.json');
-  expect(await server.exited).toEqual({ code: 0, stdout: `${reviewFile}\n` });
+  expect(await server.exited).toMatchObject({ code: 0, stdout: `${reviewFile}\n` });
   expect(JSON.parse(readFileSync(reviewFile, 'utf8'))).toEqual(review);
+  expect(existsSync(server.page.replace(/\.html$/, '.serve'))).toBe(false);
 });
 
 test('a review the page could not have sent is refused with 400 naming the problem, and serve keeps serving', async () => {
@@ -240,4 +293,191 @@ test('sending a review the served page would refuse rejects with its answer, so 
       review: { version: 1, verdict: 'comment', comments: {} },
     }),
   ).rejects.toThrow('The review was not sent: 403 Forbidden');
+});
+
+test('serve that cannot write its lock exits non-zero at once, saying why', async () => {
+  using bin = fakeOpeners(['xdg-open', 'open']);
+  using written = writtenPage({});
+  chmodSync(dirname(written.page), 0o555);
+  using _writableAgain = { [Symbol.dispose]: () => chmodSync(dirname(written.page), 0o755) };
+
+  const serving = promisify(execFile)(
+    process.execPath,
+    [join(import.meta.dirname, 'cli.ts'), 'serve', written.page],
+    { env: { ...process.env, PATH: bin.path }, timeout: 3000 },
+  );
+
+  await expect(serving).rejects.toMatchObject({
+    code: 1,
+    killed: false,
+    stderr: expect.stringContaining('EACCES'),
+  });
+});
+
+test.for(['10m', '', '0', '1.5', '3000000000'])(
+  'serve with VISUAL_REVIEW_IDLE_MS=%j exits non-zero naming it, serving nothing',
+  async idleMs => {
+    using bin = fakeOpeners(['xdg-open', 'open']);
+    using written = writtenPage({});
+
+    const serving = promisify(execFile)(
+      process.execPath,
+      [join(import.meta.dirname, 'cli.ts'), 'serve', written.page],
+      { env: { ...process.env, PATH: bin.path, VISUAL_REVIEW_IDLE_MS: idleMs }, timeout: 3000 },
+    );
+
+    await expect(serving).rejects.toMatchObject({
+      code: 1,
+      stderr: expect.stringMatching(
+        /^VISUAL_REVIEW_IDLE_MS must be a whole number of milliseconds/,
+      ),
+    });
+  },
+);
+
+test('serve that hears nothing from the page for its idle time exits non-zero saying no review was sent, leaving no lock', async () => {
+  using server = await servedPage({ idleMs: 200 });
+
+  expect(await server.exited).toMatchObject({
+    code: 1,
+    stdout: '',
+    stderr: expect.stringContaining('No review sent'),
+  });
+  expect(existsSync(server.page.replace(/\.html$/, '.serve'))).toBe(false);
+});
+
+test.for(['SIGINT', 'SIGTERM'] as const)(
+  'serve stopped by %s exits non-zero saying no review was sent, leaving no lock',
+  async signal => {
+    using server = await servedPage();
+
+    server.signal(signal);
+
+    expect(await server.exited).toMatchObject({
+      code: 1,
+      stdout: '',
+      stderr: expect.stringContaining('No review sent'),
+    });
+    expect(existsSync(server.page.replace(/\.html$/, '.serve'))).toBe(false);
+  },
+);
+
+test('serve the page keeps pinging stays up past its idle time, and exits once the pings stop', async () => {
+  using server = await servedPage({ idleMs: 1000 });
+  const { origin, pathname } = new URL(server.url);
+
+  for (const _ping of [1, 2, 3, 4]) {
+    await delay(300);
+    await pingServe({ origin, token: pathname.slice(1) });
+  }
+
+  expect(await statusFor({ url: server.url })).toBe(200);
+  expect(await server.exited).toMatchObject({ code: 1 });
+});
+
+test('serving a page that is already served opens the live server instead of starting another, and exits 0', async () => {
+  using server = await servedPage();
+  await vi.waitFor(() => expect(server.opened()).toBe(server.url));
+  server.forgetOpened();
+
+  const again = await server.serveAgain();
+
+  expect(again.stdout).toBe('');
+  await vi.waitFor(() => expect(server.opened()).toBe(server.url));
+});
+
+test('serving a page rewritten since it was first served opens the live server, which serves the page as it is now', async () => {
+  using server = await servedPage();
+  writeFileSync(
+    server.page,
+    readFileSync(server.page, 'utf8').replace(
+      '"range":"main..feature"',
+      '"range":"main..rewritten"',
+    ),
+  );
+
+  await server.serveAgain();
+
+  expect(await (await fetch(server.url)).text()).toContain('"range":"main..rewritten"');
+});
+
+test('a page removed since it was served is answered 500 naming why', async () => {
+  using server = await servedPage();
+  rmSync(server.page);
+
+  const response = await fetch(server.url);
+
+  expect(response.status).toBe(500);
+  expect(await response.text()).toMatch(/^ENOENT/);
+});
+
+const endedPid = async (): Promise<number> => {
+  const ended = spawn(process.execPath, ['-e', '']);
+  await once(ended, 'close');
+  return ended.pid ?? 0;
+};
+
+test.for([
+  {
+    lock: 'left by a serve that has ended',
+    written: async () => JSON.stringify({ pid: await endedPid(), port: 9, token: 'ended' }),
+  },
+  { lock: 'serve could not have written', written: async () => '{"pid": 1, "port"' },
+  {
+    lock: 'whose pid another process has taken',
+    written: async () => JSON.stringify({ pid: process.pid, port: 9, token: 'ended' }),
+  },
+])('a lock $lock is replaced by a new server', async ({ written }) => {
+  using server = await servedPage({ lock: await written() });
+
+  expect((await fetch(server.url)).status).toBe(200);
+});
+
+test('a lock naming a server that refuses its token is replaced by a new server', async () => {
+  using other = await servedPage();
+  const { port } = new URL(other.url);
+
+  using server = await servedPage({
+    directory: dirname(other.page),
+    range: 'main..other',
+    lock: JSON.stringify({ pid: process.pid, port: Number(port), token: 'not-its-token' }),
+  });
+
+  expect(new URL(server.url).port).not.toBe(port);
+  expect((await fetch(server.url)).status).toBe(200);
+});
+
+test('the lock holding the token is readable by its owner only, even when it replaces one anyone could read', async () => {
+  using server = await servedPage({
+    lock: JSON.stringify({ pid: await endedPid(), port: 9, token: 'ended' }),
+  });
+  const lockFile = server.page.replace(/\.html$/, '.serve');
+
+  expect(statSync(lockFile).mode & 0o777).toBe(0o600);
+});
+
+test('another page in the same folder is served by a server of its own, and each writes its own review', async () => {
+  using first = await servedPage();
+  using second = await servedPage({ directory: dirname(first.page), range: 'main..other' });
+
+  await Promise.all(
+    [
+      { server: first, text: 'on the first page' },
+      { server: second, text: 'on the second page' },
+    ].map(({ server, text }) => {
+      const { origin, pathname } = new URL(server.url);
+      return sendReview({
+        origin,
+        token: pathname.slice(1),
+        review: { version: 1, verdict: 'comment', comments: { 'web/file/App.tsx': { text } } },
+      });
+    }),
+  );
+
+  const reviewed = async (server: typeof first) =>
+    JSON.parse(readFileSync((await server.exited).stdout.trim(), 'utf8')).comments[
+      'web/file/App.tsx'
+    ].text;
+  expect(await reviewed(first)).toBe('on the first page');
+  expect(await reviewed(second)).toBe('on the second page');
 });

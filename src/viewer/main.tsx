@@ -1,5 +1,5 @@
 import { createRoot } from 'react-dom/client';
-import { pageIn, sendReview } from '../core/page.ts';
+import { pageIn, pingServe, sendReview } from '../core/page.ts';
 import { ReviewPage } from './review-page.tsx';
 import './styles.css';
 
@@ -9,6 +9,12 @@ const {
   token,
 } = pageIn(id => document.getElementById(id)?.textContent ?? undefined);
 const root = document.getElementById('root');
+
+if (token !== undefined) {
+  const ping = () => pingServe({ origin: location.origin, token }).catch(() => {});
+  ping();
+  setInterval(ping, 30_000);
+}
 
 if (root) {
   document.title = `Visual review ${review.range}`;

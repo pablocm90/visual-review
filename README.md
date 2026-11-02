@@ -124,6 +124,8 @@ npx @pablocm90/visual-review serve .reviews/<sha>..<sha>.html
 
 It listens on `127.0.0.1` at a free port and prints the page's URL on stderr; the URL holds a token made for this serve, and any other path or host is refused with 403. On the served page, the inspector's Note tab has a **Your comment** field for the selected node or edge, and the header a verdict, **Approve**, **Comment** (picked until another is) or **Request changes**, beside a **Send to Claude** button, enabled once a comment holds more than blanks, or at once for an Approve. Sending writes the verdict and the comments beside the page as `<name>.review.json`, prints that file's path on stdout, and ends `serve` with exit 0. A page opened as a file has neither the field, the verdict nor the button.
 
+While the page is open, its tab pings `serve` every 30 seconds. Ten minutes with no ping, the tab closed or never opened, and `serve` exits 1 with `No review sent` on stderr, so nothing is left running. One page has one server: `serve` writes `<name>.serve` beside the page (its pid, port and token, readable by you only) and removes it on exit, and serving a page that is already served opens the live one and exits 0 with nothing on stdout. A lock whose server no longer answers is replaced. `VISUAL_REVIEW_IDLE_MS` changes the ten minutes.
+
 A review file is JSON in review version 1, whose schema is [`review.schema.json`](https://unpkg.com/@pablocm90/visual-review@0.5/dist/review.schema.json): `verdict` is `approve`, `comment` or `request-changes`, and `comments` maps a node id, or `<from> -> <to>` for an edge, to `{ text }`, keyed as notes are.
 
 ## Where pages go
