@@ -1816,3 +1816,44 @@ pre .hljs-emphasis {
   font-weight: 400;
   resize: vertical;
 }
+
+.triage {
+  margin-bottom: 8px;
+}
+
+.look-first {
+  margin-bottom: 8px;
+  padding: 6px 12px;
+  border: 1px solid var(--stack-line);
+  border-radius: 8px;
+  background: var(--stack);
+}
+
+.look-first-title {
+  margin: 0;
+  font-size: 13px;
+}
+
+.look-first ul {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+  gap: 0 16px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.look-first .finding {
+  padding: 2px 0;
+  align-items: center;
+}
+
+.look-first .finding button,
+.look-first .finding-said {
+  flex-direction: row;
+  align-items: baseline;
+  gap: 8px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}

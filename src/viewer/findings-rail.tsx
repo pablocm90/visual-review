@@ -1,5 +1,5 @@
 import { useRef, useState } from 'react';
-import { DIMENSIONS, type Dimension, type Finding } from '../core/findings.ts';
+import { DIMENSIONS, type Dimension, type Finding, lookFirst } from '../core/findings.ts';
 import { endsOfId } from '../core/graph.ts';
 import type { PageData } from '../core/page.ts';
 import { notReadLine } from '../core/skipped.ts';
@@ -33,12 +33,13 @@ const nameOf = (dimension: Dimension) => {
   return `${words.charAt(0).toUpperCase()}${words.slice(1)}`;
 };
 
-const groupsOf = ({
-  findings,
-  review,
-  onGoTo,
-  onShowOutside,
-}: FindingsRailProps): ReadonlyArray<Group> => {
+type LineOptions = {
+  readonly review: Pick<PageData, 'diff'>;
+  readonly onGoTo: (id: string) => void;
+  readonly onShowOutside: (opener: HTMLButtonElement) => void;
+};
+
+const linesOf = ({ review, onGoTo, onShowOutside }: LineOptions) => {
   const labelOf = new Map(review.diff.nodes.map(node => [node.id, node.label]));
   const targetOf = (id: string) =>
     endsOfId(id)
@@ -55,10 +56,15 @@ const groupsOf = ({
       ...(id === 'structure:undrawn' && { act: onShowOutside }),
     };
   };
+  return lineOf;
+};
+
+const groupsOf = (props: FindingsRailProps): ReadonlyArray<Group> => {
+  const lineOf = linesOf(props);
   return DIMENSIONS.map(dimension => ({
     dimension,
     name: nameOf(dimension),
-    findings: findings.filter(finding => finding.dimension === dimension).map(lineOf),
+    findings: props.findings.filter(finding => finding.dimension === dimension).map(lineOf),
   }));
 };
 
@@ -190,5 +196,28 @@ export const TriageStrip = ({ findings, picked, onPick }: TriageStripProps) => {
         </button>
       ))}
     </div>
+  );
+};
+
+type LookFirstProps = LineOptions & {
+  readonly findings: ReadonlyArray<Finding>;
+  readonly review: Pick<PageData, 'diff' | 'metrics'>;
+};
+
+const LOOK_FIRST_SHOWN = 7;
+
+export const LookFirst = (props: LookFirstProps) => {
+  const ranked = lookFirst({ findings: props.findings, metrics: props.review.metrics });
+  if (ranked.length === 0) return null;
+  const lineOf = linesOf(props);
+  return (
+    <section className="look-first" aria-label="Look first">
+      <h2 className="look-first-title">Look first</h2>
+      <ul>
+        {ranked.slice(0, LOOK_FIRST_SHOWN).map(finding => (
+          <FindingItem key={finding.id} finding={lineOf(finding)} />
+        ))}
+      </ul>
+    </section>
   );
 };

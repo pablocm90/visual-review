@@ -1391,7 +1391,8 @@ test("a note's or a metric finding in the rail goes to its node or edge as the s
   );
 
   await user.click(await screen.findByRole('button', { name: 'Show 2 findings' }));
-  await user.click(screen.getByRole('button', { name: /^cli-adapter → application: new/ }));
+  const rail = () => within(screen.getByRole('complementary', { name: 'Findings' }));
+  await user.click(rail().getByRole('button', { name: /^cli-adapter → application: new/ }));
   expect(document.activeElement).toBe(
     screen.getByRole('button', {
       name: 'cli-adapter → application: added, flagged: new dependency direction',
@@ -1399,8 +1400,50 @@ test("a note's or a metric finding in the rail goes to its node or edge as the s
   );
   expect(noteShown()).toBe('The CLI drives the use case.');
 
-  await user.click(screen.getByRole('button', { name: 'domain: lines 900, over 800' }));
+  await user.click(rail().getByRole('button', { name: 'domain: lines 900, over 800' }));
   expect(document.activeElement).toBe(screen.getByRole('button', { name: 'domain: unchanged' }));
+});
+
+test('look first lists the findings to look at in rank order, each going to its node, seven at most, and is absent when none needs a look', async () => {
+  const user = userEvent.setup();
+  const looks = (count: number) =>
+    Array.from({ length: count }, (_, index) =>
+      findingOn('rust/crate/domain', { id: `look ${index}`, level: 'look', title: `${index}` }),
+    );
+  const { rerender } = render(
+    <ReviewPage
+      review={pageWith({
+        ...review,
+        findings: [
+          findingOn('rust/crate/application'),
+          findingOn('rust/crate/domain', { id: 'b', level: 'look', title: 'second' }),
+          findingOn('rust/crate/cli-adapter', { id: 'a', level: 'look', title: 'first' }),
+        ],
+      })}
+    />,
+  );
+
+  const band = () => within(screen.getByRole('region', { name: 'Look first' }));
+  await screen.findByRole('region', { name: 'Look first' });
+  const items = () =>
+    band()
+      .getAllByRole('listitem')
+      .map(item => within(item).getByRole('button').getAttribute('aria-label'));
+  expect(items()).toEqual(['cli-adapter: first', 'domain: second']);
+  await user.click(band().getByRole('button', { name: 'domain: second' }));
+  expect(document.activeElement).toBe(screen.getByRole('button', { name: 'domain: unchanged' }));
+
+  rerender(<ReviewPage review={pageWith({ ...review, findings: looks(7) })} />);
+  expect(items()).toHaveLength(7);
+  rerender(<ReviewPage review={pageWith({ ...review, findings: looks(8) })} />);
+  expect(items()).toEqual(['0', '1', '2', '3', '4', '5', '6'].map(title => `domain: ${title}`));
+
+  rerender(
+    <ReviewPage
+      review={pageWith({ ...review, findings: [findingOn('rust/crate/application')] })}
+    />,
+  );
+  expect(screen.queryByRole('region', { name: 'Look first' })).toBeNull();
 });
 
 const webModule = (label: string, state: Diffed = 'unchanged') => ({

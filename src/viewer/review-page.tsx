@@ -28,7 +28,7 @@ import {
   visibleNodeOf,
 } from '../core/visible-diff.ts';
 import { ColourBy, type Colouring, ScaleLegend, type Shade, shadeOf } from './colour-by.tsx';
-import { FindingsRail, TriageStrip } from './findings-rail.tsx';
+import { FindingsRail, LookFirst, TriageStrip } from './findings-rail.tsx';
 import { highlightPatch, type PatchLine as Line, type Piece } from './highlight-patch.ts';
 import {
   type Layout,
@@ -1112,6 +1112,12 @@ export const ReviewPage = ({ review, notes, send }: ReviewPageProps) => {
             <div className="content">
               {notes && notes.summary.length > 0 && <Summary notes={notes} onGoTo={goTo} />}
               <TriageStrip findings={findings} picked={picked} onPick={setPicked} />
+              <LookFirst
+                findings={findings}
+                review={review}
+                onGoTo={goTo}
+                onShowOutside={showOutside}
+              />
               <div className="graph-controls">
                 <ColourBy colouring={colouring} onPick={setColouring} />
                 <div className="graph-filters">
