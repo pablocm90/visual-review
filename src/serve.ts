@@ -79,6 +79,26 @@ const tookReview = async ({
   return true;
 };
 
+type AnswerWithPageOptions = {
+  readonly response: ServerResponse;
+  readonly pageNow: () => Promise<string>;
+};
+
+const answerWithPage = async ({ response, pageNow }: AnswerWithPageOptions): Promise<void> => {
+  const html = await pageNow().catch((error: Error) => error);
+  if (html instanceof Error) {
+    refuse({ response, status: 500, error: html });
+    return;
+  }
+  response
+    .writeHead(200, {
+      'content-type': 'text/html; charset=utf-8',
+      'cache-control': 'no-store',
+      'referrer-policy': 'no-referrer',
+    })
+    .end(html);
+};
+
 type ServePageOptions = {
   readonly page: string | undefined;
   readonly version: string;
@@ -140,18 +160,7 @@ export const servePage = async ({
       response.writeHead(403).end();
       return;
     }
-    const html = await pageNow().catch((error: Error) => error);
-    if (html instanceof Error) {
-      refuse({ response, status: 500, error: html });
-      return;
-    }
-    response
-      .writeHead(200, {
-        'content-type': 'text/html; charset=utf-8',
-        'cache-control': 'no-store',
-        'referrer-policy': 'no-referrer',
-      })
-      .end(html);
+    await answerWithPage({ response, pageNow });
   });
   process.once('SIGINT', stopped).once('SIGTERM', stopped);
   const url = urlOf({ port, token });
