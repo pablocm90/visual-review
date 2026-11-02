@@ -1094,7 +1094,13 @@ export const ReviewPage = ({ review, notes, send }: ReviewPageProps) => {
     onToggle: toggle,
     unroutedOf: (id: string) =>
       dangling.filter(call => visibleOf(call.from) === id).map(call => call.path),
-    shadeOf: (id: string) => shadeOf(colouring, review.metrics[id]),
+    shadeOf: (id: string) =>
+      shadeOf(colouring, {
+        metrics: review.metrics[id],
+        kind: review.symbols.flatMap(file =>
+          file.node === id && 'kind' in file ? [file.kind] : [],
+        )[0],
+      }),
   };
   const selectedNode = review.diff.nodes.find(node => node.id === selected);
   const selectedNote = selected === undefined ? undefined : shown[selected];
@@ -1199,7 +1205,11 @@ export const ReviewPage = ({ review, notes, send }: ReviewPageProps) => {
                 </div>
               </div>
               <div className="graph-key">
-                {colouring === 'change' ? <Legend /> : <ScaleLegend colouring={colouring} />}
+                {colouring === 'change' || colouring === 'kind' ? (
+                  <Legend />
+                ) : (
+                  <ScaleLegend colouring={colouring} />
+                )}
               </div>
               {drawn.nodes.length === 0 && <p className="caveat">Nothing in the graph changed.</p>}
               {layout && (

@@ -8,7 +8,7 @@ import type { ReviewNotes } from '../core/notes.ts';
 import type { PageData } from '../core/page.ts';
 import type { SymbolFile } from '../core/read-range.ts';
 import type { Skipped } from '../core/skipped.ts';
-import type { SymbolStatement } from '../core/symbol-changes.ts';
+import type { KindOfChange, SymbolStatement } from '../core/symbol-changes.ts';
 import { findingOn, measured, pageWith } from '../test-support/page-data.ts';
 import { layoutDiff } from './layout.ts';
 import { ReviewPage } from './review-page.tsx';
@@ -2738,6 +2738,41 @@ const symbolsOf = (node: string, symbols: ReadonlyArray<SymbolStatement>): Symbo
   symbols,
   exports: { added: [], removed: [] },
   kind: 'logic',
+});
+
+test('on Kind of change a changed file is named with the strongest kind of its symbol changes: API change, logic change or formatting only', async () => {
+  const user = userEvent.setup();
+  const kinded = (node: string, kind: KindOfChange) => ({ ...symbolsOf(node, []), kind });
+  render(
+    <ReviewPage
+      review={pageWith({
+        range: 'abc123..def456',
+        diff: {
+          nodes: [
+            { id: 'web', kind: 'stack', label: 'web', path: '', state: 'unchanged' },
+            topFile('api.ts', 'modified'),
+            topFile('logic.ts', 'modified'),
+            topFile('format.ts', 'modified'),
+          ],
+          edges: [],
+        },
+        symbols: [
+          kinded('web/file/api.ts', 'api'),
+          kinded('web/file/logic.ts', 'logic'),
+          kinded('web/file/format.ts', 'formatting'),
+        ],
+      })}
+    />,
+  );
+  const web = await screen.findByRole('group', { name: 'web' });
+
+  await user.click(colourBy('Kind of change'));
+  expect(colourBy('Kind of change').getAttribute('aria-pressed')).toBe('true');
+  expect(buttonsIn(web)).toEqual([
+    'api.ts: modified, API change',
+    'logic.ts: modified, logic change',
+    'format.ts: modified, formatting only',
+  ]);
 });
 
 const symbolGroups = () =>

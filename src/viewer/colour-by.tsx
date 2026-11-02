@@ -1,12 +1,14 @@
 import { useId } from 'react';
 import type { NodeMetrics } from '../core/metrics.ts';
+import type { KindOfChange } from '../core/symbol-changes.ts';
 
-export type Colouring = 'change' | 'churn' | 'complexity';
+export type Colouring = 'change' | 'churn' | 'complexity' | 'kind';
 
 const COLOURINGS = [
   ['change', 'Change'],
   ['churn', 'Churn'],
   ['complexity', 'Complexity'],
+  ['kind', 'Kind of change'],
 ] as const satisfies ReadonlyArray<readonly [Colouring, string]>;
 
 type Scale = {
@@ -17,7 +19,9 @@ type Scale = {
   readonly read: (metrics: NodeMetrics) => number | undefined;
 };
 
-const SCALES: Readonly<Record<Exclude<Colouring, 'change'>, Scale>> = {
+type Scaled = Exclude<Colouring, 'change' | 'kind'>;
+
+const SCALES: Readonly<Record<Scaled, Scale>> = {
   churn: {
     title: 'Churn: commits in the window before the head',
     measure: 'churn',
@@ -36,10 +40,19 @@ const SCALES: Readonly<Record<Exclude<Colouring, 'change'>, Scale>> = {
 
 export type Shade = { readonly step: number; readonly name: string };
 
-export const shadeOf = (
-  colouring: Colouring,
-  metrics: NodeMetrics | undefined,
-): Shade | undefined => {
+const KINDS: Readonly<Record<KindOfChange, Shade>> = {
+  api: { step: 0, name: 'API change' },
+  logic: { step: 1, name: 'logic change' },
+  formatting: { step: 2, name: 'formatting only' },
+};
+
+type Shading = {
+  readonly metrics: NodeMetrics | undefined;
+  readonly kind: KindOfChange | undefined;
+};
+
+export const shadeOf = (colouring: Colouring, { metrics, kind }: Shading): Shade | undefined => {
+  if (colouring === 'kind') return kind === undefined ? undefined : KINDS[kind];
   if (colouring === 'change' || metrics === undefined) return undefined;
   const { measure, cuts, steps, read } = SCALES[colouring];
   const value = read(metrics);
@@ -48,11 +61,7 @@ export const shadeOf = (
   return { step, name: `${measure} ${value} (${steps[step]})` };
 };
 
-export const ScaleLegend = ({
-  colouring,
-}: {
-  readonly colouring: Exclude<Colouring, 'change'>;
-}) => {
+export const ScaleLegend = ({ colouring }: { readonly colouring: Scaled }) => {
   const { title, steps } = SCALES[colouring];
   return (
     <div className="scale-legend">
