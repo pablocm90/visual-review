@@ -31,6 +31,7 @@ const fakeOpeners = (openers: ReadonlyArray<string>) => {
   return {
     path: bin,
     opened: () => readFileSync(opened, 'utf8'),
+    openedAny: () => existsSync(opened),
     forget: () => rmSync(opened, { force: true }),
     [Symbol.dispose]: () => rmSync(bin, { recursive: true, force: true }),
   };
@@ -82,12 +83,14 @@ type ServedPageOptions = {
   readonly openers?: ReadonlyArray<string>;
   readonly idleMs?: number;
   readonly lock?: string;
+  readonly flags?: ReadonlyArray<string>;
 } & WrittenPageOptions;
 
 const servedPage = async ({
   openers = ['xdg-open', 'open'],
   idleMs,
   lock,
+  flags = [],
   ...page
 }: ServedPageOptions = {}) => {
   const bin = fakeOpeners(openers);
@@ -95,7 +98,7 @@ const servedPage = async ({
   if (lock !== undefined) writeFileSync(written.page.replace(/\.html$/, '.serve'), lock);
   const child = spawn(
     process.execPath,
-    [join(import.meta.dirname, 'cli.ts'), 'serve', written.page],
+    [join(import.meta.dirname, 'cli.ts'), 'serve', ...flags, written.page],
     {
       env: {
         ...process.env,
@@ -112,11 +115,12 @@ const servedPage = async ({
     url: await stderr.url,
     page: written.page,
     opened: bin.opened,
+    openedAny: bin.openedAny,
     forgetOpened: bin.forget,
-    serveAgain: () =>
+    serveAgain: (againFlags: ReadonlyArray<string> = []) =>
       promisify(execFile)(
         process.execPath,
-        [join(import.meta.dirname, 'cli.ts'), 'serve', written.page],
+        [join(import.meta.dirname, 'cli.ts'), 'serve', ...againFlags, written.page],
         {
           env: { ...process.env, PATH: bin.path },
           timeout: 3000,
@@ -227,7 +231,7 @@ test('serve without a page exits non-zero saying how to call it', async () => {
 
   await expect(run).rejects.toMatchObject({
     code: 1,
-    stderr: 'Usage: visual-review serve <page.html>\n',
+    stderr: 'Usage: visual-review serve [--no-open] <page.html>\n',
   });
 });
 
@@ -384,6 +388,24 @@ test('serving a page that is already served opens the live server instead of sta
 
   expect(again.stdout).toBe('');
   await vi.waitFor(() => expect(server.opened()).toBe(server.url));
+});
+
+test('serve --no-open serves the page at the URL it prints and opens nothing', async () => {
+  using server = await servedPage({ flags: ['--no-open'], idleMs: 500 });
+
+  expect((await fetch(server.url)).status).toBe(200);
+  await server.exited;
+  expect(server.openedAny()).toBe(false);
+});
+
+test('serving an already served page with --no-open prints the live URL, opens nothing, and exits 0', async () => {
+  using server = await servedPage({ flags: ['--no-open'] });
+
+  const again = await server.serveAgain(['--no-open']);
+
+  expect(again).toEqual({ stdout: '', stderr: `Serving ${server.url}\n` });
+  await delay(300);
+  expect(server.openedAny()).toBe(false);
 });
 
 test('serving a page rewritten since it was first served opens the live server, which serves the page as it is now', async () => {

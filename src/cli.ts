@@ -155,9 +155,10 @@ const run = (args: ReadonlyArray<string>): Promise<string | undefined> =>
   args[0] === 'serve'
     ? ownVersion().then(version =>
         servePage({
-          page: args[1],
+          page: args.slice(1).find(arg => arg !== '--no-open'),
           version,
           idleMs: idleMs(),
+          open: !args.includes('--no-open'),
         }),
       )
     : writeReview(args);

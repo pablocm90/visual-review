@@ -111,18 +111,21 @@ type ServePageOptions = {
   readonly page: string | undefined;
   readonly version: string;
   readonly idleMs: number;
+  readonly open: boolean;
 };
 
 export const servePage = async ({
   page,
   version,
   idleMs,
+  open,
 }: ServePageOptions): Promise<string | undefined> => {
-  if (page === undefined) throw new Error('Usage: visual-review serve <page.html>');
+  if (page === undefined) throw new Error('Usage: visual-review serve [--no-open] <page.html>');
   const lockFile = beside(page, 'serve');
   const lock = await liveLock(lockFile);
   if (lock !== undefined) {
-    openInBrowser(urlOf(lock));
+    if (open) openInBrowser(urlOf(lock));
+    else console.error(`Serving ${urlOf(lock)}`);
     return undefined;
   }
   const token = randomBytes(16).toString('hex');
@@ -173,7 +176,7 @@ export const servePage = async ({
   process.once('SIGINT', stopped).once('SIGTERM', stopped);
   const url = urlOf({ port, token });
   console.error(`Serving ${url}`);
-  openInBrowser(url);
+  if (open) openInBrowser(url);
   return sent.promise.finally(() => {
     clearTimeout(idle);
     process.off('SIGINT', stopped).off('SIGTERM', stopped);
