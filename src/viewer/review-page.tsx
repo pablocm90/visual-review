@@ -896,7 +896,7 @@ const SendToClaude = ({ comments, send }: SendProps) => {
                   {problem}
                 </p>
               )}
-              <label>
+              <label className="general-comment">
                 General comment
                 <textarea value={body} onChange={event => setBody(event.target.value)} />
               </label>
