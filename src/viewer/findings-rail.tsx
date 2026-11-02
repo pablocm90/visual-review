@@ -36,6 +36,7 @@ type Group = {
 };
 
 export const nameOf = (dimension: Dimension) => {
+  if (dimension === 'api') return 'API';
   const words = dimension.replace('-', ' ');
   return `${words.charAt(0).toUpperCase()}${words.slice(1)}`;
 };
