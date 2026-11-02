@@ -1,4 +1,5 @@
 import type { FilePatch } from './diff-graphs.ts';
+import type { DanglingCall } from './linker.ts';
 import type { MetricFinding } from './metric-findings.ts';
 import { tenths } from './metrics.ts';
 import { notReadLine, type Skipped } from './skipped.ts';
@@ -54,12 +55,14 @@ const counted = (count: number, one: string, many: string) =>
 type RaisedOptions = {
   readonly skipped: ReadonlyArray<Skipped>;
   readonly undrawn: ReadonlyArray<FilePatch>;
+  readonly dangling: ReadonlyArray<DanglingCall>;
   readonly metricFindings: ReadonlyArray<MetricFinding>;
 };
 
 export const raisedFindings = ({
   skipped,
   undrawn,
+  dangling,
   metricFindings,
 }: RaisedOptions): ReadonlyArray<Finding> => [
   ...skipped.map(
@@ -81,6 +84,16 @@ export const raisedFindings = ({
           detail: undrawn.map(patch => patch.path).join(', '),
         },
       ]),
+  ...[...Map.groupBy(dangling, call => call.from)].map(
+    ([from, calls]): Finding => ({
+      id: `routes:dangling:${from}`,
+      dimension: 'routes',
+      level: 'info',
+      target: from,
+      title: counted(calls.length, 'call with no route', 'calls with no route'),
+      detail: calls.map(call => call.path).join(', '),
+    }),
+  ),
   ...metricFindings.map(
     (finding): Finding => ({
       id: `metrics:${finding.metric}:${finding.node}`,

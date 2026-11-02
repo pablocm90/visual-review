@@ -121,6 +121,36 @@ test.for([
   },
 );
 
+test('fetch calls with no route are a routes finding for information on each calling file, listing its paths', () => {
+  const danglingCalls = [
+    { from: 'web/file/a.ts', path: '/api/a' },
+    { from: 'web/file/b.ts', path: '/api/c' },
+    { from: 'web/file/a.ts', path: '/api/b' },
+  ];
+
+  expect(
+    pageData({ repo: 'shop', reading: readingWith({ danglingCalls }), range: 'a..b', version })
+      .findings,
+  ).toStrictEqual([
+    {
+      id: 'routes:dangling:web/file/a.ts',
+      dimension: 'routes',
+      level: 'info',
+      target: 'web/file/a.ts',
+      title: '2 calls with no route',
+      detail: '/api/a, /api/b',
+    },
+    {
+      id: 'routes:dangling:web/file/b.ts',
+      dimension: 'routes',
+      level: 'info',
+      target: 'web/file/b.ts',
+      title: '1 call with no route',
+      detail: '/api/c',
+    },
+  ]);
+});
+
 test('stacks a missing tool kept from being read are a structure finding to look at, on no node', () => {
   const skipped = [{ reader: 'rust' as const, tool: 'cargo', stacks: ['api', 'worker'] }];
 

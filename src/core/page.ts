@@ -64,7 +64,12 @@ export const pageData = ({
     diff,
     metrics,
     metricFindings: raised,
-    findings: raisedFindings({ skipped: reading.skipped, undrawn, metricFindings: raised }),
+    findings: raisedFindings({
+      skipped: reading.skipped,
+      undrawn,
+      dangling: reading.danglingCalls,
+      metricFindings: raised,
+    }),
     dangling: reading.danglingCalls,
     patches: reading.patches.filter(isDrawn),
     undrawn,
