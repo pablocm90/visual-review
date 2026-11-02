@@ -53,7 +53,7 @@ Then, from anywhere in the repo (as `/visual-review:visual-review` when another 
 | `/visual-review main..my-branch` | a range of commits |
 | `/visual-review` | your uncommitted work against `HEAD` |
 
-Claude builds the page, writes structural notes and flags onto it, and opens it in your browser. Selecting a crate, module or file opens an inspector beside the graph with its note, metrics, patches and tests, and selecting an edge opens its note; drag the divider between them, or focus it and use the arrow keys, to give either side more room.
+Claude builds the page, writes structural notes and flags onto it, and serves it in your browser. Send your review from the page ([Your review](#your-review)) and Claude acts on its verdict: on Request changes it works through each comment, on Comment it replies to each and changes nothing, and on Approve it answers any comments and stops. Selecting a crate, module or file opens an inspector beside the graph with its note, metrics, patches and tests, and selecting an edge opens its note; drag the divider between them, or focus it and use the arrow keys, to give either side more room.
 
 Without Claude, run the CLI with the same argument. It builds the page with no notes and prints its path:
 
