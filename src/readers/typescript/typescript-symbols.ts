@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import type { ClassDeclaration, Function as FunctionNode, Node } from '@babel/types';
 import type { FileSymbols } from '../../core/reader.ts';
 import {
@@ -77,14 +78,37 @@ const signatureOf = (text: string, node: Node): string => {
   return `${prefix}${collapsed(text, node.typeParameters)}(${params})${collapsed(text, node.returnType)}`;
 };
 
+const UNHASHED = new Set([
+  'start',
+  'end',
+  'extra',
+  'leadingComments',
+  'trailingComments',
+  'innerComments',
+]);
+
+const bodyHashOf = (node: Node, nested: ReadonlySet<unknown>): string =>
+  createHash('sha1')
+    .update(
+      JSON.stringify(node, function (this: unknown, key: string, value: unknown) {
+        if (UNHASHED.has(key) || (this === node && (key === 'id' || key === 'key')))
+          return undefined;
+        return value !== node && nested.has(value) ? 'symbol' : value;
+      }),
+    )
+    .digest('hex');
+
 export const symbolsOfTypeScript = (text: string, path: string): FileSymbols => {
   const { program } = parseTypeScript(text, path);
   const names = new Set(program.body.flatMap(statement => exportedBy(text, statement)));
+  const walk = symbolsIn(text, program);
+  const nested = new Set<unknown>(walk.map(({ declaration }) => declaration));
   return {
-    symbols: symbolsIn(text, program).map(walked => ({
+    symbols: walk.map(walked => ({
       ...walked.symbol,
       exported: isExported(names, walked),
       signature: signatureOf(text, walked.node),
+      bodyHash: bodyHashOf(walked.node, nested),
     })),
   };
 };

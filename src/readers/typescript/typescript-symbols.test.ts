@@ -157,3 +157,51 @@ test("a class's signature is its type parameters and heritage, a type's its whol
     'Size enum Size { Small, Large }',
   ]);
 });
+
+const bodiesAlike = (base: ReadonlyArray<string>, head: ReadonlyArray<string>) => {
+  const heads = symbolsOfTypeScript(source(...head), 'src/shop.ts').symbols;
+  return symbolsOfTypeScript(source(...base), 'src/shop.ts').symbols.map(
+    ({ name, bodyHash }, index) => `${name} ${bodyHash === heads[index]?.bodyHash}`,
+  );
+};
+
+test.each([
+  {
+    change: 'formatting, comments, quotes and parentheses',
+    base: ["function charge(a) { return a + 'x'; }", 'function noop() {}'],
+    head: [
+      'function charge(a) {',
+      '  // one more',
+      '  return (a + "x"); // a string',
+      '}',
+      'function noop() { /* nothing */ }',
+    ],
+    alike: ['charge true', 'noop true'],
+  },
+  {
+    change: 'the names of a function and a method',
+    base: [
+      'function charge(a) { return a; }',
+      'class Shop { open() { return 1; } close = () => 2; }',
+    ],
+    head: [
+      'function bill(a) { return a; }',
+      'class Store { start() { return 1; } shut = () => 2; }',
+    ],
+    alike: ['charge true', 'Shop true', 'open true', 'close true'],
+  },
+  {
+    change: 'the logic',
+    base: ['function charge(a) { return a + 1; }', 'function pack(a) { return { total: a }; }'],
+    head: ['function charge(a) { return a - 1; }', 'function pack(a) { return { sum: a }; }'],
+    alike: ['charge false', 'pack false'],
+  },
+  {
+    change: 'the logic of an inner function only',
+    base: ['function outer() { const inner = () => 1; return inner(); }'],
+    head: ['function outer() { const inner = () => 2; return inner(); }'],
+    alike: ['outer true', 'inner false'],
+  },
+])('bodies hash alike unless their logic changed: $change', ({ base, head, alike }) => {
+  expect(bodiesAlike(base, head)).toEqual(alike);
+});

@@ -38,6 +38,7 @@ export type ReadSymbol = {
   readonly kind: SymbolKind;
   readonly exported: boolean;
   readonly signature: string;
+  readonly bodyHash: string;
 };
 
 export type FileSymbols = {
