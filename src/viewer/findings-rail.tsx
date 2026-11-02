@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react';
+import { useRef } from 'react';
 import { DIMENSIONS, type Dimension, type Finding, lookFirst } from '../core/findings.ts';
 import { endsOfId } from '../core/graph.ts';
 import type { PageData } from '../core/page.ts';
@@ -7,6 +7,8 @@ import { LevelMark } from './finding-display.tsx';
 
 type FindingsRailProps = {
   readonly findings: ReadonlyArray<Finding>;
+  readonly open: boolean;
+  readonly onOpen: (open: boolean) => void;
   readonly review: Pick<PageData, 'diff' | 'skipped'>;
   readonly onGoTo: (id: string) => void;
   readonly onShowOutside: (opener: HTMLButtonElement) => void;
@@ -91,11 +93,11 @@ const FindingItem = ({ finding }: { readonly finding: Line }) => {
 };
 
 export const FindingsRail = (props: FindingsRailProps) => {
-  const [open, setOpen] = useState(false);
+  const { open } = props;
   const toggled = useRef(false);
   const toggle = (opening: boolean) => {
     toggled.current = true;
-    setOpen(opening);
+    props.onOpen(opening);
   };
   const takeFocus = (button: HTMLButtonElement | null) => {
     if (!button || !toggled.current) return;
@@ -196,6 +198,7 @@ export const TriageStrip = ({ findings, picked, onPick }: TriageStripProps) => {
 
 type LookFirstProps = LineOptions & {
   readonly findings: ReadonlyArray<Finding>;
+  readonly onShowAll: () => void;
   readonly review: Pick<PageData, 'diff' | 'metrics'>;
 };
 
@@ -213,6 +216,11 @@ export const LookFirst = (props: LookFirstProps) => {
           <FindingItem key={finding.id} finding={lineOf(finding)} />
         ))}
       </ul>
+      {ranked.length > LOOK_FIRST_SHOWN && (
+        <button type="button" className="show-all" onClick={props.onShowAll}>
+          {`Show all ${ranked.length}`}
+        </button>
+      )}
     </section>
   );
 };

@@ -1404,7 +1404,7 @@ test("a note's or a metric finding in the rail goes to its node or edge as the s
   expect(document.activeElement).toBe(screen.getByRole('button', { name: 'domain: unchanged' }));
 });
 
-test('look first lists the findings to look at in rank order, in the dimension a triage chip picks, each going to its node, seven at most, and is absent when none needs a look', async () => {
+test('look first lists the findings to look at in rank order, in the dimension a triage chip picks, each going to its node, seven at most and Show all opening the rail past them, and is absent when none needs a look', async () => {
   const user = userEvent.setup();
   const looks = (count: number) =>
     Array.from({ length: count }, (_, index) =>
@@ -1447,8 +1447,14 @@ test('look first lists the findings to look at in rank order, in the dimension a
 
   rerender(<ReviewPage review={pageWith({ ...review, findings: looks(7) })} />);
   expect(items()).toHaveLength(7);
+  const showAll = () => band().queryByRole('button', { name: /^Show all/ });
+  expect(showAll()).toBeNull();
   rerender(<ReviewPage review={pageWith({ ...review, findings: looks(8) })} />);
   expect(items()).toEqual(['0', '1', '2', '3', '4', '5', '6'].map(title => `domain: ${title}`));
+  expect(screen.queryByRole('complementary', { name: 'Findings' })).toBeNull();
+  await user.click(band().getByRole('button', { name: 'Show all 8' }));
+  expect(screen.getByRole('complementary', { name: 'Findings' })).toBeDefined();
+  await user.click(screen.getByRole('button', { name: 'Hide findings' }));
 
   rerender(
     <ReviewPage
