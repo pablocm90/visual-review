@@ -140,7 +140,13 @@ const writeReview = async (args: ReadonlyArray<string>): Promise<string> => {
 
 const run = (args: ReadonlyArray<string>): Promise<string> =>
   args[0] === 'serve'
-    ? ownVersion().then(version => servePage({ page: args[1], version }))
+    ? ownVersion().then(version =>
+        servePage({
+          page: args[1],
+          version,
+          idleMs: Number(process.env['VISUAL_REVIEW_IDLE_MS'] ?? 10 * 60 * 1000),
+        }),
+      )
     : writeReview(args);
 
 run(process.argv.slice(2)).then(

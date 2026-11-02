@@ -24,9 +24,10 @@ const refuse = ({ response, status, error }: RefuseOptions): void => {
 type ServePageOptions = {
   readonly page: string | undefined;
   readonly version: string;
+  readonly idleMs: number;
 };
 
-export const servePage = async ({ page, version }: ServePageOptions): Promise<string> => {
+export const servePage = async ({ page, version, idleMs }: ServePageOptions): Promise<string> => {
   if (page === undefined) throw new Error('Usage: visual-review serve <page.html>');
   const token = randomBytes(16).toString('hex');
   const html = servedPageHtml({ page: await readFile(page, 'utf8'), token, version });
@@ -37,6 +38,10 @@ export const servePage = async ({ page, version }: ServePageOptions): Promise<st
   const host = `127.0.0.1:${port}`;
   const reviewFile = join(dirname(page), `${basename(page, '.html')}.review.json`);
   const sent = Promise.withResolvers<string>();
+  const idle = setTimeout(() => {
+    server.close();
+    sent.reject(new Error('No review sent: the page was not open in a tab'));
+  }, idleMs);
   server.on('request', async (request, response) => {
     const route = request.headers.host === host ? `${request.method} ${request.url}` : undefined;
     if (route === `POST /${token}/review`) {
@@ -56,6 +61,7 @@ export const servePage = async ({ page, version }: ServePageOptions): Promise<st
       }
       response.writeHead(204).end();
       server.close();
+      clearTimeout(idle);
       sent.resolve(reviewFile);
       return;
     }

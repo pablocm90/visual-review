@@ -45,30 +45,46 @@ const writtenPage = () => {
   };
 };
 
-const urlOn = async (child: ChildProcess): Promise<string> => {
-  const lines = child.stderr ? createInterface(child.stderr) : [];
-  for await (const line of lines) {
-    const url = /http:\/\/\S+/.exec(line)?.[0];
-    if (url) return url;
-  }
-  throw new Error('serve ended without printing its URL');
+const stderrOf = (child: ChildProcess) => {
+  const url = Promise.withResolvers<string>();
+  const read = async (): Promise<string> => {
+    const lines: Array<string> = [];
+    for await (const line of child.stderr ? createInterface(child.stderr) : []) {
+      lines.push(line);
+      const found = /http:\/\/\S+/.exec(line)?.[0];
+      if (found) url.resolve(found);
+    }
+    url.reject(new Error('serve ended without printing its URL'));
+    return lines.join('\n');
+  };
+  return { url: url.promise, written: read() };
 };
 
-const servedPage = async ({ openers = ['xdg-open', 'open'] } = {}) => {
+type ServedPageOptions = {
+  readonly openers?: ReadonlyArray<string>;
+  readonly idleMs?: number;
+};
+
+const servedPage = async ({ openers = ['xdg-open', 'open'], idleMs }: ServedPageOptions = {}) => {
   const bin = fakeOpeners(openers);
   const written = writtenPage();
   const child = spawn(
     process.execPath,
     [join(import.meta.dirname, 'cli.ts'), 'serve', written.page],
     {
-      env: { ...process.env, PATH: bin.path },
+      env: {
+        ...process.env,
+        PATH: bin.path,
+        ...(idleMs === undefined ? {} : { VISUAL_REVIEW_IDLE_MS: String(idleMs) }),
+      },
     },
   );
-  const exited = Promise.all([once(child, 'close'), text(child.stdout)]).then(
-    ([[code], stdout]) => ({ code, stdout }),
+  const stderr = stderrOf(child);
+  const exited = Promise.all([once(child, 'close'), text(child.stdout), stderr.written]).then(
+    ([[code], stdout, errors]) => ({ code, stdout, stderr: errors }),
   );
   return {
-    url: await urlOn(child),
+    url: await stderr.url,
     page: written.page,
     opened: bin.opened,
     exited,
@@ -194,7 +210,7 @@ test('a review sent from the served page is written beside it as <name>.review.j
   await sendReview({ origin, token: pathname.slice(1), review });
 
   const reviewFile = server.page.replace(/\.html$/, '.review.json');
-  expect(await server.exited).toEqual({ code: 0, stdout: `${reviewFile}\n` });
+  expect(await server.exited).toMatchObject({ code: 0, stdout: `${reviewFile}\n` });
   expect(JSON.parse(readFileSync(reviewFile, 'utf8'))).toEqual(review);
 });
 
@@ -240,4 +256,14 @@ test('sending a review the served page would refuse rejects with its answer, so 
       review: { version: 1, verdict: 'comment', comments: {} },
     }),
   ).rejects.toThrow('The review was not sent: 403 Forbidden');
+});
+
+test('serve that hears nothing from the page for its idle time exits non-zero saying no review was sent', async () => {
+  using server = await servedPage({ idleMs: 200 });
+
+  expect(await server.exited).toMatchObject({
+    code: 1,
+    stdout: '',
+    stderr: expect.stringContaining('No review sent'),
+  });
 });
