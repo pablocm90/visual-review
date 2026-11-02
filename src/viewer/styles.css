@@ -1989,3 +1989,23 @@ pre .hljs-emphasis {
   color: var(--removed);
   overflow-wrap: anywhere;
 }
+
+[data-colouring="kind"] [data-step="0"] {
+  --step-fill: var(--ramp-3);
+  --step-ink: var(--ramp-3-ink);
+}
+
+[data-colouring="kind"] [data-step="1"] {
+  --step-fill: var(--ramp-2);
+  --step-ink: var(--ink);
+}
+
+[data-colouring="kind"] [data-step="2"] {
+  --step-fill: var(--ramp-0);
+  --step-ink: var(--ink);
+}
+
+[data-colouring="kind"] [data-step="3"] {
+  --step-fill: var(--unchanged-fill);
+  --step-ink: var(--muted);
+}

@@ -87,7 +87,7 @@ export const ScaleLegend = ({
 }) => {
   const { title, steps } = colouring === 'kind' ? KIND_LEGEND : SCALES[colouring];
   return (
-    <div className="scale-legend">
+    <div className="scale-legend" data-colouring={colouring}>
       <span>{title}</span>
       <ul className="scale" aria-label="Scale">
         {steps.map((step, at) => (
