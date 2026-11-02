@@ -1,6 +1,6 @@
 import type { FileSymbols, ReadSymbol, SymbolKind } from './reader.ts';
 
-export type SymbolChange = 'added' | 'removed' | 'edited' | 'unchanged';
+export type SymbolChange = 'added' | 'removed' | 'edited' | 'formatting' | 'unchanged';
 
 export type SymbolStatement = {
   readonly name: string;
@@ -25,6 +25,13 @@ const sameSymbol = (one: ReadSymbol, other: ReadSymbol): boolean =>
 const named = ({ name, scope, kind }: ReadSymbol) =>
   scope === undefined ? { name, kind } : { name, scope, kind };
 
+const changeOf = (old: ReadSymbol, symbol: ReadSymbol): SymbolChange => {
+  if (old.textHash === symbol.textHash) return 'unchanged';
+  return old.bodyHash === symbol.bodyHash && old.signatureHash === symbol.signatureHash
+    ? 'formatting'
+    : 'edited';
+};
+
 export const symbolChanges = ({ before, after }: SymbolChangesOptions): SymbolChanges => ({
   symbols: [
     ...after.symbols.map((symbol): SymbolStatement => {
@@ -35,7 +42,7 @@ export const symbolChanges = ({ before, after }: SymbolChangesOptions): SymbolCh
       return {
         ...named(symbol),
         exported: { base: old.exported, head: symbol.exported },
-        change: old.textHash === symbol.textHash ? 'unchanged' : 'edited',
+        change: changeOf(old, symbol),
       };
     }),
     ...before.symbols

@@ -44,3 +44,26 @@ test('a symbol of the same name but another kind or scope is another symbol', ()
     'removed method Shop.open',
   ]);
 });
+
+test('a symbol whose text changed but not its body or signature only changed formatting', () => {
+  const before = read('function charge(amount: number) { return amount; }');
+  const after = read(
+    'function charge(',
+    '  amount: number,',
+    ') {',
+    '  // as is',
+    '  return amount;',
+    '}',
+  );
+
+  expect(symbolChanges({ before, after }).symbols.map(({ change }) => change)).toEqual([
+    'formatting',
+  ]);
+});
+
+test('a symbol whose signature changed but not its body is edited, as an overload', () => {
+  const before = read('function charge(a: number): number;', 'function charge(a: unknown) {}');
+  const after = read('function charge(a: string): number;', 'function charge(a: unknown) {}');
+
+  expect(symbolChanges({ before, after }).symbols.map(({ change }) => change)).toEqual(['edited']);
+});
