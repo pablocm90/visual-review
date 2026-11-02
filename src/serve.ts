@@ -55,10 +55,9 @@ export const servePage = async ({
 }: ServePageOptions): Promise<string | undefined> => {
   if (page === undefined) throw new Error('Usage: visual-review serve <page.html>');
   const lockFile = join(dirname(page), `${basename(page, '.html')}.serve`);
-  const lock = await readFile(lockFile, 'utf8').then(
-    written => LockSchema.parse(JSON.parse(written)),
-    () => undefined,
-  );
+  const lock = await readFile(lockFile, 'utf8')
+    .then(written => LockSchema.parse(JSON.parse(written)))
+    .catch(() => undefined);
   if (lock !== undefined && isRunning(lock.pid)) {
     openInBrowser(urlOf(lock));
     return undefined;

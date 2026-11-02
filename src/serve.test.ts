@@ -316,10 +316,14 @@ const endedPid = async (): Promise<number> => {
   return ended.pid ?? 0;
 };
 
-test('a lock left by a serve that has ended is replaced by a new server', async () => {
-  const lock = JSON.stringify({ pid: await endedPid(), port: 9, token: 'ended' });
-
-  using server = await servedPage({ lock });
+test.for([
+  {
+    lock: 'left by a serve that has ended',
+    written: async () => JSON.stringify({ pid: await endedPid(), port: 9, token: 'ended' }),
+  },
+  { lock: 'serve could not have written', written: async () => '{"pid": 1, "port"' },
+])('a lock $lock is replaced by a new server', async ({ written }) => {
+  using server = await servedPage({ lock: await written() });
 
   expect((await fetch(server.url)).status).toBe(200);
 });
