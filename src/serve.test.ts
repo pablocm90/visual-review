@@ -22,6 +22,7 @@ const fakeOpeners = (openers: ReadonlyArray<string>) => {
   return {
     path: bin,
     opened: () => readFileSync(opened, 'utf8'),
+    forget: () => rmSync(opened, { force: true }),
     [Symbol.dispose]: () => rmSync(bin, { recursive: true, force: true }),
   };
 };
@@ -88,6 +89,16 @@ const servedPage = async ({ openers = ['xdg-open', 'open'], idleMs }: ServedPage
     url: await stderr.url,
     page: written.page,
     opened: bin.opened,
+    forgetOpened: bin.forget,
+    serveAgain: () =>
+      promisify(execFile)(
+        process.execPath,
+        [join(import.meta.dirname, 'cli.ts'), 'serve', written.page],
+        {
+          env: { ...process.env, PATH: bin.path },
+          timeout: 3000,
+        },
+      ),
     exited,
     [Symbol.dispose]: () => {
       child.kill();
@@ -280,4 +291,15 @@ test('serve the page keeps pinging stays up past its idle time, and exits once t
 
   expect(await statusFor({ url: server.url })).toBe(200);
   expect(await server.exited).toMatchObject({ code: 1 });
+});
+
+test('serving a page that is already served opens the live server instead of starting another, and exits 0', async () => {
+  using server = await servedPage();
+  await vi.waitFor(() => expect(server.opened()).toBe(server.url));
+  server.forgetOpened();
+
+  const again = await server.serveAgain();
+
+  expect(again.stdout).toBe('');
+  await vi.waitFor(() => expect(server.opened()).toBe(server.url));
 });

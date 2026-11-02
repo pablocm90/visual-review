@@ -6,10 +6,22 @@ import { createServer, type ServerResponse } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { basename, dirname, join } from 'node:path';
 import { text } from 'node:stream/consumers';
+import { z } from 'zod';
 import { servedPageHtml } from './core/page.ts';
 import { parseReview } from './core/review.ts';
 
 const opener = process.platform === 'darwin' ? 'open' : 'xdg-open';
+
+const openInBrowser = (url: string): void => {
+  spawn(opener, [url], { stdio: 'ignore', detached: true })
+    .on('error', () => {})
+    .unref();
+};
+
+const LockSchema = z.strictObject({ pid: z.number(), port: z.number(), token: z.string() });
+
+const urlOf = ({ port, token }: { readonly port: number; readonly token: string }): string =>
+  `http://127.0.0.1:${port}/${token}`;
 
 type RefuseOptions = {
   readonly response: ServerResponse;
@@ -27,8 +39,21 @@ type ServePageOptions = {
   readonly idleMs: number;
 };
 
-export const servePage = async ({ page, version, idleMs }: ServePageOptions): Promise<string> => {
+export const servePage = async ({
+  page,
+  version,
+  idleMs,
+}: ServePageOptions): Promise<string | undefined> => {
   if (page === undefined) throw new Error('Usage: visual-review serve <page.html>');
+  const lockFile = join(dirname(page), `${basename(page, '.html')}.serve`);
+  const lock = await readFile(lockFile, 'utf8').then(
+    written => LockSchema.parse(JSON.parse(written)),
+    () => undefined,
+  );
+  if (lock !== undefined) {
+    openInBrowser(urlOf(lock));
+    return undefined;
+  }
   const token = randomBytes(16).toString('hex');
   const html = servedPageHtml({ page: await readFile(page, 'utf8'), token, version });
   const server = createServer();
@@ -82,10 +107,9 @@ export const servePage = async ({ page, version, idleMs }: ServePageOptions): Pr
       })
       .end(html);
   });
-  const url = `http://${host}/${token}`;
+  await writeFile(lockFile, JSON.stringify({ pid: process.pid, port, token }));
+  const url = urlOf({ port, token });
   console.error(`Serving ${url}`);
-  spawn(opener, [url], { stdio: 'ignore', detached: true })
-    .on('error', () => {})
-    .unref();
+  openInBrowser(url);
   return sent.promise;
 };
