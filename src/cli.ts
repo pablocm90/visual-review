@@ -138,15 +138,20 @@ const writeReview = async (args: ReadonlyArray<string>): Promise<string> => {
   return page;
 };
 
-const IdleMsSchema = z.coerce.number().int().min(1).max(2_147_483_647);
+const MsSchema = z.coerce.number().int().min(1).max(2_147_483_647);
 
-const idleMs = (): number => {
-  const written = process.env['VISUAL_REVIEW_IDLE_MS'];
-  if (written === undefined) return 10 * 60 * 1000;
-  const parsed = IdleMsSchema.safeParse(written);
+type MsFromOptions = {
+  readonly variable: string;
+  readonly fallback: number;
+};
+
+const msFrom = ({ variable, fallback }: MsFromOptions): number => {
+  const written = process.env[variable];
+  if (written === undefined) return fallback;
+  const parsed = MsSchema.safeParse(written);
   if (!parsed.success)
     throw new Error(
-      `VISUAL_REVIEW_IDLE_MS must be a whole number of milliseconds from 1 to 2147483647, not ${JSON.stringify(written)}`,
+      `${variable} must be a whole number of milliseconds from 1 to 2147483647, not ${JSON.stringify(written)}`,
     );
   return parsed.data;
 };
@@ -157,7 +162,11 @@ const run = (args: ReadonlyArray<string>): Promise<string | undefined> =>
         servePage({
           page: args.slice(1).find(arg => arg !== '--no-open'),
           version,
-          idleMs: idleMs(),
+          idleMs: msFrom({ variable: 'VISUAL_REVIEW_IDLE_MS', fallback: 10 * 60 * 1000 }),
+          firstPingMs: msFrom({
+            variable: 'VISUAL_REVIEW_FIRST_PING_MS',
+            fallback: 24 * 60 * 60 * 1000,
+          }),
           open: !args.includes('--no-open'),
         }),
       )

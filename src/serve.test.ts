@@ -82,6 +82,7 @@ const stderrOf = (child: ChildProcess) => {
 type ServedPageOptions = {
   readonly openers?: ReadonlyArray<string>;
   readonly idleMs?: number;
+  readonly firstPingMs?: number;
   readonly lock?: string;
   readonly flags?: ReadonlyArray<string>;
 } & WrittenPageOptions;
@@ -89,6 +90,7 @@ type ServedPageOptions = {
 const servedPage = async ({
   openers = ['xdg-open', 'open'],
   idleMs,
+  firstPingMs,
   lock,
   flags = [],
   ...page
@@ -104,6 +106,7 @@ const servedPage = async ({
         ...process.env,
         PATH: bin.path,
         ...(idleMs === undefined ? {} : { VISUAL_REVIEW_IDLE_MS: String(idleMs) }),
+        ...(firstPingMs === undefined ? {} : { VISUAL_REVIEW_FIRST_PING_MS: String(firstPingMs) }),
       },
     },
   );
@@ -247,6 +250,7 @@ test('a review sent from the served page is written beside it as <name>.review.j
     },
   } as const;
 
+  await pingServe({ origin, token: pathname.slice(1) });
   await sendReview({ origin, token: pathname.slice(1), review });
 
   const reviewFile = server.page.replace(/\.html$/, '.review.json');
@@ -318,36 +322,50 @@ test('serve that cannot write its lock exits non-zero at once, saying why', asyn
   });
 });
 
-test.for(['10m', '', '0', '1.5', '3000000000'])(
-  'serve with VISUAL_REVIEW_IDLE_MS=%j exits non-zero naming it, serving nothing',
-  async idleMs => {
+test.for([
+  ...['10m', '', '0', '1.5', '3000000000'].map(value => ({
+    variable: 'VISUAL_REVIEW_IDLE_MS',
+    value,
+  })),
+  { variable: 'VISUAL_REVIEW_FIRST_PING_MS', value: '10m' },
+])(
+  'serve with $variable=$value exits non-zero naming it, serving nothing',
+  async ({ variable, value }) => {
     using bin = fakeOpeners(['xdg-open', 'open']);
     using written = writtenPage({});
 
     const serving = promisify(execFile)(
       process.execPath,
       [join(import.meta.dirname, 'cli.ts'), 'serve', written.page],
-      { env: { ...process.env, PATH: bin.path, VISUAL_REVIEW_IDLE_MS: idleMs }, timeout: 3000 },
+      { env: { ...process.env, PATH: bin.path, [variable]: value }, timeout: 3000 },
     );
 
     await expect(serving).rejects.toMatchObject({
       code: 1,
       stderr: expect.stringMatching(
-        /^VISUAL_REVIEW_IDLE_MS must be a whole number of milliseconds/,
+        new RegExp(`^${variable} must be a whole number of milliseconds`),
       ),
     });
   },
 );
 
-test('serve that hears nothing from the page for its idle time exits non-zero saying no review was sent, leaving no lock', async () => {
-  using server = await servedPage({ idleMs: 200 });
+test('serve whose page never pings exits non-zero at the end of its first-ping wait, saying the page was not open, leaving no lock', async () => {
+  using server = await servedPage({ firstPingMs: 200 });
 
   expect(await server.exited).toMatchObject({
     code: 1,
     stdout: '',
-    stderr: expect.stringContaining('No review sent'),
+    stderr: expect.stringContaining('No review sent: the page was not open in a tab'),
   });
   expect(existsSync(server.page.replace(/\.html$/, '.serve'))).toBe(false);
+});
+
+test('serve waits past its idle time for the page to first ping', async () => {
+  using server = await servedPage({ idleMs: 200 });
+
+  await delay(600);
+
+  expect(await statusFor({ url: server.url })).toBe(200);
 });
 
 test.for(['SIGINT', 'SIGTERM'] as const)(
@@ -366,17 +384,28 @@ test.for(['SIGINT', 'SIGTERM'] as const)(
   },
 );
 
-test('serve the page keeps pinging stays up past its idle time, and exits once the pings stop', async () => {
-  using server = await servedPage({ idleMs: 1000 });
+test('serve the page keeps pinging stays up past its first-ping wait and its idle time', async () => {
+  using server = await servedPage({ firstPingMs: 600, idleMs: 1000 });
   const { origin, pathname } = new URL(server.url);
 
   for (const _ping of [1, 2, 3, 4]) {
-    await delay(300);
+    await delay(400);
     await pingServe({ origin, token: pathname.slice(1) });
   }
 
   expect(await statusFor({ url: server.url })).toBe(200);
-  expect(await server.exited).toMatchObject({ code: 1 });
+});
+
+test('serve whose page has pinged exits non-zero its idle time after the last ping, long before its first-ping wait would end', async () => {
+  using server = await servedPage({ idleMs: 200 });
+  const { origin, pathname } = new URL(server.url);
+
+  await pingServe({ origin, token: pathname.slice(1) });
+
+  expect(await server.exited).toMatchObject({
+    code: 1,
+    stderr: expect.stringContaining('No review sent'),
+  });
 });
 
 test('serving a page that is already served opens the live server instead of starting another, and exits 0', async () => {
@@ -391,7 +420,7 @@ test('serving a page that is already served opens the live server instead of sta
 });
 
 test('serve --no-open serves the page at the URL it prints and opens nothing', async () => {
-  using server = await servedPage({ flags: ['--no-open'], idleMs: 500 });
+  using server = await servedPage({ flags: ['--no-open'], firstPingMs: 500 });
 
   expect((await fetch(server.url)).status).toBe(200);
   await server.exited;

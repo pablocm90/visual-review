@@ -111,6 +111,7 @@ type ServePageOptions = {
   readonly page: string | undefined;
   readonly version: string;
   readonly idleMs: number;
+  readonly firstPingMs: number;
   readonly open: boolean;
 };
 
@@ -118,6 +119,7 @@ export const servePage = async ({
   page,
   version,
   idleMs,
+  firstPingMs,
   open,
 }: ServePageOptions): Promise<string | undefined> => {
   if (page === undefined) throw new Error('Usage: visual-review serve [--no-open] <page.html>');
@@ -151,7 +153,13 @@ export const servePage = async ({
     server.close();
     sent.reject(new Error(`No review sent: ${reason}`));
   };
-  const idle = setTimeout(unsent('the page was not open in a tab'), idleMs);
+  const notOpen = unsent('the page was not open in a tab');
+  const unpinged = setTimeout(notOpen, firstPingMs);
+  const firstPing = Promise.withResolvers<void>();
+  const idle = firstPing.promise.then(() => {
+    clearTimeout(unpinged);
+    return setTimeout(notOpen, idleMs);
+  });
   const stopped = unsent('serve was stopped');
   server.on('request', async (request, response) => {
     const route = routeOf({ request, host });
@@ -163,7 +171,8 @@ export const servePage = async ({
       return;
     }
     if (route === `POST /${token}/ping`) {
-      idle.refresh();
+      firstPing.resolve();
+      (await idle).refresh();
       response.writeHead(204).end();
       return;
     }
@@ -178,7 +187,8 @@ export const servePage = async ({
   console.error(`Serving ${url}`);
   if (open) openInBrowser(url);
   return sent.promise.finally(() => {
-    clearTimeout(idle);
+    clearTimeout(unpinged);
+    void idle.then(clearTimeout);
     process.off('SIGINT', stopped).off('SIGTERM', stopped);
     return rm(lockFile, { force: true });
   });
