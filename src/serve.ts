@@ -20,29 +20,25 @@ const openInBrowser = (url: string): void => {
 
 const LockSchema = z.strictObject({ pid: z.number(), port: z.number(), token: z.string() });
 
-const isRunning = (pid: number): boolean => {
-  try {
-    process.kill(pid, 0);
-    return true;
-  } catch {
-    return false;
-  }
-};
-
 type Lock = z.infer<typeof LockSchema>;
+
+const urlOf = ({ port, token }: { readonly port: number; readonly token: string }): string =>
+  `http://127.0.0.1:${port}/${token}`;
 
 const liveLock = async (lockFile: string): Promise<Lock | undefined> => {
   const lock = await readFile(lockFile, 'utf8')
     .then(written => LockSchema.parse(JSON.parse(written)))
     .catch(() => undefined);
-  return lock !== undefined && isRunning(lock.pid) ? lock : undefined;
+  const answered =
+    lock !== undefined &&
+    (await fetch(`${urlOf(lock)}/ping`, { method: 'POST', signal: AbortSignal.timeout(1000) })
+      .then(response => response.ok)
+      .catch(() => false));
+  return answered ? lock : undefined;
 };
 
 const beside = (page: string, extension: string): string =>
   join(dirname(page), `${basename(page, '.html')}.${extension}`);
-
-const urlOf = ({ port, token }: { readonly port: number; readonly token: string }): string =>
-  `http://127.0.0.1:${port}/${token}`;
 
 type RefuseOptions = {
   readonly response: ServerResponse;

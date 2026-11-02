@@ -377,9 +377,27 @@ test.for([
     written: async () => JSON.stringify({ pid: await endedPid(), port: 9, token: 'ended' }),
   },
   { lock: 'serve could not have written', written: async () => '{"pid": 1, "port"' },
+  {
+    lock: 'whose pid another process has taken',
+    written: async () => JSON.stringify({ pid: process.pid, port: 9, token: 'ended' }),
+  },
 ])('a lock $lock is replaced by a new server', async ({ written }) => {
   using server = await servedPage({ lock: await written() });
 
+  expect((await fetch(server.url)).status).toBe(200);
+});
+
+test('a lock naming a server that refuses its token is replaced by a new server', async () => {
+  using other = await servedPage();
+  const { port } = new URL(other.url);
+
+  using server = await servedPage({
+    directory: dirname(other.page),
+    range: 'main..other',
+    lock: JSON.stringify({ pid: process.pid, port: Number(port), token: 'not-its-token' }),
+  });
+
+  expect(new URL(server.url).port).not.toBe(port);
   expect((await fetch(server.url)).status).toBe(200);
 });
 
