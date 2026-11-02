@@ -97,11 +97,9 @@ const byLikenessThenNames = (one: Rename, other: Rename): number =>
   qualified(one.symbol).localeCompare(qualified(other.symbol)) ||
   qualified(one.former).localeCompare(qualified(other.former));
 
-const API_CHANGES: ReadonlyArray<SymbolChange> = ['added', 'removed', 'renamed'];
-
-const changesApi = ({ exported, change, signature }: SymbolStatement): boolean =>
+export const changesApi = ({ exported, change, signature }: SymbolStatement): boolean =>
   (exported.base === true || exported.head === true) &&
-  (signature !== undefined || API_CHANGES.includes(change));
+  (signature !== undefined || change === 'renamed' || exported.base !== exported.head);
 
 const kindOf = ({
   before,

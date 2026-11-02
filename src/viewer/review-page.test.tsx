@@ -2801,3 +2801,68 @@ test("a file's Symbols tab lists its changed symbols grouped by change, counting
   await user.click(screen.getByRole('button', { name: 'total.ts: modified' }));
   expect(inspectorTabs()).toEqual(['Note']);
 });
+
+test("a file's Symbols tab lists its API changes first: exported symbols added, removed, renamed, moved, un-exported or whose signature changed", async () => {
+  const user = userEvent.setup();
+  const exported = (base?: boolean, head?: boolean) => ({
+    ...(base !== undefined && { base }),
+    ...(head !== undefined && { head }),
+  });
+  render(
+    <ReviewPage
+      review={pageWith({
+        range: 'abc123..def456',
+        diff: {
+          nodes: [
+            { id: 'web', kind: 'stack', label: 'web', path: '', state: 'unchanged' },
+            topFile('refund.ts', 'modified'),
+          ],
+          edges: [],
+        },
+        symbols: [
+          symbolsOf('web/file/refund.ts', [
+            {
+              name: 'charge',
+              kind: 'function',
+              exported: exported(true, true),
+              change: 'edited',
+              signature: { base: '()', head: '(at: Date)' },
+            },
+            { name: 'total', kind: 'function', exported: exported(true, true), change: 'edited' },
+            { name: 'old', kind: 'function', exported: exported(true), change: 'removed' },
+            { name: 'refund', kind: 'function', exported: exported(true, false), change: 'edited' },
+            {
+              name: 'tax',
+              kind: 'function',
+              exported: exported(true),
+              change: 'moved',
+              movedTo: 'web/file/tax.ts',
+            },
+            {
+              name: 'helper',
+              kind: 'function',
+              exported: exported(undefined, false),
+              change: 'added',
+            },
+          ]),
+        ],
+      })}
+    />,
+  );
+
+  await user.click(await screen.findByRole('button', { name: 'refund.ts: modified' }));
+  await user.click(within(inspector()).getByRole('tab', { name: 'Symbols 6' }));
+  expect(symbolGroups()).toEqual([
+    [
+      'API',
+      [
+        'function charge: edited',
+        'function old: removed',
+        'function refund: edited',
+        'function tax: moved',
+      ],
+    ],
+    ['Edited', ['function total: edited']],
+    ['Added', ['function helper: added']],
+  ]);
+});
