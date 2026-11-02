@@ -32,6 +32,15 @@ const exportedBy = (text: string, statement: Node): ReadonlyArray<string> => {
       );
 };
 
+const namesExportedBy = (text: string, statement: Node): ReadonlyArray<string> => {
+  if (statement.type === 'ExportDefaultDeclaration') return ['default'];
+  if (statement.type === 'ExportAllDeclaration') return [`* from ${statement.source.value}`];
+  if (statement.type !== 'ExportNamedDeclaration') return [];
+  return statement.declaration
+    ? declaredNames(text, statement.declaration)
+    : statement.specifiers.map(({ exported }) => nameOf(text, exported));
+};
+
 const isPrivate = (declaration: Node): boolean =>
   declaration.type === 'ClassPrivateMethod' ||
   declaration.type === 'ClassPrivateProperty' ||
@@ -183,5 +192,6 @@ export const symbolsOfTypeScript = (text: string, path: string): FileSymbols => 
       textHash: sha1(ownText(text, walked.node, declarations)),
       bodyTokens: tokensOf(text, walked.node, code, declarations),
     })),
+    exports: program.body.flatMap(statement => namesExportedBy(text, statement)),
   };
 };

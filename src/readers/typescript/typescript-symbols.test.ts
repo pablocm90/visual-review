@@ -344,3 +344,36 @@ test("a symbol's body tokens are its source's tokens without its name, comments 
     'inner: ( ) => 1',
   ]);
 });
+
+test('a file lists the names it exports, re-exports included', () => {
+  expect(
+    symbolsOfTypeScript(
+      source(
+        'export function charge() {}',
+        'export const refund = () => {}, rate = 2;',
+        'export class Shop {}',
+        'export type Id = string;',
+        'function local() {}',
+        'export { local as kept, rate as fee };',
+        'export { a, b as c } from "./elsewhere";',
+        'export * from "./everything";',
+        'export * as tools from "./tools";',
+        'export default function () {}',
+      ),
+      'src/shop.ts',
+    ).exports,
+  ).toEqual([
+    'charge',
+    'refund',
+    'rate',
+    'Shop',
+    'Id',
+    'kept',
+    'fee',
+    'a',
+    'c',
+    '* from ./everything',
+    'tools',
+    'default',
+  ]);
+});
