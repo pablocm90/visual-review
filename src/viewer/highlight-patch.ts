@@ -43,6 +43,8 @@ export type PatchLine = {
   readonly kind: 'header' | 'context' | 'added' | 'removed' | 'note';
   readonly prefix: string;
   readonly pieces: ReadonlyArray<Piece>;
+  readonly base?: number;
+  readonly head?: number;
 };
 
 type Kind = PatchLine['kind'];
@@ -142,14 +144,29 @@ type Laying = {
   readonly at: Readonly<Record<Side, number>>;
 };
 
+const startsOf = (header = ''): Readonly<Record<Side, number>> => {
+  const match = /^@@ -(\d+)(?:,\d+)? \+(\d+)/.exec(header);
+  return { old: Number(match?.[1]), new: Number(match?.[2]) };
+};
+
+const numbersAt = (
+  kind: Kind,
+  at: Readonly<Record<Side, number>>,
+  start: Readonly<Record<Side, number>>,
+) => ({
+  ...(SIDE_KINDS.old.includes(kind) && { base: start.old + at.old }),
+  ...(SIDE_KINDS.new.includes(kind) && { head: start.new + at.new }),
+});
+
 const hunkLines = (rows: ReadonlyArray<Row>, language: string | undefined) => {
   const sides = { old: sideOf(rows, 'old', language), new: sideOf(rows, 'new', language) };
+  const start = startsOf(rows[0]?.code);
   return rows.reduce<Laying>(
     ({ lines, at }, { kind, prefix, code }) => {
       const side = SHOWN_FROM[kind];
       const pieces = (side && sides[side][at[side]]) ?? [{ text: code, scopes: [] }];
       return {
-        lines: lines.concat({ kind, prefix, pieces }),
+        lines: lines.concat({ kind, prefix, pieces, ...numbersAt(kind, at, start) }),
         at: {
           old: at.old + Number(SIDE_KINDS.old.includes(kind)),
           new: at.new + Number(SIDE_KINDS.new.includes(kind)),
