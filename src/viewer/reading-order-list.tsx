@@ -25,6 +25,7 @@ export const ReadingOrderList = ({
   onGoTo,
   onShowOutside,
 }: ReadingOrderListProps) => {
+  if (review.readingOrder.parts.length === 0 && review.undrawn.length === 0) return null;
   const labelOf = new Map(review.diff.nodes.map(node => [node.id, node.label]));
   const findingsOn = Map.groupBy(findings, finding => finding.target);
   return (

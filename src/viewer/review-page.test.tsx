@@ -1564,8 +1564,8 @@ test("the reading order numbers the changed parts in its order, each marked with
   expect(within(inspector()).getByRole('heading', { level: 2 }).textContent).toBe('cli-adapter');
 });
 
-test('the reading order shows no outside heading when every changed file is drawn', async () => {
-  render(
+test('the reading order shows no outside heading when every changed file is drawn, lists the outside files alone when no part changed, and is gone when nothing changed', async () => {
+  const { rerender } = render(
     <ReviewPage
       review={pageWith({
         ...review,
@@ -1582,6 +1582,18 @@ test('the reading order shows no outside heading when every changed file is draw
       .map(row => row.textContent),
   ).toEqual(['1 application']);
   expect(within(order).queryByRole('heading', { name: 'Outside the graph' })).toBeNull();
+
+  rerender(
+    <ReviewPage review={pageWith({ ...review, undrawn: [{ path: 'README.md', patch: '' }] })} />,
+  );
+  expect(
+    within(screen.getByRole('navigation', { name: 'Reading order' }))
+      .getAllByRole('button')
+      .map(row => row.textContent),
+  ).toEqual(['1 README.md']);
+
+  rerender(<ReviewPage review={pageWith(review)} />);
+  expect(screen.queryByRole('navigation', { name: 'Reading order' })).toBeNull();
 });
 
 test('look first lists the findings to look at in rank order, in the dimension a triage chip picks, collapsing to their count, each going to its node, seven at most and Show all opening the rail past them, and is absent when none needs a look', async () => {
