@@ -9,6 +9,7 @@ import type {
 import type { FileSymbols } from '../../core/reader.ts';
 import {
   isOverload,
+  isTooBig,
   nameOf,
   parseTypeScript,
   sourceOf,
@@ -207,6 +208,8 @@ const tokensOf = (
 };
 
 export const symbolsOfTypeScript = (text: string, path: string): FileSymbols => {
+  if (isTooBig(text))
+    throw new Error('too big to read: over 262,144 characters or a line over 1,000');
   const { program, tokens } = parseTypeScript(text, path);
   const code = (tokens ?? []).filter(isToken).filter(isCode);
   const names = new Set(program.body.flatMap(statement => exportedBy(text, statement)));

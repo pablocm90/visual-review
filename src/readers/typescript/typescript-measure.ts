@@ -4,6 +4,7 @@ import {
   childrenOf,
   isFunction,
   isOverload,
+  isTooBig,
   parseTypeScript,
   symbolsIn,
 } from './typescript-syntax.ts';
@@ -96,13 +97,6 @@ const ownNodes = (node: Node, functions: ReadonlySet<Node>): ReadonlyArray<Node>
   childrenOf(node).flatMap(child =>
     functions.has(child) ? [] : [child, ...ownNodes(child, functions)],
   );
-
-const MOST_CHARACTERS = 262_144;
-
-const LONGEST_LINE = 1000;
-
-const isTooBig = (text: string): boolean =>
-  text.length > MOST_CHARACTERS || text.split('\n').some(line => line.length > LONGEST_LINE);
 
 export const measureTypeScript = (text: string, path: string): FileMeasures | undefined => {
   if (isTooBig(text)) return undefined;

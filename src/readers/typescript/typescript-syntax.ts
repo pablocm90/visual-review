@@ -178,5 +178,12 @@ const symbolsUnder = (text: string, node: Node, scope: Scope): ReadonlyArray<Wal
 export const symbolsIn = (text: string, program: Node): ReadonlyArray<WalkedSymbol> =>
   symbolsUnder(text, program, { inFunction: false, holder: undefined, scope: undefined });
 
+const MOST_CHARACTERS = 262_144;
+
+const LONGEST_LINE = 1000;
+
+export const isTooBig = (text: string): boolean =>
+  text.length > MOST_CHARACTERS || text.split('\n').some(line => line.length > LONGEST_LINE);
+
 export const parseTypeScript = (text: string, path: string) =>
   parse(text, { sourceType: 'module', plugins: pluginsFor(path), tokens: true });

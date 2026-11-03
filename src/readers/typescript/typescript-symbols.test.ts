@@ -458,3 +458,10 @@ test("the TS reader reads a source file's symbols, and none of a test file's or 
     undefined,
   ]);
 });
+
+test.for([
+  { reason: 'a line of 1,001 characters', text: `b;\na=${'1'.repeat(998)};` },
+  { reason: '262,145 characters', text: `${'a;\n'.repeat(87_381)}  ` },
+])('a file of $reason is too big to read symbols from, as it is to measure', ({ text }) => {
+  expect(() => symbolsOfTypeScript(text, 'src/vendor.js')).toThrow(/too big/);
+});
