@@ -64,3 +64,38 @@ test('orders by the head graph, not by an import the change removed', () => {
   );
   expect(readingOrder(diff).parts).toEqual(['web/file/b.ts', 'web/file/a.ts']);
 });
+
+test('orders the modules of two crates, at any depth, by the edge between the crates', () => {
+  const crate = (name: string): DiffedNode => ({
+    id: `api/crate/${name}`,
+    kind: 'package',
+    label: name,
+    path: `crates/${name}`,
+    parent: 'api',
+    state: 'modified',
+  });
+  const mod = (krate: string, name: string, parent = `api/crate/${krate}`): DiffedNode => ({
+    id: `api/mod/${krate}/${name}`,
+    kind: 'module',
+    label: name,
+    path: `crates/${krate}/src/${name}.rs`,
+    parent,
+    state: 'modified',
+  });
+  const diff: GraphDiff = {
+    nodes: [
+      { id: 'api', kind: 'stack', label: 'api', path: '', state: 'modified' },
+      crate('app'),
+      crate('domain'),
+      mod('app', 'routes'),
+      mod('app', 'state'),
+      { ...mod('domain', 'model'), state: 'unchanged' },
+      mod('domain', 'model/order', 'api/mod/domain/model'),
+    ],
+    edges: [{ from: 'api/crate/app', to: 'api/crate/domain', state: 'unchanged' }],
+  };
+  expect(readingOrder(diff)).toEqual({
+    parts: ['api/mod/domain/model/order', 'api/mod/app/routes', 'api/mod/app/state'],
+    cycles: [],
+  });
+});

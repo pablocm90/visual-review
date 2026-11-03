@@ -40,8 +40,18 @@ export const readingOrder = (diff: GraphDiff): ReadingOrder => {
     ]);
     return next.size === from.size ? from : reached(next);
   };
-  const reach = new Map(parts.map(part => [part, reached(new Set([part]))]));
-  const reaches: Reaches = (part, other) => reach.get(part)?.has(other) ?? false;
+  const parentOf = new Map(diff.nodes.map(node => [node.id, node.parent]));
+  const ancestry = (id: string): ReadonlyArray<string> => {
+    const parent = parentOf.get(id);
+    return parent === undefined ? [id] : [id, ...ancestry(parent)];
+  };
+  const reach = new Map(parts.map(part => [part, reached(new Set(ancestry(part)))]));
+  const reaches: Reaches = (part, other) => {
+    const own = ancestry(part);
+    return ancestry(other).some(
+      id => (id === other || !own.includes(id)) && (reach.get(part)?.has(id) ?? false),
+    );
+  };
   const groupOf = (part: string): Group =>
     parts.filter(other => reaches(part, other) && reaches(other, part));
   const groups = [...new Map(parts.map(part => [groupOf(part).join(' '), groupOf(part)])).values()];
