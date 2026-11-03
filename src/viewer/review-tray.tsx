@@ -3,12 +3,11 @@ import type { Finding } from '../core/findings.ts';
 import type { GraphNode } from '../core/graph.ts';
 import type { Answer, Comment, Review } from '../core/review.ts';
 import { anchorKey, anchorName, anchorTarget } from './anchors.ts';
+import { COMMENT_KINDS, type Comments } from './comment-field.tsx';
 import { ANSWER_KINDS, type Answers } from './finding-display.tsx';
 import { partsRead } from './reading-order-list.tsx';
 
 type Drafted = Review['comments'][number];
-
-export type Comments = Readonly<Record<string, Comment>>;
 
 type Nodes = ReadonlyArray<Pick<GraphNode, 'id' | 'label' | 'path'>>;
 
@@ -28,12 +27,6 @@ const VERDICTS: ReadonlyArray<readonly [Review['verdict'], string]> = [
   ['approve', 'Approve'],
   ['comment', 'Comment'],
   ['request-changes', 'Request changes'],
-];
-
-export const COMMENT_KINDS: ReadonlyArray<readonly [Comment['kind'], string]> = [
-  ['change', 'Change this'],
-  ['question', 'Question'],
-  ['suggestion', 'Suggestion'],
 ];
 
 const kindLabels = new Map(COMMENT_KINDS);

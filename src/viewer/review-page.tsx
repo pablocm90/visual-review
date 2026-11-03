@@ -35,7 +35,7 @@ import {
 } from '../core/visible-diff.ts';
 import { anchorKey } from './anchors.ts';
 import { ColourBy, type Colouring, ScaleLegend, type Shade, shadeOf } from './colour-by.tsx';
-import { CommentField } from './comment-field.tsx';
+import { CommentField, type Comments } from './comment-field.tsx';
 import {
   AnswerButtons,
   type Answers,
@@ -58,7 +58,7 @@ import { MetricsScreen } from './metrics-screen.tsx';
 import { MetricsTable } from './metrics-tab.tsx';
 import { storedReadMarks, storeReadMarks } from './read-marks.ts';
 import { ReadingOrderList } from './reading-order-list.tsx';
-import { type Comments, ReviewTray } from './review-tray.tsx';
+import { ReviewTray } from './review-tray.tsx';
 import { changedSymbolCount, hasSymbolNews, type LineAt, SymbolsOf } from './symbols-tab.tsx';
 import { changedCount, TestFiles, TestsScreen } from './tests-screen.tsx';
 import {

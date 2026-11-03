@@ -1,7 +1,14 @@
 import { useId } from 'react';
 import type { Comment } from '../core/review.ts';
 import { anchorKey } from './anchors.ts';
-import { COMMENT_KINDS, type Comments } from './review-tray.tsx';
+
+export type Comments = Readonly<Record<string, Comment>>;
+
+export const COMMENT_KINDS: ReadonlyArray<readonly [Comment['kind'], string]> = [
+  ['change', 'Change this'],
+  ['question', 'Question'],
+  ['suggestion', 'Suggestion'],
+];
 
 type Draft = Pick<Comment, 'kind' | 'text'>;
 
