@@ -175,9 +175,14 @@ type Within = {
   readonly scope: Scope;
 };
 
-const scopeWithin = ({ text, node, own, scope }: Within): Scope => {
+const placeWithin = ({ text, node, own, scope }: Within): string | undefined => {
   const name = own?.name ?? objectNameOf(text, node);
-  const place = name === undefined ? scope.scope : qualified(scope.scope, name);
+  return name === undefined ? scope.scope : qualified(scope.scope, name);
+};
+
+const scopeWithin = (within: Within): Scope => {
+  const { text, node, own, scope } = within;
+  const place = placeWithin(within);
   return (own !== undefined && isFunction(own)) || scope.inFunction
     ? { inFunction: true, holder: undefined, scope: place }
     : { inFunction: false, holder: holderOf(text, node) ?? scope.holder, scope: place };
