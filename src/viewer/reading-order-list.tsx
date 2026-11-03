@@ -28,18 +28,25 @@ export const ReadingOrderList = ({
   if (review.readingOrder.parts.length === 0 && review.undrawn.length === 0) return null;
   const labelOf = new Map(review.diff.nodes.map(node => [node.id, node.label]));
   const findingsOn = Map.groupBy(findings, finding => finding.target);
+  const cycleFrom = new Map(review.readingOrder.cycles.map(cycle => [cycle[0], cycle.length]));
   return (
     <nav className="reading-order" aria-label="Reading order">
       <h2 className="reading-order-title">Reading order</h2>
       <ol className="reading-order-list">
         {review.readingOrder.parts.map((part, index) => {
           const found = findingsOn.get(part);
+          const cycle = cycleFrom.get(part);
           return (
             <li key={part} className="reading-order-row">
               <button type="button" className="reading-order-part" onClick={() => onGoTo(part)}>
                 <span className="reading-number">{index + 1}</span> {labelOf.get(part)}
               </button>
               {found && <FindingsMark findings={found} />}
+              {cycle !== undefined && (
+                <p className="reading-cycle">
+                  {cycle} parts depend on each other: read in name order
+                </p>
+              )}
             </li>
           );
         })}

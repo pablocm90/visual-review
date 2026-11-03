@@ -2111,6 +2111,7 @@ pre .hljs-emphasis {
 
 .reading-order-row {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
 }
 
@@ -2133,4 +2134,11 @@ pre .hljs-emphasis {
   color: var(--muted);
   font-size: 12px;
   font-weight: 600;
+}
+
+.reading-cycle {
+  flex-basis: 100%;
+  margin: 0 0 4px 38px;
+  color: var(--muted);
+  font-size: 12px;
 }

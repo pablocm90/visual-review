@@ -1515,7 +1515,7 @@ test("a note's or a metric finding in the rail goes to its node or edge as the s
   expect(document.activeElement).toBe(screen.getByRole('button', { name: 'domain: unchanged' }));
 });
 
-test("the reading order numbers the changed parts in its order, each marked with its findings' worst level and count and going to its part as the summary's links do", async () => {
+test("the reading order numbers the changed parts in its order, each marked with its findings' worst level and count, a cycle's first part saying it is one, and going to its part as the summary's links do", async () => {
   const user = userEvent.setup();
   render(
     <ReviewPage
@@ -1523,7 +1523,7 @@ test("the reading order numbers the changed parts in its order, each marked with
         ...review,
         readingOrder: {
           parts: ['rust/crate/application', 'rust/crate/cli-adapter', 'rust/crate/legacy'],
-          cycles: [],
+          cycles: [['rust/crate/application', 'rust/crate/cli-adapter', 'rust/crate/legacy']],
         },
         findings: [
           findingOn('rust/crate/cli-adapter'),
@@ -1559,6 +1559,9 @@ test("the reading order numbers the changed parts in its order, each marked with
     within(third ?? order).getByRole('img', { name: 'for information, 1 finding' }),
   ).toBeDefined();
   expect(within(first ?? order).queryByRole('img')).toBeNull();
+  expect(within(order).getAllByText(/depend on each other/)).toEqual([
+    within(first ?? order).getByText('3 parts depend on each other: read in name order'),
+  ]);
   await user.click(within(order).getByRole('button', { name: '2 cli-adapter' }));
   expect(document.activeElement).toBe(screen.getByRole('button', { name: 'cli-adapter: added' }));
   expect(within(inspector()).getByRole('heading', { level: 2 }).textContent).toBe('cli-adapter');
