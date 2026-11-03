@@ -246,6 +246,7 @@ test('each comment carries the kind picked beside it, Question until another is 
 
   expect(sent).toHaveBeenCalledExactlyOnceWith(
     sentReview({
+      verdict: 'request-changes',
       comments: [
         {
           anchor: { kind: 'part', id: 'rust/crate/domain' },
@@ -257,40 +258,48 @@ test('each comment carries the kind picked beside it, Question until another is 
   );
 });
 
-test('the verdict picked beside Send to Claude goes with the review, Comment until another is picked, and kept while the review is closed', async () => {
+const verdict = (name: string) =>
+  within(screen.getByRole('radiogroup', { name: 'Verdict' })).getByRole('radio', { name });
+
+const suggestedVerdict = () =>
+  within(screen.getByRole('radiogroup', { name: 'Verdict' })).getByRole('radio', {
+    description: 'suggested',
+  });
+
+test('the verdict follows the drafts, Approve with none or only suggestions, Comment once a question is drafted, Request changes once a change is, until one is picked, which holds as the drafts change and while the tray is closed', async () => {
   const user = userEvent.setup();
   const sent = vi.fn(async () => {});
   render(<ReviewPage review={pageWith(review)} send={sent} />);
-  const verdict = (name: string) =>
-    within(screen.getByRole('radiogroup', { name: 'Verdict' })).getByRole('radio', { name });
+  const comment = () => within(noteTab()).getByRole('textbox', { name: 'Your comment' });
 
   const rust = await screen.findByRole('group', { name: 'rust' });
   await openReview(user);
-  expect(verdict('Comment')).toHaveProperty('checked', true);
+  expect(verdict('Approve')).toHaveProperty('checked', true);
+  await user.click(within(rust).getByRole('button', { name: 'cli-adapter: added' }));
+  await pickKind(user, 'Suggestion');
+  await user.type(comment(), 'A builder might read better.');
+  expect(verdict('Approve')).toHaveProperty('checked', true);
   await user.click(within(rust).getByRole('button', { name: 'domain: unchanged' }));
-  await user.type(
-    within(noteTab()).getByRole('textbox', { name: 'Your comment' }),
-    'Keep domain free of IO.',
-  );
-  await user.click(verdict('Request changes'));
+  await user.type(comment(), 'Why here?');
+  expect(verdict('Comment')).toHaveProperty('checked', true);
+  await user.click(within(rust).getByRole('button', { name: 'application: modified' }));
+  await pickKind(user, 'Change this');
+  await user.type(comment(), 'Split it.');
+  expect(verdict('Request changes')).toHaveProperty('checked', true);
+  expect(suggestedVerdict()).toBe(verdict('Request changes'));
+
+  await user.click(verdict('Comment'));
+  await user.click(within(rust).getByRole('button', { name: 'legacy: removed' }));
+  await pickKind(user, 'Change this');
+  await user.type(comment(), 'Keep it a release longer.');
   await openReview(user);
   expect(screen.queryByRole('radiogroup', { name: 'Verdict' })).toBeNull();
   await openReview(user);
-  expect(verdict('Request changes')).toHaveProperty('checked', true);
+  expect(verdict('Comment')).toHaveProperty('checked', true);
+  expect(suggestedVerdict()).toBe(verdict('Request changes'));
   await user.click(screen.getByRole('button', { name: 'Send to Claude' }));
 
-  expect(sent).toHaveBeenCalledExactlyOnceWith(
-    sentReview({
-      verdict: 'request-changes',
-      comments: [
-        {
-          anchor: { kind: 'part', id: 'rust/crate/domain' },
-          kind: 'question',
-          text: 'Keep domain free of IO.',
-        },
-      ],
-    }),
-  );
+  expect(sent).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ verdict: 'comment' }));
 });
 
 test('Send to Claude waits for a comment that is more than blanks, and sends no blank or cleared one', async () => {
@@ -302,6 +311,7 @@ test('Send to Claude waits for a comment that is more than blanks, and sends no 
 
   const rust = await screen.findByRole('group', { name: 'rust' });
   await openReview(user);
+  await user.click(verdict('Comment'));
   expect(sendButton()).toHaveProperty('disabled', true);
   await user.type(screen.getByRole('textbox', { name: 'General comment' }), '  ');
   expect(sendButton()).toHaveProperty('disabled', true);
@@ -335,6 +345,7 @@ test('the general comment goes with the review as its body, and alone lets a Com
 
   await screen.findByRole('group', { name: 'rust' });
   await openReview(user);
+  await user.click(verdict('Comment'));
   await user.type(
     screen.getByRole('textbox', { name: 'General comment' }),
     'Ship it once the fetch moves.',
@@ -449,6 +460,7 @@ test("It's fine takes an optional why, which goes with the answer unless blank",
 
   expect(sent).toHaveBeenCalledExactlyOnceWith(
     sentReview({
+      verdict: 'approve',
       comments: [
         {
           anchor: { kind: 'finding', id: 'metrics:lines:rust/crate/domain' },
@@ -497,6 +509,7 @@ test("a finding under the inspector's note is answered there, the same answer as
 
   expect(sent).toHaveBeenCalledExactlyOnceWith(
     sentReview({
+      verdict: 'request-changes',
       comments: [
         {
           anchor: { kind: 'finding', id: 'metrics:cyclomatic:rust/crate/application' },

@@ -38,11 +38,17 @@ const draftedLine = (written: ReadonlyArray<Drafted>) =>
         }),
       ].join(' · ');
 
+const suggestedFor = (written: ReadonlyArray<Drafted>): Review['verdict'] => {
+  if (written.some(({ kind }) => kind === 'change' || kind === 'fix')) return 'request-changes';
+  if (written.some(({ kind }) => kind === 'question' || kind === 'explain')) return 'comment';
+  return 'approve';
+};
+
 const withWhy = ({ text, ...answer }: Answer): Answer =>
   text?.trim() ? { ...answer, text } : answer;
 
 export const ReviewTray = ({ reviewed, read, parts, comments, answers, send }: ReviewTrayProps) => {
-  const [verdict, setVerdict] = useState<Review['verdict']>('comment');
+  const [picked, setPicked] = useState<Review['verdict']>();
   const [open, setOpen] = useState(false);
   const [body, setBody] = useState('');
   const [sent, setSent] = useState(false);
@@ -52,6 +58,8 @@ export const ReviewTray = ({ reviewed, read, parts, comments, answers, send }: R
     ...Object.values(answers).map(withWhy),
   ];
   const hasBody = body.trim() !== '';
+  const suggested = suggestedFor(written);
+  const verdict = picked ?? suggested;
   const sendComments = () =>
     send({
       version: 4,
@@ -95,15 +103,23 @@ export const ReviewTray = ({ reviewed, read, parts, comments, answers, send }: R
               {parts > 0 && <p>{partsRead({ read: read.length, parts })}</p>}
               <div role="radiogroup" aria-label="Verdict" className="verdict">
                 {VERDICTS.map(([value, label]) => (
-                  <label key={value}>
-                    <input
-                      type="radio"
-                      name="verdict"
-                      checked={verdict === value}
-                      onChange={() => setVerdict(value)}
-                    />
-                    {label}
-                  </label>
+                  <div key={value} className="verdict-option">
+                    <label>
+                      <input
+                        type="radio"
+                        name="verdict"
+                        checked={verdict === value}
+                        onChange={() => setPicked(value)}
+                        aria-describedby={value === suggested ? 'suggested-verdict' : undefined}
+                      />
+                      {label}
+                    </label>
+                    {value === suggested && (
+                      <span id="suggested-verdict" className="suggested">
+                        suggested
+                      </span>
+                    )}
+                  </div>
                 ))}
               </div>
               <button
