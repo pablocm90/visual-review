@@ -1515,6 +1515,98 @@ test("a note's or a metric finding in the rail goes to its node or edge as the s
   expect(document.activeElement).toBe(screen.getByRole('button', { name: 'domain: unchanged' }));
 });
 
+test("the reading order numbers the changed parts in its order, on the graph too, each marked with its findings' worst level and count, a cycle's first part saying it is one, and going to its part as the summary's links do", async () => {
+  const user = userEvent.setup();
+  render(
+    <ReviewPage
+      review={pageWith({
+        ...review,
+        readingOrder: {
+          parts: ['rust/crate/application', 'rust/crate/cli-adapter', 'rust/crate/legacy'],
+          cycles: [['rust/crate/application', 'rust/crate/cli-adapter', 'rust/crate/legacy']],
+        },
+        findings: [
+          findingOn('rust/crate/cli-adapter'),
+          findingOn('rust/crate/cli-adapter', { id: 'notes:cli-adapter', level: 'look' }),
+          findingOn('rust/crate/legacy'),
+          findingOn('rust/crate/domain'),
+        ],
+        undrawn: [
+          { path: 'README.md', patch: '' },
+          { path: 'docs/a.md', patch: '' },
+        ],
+      })}
+    />,
+  );
+  await screen.findByRole('group', { name: 'rust' });
+
+  const numberOn = (node: string) =>
+    within(screen.getByRole('button', { name: node }))
+      .queryAllByRole('img', { name: /^Reading order/ })
+      .map(number => number.getAttribute('aria-label'));
+  expect(numberOn('application: modified')).toEqual(['Reading order 1']);
+  expect(numberOn('legacy: removed')).toEqual(['Reading order 3']);
+  expect(numberOn('domain: unchanged')).toEqual([]);
+
+  const order = screen.getByRole('navigation', { name: 'Reading order' });
+  expect(
+    within(order)
+      .getAllByRole('button')
+      .map(item => item.textContent),
+  ).toEqual(['1 application', '2 cli-adapter', '3 legacy', '4 README.md', '5 docs/a.md']);
+  expect(within(order).getByRole('heading', { name: 'Outside the graph' })).toBeDefined();
+  await user.click(within(order).getByRole('button', { name: '5 docs/a.md' }));
+  expect(within(inspector()).getByRole('heading', { level: 2 }).textContent).toBe(
+    'Changed files outside the graph',
+  );
+  const [first, second, third] = within(order).getAllByRole('listitem');
+  expect(
+    within(second ?? order).getByRole('img', { name: 'needs a look, 2 findings' }),
+  ).toBeDefined();
+  expect(
+    within(third ?? order).getByRole('img', { name: 'for information, 1 finding' }),
+  ).toBeDefined();
+  expect(within(first ?? order).queryByRole('img')).toBeNull();
+  expect(within(order).getAllByText(/depend on each other/)).toEqual([
+    within(first ?? order).getByText('3 parts depend on each other: read in name order'),
+  ]);
+  await user.click(within(order).getByRole('button', { name: '2 cli-adapter' }));
+  expect(document.activeElement).toBe(screen.getByRole('button', { name: 'cli-adapter: added' }));
+  expect(within(inspector()).getByRole('heading', { level: 2 }).textContent).toBe('cli-adapter');
+});
+
+test('the reading order shows no outside heading when every changed file is drawn, lists the outside files alone when no part changed, and is gone when nothing changed', async () => {
+  const { rerender } = render(
+    <ReviewPage
+      review={pageWith({
+        ...review,
+        readingOrder: { parts: ['rust/crate/application'], cycles: [] },
+      })}
+    />,
+  );
+  await screen.findByRole('group', { name: 'rust' });
+
+  const order = screen.getByRole('navigation', { name: 'Reading order' });
+  expect(
+    within(order)
+      .getAllByRole('button')
+      .map(row => row.textContent),
+  ).toEqual(['1 application']);
+  expect(within(order).queryByRole('heading', { name: 'Outside the graph' })).toBeNull();
+
+  rerender(
+    <ReviewPage review={pageWith({ ...review, undrawn: [{ path: 'README.md', patch: '' }] })} />,
+  );
+  expect(
+    within(screen.getByRole('navigation', { name: 'Reading order' }))
+      .getAllByRole('button')
+      .map(row => row.textContent),
+  ).toEqual(['1 README.md']);
+
+  rerender(<ReviewPage review={pageWith(review)} />);
+  expect(screen.queryByRole('navigation', { name: 'Reading order' })).toBeNull();
+});
+
 test('look first lists the findings to look at in rank order, in the dimension a triage chip picks, collapsing to their count, each going to its node, seven at most and Show all opening the rail past them, and is absent when none needs a look', async () => {
   const user = userEvent.setup();
   const looks = (count: number) =>
@@ -3447,4 +3539,38 @@ test("a file whose symbols wouldn't parse shows the parse error on its Symbols t
   ).toBeTruthy();
   await user.click(screen.getByRole('button', { name: 'total.ts: modified' }));
   expect(within(symbolsTab()).getByText('Missing semicolon (7:1)', { exact: false })).toBeTruthy();
+});
+
+test('a box read as a part keeps its reading number once it is expanded, and an expanded box that is none gets no number', async () => {
+  const user = userEvent.setup();
+  render(
+    <ReviewPage
+      review={pageWith({
+        range: 'abc123..def456',
+        diff: {
+          nodes: [
+            { id: 'web', kind: 'stack', label: 'web', path: '', state: 'modified' },
+            webModule('utils', 'modified'),
+            webFile('utils', 'x.ts'),
+            webFile('utils', 'y.ts'),
+            webModule('lib'),
+            webFile('lib', 'z.ts'),
+          ],
+          edges: [],
+        },
+        readingOrder: { parts: ['web/module/utils'], cycles: [] },
+      })}
+    />,
+  );
+  await showEverything(user);
+  const web = await screen.findByRole('group', { name: 'web' });
+  await user.click(within(web).getByRole('button', { name: 'Expand utils' }));
+  await user.click(within(web).getByRole('button', { name: 'Expand lib' }));
+
+  const numbersIn = async (box: string) =>
+    within(await within(web).findByRole('group', { name: box }))
+      .queryAllByRole('img', { name: /^Reading order/ })
+      .map(number => number.getAttribute('aria-label'));
+  expect(await numbersIn('utils')).toEqual(['Reading order 1']);
+  expect(await numbersIn('lib')).toEqual([]);
 });

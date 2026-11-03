@@ -22,6 +22,16 @@ _In code_: `'look' | 'info'`
 What the CLI read about the change (a skipped stack, a changed file outside the graph, a call no route matches, a metric), kept in the page data whether or not it raises a finding.
 _Avoid_: finding (for the raw reading)
 
+**Part**:
+A changed node with no changed node inside it: a module, a file or a class, or a crate or box changed only outside its parts (its `Cargo.toml`, a stylesheet); never a stack.
+_Avoid_: component, item
+_In code_: an id in `readingOrder.parts`
+
+**Reading order**:
+The changed parts in the order to read them: a part after every part it depends on at the head, parts that depend on each other together in id order, then the removed parts in id order. The page numbers the changed files outside the graph after them.
+_Avoid_: priority, rank
+_In code_: `PageData.readingOrder`
+
 **Look first**:
 The few findings that need a look, ranked so the blind spots come first, then what most depends on, then what changes most.
 _Avoid_: top findings, priorities
@@ -63,6 +73,7 @@ _In code_: `'change' | 'question' | 'suggestion'`
 
 - A **fact** may raise **findings**; a **finding** is never the only record of a fact.
 - Each **finding** has one **dimension** and one **level**; a **flag** is the only way a note raises one.
+- The **reading order** holds every **part** once; a **finding** whose target is a part marks its row.
 - **Look first** holds only findings whose **level** is "needs a look".
 - A changed exported **symbol** raises a **finding** in the api dimension; a file's **kind of change** raises none of its own.
 - A review holds at most one comment per **anchor**, and each comment has one **comment kind**; the verdict is picked apart from the kinds.

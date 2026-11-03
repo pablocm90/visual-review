@@ -5,6 +5,7 @@ import { metricFindings } from './metric-findings.ts';
 import { type NodeMetrics, nodeMetrics } from './metrics.ts';
 import { notesProblems, type ReviewNotes } from './notes.ts';
 import type { RangeReading, SymbolFile } from './read-range.ts';
+import { type ReadingOrder, readingOrder } from './reading-order.ts';
 import type { Review } from './review.ts';
 import type { Skipped } from './skipped.ts';
 import type { TestFile } from './test-changes.ts';
@@ -22,6 +23,7 @@ export type PageData = {
   readonly parsers: Readonly<Record<string, string>>;
   readonly pullRequest?: PullRequest;
   readonly diff: GraphDiff;
+  readonly readingOrder: ReadingOrder;
   readonly metrics: Readonly<Record<string, NodeMetrics>>;
   readonly findings: ReadonlyArray<Finding>;
   readonly dangling: ReadonlyArray<DanglingCall>;
@@ -65,6 +67,7 @@ export const pageData = ({
     parsers,
     ...(pullRequest === undefined ? {} : { pullRequest }),
     diff,
+    readingOrder: readingOrder(diff),
     metrics,
     findings: raisedFindings({
       skipped: reading.skipped,
