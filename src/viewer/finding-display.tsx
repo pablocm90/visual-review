@@ -19,5 +19,8 @@ export const LevelMark = ({ level }: { readonly level: MetricFinding['level'] })
   </svg>
 );
 
+export const worstOf = (findings: ReadonlyArray<Finding>) =>
+  findings.some(finding => finding.level === 'look') ? 'look' : 'info';
+
 export const findingLine = ({ title, detail }: Finding) =>
   detail === undefined ? title : `${title}: ${detail}`;

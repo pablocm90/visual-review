@@ -1515,7 +1515,7 @@ test("a note's or a metric finding in the rail goes to its node or edge as the s
   expect(document.activeElement).toBe(screen.getByRole('button', { name: 'domain: unchanged' }));
 });
 
-test("the reading order numbers the changed parts in its order, each going to its part as the summary's links do", async () => {
+test("the reading order numbers the changed parts in its order, each marked with its findings' worst level and count and going to its part as the summary's links do", async () => {
   const user = userEvent.setup();
   render(
     <ReviewPage
@@ -1525,6 +1525,12 @@ test("the reading order numbers the changed parts in its order, each going to it
           parts: ['rust/crate/application', 'rust/crate/cli-adapter', 'rust/crate/legacy'],
           cycles: [],
         },
+        findings: [
+          findingOn('rust/crate/cli-adapter'),
+          findingOn('rust/crate/cli-adapter', { id: 'notes:cli-adapter', level: 'look' }),
+          findingOn('rust/crate/legacy'),
+          findingOn('rust/crate/domain'),
+        ],
       })}
     />,
   );
@@ -1533,9 +1539,17 @@ test("the reading order numbers the changed parts in its order, each going to it
   const order = screen.getByRole('navigation', { name: 'Reading order' });
   expect(
     within(order)
-      .getAllByRole('listitem')
+      .getAllByRole('button')
       .map(item => item.textContent),
   ).toEqual(['1 application', '2 cli-adapter', '3 legacy']);
+  const [first, second, third] = within(order).getAllByRole('listitem');
+  expect(
+    within(second ?? order).getByRole('img', { name: 'needs a look, 2 findings' }),
+  ).toBeDefined();
+  expect(
+    within(third ?? order).getByRole('img', { name: 'for information, 1 finding' }),
+  ).toBeDefined();
+  expect(within(first ?? order).queryByRole('img')).toBeNull();
   await user.click(within(order).getByRole('button', { name: '2 cli-adapter' }));
   expect(document.activeElement).toBe(screen.getByRole('button', { name: 'cli-adapter: added' }));
   expect(within(inspector()).getByRole('heading', { level: 2 }).textContent).toBe('cli-adapter');

@@ -34,7 +34,7 @@ import {
   visibleNodeOf,
 } from '../core/visible-diff.ts';
 import { ColourBy, type Colouring, ScaleLegend, type Shade, shadeOf } from './colour-by.tsx';
-import { findingLine, LEVELS, LevelMark } from './finding-display.tsx';
+import { findingLine, LEVELS, LevelMark, worstOf } from './finding-display.tsx';
 import { FindingsRail, LookFirst, nameOf, TriageStrip } from './findings-rail.tsx';
 import { highlightPatch, type PatchLine as Line, type Piece } from './highlight-patch.ts';
 import {
@@ -116,9 +116,6 @@ const middleOf = (points: PlacedEdge['points']) => {
     ? { x: (before.x + after.x) / 2, y: (before.y + after.y) / 2 }
     : { x: 0, y: 0 };
 };
-
-const worstOf = (findings: ReadonlyArray<Finding>) =>
-  findings.some(finding => finding.level === 'look') ? 'look' : 'info';
 
 const badgeName = (findings: ReadonlyArray<Finding>) =>
   `${LEVELS[worstOf(findings)]}, ${findings.length} ${findings.length === 1 ? 'finding' : 'findings'}: ${findings.map(findingLine).join('; ')}`;
@@ -1361,7 +1358,7 @@ export const ReviewPage = ({ review, notes, send }: ReviewPageProps) => {
             <p className="caveat">Calls whose path is built at runtime are not drawn.</p>
           </div>
           <div className="columns">
-            <ReadingOrderList review={review} onGoTo={goTo} />
+            <ReadingOrderList review={review} findings={findings} onGoTo={goTo} />
             <FindingsRail
               findings={triaged}
               open={railOpen}

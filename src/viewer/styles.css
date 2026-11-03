@@ -2108,3 +2108,21 @@ pre .hljs-emphasis {
   font-size: 12px;
   font-weight: 600;
 }
+
+.reading-order-row {
+  display: flex;
+  align-items: center;
+}
+
+.reading-findings {
+  flex: none;
+  padding-right: 8px;
+  color: var(--muted);
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.reading-findings .level-mark {
+  margin: 0 2px 0 0;
+  stroke: var(--muted);
+}
