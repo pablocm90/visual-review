@@ -23,7 +23,7 @@ What the CLI read about the change (a skipped stack, a changed file outside the 
 _Avoid_: finding (for the raw reading)
 
 **Part**:
-A changed node the graph draws at its deepest: a crate with no modules read, a module, a file or a class, never a box or a stack.
+A changed node with no changed node inside it: a module, a file or a class, or a crate or box changed only outside its parts (its `Cargo.toml`, a stylesheet); never a stack.
 _Avoid_: component, item
 _In code_: an id in `readingOrder.parts`
 
