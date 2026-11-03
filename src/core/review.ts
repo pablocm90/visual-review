@@ -11,7 +11,11 @@ const ReviewSchema = z
     body: z.string().optional().describe("The reviewer's general comment on the whole change"),
     reviewed: z
       .strictObject({
-        range: z.string().describe('The range the page was drawn for, `<from>..<to>`'),
+        range: z
+          .string()
+          .describe(
+            'The range the page was drawn for, `<from>..<to>`, or `HEAD..worktree` for uncommitted work',
+          ),
         pullRequest: z.number().optional().describe('The pull request it was drawn for'),
       })
       .readonly()
