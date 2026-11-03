@@ -1372,7 +1372,7 @@ export const ReviewPage = ({ review, notes, send }: ReviewPageProps) => {
     if (next !== undefined) goTo(next);
   };
   useEffect(() => {
-    const keyed = (event: KeyboardEvent) => {
+    const keyed = (event: globalThis.KeyboardEvent) => {
       if (event.key === 'j') walk(1);
       if (event.key === 'k') walk(-1);
       if (
