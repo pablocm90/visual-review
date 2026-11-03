@@ -9,7 +9,7 @@ argument-hint: [<pr number> | <from>..<to>]
 Each `visual-review` below is shorthand for this command: run the command in full in its place, since nothing puts `visual-review` on `PATH`:
 
 ```sh
-npx -y --prefix="$(mktemp -d)" --package="${VISUAL_REVIEW_PACKAGE:-@pablocm90/visual-review@0.13.0}" visual-review
+npx -y --prefix="$(mktemp -d)" --package="${VISUAL_REVIEW_PACKAGE:-@pablocm90/visual-review@0.14.0}" visual-review
 ```
 
 The empty `--prefix` keeps the reviewed checkout's own `node_modules` and `.npmrc` from choosing what runs; the command still runs in the repo.
@@ -51,7 +51,7 @@ Run every command from the repository root (`git rev-parse --show-toplevel`, whi
 5. Run `visual-review serve '<page path>'` in the background, so you are told when it exits. It opens the page in the browser and prints `Serving <url>` on stderr. Done when that line is out, or when it has exited: then go to step 7.
 6. Reply with the page's URL and path and the flags you raised, one line each, or "no flags", and say that a review sent from the page's **Review** panel comes back to you.
 7. When `serve` exits, act on how it ended:
-   - Exit 0 with a path on stdout: the user sent a review, written at that path. Read it: `verdict` is `approve`, `comment` or `request-changes`, `body`, when present, is the user's general comment on the whole change, and `comments` lists the user's comments, each with an `anchor`, `{ kind: 'part', id }` for a node or `{ kind: 'edge', id }` for an edge (`<from> -> <to>`), with the ids your notes use, a `kind` and its `text`. A comment's `kind` says what it asks: `change` is a task on its anchor, `question` wants an answer, and `suggestion` is to be weighed: take it or say why not. Take `body` first, as a comment on the whole change, under the same verdict.
+   - Exit 0 with a path on stdout: the user sent a review, written at that path. Read it: `verdict` is `approve`, `comment` or `request-changes`, `body`, when present, is the user's general comment on the whole change, and `comments` lists the user's comments, each with an `anchor`, `{ kind: 'part', id }` for a node or `{ kind: 'edge', id }` for an edge (`<from> -> <to>`), with the ids your notes use, a `kind` and its `text`. A comment's `kind` says what it asks: `change` is a task on its anchor, `question` wants an answer, and `suggestion` is to be weighed: take it or say why not. Take `body` first, as a comment on the whole change, under the same verdict. `read` lists the parts of the reading order the user marked read, and `reviewed` says what the page was drawn for, its `range` and, for a PR, its `pullRequest` number. A part in `read` with no comment on it was read and found fine: say nothing of it. In your reply, name the parts of `readingOrder.parts` that are neither in `read` nor commented on as not read, or say that no part was marked read when `read` is empty.
      - `request-changes`: do every `change`, answer every `question`, and take or turn down every `suggestion`, saying which, as you would a PR review's requested changes. Done when `body` and every comment are addressed or answered with why not.
      - `comment`: answer every `question` and `body`, and for each `change` and `suggestion` say how you would take it, naming its anchor; change nothing until the user says to. Done when `body` and every comment have a reply.
      - `approve`: answer `body` and every comment, if any, as under `comment`, then say the user approved and stop.

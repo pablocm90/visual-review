@@ -2,8 +2,10 @@ import { expect, test } from 'vitest';
 import { parseReview } from './review.ts';
 
 const reviewWith = (verdict = 'request-changes') => ({
-  version: 2,
+  version: 3,
   verdict,
+  reviewed: { range: 'a1b2c3d..e4f5a6b', pullRequest: 16 },
+  read: ['web/file/App.tsx', 'rust/crate/domain'],
   comments: [
     {
       anchor: { kind: 'part', id: 'web/file/App.tsx' },
@@ -26,19 +28,24 @@ const reviewWith = (verdict = 'request-changes') => ({
 const withComment = (comment: object) => ({ ...reviewWith(), comments: [comment] });
 
 test.for(['approve', 'comment', 'request-changes'])(
-  'a review sent with %s reads back as that verdict and its comments, each on its anchor with its kind',
+  'a review sent with %s reads back as that verdict, what was reviewed, the parts read and its comments, each on its anchor with its kind',
   verdict => {
     expect(parseReview(JSON.stringify(reviewWith(verdict)))).toEqual(reviewWith(verdict));
   },
 );
 
+test('a review of a range that is no pull request reads back with no pull request', () => {
+  const review = { ...reviewWith(), reviewed: { range: 'HEAD..worktree' } };
+  expect(parseReview(JSON.stringify(review))).toEqual(review);
+});
+
 test.for([
-  { problem: 'is not JSON', text: '{ "version": 2,', reason: 'SyntaxError' },
+  { problem: 'is not JSON', text: '{ "version": 3,', reason: 'SyntaxError' },
   { problem: 'has no version', text: '{ "comments": [] }', reason: 'no "version"' },
   {
     problem: 'has a version this one does not read',
-    text: '{ "version": 1, "comments": {} }',
-    reason: 'version 1 is unknown; this visual-review reads version 2',
+    text: '{ "version": 2, "comments": {} }',
+    reason: 'version 2 is unknown; this visual-review reads version 3',
   },
   {
     problem: 'has a key no review has',
@@ -47,8 +54,28 @@ test.for([
   },
   {
     problem: 'has no verdict',
-    text: JSON.stringify({ version: 2, comments: [] }),
+    text: JSON.stringify({ ...reviewWith(), verdict: undefined }),
     reason: 'verdict',
+  },
+  {
+    problem: 'does not say what was reviewed',
+    text: JSON.stringify({ ...reviewWith(), reviewed: undefined }),
+    reason: 'reviewed',
+  },
+  {
+    problem: 'says what was reviewed with no range',
+    text: JSON.stringify({ ...reviewWith(), reviewed: { pullRequest: 16 } }),
+    reason: 'range',
+  },
+  {
+    problem: 'has a key no reviewed has',
+    text: JSON.stringify({ ...reviewWith(), reviewed: { range: 'a..b', head: 'b' } }),
+    reason: '"head"',
+  },
+  {
+    problem: 'does not say which parts were read',
+    text: JSON.stringify({ ...reviewWith(), read: undefined }),
+    reason: 'read',
   },
   {
     problem: 'has a verdict the page does not offer',

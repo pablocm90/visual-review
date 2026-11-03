@@ -33,7 +33,7 @@ _Avoid_: priority, rank
 _In code_: `PageData.readingOrder`
 
 **Read mark**:
-The reviewer's mark that they have read a part, kept in their browser for the page's range; not sent with the review.
+The reviewer's mark that they have read a part, kept in their browser for the page's range and sent with the review; a part read with no comment on it was read and found fine.
 _Avoid_: seen, viewed, done
 _In code_: `storedReadMarks` (`src/viewer/read-marks.ts`)
 

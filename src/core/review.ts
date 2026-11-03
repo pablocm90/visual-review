@@ -1,6 +1,6 @@
 import { z } from 'zod';
 
-const reviewVersion = 2;
+const reviewVersion = 3;
 
 const ReviewSchema = z
   .strictObject({
@@ -9,6 +9,21 @@ const ReviewSchema = z
       .enum(['approve', 'comment', 'request-changes'])
       .describe("The reviewer's verdict on the whole change"),
     body: z.string().optional().describe("The reviewer's general comment on the whole change"),
+    reviewed: z
+      .strictObject({
+        range: z
+          .string()
+          .describe(
+            'The range the page was drawn for, `<from>..<to>`, or `HEAD..worktree` for uncommitted work',
+          ),
+        pullRequest: z.number().optional().describe('The pull request it was drawn for'),
+      })
+      .readonly()
+      .describe('What the page was drawn for'),
+    read: z
+      .array(z.string())
+      .readonly()
+      .describe('The parts the reviewer marked read, by node id, in reading order'),
     comments: z
       .array(
         z

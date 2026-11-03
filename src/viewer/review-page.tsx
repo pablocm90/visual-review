@@ -47,7 +47,7 @@ import {
 import { MetricsScreen } from './metrics-screen.tsx';
 import { MetricsTable } from './metrics-tab.tsx';
 import { storedReadMarks, storeReadMarks } from './read-marks.ts';
-import { ReadingOrderList } from './reading-order-list.tsx';
+import { partsRead, ReadingOrderList } from './reading-order-list.tsx';
 import { changedSymbolCount, hasSymbolNews, type LineAt, SymbolsOf } from './symbols-tab.tsx';
 import { changedCount, TestFiles, TestsScreen } from './tests-screen.tsx';
 import {
@@ -1103,6 +1103,9 @@ const useTab = (): Tab => {
 type Comments = Readonly<Record<string, Comment>>;
 
 type SendProps = {
+  readonly reviewed: Review['reviewed'];
+  readonly read: Review['read'];
+  readonly parts: number;
   readonly comments: Comments;
   readonly send: (review: Review) => Promise<void>;
 };
@@ -1113,7 +1116,7 @@ const VERDICTS: ReadonlyArray<readonly [Review['verdict'], string]> = [
   ['request-changes', 'Request changes'],
 ];
 
-const SendToClaude = ({ comments, send }: SendProps) => {
+const SendToClaude = ({ reviewed, read, parts, comments, send }: SendProps) => {
   const [verdict, setVerdict] = useState<Review['verdict']>('comment');
   const [open, setOpen] = useState(false);
   const [body, setBody] = useState('');
@@ -1123,9 +1126,11 @@ const SendToClaude = ({ comments, send }: SendProps) => {
   const hasBody = body.trim() !== '';
   const sendComments = () =>
     send({
-      version: 2,
+      version: 3,
       verdict,
       ...(hasBody ? { body } : {}),
+      reviewed,
+      read,
       comments: written,
     }).then(
       () => setSent(true),
@@ -1148,7 +1153,7 @@ const SendToClaude = ({ comments, send }: SendProps) => {
             Review
           </button>
           {open && (
-            <div id="review-panel" className="review-panel">
+            <div id="review-panel" className="review-panel" role="group" aria-label="Review">
               {problem && (
                 <p role="status" aria-label="Review" className="send-problem">
                   {problem}
@@ -1158,6 +1163,7 @@ const SendToClaude = ({ comments, send }: SendProps) => {
                 General comment
                 <textarea value={body} onChange={event => setBody(event.target.value)} />
               </label>
+              {parts > 0 && <p>{partsRead({ read: read.length, parts })}</p>}
               <div role="radiogroup" aria-label="Verdict" className="verdict">
                 {VERDICTS.map(([value, label]) => (
                   <label key={value}>
@@ -1189,11 +1195,12 @@ const SendToClaude = ({ comments, send }: SendProps) => {
 type HeaderProps = {
   readonly review: PageData;
   readonly tab: Tab;
+  readonly read: Review['read'];
   readonly comments: Comments;
   readonly send: ((review: Review) => Promise<void>) | undefined;
 };
 
-const Header = ({ review, tab, comments, send }: HeaderProps) => {
+const Header = ({ review, tab, read, comments, send }: HeaderProps) => {
   const changed = changedCount(review.tests);
   return (
     <header className="review">
@@ -1229,7 +1236,18 @@ const Header = ({ review, tab, comments, send }: HeaderProps) => {
           </a>
         ))}
       </nav>
-      {send && <SendToClaude comments={comments} send={send} />}
+      {send && (
+        <SendToClaude
+          reviewed={{
+            range: review.range,
+            ...(review.pullRequest && { pullRequest: review.pullRequest.number }),
+          }}
+          read={read}
+          parts={review.readingOrder.parts.length}
+          comments={comments}
+          send={send}
+        />
+      )}
     </header>
   );
 };
@@ -1394,7 +1412,13 @@ export const ReviewPage = ({ review, notes, send }: ReviewPageProps) => {
   }, [layout, focusTarget, frameElement]);
   return (
     <main>
-      <Header review={review} tab={tab} comments={comments} send={send} />
+      <Header
+        review={review}
+        tab={tab}
+        read={review.readingOrder.parts.filter(part => read.has(part))}
+        comments={comments}
+        send={send}
+      />
       {tab === 'structure' && (
         <>
           <div className="structure-head">

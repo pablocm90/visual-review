@@ -7,6 +7,7 @@ import { raisedFindings } from '../core/findings.ts';
 import type { ReviewNotes } from '../core/notes.ts';
 import type { PageData } from '../core/page.ts';
 import type { SymbolFile } from '../core/read-range.ts';
+import type { Review } from '../core/review.ts';
 import type { Skipped } from '../core/skipped.ts';
 import type { KindOfChange, SymbolStatement } from '../core/symbol-changes.ts';
 import { findingOn, measured, pageWith } from '../test-support/page-data.ts';
@@ -95,6 +96,15 @@ const showEverything = (user: ReturnType<typeof userEvent.setup>) =>
 
 const openReview = (user: ReturnType<typeof userEvent.setup>) =>
   user.click(screen.getByRole('button', { name: 'Review' }));
+
+const sentReview = (sent: Partial<Review>): Review => ({
+  version: 3,
+  verdict: 'comment',
+  reviewed: { range: review.range },
+  read: [],
+  comments: [],
+  ...sent,
+});
 
 const inspector = () => screen.getByRole('complementary', { name: 'Inspector' });
 
@@ -185,22 +195,22 @@ test("a served page's Review button opens the review, whose Send to Claude sends
   expect(reviewButton().getAttribute('aria-expanded')).toBe('true');
   await user.click(screen.getByRole('button', { name: 'Send to Claude' }));
 
-  expect(sent).toHaveBeenCalledExactlyOnceWith({
-    version: 2,
-    verdict: 'comment',
-    comments: [
-      {
-        anchor: { kind: 'part', id: 'rust/crate/domain' },
-        kind: 'question',
-        text: 'Keep domain free of IO.',
-      },
-      {
-        anchor: { kind: 'edge', id: 'rust/crate/application -> rust/crate/domain' },
-        kind: 'question',
-        text: 'Why this way round?',
-      },
-    ],
-  });
+  expect(sent).toHaveBeenCalledExactlyOnceWith(
+    sentReview({
+      comments: [
+        {
+          anchor: { kind: 'part', id: 'rust/crate/domain' },
+          kind: 'question',
+          text: 'Keep domain free of IO.',
+        },
+        {
+          anchor: { kind: 'edge', id: 'rust/crate/application -> rust/crate/domain' },
+          kind: 'question',
+          text: 'Why this way round?',
+        },
+      ],
+    }),
+  );
   expect((await screen.findByRole('status', { name: 'Review' })).textContent).toBe('Sent');
   expect(screen.queryByRole('button', { name: 'Send to Claude' })).toBeNull();
 });
@@ -230,17 +240,17 @@ test('each comment carries the kind picked beside it, Question until another is 
   await openReview(user);
   await user.click(screen.getByRole('button', { name: 'Send to Claude' }));
 
-  expect(sent).toHaveBeenCalledExactlyOnceWith({
-    version: 2,
-    verdict: 'comment',
-    comments: [
-      {
-        anchor: { kind: 'part', id: 'rust/crate/domain' },
-        kind: 'change',
-        text: 'Move the IO out of domain.',
-      },
-    ],
-  });
+  expect(sent).toHaveBeenCalledExactlyOnceWith(
+    sentReview({
+      comments: [
+        {
+          anchor: { kind: 'part', id: 'rust/crate/domain' },
+          kind: 'change',
+          text: 'Move the IO out of domain.',
+        },
+      ],
+    }),
+  );
 });
 
 test('the verdict picked beside Send to Claude goes with the review, Comment until another is picked, and kept while the review is closed', async () => {
@@ -265,17 +275,18 @@ test('the verdict picked beside Send to Claude goes with the review, Comment unt
   expect(verdict('Request changes')).toHaveProperty('checked', true);
   await user.click(screen.getByRole('button', { name: 'Send to Claude' }));
 
-  expect(sent).toHaveBeenCalledExactlyOnceWith({
-    version: 2,
-    verdict: 'request-changes',
-    comments: [
-      {
-        anchor: { kind: 'part', id: 'rust/crate/domain' },
-        kind: 'question',
-        text: 'Keep domain free of IO.',
-      },
-    ],
-  });
+  expect(sent).toHaveBeenCalledExactlyOnceWith(
+    sentReview({
+      verdict: 'request-changes',
+      comments: [
+        {
+          anchor: { kind: 'part', id: 'rust/crate/domain' },
+          kind: 'question',
+          text: 'Keep domain free of IO.',
+        },
+      ],
+    }),
+  );
 });
 
 test('Send to Claude waits for a comment that is more than blanks, and sends no blank or cleared one', async () => {
@@ -300,17 +311,17 @@ test('Send to Claude waits for a comment that is more than blanks, and sends no 
   await user.clear(comment());
   await user.click(sendButton());
 
-  expect(sent).toHaveBeenCalledExactlyOnceWith({
-    version: 2,
-    verdict: 'comment',
-    comments: [
-      {
-        anchor: { kind: 'edge', id: 'rust/crate/application -> rust/crate/domain' },
-        kind: 'question',
-        text: 'Why this way round?',
-      },
-    ],
-  });
+  expect(sent).toHaveBeenCalledExactlyOnceWith(
+    sentReview({
+      comments: [
+        {
+          anchor: { kind: 'edge', id: 'rust/crate/application -> rust/crate/domain' },
+          kind: 'question',
+          text: 'Why this way round?',
+        },
+      ],
+    }),
+  );
 });
 
 test('the general comment goes with the review as its body, and alone lets a Comment be sent', async () => {
@@ -326,12 +337,12 @@ test('the general comment goes with the review as its body, and alone lets a Com
   );
   await user.click(screen.getByRole('button', { name: 'Send to Claude' }));
 
-  expect(sent).toHaveBeenCalledExactlyOnceWith({
-    version: 2,
-    verdict: 'comment',
-    body: 'Ship it once the fetch moves.',
-    comments: [],
-  });
+  expect(sent).toHaveBeenCalledExactlyOnceWith(
+    sentReview({
+      body: 'Ship it once the fetch moves.',
+      comments: [],
+    }),
+  );
 });
 
 test('an Approve can be sent with no comment', async () => {
@@ -344,7 +355,7 @@ test('an Approve can be sent with no comment', async () => {
   await user.click(screen.getByRole('radio', { name: 'Approve' }));
   await user.click(screen.getByRole('button', { name: 'Send to Claude' }));
 
-  expect(sent).toHaveBeenCalledExactlyOnceWith({ version: 2, verdict: 'approve', comments: [] });
+  expect(sent).toHaveBeenCalledExactlyOnceWith(sentReview({ verdict: 'approve' }));
 });
 
 test('a page that is not served has no comment field and no Review button', async () => {
@@ -1738,6 +1749,64 @@ test('a stored mark on a part no longer in the reading order, the range having m
   await screen.findByRole('group', { name: 'rust' });
 
   expect(within(readingOrder()).getByText('1 of 3 parts read')).toBeDefined();
+});
+
+test('the review sends the parts marked read in reading order, none outside it, beside the comments and what the page was drawn for', async () => {
+  const user = userEvent.setup();
+  const sent = vi.fn(async () => {});
+  const walked = {
+    ...walkedReview(),
+    pullRequest: {
+      number: 16,
+      title: 'Split the CLI',
+      url: 'https://github.com/acme/shop/pull/16',
+    },
+  };
+  localStorage.setItem(`visual-review:read:${walked.range}`, '["rust/crate/gone"]');
+  render(<ReviewPage review={walked} send={sent} />);
+  await screen.findByRole('group', { name: 'rust' });
+
+  await user.keyboard('jjja');
+  await user.keyboard('kka');
+  await user.keyboard('j');
+  await user.type(
+    within(noteTab()).getByRole('textbox', { name: 'Your comment' }),
+    'Is this adapter tested?',
+  );
+  await openReview(user);
+  await user.click(screen.getByRole('button', { name: 'Send to Claude' }));
+
+  expect(sent).toHaveBeenCalledExactlyOnceWith(
+    sentReview({
+      reviewed: { range: walked.range, pullRequest: 16 },
+      read: ['rust/crate/application', 'rust/crate/legacy'],
+      comments: [
+        {
+          anchor: { kind: 'part', id: 'rust/crate/cli-adapter' },
+          kind: 'question',
+          text: 'Is this adapter tested?',
+        },
+      ],
+    }),
+  );
+});
+
+test('the review says how many parts of the reading order were read before it is sent, and says nothing of it when the order has none', async () => {
+  const user = userEvent.setup();
+  const sent = vi.fn(async () => {});
+  const walked = render(<ReviewPage review={walkedReview()} send={sent} />);
+  await screen.findByRole('group', { name: 'rust' });
+  await user.keyboard('ja');
+  await openReview(user);
+
+  const panel = () => screen.getByRole('group', { name: 'Review' });
+  expect(within(panel()).getByText('1 of 3 parts read')).toBeDefined();
+  walked.unmount();
+
+  render(<ReviewPage review={pageWith(review)} send={sent} />);
+  await screen.findByRole('group', { name: 'rust' });
+  await openReview(user);
+  expect(within(panel()).queryByText(/read$/)).toBeNull();
 });
 
 test('A on a node outside the reading order keeps no mark, so it starts unread when the range, moved on, makes it a part', async () => {
