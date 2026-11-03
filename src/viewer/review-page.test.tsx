@@ -3095,7 +3095,7 @@ test('a moved symbol names the file it moved to or from, and goes to that file',
   expect(within(inspector()).getByRole('heading', { level: 2 }).textContent).toBe('refund.ts');
 });
 
-test("a box's Symbols tab lists each file inside it with symbol changes, each with its own groups; a logic line opens its own file's patch on its row, or at its top when outside every hunk", async () => {
+test("a box's Symbols tab lists each file inside it with symbol changes, each with its own groups; a logic line opens its own file's patch on its row, or at its top when outside every hunk, until another part is picked", async () => {
   const user = userEvent.setup();
   const inBilling = (label: string) => ({
     ...topFile(label, 'modified'),
@@ -3221,6 +3221,22 @@ test("a box's Symbols tab lists each file inside it with symbol changes, each wi
   expect(scrolled instanceof HTMLElement && scrolled.getAttribute('aria-label')).toBe(
     'web/src/billing/refund.ts',
   );
+  expect(document.querySelectorAll('[aria-current="true"]')).toHaveLength(0);
+
+  await user.click(within(inspector()).getByRole('tab', { name: 'Symbols 2' }));
+  await user.click(
+    within(screen.getByRole('tabpanel', { name: 'Symbols' })).getByRole('button', {
+      name: /^added throw/,
+    }),
+  );
+  await user.click(screen.getByRole('button', { name: 'outside.ts: modified' }));
+  await user.click(screen.getByRole('button', { name: 'billing: modified' }));
+  await user.click(within(inspector()).getByRole('tab', { name: 'Diff' }));
+  expect(
+    within(screen.getByRole('tabpanel', { name: 'Diff' }))
+      .getAllByRole('group')
+      .map(patch => patch.hasAttribute('open')),
+  ).toEqual([false, false]);
   expect(document.querySelectorAll('[aria-current="true"]')).toHaveLength(0);
 });
 

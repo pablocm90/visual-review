@@ -662,6 +662,11 @@ const SECTION_ORDER = Object.keys(INSPECTOR_TABS);
 const Inspector = ({ node, patches, width, onClose, ...props }: InspectorProps) => {
   const [picked, setPicked] = useState<InspectorTab>('note');
   const [landing, setLanding] = useState<LineAt & { readonly path?: string | undefined }>();
+  const [landedOn, setLandedOn] = useState(node?.id);
+  if (landedOn !== node?.id) {
+    setLandedOn(node?.id);
+    setLanding(undefined);
+  }
   const showLine = (at: LineAt) => {
     setLanding({ ...at, path: props.nodes.find(({ id }) => id === at.node)?.path });
     setPicked('diff');
