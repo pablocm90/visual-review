@@ -1370,20 +1370,22 @@ export const ReviewPage = ({ review, notes, send }: ReviewPageProps) => {
             <p className="caveat">Calls whose path is built at runtime are not drawn.</p>
           </div>
           <div className="columns">
-            <ReadingOrderList
-              review={review}
-              findings={findings}
-              onGoTo={goTo}
-              onShowOutside={showOutside}
-            />
-            <FindingsRail
-              findings={triaged}
-              open={railOpen}
-              onOpen={setRailOpen}
-              review={review}
-              onGoTo={goTo}
-              onShowOutside={showOutside}
-            />
+            <div className="left-column">
+              <ReadingOrderList
+                review={review}
+                findings={findings}
+                onGoTo={goTo}
+                onShowOutside={showOutside}
+              />
+              <FindingsRail
+                findings={triaged}
+                open={railOpen}
+                onOpen={setRailOpen}
+                review={review}
+                onGoTo={goTo}
+                onShowOutside={showOutside}
+              />
+            </div>
             <div className="content">
               {notes && notes.summary.length > 0 && <Summary notes={notes} onGoTo={goTo} />}
               <TriageStrip findings={findings} picked={picked} onPick={setPicked} />
