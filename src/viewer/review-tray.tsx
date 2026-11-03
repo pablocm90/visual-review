@@ -107,16 +107,17 @@ export const ReviewTray = ({
       (error: Error) => setProblem(error.message),
     );
   return (
-    <section className="send-review" aria-label="Review tray">
+    <section className="review-tray" aria-label="Review tray">
       {sent ? (
-        <p role="status" aria-label="Review">
+        <p role="status" aria-label="Review" className="tray-sent">
           Sent
         </p>
       ) : (
         <>
-          <p>{draftedLine(written)}</p>
+          <p className="tray-count">{draftedLine(written)}</p>
           <button
             type="button"
+            className="tray-toggle"
             aria-expanded={open}
             aria-controls="review-panel"
             onClick={() => setOpen(wasOpen => !wasOpen)}
@@ -130,54 +131,69 @@ export const ReviewTray = ({
                   {problem}
                 </p>
               )}
-              <label className="general-comment">
-                General comment
-                <textarea value={body} onChange={event => setBody(event.target.value)} />
-              </label>
-              <ul aria-label="Drafts">
-                {inReadingOrder(drafted, parts).map(({ anchor, kind, text }) => (
-                  <li key={anchor.id}>
-                    <button type="button" onClick={() => onGoTo(anchor.id)}>
-                      {nameOf(anchor.id)}
-                    </button>{' '}
-                    {kindLabels.get(kind)}: {text}
-                  </li>
-                ))}
-              </ul>
-              {parts.length > 0 && <p>{partsRead({ read: read.length, parts: parts.length })}</p>}
-              <ul aria-label="Read, nothing to say">
-                {silent.map(part => (
-                  <li key={part}>{nameOf(part)}</li>
-                ))}
-              </ul>
-              <div role="radiogroup" aria-label="Verdict" className="verdict">
-                {VERDICTS.map(([value, label]) => (
-                  <div key={value} className="verdict-option">
-                    <label>
-                      <input
-                        type="radio"
-                        name="verdict"
-                        checked={verdict === value}
-                        onChange={() => setPicked(value)}
-                        aria-describedby={value === suggested ? 'suggested-verdict' : undefined}
-                      />
-                      {label}
-                    </label>
-                    {value === suggested && (
-                      <span id="suggested-verdict" className="suggested">
-                        suggested
-                      </span>
-                    )}
-                  </div>
-                ))}
+              <div className="tray-summary">
+                <ul aria-label="Drafts" className="tray-list">
+                  {inReadingOrder(drafted, parts).map(({ anchor, kind, text }) => (
+                    <li key={anchor.id} className="draft">
+                      <button
+                        type="button"
+                        className="draft-target"
+                        onClick={() => onGoTo(anchor.id)}
+                      >
+                        {nameOf(anchor.id)}
+                      </button>{' '}
+                      <span className="draft-kind">{kindLabels.get(kind)}:</span> {text}
+                    </li>
+                  ))}
+                </ul>
+                {parts.length > 0 && (
+                  <p className="tray-read">
+                    {partsRead({ read: read.length, parts: parts.length })}
+                  </p>
+                )}
+                <ul aria-label="Read, nothing to say" className="tray-list">
+                  {silent.map(part => (
+                    <li key={part} className="silent-part">
+                      {nameOf(part)}
+                    </li>
+                  ))}
+                </ul>
               </div>
-              <button
-                type="button"
-                disabled={verdict !== 'approve' && written.length === 0 && !hasBody}
-                onClick={sendComments}
-              >
-                Send to Claude
-              </button>
+              <div className="tray-verdict">
+                <label className="general-comment">
+                  General comment
+                  <textarea value={body} onChange={event => setBody(event.target.value)} />
+                </label>
+                <div role="radiogroup" aria-label="Verdict" className="verdict">
+                  {VERDICTS.map(([value, label]) => (
+                    <div key={value} className="verdict-option">
+                      <label>
+                        <input
+                          type="radio"
+                          name="verdict"
+                          checked={verdict === value}
+                          onChange={() => setPicked(value)}
+                          aria-describedby={value === suggested ? 'suggested-verdict' : undefined}
+                        />
+                        {label}
+                      </label>
+                      {value === suggested && (
+                        <span id="suggested-verdict" className="suggested">
+                          suggested
+                        </span>
+                      )}
+                    </div>
+                  ))}
+                </div>
+                <button
+                  type="button"
+                  className="tray-send"
+                  disabled={verdict !== 'approve' && written.length === 0 && !hasBody}
+                  onClick={sendComments}
+                >
+                  Send to Claude
+                </button>
+              </div>
               <details className="claude-gets">
                 <summary>What Claude gets</summary>
                 <figure aria-label="What Claude gets">
