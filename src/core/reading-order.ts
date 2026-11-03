@@ -34,7 +34,9 @@ export const readingOrder = (diff: GraphDiff): ReadingOrder => {
   const reached = (from: ReadonlySet<string>): ReadonlySet<string> => {
     const next = new Set([
       ...from,
-      ...diff.edges.filter(edge => from.has(edge.from)).map(edge => edge.to),
+      ...diff.edges
+        .filter(edge => edge.state !== 'removed' && from.has(edge.from))
+        .map(edge => edge.to),
     ]);
     return next.size === from.size ? from : reached(next);
   };

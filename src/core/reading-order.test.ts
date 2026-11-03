@@ -56,3 +56,11 @@ test('reads removed files after the files the head holds, in id order', () => {
   const diff = diffOf([file('b.ts', 'removed'), file('a.ts', 'removed'), file('c.ts')]);
   expect(readingOrder(diff).parts).toEqual(['web/file/c.ts', 'web/file/a.ts', 'web/file/b.ts']);
 });
+
+test('orders by the head graph, not by an import the change removed', () => {
+  const diff = diffOf(
+    [file('a.ts'), file('b.ts')],
+    [edge('b.ts', 'a.ts', 'removed'), edge('a.ts', 'b.ts', 'added')],
+  );
+  expect(readingOrder(diff).parts).toEqual(['web/file/b.ts', 'web/file/a.ts']);
+});
