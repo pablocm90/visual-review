@@ -1,6 +1,6 @@
 {
   "name": "@pablocm90/visual-review",
-  "version": "0.12.0",
+  "version": "0.13.0",
   "description": "Structural review pages for pull requests, ranges and uncommitted work",
   "license": "MIT",
   "repository": {
