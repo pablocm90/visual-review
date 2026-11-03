@@ -4342,6 +4342,7 @@ test("a comment on a changed logic line goes with the review, anchored on its de
 
   expect(sent).toHaveBeenCalledExactlyOnceWith(
     sentReview({
+      verdict: 'request-changes',
       reviewed: { range: 'abc123..def456' },
       comments: [
         {
