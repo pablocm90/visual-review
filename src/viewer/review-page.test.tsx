@@ -88,6 +88,8 @@ const review = {
   },
 };
 
+await layoutDiff(review.diff);
+
 const shown = (name: string) =>
   within(screen.getByRole('group', { name: 'Show' })).getByRole('button', { name });
 

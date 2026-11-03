@@ -25,7 +25,7 @@ The layout: `src/core/` holds the ports (`Reader`, `Linker`), config, `read-rang
 - TypeScript strict with `noUncheckedIndexedAccess`, `exactOptionalPropertyTypes` and `noPropertyAccessFromIndexSignature`: index results are `T | undefined`, and `process.env['X']` takes brackets.
 - Biome: single quotes, width 100, arrow parens as needed; two a11y rules are off under `src/viewer/**`.
 - TypeScript 7 has no JS compiler API, so dependency-cruiser parses TS through `@swc/core`. Without it the web graph silently reads no modules.
-- The tests shell out to real `git` and `cargo`. The viewer's first-page tests can flake against a cold ELK under load (1 s `findBy`); ask before raising the timeout.
+- The tests shell out to real `git` and `cargo`. ELK's first layout in a process is 5–10× slower than the next, so `review-page.test.tsx` lays its fixture out once at load: a page test file that waits on a layout (1 s `findBy`) does the same. Ask before raising the timeout.
 
 ## Conventions
 
