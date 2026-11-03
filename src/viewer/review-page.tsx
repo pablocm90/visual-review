@@ -1233,6 +1233,9 @@ const Header = ({ review, tab, comments, send }: HeaderProps) => {
   );
 };
 
+const toggled = (set: ReadonlySet<string>, id: string) =>
+  set.has(id) ? new Set([...set].filter(other => other !== id)) : new Set([...set, id]);
+
 type ReviewPageProps = {
   readonly review: PageData;
   readonly notes?: ReviewNotes | undefined;
@@ -1280,11 +1283,7 @@ export const ReviewPage = ({ review, notes, send }: ReviewPageProps) => {
   );
   const toggle = (id: string) => {
     pin(id);
-    setExpanded(current =>
-      current.has(id)
-        ? new Set([...current].filter(other => other !== id))
-        : new Set([...current, id]),
-    );
+    setExpanded(current => toggled(current, id));
   };
   const elements = useRef(new Map<string, SVGElement | null>());
   const register = (id: string, element: SVGElement | null) => {
@@ -1359,12 +1358,6 @@ export const ReviewPage = ({ review, notes, send }: ReviewPageProps) => {
     goTo(id);
   };
   const [read, setRead] = useState<ReadonlySet<string>>(new Set());
-  const markRead = (id: string) =>
-    setRead(current =>
-      current.has(id)
-        ? new Set([...current].filter(other => other !== id))
-        : new Set([...current, id]),
-    );
   const walk = (step: number) => {
     const { parts } = review.readingOrder;
     const at = parts.indexOf(selected ?? '');
@@ -1380,7 +1373,7 @@ export const ReviewPage = ({ review, notes, send }: ReviewPageProps) => {
         selected !== undefined &&
         review.readingOrder.parts.includes(selected)
       )
-        markRead(selected);
+        setRead(current => toggled(current, selected));
     };
     document.addEventListener('keydown', keyed);
     return () => document.removeEventListener('keydown', keyed);
