@@ -5,6 +5,7 @@ import {
   type ReactNode,
   useEffect,
   useEffectEvent,
+  useId,
   useMemo,
   useRef,
   useState,
@@ -23,6 +24,7 @@ import type { TestFile } from '../core/test-changes.ts';
 import { testsAlongside } from '../core/tests-alongside.ts';
 import {
   boxesAboveIn,
+  changesOnly,
   expandedToShow,
   isDrawn,
   mergedDiff,
@@ -791,6 +793,40 @@ type DrawnAtOptions = {
 const drawnAt = ({ diff, expanded, noted, allEdges }: DrawnAtOptions): GraphDiff =>
   allEdges ? visibleDiff({ diff, expanded }) : mergedDiff({ diff, expanded, noted });
 
+const SCOPES = [
+  ['Changes only', changesOnly],
+  ['Changed + 1 hop', nearChanges],
+  ['Everything', (diff: GraphDiff) => diff],
+] as const;
+
+type Scope = (typeof SCOPES)[number];
+
+type ShowProps = {
+  readonly scope: Scope;
+  readonly onPick: (scope: Scope) => void;
+};
+
+const Show = ({ scope, onPick }: ShowProps) => {
+  const label = useId();
+  return (
+    <div className="segmented">
+      <span id={label}>Show</span>
+      <div role="group" aria-labelledby={label}>
+        {SCOPES.map(each => (
+          <button
+            key={each[0]}
+            type="button"
+            aria-pressed={each === scope}
+            onClick={() => onPick(each)}
+          >
+            {each[0]}
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+};
+
 type Chosen =
   | {
       readonly view: View;
@@ -1101,16 +1137,16 @@ export const ReviewPage = ({ review, notes, send }: ReviewPageProps) => {
   const visible = useMemo(() => visibleDiff({ diff: review.diff, expanded }), [review, expanded]);
   const [allEdges, setAllEdges] = useState(false);
   const noted = useMemo(() => new Set(Object.keys(notes?.notes ?? {})), [notes]);
-  const [nearOnly, setNearOnly] = useState(true);
+  const [scope, setScope] = useState<Scope>(SCOPES[0]);
   const [colouring, setColouring] = useState<Colouring>('change');
   const [picked, setPicked] = useState<Dimension>();
   const [railOpen, setRailOpen] = useState(false);
   const findings = findingsOf({ data: review, notes });
   const triaged = findings.filter(finding => picked === undefined || finding.dimension === picked);
   const drawn = useMemo(() => {
-    const atExpansion = drawnAt({ diff: review.diff, expanded, noted, allEdges });
-    return nearOnly ? nearChanges(atExpansion) : atExpansion;
-  }, [review, expanded, noted, allEdges, nearOnly]);
+    const [, keep] = scope;
+    return keep(drawnAt({ diff: review.diff, expanded, noted, allEdges }));
+  }, [review, expanded, noted, allEdges, scope]);
   const shown = useMemo(
     () => visibleNotes({ diff: review.diff, expanded, notes: notes?.notes ?? {} }),
     [review, notes, expanded],
@@ -1180,9 +1216,9 @@ export const ReviewPage = ({ review, notes, send }: ReviewPageProps) => {
     const at = { diff: review.diff, expanded: opened, noted };
     const all = allEdges || !isDrawn({ diff: drawnAt({ ...at, allEdges: false }), id });
     if (all) setAllEdges(true);
-    if (!isDrawn({ diff: nearChanges(drawnAt({ ...at, allEdges: all })), id })) {
-      setNearOnly(false);
-    }
+    const atAll = drawnAt({ ...at, allEdges: all });
+    const narrower = SCOPES.slice(SCOPES.indexOf(scope), -1);
+    setScope(narrower.find(([, keep]) => isDrawn({ diff: keep(atAll), id })) ?? SCOPES[2]);
     centre(id);
     setFocusTarget(id);
   };
@@ -1232,17 +1268,13 @@ export const ReviewPage = ({ review, notes, send }: ReviewPageProps) => {
               <div className="graph-controls">
                 <ColourBy colouring={colouring} onPick={setColouring} />
                 <div className="graph-filters">
-                  <label className="near-only">
-                    <input
-                      type="checkbox"
-                      checked={nearOnly}
-                      onChange={event => {
-                        fitToFrame();
-                        setNearOnly(event.target.checked);
-                      }}
-                    />
-                    Changed + 1 hop
-                  </label>
+                  <Show
+                    scope={scope}
+                    onPick={picked => {
+                      fitToFrame();
+                      setScope(picked);
+                    }}
+                  />
                   <label className="near-only">
                     <input
                       type="checkbox"
