@@ -3165,6 +3165,69 @@ test("a box's Symbols tab lists each file inside it with symbol changes, each wi
   ]);
 });
 
+test("an edited function's logic lines show under it on the Symbols tab, each with its change, kind and text, a changed one base then head", async () => {
+  const user = userEvent.setup();
+  render(
+    <ReviewPage
+      review={pageWith({
+        range: 'abc123..def456',
+        diff: {
+          nodes: [
+            { id: 'web', kind: 'stack', label: 'web', path: '', state: 'unchanged' },
+            topFile('refund.ts', 'modified'),
+          ],
+          edges: [],
+        },
+        symbols: [
+          symbolsOf('web/file/refund.ts', [
+            {
+              name: 'refund',
+              kind: 'function',
+              exported: { base: false, head: false },
+              change: 'edited',
+              logic: [
+                { change: 'removed', kind: 'guard', depth: 0, base: 'if (!paid) return', line: 2 },
+                {
+                  change: 'same',
+                  kind: 'loop',
+                  depth: 0,
+                  head: 'for (const line of lines)',
+                  line: 3,
+                },
+                {
+                  change: 'changed',
+                  kind: 'if',
+                  depth: 1,
+                  base: 'if (a > 0)',
+                  head: 'if (a >= 0)',
+                  line: 4,
+                },
+                { change: 'added', kind: 'throw', depth: 2, head: 'throw new Late', line: 5 },
+              ],
+            },
+          ]),
+        ],
+      })}
+    />,
+  );
+
+  await user.click(await screen.findByRole('button', { name: 'refund.ts: modified' }));
+  await user.click(within(inspector()).getByRole('tab', { name: 'Symbols 1' }));
+  const logic = within(screen.getByRole('tabpanel', { name: 'Symbols' })).getByRole('list', {
+    name: 'Logic of function refund',
+  });
+  expect(
+    within(logic)
+      .getAllByRole('listitem')
+      .map(item => item.getAttribute('aria-label')),
+  ).toEqual([
+    'removed guard: if (!paid) return',
+    'same loop: for (const line of lines)',
+    'changed if: if (a > 0) → if (a >= 0)',
+    'added throw: throw new Late',
+  ]);
+});
+
 test("a file whose symbols wouldn't parse shows the parse error on its Symbols tab, and in its box's", async () => {
   const user = userEvent.setup();
   render(

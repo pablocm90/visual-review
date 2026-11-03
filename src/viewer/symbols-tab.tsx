@@ -1,4 +1,5 @@
 import type { DiffedNode } from '../core/diff-graphs.ts';
+import type { LogicLine } from '../core/logic-diff.ts';
 import type { SymbolFile } from '../core/read-range.ts';
 import {
   changesApi,
@@ -66,6 +67,38 @@ const nameOf = (symbol: SymbolStatement): string => {
   return mark === undefined ? name : `${name}, ${mark}`;
 };
 
+const MARKS: Readonly<Record<LogicLine['change'], string>> = {
+  same: '·',
+  added: '+',
+  removed: '−',
+  changed: '~',
+};
+
+const textOf = ({ base, head }: LogicLine): string =>
+  base !== undefined && head !== undefined ? `${base} → ${head}` : (head ?? base ?? '');
+
+const LogicLines = ({ symbol }: { readonly symbol: SymbolStatement }) => (
+  <ul className="logic-lines" aria-label={`Logic of ${symbol.kind} ${qualified(symbol)}`}>
+    {(symbol.logic ?? []).map(line => (
+      <li
+        key={`${line.change} ${line.line} ${textOf(line)}`}
+        className={`logic-${line.change}`}
+        aria-label={`${line.change} ${line.kind}: ${textOf(line)}`}
+        style={{ paddingInlineStart: `${line.depth}em` }}
+      >
+        <span className="mark">{MARKS[line.change]}</span> <span className="kind">{line.kind}</span>{' '}
+        {line.change === 'changed' ? (
+          <>
+            <del>{line.base}</del> <ins>{line.head}</ins>
+          </>
+        ) : (
+          <code>{line.head ?? line.base}</code>
+        )}
+      </li>
+    ))}
+  </ul>
+);
+
 export const hasSymbolNews = (file: SymbolFile): boolean =>
   'unreadable' in file || changedSymbolCount([file]) > 0;
 
@@ -104,6 +137,7 @@ const SymbolList = ({
             <ins>{symbol.signature.head}</ins>
           </span>
         )}
+        {symbol.logic !== undefined && <LogicLines symbol={symbol} />}
       </li>
     ))}
   </ul>
