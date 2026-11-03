@@ -263,7 +263,7 @@ test('an exported symbol removed, or no longer exported, is an api finding to lo
   ]);
 });
 
-test('an exported symbol renamed or moved away is removed under its former name, the title saying where it went, a file by its path', () => {
+test('an exported symbol renamed or moved away is removed under its former name, the title saying where it went, a file by its path, a probable rename saying how it was found', () => {
   const symbols = [
     symbolFile([
       {
@@ -306,6 +306,7 @@ test('an exported symbol renamed or moved away is removed under its former name,
       level: 'look',
       target: 'web/file/a.ts',
       title: 'function settle probably renamed to pay',
+      detail: 'found by body similarity',
     },
     {
       id: 'api:removed:web/file/a.ts#total',

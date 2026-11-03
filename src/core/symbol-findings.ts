@@ -3,7 +3,7 @@ import type { GraphNode } from './graph.ts';
 import type { SymbolFile } from './read-range.ts';
 import { type FileSymbolChanges, qualified, type SymbolStatement } from './symbol-changes.ts';
 
-type Removal = { readonly former: string; readonly how: string };
+type Removal = { readonly former: string; readonly how: string; readonly detail?: string };
 
 type PathOf = (id: string) => string;
 
@@ -11,8 +11,10 @@ const removalOf = (statement: SymbolStatement, pathOf: PathOf): Removal | undefi
   if (statement.exported.base !== true) return undefined;
   const name = qualified(statement);
   if (statement.renamedFrom !== undefined) {
-    const renamed = statement.probably ? 'probably renamed' : 'renamed';
-    return { former: statement.renamedFrom, how: `${renamed} to ${name}` };
+    const former = statement.renamedFrom;
+    return statement.probably
+      ? { former, how: `probably renamed to ${name}`, detail: 'found by body similarity' }
+      : { former, how: `renamed to ${name}` };
   }
   if (statement.movedTo !== undefined)
     return { former: name, how: `moved to ${pathOf(statement.movedTo)}` };
@@ -52,6 +54,7 @@ const findingOf = ({ node, statement, pathOf }: Placed): Finding | undefined => 
       id: `api:removed:${node}#${removal.former}`,
       ...on,
       title: `${statement.kind} ${removal.former} ${removal.how}`,
+      ...(removal.detail === undefined ? {} : { detail: removal.detail }),
     };
   const { signature, exported } = statement;
   const name = qualified(statement);
