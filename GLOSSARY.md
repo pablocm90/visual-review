@@ -65,14 +65,19 @@ _Avoid_: logic diff (for one line), branch change
 _In code_: `LogicLine`
 
 **Anchor**:
-What a reviewer's comment is on: a part the graph draws (a crate, module, file, class or box) or an edge, by its id, the id notes are keyed by.
+What a reviewer's comment or answer is on: a part the graph draws (a crate, module, file, class or box) or an edge, by the id notes are keyed by, or a finding, by its id.
 _Avoid_: target (a finding's), key
-_In code_: `Review['comments'][number]['anchor']`, `{ kind: 'part' | 'edge', id }`
+_In code_: `Review['comments'][number]['anchor']`, `{ kind: 'part' | 'edge' | 'finding', id }`
 
 **Comment kind**:
 What a reviewer's comment asks of Claude: Change this (a task), Question (an answer) or Suggestion (a thought to weigh, saying what was done with it). Question unless the reviewer picks another.
 _Avoid_: comment type, severity
 _In code_: `'change' | 'question' | 'suggestion'`
+
+**Finding answer**:
+A reviewer's one-click reply to a finding: Fix this (a task), It's fine (nothing to do, with an optional why) or Explain (an answer). A finding holds the last one given, and pressing it again withdraws it.
+_Avoid_: resolution, dismissal, comment (for an answer)
+_In code_: `Answer`, `'fix' | 'fine' | 'explain'`
 
 ## Relationships
 
@@ -82,7 +87,8 @@ _In code_: `'change' | 'question' | 'suggestion'`
 - A **read mark** is on a **part**; the count of parts read counts only the parts in the **reading order**.
 - **Look first** holds only findings whose **level** is "needs a look".
 - A changed exported **symbol** raises a **finding** in the api dimension; a file's **kind of change** raises none of its own.
-- A review holds at most one comment per **anchor**, and each comment has one **comment kind**; the verdict is picked apart from the kinds.
+- A review holds at most one comment or **finding answer** per **anchor**, and each comment has one **comment kind**; the verdict is picked apart from the kinds and the answers.
+- A **flag** is answered like any other **finding**, under the id `notes:<node or edge id>`.
 - A removed guard or catch **logic line** raises a **finding** in the logic dimension that needs a look; a function's other **logic lines** that changed raise one for information; a file with either and no test changed alongside it raises one in the tests dimension.
 
 ## Flagged ambiguities

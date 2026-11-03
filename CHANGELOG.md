@@ -2,6 +2,18 @@
 
 What changed in each release of `@pablocm90/visual-review`, newest first. Versions follow [semver](https://semver.org); while it is 0.x, a minor version may change the exported types.
 
+## Unreleased
+
+### Changed
+
+- Review files are review version 4: after the comments, `comments` lists the answers to findings, each `{ anchor: { kind: 'finding', id }, kind: 'fix' | 'fine' | 'explain', text? }`, its `id` the finding's (`notes:<id>` for a note's flag), `text` the why of a `fine` when one was given. One per finding, as one comment per part or edge. `serve` refuses a version 3 review with 400.
+- The plugin's skill reads the answers: under Request changes it does each Fix this and answers each Explain; under Comment and Approve it answers each and changes nothing; a finding called fine is named with its why and nothing more.
+
+### Added
+
+- On a served page each finding, in the left rail and under the inspector's note, offers **Fix this**, **It's fine** and **Explain**. It's fine opens an optional why; a blank one is not sent. A finding keeps the last answer pressed, and pressing it again withdraws it. An answer alone lets a Comment or Request changes be sent.
+- `GLOSSARY.md` defines finding answer.
+
 ## 0.14.0 — 2026-11-03
 
 ### Changed
