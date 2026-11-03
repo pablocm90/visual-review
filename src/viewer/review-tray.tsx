@@ -85,6 +85,15 @@ export const ReviewTray = ({
   const hasBody = body.trim() !== '';
   const suggested = suggestedFor(written);
   const verdict = picked ?? suggested;
+  const silent = read.filter(part => !written.some(({ anchor }) => anchor.id === part));
+  const listed = [...inReadingOrder(drafted, parts), ...Object.values(answers)];
+  const preview = [
+    [verdict, ...(parts.length > 0 ? [`read ${read.length} of ${parts.length}`] : [])].join(' · '),
+    ...listed.map(({ kind, anchor }) => `${kind.padEnd(10)}${anchor.id}`),
+    ...(silent.length > 0
+      ? [`${'read'.padEnd(10)}${counted(silent.length, 'part')}, no comment`]
+      : []),
+  ];
   const sendComments = () =>
     send({
       version: 4,
@@ -137,11 +146,9 @@ export const ReviewTray = ({
               </ul>
               {parts.length > 0 && <p>{partsRead({ read: read.length, parts: parts.length })}</p>}
               <ul aria-label="Read, nothing to say">
-                {read
-                  .filter(part => !written.some(({ anchor }) => anchor.id === part))
-                  .map(part => (
-                    <li key={part}>{nameOf(part)}</li>
-                  ))}
+                {silent.map(part => (
+                  <li key={part}>{nameOf(part)}</li>
+                ))}
               </ul>
               <div role="radiogroup" aria-label="Verdict" className="verdict">
                 {VERDICTS.map(([value, label]) => (
@@ -171,6 +178,12 @@ export const ReviewTray = ({
               >
                 Send to Claude
               </button>
+              <details className="claude-gets">
+                <summary>What Claude gets</summary>
+                <figure aria-label="What Claude gets">
+                  <pre>{preview.join('\n')}</pre>
+                </figure>
+              </details>
             </div>
           )}
         </>

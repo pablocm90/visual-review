@@ -2075,6 +2075,42 @@ test('the open tray names the parts read with nothing to say, in reading order, 
   ).toEqual(['application', 'legacy']);
 });
 
+test("the open tray previews what Claude gets as lines: the verdict and parts read, each draft's kind and anchor in the tray's order, and the parts read with nothing to say", async () => {
+  const user = userEvent.setup();
+  const walked = render(<ReviewPage review={walkedReview()} send={async () => {}} />);
+  const rust = await screen.findByRole('group', { name: 'rust' });
+  await user.keyboard('ja');
+  await user.click(within(rust).getByRole('button', { name: 'application → domain: unchanged' }));
+  await user.type(within(noteTab()).getByRole('textbox', { name: 'Your comment' }), 'Why?');
+  await user.click(within(rust).getByRole('button', { name: 'legacy: removed' }));
+  await pickKind(user, 'Change this');
+  await user.type(within(noteTab()).getByRole('textbox', { name: 'Your comment' }), 'Keep it.');
+  await openReview(user);
+
+  const preview = () => within(tray()).getByLabelText('What Claude gets').textContent?.split('\n');
+  expect(preview()).toEqual([
+    'request-changes · read 1 of 3',
+    'change    rust/crate/legacy',
+    'question  rust/crate/application -> rust/crate/domain',
+    'read      1 part, no comment',
+  ]);
+  await user.click(verdict('Comment'));
+  expect(preview()?.[0]).toBe('comment · read 1 of 3');
+  walked.unmount();
+
+  render(
+    <ReviewPage
+      review={pageWith({ ...review, findings: [findingOn('rust/crate/domain')] })}
+      send={async () => {}}
+    />,
+  );
+  await screen.findByRole('group', { name: 'rust' });
+  await user.click(screen.getByRole('button', { name: 'Show 1 finding' }));
+  await user.click(within(findingInRail('domain')).getByRole('button', { name: 'Fix this' }));
+  await openReview(user);
+  expect(preview()).toEqual(['request-changes', 'fix       metrics:lines:rust/crate/domain']);
+});
+
 test('A on a node outside the reading order keeps no mark, so it starts unread when the range, moved on, makes it a part', async () => {
   const user = userEvent.setup();
   const walked = walkedReview();
