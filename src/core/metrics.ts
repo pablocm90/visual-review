@@ -50,7 +50,11 @@ const complexityOf = ({ lines, functions }: FileMeasures): Complexity => {
     cyclomatic: {
       highest: Math.max(0, ...cyclomatics),
       total: sum(cyclomatics),
-      byFunction: functions.map(({ abc, ...cyclomatic }) => cyclomatic),
+      byFunction: functions.map(({ name, cyclomatic, earlyReturns }) => ({
+        name,
+        cyclomatic,
+        ...(earlyReturns !== undefined && { earlyReturns }),
+      })),
     },
     abc: Math.round(Math.hypot(...parts) * 10) / 10,
   };
