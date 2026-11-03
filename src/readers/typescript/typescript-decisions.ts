@@ -72,15 +72,38 @@ const decisionAt = (walk: Walk, node: Node): Decision | undefined => {
 const isElseIf = (node: Node, child: Node): boolean =>
   node.type === 'IfStatement' && node.alternate === child;
 
-const decisionsUnder = (walk: Walk, node: Node): ReadonlyArray<Decision> =>
-  childrenOf(node)
-    .filter(child => !walk.nested.has(child))
+const branchesOf = (node: Node): ReadonlyArray<Node | null> => {
+  switch (node.type) {
+    case 'IfStatement':
+    case 'ConditionalExpression':
+      return [node.consequent, node.alternate];
+    case 'ForStatement':
+    case 'ForInStatement':
+    case 'ForOfStatement':
+    case 'WhileStatement':
+    case 'DoWhileStatement':
+    case 'CatchClause':
+      return [node.body];
+    case 'SwitchCase':
+      return node.consequent;
+    default:
+      return [];
+  }
+};
+
+const decisionsUnder = (
+  walk: Walk,
+  node: Node,
+  children: ReadonlyArray<Node | null> = childrenOf(node),
+): ReadonlyArray<Decision> =>
+  children
+    .filter((child): child is Node => child !== null && !walk.nested.has(child))
     .flatMap(child => {
       const at = isElseIf(node, child) ? { ...walk, depth: walk.depth - 1 } : walk;
       const own = decisionAt(at, child);
-      if (own?.kind === 'guard') return [own];
-      const inner = decisionsUnder(own ? { ...at, depth: at.depth + 1 } : at, child);
-      return own ? [own, ...inner] : inner;
+      if (own === undefined) return decisionsUnder(at, child);
+      if (own.kind === 'guard') return [own];
+      return [own, ...decisionsUnder({ ...at, depth: at.depth + 1 }, child, branchesOf(child))];
     });
 
 type DecisionsOptions = {

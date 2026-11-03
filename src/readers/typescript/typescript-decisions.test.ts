@@ -90,6 +90,44 @@ test('a throw is a decision, named by the class it throws; an if that only throw
   ]);
 });
 
+test("nothing in a decision's test, head or thrown value is a decision of its own", () => {
+  expect(
+    kindsAndTexts(
+      'charge',
+      'function charge(order) {',
+      '  if (order.paid ? order.late : order.open) pay();',
+      '  for (const item of order.items ? order.items : []) pay();',
+      '  (order.paid ? order.late : order.open) ? pay() : order.late ? warn() : log();',
+      "  throw new Failed(order.paid ? 'paid' : 'open');",
+      '}',
+    ),
+  ).toEqual([
+    'if: if (order.paid ? order.late : order.open)',
+    'loop: for (const item of order.items ? order.items : [])',
+    'ternary: order.paid ? order.late : order.open ?',
+    'ternary: order.late ?',
+    'throw: throw new Failed',
+  ]);
+});
+
+test('what a loop or a case holds sits one deeper than it', () => {
+  expect(
+    decisionsOf(
+      'charge',
+      'function charge(order) {',
+      '  for (;;) if (order.a) pay();',
+      '  for (const key in order) if (order.b) pay();',
+      '  for (const item of order) if (order.c) pay();',
+      '  while (order.open) if (order.d) pay();',
+      '  do { if (order.e) pay(); } while (order.late);',
+      "  switch (order.state) { case 'paid': if (order.f) pay(); }",
+      '}',
+    )
+      ?.filter(({ kind }) => kind === 'if')
+      .map(({ text, depth }) => `${depth} ${text}`),
+  ).toEqual(['a', 'b', 'c', 'd', 'e', 'f'].map(test => `1 if (order.${test})`));
+});
+
 test.for([
   {
     reason: 'a catch, by its parameter if it has one',
