@@ -140,7 +140,7 @@ const ownSymbol = (text: string, node: Node, holder: string | undefined) => {
 
 const objectNameOf = (text: string, node: Node): string | undefined =>
   node.type === 'VariableDeclarator' && node.init?.type === 'ObjectExpression'
-    ? sourceOf(text, node.id)
+    ? nameOf(text, node.id)
     : undefined;
 
 export const isOverload = (node: Node): boolean =>

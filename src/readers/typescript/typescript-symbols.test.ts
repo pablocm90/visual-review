@@ -68,6 +68,7 @@ test.each([
     lines: [
       'export function charge() { function inner() {} }',
       'export const refund = () => {}, rate = 2;',
+      'export const api: Api = { load() {} };',
       'export class Shop {',
       '  open() {}',
       '  protected refresh() {}',
@@ -81,7 +82,16 @@ test.each([
       'function local() {}',
       'class Hidden { open() {} }',
     ],
-    exported: ['charge', 'refund', 'Shop', 'Shop.open', 'Shop.refresh', 'Id', 'default'],
+    exported: [
+      'charge',
+      'refund',
+      'api.load',
+      'Shop',
+      'Shop.open',
+      'Shop.refresh',
+      'Id',
+      'default',
+    ],
   },
   {
     exports: 'in an export list, renamed or not, with a default naming a local',
