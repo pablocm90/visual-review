@@ -43,21 +43,27 @@ export const ReadingOrderList = ({
           );
         })}
       </ol>
-      <h3 className="reading-order-subtitle">Outside the graph</h3>
-      <ol className="reading-order-list">
-        {review.undrawn.map(({ path }, index) => (
-          <li key={path} className="reading-order-row">
-            <button
-              type="button"
-              className="reading-order-part"
-              onClick={event => onShowOutside(event.currentTarget)}
-            >
-              <span className="reading-number">{review.readingOrder.parts.length + index + 1}</span>{' '}
-              {path}
-            </button>
-          </li>
-        ))}
-      </ol>
+      {review.undrawn.length > 0 && (
+        <>
+          <h3 className="reading-order-subtitle">Outside the graph</h3>
+          <ol className="reading-order-list">
+            {review.undrawn.map(({ path }, index) => (
+              <li key={path} className="reading-order-row">
+                <button
+                  type="button"
+                  className="reading-order-part"
+                  onClick={event => onShowOutside(event.currentTarget)}
+                >
+                  <span className="reading-number">
+                    {review.readingOrder.parts.length + index + 1}
+                  </span>{' '}
+                  {path}
+                </button>
+              </li>
+            ))}
+          </ol>
+        </>
+      )}
     </nav>
   );
 };

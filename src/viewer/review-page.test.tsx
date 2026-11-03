@@ -1564,6 +1564,26 @@ test("the reading order numbers the changed parts in its order, each marked with
   expect(within(inspector()).getByRole('heading', { level: 2 }).textContent).toBe('cli-adapter');
 });
 
+test('the reading order shows no outside heading when every changed file is drawn', async () => {
+  render(
+    <ReviewPage
+      review={pageWith({
+        ...review,
+        readingOrder: { parts: ['rust/crate/application'], cycles: [] },
+      })}
+    />,
+  );
+  await screen.findByRole('group', { name: 'rust' });
+
+  const order = screen.getByRole('navigation', { name: 'Reading order' });
+  expect(
+    within(order)
+      .getAllByRole('button')
+      .map(row => row.textContent),
+  ).toEqual(['1 application']);
+  expect(within(order).queryByRole('heading', { name: 'Outside the graph' })).toBeNull();
+});
+
 test('look first lists the findings to look at in rank order, in the dimension a triage chip picks, collapsing to their count, each going to its node, seven at most and Show all opening the rail past them, and is absent when none needs a look', async () => {
   const user = userEvent.setup();
   const looks = (count: number) =>
