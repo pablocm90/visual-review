@@ -1664,6 +1664,17 @@ test('A marks the selected part read, ticking its row and counting it at the hea
   expect(within(readingOrder()).getByText('1 of 3 parts read')).toBeDefined();
 });
 
+test('J, K and A held with Control, Meta or Alt are left to the browser, neither walking nor marking', async () => {
+  const user = userEvent.setup();
+  render(<ReviewPage review={walkedReview()} />);
+  await screen.findByRole('group', { name: 'rust' });
+
+  await user.keyboard('j');
+  await user.keyboard('{Control>}j{/Control}{Meta>}a{/Meta}{Alt>}j{/Alt}');
+  expect(selectedPart()).toBe('application');
+  expect(within(readingOrder()).getByText('0 of 3 parts read')).toBeDefined();
+});
+
 test('J, K and A typed in a comment are text, neither walking nor marking', async () => {
   const user = userEvent.setup();
   render(<ReviewPage review={walkedReview()} send={async () => {}} />);
