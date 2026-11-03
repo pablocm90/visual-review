@@ -88,6 +88,8 @@ const review = {
   },
 };
 
+await layoutDiff(review.diff);
+
 const shown = (name: string) =>
   within(screen.getByRole('group', { name: 'Show' })).getByRole('button', { name });
 
@@ -98,7 +100,7 @@ const openReview = (user: ReturnType<typeof userEvent.setup>) =>
   user.click(screen.getByRole('button', { name: 'Review' }));
 
 const sentReview = (sent: Partial<Review>): Review => ({
-  version: 3,
+  version: 4,
   verdict: 'comment',
   reviewed: { range: review.range },
   read: [],
@@ -358,19 +360,172 @@ test('an Approve can be sent with no comment', async () => {
   expect(sent).toHaveBeenCalledExactlyOnceWith(sentReview({ verdict: 'approve' }));
 });
 
-test('a page that is not served has no comment field and no Review button', async () => {
+const findingInRail = (target: string) =>
+  within(screen.getByRole('complementary', { name: 'Findings' }))
+    .getByRole('button', { name: new RegExp(`^${target}: `) })
+    .closest('li') ?? screen.getByRole('list', { name: 'no such finding' });
+
+test("a finding in the rail is answered Fix this, It's fine or Explain, only the latest pressed and sent, pressing it again withdrawing it", async () => {
   const user = userEvent.setup();
-  const { rerender } = render(<ReviewPage review={pageWith(review)} send={async () => {}} />);
+  const sent = vi.fn(async () => {});
+  render(
+    <ReviewPage
+      review={pageWith({
+        ...review,
+        findings: [
+          findingOn('rust/crate/domain'),
+          findingOn('rust/crate/application', { id: 'metrics:cyclomatic:rust/crate/application' }),
+        ],
+      })}
+      send={sent}
+    />,
+  );
+  const answer = (target: string, name: string) =>
+    user.click(within(findingInRail(target)).getByRole('button', { name }));
+
+  await screen.findByRole('group', { name: 'rust' });
+  await user.click(screen.getByRole('button', { name: 'Show 2 findings' }));
+  await answer('domain', 'Fix this');
+  expect(
+    within(findingInRail('domain')).queryByRole('textbox', { name: "Why it's fine" }),
+  ).toBeNull();
+  await answer('domain', 'Fix this');
+  expect(within(findingInRail('domain')).queryAllByRole('button', { pressed: true })).toEqual([]);
+  await answer('domain', 'Fix this');
+  await answer('application', 'Explain');
+  await answer('domain', "It's fine");
+  expect(
+    within(findingInRail('domain'))
+      .getAllByRole('button', { pressed: true })
+      .map(button => button.textContent),
+  ).toEqual(["It's fine"]);
+
+  await openReview(user);
+  await user.click(screen.getByRole('button', { name: 'Send to Claude' }));
+  expect(sent).toHaveBeenCalledExactlyOnceWith(
+    sentReview({
+      comments: [
+        { anchor: { kind: 'finding', id: 'metrics:lines:rust/crate/domain' }, kind: 'fine' },
+        {
+          anchor: { kind: 'finding', id: 'metrics:cyclomatic:rust/crate/application' },
+          kind: 'explain',
+        },
+      ],
+    }),
+  );
+});
+
+test("It's fine takes an optional why, which goes with the answer unless blank", async () => {
+  const user = userEvent.setup();
+  const sent = vi.fn(async () => {});
+  render(
+    <ReviewPage
+      review={pageWith({
+        ...review,
+        findings: [
+          findingOn('rust/crate/domain'),
+          findingOn('rust/crate/application', { id: 'metrics:cyclomatic:rust/crate/application' }),
+        ],
+      })}
+      send={sent}
+    />,
+  );
+
+  await screen.findByRole('group', { name: 'rust' });
+  await user.click(screen.getByRole('button', { name: 'Show 2 findings' }));
+  const fine = async (target: string, why: string) => {
+    await user.click(within(findingInRail(target)).getByRole('button', { name: "It's fine" }));
+    await user.type(
+      within(findingInRail(target)).getByRole('textbox', { name: "Why it's fine" }),
+      why,
+    );
+  };
+  await fine('domain', 'Generated code');
+  await fine('application', '   ');
+  await openReview(user);
+  await user.click(screen.getByRole('button', { name: 'Send to Claude' }));
+
+  expect(sent).toHaveBeenCalledExactlyOnceWith(
+    sentReview({
+      comments: [
+        {
+          anchor: { kind: 'finding', id: 'metrics:lines:rust/crate/domain' },
+          kind: 'fine',
+          text: 'Generated code',
+        },
+        {
+          anchor: { kind: 'finding', id: 'metrics:cyclomatic:rust/crate/application' },
+          kind: 'fine',
+        },
+      ],
+    }),
+  );
+});
+
+test("a finding under the inspector's note is answered there, the same answer as in the rail", async () => {
+  const user = userEvent.setup();
+  const sent = vi.fn(async () => {});
+  render(
+    <ReviewPage
+      review={pageWith({
+        ...review,
+        findings: [
+          findingOn('rust/crate/application', { id: 'metrics:cyclomatic:rust/crate/application' }),
+        ],
+      })}
+      send={sent}
+    />,
+  );
+
+  await user.click(await screen.findByRole('button', { name: 'application: modified' }));
+  await user.click(within(noteTab()).getByRole('button', { name: 'Fix this' }));
+  expect(
+    within(noteTab())
+      .getAllByRole('button', { pressed: true })
+      .map(button => button.textContent),
+  ).toEqual(['Fix this']);
+  await user.click(screen.getByRole('button', { name: 'Show 1 finding' }));
+  expect(
+    within(findingInRail('application'))
+      .getAllByRole('button', { pressed: true })
+      .map(button => button.textContent),
+  ).toEqual(['Fix this']);
+  await openReview(user);
+  await user.click(screen.getByRole('button', { name: 'Send to Claude' }));
+
+  expect(sent).toHaveBeenCalledExactlyOnceWith(
+    sentReview({
+      comments: [
+        {
+          anchor: { kind: 'finding', id: 'metrics:cyclomatic:rust/crate/application' },
+          kind: 'fix',
+        },
+      ],
+    }),
+  );
+});
+
+test('a page that is not served has no comment field, no answers to findings and no Review button', async () => {
+  const user = userEvent.setup();
+  const page = pageWith({ ...review, findings: [findingOn('rust/crate/domain')] });
+  const { rerender } = render(<ReviewPage review={page} send={async () => {}} />);
   const comment = () => within(noteTab()).queryByRole('textbox', { name: 'Your comment' });
+  const answers = () => within(findingInRail('domain')).queryByRole('group', { name: 'Answer' });
+  const noteAnswers = () => within(noteTab()).queryByRole('group', { name: 'Answer' });
   const reviewButton = () => screen.queryByRole('button', { name: 'Review' });
 
   const rust = await screen.findByRole('group', { name: 'rust' });
   await user.click(within(rust).getByRole('button', { name: 'domain: unchanged' }));
+  await user.click(screen.getByRole('button', { name: 'Show 1 finding' }));
   expect(comment()).not.toBeNull();
+  expect(answers()).not.toBeNull();
+  expect(noteAnswers()).not.toBeNull();
   expect(reviewButton()).not.toBeNull();
 
-  rerender(<ReviewPage review={pageWith(review)} />);
+  rerender(<ReviewPage review={page} />);
   expect(comment()).toBeNull();
+  expect(answers()).toBeNull();
+  expect(noteAnswers()).toBeNull();
   expect(reviewButton()).toBeNull();
 });
 
@@ -1889,6 +2044,37 @@ test('J, K and A typed in a comment are text, neither walking nor marking', asyn
   expect(selectedPart()).toBe('application');
   expect(within(readingOrder()).getByText('0 of 3 parts read')).toBeDefined();
   expect(within(noteTab()).getByRole('textbox', { name: 'Your comment' })).toHaveProperty(
+    'value',
+    'jaj',
+  );
+});
+
+test('J walks the reading order with the All edges box focused', async () => {
+  const user = userEvent.setup();
+  render(<ReviewPage review={walkedReview()} />);
+  await screen.findByRole('group', { name: 'rust' });
+
+  await user.click(screen.getByRole('checkbox', { name: 'All edges' }));
+  await user.keyboard('j');
+  expect(selectedPart()).toBe('application');
+});
+
+test("J, K and A typed in why it's fine are text, neither walking nor marking", async () => {
+  const user = userEvent.setup();
+  render(
+    <ReviewPage
+      review={{ ...walkedReview(), findings: [findingOn('rust/crate/application')] }}
+      send={async () => {}}
+    />,
+  );
+  await screen.findByRole('group', { name: 'rust' });
+
+  await user.keyboard('j');
+  await user.click(within(noteTab()).getByRole('button', { name: "It's fine" }));
+  await user.type(within(noteTab()).getByRole('textbox', { name: "Why it's fine" }), 'jaj');
+  expect(selectedPart()).toBe('application');
+  expect(within(readingOrder()).getByText('0 of 3 parts read')).toBeDefined();
+  expect(within(noteTab()).getByRole('textbox', { name: "Why it's fine" })).toHaveProperty(
     'value',
     'jaj',
   );

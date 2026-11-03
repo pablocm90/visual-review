@@ -20,7 +20,7 @@ import type { NodeMetrics } from '../core/metrics.ts';
 import { type Note, type ReviewNotes, visibleNotes } from '../core/notes.ts';
 import { type PageData, UNCOMMITTED } from '../core/page.ts';
 import type { SymbolFile } from '../core/read-range.ts';
-import type { Review } from '../core/review.ts';
+import type { Answer, Comment, Review } from '../core/review.ts';
 import type { TestFile } from '../core/test-changes.ts';
 import { testsAlongside } from '../core/tests-alongside.ts';
 import {
@@ -34,7 +34,15 @@ import {
   visibleNodeOf,
 } from '../core/visible-diff.ts';
 import { ColourBy, type Colouring, ScaleLegend, type Shade, shadeOf } from './colour-by.tsx';
-import { findingLine, LEVELS, LevelMark, worstOf } from './finding-display.tsx';
+import {
+  AnswerButtons,
+  type Answers,
+  type AnswerTo,
+  findingLine,
+  LEVELS,
+  LevelMark,
+  worstOf,
+} from './finding-display.tsx';
 import { FindingsRail, LookFirst, nameOf, TriageStrip } from './findings-rail.tsx';
 import { highlightPatch, type PatchLine as Line, type Piece } from './highlight-patch.ts';
 import {
@@ -554,11 +562,12 @@ type InspectorProps = {
   readonly comment: Draft;
   readonly onComment: ((draft: Draft) => void) | undefined;
   readonly commentable: boolean;
+  readonly answers: Answers;
+  readonly onAnswer: AnswerTo | undefined;
   readonly width: number;
   readonly onClose: () => void;
 };
 
-type Comment = Review['comments'][number];
 type Draft = Pick<Comment, 'kind' | 'text'>;
 
 const NO_DRAFT: Draft = { kind: 'question', text: '' };
@@ -658,10 +667,18 @@ const nodeSections = ({
 
 type NotePanelProps = Pick<
   InspectorProps,
-  'note' | 'found' | 'comment' | 'onComment' | 'commentable'
+  'note' | 'found' | 'comment' | 'onComment' | 'commentable' | 'answers' | 'onAnswer'
 >;
 
-const NotePanel = ({ note, found, comment, onComment, commentable }: NotePanelProps) => (
+const NotePanel = ({
+  note,
+  found,
+  comment,
+  onComment,
+  commentable,
+  answers,
+  onAnswer,
+}: NotePanelProps) => (
   <>
     {found.length > 0 && (
       <ul className="note-findings" aria-label="Findings">
@@ -669,6 +686,9 @@ const NotePanel = ({ note, found, comment, onComment, commentable }: NotePanelPr
           <li key={finding.id}>
             <LevelMark level={finding.level} />
             {findingLine(finding)}
+            {onAnswer && (
+              <AnswerButtons id={finding.id} answer={answers[finding.id]} onAnswer={onAnswer} />
+            )}
           </li>
         ))}
       </ul>
@@ -803,6 +823,8 @@ type SidePanelProps = {
   readonly found: ReadonlyArray<Finding>;
   readonly comments: Comments;
   readonly onComment: ((comment: Comment) => void) | undefined;
+  readonly answers: Answers;
+  readonly onAnswer: AnswerTo | undefined;
   readonly chosenWidth: number | undefined;
   readonly onChooseWidth: (width: number) => void;
   readonly graphLeft: () => number;
@@ -820,6 +842,8 @@ const SidePanel = ({
   found,
   comments,
   onComment,
+  answers,
+  onAnswer,
   chosenWidth,
   onChooseWidth,
   graphLeft,
@@ -895,6 +919,8 @@ const SidePanel = ({
         commentable={
           node !== undefined || review.diff.edges.some(edge => edgeId(edge) === selected)
         }
+        answers={answers}
+        onAnswer={onAnswer}
         width={width}
         onClose={() => onCloseInspector(selected)}
       />
@@ -1107,6 +1133,7 @@ type SendProps = {
   readonly read: Review['read'];
   readonly parts: number;
   readonly comments: Comments;
+  readonly answers: Answers;
   readonly send: (review: Review) => Promise<void>;
 };
 
@@ -1116,17 +1143,23 @@ const VERDICTS: ReadonlyArray<readonly [Review['verdict'], string]> = [
   ['request-changes', 'Request changes'],
 ];
 
-const SendToClaude = ({ reviewed, read, parts, comments, send }: SendProps) => {
+const withWhy = ({ text, ...answer }: Answer): Answer =>
+  text?.trim() ? { ...answer, text } : answer;
+
+const SendToClaude = ({ reviewed, read, parts, comments, answers, send }: SendProps) => {
   const [verdict, setVerdict] = useState<Review['verdict']>('comment');
   const [open, setOpen] = useState(false);
   const [body, setBody] = useState('');
   const [sent, setSent] = useState(false);
   const [problem, setProblem] = useState<string>();
-  const written = Object.values(comments).filter(({ text }) => text.trim() !== '');
+  const written = [
+    ...Object.values(comments).filter(({ text }) => text.trim() !== ''),
+    ...Object.values(answers).map(withWhy),
+  ];
   const hasBody = body.trim() !== '';
   const sendComments = () =>
     send({
-      version: 3,
+      version: 4,
       verdict,
       ...(hasBody ? { body } : {}),
       reviewed,
@@ -1197,10 +1230,11 @@ type HeaderProps = {
   readonly tab: Tab;
   readonly read: Review['read'];
   readonly comments: Comments;
+  readonly answers: Answers;
   readonly send: ((review: Review) => Promise<void>) | undefined;
 };
 
-const Header = ({ review, tab, read, comments, send }: HeaderProps) => {
+const Header = ({ review, tab, read, comments, answers, send }: HeaderProps) => {
   const changed = changedCount(review.tests);
   return (
     <header className="review">
@@ -1245,6 +1279,7 @@ const Header = ({ review, tab, read, comments, send }: HeaderProps) => {
           read={read}
           parts={review.readingOrder.parts.length}
           comments={comments}
+          answers={answers}
           send={send}
         />
       )}
@@ -1261,6 +1296,15 @@ type ReviewPageProps = {
   readonly send?: ((review: Review) => Promise<void>) | undefined;
 };
 
+const withAnswer = (answers: Answers, id: string, given: Answer | undefined): Answers =>
+  given
+    ? { ...answers, [id]: given }
+    : Object.fromEntries(Object.entries(answers).filter(([answered]) => answered !== id));
+
+const typesText = (target: EventTarget | null) =>
+  target instanceof HTMLTextAreaElement ||
+  (target instanceof HTMLInputElement && target.type === 'text');
+
 export const ReviewPage = ({ review, notes, send }: ReviewPageProps) => {
   const tab = useTab();
   const [layout, setLayout] = useState<Layout>();
@@ -1274,6 +1318,9 @@ export const ReviewPage = ({ review, notes, send }: ReviewPageProps) => {
     setSelected(id);
   };
   const [comments, setComments] = useState<Comments>({});
+  const [answers, setAnswers] = useState<Answers>({});
+  const answer: AnswerTo | undefined =
+    send && ((id, given) => setAnswers(current => withAnswer(current, id, given)));
   const [chosenWidth, setChosenWidth] = useState<number>();
   const comment = (written: Comment) =>
     setComments(current => ({ ...current, [written.anchor.id]: written }));
@@ -1387,7 +1434,7 @@ export const ReviewPage = ({ review, notes, send }: ReviewPageProps) => {
   useEffect(() => {
     if (tab !== 'structure') return;
     const keyed = (event: globalThis.KeyboardEvent) => {
-      if (event.target instanceof HTMLTextAreaElement) return;
+      if (typesText(event.target)) return;
       if (event.ctrlKey || event.metaKey || event.altKey) return;
       const key = event.key.toLowerCase();
       if (key === 'j') walk(1);
@@ -1417,6 +1464,7 @@ export const ReviewPage = ({ review, notes, send }: ReviewPageProps) => {
         tab={tab}
         read={review.readingOrder.parts.filter(part => read.has(part))}
         comments={comments}
+        answers={answers}
         send={send}
       />
       {tab === 'structure' && (
@@ -1440,6 +1488,8 @@ export const ReviewPage = ({ review, notes, send }: ReviewPageProps) => {
                 review={review}
                 onGoTo={goTo}
                 onShowOutside={showOutside}
+                answers={answers}
+                onAnswer={answer}
               />
             </div>
             <div className="content">
@@ -1541,6 +1591,8 @@ export const ReviewPage = ({ review, notes, send }: ReviewPageProps) => {
               found={selectedFindings}
               comments={comments}
               onComment={send && comment}
+              answers={answers}
+              onAnswer={answer}
               chosenWidth={chosenWidth}
               onChooseWidth={setChosenWidth}
               graphLeft={graphLeft}

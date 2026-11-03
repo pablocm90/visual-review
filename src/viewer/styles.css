@@ -2184,3 +2184,46 @@ pre .hljs-emphasis {
   font-size: 12px;
   font-weight: 600;
 }
+
+.finding:has(.finding-answer) {
+  flex-wrap: wrap;
+}
+
+.finding-answer {
+  display: flex;
+  flex-wrap: wrap;
+  flex-basis: 100%;
+  gap: 4px;
+  padding-left: 27px;
+}
+
+.finding-answer .answer-kind {
+  display: inline-block;
+  padding: 2px 8px;
+  border: 1px solid var(--stack-line);
+  border-radius: 6px;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.finding-answer .answer-kind[aria-pressed="true"] {
+  background: var(--unchanged-fill);
+  color: var(--ink);
+  font-weight: 600;
+}
+
+.finding-answer input {
+  flex-basis: 100%;
+  padding: 4px 8px;
+  border: 1px solid var(--stack-line);
+  border-radius: 6px;
+  background: var(--page);
+  color: var(--ink);
+  font: inherit;
+  font-size: 12px;
+}
+
+.note-findings .finding-answer {
+  margin-top: 4px;
+  padding-left: 19px;
+}

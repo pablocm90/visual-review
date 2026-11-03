@@ -1,6 +1,7 @@
 import type { Finding } from '../core/findings.ts';
 import type { MetricFinding } from '../core/metric-findings.ts';
 import { tenths } from '../core/metrics.ts';
+import type { Answer } from '../core/review.ts';
 
 export const signed = (value: number) => {
   const by = tenths(value);
@@ -24,3 +25,48 @@ export const worstOf = (findings: ReadonlyArray<Finding>) =>
 
 export const findingLine = ({ title, detail }: Finding) =>
   detail === undefined ? title : `${title}: ${detail}`;
+
+export type Answers = Readonly<Record<string, Answer>>;
+
+export type AnswerTo = (id: string, answer: Answer | undefined) => void;
+
+const ANSWER_KINDS: ReadonlyArray<readonly [Answer['kind'], string]> = [
+  ['fix', 'Fix this'],
+  ['fine', "It's fine"],
+  ['explain', 'Explain'],
+];
+
+type AnswerButtonsProps = {
+  readonly id: string;
+  readonly answer: Answer | undefined;
+  readonly onAnswer: AnswerTo;
+};
+
+export const AnswerButtons = ({ id, answer, onAnswer }: AnswerButtonsProps) => (
+  <div role="group" aria-label="Answer" className="finding-answer">
+    {ANSWER_KINDS.map(([kind, label]) => (
+      <button
+        key={kind}
+        type="button"
+        className="answer-kind"
+        aria-pressed={answer?.kind === kind}
+        onClick={() =>
+          onAnswer(
+            id,
+            answer?.kind === kind ? undefined : { anchor: { kind: 'finding', id }, kind },
+          )
+        }
+      >
+        {label}
+      </button>
+    ))}
+    {answer?.kind === 'fine' && (
+      <input
+        aria-label="Why it's fine"
+        placeholder="Why it's fine (optional)"
+        value={answer.text ?? ''}
+        onChange={event => onAnswer(id, { ...answer, text: event.target.value })}
+      />
+    )}
+  </div>
+);

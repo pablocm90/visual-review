@@ -1,6 +1,36 @@
 import { z } from 'zod';
 
-const reviewVersion = 3;
+const reviewVersion = 4;
+
+const CommentSchema = z
+  .strictObject({
+    anchor: z
+      .strictObject({
+        kind: z.enum(['part', 'edge']).describe('What the comment is on'),
+        id: z.string().describe('A node id, or `<from> -> <to>` for an edge'),
+      })
+      .readonly(),
+    kind: z
+      .enum(['change', 'question', 'suggestion'])
+      .describe('What the comment asks for: a task, an answer, or a thought to weigh'),
+    text: z.string(),
+  })
+  .readonly();
+
+const AnswerSchema = z
+  .strictObject({
+    anchor: z
+      .strictObject({
+        kind: z.literal('finding').describe('An answer to a finding'),
+        id: z.string().describe("The finding's id"),
+      })
+      .readonly(),
+    kind: z
+      .enum(['fix', 'fine', 'explain'])
+      .describe('What the answer asks for: a task, nothing, or an answer'),
+    text: z.string().optional().describe('Why it is fine, when the reviewer says'),
+  })
+  .readonly();
 
 const ReviewSchema = z
   .strictObject({
@@ -25,22 +55,7 @@ const ReviewSchema = z
       .readonly()
       .describe('The parts the reviewer marked read, by node id, in reading order'),
     comments: z
-      .array(
-        z
-          .strictObject({
-            anchor: z
-              .strictObject({
-                kind: z.enum(['part', 'edge']).describe('What the comment is on'),
-                id: z.string().describe('A node id, or `<from> -> <to>` for an edge'),
-              })
-              .readonly(),
-            kind: z
-              .enum(['change', 'question', 'suggestion'])
-              .describe('What the comment asks for: a task, an answer, or a thought to weigh'),
-            text: z.string(),
-          })
-          .readonly(),
-      )
+      .array(z.union([CommentSchema, AnswerSchema]))
       .readonly()
       .superRefine((comments, context) => {
         const counts = Map.groupBy(comments, ({ anchor }) => `${anchor.kind} ${anchor.id}`);
@@ -52,11 +67,15 @@ const ReviewSchema = z
           }
         }
       })
-      .describe("The reviewer's comments, one per anchor"),
+      .describe("The reviewer's comments and answers to findings, one per anchor"),
   })
   .readonly();
 
 export type Review = z.infer<typeof ReviewSchema>;
+
+export type Comment = z.infer<typeof CommentSchema>;
+
+export type Answer = z.infer<typeof AnswerSchema>;
 
 export const reviewJsonSchema = () => z.toJSONSchema(ReviewSchema, { io: 'input' });
 

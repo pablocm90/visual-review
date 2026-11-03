@@ -8,8 +8,15 @@ import {
 } from '../core/findings.ts';
 import { endsOfId } from '../core/graph.ts';
 import type { PageData } from '../core/page.ts';
+import type { Answer } from '../core/review.ts';
 import { notReadLine } from '../core/skipped.ts';
-import { findingLine, LevelMark } from './finding-display.tsx';
+import {
+  AnswerButtons,
+  type Answers,
+  type AnswerTo,
+  findingLine,
+  LevelMark,
+} from './finding-display.tsx';
 
 type FindingsRailProps = {
   readonly findings: ReadonlyArray<Finding>;
@@ -18,6 +25,8 @@ type FindingsRailProps = {
   readonly review: Pick<PageData, 'diff' | 'skipped'>;
   readonly onGoTo: (id: string) => void;
   readonly onShowOutside: (opener: HTMLButtonElement) => void;
+  readonly answers: Answers;
+  readonly onAnswer: AnswerTo | undefined;
 };
 
 type Level = Finding['level'];
@@ -85,7 +94,13 @@ const groupsOf = (props: FindingsRailProps): ReadonlyArray<Group> => {
   }));
 };
 
-const FindingItem = ({ finding }: { readonly finding: Line }) => {
+type FindingItemProps = {
+  readonly finding: Line;
+  readonly answer?: Answer | undefined;
+  readonly onAnswer?: AnswerTo | undefined;
+};
+
+const FindingItem = ({ finding, answer, onAnswer }: FindingItemProps) => {
   const said = (
     <>
       <span>{finding.sentence}</span>
@@ -106,6 +121,7 @@ const FindingItem = ({ finding }: { readonly finding: Line }) => {
       ) : (
         <span className="finding-said">{said}</span>
       )}
+      {onAnswer && <AnswerButtons id={finding.id} answer={answer} onAnswer={onAnswer} />}
     </li>
   );
 };
@@ -154,7 +170,12 @@ export const FindingsRail = (props: FindingsRailProps) => {
             <h3>{group.name}</h3>
             <ul>
               {group.findings.map(finding => (
-                <FindingItem key={finding.id} finding={finding} />
+                <FindingItem
+                  key={finding.id}
+                  finding={finding}
+                  answer={props.answers[finding.id]}
+                  onAnswer={props.onAnswer}
+                />
               ))}
             </ul>
           </section>
