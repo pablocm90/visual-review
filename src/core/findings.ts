@@ -8,6 +8,8 @@ import type { PageData } from './page.ts';
 import type { SymbolFile } from './read-range.ts';
 import { notReadLine, type Skipped } from './skipped.ts';
 import { symbolFindings } from './symbol-findings.ts';
+import { anyChanged, type TestFile } from './test-changes.ts';
+import { testsAlongside } from './tests-alongside.ts';
 import { visibleNodeOf } from './visible-diff.ts';
 
 export const DIMENSIONS = [
@@ -66,7 +68,36 @@ type RaisedOptions = {
   readonly symbols: ReadonlyArray<SymbolFile>;
   readonly symbolsNotRead: ReadonlyArray<string>;
   readonly nodes: ReadonlyArray<GraphNode>;
+  readonly tests: ReadonlyArray<TestFile>;
 };
+
+type UntestedOptions = Pick<RaisedOptions, 'nodes' | 'tests'>;
+
+const withUntestedLogic = (
+  findings: ReadonlyArray<Finding>,
+  { nodes, tests }: UntestedOptions,
+): ReadonlyArray<Finding> => [
+  ...findings,
+  ...nodes
+    .filter(node =>
+      findings.some(({ dimension, target }) => dimension === 'logic' && target === node.id),
+    )
+    .filter(
+      node =>
+        !testsAlongside({ nodes, node, tests }).some(
+          test => 'unreadable' in test || anyChanged(test.statements),
+        ),
+    )
+    .map(
+      (node): Finding => ({
+        id: `tests:untested-logic:${node.id}`,
+        dimension: 'tests',
+        level: 'look',
+        target: node.id,
+        title: 'logic changed with no test changed alongside',
+      }),
+    ),
+];
 
 export const skippedFindingId = (skip: Skipped) => `structure:skipped:${skip.reader}`;
 
@@ -78,6 +109,7 @@ export const raisedFindings = ({
   symbols,
   symbolsNotRead,
   nodes,
+  tests,
 }: RaisedOptions): ReadonlyArray<Finding> => [
   ...skipped.map(
     (skip): Finding => ({
@@ -117,7 +149,7 @@ export const raisedFindings = ({
       title: metricTitle(finding),
     }),
   ),
-  ...symbolFindings({ files: symbols, nodes }),
+  ...withUntestedLogic(symbolFindings({ files: symbols, nodes }), { nodes, tests }),
   ...symbolsNotRead.map(
     (stack): Finding => ({
       id: `structure:symbols-not-read:${stack}`,
