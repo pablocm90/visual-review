@@ -464,17 +464,27 @@ const Patch = ({
   patch,
   open,
   landing,
-}: FilePatch & { readonly open: boolean; readonly landing?: Landing | undefined }) => (
-  <details aria-label={path} open={open}>
-    <summary>{path}</summary>
-    <pre>
-      {highlightPatch({ path, patch }).map((line, index) => (
-        // biome-ignore lint/suspicious/noArrayIndexKey: a patch's lines are fixed and may repeat
-        <PatchLine key={index} line={line} current={isLandedOn(line, landing)} />
-      ))}
-    </pre>
-  </details>
-);
+}: FilePatch & { readonly open: boolean; readonly landing?: Landing | undefined }) => {
+  const lines = useMemo(() => highlightPatch({ path, patch }), [path, patch]);
+  const landOnTop = useCallback(
+    (top: HTMLElement | null) => {
+      if (landing !== undefined && !lines.some(line => isLandedOn(line, landing)))
+        top?.scrollIntoView({ block: 'start' });
+    },
+    [landing, lines],
+  );
+  return (
+    <details aria-label={path} open={open} ref={landOnTop}>
+      <summary>{path}</summary>
+      <pre>
+        {lines.map((line, index) => (
+          // biome-ignore lint/suspicious/noArrayIndexKey: a patch's lines are fixed and may repeat
+          <PatchLine key={index} line={line} current={isLandedOn(line, landing)} />
+        ))}
+      </pre>
+    </details>
+  );
+};
 
 type DiffNode = GraphDiff['nodes'][number];
 

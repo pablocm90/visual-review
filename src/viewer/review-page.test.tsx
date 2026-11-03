@@ -3093,7 +3093,7 @@ test('a moved symbol names the file it moved to or from, and goes to that file',
   expect(within(inspector()).getByRole('heading', { level: 2 }).textContent).toBe('refund.ts');
 });
 
-test("a box's Symbols tab lists each file inside it with symbol changes, each with its own groups; a logic line opens its own file's patch on its row", async () => {
+test("a box's Symbols tab lists each file inside it with symbol changes, each with its own groups; a logic line opens its own file's patch on its row, or at its top when outside every hunk", async () => {
   const user = userEvent.setup();
   const inBilling = (label: string) => ({
     ...topFile(label, 'modified'),
@@ -3134,6 +3134,7 @@ test("a box's Symbols tab lists each file inside it with symbol changes, each wi
               ...symbol('refund', 'edited'),
               logic: [
                 { change: 'added', kind: 'throw', depth: 0, head: 'throw new Late', line: 2 },
+                { change: 'added', kind: 'return', depth: 1, head: 'return late', line: 40 },
               ],
             },
           ]),
@@ -3174,8 +3175,11 @@ test("a box's Symbols tab lists each file inside it with symbol changes, each wi
     [
       'refund.ts',
       [
-        ['Edited', ['function refund: edited', 'added throw: throw new Late']],
-        ['Logic of function refund', ['added throw: throw new Late']],
+        [
+          'Edited',
+          ['function refund: edited', 'added throw: throw new Late', 'added return: return late'],
+        ],
+        ['Logic of function refund', ['added throw: throw new Late', 'added return: return late']],
       ],
     ],
     [
@@ -3204,6 +3208,18 @@ test("a box's Symbols tab lists each file inside it with symbol changes, each wi
   expect(
     Array.from(document.querySelectorAll('[aria-current="true"]'), row => row.textContent),
   ).toEqual(['+  throw new Late();']);
+
+  await user.click(within(inspector()).getByRole('tab', { name: 'Symbols 2' }));
+  await user.click(
+    within(screen.getByRole('tabpanel', { name: 'Symbols' })).getByRole('button', {
+      name: /^added return/,
+    }),
+  );
+  const scrolled = scrolledIntoView.mock.contexts.at(-1);
+  expect(scrolled instanceof HTMLElement && scrolled.getAttribute('aria-label')).toBe(
+    'web/src/billing/refund.ts',
+  );
+  expect(document.querySelectorAll('[aria-current="true"]')).toHaveLength(0);
 });
 
 test("an edited function's logic lines show under it on the Symbols tab, each with its change, kind and text, a changed one base then head; a line that changed opens the Diff tab on its row, head side unless removed", async () => {
