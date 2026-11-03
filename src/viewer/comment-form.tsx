@@ -58,9 +58,11 @@ export const AnchoredComment = ({ anchor, drafting }: AnchoredCommentProps) => {
   const [open, setOpen] = useState(false);
   const draft = drafting.draftOn(anchor.id);
   return open || draft.text !== '' ? (
-    <CommentForm draft={draft} onDraft={draft => drafting.onDraft({ anchor, ...draft })} />
+    <div className="anchored-comment">
+      <CommentForm draft={draft} onDraft={draft => drafting.onDraft({ anchor, ...draft })} />
+    </div>
   ) : (
-    <button type="button" onClick={() => setOpen(true)}>
+    <button type="button" className="comment-on" onClick={() => setOpen(true)}>
       Comment
     </button>
   );

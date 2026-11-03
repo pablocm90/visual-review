@@ -2375,3 +2375,28 @@ main:has(> .review-tray) {
   white-space: pre-wrap;
   overflow-wrap: anywhere;
 }
+
+.comment-on {
+  margin-left: 6px;
+  padding: 0 6px;
+  border: 1px solid var(--stack-line);
+  border-radius: 6px;
+  background: none;
+  color: var(--muted);
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.anchored-comment {
+  margin: 4px 0 8px;
+}
+
+.anchored-comment .comment-kind,
+.anchored-comment .comment {
+  margin-top: 6px;
+}
+
+.anchored-comment .comment textarea {
+  min-height: 56px;
+}
