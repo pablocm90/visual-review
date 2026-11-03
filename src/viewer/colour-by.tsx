@@ -109,7 +109,7 @@ type ColourByProps = {
 export const ColourBy = ({ colouring, onPick }: ColourByProps) => {
   const label = useId();
   return (
-    <div className="segmented">
+    <div className="graph-choice">
       <span id={label}>Colour by</span>
       <div role="group" aria-labelledby={label}>
         {COLOURINGS.map(([id, name]) => (

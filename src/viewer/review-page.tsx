@@ -815,7 +815,7 @@ type ShowProps = {
 const Show = ({ scope, onPick }: ShowProps) => {
   const label = useId();
   return (
-    <div className="segmented">
+    <div className="graph-choice">
       <span id={label}>Show</span>
       <div role="group" aria-labelledby={label}>
         {SCOPES.map(each => (
@@ -1280,9 +1280,9 @@ export const ReviewPage = ({ review, notes, send }: ReviewPageProps) => {
                 <div className="graph-filters">
                   <Show
                     scope={scope}
-                    onPick={picked => {
+                    onPick={next => {
                       fitToFrame();
-                      setScope(picked);
+                      setScope(next);
                     }}
                   />
                   <label className="near-only">
