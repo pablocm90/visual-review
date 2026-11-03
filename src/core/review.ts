@@ -5,6 +5,15 @@ const reviewVersion = 5;
 const anchorOn = <Kind extends string>(kind: Kind, id: string) =>
   z.strictObject({ kind: z.literal(kind), id: z.string().describe(id) }).readonly();
 
+const quotedAnchorOn = <Kind extends string>(kind: Kind, id: string, text: string) =>
+  z
+    .strictObject({
+      kind: z.literal(kind),
+      id: z.string().describe(id),
+      text: z.string().describe(text),
+    })
+    .readonly();
+
 const CommentSchema = z
   .strictObject({
     anchor: z
@@ -12,20 +21,17 @@ const CommentSchema = z
         anchorOn('part', 'A node id'),
         anchorOn('edge', '`<from> -> <to>`, the node ids at its ends'),
         anchorOn('symbol', '`<file node id>#<scope.name>`: a function, method or class in a file'),
-        anchorOn(
+        quotedAnchorOn(
           'decision',
-          '`<file node id>#<scope.name>#<text>`: a logic line of a function, the id its logic finding names',
+          "`<file node id>#<scope.name>#<text>`: a logic line of a function, its text the base side's when removed, else the head side's, then `#<n>` on the n-th line of the function whose id reads the same. A removed guard's or catch's id is its `logic:removed:` finding's id without that prefix",
+          "The logic line's text",
         ),
         anchorOn('test', '`<test file>#<heading › … › name>`: a test by its headings and name'),
-        z
-          .strictObject({
-            kind: z.literal('line'),
-            id: z
-              .string()
-              .describe('`<file>@<base|head>:<n>`: a diff line by its side and line number'),
-            text: z.string().describe("The line's text, since its number drifts between rounds"),
-          })
-          .readonly(),
+        quotedAnchorOn(
+          'line',
+          '`<file>@<base|head>:<n>`: a diff line by its side and line number',
+          "The line's text, since its number drifts between rounds",
+        ),
       ])
       .describe('What the comment is on'),
     kind: z

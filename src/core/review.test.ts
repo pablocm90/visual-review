@@ -28,7 +28,11 @@ const reviewWith = (verdict = 'request-changes') => ({
       text: 'Why load twice?',
     },
     {
-      anchor: { kind: 'decision', id: 'web/file/App.tsx#App.load#if (!open) return' },
+      anchor: {
+        kind: 'decision',
+        id: 'web/file/App.tsx#App.load#if (!open) return',
+        text: 'if (!open) return',
+      },
       kind: 'change',
       text: 'Keep this guard.',
     },
@@ -146,6 +150,13 @@ test.for([
     problem: 'comments on a diff line without quoting it',
     text: JSON.stringify(
       withComment({ anchor: { kind: 'line', id: 'a.ts@head:3' }, kind: 'question', text: 'Hm.' }),
+    ),
+    reason: 'text',
+  },
+  {
+    problem: 'comments on a logic line without quoting it',
+    text: JSON.stringify(
+      withComment({ anchor: { kind: 'decision', id: 'a.ts#f#x' }, kind: 'question', text: 'Hm.' }),
     ),
     reason: 'text',
   },

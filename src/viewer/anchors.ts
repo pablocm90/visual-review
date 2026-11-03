@@ -40,7 +40,7 @@ export const anchorName = (anchor: Anchor, nodes: Nodes): string => {
     const [file, symbol] = split(anchor.id, '#');
     return `${symbol} in ${labelOf(file)}`;
   }
-  if (anchor.kind === 'decision') return split(split(anchor.id, '#')[1], '#')[1];
+  if (anchor.kind === 'decision') return anchor.text;
   if (anchor.kind === 'test') return split(anchor.id, '#')[1].split(' › ').at(-1) ?? anchor.id;
   if (anchor.kind === 'line') {
     const file = fileOfLine(anchor.id);

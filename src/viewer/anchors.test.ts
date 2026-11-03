@@ -28,8 +28,12 @@ test.for<{ anchor: Comment['anchor']; name: string }>([
     name: 'Cart.total in total.ts',
   },
   {
-    anchor: { kind: 'decision', id: 'web/file/src/cart/total.ts#Cart.total#if (!open) return' },
-    name: 'if (!open) return',
+    anchor: {
+      kind: 'decision',
+      id: 'web/file/src/cart/total.ts#Cart.#total#if (this.#open) return#2',
+      text: 'if (this.#open) return',
+    },
+    name: 'if (this.#open) return',
   },
   {
     anchor: { kind: 'test', id: 'web/src/cart/total.test.ts#Cart › totals › adds tax' },
@@ -58,7 +62,7 @@ test.for<{ anchor: Comment['anchor']; target: string | undefined }>([
     target: 'web/file/src/cart/total.ts',
   },
   {
-    anchor: { kind: 'decision', id: 'web/file/src/cart/total.ts#Cart.total#a # b' },
+    anchor: { kind: 'decision', id: 'web/file/src/cart/total.ts#Cart.total#a # b', text: 'a # b' },
     target: 'web/file/src/cart/total.ts',
   },
   {
