@@ -2,6 +2,16 @@
 
 What changed in each release of `@pablocm90/visual-review`, newest first. Versions follow [semver](https://semver.org); while it is 0.x, a minor version may change the exported types.
 
+## Unreleased
+
+### Changed
+
+- A Rust `?` no longer counts toward a function's cyclomatic complexity, so straight-line code that propagates errors stays under the threshold; a `match` still counts one per arm.
+
+### Added
+
+- Each function in `metrics.*.cyclomatic.byFunction` carries its `earlyReturns`, its count of `?`, when its reader counts them (Rust).
+
 ## 0.12.0 — 2026-11-03
 
 ### Added
