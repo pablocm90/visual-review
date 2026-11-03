@@ -37,6 +37,7 @@ import { ColourBy, type Colouring, ScaleLegend, type Shade, shadeOf } from './co
 import {
   AnswerButtons,
   type Answers,
+  type AnswerTo,
   findingLine,
   LEVELS,
   LevelMark,
@@ -562,7 +563,7 @@ type InspectorProps = {
   readonly onComment: ((draft: Draft) => void) | undefined;
   readonly commentable: boolean;
   readonly answers: Answers;
-  readonly onAnswer: ((answer: Answer) => void) | undefined;
+  readonly onAnswer: AnswerTo | undefined;
   readonly width: number;
   readonly onClose: () => void;
 };
@@ -823,7 +824,7 @@ type SidePanelProps = {
   readonly comments: Comments;
   readonly onComment: ((comment: Comment) => void) | undefined;
   readonly answers: Answers;
-  readonly onAnswer: ((answer: Answer) => void) | undefined;
+  readonly onAnswer: AnswerTo | undefined;
   readonly chosenWidth: number | undefined;
   readonly onChooseWidth: (width: number) => void;
   readonly graphLeft: () => number;
@@ -1309,8 +1310,12 @@ export const ReviewPage = ({ review, notes, send }: ReviewPageProps) => {
   };
   const [comments, setComments] = useState<Comments>({});
   const [answers, setAnswers] = useState<Answers>({});
-  const answer = (given: Answer) =>
-    setAnswers(current => ({ ...current, [given.anchor.id]: given }));
+  const answer: AnswerTo = (id, given) =>
+    setAnswers(current =>
+      given
+        ? { ...current, [id]: given }
+        : Object.fromEntries(Object.entries(current).filter(([answered]) => answered !== id)),
+    );
   const [chosenWidth, setChosenWidth] = useState<number>();
   const comment = (written: Comment) =>
     setComments(current => ({ ...current, [written.anchor.id]: written }));

@@ -363,7 +363,7 @@ const findingInRail = (target: string) =>
     .getByRole('button', { name: new RegExp(`^${target}: `) })
     .closest('li') ?? screen.getByRole('list', { name: 'no such finding' });
 
-test("a finding in the rail is answered Fix this, It's fine or Explain, only the latest pressed and sent", async () => {
+test("a finding in the rail is answered Fix this, It's fine or Explain, only the latest pressed and sent, pressing it again withdrawing it", async () => {
   const user = userEvent.setup();
   const sent = vi.fn(async () => {});
   render(
@@ -387,6 +387,8 @@ test("a finding in the rail is answered Fix this, It's fine or Explain, only the
   expect(
     within(findingInRail('domain')).queryByRole('textbox', { name: "Why it's fine" }),
   ).toBeNull();
+  await answer('domain', 'Fix this');
+  expect(within(findingInRail('domain')).queryAllByRole('button', { pressed: true })).toEqual([]);
   await answer('application', 'Explain');
   await answer('domain', "It's fine");
   expect(
@@ -400,11 +402,11 @@ test("a finding in the rail is answered Fix this, It's fine or Explain, only the
   expect(sent).toHaveBeenCalledExactlyOnceWith(
     sentReview({
       comments: [
-        { anchor: { kind: 'finding', id: 'metrics:lines:rust/crate/domain' }, kind: 'fine' },
         {
           anchor: { kind: 'finding', id: 'metrics:cyclomatic:rust/crate/application' },
           kind: 'explain',
         },
+        { anchor: { kind: 'finding', id: 'metrics:lines:rust/crate/domain' }, kind: 'fine' },
       ],
     }),
   );
@@ -488,13 +490,16 @@ test("a finding under the inspector's note is answered there, the same answer as
   await openReview(user);
   await user.click(screen.getByRole('button', { name: 'Send to Claude' }));
 
-  expect(sent).toHaveBeenCalledExactlyOnceWith({
-    version: 3,
-    verdict: 'comment',
-    comments: [
-      { anchor: { kind: 'finding', id: 'metrics:cyclomatic:rust/crate/application' }, kind: 'fix' },
-    ],
-  });
+  expect(sent).toHaveBeenCalledExactlyOnceWith(
+    sentReview({
+      comments: [
+        {
+          anchor: { kind: 'finding', id: 'metrics:cyclomatic:rust/crate/application' },
+          kind: 'fix',
+        },
+      ],
+    }),
+  );
 });
 
 test('a page that is not served has no comment field, no answers to findings and no Review button', async () => {

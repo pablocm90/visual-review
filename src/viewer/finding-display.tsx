@@ -28,6 +28,8 @@ export const findingLine = ({ title, detail }: Finding) =>
 
 export type Answers = Readonly<Record<string, Answer>>;
 
+export type AnswerTo = (id: string, answer: Answer | undefined) => void;
+
 const ANSWER_KINDS: ReadonlyArray<readonly [Answer['kind'], string]> = [
   ['fix', 'Fix this'],
   ['fine', "It's fine"],
@@ -37,7 +39,7 @@ const ANSWER_KINDS: ReadonlyArray<readonly [Answer['kind'], string]> = [
 type AnswerButtonsProps = {
   readonly id: string;
   readonly answer: Answer | undefined;
-  readonly onAnswer: (answer: Answer) => void;
+  readonly onAnswer: AnswerTo;
 };
 
 export const AnswerButtons = ({ id, answer, onAnswer }: AnswerButtonsProps) => (
@@ -48,7 +50,12 @@ export const AnswerButtons = ({ id, answer, onAnswer }: AnswerButtonsProps) => (
         type="button"
         className="answer-kind"
         aria-pressed={answer?.kind === kind}
-        onClick={() => onAnswer({ anchor: { kind: 'finding', id }, kind })}
+        onClick={() =>
+          onAnswer(
+            id,
+            answer?.kind === kind ? undefined : { anchor: { kind: 'finding', id }, kind },
+          )
+        }
       >
         {label}
       </button>
@@ -58,7 +65,7 @@ export const AnswerButtons = ({ id, answer, onAnswer }: AnswerButtonsProps) => (
         aria-label="Why it's fine"
         placeholder="Why it's fine (optional)"
         value={answer.text ?? ''}
-        onChange={event => onAnswer({ ...answer, text: event.target.value })}
+        onChange={event => onAnswer(id, { ...answer, text: event.target.value })}
       />
     )}
   </div>

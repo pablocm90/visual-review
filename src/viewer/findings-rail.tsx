@@ -10,7 +10,13 @@ import { endsOfId } from '../core/graph.ts';
 import type { PageData } from '../core/page.ts';
 import type { Answer } from '../core/review.ts';
 import { notReadLine } from '../core/skipped.ts';
-import { AnswerButtons, type Answers, findingLine, LevelMark } from './finding-display.tsx';
+import {
+  AnswerButtons,
+  type Answers,
+  type AnswerTo,
+  findingLine,
+  LevelMark,
+} from './finding-display.tsx';
 
 type FindingsRailProps = {
   readonly findings: ReadonlyArray<Finding>;
@@ -20,7 +26,7 @@ type FindingsRailProps = {
   readonly onGoTo: (id: string) => void;
   readonly onShowOutside: (opener: HTMLButtonElement) => void;
   readonly answers: Answers;
-  readonly onAnswer: ((answer: Answer) => void) | undefined;
+  readonly onAnswer: AnswerTo | undefined;
 };
 
 type Level = Finding['level'];
@@ -91,7 +97,7 @@ const groupsOf = (props: FindingsRailProps): ReadonlyArray<Group> => {
 type FindingItemProps = {
   readonly finding: Line;
   readonly answer?: Answer | undefined;
-  readonly onAnswer?: ((answer: Answer) => void) | undefined;
+  readonly onAnswer?: AnswerTo | undefined;
 };
 
 const FindingItem = ({ finding, answer, onAnswer }: FindingItemProps) => {
