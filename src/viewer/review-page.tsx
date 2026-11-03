@@ -148,8 +148,15 @@ const FindingsBadge = ({ x, y, findings, picked, onPress }: FindingsBadgeProps) 
   );
 };
 
-const ReadingNumber = ({ number }: { readonly number: number }) => (
-  <g className="reading-badge" role="img" aria-label={`Reading order ${number}`}>
+type ReadingNumberProps = { readonly number: number; readonly x: number };
+
+const ReadingNumber = ({ number, x }: ReadingNumberProps) => (
+  <g
+    className="reading-badge"
+    role="img"
+    aria-label={`Reading order ${number}`}
+    transform={`translate(${x} 0)`}
+  >
     <circle className="reading-badge-disc" r={10} />
     <text className="reading-badge-number">{number}</text>
   </g>
@@ -197,6 +204,7 @@ const NodeView = ({ node, drawing }: { readonly node: PlacedNode; readonly drawi
   const shade = shadeOf(node);
   const found = drawing.findingsOn(node.id);
   const number = drawing.numberOf(node.id);
+  const numberX = expandable.has(node.id) ? 24 : 0;
   const toggle = expandable.has(node.id) && (
     <Toggle node={node} expanded={expanded.has(node.id)} onToggle={onToggle} />
   );
@@ -222,7 +230,7 @@ const NodeView = ({ node, drawing }: { readonly node: PlacedNode; readonly drawi
           {node.children.map(child => (
             <NodeView key={child.id} node={child} drawing={drawing} />
           ))}
-          {number !== undefined && <ReadingNumber number={number} />}
+          {number !== undefined && <ReadingNumber number={number} x={numberX} />}
         </g>
         {toggle}
       </>
@@ -270,7 +278,7 @@ const NodeView = ({ node, drawing }: { readonly node: PlacedNode; readonly drawi
         {found.length > 0 && (
           <FindingsBadge x={node.width} y={0} findings={found} picked={drawing.picked} />
         )}
-        {number !== undefined && <ReadingNumber number={number} />}
+        {number !== undefined && <ReadingNumber number={number} x={numberX} />}
       </g>
       {toggle}
     </>

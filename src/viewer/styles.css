@@ -2146,7 +2146,8 @@ pre .hljs-emphasis {
   stroke-width: 1;
 }
 
-.node text.reading-badge-number {
+.node text.reading-badge-number,
+.module text.reading-badge-number {
   fill: var(--ink);
   font-size: 10px;
   font-weight: 600;
