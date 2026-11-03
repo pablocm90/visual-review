@@ -1,11 +1,11 @@
 import type { GraphDiff } from './diff-graphs.ts';
 import type { Graph, GraphEdge } from './graph.ts';
 import type { Churn, Measures, RangeReading } from './read-range.ts';
-import type { FileMeasures } from './reader.ts';
+import type { FileMeasures, FunctionMeasures } from './reader.ts';
 
 export const tenths = (value: number) => Math.round(value * 10) / 10;
 
-export type FunctionCyclomatic = { readonly name: string; readonly cyclomatic: number };
+export type FunctionCyclomatic = Pick<FunctionMeasures, 'name' | 'cyclomatic' | 'earlyReturns'>;
 
 type Complexity = {
   readonly lines: number;
@@ -50,7 +50,7 @@ const complexityOf = ({ lines, functions }: FileMeasures): Complexity => {
     cyclomatic: {
       highest: Math.max(0, ...cyclomatics),
       total: sum(cyclomatics),
-      byFunction: functions.map(({ name, cyclomatic }) => ({ name, cyclomatic })),
+      byFunction: functions.map(({ abc, ...cyclomatic }) => cyclomatic),
     },
     abc: Math.round(Math.hypot(...parts) * 10) / 10,
   };
