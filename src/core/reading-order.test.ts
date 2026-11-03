@@ -40,3 +40,14 @@ test('orders changed files through an unchanged one, which it leaves out', () =>
   );
   expect(readingOrder(diff).parts).toEqual(['web/file/b.ts', 'web/file/a.ts']);
 });
+
+test('reads files that import each other in id order, and says they do', () => {
+  const diff = diffOf(
+    [file('b.ts'), file('c.ts'), file('a.ts')],
+    [edge('a.ts', 'b.ts'), edge('b.ts', 'a.ts'), edge('c.ts', 'a.ts')],
+  );
+  expect(readingOrder(diff)).toEqual({
+    parts: ['web/file/a.ts', 'web/file/b.ts', 'web/file/c.ts'],
+    cycles: [['web/file/a.ts', 'web/file/b.ts']],
+  });
+});

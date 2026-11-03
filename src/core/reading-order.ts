@@ -2,20 +2,24 @@ import type { GraphDiff } from './diff-graphs.ts';
 
 export type ReadingOrder = {
   readonly parts: ReadonlyArray<string>;
+  readonly cycles: ReadonlyArray<ReadonlyArray<string>>;
 };
 
-const ordered = (
-  parts: ReadonlyArray<string>,
-  dependsOn: (part: string, other: string) => boolean,
-): ReadonlyArray<string> => {
-  const [next] = parts.filter(part => !parts.some(other => dependsOn(part, other)));
+type Group = ReadonlyArray<string>;
+
+type Reaches = (part: string, other: string) => boolean;
+
+const ordered = (groups: ReadonlyArray<Group>, reaches: Reaches): ReadonlyArray<Group> => {
+  const dependsOn = (group: Group, other: Group): boolean =>
+    other !== group && group.some(part => other.some(target => reaches(part, target)));
+  const [next] = groups.filter(group => !groups.some(other => dependsOn(group, other)));
   return next === undefined
     ? []
     : [
         next,
         ...ordered(
-          parts.filter(part => part !== next),
-          dependsOn,
+          groups.filter(group => group !== next),
+          reaches,
         ),
       ];
 };
@@ -24,7 +28,8 @@ export const readingOrder = (diff: GraphDiff): ReadingOrder => {
   const parents = new Set(diff.nodes.flatMap(node => node.parent ?? []));
   const parts = diff.nodes
     .filter(node => node.state !== 'unchanged' && !parents.has(node.id))
-    .map(node => node.id);
+    .map(node => node.id)
+    .toSorted();
   const reached = (from: ReadonlySet<string>): ReadonlySet<string> => {
     const next = new Set([
       ...from,
@@ -33,7 +38,10 @@ export const readingOrder = (diff: GraphDiff): ReadingOrder => {
     return next.size === from.size ? from : reached(next);
   };
   const reach = new Map(parts.map(part => [part, reached(new Set([part]))]));
-  const dependsOn = (part: string, other: string): boolean =>
-    part !== other && (reach.get(part)?.has(other) ?? false);
-  return { parts: ordered(parts, dependsOn) };
+  const reaches: Reaches = (part, other) => reach.get(part)?.has(other) ?? false;
+  const groupOf = (part: string): Group =>
+    parts.filter(other => reaches(part, other) && reaches(other, part));
+  const groups = [...new Map(parts.map(part => [groupOf(part).join(' '), groupOf(part)])).values()];
+  const order = ordered(groups, reaches);
+  return { parts: order.flat(), cycles: order.filter(group => group.length > 1) };
 };
