@@ -358,19 +358,58 @@ test('an Approve can be sent with no comment', async () => {
   expect(sent).toHaveBeenCalledExactlyOnceWith(sentReview({ verdict: 'approve' }));
 });
 
-test('a page that is not served has no comment field and no Review button', async () => {
+const findingInRail = (target: string) =>
+  within(screen.getByRole('complementary', { name: 'Findings' }))
+    .getByRole('button', { name: new RegExp(`^${target}: `) })
+    .closest('li') ?? screen.getByRole('list', { name: 'no such finding' });
+
+test("a finding in the rail is answered Fix this, It's fine or Explain, only the latest pressed", async () => {
   const user = userEvent.setup();
-  const { rerender } = render(<ReviewPage review={pageWith(review)} send={async () => {}} />);
+  render(
+    <ReviewPage
+      review={pageWith({
+        ...review,
+        findings: [
+          findingOn('rust/crate/domain'),
+          findingOn('rust/crate/application', { id: 'metrics:cyclomatic:rust/crate/application' }),
+        ],
+      })}
+      send={async () => {}}
+    />,
+  );
+  const answer = (target: string, name: string) =>
+    user.click(within(findingInRail(target)).getByRole('button', { name }));
+
+  await screen.findByRole('group', { name: 'rust' });
+  await user.click(screen.getByRole('button', { name: 'Show 2 findings' }));
+  await answer('domain', 'Fix this');
+  await answer('application', 'Explain');
+  await answer('domain', "It's fine");
+  expect(
+    within(findingInRail('domain'))
+      .getAllByRole('button', { pressed: true })
+      .map(button => button.textContent),
+  ).toEqual(["It's fine"]);
+});
+
+test('a page that is not served has no comment field, no answers to findings and no Review button', async () => {
+  const user = userEvent.setup();
+  const page = pageWith({ ...review, findings: [findingOn('rust/crate/domain')] });
+  const { rerender } = render(<ReviewPage review={page} send={async () => {}} />);
   const comment = () => within(noteTab()).queryByRole('textbox', { name: 'Your comment' });
+  const answers = () => within(findingInRail('domain')).queryByRole('group', { name: 'Answer' });
   const reviewButton = () => screen.queryByRole('button', { name: 'Review' });
 
   const rust = await screen.findByRole('group', { name: 'rust' });
   await user.click(within(rust).getByRole('button', { name: 'domain: unchanged' }));
+  await user.click(screen.getByRole('button', { name: 'Show 1 finding' }));
   expect(comment()).not.toBeNull();
+  expect(answers()).not.toBeNull();
   expect(reviewButton()).not.toBeNull();
 
-  rerender(<ReviewPage review={pageWith(review)} />);
+  rerender(<ReviewPage review={page} />);
   expect(comment()).toBeNull();
+  expect(answers()).toBeNull();
   expect(reviewButton()).toBeNull();
 });
 

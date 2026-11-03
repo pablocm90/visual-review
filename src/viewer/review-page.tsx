@@ -20,7 +20,7 @@ import type { NodeMetrics } from '../core/metrics.ts';
 import { type Note, type ReviewNotes, visibleNotes } from '../core/notes.ts';
 import { type PageData, UNCOMMITTED } from '../core/page.ts';
 import type { SymbolFile } from '../core/read-range.ts';
-import type { Comment, Review } from '../core/review.ts';
+import type { Answer, Comment, Review } from '../core/review.ts';
 import type { TestFile } from '../core/test-changes.ts';
 import { testsAlongside } from '../core/tests-alongside.ts';
 import {
@@ -34,7 +34,7 @@ import {
   visibleNodeOf,
 } from '../core/visible-diff.ts';
 import { ColourBy, type Colouring, ScaleLegend, type Shade, shadeOf } from './colour-by.tsx';
-import { findingLine, LEVELS, LevelMark, worstOf } from './finding-display.tsx';
+import { type Answers, findingLine, LEVELS, LevelMark, worstOf } from './finding-display.tsx';
 import { FindingsRail, LookFirst, nameOf, TriageStrip } from './findings-rail.tsx';
 import { highlightPatch, type PatchLine as Line, type Piece } from './highlight-patch.ts';
 import {
@@ -1273,6 +1273,9 @@ export const ReviewPage = ({ review, notes, send }: ReviewPageProps) => {
     setSelected(id);
   };
   const [comments, setComments] = useState<Comments>({});
+  const [answers, setAnswers] = useState<Answers>({});
+  const answer = (given: Answer) =>
+    setAnswers(current => ({ ...current, [given.anchor.id]: given }));
   const [chosenWidth, setChosenWidth] = useState<number>();
   const comment = (written: Comment) =>
     setComments(current => ({ ...current, [written.anchor.id]: written }));
@@ -1439,6 +1442,8 @@ export const ReviewPage = ({ review, notes, send }: ReviewPageProps) => {
                 review={review}
                 onGoTo={goTo}
                 onShowOutside={showOutside}
+                answers={answers}
+                onAnswer={send && answer}
               />
             </div>
             <div className="content">

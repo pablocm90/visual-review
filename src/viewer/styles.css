@@ -2184,3 +2184,29 @@ pre .hljs-emphasis {
   font-size: 12px;
   font-weight: 600;
 }
+
+.finding:has(.finding-answer) {
+  flex-wrap: wrap;
+}
+
+.finding-answer {
+  display: flex;
+  flex-basis: 100%;
+  gap: 4px;
+  padding-left: 27px;
+}
+
+.finding .answer-kind {
+  display: inline-block;
+  padding: 2px 8px;
+  border: 1px solid var(--stack-line);
+  border-radius: 6px;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.finding .answer-kind[aria-pressed="true"] {
+  background: var(--unchanged-fill);
+  color: var(--ink);
+  font-weight: 600;
+}

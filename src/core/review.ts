@@ -75,6 +75,8 @@ export type Review = z.infer<typeof ReviewSchema>;
 
 export type Comment = z.infer<typeof CommentSchema>;
 
+export type Answer = z.infer<typeof AnswerSchema>;
+
 export const reviewJsonSchema = () => z.toJSONSchema(ReviewSchema, { io: 'input' });
 
 const VersionedSchema = z.object({ version: z.unknown() });
