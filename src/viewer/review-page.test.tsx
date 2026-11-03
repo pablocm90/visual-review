@@ -1684,6 +1684,32 @@ test('a part marked read stays read when the page for its range opens again, and
   expect(readRows()).toEqual([]);
 });
 
+test('with storage refusing every access, the page opens and marks hold until it closes', async () => {
+  const user = userEvent.setup();
+  const refused = () => {
+    throw new DOMException('denied', 'SecurityError');
+  };
+  const getItem = vi.spyOn(Storage.prototype, 'getItem').mockImplementation(refused);
+  const setItem = vi.spyOn(Storage.prototype, 'setItem').mockImplementation(refused);
+  onTestFinished(() => {
+    getItem.mockRestore();
+    setItem.mockRestore();
+  });
+  const first = render(<ReviewPage review={walkedReview()} />);
+  await screen.findByRole('group', { name: 'rust' });
+  await user.keyboard('ja');
+  expect(readRows()).toEqual(['1 application']);
+  first.unmount();
+
+  const storage = vi.spyOn(window, 'localStorage', 'get').mockImplementation(refused);
+  onTestFinished(() => storage.mockRestore());
+  render(<ReviewPage review={walkedReview()} />);
+  await screen.findByRole('group', { name: 'rust' });
+
+  await user.keyboard('ja');
+  expect(readRows()).toEqual(['1 application']);
+});
+
 test('J, K and A held with Control, Meta or Alt are left to the browser, neither walking nor marking', async () => {
   const user = userEvent.setup();
   render(<ReviewPage review={walkedReview()} />);
