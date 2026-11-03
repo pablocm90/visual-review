@@ -230,3 +230,13 @@ test.for([
 ])('$reason is a decision', ({ body, decisions }) => {
   expect(kindsAndTexts('charge', 'function charge(order) {', ...body, '}')).toEqual(decisions);
 });
+
+test('only functions and methods have decisions', () => {
+  const lines = [
+    'class Shop { rate = env.rate ?? 1; open() { if (this.rate) pay(); } }',
+    'type Rate = number;',
+  ];
+  expect(kindsAndTexts('open', ...lines)).toEqual(['if: if (this.rate)']);
+  expect(decisionsOf('Shop', ...lines)).toBeUndefined();
+  expect(decisionsOf('Rate', ...lines)).toBeUndefined();
+});
