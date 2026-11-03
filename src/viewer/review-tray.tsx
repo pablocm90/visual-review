@@ -1,7 +1,8 @@
 import { useState } from 'react';
+import type { Finding } from '../core/findings.ts';
 import type { Answer, Comment, Review } from '../core/review.ts';
 
-import type { Answers } from './finding-display.tsx';
+import { ANSWER_KINDS, type Answers } from './finding-display.tsx';
 import { partsRead } from './reading-order-list.tsx';
 
 type Drafted = Review['comments'][number];
@@ -14,6 +15,7 @@ type ReviewTrayProps = {
   readonly parts: ReadonlyArray<string>;
   readonly comments: Comments;
   readonly answers: Answers;
+  readonly findings: ReadonlyArray<Finding>;
   readonly nameOf: (id: string) => string;
   readonly onGoTo: (id: string) => void;
   readonly send: (review: Review) => Promise<void>;
@@ -32,6 +34,8 @@ export const COMMENT_KINDS: ReadonlyArray<readonly [Comment['kind'], string]> = 
 ];
 
 const kindLabels = new Map(COMMENT_KINDS);
+
+const answerLabels = new Map(ANSWER_KINDS);
 
 const counted = (count: number, word: string) => `${count} ${word}${count === 1 ? '' : 's'}`;
 
@@ -71,6 +75,7 @@ export const ReviewTray = ({
   parts,
   comments,
   answers,
+  findings,
   nameOf,
   onGoTo,
   send,
@@ -145,6 +150,32 @@ export const ReviewTray = ({
                       <span className="draft-kind">{kindLabels.get(kind)}:</span> {text}
                     </li>
                   ))}
+                  {Object.values(answers)
+                    .map(withWhy)
+                    .flatMap(({ anchor, kind, text }) =>
+                      findings
+                        .filter(finding => finding.id === anchor.id)
+                        .map(({ id, title, target }) => (
+                          <li key={id} className="draft">
+                            {target === undefined ? (
+                              title
+                            ) : (
+                              <button
+                                type="button"
+                                className="draft-target"
+                                onClick={() => onGoTo(target)}
+                              >
+                                {title}
+                              </button>
+                            )}{' '}
+                            <span className="draft-kind">
+                              {answerLabels.get(kind)}
+                              {text === undefined ? '' : ':'}
+                            </span>
+                            {text === undefined ? '' : ` ${text}`}
+                          </li>
+                        )),
+                    )}
                 </ul>
                 {parts.length > 0 && (
                   <p className="tray-read">

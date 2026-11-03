@@ -1499,6 +1499,7 @@ export const ReviewPage = ({ review, notes, send }: ReviewPageProps) => {
           parts={review.readingOrder.parts}
           comments={comments}
           answers={answers}
+          findings={findings}
           nameOf={anchorName}
           onGoTo={goToOnStructure}
           send={send}

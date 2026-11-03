@@ -3,7 +3,7 @@ import { act, configure, fireEvent, render, screen, waitFor, within } from '@tes
 import userEvent from '@testing-library/user-event';
 import { expect, onTestFinished, test, vi } from 'vitest';
 import type { GraphDiff } from '../core/diff-graphs.ts';
-import { raisedFindings } from '../core/findings.ts';
+import { type Finding, raisedFindings } from '../core/findings.ts';
 import type { ReviewNotes } from '../core/notes.ts';
 import type { PageData } from '../core/page.ts';
 import type { SymbolFile } from '../core/read-range.ts';
@@ -444,7 +444,7 @@ test("a finding in the rail is answered Fix this, It's fine or Explain, only the
   );
 });
 
-test("It's fine takes an optional why, which goes with the answer unless blank", async () => {
+test("It's fine takes an optional why, which goes with the answer in the tray and to Claude unless blank", async () => {
   const user = userEvent.setup();
   const sent = vi.fn(async () => {});
   render(
@@ -472,6 +472,11 @@ test("It's fine takes an optional why, which goes with the answer unless blank",
   await fine('domain', 'Generated code');
   await fine('application', '   ');
   await openReview(user);
+  expect(
+    within(within(tray()).getByRole('list', { name: 'Drafts' }))
+      .getAllByRole('listitem')
+      .map(item => item.textContent),
+  ).toEqual(["lines 900, over 800 It's fine: Generated code", "lines 900, over 800 It's fine"]);
   await user.click(screen.getByRole('button', { name: 'Send to Claude' }));
 
   expect(sent).toHaveBeenCalledExactlyOnceWith(
@@ -655,6 +660,71 @@ test('the open tray lists the drafts, those on parts in reading order first, the
   const legacy = await screen.findByRole('button', { name: 'legacy: removed' });
   await waitFor(() => expect(document.activeElement).toBe(legacy));
   expect(within(inspector()).getByRole('heading', { name: 'legacy' })).not.toBeNull();
+});
+
+test("the open tray lists the finding answers after the comments, each named by its finding's title and going to its target, a finding with none listed without a way there", async () => {
+  const user = userEvent.setup();
+  const undrawn: Finding = {
+    id: 'structure:undrawn',
+    dimension: 'structure',
+    level: 'info',
+    title: '1 changed file outside the graph',
+    detail: 'plans/x.md',
+  };
+  render(
+    <ReviewPage
+      review={pageWith({
+        ...review,
+        findings: [
+          findingOn('rust/crate/domain'),
+          findingOn('rust/crate/application', {
+            id: 'metrics:cyclomatic:rust/crate/application',
+            title: 'cyclomatic 30, over 20',
+          }),
+          undrawn,
+        ],
+      })}
+      send={async () => {}}
+    />,
+  );
+  const rail = () => screen.getByRole('complementary', { name: 'Findings' });
+  const inRail = (title: string) => within(within(rail()).getByText(title).closest('li') ?? rail());
+  const answer = (title: string, name: string) =>
+    user.click(inRail(title).getByRole('button', { name }));
+
+  const rust = await screen.findByRole('group', { name: 'rust' });
+  await user.click(within(rust).getByRole('button', { name: 'domain: unchanged' }));
+  await user.type(within(noteTab()).getByRole('textbox', { name: 'Your comment' }), 'Why here?');
+  await user.click(screen.getByRole('button', { name: 'Show 3 findings' }));
+  await answer('cyclomatic 30, over 20', 'Explain');
+  await answer('lines 900, over 800', "It's fine");
+  await user.type(
+    inRail('lines 900, over 800').getByRole('textbox', { name: "Why it's fine" }),
+    'Generated',
+  );
+  await answer(undrawn.title, 'Fix this');
+  await openReview(user);
+  const drafts = within(tray()).getByRole('list', { name: 'Drafts' });
+  expect(
+    within(drafts)
+      .getAllByRole('listitem')
+      .map(item => item.textContent),
+  ).toEqual([
+    'domain Question: Why here?',
+    'cyclomatic 30, over 20 Explain',
+    "lines 900, over 800 It's fine: Generated",
+    '1 changed file outside the graph Fix this',
+  ]);
+  expect(
+    within(drafts)
+      .getAllByRole('button')
+      .map(button => button.textContent),
+  ).toEqual(['domain', 'cyclomatic 30, over 20', 'lines 900, over 800']);
+
+  await user.click(screen.getByRole('link', { name: 'Metrics' }));
+  await user.click(within(drafts).getByRole('button', { name: 'cyclomatic 30, over 20' }));
+  await waitFor(() => expect(currentTab()).toBe('Structure'));
+  expect(within(inspector()).getByRole('heading', { name: 'application' })).not.toBeNull();
 });
 
 type FrameOptions = {
