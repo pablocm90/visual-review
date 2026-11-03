@@ -1,5 +1,8 @@
 import { useState } from 'react';
 import type { Answer, Comment, Review } from '../core/review.ts';
+
+type Drafted = Review['comments'][number];
+
 import type { Answers } from './finding-display.tsx';
 import { partsRead } from './reading-order-list.tsx';
 
@@ -19,6 +22,21 @@ const VERDICTS: ReadonlyArray<readonly [Review['verdict'], string]> = [
   ['comment', 'Comment'],
   ['request-changes', 'Request changes'],
 ];
+
+const KINDS: ReadonlyArray<Drafted['kind']> = ['change', 'question', 'suggestion'];
+
+const counted = (count: number, word: string) => `${count} ${word}${count === 1 ? '' : 's'}`;
+
+const draftedLine = (written: ReadonlyArray<Drafted>) =>
+  written.length === 0
+    ? 'Nothing drafted'
+    : [
+        `${written.length} drafted`,
+        ...KINDS.flatMap(kind => {
+          const count = written.filter(comment => comment.kind === kind).length;
+          return count === 0 ? [] : [counted(count, kind)];
+        }),
+      ].join(' · ');
 
 const withWhy = ({ text, ...answer }: Answer): Answer =>
   text?.trim() ? { ...answer, text } : answer;
@@ -47,13 +65,14 @@ export const ReviewTray = ({ reviewed, read, parts, comments, answers, send }: R
       (error: Error) => setProblem(error.message),
     );
   return (
-    <div className="send-review">
+    <section className="send-review" aria-label="Review tray">
       {sent ? (
         <p role="status" aria-label="Review">
           Sent
         </p>
       ) : (
         <>
+          <p>{draftedLine(written)}</p>
           <button
             type="button"
             aria-expanded={open}
@@ -98,6 +117,6 @@ export const ReviewTray = ({ reviewed, read, parts, comments, answers, send }: R
           )}
         </>
       )}
-    </div>
+    </section>
   );
 };

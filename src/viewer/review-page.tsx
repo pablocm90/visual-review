@@ -1130,13 +1130,9 @@ const useTab = (): Tab => {
 type HeaderProps = {
   readonly review: PageData;
   readonly tab: Tab;
-  readonly read: Review['read'];
-  readonly comments: Comments;
-  readonly answers: Answers;
-  readonly send: ((review: Review) => Promise<void>) | undefined;
 };
 
-const Header = ({ review, tab, read, comments, answers, send }: HeaderProps) => {
+const Header = ({ review, tab }: HeaderProps) => {
   const changed = changedCount(review.tests);
   return (
     <header className="review">
@@ -1172,19 +1168,6 @@ const Header = ({ review, tab, read, comments, answers, send }: HeaderProps) => 
           </a>
         ))}
       </nav>
-      {send && (
-        <ReviewTray
-          reviewed={{
-            range: review.range,
-            ...(review.pullRequest && { pullRequest: review.pullRequest.number }),
-          }}
-          read={read}
-          parts={review.readingOrder.parts.length}
-          comments={comments}
-          answers={answers}
-          send={send}
-        />
-      )}
     </header>
   );
 };
@@ -1361,14 +1344,7 @@ export const ReviewPage = ({ review, notes, send }: ReviewPageProps) => {
   }, [layout, focusTarget, frameElement]);
   return (
     <main>
-      <Header
-        review={review}
-        tab={tab}
-        read={review.readingOrder.parts.filter(part => read.has(part))}
-        comments={comments}
-        answers={answers}
-        send={send}
-      />
+      <Header review={review} tab={tab} />
       {tab === 'structure' && (
         <>
           <div className="structure-head">
@@ -1512,6 +1488,19 @@ export const ReviewPage = ({ review, notes, send }: ReviewPageProps) => {
           notes={notes}
           selected={selectedNode}
           onGoTo={goToOnStructure}
+        />
+      )}
+      {send && (
+        <ReviewTray
+          reviewed={{
+            range: review.range,
+            ...(review.pullRequest && { pullRequest: review.pullRequest.number }),
+          }}
+          read={review.readingOrder.parts.filter(part => read.has(part))}
+          parts={review.readingOrder.parts.length}
+          comments={comments}
+          answers={answers}
+          send={send}
         />
       )}
     </main>

@@ -551,6 +551,36 @@ test('a send that fails says why and leaves Send to Claude to try again', async 
   expect(screen.getByRole('button', { name: 'Send to Claude' })).not.toBeNull();
 });
 
+const tray = () => screen.getByRole('region', { name: 'Review tray' });
+
+const pickKind = (user: ReturnType<typeof userEvent.setup>, name: string) =>
+  user.click(
+    within(within(noteTab()).getByRole('radiogroup', { name: 'Comment kind' })).getByRole('radio', {
+      name,
+    }),
+  );
+
+test("the review tray sits at the page's foot, its line counting the drafts and each kind among them, blank ones left out", async () => {
+  const user = userEvent.setup();
+  render(<ReviewPage review={pageWith(review)} send={async () => {}} />);
+  const comment = () => within(noteTab()).getByRole('textbox', { name: 'Your comment' });
+
+  const rust = await screen.findByRole('group', { name: 'rust' });
+  expect(within(tray()).getByText('Nothing drafted')).toBeDefined();
+  await user.click(within(rust).getByRole('button', { name: 'domain: unchanged' }));
+  await user.type(comment(), 'Why here?');
+  expect(within(tray()).getByText('1 drafted · 1 question')).toBeDefined();
+  await user.click(within(rust).getByRole('button', { name: 'application: modified' }));
+  await pickKind(user, 'Change this');
+  await user.type(comment(), 'Split it.');
+  await user.click(within(rust).getByRole('button', { name: 'application → domain: unchanged' }));
+  await user.type(comment(), 'And this?');
+  await user.click(within(rust).getByRole('button', { name: 'cli-adapter: added' }));
+  await user.type(comment(), '  ');
+  expect(within(tray()).getByText('3 drafted · 1 change · 2 questions')).toBeDefined();
+  expect(within(tray()).getByRole('button', { name: 'Review' })).toBeDefined();
+});
+
 type FrameOptions = {
   readonly width: number;
   readonly windowHeight: number;
