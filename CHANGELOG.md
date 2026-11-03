@@ -2,6 +2,13 @@
 
 What changed in each release of `@pablocm90/visual-review`, newest first. Versions follow [semver](https://semver.org); while it is 0.x, a minor version may change the exported types.
 
+## Unreleased
+
+### Added
+
+- **J** and **K** walk the reading order, going to the next or previous part as a click on its row does; with no part selected they start at the first. **A** marks the selected part read, or unread again; read rows are ticked and the Reading order counts how many of its parts are read. The keys do nothing while you type in a comment or with Ctrl, ⌘ or Alt held.
+- Read marks are kept in the browser per range, so reloading the page keeps them; with the browser's storage blocked they last until the page closes. A served page is at a new address each time it is served, so a new serve starts with none read.
+
 ## 0.13.0 — 2026-11-03
 
 ### Changed

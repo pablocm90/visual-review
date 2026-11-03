@@ -5,6 +5,7 @@ import { LEVELS, LevelMark, worstOf } from './finding-display.tsx';
 type ReadingOrderListProps = {
   readonly review: Pick<PageData, 'diff' | 'readingOrder' | 'undrawn'>;
   readonly findings: ReadonlyArray<Finding>;
+  readonly read: ReadonlySet<string>;
   readonly onGoTo: (id: string) => void;
   readonly onShowOutside: (opener: HTMLButtonElement) => void;
 };
@@ -22,6 +23,7 @@ const FindingsMark = ({ findings }: { readonly findings: ReadonlyArray<Finding> 
 export const ReadingOrderList = ({
   review,
   findings,
+  read,
   onGoTo,
   onShowOutside,
 }: ReadingOrderListProps) => {
@@ -32,6 +34,18 @@ export const ReadingOrderList = ({
   return (
     <nav className="reading-order" aria-label="Reading order">
       <h2 className="reading-order-title">Reading order</h2>
+      {review.readingOrder.parts.length > 0 && (
+        <>
+          <p className="reading-progress">
+            {review.readingOrder.parts.filter(part => read.has(part)).length} of{' '}
+            {review.readingOrder.parts.length}{' '}
+            {review.readingOrder.parts.length === 1 ? 'part' : 'parts'} read
+          </p>
+          <p className="reading-keys">
+            <kbd>J</kbd> / <kbd>K</kbd> next or previous, <kbd>A</kbd> mark read
+          </p>
+        </>
+      )}
       <ol className="reading-order-list">
         {review.readingOrder.parts.map((part, index) => {
           const found = findingsOn.get(part);
@@ -41,6 +55,11 @@ export const ReadingOrderList = ({
               <button type="button" className="reading-order-part" onClick={() => onGoTo(part)}>
                 <span className="reading-number">{index + 1}</span> {labelOf.get(part)}
               </button>
+              {read.has(part) && (
+                <span className="reading-read" role="img" aria-label="read">
+                  ✓
+                </span>
+              )}
               {found && <FindingsMark findings={found} />}
               {cycle !== undefined && (
                 <p className="reading-cycle">

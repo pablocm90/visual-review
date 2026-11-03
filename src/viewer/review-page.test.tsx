@@ -1607,6 +1607,224 @@ test('the reading order shows no outside heading when every changed file is draw
   expect(screen.queryByRole('navigation', { name: 'Reading order' })).toBeNull();
 });
 
+test('the reading order counts the parts read only when it has parts, a single part in the singular', async () => {
+  const { rerender } = render(
+    <ReviewPage review={pageWith({ ...review, undrawn: [{ path: 'README.md', patch: '' }] })} />,
+  );
+  await screen.findByRole('group', { name: 'rust' });
+  expect(within(readingOrder()).queryByText(/read$/)).toBeNull();
+
+  rerender(
+    <ReviewPage
+      review={pageWith({
+        ...review,
+        readingOrder: { parts: ['rust/crate/application'], cycles: [] },
+      })}
+    />,
+  );
+  expect(within(readingOrder()).getByText('0 of 1 part read')).toBeDefined();
+});
+
+const walkedReview = () =>
+  pageWith({
+    ...review,
+    range: `walk-${crypto.randomUUID()}`,
+    readingOrder: {
+      parts: ['rust/crate/application', 'rust/crate/cli-adapter', 'rust/crate/legacy'],
+      cycles: [],
+    },
+  });
+
+const selectedPart = () => within(inspector()).getByRole('heading', { level: 2 }).textContent;
+
+test('J and K walk the reading order from the selected part, starting at its first part, going to each as its row does, and stay put at either end', async () => {
+  const user = userEvent.setup();
+  render(<ReviewPage review={walkedReview()} />);
+  await screen.findByRole('group', { name: 'rust' });
+
+  await user.keyboard('k');
+  expect(selectedPart()).toBe('application');
+  await user.keyboard('j');
+  expect(selectedPart()).toBe('cli-adapter');
+  await waitFor(() =>
+    expect(document.activeElement).toBe(screen.getByRole('button', { name: 'cli-adapter: added' })),
+  );
+  await user.keyboard('jjj');
+  expect(selectedPart()).toBe('legacy');
+  await user.keyboard('kkk');
+  expect(selectedPart()).toBe('application');
+});
+
+const readingOrder = () => screen.getByRole('navigation', { name: 'Reading order' });
+
+const readRows = () =>
+  within(readingOrder())
+    .getAllByRole('listitem')
+    .filter(row => within(row).queryByRole('img', { name: 'read' }) !== null)
+    .map(row => within(row).getByRole('button').textContent);
+
+test('A marks the selected part read, ticking its row and counting it at the head of the reading order, and A again leaves it unread', async () => {
+  const user = userEvent.setup();
+  render(<ReviewPage review={walkedReview()} />);
+  await screen.findByRole('group', { name: 'rust' });
+  expect(within(readingOrder()).getByText('0 of 3 parts read')).toBeDefined();
+
+  await user.keyboard('ja');
+  await user.keyboard('jja');
+  expect(readRows()).toEqual(['1 application', '3 legacy']);
+  expect(within(readingOrder()).getByText('2 of 3 parts read')).toBeDefined();
+
+  await user.keyboard('a');
+  expect(readRows()).toEqual(['1 application']);
+  expect(within(readingOrder()).getByText('1 of 3 parts read')).toBeDefined();
+
+  await user.click(screen.getByRole('button', { name: 'domain: unchanged' }));
+  await user.keyboard('a');
+  expect(within(readingOrder()).getByText('1 of 3 parts read')).toBeDefined();
+});
+
+test('a part marked read stays read when the page for its range opens again, and the page for another range starts with none read', async () => {
+  const user = userEvent.setup();
+  const walked = walkedReview();
+  const first = render(<ReviewPage review={walked} />);
+  await screen.findByRole('group', { name: 'rust' });
+  await user.keyboard('ja');
+  first.unmount();
+
+  const again = render(<ReviewPage review={walked} />);
+  await screen.findByRole('group', { name: 'rust' });
+  expect(readRows()).toEqual(['1 application']);
+  expect(within(readingOrder()).getByText('1 of 3 parts read')).toBeDefined();
+  again.unmount();
+
+  render(<ReviewPage review={walkedReview()} />);
+  await screen.findByRole('group', { name: 'rust' });
+  expect(readRows()).toEqual([]);
+});
+
+test('with storage refusing every access, the page opens and marks hold until it closes', async () => {
+  const user = userEvent.setup();
+  const refused = () => {
+    throw new DOMException('denied', 'SecurityError');
+  };
+  const getItem = vi.spyOn(Storage.prototype, 'getItem').mockImplementation(refused);
+  const setItem = vi.spyOn(Storage.prototype, 'setItem').mockImplementation(refused);
+  onTestFinished(() => {
+    getItem.mockRestore();
+    setItem.mockRestore();
+  });
+  const first = render(<ReviewPage review={walkedReview()} />);
+  await screen.findByRole('group', { name: 'rust' });
+  await user.keyboard('ja');
+  expect(readRows()).toEqual(['1 application']);
+  first.unmount();
+
+  const storage = vi.spyOn(window, 'localStorage', 'get').mockImplementation(refused);
+  onTestFinished(() => storage.mockRestore());
+  render(<ReviewPage review={walkedReview()} />);
+  await screen.findByRole('group', { name: 'rust' });
+
+  await user.keyboard('ja');
+  expect(readRows()).toEqual(['1 application']);
+});
+
+test('a stored mark on a part no longer in the reading order, the range having moved on, is not counted', async () => {
+  const walked = walkedReview();
+  localStorage.setItem(
+    `visual-review:read:${walked.range}`,
+    '["rust/crate/legacy", "rust/crate/gone"]',
+  );
+  render(<ReviewPage review={walked} />);
+  await screen.findByRole('group', { name: 'rust' });
+
+  expect(within(readingOrder()).getByText('1 of 3 parts read')).toBeDefined();
+});
+
+test('A on a node outside the reading order keeps no mark, so it starts unread when the range, moved on, makes it a part', async () => {
+  const user = userEvent.setup();
+  const walked = walkedReview();
+  const first = render(<ReviewPage review={walked} />);
+  await user.click(await screen.findByRole('button', { name: 'domain: unchanged' }));
+  await user.keyboard('a');
+  first.unmount();
+
+  render(
+    <ReviewPage
+      review={{
+        ...walked,
+        readingOrder: { parts: [...walked.readingOrder.parts, 'rust/crate/domain'], cycles: [] },
+      }}
+    />,
+  );
+  await screen.findByRole('group', { name: 'rust' });
+  expect(within(readingOrder()).getByText('0 of 4 parts read')).toBeDefined();
+});
+
+test('stored read marks that are not a list of ids are ignored, the page starting with none read', async () => {
+  const walked = walkedReview();
+  localStorage.setItem(`visual-review:read:${walked.range}`, '["rust/crate/application", 7]');
+  render(<ReviewPage review={walked} />);
+  await screen.findByRole('group', { name: 'rust' });
+
+  expect(readRows()).toEqual([]);
+});
+
+test('J, K and A act on Structure alone: on Metrics and Tests they neither walk nor mark', async () => {
+  atHash('#structure');
+  const user = userEvent.setup();
+  render(<ReviewPage review={walkedReview()} />);
+  await screen.findByRole('group', { name: 'rust' });
+  await user.keyboard('j');
+
+  await user.click(screen.getByRole('link', { name: 'Metrics' }));
+  await waitFor(() => expect(currentTab()).toBe('Metrics'));
+  await user.keyboard('ja');
+  await user.click(screen.getByRole('link', { name: /^Tests/ }));
+  await waitFor(() => expect(currentTab()).toMatch(/^Tests/));
+  await user.keyboard('ja');
+  await user.click(screen.getByRole('link', { name: 'Structure' }));
+  await screen.findByRole('group', { name: 'rust' });
+
+  expect(selectedPart()).toBe('application');
+  expect(within(readingOrder()).getByText('0 of 3 parts read')).toBeDefined();
+});
+
+test('J, K and A in capitals, with Caps Lock or Shift, walk and mark as in lower case', async () => {
+  const user = userEvent.setup();
+  render(<ReviewPage review={walkedReview()} />);
+  await screen.findByRole('group', { name: 'rust' });
+
+  await user.keyboard('JJKA');
+  expect(selectedPart()).toBe('application');
+  expect(readRows()).toEqual(['1 application']);
+});
+
+test('J, K and A held with Control, Meta or Alt are left to the browser, neither walking nor marking', async () => {
+  const user = userEvent.setup();
+  render(<ReviewPage review={walkedReview()} />);
+  await screen.findByRole('group', { name: 'rust' });
+
+  await user.keyboard('j');
+  await user.keyboard('{Control>}j{/Control}{Meta>}a{/Meta}{Alt>}j{/Alt}');
+  expect(selectedPart()).toBe('application');
+  expect(within(readingOrder()).getByText('0 of 3 parts read')).toBeDefined();
+});
+
+test('J, K and A typed in a comment are text, neither walking nor marking', async () => {
+  const user = userEvent.setup();
+  render(<ReviewPage review={walkedReview()} send={async () => {}} />);
+  await screen.findByRole('group', { name: 'rust' });
+
+  await user.keyboard('j');
+  await user.type(within(noteTab()).getByRole('textbox', { name: 'Your comment' }), 'jaj');
+  expect(selectedPart()).toBe('application');
+  expect(within(readingOrder()).getByText('0 of 3 parts read')).toBeDefined();
+  expect(within(noteTab()).getByRole('textbox', { name: 'Your comment' })).toHaveProperty(
+    'value',
+    'jaj',
+  );
+});
+
 test('look first lists the findings to look at in rank order, in the dimension a triage chip picks, collapsing to their count, each going to its node, seven at most and Show all opening the rail past them, and is absent when none needs a look', async () => {
   const user = userEvent.setup();
   const looks = (count: number) =>

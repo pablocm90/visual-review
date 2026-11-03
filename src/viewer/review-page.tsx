@@ -46,6 +46,7 @@ import {
 } from './layout.ts';
 import { MetricsScreen } from './metrics-screen.tsx';
 import { MetricsTable } from './metrics-tab.tsx';
+import { storedReadMarks, storeReadMarks } from './read-marks.ts';
 import { ReadingOrderList } from './reading-order-list.tsx';
 import { changedSymbolCount, hasSymbolNews, type LineAt, SymbolsOf } from './symbols-tab.tsx';
 import { changedCount, TestFiles, TestsScreen } from './tests-screen.tsx';
@@ -1233,6 +1234,9 @@ const Header = ({ review, tab, comments, send }: HeaderProps) => {
   );
 };
 
+const toggled = (set: ReadonlySet<string>, id: string) =>
+  set.has(id) ? new Set([...set].filter(other => other !== id)) : new Set([...set, id]);
+
 type ReviewPageProps = {
   readonly review: PageData;
   readonly notes?: ReviewNotes | undefined;
@@ -1280,11 +1284,7 @@ export const ReviewPage = ({ review, notes, send }: ReviewPageProps) => {
   );
   const toggle = (id: string) => {
     pin(id);
-    setExpanded(current =>
-      current.has(id)
-        ? new Set([...current].filter(other => other !== id))
-        : new Set([...current, id]),
-    );
+    setExpanded(current => toggled(current, id));
   };
   const elements = useRef(new Map<string, SVGElement | null>());
   const register = (id: string, element: SVGElement | null) => {
@@ -1358,6 +1358,28 @@ export const ReviewPage = ({ review, notes, send }: ReviewPageProps) => {
     location.hash = '#structure';
     goTo(id);
   };
+  const [read, setRead] = useState(() => storedReadMarks(review.range));
+  useEffect(() => storeReadMarks(review.range, read), [review.range, read]);
+  const walk = (step: number) => {
+    const { parts } = review.readingOrder;
+    const at = parts.indexOf(selected ?? '');
+    const next = parts[Math.max(at + step, 0)];
+    if (next !== undefined) goTo(next);
+  };
+  useEffect(() => {
+    if (tab !== 'structure') return;
+    const keyed = (event: globalThis.KeyboardEvent) => {
+      if (event.target instanceof HTMLTextAreaElement) return;
+      if (event.ctrlKey || event.metaKey || event.altKey) return;
+      const key = event.key.toLowerCase();
+      if (key === 'j') walk(1);
+      if (key === 'k') walk(-1);
+      if (key === 'a' && selected !== undefined && review.readingOrder.parts.includes(selected))
+        setRead(current => toggled(current, selected));
+    };
+    document.addEventListener('keydown', keyed);
+    return () => document.removeEventListener('keydown', keyed);
+  });
   useEffect(() => {
     layoutDiff(drawn).then(setLayout);
   }, [drawn]);
@@ -1382,6 +1404,7 @@ export const ReviewPage = ({ review, notes, send }: ReviewPageProps) => {
             <div className="left-column">
               <ReadingOrderList
                 review={review}
+                read={read}
                 findings={findings}
                 onGoTo={goTo}
                 onShowOutside={showOutside}
