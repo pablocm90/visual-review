@@ -131,23 +131,36 @@ const changedFinding = (
   ];
 };
 
+const decisionText = ({ base, head }: LogicLine): string => head ?? base ?? '';
+
+export const decisionIds = (node: string, statement: SymbolStatement): ReadonlyArray<string> => {
+  const lines = statement.logic ?? [];
+  return lines.map((line, index) => {
+    const text = decisionText(line);
+    const before = lines.slice(0, index).filter(other => decisionText(other) === text).length;
+    return `${node}#${qualified(statement)}#${text}${before === 0 ? '' : `#${before + 1}`}`;
+  });
+};
+
 const logicFindings = (node: string, statement: SymbolStatement): ReadonlyArray<Finding> => {
   const name = qualified(statement);
   const lines = statement.logic ?? [];
-  const lost = lines.filter(isLost);
-  const occurrence = (base: string | undefined, index: number): string => {
-    const before = lost.slice(0, index).filter(line => line.base === base).length;
-    return before === 0 ? '' : `#${before + 1}`;
-  };
+  const ids = decisionIds(node, statement);
   return [
-    ...lost.map(({ kind, base = '' }, index) => ({
-      id: `logic:removed:${node}#${name}#${base}${occurrence(base, index)}`,
-      dimension: 'logic' as const,
-      level: 'look' as const,
-      target: node,
-      title: `${statement.kind} ${name} lost a ${kind}`,
-      detail: base,
-    })),
+    ...lines.flatMap((line, index) =>
+      isLost(line)
+        ? [
+            {
+              id: `logic:removed:${ids[index]}`,
+              dimension: 'logic' as const,
+              level: 'look' as const,
+              target: node,
+              title: `${statement.kind} ${name} lost a ${line.kind}`,
+              detail: line.base ?? '',
+            },
+          ]
+        : [],
+    ),
     ...changedFinding(
       node,
       statement,
