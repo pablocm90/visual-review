@@ -1607,6 +1607,24 @@ test('the reading order shows no outside heading when every changed file is draw
   expect(screen.queryByRole('navigation', { name: 'Reading order' })).toBeNull();
 });
 
+test('the reading order counts the parts read only when it has parts, a single part in the singular', async () => {
+  const { rerender } = render(
+    <ReviewPage review={pageWith({ ...review, undrawn: [{ path: 'README.md', patch: '' }] })} />,
+  );
+  await screen.findByRole('group', { name: 'rust' });
+  expect(within(readingOrder()).queryByText(/read$/)).toBeNull();
+
+  rerender(
+    <ReviewPage
+      review={pageWith({
+        ...review,
+        readingOrder: { parts: ['rust/crate/application'], cycles: [] },
+      })}
+    />,
+  );
+  expect(within(readingOrder()).getByText('0 of 1 part read')).toBeDefined();
+});
+
 const walkedReview = () =>
   pageWith({
     ...review,
