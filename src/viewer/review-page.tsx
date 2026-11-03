@@ -46,6 +46,7 @@ import {
 } from './layout.ts';
 import { MetricsScreen } from './metrics-screen.tsx';
 import { MetricsTable } from './metrics-tab.tsx';
+import { storedReadMarks, storeReadMarks } from './read-marks.ts';
 import { ReadingOrderList } from './reading-order-list.tsx';
 import { changedSymbolCount, hasSymbolNews, type LineAt, SymbolsOf } from './symbols-tab.tsx';
 import { changedCount, TestFiles, TestsScreen } from './tests-screen.tsx';
@@ -1357,7 +1358,8 @@ export const ReviewPage = ({ review, notes, send }: ReviewPageProps) => {
     location.hash = '#structure';
     goTo(id);
   };
-  const [read, setRead] = useState<ReadonlySet<string>>(new Set());
+  const [read, setRead] = useState(() => storedReadMarks(review.range));
+  useEffect(() => storeReadMarks(review.range, read), [review.range, read]);
   const walk = (step: number) => {
     const { parts } = review.readingOrder;
     const at = parts.indexOf(selected ?? '');

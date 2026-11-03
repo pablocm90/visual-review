@@ -1610,6 +1610,7 @@ test('the reading order shows no outside heading when every changed file is draw
 const walkedReview = () =>
   pageWith({
     ...review,
+    range: `walk-${crypto.randomUUID()}`,
     readingOrder: {
       parts: ['rust/crate/application', 'rust/crate/cli-adapter', 'rust/crate/legacy'],
       cycles: [],
@@ -1662,6 +1663,25 @@ test('A marks the selected part read, ticking its row and counting it at the hea
   await user.click(screen.getByRole('button', { name: 'domain: unchanged' }));
   await user.keyboard('a');
   expect(within(readingOrder()).getByText('1 of 3 parts read')).toBeDefined();
+});
+
+test('a part marked read stays read when the page for its range opens again, and the page for another range starts with none read', async () => {
+  const user = userEvent.setup();
+  const walked = walkedReview();
+  const first = render(<ReviewPage review={walked} />);
+  await screen.findByRole('group', { name: 'rust' });
+  await user.keyboard('ja');
+  first.unmount();
+
+  const again = render(<ReviewPage review={walked} />);
+  await screen.findByRole('group', { name: 'rust' });
+  expect(readRows()).toEqual(['1 application']);
+  expect(within(readingOrder()).getByText('1 of 3 parts read')).toBeDefined();
+  again.unmount();
+
+  render(<ReviewPage review={walkedReview()} />);
+  await screen.findByRole('group', { name: 'rust' });
+  expect(readRows()).toEqual([]);
 });
 
 test('J, K and A held with Control, Meta or Alt are left to the browser, neither walking nor marking', async () => {
