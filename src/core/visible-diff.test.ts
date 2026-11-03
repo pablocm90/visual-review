@@ -1,6 +1,12 @@
 import { expect, test } from 'vitest';
 import type { DiffedEdge, DiffedNode, GraphDiff } from './diff-graphs.ts';
-import { expandedToShow, mergedDiff, nearChanges, visibleDiff } from './visible-diff.ts';
+import {
+  changesOnly,
+  expandedToShow,
+  mergedDiff,
+  nearChanges,
+  visibleDiff,
+} from './visible-diff.ts';
 
 const node = (id: string, kind: DiffedNode['kind'], parent?: string): DiffedNode => ({
   id,
@@ -277,4 +283,39 @@ test.for<{
 
   expect(near.nodes.map(({ id }) => id)).toEqual(kept);
   expect(near.edges.map(({ from, to }) => `${from} -> ${to}`)).toEqual(keptEdges);
+});
+
+test('changes only keeps the changed nodes and both ends of an added or removed edge, and hides a neighbour joined by an unchanged edge and an emptied stack', () => {
+  const only = changesOnly({
+    nodes: [
+      node('rust', 'stack'),
+      node('domain', 'package', 'rust'),
+      changed(node('application', 'package', 'rust')),
+      node('cli-adapter', 'package', 'rust'),
+      node('legacy', 'package', 'rust'),
+      node('shop', 'package', 'rust'),
+      changed(node('billing', 'package', 'rust')),
+      node('web', 'stack'),
+      node('W', 'module', 'web'),
+    ],
+    edges: [
+      { from: 'application', to: 'domain', state: 'unchanged' },
+      { from: 'billing', to: 'domain', state: 'unchanged' },
+      { from: 'cli-adapter', to: 'application', state: 'added' },
+      { from: 'application', to: 'legacy', state: 'removed' },
+      { from: 'shop', to: 'cli-adapter', state: 'unchanged' },
+    ],
+  });
+
+  expect(only.nodes.map(({ id }) => id)).toEqual([
+    'rust',
+    'application',
+    'cli-adapter',
+    'legacy',
+    'billing',
+  ]);
+  expect(only.edges.map(({ from, to }) => `${from} -> ${to}`)).toEqual([
+    'cli-adapter -> application',
+    'application -> legacy',
+  ]);
 });

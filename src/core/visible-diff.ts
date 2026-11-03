@@ -73,22 +73,30 @@ export const visibleDiff = ({ diff, expanded }: VisibleDiffOptions): GraphDiff =
   };
 };
 
-export const nearChanges = (diff: GraphDiff): GraphDiff => {
-  const { changed, touchesChange } = touchingChangeIn(diff);
-  const near = [
-    ...changed,
-    ...diff.edges.flatMap(edge => (touchesChange(edge) ? [edge.from, edge.to] : [])),
-  ];
+const keeping = (diff: GraphDiff, ids: ReadonlyArray<string>): GraphDiff => {
   const parentOf = new Map(diff.nodes.map(node => [node.id, node.parent]));
   const withAncestors = (id: string): ReadonlyArray<string> => {
     const parent = parentOf.get(id);
     return parent === undefined ? [id] : [id, ...withAncestors(parent)];
   };
-  const kept = new Set(near.flatMap(withAncestors));
+  const kept = new Set(ids.flatMap(withAncestors));
   return {
     nodes: diff.nodes.filter(node => kept.has(node.id)),
     edges: diff.edges.filter(edge => kept.has(edge.from) && kept.has(edge.to)),
   };
+};
+
+const endsOf = (edges: ReadonlyArray<DiffedEdge>, keeps: (edge: DiffedEdge) => boolean) =>
+  edges.flatMap(edge => (keeps(edge) ? [edge.from, edge.to] : []));
+
+export const nearChanges = (diff: GraphDiff): GraphDiff => {
+  const { changed, touchesChange } = touchingChangeIn(diff);
+  return keeping(diff, [...changed, ...endsOf(diff.edges, touchesChange)]);
+};
+
+export const changesOnly = (diff: GraphDiff): GraphDiff => {
+  const { changed } = touchingChangeIn(diff);
+  return keeping(diff, [...changed, ...endsOf(diff.edges, edge => edge.state !== 'unchanged')]);
 };
 
 type MergedDiffOptions = VisibleDiffOptions & {
