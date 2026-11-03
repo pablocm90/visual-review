@@ -167,6 +167,26 @@ test.for([
     ],
     decisions: ["case: case 'paid':", 'case: case State.Open:', 'case: default:'],
   },
+  {
+    reason: 'the outermost logical expression or logical assignment, whole',
+    body: [
+      'const ready = order.paid && !order.void;',
+      "log(order.note || order.id || 'none');",
+      'order.total ??= 0;',
+      'order.total += 1;',
+      'order.open &&= order.ready;',
+      'order.late ||= order.overdue ?? false;',
+      'if (order.a && order.b) pay();',
+    ],
+    decisions: [
+      'logical: order.paid && !order.void',
+      "logical: order.note || order.id || 'none'",
+      'logical: order.total ??= 0',
+      'logical: order.open &&= order.ready',
+      'logical: order.late ||= order.overdue ?? false',
+      'if: if (order.a && order.b)',
+    ],
+  },
 ])('$reason is a decision', ({ body, decisions }) => {
   expect(kindsAndTexts('charge', 'function charge(order) {', ...body, '}')).toEqual(decisions);
 });

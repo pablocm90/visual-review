@@ -32,7 +32,7 @@ export type FileMeasures = {
 
 export type SymbolKind = 'function' | 'method' | 'class' | 'type';
 
-export type DecisionKind = 'guard' | 'if' | 'ternary' | 'loop' | 'case' | 'catch' | 'throw';
+export type DecisionKind = 'guard' | 'if' | 'ternary' | 'loop' | 'case' | 'logical' | 'catch' | 'throw';
 
 export type Decision = {
   readonly kind: DecisionKind;

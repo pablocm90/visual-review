@@ -33,6 +33,8 @@ const ifAt = ({ text, depth }: Walk, node: IfStatement): Decision => {
     : { kind: 'guard', text: `${condition} ${exit}`, depth, line };
 };
 
+const LOGICAL_ASSIGNMENTS: ReadonlySet<string> = new Set(['&&=', '||=', '??=']);
+
 type Head = Pick<Decision, 'kind' | 'text'>;
 
 const loopHead = (text: string, node: Node, body: Node): string =>
@@ -56,6 +58,12 @@ const headOf = (text: string, node: Node): Head | undefined => {
       };
     case 'SwitchCase':
       return { kind: 'case', text: node.test ? `case ${sourceOf(text, node.test)}:` : 'default:' };
+    case 'LogicalExpression':
+      return { kind: 'logical', text: sourceOf(text, node) };
+    case 'AssignmentExpression':
+      return LOGICAL_ASSIGNMENTS.has(node.operator)
+        ? { kind: 'logical', text: sourceOf(text, node) }
+        : undefined;
     case 'ConditionalExpression':
       return { kind: 'ternary', text: `${sourceOf(text, node.test)} ?` };
     default:
