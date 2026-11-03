@@ -57,7 +57,7 @@ const diffItems = <T, KeptState extends string>({
   ];
 };
 
-export const isAtOrUnder = (path: string, node: GraphNode): boolean =>
+export const isAtOrUnder = (path: string, node: Pick<GraphNode, 'path'>): boolean =>
   path === node.path || path.startsWith(`${node.path}/`);
 
 type PairNodesOptions = {
