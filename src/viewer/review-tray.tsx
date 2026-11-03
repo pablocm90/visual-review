@@ -69,6 +69,81 @@ const inReadingOrder = (written: ReadonlyArray<Comment>, parts: ReadonlyArray<st
 const withWhy = ({ text, ...answer }: Answer): Answer =>
   text?.trim() ? { ...answer, text } : answer;
 
+type PreviewOf = {
+  readonly verdict: Review['verdict'];
+  readonly read: Review['read'];
+  readonly parts: ReadonlyArray<string>;
+  readonly listed: ReadonlyArray<Drafted>;
+  readonly silent: ReadonlyArray<string>;
+};
+
+const previewOf = ({ verdict, read, parts, listed, silent }: PreviewOf) => [
+  [verdict, ...(parts.length > 0 ? [`read ${read.length} of ${parts.length}`] : [])].join(' · '),
+  ...listed.map(({ kind, anchor }) => `${kind.padEnd(10)}${anchor.id}`),
+  ...(silent.length > 0
+    ? [`${'read'.padEnd(10)}${counted(silent.length, 'part')}, no comment`]
+    : []),
+];
+
+type DraftProps = {
+  readonly name: string;
+  readonly onGo: (() => void) | undefined;
+  readonly label: string | undefined;
+  readonly text: string | undefined;
+};
+
+const Draft = ({ name, onGo, label, text }: DraftProps) => (
+  <li className="draft">
+    {onGo === undefined ? (
+      name
+    ) : (
+      <button type="button" className="draft-target" onClick={onGo}>
+        {name}
+      </button>
+    )}{' '}
+    <span className="draft-kind">
+      {label}
+      {text === undefined ? '' : ':'}
+    </span>
+    {text === undefined ? '' : ` ${text}`}
+  </li>
+);
+
+type DraftListProps = {
+  readonly drafted: ReadonlyArray<Comment>;
+  readonly answered: ReadonlyArray<Answer>;
+  readonly findings: ReadonlyArray<Finding>;
+  readonly nameOf: (id: string) => string;
+  readonly onGoTo: (id: string) => void;
+};
+
+const DraftList = ({ drafted, answered, findings, nameOf, onGoTo }: DraftListProps) => (
+  <ul aria-label="Drafts" className="tray-list">
+    {drafted.map(({ anchor, kind, text }) => (
+      <Draft
+        key={anchor.id}
+        name={nameOf(anchor.id)}
+        onGo={() => onGoTo(anchor.id)}
+        label={kindLabels.get(kind)}
+        text={text}
+      />
+    ))}
+    {answered.flatMap(({ anchor, kind, text }) =>
+      findings
+        .filter(finding => finding.id === anchor.id)
+        .map(({ id, title, target }) => (
+          <Draft
+            key={id}
+            name={title}
+            onGo={target === undefined ? undefined : () => onGoTo(target)}
+            label={answerLabels.get(kind)}
+            text={text}
+          />
+        )),
+    )}
+  </ul>
+);
+
 export const ReviewTray = ({
   reviewed,
   read,
@@ -86,19 +161,14 @@ export const ReviewTray = ({
   const [sent, setSent] = useState(false);
   const [problem, setProblem] = useState<string>();
   const drafted = Object.values(comments).filter(({ text }) => text.trim() !== '');
-  const written = [...drafted, ...Object.values(answers).map(withWhy)];
+  const answered = Object.values(answers).map(withWhy);
+  const written = [...drafted, ...answered];
+  const ordered = inReadingOrder(drafted, parts);
   const hasBody = body.trim() !== '';
   const suggested = suggestedFor(written);
   const verdict = picked ?? suggested;
   const silent = read.filter(part => !written.some(({ anchor }) => anchor.id === part));
-  const listed = [...inReadingOrder(drafted, parts), ...Object.values(answers)];
-  const preview = [
-    [verdict, ...(parts.length > 0 ? [`read ${read.length} of ${parts.length}`] : [])].join(' · '),
-    ...listed.map(({ kind, anchor }) => `${kind.padEnd(10)}${anchor.id}`),
-    ...(silent.length > 0
-      ? [`${'read'.padEnd(10)}${counted(silent.length, 'part')}, no comment`]
-      : []),
-  ];
+  const preview = previewOf({ verdict, read, parts, listed: [...ordered, ...answered], silent });
   const sendComments = () =>
     send({
       version: 4,
@@ -137,46 +207,13 @@ export const ReviewTray = ({
                 </p>
               )}
               <div className="tray-summary">
-                <ul aria-label="Drafts" className="tray-list">
-                  {inReadingOrder(drafted, parts).map(({ anchor, kind, text }) => (
-                    <li key={anchor.id} className="draft">
-                      <button
-                        type="button"
-                        className="draft-target"
-                        onClick={() => onGoTo(anchor.id)}
-                      >
-                        {nameOf(anchor.id)}
-                      </button>{' '}
-                      <span className="draft-kind">{kindLabels.get(kind)}:</span> {text}
-                    </li>
-                  ))}
-                  {Object.values(answers)
-                    .map(withWhy)
-                    .flatMap(({ anchor, kind, text }) =>
-                      findings
-                        .filter(finding => finding.id === anchor.id)
-                        .map(({ id, title, target }) => (
-                          <li key={id} className="draft">
-                            {target === undefined ? (
-                              title
-                            ) : (
-                              <button
-                                type="button"
-                                className="draft-target"
-                                onClick={() => onGoTo(target)}
-                              >
-                                {title}
-                              </button>
-                            )}{' '}
-                            <span className="draft-kind">
-                              {answerLabels.get(kind)}
-                              {text === undefined ? '' : ':'}
-                            </span>
-                            {text === undefined ? '' : ` ${text}`}
-                          </li>
-                        )),
-                    )}
-                </ul>
+                <DraftList
+                  drafted={ordered}
+                  answered={answered}
+                  findings={findings}
+                  nameOf={nameOf}
+                  onGoTo={onGoTo}
+                />
                 {parts.length > 0 && (
                   <p className="tray-read">
                     {partsRead({ read: read.length, parts: parts.length })}
