@@ -74,6 +74,7 @@ export const pageData = ({
       symbols: reading.symbols,
       symbolsNotRead: reading.symbolsNotRead,
       nodes: diff.nodes,
+      tests: reading.tests,
     }),
     dangling: reading.danglingCalls,
     patches: reading.patches.filter(isDrawn),

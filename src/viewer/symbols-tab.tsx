@@ -1,4 +1,5 @@
 import type { DiffedNode } from '../core/diff-graphs.ts';
+import type { LogicLine } from '../core/logic-diff.ts';
 import type { SymbolFile } from '../core/read-range.ts';
 import {
   changesApi,
@@ -31,9 +32,16 @@ const isQuiet = (symbol: SymbolStatement): boolean => !GROUPS.some(([, holds]) =
 export const changedSymbolCount = (files: ReadonlyArray<SymbolFile>): number =>
   symbolsIn(files).filter(symbol => !isQuiet(symbol)).length;
 
+export type LineAt = {
+  readonly node: string;
+  readonly side: 'base' | 'head';
+  readonly line: number;
+};
+
 type Places = {
   readonly nodes: ReadonlyArray<DiffedNode>;
   readonly onGoTo: (id: string) => void;
+  readonly onShowLine: (at: LineAt) => void;
 };
 
 const labelOf = (nodes: ReadonlyArray<DiffedNode>, id: string): string | undefined =>
@@ -66,14 +74,77 @@ const nameOf = (symbol: SymbolStatement): string => {
   return mark === undefined ? name : `${name}, ${mark}`;
 };
 
+const MARKS: Readonly<Record<LogicLine['change'], string>> = {
+  same: '·',
+  added: '+',
+  removed: '−',
+  changed: '~',
+};
+
+const textOf = ({ base, head }: LogicLine): string =>
+  base !== undefined && head !== undefined ? `${base} → ${head}` : (head ?? base ?? '');
+
+const LogicText = ({ line }: { readonly line: LogicLine }) => (
+  <>
+    <span className="mark">{MARKS[line.change]}</span> <span className="kind">{line.kind}</span>{' '}
+    {line.change === 'changed' ? (
+      <>
+        <del>{line.base}</del> <ins>{line.head}</ins>
+      </>
+    ) : (
+      <code>{line.head ?? line.base}</code>
+    )}
+  </>
+);
+
+const logicLabel = (line: LogicLine): string => `${line.change} ${line.kind}: ${textOf(line)}`;
+
+type ShowLine = (at: Omit<LineAt, 'node'>) => void;
+
+const LogicLines = ({
+  symbol,
+  onShowLine,
+}: {
+  readonly symbol: SymbolStatement;
+  readonly onShowLine: ShowLine;
+}) => (
+  <ul className="logic-lines" aria-label={`Logic of ${symbol.kind} ${qualified(symbol)}`}>
+    {(symbol.logic ?? []).map(line => (
+      <li
+        key={`${line.change} ${line.line} ${textOf(line)}`}
+        className={`logic-${line.change}`}
+        aria-label={logicLabel(line)}
+        style={{ paddingInlineStart: `${line.depth}em` }}
+      >
+        {line.change === 'same' ? (
+          <LogicText line={line} />
+        ) : (
+          <button
+            type="button"
+            className="logic-line"
+            aria-label={logicLabel(line)}
+            onClick={() =>
+              onShowLine({ side: line.change === 'removed' ? 'base' : 'head', line: line.line })
+            }
+          >
+            <LogicText line={line} />
+          </button>
+        )}
+      </li>
+    ))}
+  </ul>
+);
+
 export const hasSymbolNews = (file: SymbolFile): boolean =>
   'unreadable' in file || changedSymbolCount([file]) > 0;
 
 const SymbolList = ({
+  node,
   title,
   symbols,
   ...places
 }: Places & {
+  readonly node: string;
   readonly title: string;
   readonly symbols: ReadonlyArray<SymbolStatement>;
 }) => (
@@ -104,26 +175,21 @@ const SymbolList = ({
             <ins>{symbol.signature.head}</ins>
           </span>
         )}
+        {symbol.logic !== undefined && (
+          <LogicLines symbol={symbol} onShowLine={at => places.onShowLine({ node, ...at })} />
+        )}
       </li>
     ))}
   </ul>
 );
 
-const SymbolFiles = ({
-  files,
-  ...places
-}: Places & { readonly files: ReadonlyArray<SymbolFile> }) => {
+const SymbolFiles = ({ file, ...places }: Places & { readonly file: SymbolFile }) => {
+  const files = [file];
   const quiet = symbolsIn(files).filter(isQuiet);
   return (
     <>
-      {files.flatMap(file =>
-        'unreadable' in file
-          ? [
-              <p key={file.node} className="unreadable">
-                Its symbols couldn't be read: {file.unreadable}
-              </p>,
-            ]
-          : [],
+      {'unreadable' in file && (
+        <p className="unreadable">Its symbols couldn't be read: {file.unreadable}</p>
       )}
       {GROUPS.flatMap(([title, holds]) => {
         const grouped = symbolsIn(files).filter(holds);
@@ -132,14 +198,14 @@ const SymbolFiles = ({
           : [
               <section key={title} className="symbol-group">
                 <h4>{title}</h4>
-                <SymbolList title={title} symbols={grouped} {...places} />
+                <SymbolList node={file.node} title={title} symbols={grouped} {...places} />
               </section>,
             ];
       })}
       {quiet.length > 0 && (
         <details className="symbol-group">
           <summary>{quiet.length} unchanged</summary>
-          <SymbolList title="Unchanged" symbols={quiet} {...places} />
+          <SymbolList node={file.node} title="Unchanged" symbols={quiet} {...places} />
         </details>
       )}
     </>
@@ -151,17 +217,15 @@ export const SymbolsOf = ({
   files,
   ...places
 }: Places & { readonly node: DiffedNode; readonly files: ReadonlyArray<SymbolFile> }) =>
-  node.kind === 'file' ? (
-    <SymbolFiles files={files} {...places} />
-  ) : (
-    files.filter(hasSymbolNews).map(file => (
-      <section
-        key={file.node}
-        className="symbol-file"
-        aria-label={labelOf(places.nodes, file.node)}
-      >
-        <h3>{labelOf(places.nodes, file.node)}</h3>
-        <SymbolFiles files={[file]} {...places} />
-      </section>
-    ))
-  );
+  node.kind === 'file'
+    ? files.map(file => <SymbolFiles key={file.node} file={file} {...places} />)
+    : files.filter(hasSymbolNews).map(file => (
+        <section
+          key={file.node}
+          className="symbol-file"
+          aria-label={labelOf(places.nodes, file.node)}
+        >
+          <h3>{labelOf(places.nodes, file.node)}</h3>
+          <SymbolFiles file={file} {...places} />
+        </section>
+      ));

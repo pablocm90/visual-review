@@ -7,6 +7,7 @@ import type {
   TSDeclareMethod,
 } from '@babel/types';
 import type { FileSymbols } from '../../core/reader.ts';
+import { decisionsIn } from './typescript-decisions.ts';
 import {
   isOverload,
   isTooBig,
@@ -227,6 +228,9 @@ export const symbolsOfTypeScript = (text: string, path: string): FileSymbols => 
         [...walked.heads, walked.node].map(node => ownText(text, node, declarations)).join(''),
       ),
       bodyTokens: tokensOf(text, walked.node, code, declarations),
+      ...(walked.symbol.kind === 'function' || walked.symbol.kind === 'method'
+        ? { decisions: decisionsIn({ code: { text, tokens: code }, node: walked.node, nested }) }
+        : {}),
     })),
     astHash: hashOf(program, asIs),
     exports: program.body.flatMap(statement => namesExportedBy(text, statement)),

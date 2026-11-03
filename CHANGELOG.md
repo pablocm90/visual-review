@@ -2,6 +2,14 @@
 
 What changed in each release of `@pablocm90/visual-review`, newest first. Versions follow [semver](https://semver.org); while it is 0.x, a minor version may change the exported types.
 
+## 0.10.0 — 2026-11-03
+
+### Added
+
+- The TS reader reads each function's and method's decisions, its guards, ifs, ternaries, loops, cases, outermost logicals, catches, returns inside a branch and throws, as source text with comments and spacing ignored, and the review data gives an edited or renamed function whose decisions changed its `logic`: every decision, each `same`, `added`, `removed` or `changed`, with its kind, base and head text, depth and line.
+- Findings in the `logic` dimension: a guard or catch a function lost needs a look; a function's other decision changes are one finding for information. A file with either and no test changed alongside it is a `tests` finding that needs a look.
+- The **Symbols** tab lists an edited function's logic lines under it, indented by depth, a changed one base then head; clicking one that changed opens the **Diff** tab on its file's patch at its line, or at the patch's top when the line is outside every hunk.
+
 ## 0.9.0 — 2026-11-03
 
 ### Changed

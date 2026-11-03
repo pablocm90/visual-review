@@ -106,7 +106,7 @@ type TestChangesOptions = {
   readonly after?: string | undefined;
 };
 
-const anyChanged = (statements: ReadonlyArray<TestStatement>): boolean =>
+export const anyChanged = (statements: ReadonlyArray<TestStatement>): boolean =>
   statements.some(statement =>
     statement.kind === 'test' ? statement.change !== 'unchanged' : anyChanged(statement.children),
   );

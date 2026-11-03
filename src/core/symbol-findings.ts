@@ -1,5 +1,6 @@
 import type { Finding } from './findings.ts';
 import type { GraphNode } from './graph.ts';
+import type { LogicLine } from './logic-diff.ts';
 import type { SymbolFile } from './read-range.ts';
 import { type FileSymbolChanges, qualified, type SymbolStatement } from './symbol-changes.ts';
 
@@ -100,6 +101,61 @@ const exportsFinding = (file: FileSymbolChanges): ReadonlyArray<Finding> => {
   ];
 };
 
+const isLost = ({ change, kind }: LogicLine): boolean =>
+  change === 'removed' && (kind === 'guard' || kind === 'catch');
+
+const COUNTED = ['added', 'changed', 'removed'] as const;
+
+const changedFinding = (
+  node: string,
+  statement: SymbolStatement,
+  others: ReadonlyArray<LogicLine>,
+): ReadonlyArray<Finding> => {
+  if (others.length === 0) return [];
+  const name = qualified(statement);
+  const counts = COUNTED.map(
+    change => [change, others.filter(line => line.change === change).length] as const,
+  );
+  return [
+    {
+      id: `logic:changed:${node}#${name}`,
+      dimension: 'logic',
+      level: 'info',
+      target: node,
+      title: `${statement.kind} ${name} changed its logic`,
+      detail: counts
+        .filter(([, count]) => count > 0)
+        .map(([change, count]) => `${count} ${change}`)
+        .join(', '),
+    },
+  ];
+};
+
+const logicFindings = (node: string, statement: SymbolStatement): ReadonlyArray<Finding> => {
+  const name = qualified(statement);
+  const lines = statement.logic ?? [];
+  const lost = lines.filter(isLost);
+  const occurrence = (base: string | undefined, index: number): string => {
+    const before = lost.slice(0, index).filter(line => line.base === base).length;
+    return before === 0 ? '' : `#${before + 1}`;
+  };
+  return [
+    ...lost.map(({ kind, base = '' }, index) => ({
+      id: `logic:removed:${node}#${name}#${base}${occurrence(base, index)}`,
+      dimension: 'logic' as const,
+      level: 'look' as const,
+      target: node,
+      title: `${statement.kind} ${name} lost a ${kind}`,
+      detail: base,
+    })),
+    ...changedFinding(
+      node,
+      statement,
+      lines.filter(line => line.change !== 'same' && !isLost(line)),
+    ),
+  ];
+};
+
 type SymbolFindingsOptions = {
   readonly files: ReadonlyArray<SymbolFile>;
   readonly nodes: ReadonlyArray<GraphNode>;
@@ -124,6 +180,7 @@ export const symbolFindings = ({ files, nodes }: SymbolFindingsOptions): Readonl
             statement => findingOf({ node: file.node, statement, pathOf }) ?? [],
           ),
           ...exportsFinding(file),
+          ...file.symbols.flatMap(statement => logicFindings(file.node, statement)),
         ],
   );
 };

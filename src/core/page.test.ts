@@ -3,11 +3,13 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { expect, test } from 'vitest';
 import type { GraphNode } from './graph.ts';
+import type { LogicLine } from './logic-diff.ts';
 import { metricFindings } from './metric-findings.ts';
 import type { ReviewNotes } from './notes.ts';
 import { notedPageHtml, pageData, pageHtml, pageIn, servedPageHtml } from './page.ts';
 import type { RangeReading, SymbolFile } from './read-range.ts';
 import type { SymbolStatement } from './symbol-changes.ts';
+import type { TestFile } from './test-changes.ts';
 
 const webFile = (path: string): GraphNode => ({
   id: `web/file/${path}`,
@@ -215,13 +217,17 @@ const symbolFile = (symbols: ReadonlyArray<SymbolStatement>): SymbolFile => ({
   kind: 'api',
 });
 
-const findingsOfSymbols = (symbols: ReadonlyArray<SymbolFile>) =>
+const findingsOfSymbols = (
+  symbols: ReadonlyArray<SymbolFile>,
+  tests: ReadonlyArray<TestFile> = [],
+) =>
   pageData({
     repo: 'shop',
     reading: readingWith({
       symbols,
+      tests,
       before: { nodes: [webStack, webFile('a.ts'), webFile('c.ts')], edges: [] },
-      after: { nodes: [webStack, webFile('a.ts'), webFile('b.ts')], edges: [] },
+      after: { nodes: [webStack, webFile('a.ts'), webFile('b.ts'), webFile('d.ts')], edges: [] },
     }),
     range: 'a..b',
     version,
@@ -526,6 +532,185 @@ test("a class's methods raise no api finding of their own when the class itself 
     'class Bills renamed to Billing',
     'class Cart added',
     'method Till.charge removed',
+  ]);
+});
+
+const logicLine = (line: Partial<LogicLine> & Pick<LogicLine, 'change' | 'kind'>): LogicLine => ({
+  depth: 0,
+  line: 1,
+  ...line,
+});
+
+test('a guard or catch removed from an edited function is a logic finding to look at on its file, one per decision, its detail the text', () => {
+  const symbols = [
+    symbolFile([
+      {
+        name: 'charge',
+        scope: 'Orders',
+        kind: 'method',
+        exported: { base: true, head: true },
+        change: 'edited',
+        logic: [
+          logicLine({ change: 'removed', kind: 'guard', base: 'if (!order.paid) return' }),
+          logicLine({ change: 'same', kind: 'guard', head: 'if (!order) throw new Missing()' }),
+          logicLine({ change: 'removed', kind: 'if', base: 'if (order.total > 0)' }),
+          logicLine({ change: 'removed', kind: 'catch', base: 'catch (error)' }),
+        ],
+      },
+    ]),
+  ];
+
+  expect(
+    findingsOfSymbols(symbols).filter(({ id }) => id.startsWith('logic:removed:')),
+  ).toStrictEqual([
+    {
+      id: 'logic:removed:web/file/a.ts#Orders.charge#if (!order.paid) return',
+      dimension: 'logic',
+      level: 'look',
+      target: 'web/file/a.ts',
+      title: 'method Orders.charge lost a guard',
+      detail: 'if (!order.paid) return',
+    },
+    {
+      id: 'logic:removed:web/file/a.ts#Orders.charge#catch (error)',
+      dimension: 'logic',
+      level: 'look',
+      target: 'web/file/a.ts',
+      title: 'method Orders.charge lost a catch',
+      detail: 'catch (error)',
+    },
+  ]);
+});
+
+test('two identical decisions removed from one function are two findings, the second id counting it', () => {
+  const lost = logicLine({ change: 'removed', kind: 'catch', base: 'catch (error)' });
+  const symbols = [
+    symbolFile([
+      {
+        name: 'charge',
+        kind: 'function',
+        exported: { base: true, head: true },
+        change: 'edited',
+        logic: [lost, logicLine({ change: 'same', kind: 'if', head: 'if (a)' }), lost],
+      },
+    ]),
+  ];
+
+  expect(
+    findingsOfSymbols(symbols)
+      .filter(({ id }) => id.startsWith('logic:removed:'))
+      .map(({ id }) => id),
+  ).toStrictEqual([
+    'logic:removed:web/file/a.ts#charge#catch (error)',
+    'logic:removed:web/file/a.ts#charge#catch (error)#2',
+  ]);
+});
+
+test("an edited function's other decision changes are one logic finding for information on its file, its detail counting them; a function that only lost a guard has none", () => {
+  const symbols = [
+    symbolFile([
+      {
+        name: 'charge',
+        kind: 'function',
+        exported: { base: true, head: true },
+        change: 'edited',
+        logic: [
+          logicLine({ change: 'added', kind: 'if', head: 'if (order.late)' }),
+          logicLine({ change: 'same', kind: 'loop', head: 'for (const item of items)' }),
+          logicLine({ change: 'changed', kind: 'ternary', base: 'a > 0 ?', head: 'a >= 0 ?' }),
+          logicLine({ change: 'added', kind: 'throw', head: 'throw new Late' }),
+          logicLine({ change: 'removed', kind: 'return', base: 'return' }),
+        ],
+      },
+      {
+        name: 'refund',
+        kind: 'function',
+        exported: { base: false, head: false },
+        change: 'edited',
+        logic: [
+          logicLine({ change: 'removed', kind: 'guard', base: 'if (!paid) return' }),
+          logicLine({ change: 'same', kind: 'if', head: 'if (order.late)' }),
+        ],
+      },
+      {
+        name: 'total',
+        kind: 'function',
+        exported: { base: false, head: false },
+        change: 'edited',
+        logic: [logicLine({ change: 'changed', kind: 'if', base: 'if (a)', head: 'if (b)' })],
+      },
+    ]),
+  ];
+
+  expect(findingsOfSymbols(symbols).filter(({ level }) => level === 'info')).toStrictEqual([
+    {
+      id: 'logic:changed:web/file/a.ts#charge',
+      dimension: 'logic',
+      level: 'info',
+      target: 'web/file/a.ts',
+      title: 'function charge changed its logic',
+      detail: '2 added, 1 changed, 1 removed',
+    },
+    {
+      id: 'logic:changed:web/file/a.ts#total',
+      dimension: 'logic',
+      level: 'info',
+      target: 'web/file/a.ts',
+      title: 'function total changed its logic',
+      detail: '1 changed',
+    },
+  ]);
+});
+
+test("a file whose logic changed, with no test added, removed or edited alongside it, is a tests finding to look at on it; a test file alongside that wouldn't parse counts as changed", () => {
+  const edited = (name: string): SymbolStatement => ({
+    name,
+    kind: 'function',
+    exported: { base: false, head: false },
+    change: 'edited',
+    logic: [logicLine({ change: 'added', kind: 'if', head: 'if (late)' })],
+  });
+  const symbols = [
+    symbolFile([edited('charge')]),
+    { ...symbolFile([edited('refund')]), node: 'web/file/b.ts' },
+    { ...symbolFile([edited('total')]), node: 'web/file/c.ts' },
+    {
+      ...symbolFile([
+        { name: 'pay', kind: 'function', exported: { base: true }, change: 'removed' },
+      ]),
+      node: 'web/file/d.ts',
+    },
+  ];
+  const tests: ReadonlyArray<TestFile> = [
+    {
+      path: 'web/src/a.test.ts',
+      stack: 'web',
+      statements: [
+        {
+          kind: 'heading',
+          name: 'charge',
+          children: [{ kind: 'test', name: 'charges late orders', change: 'edited' }],
+        },
+      ],
+    },
+    {
+      path: 'web/src/b.test.ts',
+      stack: 'web',
+      statements: [{ kind: 'test', name: 'refunds', change: 'unchanged' }],
+    },
+    { path: 'web/src/c.test.ts', stack: 'web', unreadable: 'Unexpected token (1:1)' },
+  ];
+
+  expect(
+    findingsOfSymbols(symbols, tests).filter(({ dimension }) => dimension === 'tests'),
+  ).toStrictEqual([
+    {
+      id: 'tests:untested-logic:web/file/b.ts',
+      dimension: 'tests',
+      level: 'look',
+      target: 'web/file/b.ts',
+      title: 'logic changed with no test changed alongside',
+    },
   ]);
 });
 

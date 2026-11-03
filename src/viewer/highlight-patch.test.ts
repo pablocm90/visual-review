@@ -99,6 +99,35 @@ test('a second hunk starts fresh, whatever the first left open', () => {
   expect(lines[3]?.pieces[0]).toEqual({ text: 'fn', scopes: ['hljs-keyword'] });
 });
 
+test("each code line carries its line numbers on the sides it shows, counted from its hunk's header", () => {
+  const lines = highlightPatch(
+    patchOf(
+      'web/src/a.ts',
+      '@@ -3,3 +3,3 @@',
+      ' const a = 1;',
+      '-const b = 2;',
+      '+const b = 3;',
+      ' const c = 4;',
+      '@@ -20 +21,2 @@ function f',
+      '+const d = 5;',
+      ' const e = 6;',
+      '\\ No newline at end of file',
+    ),
+  );
+
+  expect(lines.map(({ kind, base, head }) => [kind, base, head])).toEqual([
+    ['header', undefined, undefined],
+    ['context', 3, 3],
+    ['removed', 4, undefined],
+    ['added', undefined, 4],
+    ['context', 5, 5],
+    ['header', undefined, undefined],
+    ['added', undefined, 21],
+    ['context', 20, 22],
+    ['note', undefined, undefined],
+  ]);
+});
+
 test('code keeps its <, >, & and quotes', () => {
   const lines = highlightPatch(
     patchOf('crates/domain/src/lib.rs', '@@ -0,0 +1 @@', `+let s = "<&>"; let c = '"';`),

@@ -50,6 +50,8 @@ const scrolledIntoView = vi.fn();
 
 Object.defineProperty(HTMLElement.prototype, 'scrollIntoView', { value: scrolledIntoView });
 
+vi.stubGlobal('scrollTo', vi.fn());
+
 type Diffed = GraphDiff['nodes'][number]['state'];
 
 const crate = (name: string, state: Diffed) => ({
@@ -1045,6 +1047,7 @@ test('a reader skipped for want of its tool is named once, at the top of the fin
           metricFindings: [],
           symbols: [],
           symbolsNotRead: [],
+          tests: [],
           nodes: [],
         }),
       })}
@@ -3092,7 +3095,7 @@ test('a moved symbol names the file it moved to or from, and goes to that file',
   expect(within(inspector()).getByRole('heading', { level: 2 }).textContent).toBe('refund.ts');
 });
 
-test("a box's Symbols tab lists each file inside it with symbol changes, each with its own groups", async () => {
+test("a box's Symbols tab lists each file inside it with symbol changes, each with its own groups; a logic line opens its own file's patch on its row, or at its top when outside every hunk, until another part is picked", async () => {
   const user = userEvent.setup();
   const inBilling = (label: string) => ({
     ...topFile(label, 'modified'),
@@ -3128,10 +3131,28 @@ test("a box's Symbols tab lists each file inside it with symbol changes, each wi
           edges: [],
         },
         symbols: [
-          symbolsOf('web/file/refund.ts', [symbol('refund', 'edited')]),
+          symbolsOf('web/file/refund.ts', [
+            {
+              ...symbol('refund', 'edited'),
+              logic: [
+                { change: 'added', kind: 'throw', depth: 0, head: 'throw new Late', line: 2 },
+                { change: 'added', kind: 'return', depth: 1, head: 'return late', line: 40 },
+              ],
+            },
+          ]),
           symbolsOf('web/file/tax.ts', [symbol('tax', 'added'), symbol('round', 'unchanged')]),
           symbolsOf('web/file/total.ts', [symbol('total', 'unchanged')]),
           symbolsOf('web/file/outside.ts', [symbol('outside', 'edited')]),
+        ],
+        patches: [
+          {
+            path: 'web/src/billing/refund.ts',
+            patch: ['@@ -1,1 +1,2 @@', ' function refund() {', '+  throw new Late();'].join('\n'),
+          },
+          {
+            path: 'web/src/billing/tax.ts',
+            patch: ['@@ -1,1 +1,2 @@', ' function tax() {', '+  return 0;'].join('\n'),
+          },
         ],
       })}
     />,
@@ -3153,7 +3174,16 @@ test("a box's Symbols tab lists each file inside it with symbol changes, each wi
         ]),
     ]),
   ).toEqual([
-    ['refund.ts', [['Edited', ['function refund: edited']]]],
+    [
+      'refund.ts',
+      [
+        [
+          'Edited',
+          ['function refund: edited', 'added throw: throw new Late', 'added return: return late'],
+        ],
+        ['Logic of function refund', ['added throw: throw new Late', 'added return: return late']],
+      ],
+    ],
     [
       'tax.ts',
       [
@@ -3162,6 +3192,155 @@ test("a box's Symbols tab lists each file inside it with symbol changes, each wi
       ],
     ],
   ]);
+
+  await user.click(
+    within(screen.getByRole('tabpanel', { name: 'Symbols' })).getByRole('button', {
+      name: /^added throw/,
+    }),
+  );
+  const changes = within(screen.getByRole('tabpanel', { name: 'Diff' }));
+  expect(
+    changes
+      .getAllByRole('group')
+      .map(patch => [patch.getAttribute('aria-label'), patch.hasAttribute('open')]),
+  ).toEqual([
+    ['web/src/billing/refund.ts', true],
+    ['web/src/billing/tax.ts', false],
+  ]);
+  expect(
+    Array.from(document.querySelectorAll('[aria-current="true"]'), row => row.textContent),
+  ).toEqual(['+  throw new Late();']);
+
+  await user.click(within(inspector()).getByRole('tab', { name: 'Symbols 2' }));
+  await user.click(
+    within(screen.getByRole('tabpanel', { name: 'Symbols' })).getByRole('button', {
+      name: /^added return/,
+    }),
+  );
+  const scrolled = scrolledIntoView.mock.contexts.at(-1);
+  expect(scrolled instanceof HTMLElement && scrolled.getAttribute('aria-label')).toBe(
+    'web/src/billing/refund.ts',
+  );
+  expect(document.querySelectorAll('[aria-current="true"]')).toHaveLength(0);
+
+  await user.click(within(inspector()).getByRole('tab', { name: 'Symbols 2' }));
+  await user.click(
+    within(screen.getByRole('tabpanel', { name: 'Symbols' })).getByRole('button', {
+      name: /^added throw/,
+    }),
+  );
+  await user.click(screen.getByRole('button', { name: 'outside.ts: modified' }));
+  await user.click(screen.getByRole('button', { name: 'billing: modified' }));
+  await user.click(within(inspector()).getByRole('tab', { name: 'Diff' }));
+  expect(
+    within(screen.getByRole('tabpanel', { name: 'Diff' }))
+      .getAllByRole('group')
+      .map(patch => patch.hasAttribute('open')),
+  ).toEqual([false, false]);
+  expect(document.querySelectorAll('[aria-current="true"]')).toHaveLength(0);
+});
+
+test("an edited function's logic lines show under it on the Symbols tab, each with its change, kind and text, a changed one base then head; a line that changed opens the Diff tab on its row, head side unless removed", async () => {
+  const user = userEvent.setup();
+  render(
+    <ReviewPage
+      review={pageWith({
+        range: 'abc123..def456',
+        diff: {
+          nodes: [
+            { id: 'web', kind: 'stack', label: 'web', path: '', state: 'unchanged' },
+            topFile('refund.ts', 'modified'),
+          ],
+          edges: [],
+        },
+        symbols: [
+          symbolsOf('web/file/refund.ts', [
+            {
+              name: 'refund',
+              kind: 'function',
+              exported: { base: false, head: false },
+              change: 'edited',
+              logic: [
+                { change: 'removed', kind: 'guard', depth: 0, base: 'if (!paid) return', line: 2 },
+                {
+                  change: 'same',
+                  kind: 'loop',
+                  depth: 0,
+                  head: 'for (const line of lines)',
+                  line: 3,
+                },
+                {
+                  change: 'changed',
+                  kind: 'if',
+                  depth: 1,
+                  base: 'if (a > 0)',
+                  head: 'if (a >= 0)',
+                  line: 4,
+                },
+                { change: 'added', kind: 'throw', depth: 2, head: 'throw new Late', line: 5 },
+              ],
+            },
+          ]),
+        ],
+        patches: [
+          {
+            path: 'web/src/refund.ts',
+            patch: [
+              'diff --git a/web/src/refund.ts b/web/src/refund.ts',
+              '@@ -1,4 +1,5 @@',
+              ' function refund(order, lines) {',
+              '-  if (!paid) return;',
+              '+  const late = true;',
+              '   for (const line of lines) {',
+              '-    if (a > 0) {',
+              '+    if (a >= 0) {',
+              '+      throw new Late();',
+            ].join('\n'),
+          },
+        ],
+      })}
+    />,
+  );
+
+  await user.click(await screen.findByRole('button', { name: 'refund.ts: modified' }));
+  await user.click(within(inspector()).getByRole('tab', { name: 'Symbols 1' }));
+  const logic = within(screen.getByRole('tabpanel', { name: 'Symbols' })).getByRole('list', {
+    name: 'Logic of function refund',
+  });
+  expect(
+    within(logic)
+      .getAllByRole('listitem')
+      .map(item => item.getAttribute('aria-label')),
+  ).toEqual([
+    'removed guard: if (!paid) return',
+    'same loop: for (const line of lines)',
+    'changed if: if (a > 0) → if (a >= 0)',
+    'added throw: throw new Late',
+  ]);
+  expect(
+    within(logic)
+      .getAllByRole('button')
+      .map(button => button.getAttribute('aria-label')),
+  ).toEqual([
+    'removed guard: if (!paid) return',
+    'changed if: if (a > 0) → if (a >= 0)',
+    'added throw: throw new Late',
+  ]);
+  const landed = () => {
+    const row = scrolledIntoView.mock.contexts.at(-1);
+    return row instanceof HTMLElement ? [row.textContent, row.getAttribute('aria-current')] : [];
+  };
+
+  await user.click(within(logic).getByRole('button', { name: /^changed if/ }));
+  expect(within(inspector()).getByRole('tab', { selected: true }).textContent).toBe('Diff');
+  expect(landed()).toEqual(['+    if (a >= 0) {', 'true']);
+  await user.click(within(inspector()).getByRole('tab', { name: 'Symbols 1' }));
+  await user.click(
+    within(screen.getByRole('tabpanel', { name: 'Symbols' })).getByRole('button', {
+      name: /^removed guard/,
+    }),
+  );
+  expect(landed()).toEqual(['-  if (!paid) return;', 'true']);
 });
 
 test("a file whose symbols wouldn't parse shows the parse error on its Symbols tab, and in its box's", async () => {

@@ -3,6 +3,7 @@ import {
   type MouseEvent,
   type PointerEvent,
   type ReactNode,
+  useCallback,
   useEffect,
   useEffectEvent,
   useId,
@@ -45,7 +46,7 @@ import {
 } from './layout.ts';
 import { MetricsScreen } from './metrics-screen.tsx';
 import { MetricsTable } from './metrics-tab.tsx';
-import { changedSymbolCount, hasSymbolNews, SymbolsOf } from './symbols-tab.tsx';
+import { changedSymbolCount, hasSymbolNews, type LineAt, SymbolsOf } from './symbols-tab.tsx';
 import { changedCount, TestFiles, TestsScreen } from './tests-screen.tsx';
 import {
   boxOf,
@@ -425,7 +426,31 @@ const Scoped = ({ scopes: [scope, ...inner], text }: Piece) =>
     </span>
   );
 
-const PatchLine = ({ line: { kind, prefix, pieces } }: { readonly line: Line }) => {
+type Landing = Omit<LineAt, 'node'>;
+
+const scrollInPanel = (element: HTMLElement, block: ScrollLogicalPosition) => {
+  const { scrollX, scrollY } = window;
+  element.scrollIntoView({ block });
+  window.scrollTo(scrollX, scrollY);
+};
+
+const isLandedOn = (line: Line, landing: Landing | undefined): boolean =>
+  landing !== undefined && line[landing.side] === landing.line;
+
+const PatchLine = ({
+  line: { kind, prefix, pieces },
+  current,
+}: {
+  readonly line: Line;
+  readonly current: boolean;
+}) => {
+  const landOn = useCallback(
+    (row: HTMLElement | null) => {
+      if (current && row) scrollInPanel(row, 'center');
+    },
+    [current],
+  );
+  const marks = { ref: landOn, 'aria-current': current || undefined };
   const code = (
     <>
       {prefix}
@@ -435,22 +460,37 @@ const PatchLine = ({ line: { kind, prefix, pieces } }: { readonly line: Line }) 
       ))}
     </>
   );
-  if (kind === 'added') return <ins>{code}</ins>;
-  if (kind === 'removed') return <del>{code}</del>;
-  return <span>{code}</span>;
+  if (kind === 'added') return <ins {...marks}>{code}</ins>;
+  if (kind === 'removed') return <del {...marks}>{code}</del>;
+  return <span {...marks}>{code}</span>;
 };
 
-const Patch = ({ path, patch, open }: FilePatch & { readonly open: boolean }) => (
-  <details aria-label={path} open={open}>
-    <summary>{path}</summary>
-    <pre>
-      {highlightPatch({ path, patch }).map((line, index) => (
-        // biome-ignore lint/suspicious/noArrayIndexKey: a patch's lines are fixed and may repeat
-        <PatchLine key={index} line={line} />
-      ))}
-    </pre>
-  </details>
-);
+const Patch = ({
+  path,
+  patch,
+  open,
+  landing,
+}: FilePatch & { readonly open: boolean; readonly landing?: Landing | undefined }) => {
+  const lines = useMemo(() => highlightPatch({ path, patch }), [path, patch]);
+  const landOnTop = useCallback(
+    (top: HTMLElement | null) => {
+      if (top && landing !== undefined && !lines.some(line => isLandedOn(line, landing)))
+        scrollInPanel(top, 'start');
+    },
+    [landing, lines],
+  );
+  return (
+    <details aria-label={path} open={open} ref={landOnTop}>
+      <summary>{path}</summary>
+      <pre>
+        {lines.map((line, index) => (
+          // biome-ignore lint/suspicious/noArrayIndexKey: a patch's lines are fixed and may repeat
+          <PatchLine key={index} line={line} current={isLandedOn(line, landing)} />
+        ))}
+      </pre>
+    </details>
+  );
+};
 
 type DiffNode = GraphDiff['nodes'][number];
 
@@ -519,7 +559,7 @@ type Section = {
 type NodeSectionsOptions = Pick<
   InspectorProps,
   'nodes' | 'metrics' | 'findings' | 'tests' | 'symbols' | 'onGoTo'
-> & { readonly node: DiffNode };
+> & { readonly node: DiffNode; readonly onShowLine: (at: LineAt) => void };
 
 const nodeSections = ({
   nodes,
@@ -529,6 +569,7 @@ const nodeSections = ({
   tests,
   symbols,
   onGoTo,
+  onShowLine,
 }: NodeSectionsOptions): ReadonlyArray<Section> => {
   const measured = metrics[node.id];
   const testsHere = testsAlongside({ nodes, node, tests });
@@ -571,7 +612,13 @@ const nodeSections = ({
             ...(symbolCount > 0 && { count: symbolCount }),
             panel: (
               <div className="symbols">
-                <SymbolsOf node={node} files={symbolsHere} nodes={nodes} onGoTo={onGoTo} />
+                <SymbolsOf
+                  node={node}
+                  files={symbolsHere}
+                  nodes={nodes}
+                  onGoTo={onGoTo}
+                  onShowLine={onShowLine}
+                />
               </div>
             ),
           },
@@ -614,6 +661,16 @@ const SECTION_ORDER = Object.keys(INSPECTOR_TABS);
 
 const Inspector = ({ node, patches, width, onClose, ...props }: InspectorProps) => {
   const [picked, setPicked] = useState<InspectorTab>('note');
+  const [landing, setLanding] = useState<LineAt & { readonly path?: string | undefined }>();
+  const [landedOn, setLandedOn] = useState(node?.id);
+  if (landedOn !== node?.id) {
+    setLandedOn(node?.id);
+    setLanding(undefined);
+  }
+  const showLine = (at: LineAt) => {
+    setLanding({ ...at, path: props.nodes.find(({ id }) => id === at.node)?.path });
+    setPicked('diff');
+  };
   const sections: ReadonlyArray<Section> = [
     { tab: 'note' as const, panel: <NotePanel {...props} /> },
     ...(patches.length > 0
@@ -622,15 +679,23 @@ const Inspector = ({ node, patches, width, onClose, ...props }: InspectorProps) 
             tab: 'diff' as const,
             panel: (
               <section className="changes" aria-label="Changes">
-                {patches.map(patch => (
-                  <Patch key={patch.path} {...patch} open={node?.kind === 'file'} />
-                ))}
+                {patches.map(patch => {
+                  const landed = landing?.path === patch.path;
+                  return (
+                    <Patch
+                      key={patch.path}
+                      {...patch}
+                      open={node?.kind === 'file' || landed}
+                      landing={landed ? landing : undefined}
+                    />
+                  );
+                })}
               </section>
             ),
           },
         ]
       : []),
-    ...(node ? nodeSections({ ...props, node }) : []),
+    ...(node ? nodeSections({ ...props, node, onShowLine: showLine }) : []),
   ].toSorted((a, b) => SECTION_ORDER.indexOf(a.tab) - SECTION_ORDER.indexOf(b.tab));
   const shown = sections.find(({ tab }) => tab === picked) ?? sections[0];
   return (
