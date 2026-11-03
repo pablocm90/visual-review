@@ -4486,6 +4486,38 @@ test("the open tray lists a symbol's draft with its file's part in reading order
   ]);
 });
 
+test("a part read with a comment on one of its symbols isn't listed as read with nothing to say", async () => {
+  const user = userEvent.setup();
+  const page = chargedPage([edited('charge', 'Orders')]);
+  render(
+    <ReviewPage
+      review={{
+        ...page,
+        range: `walk-${crypto.randomUUID()}`,
+        readingOrder: { parts: ['web/file/orders.ts'], cycles: [] },
+      }}
+      send={vi.fn()}
+    />,
+  );
+  await screen.findByRole('button', { name: 'orders.ts: modified' });
+  await user.keyboard('ja');
+  await user.click(within(inspector()).getByRole('tab', { name: /^Symbols/ }));
+  const row = within(
+    within(screen.getByRole('tabpanel', { name: 'Symbols' })).getByRole('listitem', {
+      name: 'method Orders.charge: edited',
+    }),
+  );
+  await user.click(row.getByRole('button', { name: 'Comment' }));
+  await user.type(row.getByRole('textbox', { name: 'Your comment' }), 'Charge?');
+  await openReview(user);
+
+  expect(
+    within(within(tray()).getByRole('list', { name: 'Read, nothing to say' })).queryAllByRole(
+      'listitem',
+    ),
+  ).toEqual([]);
+});
+
 test("a symbol's comment shows again, open, when its Symbols tab is left and opened again", async () => {
   const user = userEvent.setup();
   render(<ReviewPage review={chargedPage([edited('charge', 'Orders')])} send={vi.fn()} />);
