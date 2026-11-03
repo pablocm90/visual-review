@@ -239,6 +239,30 @@ test('serve without a page exits non-zero saying how to call it', async () => {
   });
 });
 
+test("serve loads no reader or linker, so it starts without paying for their parsers' load", async () => {
+  const refuseAdapters = `data:text/javascript,${encodeURIComponent(`
+    import { registerHooks } from 'node:module';
+    registerHooks({
+      resolve: (specifier, context, next) => {
+        const resolved = next(specifier, context);
+        if (/\\/src\\/(readers|linkers)\\//.test(resolved.url)) throw new Error('adapter loaded: ' + resolved.url);
+        return resolved;
+      },
+    });
+  `)}`;
+  const run = promisify(execFile)(process.execPath, [
+    '--import',
+    refuseAdapters,
+    join(import.meta.dirname, 'cli.ts'),
+    'serve',
+  ]);
+
+  await expect(run).rejects.toMatchObject({
+    code: 1,
+    stderr: 'Usage: visual-review serve [--no-open] <page.html>\n',
+  });
+});
+
 const reviewWith = (comments: Review['comments']): Review => ({
   version: 4,
   verdict: 'comment',

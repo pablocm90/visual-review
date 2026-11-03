@@ -5,7 +5,6 @@ import { findPackageJSON } from 'node:module';
 import { basename, join } from 'node:path';
 import { parseArgs, promisify } from 'node:util';
 import { z } from 'zod';
-import { linkers, readers } from './adapters.ts';
 import { parseNotes } from './core/notes.ts';
 import {
   notedPageHtml,
@@ -133,6 +132,7 @@ const writeReview = async (args: ReadonlyArray<string>): Promise<string> => {
     await fillNotes({ range, page, notesFile: values.notes });
     return page;
   }
+  const { linkers, readers } = await import('./adapters.ts');
   const reading = await readRange({ repo, ...revisions, readers, linkers, onPath });
   reading.skipped.forEach(skip => {
     console.error(notReadLine(skip));
