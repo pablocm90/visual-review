@@ -1,6 +1,12 @@
 import { expect, test } from 'vitest';
 import type { DiffedEdge, DiffedNode, GraphDiff } from './diff-graphs.ts';
-import { expandedToShow, mergedDiff, nearChanges, visibleDiff } from './visible-diff.ts';
+import {
+  changesOnly,
+  expandedToShow,
+  mergedDiff,
+  nearChanges,
+  visibleDiff,
+} from './visible-diff.ts';
 
 const node = (id: string, kind: DiffedNode['kind'], parent?: string): DiffedNode => ({
   id,
@@ -277,4 +283,58 @@ test.for<{
 
   expect(near.nodes.map(({ id }) => id)).toEqual(kept);
   expect(near.edges.map(({ from, to }) => `${from} -> ${to}`)).toEqual(keptEdges);
+});
+
+test('changes only keeps the changed nodes and both ends of an added or removed edge, and hides a neighbour joined by an unchanged edge and an emptied stack', () => {
+  const diff: GraphDiff = {
+    nodes: [
+      node('rust', 'stack'),
+      node('domain', 'package', 'rust'),
+      changed(node('application', 'package', 'rust')),
+      node('cli-adapter', 'package', 'rust'),
+      node('legacy', 'package', 'rust'),
+      node('shop', 'package', 'rust'),
+      changed(node('billing', 'package', 'rust')),
+      node('web', 'stack'),
+      node('W', 'module', 'web'),
+    ],
+    edges: [
+      { from: 'application', to: 'domain', state: 'unchanged' },
+      { from: 'billing', to: 'domain', state: 'unchanged' },
+      { from: 'cli-adapter', to: 'application', state: 'added' },
+      { from: 'application', to: 'legacy', state: 'removed' },
+      { from: 'shop', to: 'cli-adapter', state: 'unchanged' },
+    ],
+  };
+  const only = changesOnly({ diff, expanded: new Set(), drawn: diff });
+
+  expect(only.nodes.map(({ id }) => id)).toEqual([
+    'rust',
+    'application',
+    'cli-adapter',
+    'legacy',
+    'billing',
+  ]);
+  expect(only.edges.map(({ from, to }) => `${from} -> ${to}`)).toEqual([
+    'cli-adapter -> application',
+    'application -> legacy',
+  ]);
+});
+
+test('changes only keeps the closed box an added import reaches, though an unchanged import merges with it on the drawn edge', () => {
+  const diff = nested([
+    { from: 'a1', to: 'b1', state: 'added' },
+    { from: 'a2', to: 'b1', state: 'unchanged' },
+  ]);
+  const withA = {
+    ...diff,
+    nodes: diff.nodes.map(each => (each.id === 'A' ? changed(each) : each)),
+  };
+  const drawn = visibleDiff({ diff: withA, expanded: new Set() });
+
+  const only = changesOnly({ diff: withA, expanded: new Set(), drawn });
+
+  expect(drawn.edges).toEqual([{ from: 'A', to: 'B', state: 'unchanged' }]);
+  expect(only.nodes.map(({ id }) => id)).toEqual(['web', 'A', 'B']);
+  expect(only.edges).toEqual(drawn.edges);
 });

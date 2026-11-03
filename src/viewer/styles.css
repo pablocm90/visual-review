@@ -1108,7 +1108,7 @@ pre .hljs-emphasis {
   margin: 0;
 }
 
-.colour-by {
+.graph-choice {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
@@ -1117,7 +1117,7 @@ pre .hljs-emphasis {
   font-size: 12.5px;
 }
 
-.colour-by [role="group"] {
+.graph-choice [role="group"] {
   display: flex;
   gap: 2px;
   padding: 3px;
@@ -1125,7 +1125,7 @@ pre .hljs-emphasis {
   background: var(--unchanged-fill);
 }
 
-.colour-by button {
+.graph-choice button {
   min-height: 32px;
   padding: 0 12px;
   border: 0;
@@ -1138,7 +1138,7 @@ pre .hljs-emphasis {
   cursor: pointer;
 }
 
-.colour-by button[aria-pressed="true"] {
+.graph-choice button[aria-pressed="true"] {
   background: var(--stack);
   color: var(--ink);
   font-weight: 600;
