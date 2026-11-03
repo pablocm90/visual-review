@@ -10,6 +10,11 @@ type ReadingOrderListProps = {
   readonly onShowOutside: (opener: HTMLButtonElement) => void;
 };
 
+type PartsRead = { readonly read: number; readonly parts: number };
+
+export const partsRead = ({ read, parts }: PartsRead) =>
+  `${read} of ${parts} ${parts === 1 ? 'part' : 'parts'} read`;
+
 const FindingsMark = ({ findings }: { readonly findings: ReadonlyArray<Finding> }) => {
   const level = worstOf(findings);
   const count = `${findings.length} ${findings.length === 1 ? 'finding' : 'findings'}`;
@@ -37,9 +42,10 @@ export const ReadingOrderList = ({
       {review.readingOrder.parts.length > 0 && (
         <>
           <p className="reading-progress">
-            {review.readingOrder.parts.filter(part => read.has(part)).length} of{' '}
-            {review.readingOrder.parts.length}{' '}
-            {review.readingOrder.parts.length === 1 ? 'part' : 'parts'} read
+            {partsRead({
+              read: review.readingOrder.parts.filter(part => read.has(part)).length,
+              parts: review.readingOrder.parts.length,
+            })}
           </p>
           <p className="reading-keys">
             <kbd>J</kbd> / <kbd>K</kbd> next or previous, <kbd>A</kbd> mark read

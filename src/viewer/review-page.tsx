@@ -47,7 +47,7 @@ import {
 import { MetricsScreen } from './metrics-screen.tsx';
 import { MetricsTable } from './metrics-tab.tsx';
 import { storedReadMarks, storeReadMarks } from './read-marks.ts';
-import { ReadingOrderList } from './reading-order-list.tsx';
+import { partsRead, ReadingOrderList } from './reading-order-list.tsx';
 import { changedSymbolCount, hasSymbolNews, type LineAt, SymbolsOf } from './symbols-tab.tsx';
 import { changedCount, TestFiles, TestsScreen } from './tests-screen.tsx';
 import {
@@ -1105,6 +1105,7 @@ type Comments = Readonly<Record<string, Comment>>;
 type SendProps = {
   readonly reviewed: Review['reviewed'];
   readonly read: Review['read'];
+  readonly parts: number;
   readonly comments: Comments;
   readonly send: (review: Review) => Promise<void>;
 };
@@ -1115,7 +1116,7 @@ const VERDICTS: ReadonlyArray<readonly [Review['verdict'], string]> = [
   ['request-changes', 'Request changes'],
 ];
 
-const SendToClaude = ({ reviewed, read, comments, send }: SendProps) => {
+const SendToClaude = ({ reviewed, read, parts, comments, send }: SendProps) => {
   const [verdict, setVerdict] = useState<Review['verdict']>('comment');
   const [open, setOpen] = useState(false);
   const [body, setBody] = useState('');
@@ -1152,7 +1153,7 @@ const SendToClaude = ({ reviewed, read, comments, send }: SendProps) => {
             Review
           </button>
           {open && (
-            <div id="review-panel" className="review-panel">
+            <div id="review-panel" className="review-panel" role="group" aria-label="Review">
               {problem && (
                 <p role="status" aria-label="Review" className="send-problem">
                   {problem}
@@ -1162,6 +1163,7 @@ const SendToClaude = ({ reviewed, read, comments, send }: SendProps) => {
                 General comment
                 <textarea value={body} onChange={event => setBody(event.target.value)} />
               </label>
+              {parts > 0 && <p>{partsRead({ read: read.length, parts })}</p>}
               <div role="radiogroup" aria-label="Verdict" className="verdict">
                 {VERDICTS.map(([value, label]) => (
                   <label key={value}>
@@ -1241,6 +1243,7 @@ const Header = ({ review, tab, read, comments, send }: HeaderProps) => {
             ...(review.pullRequest && { pullRequest: review.pullRequest.number }),
           }}
           read={read}
+          parts={review.readingOrder.parts.length}
           comments={comments}
           send={send}
         />

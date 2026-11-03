@@ -1791,6 +1791,24 @@ test('the review sends the parts marked read in reading order, none outside it, 
   );
 });
 
+test('the review says how many parts of the reading order were read before it is sent, and says nothing of it when the order has none', async () => {
+  const user = userEvent.setup();
+  const sent = vi.fn(async () => {});
+  const walked = render(<ReviewPage review={walkedReview()} send={sent} />);
+  await screen.findByRole('group', { name: 'rust' });
+  await user.keyboard('ja');
+  await openReview(user);
+
+  const panel = () => screen.getByRole('group', { name: 'Review' });
+  expect(within(panel()).getByText('1 of 3 parts read')).toBeDefined();
+  walked.unmount();
+
+  render(<ReviewPage review={pageWith(review)} send={sent} />);
+  await screen.findByRole('group', { name: 'rust' });
+  await openReview(user);
+  expect(within(panel()).queryByText(/read$/)).toBeNull();
+});
+
 test('A on a node outside the reading order keeps no mark, so it starts unread when the range, moved on, makes it a part', async () => {
   const user = userEvent.setup();
   const walked = walkedReview();
