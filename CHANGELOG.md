@@ -8,11 +8,15 @@ What changed in each release of `@pablocm90/visual-review`, newest first. Versio
 
 - The header's Review panel is now the review tray, a bar at the page's foot on every tab. Closed, it counts the drafts by kind ("2 drafted · 1 change · 1 question"). Open, it lists your comments, those on parts in reading order first, then your answers to findings, by the finding's title, each going to what it is on, the parts you read with nothing to say, the general comment, the verdict and Send.
 - The verdict starts at the one the drafts suggest, marked suggested: Request changes once there is a Change this or a Fix this, else Comment once there is a Question or an Explain, else Approve. It follows the drafts until you pick one, which then holds.
+- Review files are review version 5: a comment's anchor may also be `{ kind: 'symbol', id: '<node>#<scope.name>' }` or `{ kind: 'decision', id: '<node>#<scope.name>#<text>' }`, a logic line's text being its head's, its base's when removed, followed by `#2`, `#3`… when an earlier decision of that function has the same text. `serve` refuses a version 4 review with 400.
+- A `logic:removed` finding's id counts every earlier decision of its function with its text, whatever its change, so it gains a `#2` only when such a decision exists; its id after the prefix is its decision's anchor id.
+- The plugin's skill reads comments on symbols and decisions, and names the function, or the function and the decision, when it takes or answers one.
 
 ### Added
 
 - **What Claude gets**, in the open tray, previews the review as lines: the verdict and parts read, each comment's kind and anchor, and how many parts were read with no comment.
 - `GLOSSARY.md` defines review tray and suggested verdict.
+- On a served page the Symbols tab's symbols and changed logic lines each have a **Comment** button: it opens the kind and a comment field under the row, kept when the tab is left and opened again.
 
 ## 0.15.0 — 2026-11-03
 

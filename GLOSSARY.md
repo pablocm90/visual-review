@@ -65,9 +65,9 @@ _Avoid_: logic diff (for one line), branch change
 _In code_: `LogicLine`
 
 **Anchor**:
-What a reviewer's comment or answer is on: a part the graph draws (a crate, module, file, class or box) or an edge, by the id notes are keyed by, or a finding, by its id.
+What a reviewer's comment or answer is on: a part the graph draws (a crate, module, file, class or box) or an edge, by the id notes are keyed by, a symbol (`<node>#<scope.name>`) or a logic line that changed (`<node>#<scope.name>#<text>`, the id its `logic:removed` finding names), or a finding, by its id.
 _Avoid_: target (a finding's), key
-_In code_: `Review['comments'][number]['anchor']`, `{ kind: 'part' | 'edge' | 'finding', id }`
+_In code_: `Review['comments'][number]['anchor']`, `{ kind: 'part' | 'edge' | 'symbol' | 'decision' | 'finding', id }`
 
 **Comment kind**:
 What a reviewer's comment asks of Claude: Change this (a task), Question (an answer) or Suggestion (a thought to weigh, saying what was done with it). Question unless the reviewer picks another.
