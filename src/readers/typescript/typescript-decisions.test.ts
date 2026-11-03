@@ -35,3 +35,17 @@ test("an inner function's decisions are its own, not its parent's, and a callbac
   expect(decisionsOf('load', ...lines)?.map(({ text }) => text)).toEqual(['if (item.open)']);
   expect(decisionsOf('keep', ...lines)?.map(({ text }) => text)).toEqual(['if (item.kept)']);
 });
+
+test('an else if sits at the depth of the if it follows, and what it holds one deeper', () => {
+  expect(
+    decisionsOf(
+      'charge',
+      'function charge(order) {',
+      '  if (order.paid) pay();',
+      '  else if (order.open) {',
+      '    if (order.late) warn();',
+      '  }',
+      '}',
+    )?.map(({ text, depth }) => `${depth} ${text}`),
+  ).toEqual(['0 if (order.paid)', '0 if (order.open)', '1 if (order.late)']);
+});

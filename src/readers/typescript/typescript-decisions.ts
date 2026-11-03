@@ -18,12 +18,16 @@ const decisionAt = ({ text, depth }: Walk, node: Node): Decision | undefined =>
       }
     : undefined;
 
+const isElseIf = (node: Node, child: Node): boolean =>
+  node.type === 'IfStatement' && node.alternate === child;
+
 const decisionsUnder = (walk: Walk, node: Node): ReadonlyArray<Decision> =>
   childrenOf(node)
     .filter(child => !walk.nested.has(child))
     .flatMap(child => {
-      const own = decisionAt(walk, child);
-      const inner = decisionsUnder(own ? { ...walk, depth: walk.depth + 1 } : walk, child);
+      const at = isElseIf(node, child) ? { ...walk, depth: walk.depth - 1 } : walk;
+      const own = decisionAt(at, child);
+      const inner = decisionsUnder(own ? { ...at, depth: at.depth + 1 } : at, child);
       return own ? [own, ...inner] : inner;
     });
 
