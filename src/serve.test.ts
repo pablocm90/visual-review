@@ -19,6 +19,7 @@ import { setTimeout as delay } from 'node:timers/promises';
 import { promisify } from 'node:util';
 import { expect, test, vi } from 'vitest';
 import { pingServe, sendReview } from './core/page.ts';
+import type { Review } from './core/review.ts';
 
 const fakeOpeners = (openers: ReadonlyArray<string>) => {
   const bin = mkdtempSync(join(tmpdir(), 'visual-review-opener-'));
@@ -238,13 +239,23 @@ test('serve without a page exits non-zero saying how to call it', async () => {
   });
 });
 
+const reviewWith = (comments: Review['comments']): Review => ({
+  version: 3,
+  verdict: 'comment',
+  reviewed: { range: 'abc123..def456' },
+  read: [],
+  comments,
+});
+
 test('a review sent from the served page is written beside it as <name>.review.json, its path the only output, and serve exits 0 leaving no lock', async () => {
   using server = await servedPage();
   const { origin, pathname } = new URL(server.url);
   const review = {
-    version: 2,
+    version: 3,
     verdict: 'comment',
     body: 'The fetch belongs in AppInfo; the rest reads well.',
+    reviewed: { range: 'abc123..def456', pullRequest: 16 },
+    read: ['web/file/AppInfo.tsx'],
     comments: [
       {
         anchor: { kind: 'part', id: 'web/file/App.tsx' },
@@ -269,12 +280,12 @@ test('a review the page could not have sent is refused with 400 naming the probl
 
   const response = await fetch(`${origin}${pathname}/review`, {
     method: 'POST',
-    body: JSON.stringify({ version: 1, comments: {} }),
+    body: JSON.stringify({ version: 2, comments: {} }),
   });
 
   expect(response.status).toBe(400);
   expect(await response.text()).toBe(
-    'Invalid review: version 1 is unknown; this visual-review reads version 2',
+    'Invalid review: version 2 is unknown; this visual-review reads version 3',
   );
   expect(await statusFor({ url: server.url })).toBe(200);
 });
@@ -286,7 +297,7 @@ test('a review serve cannot write is answered 500 naming why, and serve keeps se
 
   const response = await fetch(`${origin}${pathname}/review`, {
     method: 'POST',
-    body: JSON.stringify({ version: 2, verdict: 'comment', comments: [] }),
+    body: JSON.stringify(reviewWith([])),
   });
 
   expect(response.status).toBe(500);
@@ -302,7 +313,7 @@ test('sending a review the served page would refuse rejects with its answer, so 
     sendReview({
       origin,
       token: 'not-the-token',
-      review: { version: 2, verdict: 'comment', comments: [] },
+      review: reviewWith([]),
     }),
   ).rejects.toThrow('The review was not sent: 403 Forbidden');
 });
@@ -533,11 +544,9 @@ test('another page in the same folder is served by a server of its own, and each
       return sendReview({
         origin,
         token: pathname.slice(1),
-        review: {
-          version: 2,
-          verdict: 'comment',
-          comments: [{ anchor: { kind: 'part', id: 'web/file/App.tsx' }, kind: 'question', text }],
-        },
+        review: reviewWith([
+          { anchor: { kind: 'part', id: 'web/file/App.tsx' }, kind: 'question', text },
+        ]),
       });
     }),
   );

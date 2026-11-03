@@ -1103,6 +1103,8 @@ const useTab = (): Tab => {
 type Comments = Readonly<Record<string, Comment>>;
 
 type SendProps = {
+  readonly reviewed: Review['reviewed'];
+  readonly read: Review['read'];
   readonly comments: Comments;
   readonly send: (review: Review) => Promise<void>;
 };
@@ -1113,7 +1115,7 @@ const VERDICTS: ReadonlyArray<readonly [Review['verdict'], string]> = [
   ['request-changes', 'Request changes'],
 ];
 
-const SendToClaude = ({ comments, send }: SendProps) => {
+const SendToClaude = ({ reviewed, read, comments, send }: SendProps) => {
   const [verdict, setVerdict] = useState<Review['verdict']>('comment');
   const [open, setOpen] = useState(false);
   const [body, setBody] = useState('');
@@ -1123,9 +1125,11 @@ const SendToClaude = ({ comments, send }: SendProps) => {
   const hasBody = body.trim() !== '';
   const sendComments = () =>
     send({
-      version: 2,
+      version: 3,
       verdict,
       ...(hasBody ? { body } : {}),
+      reviewed,
+      read,
       comments: written,
     }).then(
       () => setSent(true),
@@ -1189,11 +1193,12 @@ const SendToClaude = ({ comments, send }: SendProps) => {
 type HeaderProps = {
   readonly review: PageData;
   readonly tab: Tab;
+  readonly read: Review['read'];
   readonly comments: Comments;
   readonly send: ((review: Review) => Promise<void>) | undefined;
 };
 
-const Header = ({ review, tab, comments, send }: HeaderProps) => {
+const Header = ({ review, tab, read, comments, send }: HeaderProps) => {
   const changed = changedCount(review.tests);
   return (
     <header className="review">
@@ -1229,7 +1234,17 @@ const Header = ({ review, tab, comments, send }: HeaderProps) => {
           </a>
         ))}
       </nav>
-      {send && <SendToClaude comments={comments} send={send} />}
+      {send && (
+        <SendToClaude
+          reviewed={{
+            range: review.range,
+            ...(review.pullRequest && { pullRequest: review.pullRequest.number }),
+          }}
+          read={read}
+          comments={comments}
+          send={send}
+        />
+      )}
     </header>
   );
 };
@@ -1394,7 +1409,13 @@ export const ReviewPage = ({ review, notes, send }: ReviewPageProps) => {
   }, [layout, focusTarget, frameElement]);
   return (
     <main>
-      <Header review={review} tab={tab} comments={comments} send={send} />
+      <Header
+        review={review}
+        tab={tab}
+        read={review.readingOrder.parts.filter(part => read.has(part))}
+        comments={comments}
+        send={send}
+      />
       {tab === 'structure' && (
         <>
           <div className="structure-head">
