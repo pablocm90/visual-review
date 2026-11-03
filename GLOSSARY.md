@@ -49,12 +49,23 @@ One decision of an edited or renamed function, diffed across the sides: the same
 _Avoid_: logic diff (for one line), branch change
 _In code_: `LogicLine`
 
+**Anchor**:
+What a reviewer's comment is on: a part the graph draws (a crate, module, file, class or box) or an edge, by its id, the id notes are keyed by.
+_Avoid_: target (a finding's), key
+_In code_: `Review['comments'][number]['anchor']`, `{ kind: 'part' | 'edge', id }`
+
+**Comment kind**:
+What a reviewer's comment asks of Claude: Change this (a task), Question (an answer) or Suggestion (a thought to weigh, saying what was done with it). Question unless the reviewer picks another.
+_Avoid_: comment type, severity
+_In code_: `'change' | 'question' | 'suggestion'`
+
 ## Relationships
 
 - A **fact** may raise **findings**; a **finding** is never the only record of a fact.
 - Each **finding** has one **dimension** and one **level**; a **flag** is the only way a note raises one.
 - **Look first** holds only findings whose **level** is "needs a look".
 - A changed exported **symbol** raises a **finding** in the api dimension; a file's **kind of change** raises none of its own.
+- A review holds at most one comment per **anchor**, and each comment has one **comment kind**; the verdict is picked apart from the kinds.
 - A removed guard or catch **logic line** raises a **finding** in the logic dimension that needs a look; a function's other **logic lines** that changed raise one for information; a file with either and no test changed alongside it raises one in the tests dimension.
 
 ## Flagged ambiguities
