@@ -112,7 +112,7 @@ const linesOfGap = ({ base, head }: Sides): ReadonlyArray<LogicLine> => {
 
 type Walked = { readonly lines: ReadonlyArray<LogicLine>; readonly from: Match };
 
-export const logicDiff = (sides: Sides): ReadonlyArray<LogicLine> => {
+const linesOfMiddle = (sides: Sides): ReadonlyArray<LogicLine> => {
   const matches = matchesFrom(sides, lengthsFrom(sides, 0), [0, 0]);
   const { lines, from } = matches.reduce<Walked>(
     (walked, [row, column]) => ({
@@ -131,5 +131,30 @@ export const logicDiff = (sides: Sides): ReadonlyArray<LogicLine> => {
   return [
     ...lines,
     ...linesOfGap({ base: sides.base.slice(from[0]), head: sides.head.slice(from[1]) }),
+  ];
+};
+
+const sharedLength = ({ base, head }: Sides): number => {
+  const differs = base.findIndex((decision, index) => {
+    const other = head[index];
+    return other === undefined || !sameDecision(decision, other);
+  });
+  return differs === -1 ? base.length : differs;
+};
+
+export const logicDiff = ({ base, head }: Sides): ReadonlyArray<LogicLine> => {
+  const start = sharedLength({ base, head });
+  const end = sharedLength({
+    base: base.slice(start).toReversed(),
+    head: head.slice(start).toReversed(),
+  });
+  const same = (decision: Decision) => ofHead('same', decision);
+  return [
+    ...head.slice(0, start).map(same),
+    ...linesOfMiddle({
+      base: base.slice(start, base.length - end),
+      head: head.slice(start, head.length - end),
+    }),
+    ...head.slice(head.length - end).map(same),
   ];
 };

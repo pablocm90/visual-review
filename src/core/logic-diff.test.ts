@@ -168,3 +168,28 @@ test('decisions that differ only in the whitespace between their tokens are the 
     ['changed', "if (name === 'a b')"],
   ]);
 });
+
+test('a function of thousands of decisions, the same on both sides but for one, diffs to one changed line among the same', () => {
+  const cases = Array.from({ length: 4000 }, (_, index) =>
+    decision({ kind: 'case', text: `case ${index}:`, line: index + 1 }),
+  );
+  const edited = cases.with(2000, decision({ kind: 'case', text: 'case -1:', line: 2001 }));
+  const lines = logicDiff({ base: cases, head: edited });
+  expect(lines.filter(({ change }) => change !== 'same')).toEqual([
+    { change: 'changed', kind: 'case', depth: 0, base: 'case 2000:', head: 'case -1:', line: 2001 },
+  ]);
+  expect(lines).toHaveLength(4000);
+});
+
+test('a decision appended to a function of thousands of decisions is one added line after the same', () => {
+  const cases = Array.from({ length: 4000 }, (_, index) =>
+    decision({ kind: 'case', text: `case ${index}:`, line: index + 1 }),
+  );
+  const lines = logicDiff({
+    base: cases,
+    head: [...cases, decision({ kind: 'case', text: 'default:', line: 4001 })],
+  });
+  expect(lines.filter(({ change }) => change !== 'same')).toEqual([
+    { change: 'added', kind: 'case', depth: 0, head: 'default:', line: 4001 },
+  ]);
+});
