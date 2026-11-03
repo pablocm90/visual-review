@@ -4298,3 +4298,68 @@ test('a box read as a part keeps its reading number once it is expanded, and an 
   expect(await numbersIn('utils')).toEqual(['Reading order 1']);
   expect(await numbersIn('lib')).toEqual([]);
 });
+
+const symbolsTab = () => screen.getByRole('tabpanel', { name: 'Symbols' });
+
+test("a served page's symbol row takes a comment, on its file and qualified name, held while the inspector goes elsewhere", async () => {
+  const user = userEvent.setup();
+  const sent = vi.fn(async () => {});
+  render(
+    <ReviewPage
+      review={pageWith({
+        range: review.range,
+        diff: {
+          nodes: [
+            { id: 'web', kind: 'stack', label: 'web', path: '', state: 'unchanged' },
+            topFile('review-page.tsx', 'modified'),
+          ],
+          edges: [],
+        },
+        symbols: [
+          symbolsOf('web/file/review-page.tsx', [
+            {
+              name: 'goTo',
+              scope: 'ReviewPage',
+              kind: 'method',
+              exported: { base: false, head: false },
+              change: 'edited',
+            },
+          ]),
+        ],
+      })}
+      send={sent}
+    />,
+  );
+  const symbolComment = () => within(symbolsTab()).getByRole('textbox', { name: 'Your comment' });
+  const commentOn = () =>
+    within(symbolsTab()).getByRole('button', { name: 'Comment on method ReviewPage.goTo' });
+
+  await user.click(await screen.findByRole('button', { name: 'review-page.tsx: modified' }));
+  await user.click(within(inspector()).getByRole('tab', { name: 'Symbols 1' }));
+  await user.click(commentOn());
+  await user.click(commentOn());
+  expect(commentOn().getAttribute('aria-expanded')).toBe('false');
+  expect(within(symbolsTab()).queryByRole('textbox', { name: 'Your comment' })).toBeNull();
+  await user.click(commentOn());
+  expect(commentOn().getAttribute('aria-expanded')).toBe('true');
+  await user.click(within(symbolsTab()).getByRole('radio', { name: 'Change this' }));
+  await user.type(symbolComment(), 'Split it.');
+  await user.click(within(inspector()).getByRole('tab', { name: 'Note' }));
+  await user.click(within(inspector()).getByRole('tab', { name: 'Symbols 1' }));
+  expect(symbolComment()).toHaveProperty('value', 'Split it.');
+  await openReview(user);
+  await user.click(screen.getByRole('button', { name: 'Send to Claude' }));
+
+  expect(sent).toHaveBeenCalledExactlyOnceWith(
+    sentReview({
+      verdict: 'request-changes',
+      comments: [
+        {
+          anchor: { kind: 'symbol', id: 'web/file/review-page.tsx#ReviewPage.goTo' },
+          kind: 'change',
+          text: 'Split it.',
+        },
+      ],
+    }),
+  );
+});

@@ -1,4 +1,4 @@
-import { useId } from 'react';
+import { useId, useState } from 'react';
 import type { Comment } from '../core/review.ts';
 import { anchorKey } from './anchors.ts';
 
@@ -43,6 +43,26 @@ export const CommentField = ({ anchor, comments, onComment }: CommentFieldProps)
         Your comment
         <textarea value={text} onChange={event => write({ kind, text: event.target.value })} />
       </label>
+    </>
+  );
+};
+
+type CommentOnProps = CommentFieldProps & { readonly name: string };
+
+export const CommentOn = ({ name, ...field }: CommentOnProps) => {
+  const [open, setOpen] = useState(field.comments[anchorKey(field.anchor)] !== undefined);
+  return (
+    <>
+      <button
+        type="button"
+        className="comment-on"
+        aria-expanded={open}
+        aria-label={`Comment on ${name}`}
+        onClick={() => setOpen(!open)}
+      >
+        Comment
+      </button>
+      {open && <CommentField {...field} />}
     </>
   );
 };

@@ -590,7 +590,7 @@ type Section = {
 
 type NodeSectionsOptions = Pick<
   InspectorProps,
-  'nodes' | 'metrics' | 'findings' | 'tests' | 'symbols' | 'onGoTo'
+  'nodes' | 'metrics' | 'findings' | 'tests' | 'symbols' | 'onGoTo' | 'comments' | 'onComment'
 > & { readonly node: DiffNode; readonly onShowLine: (at: LineAt) => void };
 
 const nodeSections = ({
@@ -602,6 +602,8 @@ const nodeSections = ({
   symbols,
   onGoTo,
   onShowLine,
+  comments,
+  onComment,
 }: NodeSectionsOptions): ReadonlyArray<Section> => {
   const measured = metrics[node.id];
   const testsHere = testsAlongside({ nodes, node, tests });
@@ -650,6 +652,8 @@ const nodeSections = ({
                   nodes={nodes}
                   onGoTo={onGoTo}
                   onShowLine={onShowLine}
+                  comments={comments}
+                  onComment={onComment}
                 />
               </div>
             ),

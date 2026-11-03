@@ -1,12 +1,14 @@
 import type { DiffedNode } from '../core/diff-graphs.ts';
 import type { LogicLine } from '../core/logic-diff.ts';
 import type { SymbolFile } from '../core/read-range.ts';
+import type { Comment } from '../core/review.ts';
 import {
   changesApi,
   qualified,
   type SymbolChange,
   type SymbolStatement,
 } from '../core/symbol-changes.ts';
+import { CommentOn, type Comments } from './comment-field.tsx';
 
 type Group = readonly [string, (symbol: SymbolStatement) => boolean];
 
@@ -42,6 +44,8 @@ type Places = {
   readonly nodes: ReadonlyArray<DiffedNode>;
   readonly onGoTo: (id: string) => void;
   readonly onShowLine: (at: LineAt) => void;
+  readonly comments: Comments;
+  readonly onComment: ((comment: Comment) => void) | undefined;
 };
 
 const labelOf = (nodes: ReadonlyArray<DiffedNode>, id: string): string | undefined =>
@@ -174,6 +178,14 @@ const SymbolList = ({
             <del>{symbol.signature.base}</del>
             <ins>{symbol.signature.head}</ins>
           </span>
+        )}
+        {places.onComment && (
+          <CommentOn
+            name={`${symbol.kind} ${qualified(symbol)}`}
+            anchor={{ kind: 'symbol', id: `${node}#${qualified(symbol)}` }}
+            comments={places.comments}
+            onComment={places.onComment}
+          />
         )}
         {symbol.logic !== undefined && (
           <LogicLines symbol={symbol} onShowLine={at => places.onShowLine({ node, ...at })} />
