@@ -1429,7 +1429,8 @@ export const ReviewPage = ({ review, notes, send }: ReviewPageProps) => {
   useEffect(() => {
     if (tab !== 'structure') return;
     const keyed = (event: globalThis.KeyboardEvent) => {
-      if (event.target instanceof HTMLTextAreaElement) return;
+      if (event.target instanceof HTMLTextAreaElement || event.target instanceof HTMLInputElement)
+        return;
       if (event.ctrlKey || event.metaKey || event.altKey) return;
       const key = event.key.toLowerCase();
       if (key === 'j') walk(1);
