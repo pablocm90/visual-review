@@ -1,3 +1,4 @@
+import { type LogicLine, logicDiff } from './logic-diff.ts';
 import type { FileSymbols, ReadSymbol, SymbolKind } from './reader.ts';
 
 export type SymbolChange =
@@ -20,6 +21,7 @@ export type SymbolStatement = {
   readonly probably?: true;
   readonly movedTo?: string;
   readonly movedFrom?: string;
+  readonly logic?: ReadonlyArray<LogicLine>;
 };
 
 export type ExportChanges = {
@@ -77,6 +79,11 @@ const similarity = (one: ReadSymbol, other: ReadSymbol): number => {
 const likenessOf = (former: ReadSymbol, symbol: ReadSymbol): number =>
   former.bodyHash === symbol.bodyHash ? 1 : similarity(former, symbol);
 
+const logicOf = (old: ReadSymbol, symbol: ReadSymbol) => {
+  const logic = logicDiff({ base: old.decisions ?? [], head: symbol.decisions ?? [] });
+  return logic.every(({ change }) => change === 'same') ? {} : { logic };
+};
+
 const pairedWith = (old: ReadSymbol, symbol: ReadSymbol): SymbolStatement => ({
   ...named(symbol),
   exported: { base: old.exported, head: symbol.exported },
@@ -84,6 +91,7 @@ const pairedWith = (old: ReadSymbol, symbol: ReadSymbol): SymbolStatement => ({
   ...(old.signatureHash === symbol.signatureHash
     ? {}
     : { signature: { base: old.signature, head: symbol.signature } }),
+  ...logicOf(old, symbol),
 });
 
 type Rename = {

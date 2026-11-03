@@ -90,6 +90,58 @@ test("an edited symbol carries both signatures when its signature changed, and n
   ]);
 });
 
+test("an edited function whose decisions changed carries its logic lines, all of them; one whose decisions didn't carries none", () => {
+  const before = read(
+    'function charge(order) {',
+    '  if (!order) return;',
+    '  if (order.amount > 0) pay();',
+    '}',
+    'function refund(order) { if (order.paid) give(1); }',
+  );
+  const after = read(
+    'function charge(order) {',
+    '  if (!order) return;',
+    '  if (order.amount >= 0) pay();',
+    '}',
+    'function refund(order) { if (order.paid) give(2); }',
+  );
+
+  expect(
+    symbolChanges({ before, after }).symbols.map(({ name, logic }) => ({ name, logic })),
+  ).toEqual([
+    {
+      name: 'charge',
+      logic: [
+        { change: 'same', kind: 'guard', depth: 0, head: 'if (!order) return', line: 2 },
+        {
+          change: 'changed',
+          kind: 'if',
+          depth: 0,
+          base: 'if (order.amount > 0)',
+          head: 'if (order.amount >= 0)',
+          line: 3,
+        },
+      ],
+    },
+    { name: 'refund', logic: undefined },
+  ]);
+});
+
+test('a probably renamed function whose decisions changed carries its logic lines', () => {
+  const before = read(
+    'function charge(order) { if (order.amount > 0) { pay(order); log(order); } }',
+  );
+  const after = read('function bill(order) { if (order.amount >= 0) { pay(order); log(order); } }');
+
+  expect(symbolChanges({ before, after }).symbols).toEqual([
+    expect.objectContaining({
+      change: 'renamed',
+      probably: true,
+      logic: [expect.objectContaining({ change: 'changed', head: 'if (order.amount >= 0)' })],
+    }),
+  ]);
+});
+
 test('a symbol gone from the base and new at the head with the same kind and body is renamed', () => {
   const before = read(
     'export function charge(amount: number) { return amount * 2; }',
