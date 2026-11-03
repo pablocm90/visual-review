@@ -555,7 +555,7 @@ test('a guard or catch removed from an edited function is a logic finding to loo
     ]),
   ];
 
-  expect(findingsOfSymbols(symbols)).toStrictEqual([
+  expect(findingsOfSymbols(symbols).filter(({ level }) => level === 'look')).toStrictEqual([
     {
       id: 'logic:removed:web/file/a.ts#Orders.charge#if (!order.paid) return',
       dimension: 'logic',
@@ -571,6 +571,62 @@ test('a guard or catch removed from an edited function is a logic finding to loo
       target: 'web/file/a.ts',
       title: 'method Orders.charge lost a catch',
       detail: 'catch (error)',
+    },
+  ]);
+});
+
+test("an edited function's other decision changes are one logic finding for information on its file, its detail counting them; a function that only lost a guard has none", () => {
+  const symbols = [
+    symbolFile([
+      {
+        name: 'charge',
+        kind: 'function',
+        exported: { base: true, head: true },
+        change: 'edited',
+        logic: [
+          logicLine({ change: 'added', kind: 'if', head: 'if (order.late)' }),
+          logicLine({ change: 'same', kind: 'loop', head: 'for (const item of items)' }),
+          logicLine({ change: 'changed', kind: 'ternary', base: 'a > 0 ?', head: 'a >= 0 ?' }),
+          logicLine({ change: 'added', kind: 'throw', head: 'throw new Late' }),
+          logicLine({ change: 'removed', kind: 'return', base: 'return' }),
+        ],
+      },
+      {
+        name: 'refund',
+        kind: 'function',
+        exported: { base: false, head: false },
+        change: 'edited',
+        logic: [
+          logicLine({ change: 'removed', kind: 'guard', base: 'if (!paid) return' }),
+          logicLine({ change: 'same', kind: 'if', head: 'if (order.late)' }),
+        ],
+      },
+      {
+        name: 'total',
+        kind: 'function',
+        exported: { base: false, head: false },
+        change: 'edited',
+        logic: [logicLine({ change: 'changed', kind: 'if', base: 'if (a)', head: 'if (b)' })],
+      },
+    ]),
+  ];
+
+  expect(findingsOfSymbols(symbols).filter(({ level }) => level === 'info')).toStrictEqual([
+    {
+      id: 'logic:changed:web/file/a.ts#charge',
+      dimension: 'logic',
+      level: 'info',
+      target: 'web/file/a.ts',
+      title: 'function charge changed its logic',
+      detail: '2 added, 1 changed, 1 removed',
+    },
+    {
+      id: 'logic:changed:web/file/a.ts#total',
+      dimension: 'logic',
+      level: 'info',
+      target: 'web/file/a.ts',
+      title: 'function total changed its logic',
+      detail: '1 changed',
     },
   ]);
 });

@@ -1,5 +1,6 @@
 import type { Finding } from './findings.ts';
 import type { GraphNode } from './graph.ts';
+import type { LogicLine } from './logic-diff.ts';
 import type { SymbolFile } from './read-range.ts';
 import { type FileSymbolChanges, qualified, type SymbolStatement } from './symbol-changes.ts';
 
@@ -100,20 +101,54 @@ const exportsFinding = (file: FileSymbolChanges): ReadonlyArray<Finding> => {
   ];
 };
 
-const LOST = new Set(['guard', 'catch']);
+const isLost = ({ change, kind }: LogicLine): boolean =>
+  change === 'removed' && (kind === 'guard' || kind === 'catch');
+
+const COUNTED = ['added', 'changed', 'removed'] as const;
+
+const changedFinding = (
+  node: string,
+  statement: SymbolStatement,
+  others: ReadonlyArray<LogicLine>,
+): ReadonlyArray<Finding> => {
+  if (others.length === 0) return [];
+  const name = qualified(statement);
+  const counts = COUNTED.map(
+    change => [change, others.filter(line => line.change === change).length] as const,
+  );
+  return [
+    {
+      id: `logic:changed:${node}#${name}`,
+      dimension: 'logic',
+      level: 'info',
+      target: node,
+      title: `${statement.kind} ${name} changed its logic`,
+      detail: counts
+        .filter(([, count]) => count > 0)
+        .map(([change, count]) => `${count} ${change}`)
+        .join(', '),
+    },
+  ];
+};
 
 const logicFindings = (node: string, statement: SymbolStatement): ReadonlyArray<Finding> => {
   const name = qualified(statement);
-  return (statement.logic ?? [])
-    .filter(({ change, kind }) => change === 'removed' && LOST.has(kind))
-    .map(({ kind, base = '' }) => ({
+  const lines = statement.logic ?? [];
+  return [
+    ...lines.filter(isLost).map(({ kind, base = '' }) => ({
       id: `logic:removed:${node}#${name}#${base}`,
-      dimension: 'logic',
-      level: 'look',
+      dimension: 'logic' as const,
+      level: 'look' as const,
       target: node,
       title: `${statement.kind} ${name} lost a ${kind}`,
       detail: base,
-    }));
+    })),
+    ...changedFinding(
+      node,
+      statement,
+      lines.filter(line => line.change !== 'same' && !isLost(line)),
+    ),
+  ];
 };
 
 type SymbolFindingsOptions = {
