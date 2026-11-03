@@ -46,6 +46,7 @@ import {
 } from './layout.ts';
 import { MetricsScreen } from './metrics-screen.tsx';
 import { MetricsTable } from './metrics-tab.tsx';
+import { ReadingOrderList } from './reading-order-list.tsx';
 import { changedSymbolCount, hasSymbolNews, type LineAt, SymbolsOf } from './symbols-tab.tsx';
 import { changedCount, TestFiles, TestsScreen } from './tests-screen.tsx';
 import {
@@ -1360,6 +1361,7 @@ export const ReviewPage = ({ review, notes, send }: ReviewPageProps) => {
             <p className="caveat">Calls whose path is built at runtime are not drawn.</p>
           </div>
           <div className="columns">
+            <ReadingOrderList review={review} onGoTo={goTo} />
             <FindingsRail
               findings={triaged}
               open={railOpen}

@@ -1515,6 +1515,32 @@ test("a note's or a metric finding in the rail goes to its node or edge as the s
   expect(document.activeElement).toBe(screen.getByRole('button', { name: 'domain: unchanged' }));
 });
 
+test("the reading order numbers the changed parts in its order, each going to its part as the summary's links do", async () => {
+  const user = userEvent.setup();
+  render(
+    <ReviewPage
+      review={pageWith({
+        ...review,
+        readingOrder: {
+          parts: ['rust/crate/application', 'rust/crate/cli-adapter', 'rust/crate/legacy'],
+          cycles: [],
+        },
+      })}
+    />,
+  );
+  await screen.findByRole('group', { name: 'rust' });
+
+  const order = screen.getByRole('navigation', { name: 'Reading order' });
+  expect(
+    within(order)
+      .getAllByRole('listitem')
+      .map(item => item.textContent),
+  ).toEqual(['1 application', '2 cli-adapter', '3 legacy']);
+  await user.click(within(order).getByRole('button', { name: '2 cli-adapter' }));
+  expect(document.activeElement).toBe(screen.getByRole('button', { name: 'cli-adapter: added' }));
+  expect(within(inspector()).getByRole('heading', { level: 2 }).textContent).toBe('cli-adapter');
+});
+
 test('look first lists the findings to look at in rank order, in the dimension a triage chip picks, collapsing to their count, each going to its node, seven at most and Show all opening the rail past them, and is absent when none needs a look', async () => {
   const user = userEvent.setup();
   const looks = (count: number) =>
