@@ -2146,10 +2146,22 @@ pre .hljs-emphasis {
   stroke-width: 1;
 }
 
-.reading-badge-number {
+.node text.reading-badge-number {
   fill: var(--ink);
   font-size: 10px;
   font-weight: 600;
+  text-decoration: none;
   text-anchor: middle;
   dominant-baseline: central;
+}
+
+.left-column:not(:has(.reading-order, .findings)) {
+  flex: none;
+  width: 60px;
+  min-width: 0;
+  padding-right: 0;
+}
+
+.left-column:not(:has(.reading-order)) .findings-rail {
+  flex-direction: column;
 }
