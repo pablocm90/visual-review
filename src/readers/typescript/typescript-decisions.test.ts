@@ -71,3 +71,20 @@ test('an if that only returns, with no else, is a guard', () => {
     'if: if (order.open)',
   ]);
 });
+
+test('a throw is a decision, named by the class it throws; an if that only throws is a guard', () => {
+  expect(
+    kindsAndTexts(
+      'charge',
+      'function charge(order) {',
+      "  if (!order) throw new MissingOrder('none');",
+      '  if (order.void) { throw new errors.Void(order.id); }',
+      '  try { pay(); } catch (error) { throw error; }',
+      '}',
+    ),
+  ).toEqual([
+    'guard: if (!order) throw new MissingOrder',
+    'guard: if (order.void) throw new errors.Void',
+    'throw: throw error',
+  ]);
+});
