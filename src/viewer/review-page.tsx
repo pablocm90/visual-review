@@ -1358,6 +1358,20 @@ export const ReviewPage = ({ review, notes, send }: ReviewPageProps) => {
     location.hash = '#structure';
     goTo(id);
   };
+  const walk = (step: number) => {
+    const { parts } = review.readingOrder;
+    const at = parts.indexOf(selected ?? '');
+    const next = parts[Math.max(at + step, 0)];
+    if (next !== undefined) goTo(next);
+  };
+  useEffect(() => {
+    const keyed = (event: KeyboardEvent) => {
+      if (event.key === 'j') walk(1);
+      if (event.key === 'k') walk(-1);
+    };
+    document.addEventListener('keydown', keyed);
+    return () => document.removeEventListener('keydown', keyed);
+  });
   useEffect(() => {
     layoutDiff(drawn).then(setLayout);
   }, [drawn]);

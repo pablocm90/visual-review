@@ -1607,6 +1607,35 @@ test('the reading order shows no outside heading when every changed file is draw
   expect(screen.queryByRole('navigation', { name: 'Reading order' })).toBeNull();
 });
 
+const walkedReview = () =>
+  pageWith({
+    ...review,
+    readingOrder: {
+      parts: ['rust/crate/application', 'rust/crate/cli-adapter', 'rust/crate/legacy'],
+      cycles: [],
+    },
+  });
+
+const selectedPart = () => within(inspector()).getByRole('heading', { level: 2 }).textContent;
+
+test('J and K walk the reading order from the selected part, starting at its first part, going to each as its row does, and stay put at either end', async () => {
+  const user = userEvent.setup();
+  render(<ReviewPage review={walkedReview()} />);
+  await screen.findByRole('group', { name: 'rust' });
+
+  await user.keyboard('k');
+  expect(selectedPart()).toBe('application');
+  await user.keyboard('j');
+  expect(selectedPart()).toBe('cli-adapter');
+  await waitFor(() =>
+    expect(document.activeElement).toBe(screen.getByRole('button', { name: 'cli-adapter: added' })),
+  );
+  await user.keyboard('jjj');
+  expect(selectedPart()).toBe('legacy');
+  await user.keyboard('kkk');
+  expect(selectedPart()).toBe('application');
+});
+
 test('look first lists the findings to look at in rank order, in the dimension a triage chip picks, collapsing to their count, each going to its node, seven at most and Show all opening the rail past them, and is absent when none needs a look', async () => {
   const user = userEvent.setup();
   const looks = (count: number) =>
