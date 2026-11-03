@@ -96,6 +96,11 @@ test.for([
     body: ['try { pay(); } catch (error) { log(error); }', 'try { pay(); } catch { log(); }'],
     decisions: ['catch: catch (error)', 'catch: catch'],
   },
+  {
+    reason: 'a ternary, by its test',
+    body: ['return order.paid ? 0 : order.total;'],
+    decisions: ['ternary: order.paid ?'],
+  },
 ])('$reason is a decision', ({ body, decisions }) => {
   expect(kindsAndTexts('charge', 'function charge(order) {', ...body, '}')).toEqual(decisions);
 });

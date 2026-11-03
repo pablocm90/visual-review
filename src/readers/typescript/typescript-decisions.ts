@@ -44,6 +44,8 @@ const headOf = (text: string, node: Node): Head | undefined => {
         kind: 'catch',
         text: node.param ? `catch (${sourceOf(text, node.param)})` : 'catch',
       };
+    case 'ConditionalExpression':
+      return { kind: 'ternary', text: `${sourceOf(text, node.test)} ?` };
     default:
       return undefined;
   }
