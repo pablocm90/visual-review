@@ -1515,7 +1515,7 @@ test("a note's or a metric finding in the rail goes to its node or edge as the s
   expect(document.activeElement).toBe(screen.getByRole('button', { name: 'domain: unchanged' }));
 });
 
-test("the reading order numbers the changed parts in its order, each marked with its findings' worst level and count, a cycle's first part saying it is one, and going to its part as the summary's links do", async () => {
+test("the reading order numbers the changed parts in its order, on the graph too, each marked with its findings' worst level and count, a cycle's first part saying it is one, and going to its part as the summary's links do", async () => {
   const user = userEvent.setup();
   render(
     <ReviewPage
@@ -1539,6 +1539,14 @@ test("the reading order numbers the changed parts in its order, each marked with
     />,
   );
   await screen.findByRole('group', { name: 'rust' });
+
+  const numberOn = (node: string) =>
+    within(screen.getByRole('button', { name: node }))
+      .queryAllByRole('img', { name: /^Reading order/ })
+      .map(number => number.getAttribute('aria-label'));
+  expect(numberOn('application: modified')).toEqual(['Reading order 1']);
+  expect(numberOn('legacy: removed')).toEqual(['Reading order 3']);
+  expect(numberOn('domain: unchanged')).toEqual([]);
 
   const order = screen.getByRole('navigation', { name: 'Reading order' });
   expect(

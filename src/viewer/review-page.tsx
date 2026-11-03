@@ -148,8 +148,16 @@ const FindingsBadge = ({ x, y, findings, picked, onPress }: FindingsBadgeProps) 
   );
 };
 
+const ReadingNumber = ({ number }: { readonly number: number }) => (
+  <g className="reading-badge" role="img" aria-label={`Reading order ${number}`}>
+    <circle className="reading-badge-disc" r={9} />
+    <text className="reading-badge-number">{number}</text>
+  </g>
+);
+
 type Drawing = {
   readonly findingsOn: (id: string) => ReadonlyArray<Finding>;
+  readonly numberOf: (id: string) => number | undefined;
   readonly picked: Dimension | undefined;
   readonly notes: Readonly<Record<string, Note>>;
   readonly onSelect: (id: string) => void;
@@ -188,6 +196,7 @@ const NodeView = ({ node, drawing }: { readonly node: PlacedNode; readonly drawi
   const unrouted = unroutedOf(node.id);
   const shade = shadeOf(node);
   const found = drawing.findingsOn(node.id);
+  const number = drawing.numberOf(node.id);
   const toggle = expandable.has(node.id) && (
     <Toggle node={node} expanded={expanded.has(node.id)} onToggle={onToggle} />
   );
@@ -260,6 +269,7 @@ const NodeView = ({ node, drawing }: { readonly node: PlacedNode; readonly drawi
         {found.length > 0 && (
           <FindingsBadge x={node.width} y={0} findings={found} picked={drawing.picked} />
         )}
+        {number !== undefined && <ReadingNumber number={number} />}
       </g>
       {toggle}
     </>
@@ -1276,8 +1286,10 @@ export const ReviewPage = ({ review, notes, send }: ReviewPageProps) => {
   const visibleOf = visibleNodeOf({ diff: review.diff, expanded });
   const boxesAbove = boxesAboveIn(review.diff.nodes);
   const placedFindings = findingsAt({ diff: review.diff, expanded, findings });
+  const numbers = new Map(review.readingOrder.parts.map((part, index) => [part, index + 1]));
   const drawing = {
     findingsOn: (id: string) => placedFindings.get(id) ?? [],
+    numberOf: (id: string) => numbers.get(id),
     picked,
     notes: shown,
     onSelect: select,

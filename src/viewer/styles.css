@@ -2142,3 +2142,17 @@ pre .hljs-emphasis {
   color: var(--muted);
   font-size: 12px;
 }
+
+.reading-badge-disc {
+  fill: var(--stack);
+  stroke: var(--ink);
+  stroke-width: 1;
+}
+
+.reading-badge-number {
+  fill: var(--ink);
+  font-size: 10px;
+  font-weight: 600;
+  text-anchor: middle;
+  dominant-baseline: central;
+}
