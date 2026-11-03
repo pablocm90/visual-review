@@ -22,6 +22,7 @@ export type AbcParts = {
 export type FunctionMeasures = {
   readonly name: string;
   readonly cyclomatic: number;
+  readonly earlyReturns?: number;
   readonly abc: AbcParts;
 };
 

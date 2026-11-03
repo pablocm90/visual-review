@@ -14,7 +14,7 @@ Out of the box, it reads these, with nothing to configure:
 
 Across stacks, `fetch` calls in TS/JS are linked to the routes of Rust crates that use axum.
 
-The review data (the `.json` beside the page) measures the files of changed nodes and their neighbours: lines of code, and each Rust or TS/JS function's or Rails method's cyclomatic complexity and ABC size. Test files aren't measured.
+The review data (the `.json` beside the page) measures the files of changed nodes and their neighbours: lines of code, and each Rust or TS/JS function's or Rails method's cyclomatic complexity and ABC size. A Rust `?` isn't a branch there: each function's `?`s are its `earlyReturns`, listed beside its cyclomatic in `cyclomatic.byFunction`. Test files aren't measured.
 
 In changed TS/JS files it also reads the symbols, functions, methods, classes, types, interfaces and enums, on both sides, and pairs them: added, removed, edited, formatting only, renamed (by an equal body, or "probably" by a similar one) or moved to another changed file. Each file's change gets a kind: an API change when its exports or an exported signature changed, else a logic change, else formatting only. Test files aren't read for symbols, and Rust and Rails symbols are planned. For an edited or renamed function or method it also lists its logic: its decisions (guards, ifs, ternaries, loops, cases, `&&`/`||`/`??`, catches, early returns and throws), each added, removed, changed or the same, by their source text with comments and spacing ignored.
 

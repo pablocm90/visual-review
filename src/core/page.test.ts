@@ -901,6 +901,35 @@ test("a measured file gets, beside its churn, its lines, functions, highest and 
   });
 });
 
+test("a function's earlyReturns, where its reader counts them, sit beside its cyclomatic", () => {
+  const abc = { assignments: 0, branches: 0, conditions: 0 };
+  const reading = readingWith({
+    churn: { before: {}, after: { 'web/src/a.ts': 1 } },
+    measures: {
+      before: {},
+      after: {
+        'web/src/a.ts': {
+          lines: 4,
+          functions: [
+            { name: 'load', cyclomatic: 1, earlyReturns: 4, abc },
+            { name: 'plain', cyclomatic: 2, abc },
+          ],
+        },
+      },
+    },
+  });
+
+  const { head } =
+    pageData({ repo: 'shop', reading, range: 'main..feature', version, parsers }).metrics[
+      'web/file/a.ts'
+    ] ?? {};
+
+  expect(head && 'lines' in head && head.cyclomatic.byFunction).toEqual([
+    { name: 'load', cyclomatic: 1, earlyReturns: 4 },
+    { name: 'plain', cyclomatic: 2 },
+  ]);
+});
+
 test("a measured node's fan-in and fan-out count that side's edges into and out of it, an edge to another stack included", () => {
   const files = ['a.ts', 'b.ts', 'c.ts', 'd.ts', 'e.ts'].map(webFile);
   const routes: GraphNode = {

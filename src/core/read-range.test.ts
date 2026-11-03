@@ -443,6 +443,7 @@ test("each side's churn counts, for each file a node is drawn from, the commits 
 const simpleFn = (name: string) => ({
   name,
   cyclomatic: 1,
+  earlyReturns: 0,
   abc: { assignments: 0, branches: 0, conditions: 0 },
 });
 
