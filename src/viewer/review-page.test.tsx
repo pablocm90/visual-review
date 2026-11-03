@@ -1710,6 +1710,15 @@ test('with storage refusing every access, the page opens and marks hold until it
   expect(readRows()).toEqual(['1 application']);
 });
 
+test('stored read marks that are not a list of ids are ignored, the page starting with none read', async () => {
+  const walked = walkedReview();
+  localStorage.setItem(`visual-review:read:${walked.range}`, '["rust/crate/application", 7]');
+  render(<ReviewPage review={walked} />);
+  await screen.findByRole('group', { name: 'rust' });
+
+  expect(readRows()).toEqual([]);
+});
+
 test('J, K and A held with Control, Meta or Alt are left to the browser, neither walking nor marking', async () => {
   const user = userEvent.setup();
   render(<ReviewPage review={walkedReview()} />);
