@@ -2903,7 +2903,7 @@ test("a file's Symbols tab lists its changed symbols grouped by change, counting
   expect(inspectorTabs()).toEqual(['Note']);
 });
 
-test("a file's Symbols tab lists its API changes first: exported symbols added, removed, renamed, moved, un-exported or whose signature changed, a changed signature shown base then head", async () => {
+test("a file's Symbols tab lists its API changes first: exported symbols added, removed, renamed, moved, un-exported or whose signature changed, a changed signature shown base then head, each symbol marked exported, now exported or no longer exported", async () => {
   const user = userEvent.setup();
   const exported = (base?: boolean, head?: boolean) => ({
     ...(base !== undefined && { base }),
@@ -2945,6 +2945,13 @@ test("a file's Symbols tab lists its API changes first: exported symbols added, 
               exported: exported(undefined, false),
               change: 'added',
             },
+            { name: 'fee', kind: 'function', exported: exported(false, true), change: 'edited' },
+            {
+              name: 'checkout',
+              kind: 'function',
+              exported: exported(undefined, true),
+              change: 'added',
+            },
           ]),
         ],
       })}
@@ -2952,25 +2959,34 @@ test("a file's Symbols tab lists its API changes first: exported symbols added, 
   );
 
   await user.click(await screen.findByRole('button', { name: 'refund.ts: modified' }));
-  await user.click(within(inspector()).getByRole('tab', { name: 'Symbols 6' }));
+  await user.click(within(inspector()).getByRole('tab', { name: 'Symbols 8' }));
   expect(symbolGroups()).toEqual([
     [
       'API',
       [
-        'function charge: edited',
-        'function old: removed',
-        'function refund: edited',
-        'function tax: moved',
+        'function charge, exported: edited',
+        'function old, exported: removed',
+        'function refund, no longer exported: edited',
+        'function tax, exported: moved',
+        'function fee, now exported: edited',
+        'function checkout, exported: added',
       ],
     ],
-    ['Edited', ['function total: edited']],
+    ['Edited', ['function total, exported: edited']],
     ['Added', ['function helper: added']],
   ]);
-  const charge = screen.getByRole('listitem', { name: 'function charge: edited' });
+  const charge = screen.getByRole('listitem', { name: 'function charge, exported: edited' });
   expect(within(charge).getByRole('deletion').textContent).toBe('()');
   expect(within(charge).getByRole('insertion').textContent).toBe('(at: Date)');
-  const total = screen.getByRole('listitem', { name: 'function total: edited' });
-  expect(total.textContent).toBe('function total');
+  const total = screen.getByRole('listitem', { name: 'function total, exported: edited' });
+  expect(total.textContent).toBe('function total exported');
+  expect(
+    screen.getByRole('listitem', { name: 'function refund, no longer exported: edited' })
+      .textContent,
+  ).toBe('function refund no longer exported');
+  expect(screen.getByRole('listitem', { name: 'function helper: added' }).textContent).toBe(
+    'function helper',
+  );
   expect(within(total).queryByRole('deletion')).toBeNull();
 });
 

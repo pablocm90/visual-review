@@ -54,6 +54,18 @@ const Moved = ({
   </span>
 );
 
+const exportMarkOf = ({ exported }: SymbolStatement): string | undefined => {
+  if (exported.base === true && exported.head === false) return 'no longer exported';
+  if (exported.base === false && exported.head === true) return 'now exported';
+  return (exported.head ?? exported.base) === true ? 'exported' : undefined;
+};
+
+const nameOf = (symbol: SymbolStatement): string => {
+  const mark = exportMarkOf(symbol);
+  const name = `${symbol.kind} ${qualified(symbol)}`;
+  return mark === undefined ? name : `${name}, ${mark}`;
+};
+
 export const hasSymbolNews = (file: SymbolFile): boolean =>
   'unreadable' in file || changedSymbolCount([file]) > 0;
 
@@ -69,9 +81,12 @@ const SymbolList = ({
     {symbols.map(symbol => (
       <li
         key={`${symbol.kind} ${qualified(symbol)}`}
-        aria-label={`${symbol.kind} ${qualified(symbol)}: ${symbol.change}`}
+        aria-label={`${nameOf(symbol)}: ${symbol.change}`}
       >
         <span className="kind">{symbol.kind}</span> <code>{qualified(symbol)}</code>
+        {exportMarkOf(symbol) !== undefined && (
+          <span className="export-mark"> {exportMarkOf(symbol)}</span>
+        )}
         {symbol.renamedFrom !== undefined && (
           <span className="origin">
             {' '}

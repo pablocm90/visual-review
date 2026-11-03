@@ -2009,3 +2009,8 @@ pre .hljs-emphasis {
   --step-fill: var(--unchanged-fill);
   --step-ink: var(--muted);
 }
+
+.symbol-group .export-mark {
+  color: var(--muted);
+  font-size: 11px;
+}
