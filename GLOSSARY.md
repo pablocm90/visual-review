@@ -32,6 +32,11 @@ The changed parts in the order to read them: a part after every part it depends 
 _Avoid_: priority, rank
 _In code_: `PageData.readingOrder`
 
+**Read mark**:
+The reviewer's mark that they have read a part, kept in their browser for the page's range; not sent with the review.
+_Avoid_: seen, viewed, done
+_In code_: `storedReadMarks` (`src/viewer/read-marks.ts`)
+
 **Look first**:
 The few findings that need a look, ranked so the blind spots come first, then what most depends on, then what changes most.
 _Avoid_: top findings, priorities
@@ -74,6 +79,7 @@ _In code_: `'change' | 'question' | 'suggestion'`
 - A **fact** may raise **findings**; a **finding** is never the only record of a fact.
 - Each **finding** has one **dimension** and one **level**; a **flag** is the only way a note raises one.
 - The **reading order** holds every **part** once; a **finding** whose target is a part marks its row.
+- A **read mark** is on a **part**; the count of parts read counts only the parts in the **reading order**.
 - **Look first** holds only findings whose **level** is "needs a look".
 - A changed exported **symbol** raises a **finding** in the api dimension; a file's **kind of change** raises none of its own.
 - A review holds at most one comment per **anchor**, and each comment has one **comment kind**; the verdict is picked apart from the kinds.
