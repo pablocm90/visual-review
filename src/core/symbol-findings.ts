@@ -131,23 +131,44 @@ const changedFinding = (
   ];
 };
 
+type DecisionOptions = { readonly node: string; readonly statement: SymbolStatement };
+
+type IdentifiedLine = { readonly line: LogicLine; readonly id: string };
+
+const decisionText = ({ change, base, head }: LogicLine): string =>
+  (change === 'removed' ? base : head) ?? '';
+
+export const decisionsOf = ({
+  node,
+  statement,
+}: DecisionOptions): ReadonlyArray<IdentifiedLine> => {
+  const lines = statement.logic ?? [];
+  return lines.map((line, index) => {
+    const text = decisionText(line);
+    const before = lines
+      .slice(0, index)
+      .filter(other => other.change === line.change && decisionText(other) === text).length;
+    return {
+      line,
+      id: `${node}#${qualified(statement)}#${text}${before === 0 ? '' : `#${before + 1}`}`,
+    };
+  });
+};
+
 const logicFindings = (node: string, statement: SymbolStatement): ReadonlyArray<Finding> => {
   const name = qualified(statement);
   const lines = statement.logic ?? [];
-  const lost = lines.filter(isLost);
-  const occurrence = (base: string | undefined, index: number): string => {
-    const before = lost.slice(0, index).filter(line => line.base === base).length;
-    return before === 0 ? '' : `#${before + 1}`;
-  };
   return [
-    ...lost.map(({ kind, base = '' }, index) => ({
-      id: `logic:removed:${node}#${name}#${base}${occurrence(base, index)}`,
-      dimension: 'logic' as const,
-      level: 'look' as const,
-      target: node,
-      title: `${statement.kind} ${name} lost a ${kind}`,
-      detail: base,
-    })),
+    ...decisionsOf({ node, statement })
+      .filter(({ line }) => isLost(line))
+      .map(({ line: { kind, base = '' }, id }) => ({
+        id: `logic:removed:${id}`,
+        dimension: 'logic' as const,
+        level: 'look' as const,
+        target: node,
+        title: `${statement.kind} ${name} lost a ${kind}`,
+        detail: base,
+      })),
     ...changedFinding(
       node,
       statement,
