@@ -25,7 +25,7 @@ The layout: `src/core/` holds the ports (`Reader`, `Linker`), config, `read-rang
 - TypeScript strict with `noUncheckedIndexedAccess`, `exactOptionalPropertyTypes` and `noPropertyAccessFromIndexSignature`: index results are `T | undefined`, and `process.env['X']` takes brackets.
 - Biome: single quotes, width 100, arrow parens as needed; two a11y rules are off under `src/viewer/**`.
 - TypeScript 7 has no JS compiler API, so dependency-cruiser parses TS through `@swc/core`. Without it the web graph silently reads no modules.
-- The tests shell out to real `git` and `cargo`. `review-page.test.tsx` lays its fixture out once at load and waits 3 s (`asyncUtilTimeout`) for the first page under a loaded machine; ask before raising a timeout, and diagnose a flake with the test file run 12× in parallel under busy loops before blaming load.
+- The tests shell out to real `git` and `cargo`. `review-page.test.tsx` lays its fixture out once at load and waits up to 3 s (`asyncUtilTimeout`) in every `findBy` and `waitFor`, so a loaded machine renders the first page in time; ask before raising a timeout, and diagnose a flake with the test file run 12× in parallel under busy loops before blaming load.
 
 ## Conventions
 
