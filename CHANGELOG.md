@@ -4,7 +4,14 @@ What changed in each release of `@pablocm90/visual-review`, newest first. Versio
 
 ## Unreleased
 
+### Changed
+
+- A review file is in review version 3: `reviewed` says what the page was drawn for, `{ range, pullRequest? }`, its PR by number, and `read` lists the parts marked read, by node id, in reading order. A review in version 2 is refused.
+
 ### Added
+
+- The Review panel says how many parts of the reading order were marked read before you send.
+- The skill takes a part read with no comment on it as read and found fine, and names the parts that were neither read nor commented on.
 
 - **J** and **K** walk the reading order, going to the next or previous part as a click on its row does; with no part selected they start at the first. **A** marks the selected part read, or unread again; read rows are ticked and the Reading order counts how many of its parts are read. The keys do nothing while you type in a comment or with Ctrl, ⌘ or Alt held.
 - Read marks are kept in the browser per range, so reloading the page keeps them; with the browser's storage blocked they last until the page closes. A served page is at a new address each time it is served, so a new serve starts with none read.
