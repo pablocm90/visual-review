@@ -1,6 +1,6 @@
 import { z } from 'zod';
 
-const reviewVersion = 1;
+const reviewVersion = 2;
 
 const ReviewSchema = z
   .strictObject({
@@ -10,9 +10,34 @@ const ReviewSchema = z
       .describe("The reviewer's verdict on the whole change"),
     body: z.string().optional().describe("The reviewer's general comment on the whole change"),
     comments: z
-      .record(z.string(), z.strictObject({ text: z.string() }).readonly())
+      .array(
+        z
+          .strictObject({
+            anchor: z
+              .strictObject({
+                kind: z.enum(['part', 'edge']).describe('What the comment is on'),
+                id: z.string().describe('A node id, or `<from> -> <to>` for an edge'),
+              })
+              .readonly(),
+            kind: z
+              .enum(['change', 'question', 'suggestion'])
+              .describe('What the comment asks for: a task, an answer, or a thought to weigh'),
+            text: z.string(),
+          })
+          .readonly(),
+      )
       .readonly()
-      .describe("The reviewer's comments by node id, or by `<from> -> <to>` for an edge"),
+      .superRefine((comments, context) => {
+        const counts = Map.groupBy(comments, ({ anchor }) => `${anchor.kind} ${anchor.id}`);
+        for (const [anchor, onIt] of counts) {
+          if (onIt.length > 1) {
+            context.addIssue(
+              `${anchor} has ${onIt.length} comments; a review holds one per anchor`,
+            );
+          }
+        }
+      })
+      .describe("The reviewer's comments, one per anchor"),
   })
   .readonly();
 

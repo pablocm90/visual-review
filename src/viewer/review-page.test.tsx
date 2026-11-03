@@ -167,7 +167,7 @@ test("the Note tab's comment field holds a comment per node or edge, kept while 
   expect(comment()).toHaveProperty('value', 'Why this way round?');
 });
 
-test("a served page's Review button opens the review, whose Send to Claude sends each comment under its node's id or its edge's, then says it was sent", async () => {
+test("a served page's Review button opens the review, whose Send to Claude sends each comment on its node or its edge, then says it was sent", async () => {
   const user = userEvent.setup();
   const sent = vi.fn(async () => {});
   render(<ReviewPage review={pageWith(review)} send={sent} />);
@@ -186,15 +186,61 @@ test("a served page's Review button opens the review, whose Send to Claude sends
   await user.click(screen.getByRole('button', { name: 'Send to Claude' }));
 
   expect(sent).toHaveBeenCalledExactlyOnceWith({
-    version: 1,
+    version: 2,
     verdict: 'comment',
-    comments: {
-      'rust/crate/domain': { text: 'Keep domain free of IO.' },
-      'rust/crate/application -> rust/crate/domain': { text: 'Why this way round?' },
-    },
+    comments: [
+      {
+        anchor: { kind: 'part', id: 'rust/crate/domain' },
+        kind: 'question',
+        text: 'Keep domain free of IO.',
+      },
+      {
+        anchor: { kind: 'edge', id: 'rust/crate/application -> rust/crate/domain' },
+        kind: 'question',
+        text: 'Why this way round?',
+      },
+    ],
   });
   expect((await screen.findByRole('status', { name: 'Review' })).textContent).toBe('Sent');
   expect(screen.queryByRole('button', { name: 'Send to Claude' })).toBeNull();
+});
+
+test('each comment carries the kind picked beside it, Question until another is picked, kept per node or edge', async () => {
+  const user = userEvent.setup();
+  const sent = vi.fn(async () => {});
+  render(<ReviewPage review={pageWith(review)} send={sent} />);
+  const kind = (name: string) =>
+    within(within(noteTab()).getByRole('radiogroup', { name: 'Comment kind' })).getByRole('radio', {
+      name,
+    });
+
+  const rust = await screen.findByRole('group', { name: 'rust' });
+  await user.click(within(rust).getByRole('button', { name: 'domain: unchanged' }));
+  expect(kind('Question')).toHaveProperty('checked', true);
+  await user.click(kind('Change this'));
+  await user.type(
+    within(noteTab()).getByRole('textbox', { name: 'Your comment' }),
+    'Move the IO out of domain.',
+  );
+  await user.click(within(rust).getByRole('button', { name: 'application → domain: unchanged' }));
+  expect(kind('Question')).toHaveProperty('checked', true);
+  await user.click(kind('Suggestion'));
+  await user.click(within(rust).getByRole('button', { name: 'domain: unchanged' }));
+  expect(kind('Change this')).toHaveProperty('checked', true);
+  await openReview(user);
+  await user.click(screen.getByRole('button', { name: 'Send to Claude' }));
+
+  expect(sent).toHaveBeenCalledExactlyOnceWith({
+    version: 2,
+    verdict: 'comment',
+    comments: [
+      {
+        anchor: { kind: 'part', id: 'rust/crate/domain' },
+        kind: 'change',
+        text: 'Move the IO out of domain.',
+      },
+    ],
+  });
 });
 
 test('the verdict picked beside Send to Claude goes with the review, Comment until another is picked, and kept while the review is closed', async () => {
@@ -220,13 +266,19 @@ test('the verdict picked beside Send to Claude goes with the review, Comment unt
   await user.click(screen.getByRole('button', { name: 'Send to Claude' }));
 
   expect(sent).toHaveBeenCalledExactlyOnceWith({
-    version: 1,
+    version: 2,
     verdict: 'request-changes',
-    comments: { 'rust/crate/domain': { text: 'Keep domain free of IO.' } },
+    comments: [
+      {
+        anchor: { kind: 'part', id: 'rust/crate/domain' },
+        kind: 'question',
+        text: 'Keep domain free of IO.',
+      },
+    ],
   });
 });
 
-test('Send to Claude waits for a comment that is more than blanks, and sends no blank one', async () => {
+test('Send to Claude waits for a comment that is more than blanks, and sends no blank or cleared one', async () => {
   const user = userEvent.setup();
   const sent = vi.fn(async () => {});
   render(<ReviewPage review={pageWith(review)} send={sent} />);
@@ -243,14 +295,21 @@ test('Send to Claude waits for a comment that is more than blanks, and sends no 
   expect(sendButton()).toHaveProperty('disabled', true);
   await user.click(within(rust).getByRole('button', { name: 'application → domain: unchanged' }));
   await user.type(comment(), 'Why this way round?');
+  await user.click(within(rust).getByRole('button', { name: 'application: modified' }));
+  await user.type(comment(), 'Split the crate.');
+  await user.clear(comment());
   await user.click(sendButton());
 
   expect(sent).toHaveBeenCalledExactlyOnceWith({
-    version: 1,
+    version: 2,
     verdict: 'comment',
-    comments: {
-      'rust/crate/application -> rust/crate/domain': { text: 'Why this way round?' },
-    },
+    comments: [
+      {
+        anchor: { kind: 'edge', id: 'rust/crate/application -> rust/crate/domain' },
+        kind: 'question',
+        text: 'Why this way round?',
+      },
+    ],
   });
 });
 
@@ -268,10 +327,10 @@ test('the general comment goes with the review as its body, and alone lets a Com
   await user.click(screen.getByRole('button', { name: 'Send to Claude' }));
 
   expect(sent).toHaveBeenCalledExactlyOnceWith({
-    version: 1,
+    version: 2,
     verdict: 'comment',
     body: 'Ship it once the fetch moves.',
-    comments: {},
+    comments: [],
   });
 });
 
@@ -285,7 +344,7 @@ test('an Approve can be sent with no comment', async () => {
   await user.click(screen.getByRole('radio', { name: 'Approve' }));
   await user.click(screen.getByRole('button', { name: 'Send to Claude' }));
 
-  expect(sent).toHaveBeenCalledExactlyOnceWith({ version: 1, verdict: 'approve', comments: {} });
+  expect(sent).toHaveBeenCalledExactlyOnceWith({ version: 2, verdict: 'approve', comments: [] });
 });
 
 test('a page that is not served has no comment field and no Review button', async () => {
