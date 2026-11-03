@@ -104,3 +104,46 @@ test('a run of decisions added or removed keeps the ones after it the same', () 
     'same if (c)',
   ]);
 });
+
+test('a decision whose text changed, between the same ones, is changed, at its head depth and line', () => {
+  expect(
+    logicDiff({
+      base: [
+        decision({ kind: 'catch', text: 'catch (error)', line: 2 }),
+        decision({ text: 'if (amount > 0)', depth: 1, line: 3 }),
+      ],
+      head: [
+        decision({ kind: 'catch', text: 'catch (error)', line: 2 }),
+        decision({ text: 'if (amount >= 0)', depth: 2, line: 4 }),
+      ],
+    })[1],
+  ).toEqual({
+    change: 'changed',
+    kind: 'if',
+    depth: 2,
+    base: 'if (amount > 0)',
+    head: 'if (amount >= 0)',
+    line: 4,
+  });
+});
+
+test('in a gap, decisions of a kind pair in order and the rest of the base are removed', () => {
+  expect(
+    marked(
+      logicDiff({
+        base: [
+          decision({ kind: 'guard', text: 'if (!order) return' }),
+          ...ifs('a', 'b'),
+          decision({ kind: 'loop', text: 'while (open)' }),
+        ],
+        head: [decision({ kind: 'catch', text: 'catch' }), ...ifs('c')],
+      }),
+    ),
+  ).toEqual([
+    'removed if (!order) return',
+    'removed if (b)',
+    'removed while (open)',
+    'added catch',
+    'changed if (c)',
+  ]);
+});

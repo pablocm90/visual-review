@@ -69,10 +69,31 @@ const ofHead = (change: 'same' | 'added', decision: Decision): LogicLine => ({
   line: decision.line,
 });
 
-const linesOfGap = ({ base, head }: Sides): ReadonlyArray<LogicLine> => [
-  ...base.map(removed),
-  ...head.map(decision => ofHead('added', decision)),
-];
+const changed = (old: Decision, decision: Decision): LogicLine => ({
+  change: 'changed',
+  kind: decision.kind,
+  depth: decision.depth,
+  base: old.text,
+  head: decision.text,
+  line: decision.line,
+});
+
+const sameKindBefore = (decisions: ReadonlyArray<Decision>, index: number): number =>
+  decisions.slice(0, index).filter(({ kind }) => kind === decisions[index]?.kind).length;
+
+const linesOfGap = ({ base, head }: Sides): ReadonlyArray<LogicLine> => {
+  const partners = head.map(
+    (decision, index) =>
+      base.filter(({ kind }) => kind === decision.kind)[sameKindBefore(head, index)],
+  );
+  return [
+    ...base.filter(decision => !partners.includes(decision)).map(removed),
+    ...head.map((decision, index) => {
+      const partner = partners[index];
+      return partner ? changed(partner, decision) : ofHead('added', decision);
+    }),
+  ];
+};
 
 type Walked = { readonly lines: ReadonlyArray<LogicLine>; readonly from: Match };
 
