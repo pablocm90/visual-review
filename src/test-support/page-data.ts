@@ -5,6 +5,7 @@ import type { PageData } from '../core/page.ts';
 export const pageWith = (data: Pick<PageData, 'range' | 'diff'> & Partial<PageData>): PageData => ({
   repo: 'acme/shop',
   version: '0.1.0',
+  readingOrder: { parts: [], cycles: [] },
   metrics: {},
   findings: [],
   dangling: [],
