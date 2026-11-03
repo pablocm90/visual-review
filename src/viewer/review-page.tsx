@@ -14,7 +14,7 @@ import {
 import type { DiffedNode, FilePatch, GraphDiff } from '../core/diff-graphs.ts';
 import { isAtOrUnder } from '../core/diff-graphs.ts';
 import { type Dimension, type Finding, findingsAt, findingsOf } from '../core/findings.ts';
-import { edgeId, endsOfId } from '../core/graph.ts';
+import { edgeId } from '../core/graph.ts';
 import { type MetricFinding, metricFindings } from '../core/metric-findings.ts';
 import type { NodeMetrics } from '../core/metrics.ts';
 import { type Note, type ReviewNotes, visibleNotes } from '../core/notes.ts';
@@ -33,6 +33,7 @@ import {
   visibleDiff,
   visibleNodeOf,
 } from '../core/visible-diff.ts';
+import { anchorKey } from './anchors.ts';
 import { ColourBy, type Colouring, ScaleLegend, type Shade, shadeOf } from './colour-by.tsx';
 import {
   AnswerButtons,
@@ -888,6 +889,7 @@ const SidePanel = ({
     );
   }
   if (selected === undefined) return null;
+  const anchor = { kind: node === undefined ? 'edge' : 'part', id: selected } as const;
   return (
     <>
       {divider}
@@ -902,15 +904,8 @@ const SidePanel = ({
         tests={review.tests}
         symbols={review.symbols}
         onGoTo={onGoTo}
-        comment={comments[selected] ?? NO_DRAFT}
-        onComment={
-          onComment &&
-          (draft =>
-            onComment({
-              anchor: { kind: node === undefined ? 'edge' : 'part', id: selected },
-              ...draft,
-            }))
-        }
+        comment={comments[anchorKey(anchor)] ?? NO_DRAFT}
+        onComment={onComment && (draft => onComment({ anchor, ...draft }))}
         commentable={
           node !== undefined || review.diff.edges.some(edge => edgeId(edge) === selected)
         }
@@ -1202,7 +1197,7 @@ export const ReviewPage = ({ review, notes, send }: ReviewPageProps) => {
     send && ((id, given) => setAnswers(current => withAnswer(current, id, given)));
   const [chosenWidth, setChosenWidth] = useState<number>();
   const comment = (written: Comment) =>
-    setComments(current => ({ ...current, [written.anchor.id]: written }));
+    setComments(current => ({ ...current, [anchorKey(written.anchor)]: written }));
   const [expanded, setExpanded] = useState<ReadonlySet<string>>(new Set());
   const expandable = useMemo(
     () => new Set(review.diff.nodes.flatMap(node => node.parent ?? [])),
@@ -1298,11 +1293,6 @@ export const ReviewPage = ({ review, notes, send }: ReviewPageProps) => {
     centre(id);
     setFocusTarget(id);
   };
-  const nodeLabels = new Map(review.diff.nodes.map(node => [node.id, node.label]));
-  const anchorName = (id: string) =>
-    endsOfId(id)
-      .map(end => nodeLabels.get(end) ?? end)
-      .join(' → ');
   const goToOnStructure = (id: string) => {
     location.hash = '#structure';
     goTo(id);
@@ -1500,7 +1490,7 @@ export const ReviewPage = ({ review, notes, send }: ReviewPageProps) => {
           comments={comments}
           answers={answers}
           findings={findings}
-          nameOf={anchorName}
+          nodes={review.diff.nodes}
           onGoTo={goToOnStructure}
           send={send}
         />
