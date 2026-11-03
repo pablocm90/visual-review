@@ -8,7 +8,7 @@ import { CONFIG_FILE, type Config, parseConfig } from './config.ts';
 import { diffGraphs, type FilePatch, type Rename } from './diff-graphs.ts';
 import { type Graph, stackOfIn } from './graph.ts';
 import type { DanglingCall } from './linker.ts';
-import { measuredNodes } from './metrics.ts';
+import { type MeasuredNode, measuredNodes } from './metrics.ts';
 import {
   type Adapters,
   checkConfig,
@@ -16,8 +16,9 @@ import {
   readStacks,
   type StacksReading,
 } from './read-stacks.ts';
-import type { FileMeasures, Reader } from './reader.ts';
+import type { FileMeasures, FileSymbols, Reader } from './reader.ts';
 import type { Skipped } from './skipped.ts';
+import { type FileSymbolChanges, symbolChangesOf } from './symbol-changes.ts';
 import { type TestFile, testChanges, withMovedTests } from './test-changes.ts';
 
 const run = promisify(execFile);
@@ -25,6 +26,11 @@ const run = promisify(execFile);
 export type Churn = Readonly<Record<string, number>>;
 
 export type Measures = Readonly<Record<string, FileMeasures>>;
+
+export type SymbolFile = { readonly stack: string } & (
+  | FileSymbolChanges
+  | { readonly node: string; readonly unreadable: string }
+);
 
 export type RangeReading = {
   readonly before: Graph;
@@ -35,6 +41,8 @@ export type RangeReading = {
   readonly renames: ReadonlyArray<Rename>;
   readonly patches: ReadonlyArray<FilePatch>;
   readonly tests: ReadonlyArray<TestFile>;
+  readonly symbols: ReadonlyArray<SymbolFile>;
+  readonly symbolsNotRead: ReadonlyArray<string>;
   readonly danglingCalls: ReadonlyArray<DanglingCall>;
   readonly skipped: ReadonlyArray<Skipped>;
   readonly thresholds: Omit<Config['metrics'], 'churnDays'>;
@@ -201,6 +209,66 @@ const measuresAt = async ({ directory, stacks, files }: MeasuresOptions): Promis
   return Object.fromEntries(measured.flat());
 };
 
+const NO_SYMBOLS: FileSymbols = { symbols: [], exports: [], astHash: '' };
+
+type SymbolsOptions = {
+  readonly directory: string;
+  readonly read: NonNullable<Reader['symbols']>;
+  readonly path: string | undefined;
+};
+
+const symbolsAt = async ({
+  directory,
+  read,
+  path,
+}: SymbolsOptions): Promise<FileSymbols | undefined> => {
+  if (path === undefined || !(await isFile(join(directory, path)))) return undefined;
+  return read(await readFile(join(directory, path), 'utf8'), path);
+};
+
+type SymbolsInOptions = {
+  readonly scratch: string;
+  readonly files: ReadonlyArray<MeasuredNode>;
+  readonly stacks: StacksReading['stacks'];
+  readonly stackOf: (id: string) => string;
+};
+
+const symbolsIn = async ({
+  scratch,
+  files,
+  stacks,
+  stackOf,
+}: SymbolsInOptions): Promise<Pick<RangeReading, 'symbols' | 'symbolsNotRead'>> => {
+  const symbolsReaderOf = (stack: string) =>
+    stacks.find(each => each.stack === stack)?.reader.symbols;
+  const sidedFiles = await Promise.all(
+    files.map(async ({ id, basePath, headPath }) => {
+      const read = symbolsReaderOf(stackOf(id));
+      if (read === undefined) return [];
+      const sides = await Promise.all([
+        symbolsAt({ directory: join(scratch, 'before'), read, path: basePath }),
+        symbolsAt({ directory: join(scratch, 'after'), read, path: headPath }),
+      ]).then(
+        ([before, after]) => ({ before, after }),
+        error => ({ unreadable: String(error) }),
+      );
+      if ('unreadable' in sides) return [{ node: id, ...sides }];
+      if (sides.before === undefined && sides.after === undefined) return [];
+      return [{ node: id, before: sides.before ?? NO_SYMBOLS, after: sides.after ?? NO_SYMBOLS }];
+    }),
+  );
+  const read = sidedFiles.flat();
+  return {
+    symbols: [
+      ...symbolChangesOf(read.filter(file => 'before' in file)),
+      ...read.filter(file => 'unreadable' in file),
+    ].map(file => ({ ...file, stack: stackOf(file.node) })),
+    symbolsNotRead: [
+      ...new Set(files.map(({ id }) => stackOf(id)).filter(stack => !symbolsReaderOf(stack))),
+    ],
+  };
+};
+
 const resolve = (repo: string, revision: string): Promise<string> =>
   git(repo, 'rev-parse', '--verify', '--quiet', `${revision}^{commit}`).catch(() => {
     throw new Error(`Unknown revision: ${revision}`);
@@ -254,6 +322,13 @@ export const readRange = async ({
         files: measured.map(({ id, headPath }) => ({ stack: stackOf(id), path: headPath })),
       }),
     };
+    const changed = new Set(diff.nodes.filter(node => node.state !== 'unchanged').map(n => n.id));
+    const { symbols, symbolsNotRead } = await symbolsIn({
+      scratch,
+      files: measured.filter(({ id }) => changed.has(id)),
+      stacks: [...before.stacks, ...after.stacks],
+      stackOf,
+    });
     const { churnDays, ...thresholds } = config.metrics;
     const churn = {
       before: await churnAt({
@@ -276,6 +351,8 @@ export const readRange = async ({
       after: after.graph,
       churn,
       measures,
+      symbols,
+      symbolsNotRead,
       danglingCalls: after.danglingCalls,
       skipped: skippedAcross([...before.skipped, ...after.skipped]),
       thresholds,

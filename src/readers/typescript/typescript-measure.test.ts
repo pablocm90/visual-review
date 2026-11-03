@@ -74,6 +74,7 @@ test('every function with a body is one, named by its declaration, key or the na
       '  save: function () {},',
       '};',
       'const arrow = () => 1;',
+      'const typed: Handler = () => 1;',
       'const expression = function inner() {};',
       'module.exports.handler = async () => {};',
       'const cast = (() => {}) as unknown as Handler;',
@@ -94,6 +95,7 @@ test('every function with a body is one, named by its declaration, key or the na
     'load',
     'save',
     'arrow',
+    'typed',
     'expression',
     'module.exports.handler',
     'cast',
@@ -119,11 +121,12 @@ test('an anonymous function is no function of its own, a named one inside anothe
 test('an anonymous function no function holds is named by the declaration, assignment or export it sits in', () => {
   expect(
     namesIn(
-      'const Button = forwardRef((props, ref) => { items.forEach(item => {}); });',
+      'const Button: FC = forwardRef((props, ref) => { items.forEach(item => {}); });',
       'exports.GET = withAuth(async req => {});',
       'export default memo(() => {});',
+      'export default class { handler = withAuth(() => {}); }',
     ),
-  ).toEqual(['Button', 'exports.GET', 'default']);
+  ).toEqual(['Button', 'exports.GET', 'default', 'default']);
 });
 
 const cyclomaticOf = (body: string, params = '') =>

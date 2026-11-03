@@ -50,7 +50,7 @@ const pageOf = (html: string) =>
 
 const reviewDataIn = (html: string) => pageOf(html).data;
 
-test('writes the review page for a range into .reviews/, with slashes in revision names made filename-safe, and its data beside it, naming the repo by its folder', async () => {
+test('writes the review page for a range into .reviews/, with slashes in revision names made filename-safe, and its data beside it, naming the repo by its folder and stamped with the versions of the parsers it read with', async () => {
   using workspace = cargoWorkspace();
   const { repo } = workspace;
   git(repo, 'switch', '--quiet', '--create', 'feature/cli');
@@ -68,6 +68,12 @@ test('writes the review page for a range into .reviews/, with slashes in revisio
       nodes: expect.arrayContaining([
         expect.objectContaining({ id: 'rust/crate/cli', state: 'added' }),
       ]),
+    },
+    parsers: {
+      '@babel/parser': expect.stringMatching(/^\d+\.\d+\.\d+/),
+      'tree-sitter-ruby': expect.stringMatching(/^\d+\.\d+\.\d+/),
+      'tree-sitter-rust': expect.stringMatching(/^\d+\.\d+\.\d+/),
+      'web-tree-sitter': expect.stringMatching(/^\d+\.\d+\.\d+/),
     },
   });
   expect(

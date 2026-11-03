@@ -30,6 +30,26 @@ export type FileMeasures = {
   readonly functions: ReadonlyArray<FunctionMeasures>;
 };
 
+export type SymbolKind = 'function' | 'method' | 'class' | 'type';
+
+export type ReadSymbol = {
+  readonly name: string;
+  readonly scope?: string;
+  readonly kind: SymbolKind;
+  readonly exported: boolean;
+  readonly signature: string;
+  readonly signatureHash: string;
+  readonly bodyHash: string;
+  readonly textHash: string;
+  readonly bodyTokens: ReadonlyArray<string>;
+};
+
+export type FileSymbols = {
+  readonly symbols: ReadonlyArray<ReadSymbol>;
+  readonly exports: ReadonlyArray<string>;
+  readonly astHash: string;
+};
+
 export type StackOptions = HoldsOptions & {
   readonly stack: string;
   readonly stacks: ReadonlyMap<string, string>;
@@ -47,7 +67,10 @@ export type StackOptions = HoldsOptions & {
  * reader's stacks is read, and the review lists them as skipped. `measure`, if it has one,
  * measures one of its files: its lines of code (not blank, not comment) and each function's
  * cyclomatic complexity and ABC parts; without it, its nodes get no complexity. A file it
- * measures as `undefined` is left unmeasured.
+ * measures as `undefined` is left unmeasured. `symbols`, if it has one, reads the symbols of one of
+ * its files (functions, methods, classes and types, with their signatures and body hashes) and the
+ * names the file exports; it throws on a file it can't parse. A file it reads as `undefined` has no
+ * symbols, as every file of a reader without one.
  */
 export interface Reader {
   readonly name: ReaderName;
@@ -59,4 +82,5 @@ export interface Reader {
   readonly isTestFile: (path: string) => boolean;
   readonly readTests: (text: string) => ReadonlyArray<ReadTest>;
   readonly measure?: (text: string, path: string) => FileMeasures | undefined;
+  readonly symbols?: (text: string, path: string) => FileSymbols | undefined;
 }

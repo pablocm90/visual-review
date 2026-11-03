@@ -4,7 +4,7 @@ import type { DanglingCall } from './linker.ts';
 import { metricFindings } from './metric-findings.ts';
 import { type NodeMetrics, nodeMetrics } from './metrics.ts';
 import { notesProblems, type ReviewNotes } from './notes.ts';
-import type { RangeReading } from './read-range.ts';
+import type { RangeReading, SymbolFile } from './read-range.ts';
 import type { Review } from './review.ts';
 import type { Skipped } from './skipped.ts';
 import type { TestFile } from './test-changes.ts';
@@ -19,6 +19,7 @@ export type PageData = {
   readonly repo: string;
   readonly range: string;
   readonly version: string;
+  readonly parsers: Readonly<Record<string, string>>;
   readonly pullRequest?: PullRequest;
   readonly diff: GraphDiff;
   readonly metrics: Readonly<Record<string, NodeMetrics>>;
@@ -27,6 +28,7 @@ export type PageData = {
   readonly patches: ReadonlyArray<FilePatch>;
   readonly undrawn: ReadonlyArray<FilePatch>;
   readonly tests: ReadonlyArray<TestFile>;
+  readonly symbols: ReadonlyArray<SymbolFile>;
   readonly skipped: ReadonlyArray<Skipped>;
   readonly thresholds: RangeReading['thresholds'];
   readonly churnDays: number;
@@ -37,6 +39,7 @@ type PageDataOptions = {
   readonly repo: string;
   readonly range: string;
   readonly version: string;
+  readonly parsers: PageData['parsers'];
   readonly pullRequest?: PullRequest | undefined;
 };
 
@@ -47,6 +50,7 @@ export const pageData = ({
   repo,
   range,
   version,
+  parsers,
   pullRequest,
 }: PageDataOptions): PageData => {
   const diff = diffGraphs(reading);
@@ -58,6 +62,7 @@ export const pageData = ({
     repo,
     range,
     version,
+    parsers,
     ...(pullRequest === undefined ? {} : { pullRequest }),
     diff,
     metrics,
@@ -66,11 +71,15 @@ export const pageData = ({
       undrawn,
       dangling: reading.danglingCalls,
       metricFindings: metricFindings({ metrics, thresholds: reading.thresholds }),
+      symbols: reading.symbols,
+      symbolsNotRead: reading.symbolsNotRead,
+      nodes: diff.nodes,
     }),
     dangling: reading.danglingCalls,
     patches: reading.patches.filter(isDrawn),
     undrawn,
     tests: reading.tests,
+    symbols: reading.symbols,
     skipped: reading.skipped,
     thresholds: reading.thresholds,
     churnDays: reading.churnDays,

@@ -2,13 +2,14 @@ import {
   type KeyboardEvent,
   type MouseEvent,
   type PointerEvent,
+  type ReactNode,
   useEffect,
   useEffectEvent,
   useMemo,
   useRef,
   useState,
 } from 'react';
-import type { FilePatch, GraphDiff } from '../core/diff-graphs.ts';
+import type { DiffedNode, FilePatch, GraphDiff } from '../core/diff-graphs.ts';
 import { isAtOrUnder } from '../core/diff-graphs.ts';
 import { type Dimension, type Finding, findingsAt, findingsOf } from '../core/findings.ts';
 import { edgeId } from '../core/graph.ts';
@@ -16,10 +17,12 @@ import { type MetricFinding, metricFindings } from '../core/metric-findings.ts';
 import type { NodeMetrics } from '../core/metrics.ts';
 import { type Note, type ReviewNotes, visibleNotes } from '../core/notes.ts';
 import { type PageData, UNCOMMITTED } from '../core/page.ts';
+import type { SymbolFile } from '../core/read-range.ts';
 import type { Review } from '../core/review.ts';
 import type { TestFile } from '../core/test-changes.ts';
 import { testsAlongside } from '../core/tests-alongside.ts';
 import {
+  boxesAboveIn,
   expandedToShow,
   isDrawn,
   mergedDiff,
@@ -40,6 +43,7 @@ import {
 } from './layout.ts';
 import { MetricsScreen } from './metrics-screen.tsx';
 import { MetricsTable } from './metrics-tab.tsx';
+import { changedSymbolCount, hasSymbolNews, SymbolsOf } from './symbols-tab.tsx';
 import { changedCount, TestFiles, TestsScreen } from './tests-screen.tsx';
 import {
   boxOf,
@@ -153,7 +157,7 @@ type Drawing = {
   readonly expanded: ReadonlySet<string>;
   readonly onToggle: (id: string) => void;
   readonly unroutedOf: (id: string) => ReadonlyArray<string>;
-  readonly shadeOf: (id: string) => Shade | undefined;
+  readonly shadeOf: (node: DiffedNode) => Shade | undefined;
 };
 
 type ToggleProps = {
@@ -181,7 +185,7 @@ const NodeView = ({ node, drawing }: { readonly node: PlacedNode; readonly drawi
   const { notes, onSelect, register, expandable, expanded, onToggle, unroutedOf, shadeOf } =
     drawing;
   const unrouted = unroutedOf(node.id);
-  const shade = shadeOf(node.id);
+  const shade = shadeOf(node);
   const found = drawing.findingsOn(node.id);
   const toggle = expandable.has(node.id) && (
     <Toggle node={node} expanded={expanded.has(node.id)} onToggle={onToggle} />
@@ -485,6 +489,8 @@ type InspectorProps = {
   readonly found: ReadonlyArray<Finding>;
   readonly patches: ReadonlyArray<FilePatch>;
   readonly tests: ReadonlyArray<TestFile>;
+  readonly symbols: ReadonlyArray<SymbolFile>;
+  readonly onGoTo: (id: string) => void;
   readonly comment: string;
   readonly onComment: ((text: string) => void) | undefined;
   readonly commentable: boolean;
@@ -492,101 +498,164 @@ type InspectorProps = {
   readonly onClose: () => void;
 };
 
-type InspectorTab = 'note' | 'metrics' | 'diff' | 'tests';
+type InspectorTab = 'note' | 'metrics' | 'diff' | 'tests' | 'symbols';
 
 const INSPECTOR_TABS: Readonly<Record<InspectorTab, string>> = {
   note: 'Note',
   metrics: 'Metrics',
   diff: 'Diff',
   tests: 'Tests',
+  symbols: 'Symbols',
 };
 
-const Inspector = ({
+type Section = {
+  readonly tab: InspectorTab;
+  readonly count?: number;
+  readonly panel: ReactNode;
+};
+
+type NodeSectionsOptions = Pick<
+  InspectorProps,
+  'nodes' | 'metrics' | 'findings' | 'tests' | 'symbols' | 'onGoTo'
+> & { readonly node: DiffNode };
+
+const nodeSections = ({
   nodes,
   node,
   metrics,
   findings,
-  note,
-  found,
-  patches,
   tests,
-  comment,
-  onComment,
-  commentable,
-  width,
-  onClose,
-}: InspectorProps) => {
-  const [picked, setPicked] = useState<InspectorTab>('note');
-  const testsHere = node ? testsAlongside({ nodes, node, tests }) : [];
-  const measured = node && metrics[node.id];
-  const offered: ReadonlyArray<InspectorTab> = [
-    'note',
-    ...(measured ? ['metrics' as const] : []),
-    ...(patches.length > 0 ? ['diff' as const] : []),
-    ...(testsHere.length > 0 ? ['tests' as const] : []),
+  symbols,
+  onGoTo,
+}: NodeSectionsOptions): ReadonlyArray<Section> => {
+  const measured = metrics[node.id];
+  const testsHere = testsAlongside({ nodes, node, tests });
+  const boxesAbove = boxesAboveIn(nodes);
+  const symbolsHere = symbols.filter(
+    file => file.node === node.id || boxesAbove(file.node).includes(node.id),
+  );
+  const symbolCount = changedSymbolCount(symbolsHere);
+  return [
+    ...(measured
+      ? [
+          {
+            tab: 'metrics' as const,
+            panel: (
+              <MetricsTable
+                metrics={measured}
+                findings={findings.filter(finding => finding.node === node.id)}
+              />
+            ),
+          },
+        ]
+      : []),
+    ...(testsHere.length > 0
+      ? [
+          {
+            tab: 'tests' as const,
+            count: changedCount(testsHere),
+            panel: (
+              <div className="tests">
+                <TestFiles files={testsHere} nodes={nodes} />
+              </div>
+            ),
+          },
+        ]
+      : []),
+    ...(symbolsHere.some(hasSymbolNews)
+      ? [
+          {
+            tab: 'symbols' as const,
+            ...(symbolCount > 0 && { count: symbolCount }),
+            panel: (
+              <div className="symbols">
+                <SymbolsOf node={node} files={symbolsHere} nodes={nodes} onGoTo={onGoTo} />
+              </div>
+            ),
+          },
+        ]
+      : []),
   ];
-  const shown = offered.includes(picked) ? picked : 'note';
+};
+
+type NotePanelProps = Pick<
+  InspectorProps,
+  'note' | 'found' | 'comment' | 'onComment' | 'commentable'
+>;
+
+const NotePanel = ({ note, found, comment, onComment, commentable }: NotePanelProps) => (
+  <>
+    {found.length > 0 && (
+      <ul className="note-findings" aria-label="Findings">
+        {found.map(finding => (
+          <li key={finding.id}>
+            <LevelMark level={finding.level} />
+            {findingLine(finding)}
+          </li>
+        ))}
+      </ul>
+    )}
+    <p>{note?.text ?? 'No note'}</p>
+    {onComment &&
+      (commentable ? (
+        <label className="comment">
+          Your comment
+          <textarea value={comment} onChange={event => onComment(event.target.value)} />
+        </label>
+      ) : (
+        <p>Drawn for several edges: open its ends to comment on one of them.</p>
+      ))}
+  </>
+);
+
+const SECTION_ORDER = Object.keys(INSPECTOR_TABS);
+
+const Inspector = ({ node, patches, width, onClose, ...props }: InspectorProps) => {
+  const [picked, setPicked] = useState<InspectorTab>('note');
+  const sections: ReadonlyArray<Section> = [
+    { tab: 'note' as const, panel: <NotePanel {...props} /> },
+    ...(patches.length > 0
+      ? [
+          {
+            tab: 'diff' as const,
+            panel: (
+              <section className="changes" aria-label="Changes">
+                {patches.map(patch => (
+                  <Patch key={patch.path} {...patch} open={node?.kind === 'file'} />
+                ))}
+              </section>
+            ),
+          },
+        ]
+      : []),
+    ...(node ? nodeSections({ ...props, node }) : []),
+  ].toSorted((a, b) => SECTION_ORDER.indexOf(a.tab) - SECTION_ORDER.indexOf(b.tab));
+  const shown = sections.find(({ tab }) => tab === picked) ?? sections[0];
   return (
     <aside className="note" aria-label="Inspector" style={{ width }}>
       <button type="button" className="close" aria-label="Close inspector" onClick={onClose}>
         ×
       </button>
-      {node && <InspectorHead nodes={nodes} node={node} />}
+      {node && <InspectorHead nodes={props.nodes} node={node} />}
       <div className="inspector-tabs" role="tablist" aria-label="Inspector sections">
-        {offered.map(tab => (
+        {sections.map(({ tab, count }) => (
           <button
             key={tab}
             type="button"
             role="tab"
-            aria-selected={tab === shown}
+            aria-selected={tab === shown?.tab}
             onClick={() => setPicked(tab)}
           >
             {INSPECTOR_TABS[tab]}
-            {tab === 'tests' && ` ${changedCount(testsHere)}`}
+            {count !== undefined && ` ${count}`}
           </button>
         ))}
       </div>
-      <div role="tabpanel" aria-label={INSPECTOR_TABS[shown]}>
-        {shown === 'note' ? (
-          <>
-            {found.length > 0 && (
-              <ul className="note-findings" aria-label="Findings">
-                {found.map(finding => (
-                  <li key={finding.id}>
-                    <LevelMark level={finding.level} />
-                    {findingLine(finding)}
-                  </li>
-                ))}
-              </ul>
-            )}
-            <p>{note?.text ?? 'No note'}</p>
-            {onComment &&
-              (commentable ? (
-                <label className="comment">
-                  Your comment
-                  <textarea value={comment} onChange={event => onComment(event.target.value)} />
-                </label>
-              ) : (
-                <p>Drawn for several edges: open its ends to comment on one of them.</p>
-              ))}
-          </>
-        ) : shown === 'metrics' && measured ? (
-          <MetricsTable
-            metrics={measured}
-            findings={findings.filter(finding => finding.node === node?.id)}
-          />
-        ) : shown === 'diff' ? (
-          <section className="changes" aria-label="Changes">
-            {patches.map(patch => (
-              <Patch key={patch.path} {...patch} open={node?.kind === 'file'} />
-            ))}
-          </section>
-        ) : (
-          <div className="tests">
-            <TestFiles files={testsHere} nodes={nodes} />
-          </div>
-        )}
-      </div>
+      {shown && (
+        <div role="tabpanel" aria-label={INSPECTOR_TABS[shown.tab]}>
+          {shown.panel}
+        </div>
+      )}
     </aside>
   );
 };
@@ -625,6 +694,7 @@ type SidePanelProps = {
   readonly graphLeft: () => number;
   readonly onCloseOutside: () => void;
   readonly onCloseInspector: (id: string) => void;
+  readonly onGoTo: (id: string) => void;
 };
 
 const SidePanel = ({
@@ -641,6 +711,7 @@ const SidePanel = ({
   graphLeft,
   onCloseOutside,
   onCloseInspector,
+  onGoTo,
 }: SidePanelProps) => {
   const patches = outside
     ? review.undrawn
@@ -696,6 +767,8 @@ const SidePanel = ({
         found={found}
         patches={patches}
         tests={review.tests}
+        symbols={review.symbols}
+        onGoTo={onGoTo}
         comment={comments[selected] ?? ''}
         onComment={onComment && (text => onComment(selected, text))}
         commentable={
@@ -1057,6 +1130,7 @@ export const ReviewPage = ({ review, notes, send }: ReviewPageProps) => {
   const labelOf = new Map(visible.nodes.map(node => [node.id, node.label]));
   const dangling = review.dangling;
   const visibleOf = visibleNodeOf({ diff: review.diff, expanded });
+  const boxesAbove = boxesAboveIn(review.diff.nodes);
   const placedFindings = findingsAt({ diff: review.diff, expanded, findings });
   const drawing = {
     findingsOn: (id: string) => placedFindings.get(id) ?? [],
@@ -1069,7 +1143,16 @@ export const ReviewPage = ({ review, notes, send }: ReviewPageProps) => {
     onToggle: toggle,
     unroutedOf: (id: string) =>
       dangling.filter(call => visibleOf(call.from) === id).map(call => call.path),
-    shadeOf: (id: string) => shadeOf(colouring, review.metrics[id]),
+    shadeOf: ({ id, state }: DiffedNode) =>
+      shadeOf(colouring, {
+        metrics: review.metrics[id],
+        changed: state !== 'unchanged',
+        kinds: review.symbols.flatMap(file =>
+          (file.node === id || boxesAbove(file.node).includes(id)) && 'kind' in file
+            ? [file.kind]
+            : [],
+        ),
+      }),
   };
   const selectedNode = review.diff.nodes.find(node => node.id === selected);
   const selectedNote = selected === undefined ? undefined : shown[selected];
@@ -1244,6 +1327,7 @@ export const ReviewPage = ({ review, notes, send }: ReviewPageProps) => {
               graphLeft={graphLeft}
               onCloseOutside={closeOutside}
               onCloseInspector={closeInspector}
+              onGoTo={goTo}
             />
           </div>
         </>

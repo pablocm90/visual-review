@@ -1,11 +1,13 @@
 import type { FilePatch, GraphDiff } from './diff-graphs.ts';
-import { endsOfId } from './graph.ts';
+import { endsOfId, type GraphNode } from './graph.ts';
 import type { DanglingCall } from './linker.ts';
 import type { MetricFinding } from './metric-findings.ts';
 import { type NodeMetrics, tenths } from './metrics.ts';
 import type { ReviewNotes } from './notes.ts';
 import type { PageData } from './page.ts';
+import type { SymbolFile } from './read-range.ts';
 import { notReadLine, type Skipped } from './skipped.ts';
+import { symbolFindings } from './symbol-findings.ts';
 import { visibleNodeOf } from './visible-diff.ts';
 
 export const DIMENSIONS = [
@@ -61,6 +63,9 @@ type RaisedOptions = {
   readonly undrawn: ReadonlyArray<FilePatch>;
   readonly dangling: ReadonlyArray<DanglingCall>;
   readonly metricFindings: ReadonlyArray<MetricFinding>;
+  readonly symbols: ReadonlyArray<SymbolFile>;
+  readonly symbolsNotRead: ReadonlyArray<string>;
+  readonly nodes: ReadonlyArray<GraphNode>;
 };
 
 export const skippedFindingId = (skip: Skipped) => `structure:skipped:${skip.reader}`;
@@ -70,6 +75,9 @@ export const raisedFindings = ({
   undrawn,
   dangling,
   metricFindings,
+  symbols,
+  symbolsNotRead,
+  nodes,
 }: RaisedOptions): ReadonlyArray<Finding> => [
   ...skipped.map(
     (skip): Finding => ({
@@ -107,6 +115,16 @@ export const raisedFindings = ({
       level: finding.level,
       target: finding.node,
       title: metricTitle(finding),
+    }),
+  ),
+  ...symbolFindings({ files: symbols, nodes }),
+  ...symbolsNotRead.map(
+    (stack): Finding => ({
+      id: `structure:symbols-not-read:${stack}`,
+      dimension: 'structure',
+      level: 'info',
+      target: stack,
+      title: `symbols not read for ${stack}`,
     }),
   ),
 ];

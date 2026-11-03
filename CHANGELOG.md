@@ -2,6 +2,20 @@
 
 What changed in each release of `@pablocm90/visual-review`, newest first. Versions follow [semver](https://semver.org); while it is 0.x, a minor version may change the exported types.
 
+## 0.8.0 — 2026-11-02
+
+### Added
+
+- The TS reader reads each changed file's symbols on both sides, functions, methods, classes, types, interfaces and enums, and the review pairs them: added, removed, edited, formatting only, renamed (probably, when only the bodies are alike) or moved between changed files, with both signatures when one changed. The review data's `symbols` lists them per file, with the export names added and removed and the file's kind of change (`api`, `logic` or `formatting`), or `unreadable` with the parser's message. A `Reader` may read symbols through an optional `symbols`.
+- `parsers` in the review data names the parser packages the CLI read with, and their versions.
+- Findings in the `api` dimension: an exported symbol removed, renamed or moved away, or whose signature changed, needs a look; one added is for information; export names changed with no symbol behind them are one finding on the file. A file whose symbols wouldn't parse, and a stack with changed files whose reader reads no symbols, are `structure` findings for information.
+- The inspector's **Symbols** tab lists a part's changed symbols grouped by change, API changes first, with signatures base above head, what a symbol was renamed from and where it moved (a link to that file), and whether it is exported; on a box, each file inside it.
+- **Colour by Kind of change** shades each changed part API change, logic change or formatting only, a box by the strongest inside it, and names "symbols not read" where none were read.
+
+### Fixed
+
+- A function held by a typed const (`const handler: Handler = () => {}`) is named `handler` in the Metrics tab and its findings, not `handler: Handler`.
+
 ## 0.7.0 — 2026-11-02
 
 ### Added

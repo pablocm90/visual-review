@@ -1894,3 +1894,123 @@ pre .hljs-emphasis {
 .note-findings .level-mark {
   margin: 0 6px 0 0;
 }
+
+.symbol-file h3 {
+  margin: 14px 0 2px;
+  font:
+    600 13px ui-monospace,
+    "SF Mono",
+    Menlo,
+    monospace;
+}
+
+.symbol-group h4 {
+  margin: 12px 0 4px;
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.symbol-group ul {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 12.5px;
+}
+
+.symbols .symbol-group code,
+.signature del,
+.signature ins {
+  font:
+    12.5px ui-monospace,
+    "SF Mono",
+    Menlo,
+    monospace;
+}
+
+.symbol-group .kind {
+  display: inline-block;
+  min-width: 5.5em;
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.symbol-group summary {
+  margin-top: 12px;
+  color: var(--muted);
+  font-size: 12.5px;
+  cursor: pointer;
+}
+
+.symbol-group .origin {
+  color: var(--muted);
+}
+
+.go-to {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.signature {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin: 4px 0 0 5.5em;
+  overflow-wrap: anywhere;
+}
+
+.signature del {
+  padding: 1px 4px;
+  border-radius: 3px;
+  background: var(--removed-fill);
+  color: var(--removed);
+}
+
+.signature ins {
+  padding: 1px 4px;
+  border-radius: 3px;
+  background: var(--added-fill);
+  color: var(--added);
+  text-decoration: none;
+}
+
+.unreadable {
+  margin: 8px 0;
+  color: var(--removed);
+  overflow-wrap: anywhere;
+}
+
+[data-colouring="kind"] [data-step="0"] {
+  --step-fill: var(--ramp-3);
+  --step-ink: var(--ramp-3-ink);
+}
+
+[data-colouring="kind"] [data-step="1"] {
+  --step-fill: var(--ramp-2);
+  --step-ink: var(--ink);
+}
+
+[data-colouring="kind"] [data-step="2"] {
+  --step-fill: var(--ramp-0);
+  --step-ink: var(--ink);
+}
+
+[data-colouring="kind"] [data-step="3"] {
+  --step-fill: var(--unchanged-fill);
+  --step-ink: var(--muted);
+}
+
+.symbol-group .export-mark {
+  color: var(--muted);
+  font-size: 11px;
+}

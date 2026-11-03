@@ -6,7 +6,9 @@ import type { GraphDiff } from '../core/diff-graphs.ts';
 import { raisedFindings } from '../core/findings.ts';
 import type { ReviewNotes } from '../core/notes.ts';
 import type { PageData } from '../core/page.ts';
+import type { SymbolFile } from '../core/read-range.ts';
 import type { Skipped } from '../core/skipped.ts';
+import type { KindOfChange, SymbolStatement } from '../core/symbol-changes.ts';
 import { findingOn, measured, pageWith } from '../test-support/page-data.ts';
 import { layoutDiff } from './layout.ts';
 import { ReviewPage } from './review-page.tsx';
@@ -1034,7 +1036,15 @@ test('a reader skipped for want of its tool is named once, at the top of the fin
       review={pageWith({
         ...review,
         skipped,
-        findings: raisedFindings({ skipped, undrawn: [], dangling: [], metricFindings: [] }),
+        findings: raisedFindings({
+          skipped,
+          undrawn: [],
+          dangling: [],
+          metricFindings: [],
+          symbols: [],
+          symbolsNotRead: [],
+          nodes: [],
+        }),
       })}
     />,
   );
@@ -2711,4 +2721,477 @@ test("on Complexity each node is named with its head's highest cyclomatic and th
     'legacy: removed',
     'audit: modified',
   ]);
+});
+
+const topFile = (label: string, state: Diffed = 'unchanged') => ({
+  id: `web/file/${label}`,
+  kind: 'file' as const,
+  label,
+  parent: 'web',
+  path: `web/src/${label}`,
+  state,
+});
+
+const symbolsOf = (node: string, symbols: ReadonlyArray<SymbolStatement>): SymbolFile => ({
+  node,
+  stack: 'web',
+  symbols,
+  exports: { added: [], removed: [] },
+  kind: 'logic',
+});
+
+test('on Kind of change a changed file is named with the strongest kind of its symbol changes: API change, logic change or formatting only; a changed file with no symbols read as symbols not read, an unchanged one with nothing', async () => {
+  const user = userEvent.setup();
+  const kinded = (node: string, kind: KindOfChange) => ({ ...symbolsOf(node, []), kind });
+  render(
+    <ReviewPage
+      review={pageWith({
+        range: 'abc123..def456',
+        diff: {
+          nodes: [
+            { id: 'web', kind: 'stack', label: 'web', path: '', state: 'unchanged' },
+            topFile('api.ts', 'modified'),
+            topFile('logic.ts', 'modified'),
+            topFile('format.ts', 'modified'),
+            topFile('styles.css', 'modified'),
+            topFile('same.ts'),
+          ],
+          edges: [webImport('api.ts', 'same.ts', 'unchanged')],
+        },
+        symbols: [
+          kinded('web/file/api.ts', 'api'),
+          kinded('web/file/logic.ts', 'logic'),
+          kinded('web/file/format.ts', 'formatting'),
+        ],
+      })}
+    />,
+  );
+  const web = await screen.findByRole('group', { name: 'web' });
+
+  await user.click(colourBy('Kind of change'));
+  expect(colourBy('Kind of change').getAttribute('aria-pressed')).toBe('true');
+  expect(screen.queryByRole('list', { name: 'Legend' })).toBeNull();
+  expect(scaleSteps()).toEqual([
+    'API change',
+    'logic change',
+    'formatting only',
+    'symbols not read',
+  ]);
+  expect(buttonsIn(web)).toEqual([
+    'api.ts → same.ts: unchanged',
+    'api.ts: modified, API change',
+    'logic.ts: modified, logic change',
+    'format.ts: modified, formatting only',
+    'styles.css: modified, symbols not read',
+    'same.ts: unchanged',
+  ]);
+});
+
+test('on Kind of change a closed box is named with the strongest kind among the files inside it', async () => {
+  const user = userEvent.setup();
+  const kinded = (node: string, kind: KindOfChange) => ({ ...symbolsOf(node, []), kind });
+  render(
+    <ReviewPage
+      review={pageWith({
+        range: 'abc123..def456',
+        diff: {
+          nodes: [
+            { id: 'web', kind: 'stack', label: 'web', path: '', state: 'unchanged' },
+            webModule('checkout', 'modified'),
+            webFile('checkout', 'pay.ts', 'modified'),
+            webFile('checkout', 'api.ts', 'modified'),
+            webModule('cart', 'modified'),
+            webFile('cart', 'total.ts', 'modified'),
+            webFile('cart', 'line.ts', 'modified'),
+          ],
+          edges: [],
+        },
+        symbols: [
+          kinded('web/file/checkout/pay.ts', 'logic'),
+          kinded('web/file/checkout/api.ts', 'api'),
+          kinded('web/file/cart/total.ts', 'formatting'),
+          kinded('web/file/cart/line.ts', 'logic'),
+        ],
+      })}
+    />,
+  );
+  const web = await screen.findByRole('group', { name: 'web' });
+
+  await user.click(colourBy('Kind of change'));
+  expect(buttonsIn(web)).toEqual([
+    'checkout: modified, API change',
+    'Expand checkout',
+    'cart: modified, logic change',
+    'Expand cart',
+  ]);
+});
+
+const symbolGroups = () =>
+  within(screen.getByRole('tabpanel', { name: 'Symbols' }))
+    .getAllByRole('list')
+    .map(list => [
+      list.getAttribute('aria-label'),
+      within(list)
+        .getAllByRole('listitem')
+        .map(item => item.getAttribute('aria-label')),
+    ]);
+
+test("a file's Symbols tab lists its changed symbols grouped by change, counting them on the tab, its unchanged and formatting-only ones collapsed under a count, and is left out on a node with no symbol changes", async () => {
+  const user = userEvent.setup();
+  render(
+    <ReviewPage
+      review={pageWith({
+        range: 'abc123..def456',
+        diff: {
+          nodes: [
+            { id: 'web', kind: 'stack', label: 'web', path: '', state: 'unchanged' },
+            topFile('refund.ts', 'modified'),
+            topFile('total.ts', 'modified'),
+          ],
+          edges: [],
+        },
+        symbols: [
+          symbolsOf('web/file/refund.ts', [
+            {
+              name: 'refund',
+              kind: 'function',
+              exported: { base: false, head: false },
+              change: 'edited',
+            },
+            { name: 'Refunds', kind: 'class', exported: { head: false }, change: 'added' },
+            {
+              name: 'void',
+              scope: 'Refunds',
+              kind: 'method',
+              exported: { head: false },
+              change: 'added',
+            },
+            { name: 'cancel', kind: 'function', exported: { base: false }, change: 'removed' },
+            {
+              name: 'round',
+              kind: 'function',
+              exported: { base: false, head: false },
+              change: 'unchanged',
+            },
+            {
+              name: 'format',
+              kind: 'function',
+              exported: { base: false, head: false },
+              change: 'formatting',
+            },
+          ]),
+        ],
+      })}
+    />,
+  );
+
+  await user.click(await screen.findByRole('button', { name: 'refund.ts: modified' }));
+  await user.click(within(inspector()).getByRole('tab', { name: 'Symbols 4' }));
+  expect(symbolGroups()).toEqual([
+    ['Edited', ['function refund: edited']],
+    ['Added', ['class Refunds: added', 'method Refunds.void: added']],
+    ['Removed', ['function cancel: removed']],
+    ['Unchanged', ['function round: unchanged', 'function format: formatting']],
+  ]);
+  expect(
+    within(screen.getByRole('tabpanel', { name: 'Symbols' })).queryAllByRole('region'),
+  ).toEqual([]);
+  expect(
+    within(screen.getByRole('tabpanel', { name: 'Symbols' })).getByText('2 unchanged'),
+  ).toBeTruthy();
+  await user.click(screen.getByRole('button', { name: 'total.ts: modified' }));
+  expect(inspectorTabs()).toEqual(['Note']);
+});
+
+test("a file's Symbols tab lists its API changes first: exported symbols added, removed, renamed, moved, un-exported or whose signature changed, a changed signature shown base then head, each symbol marked exported, now exported or no longer exported", async () => {
+  const user = userEvent.setup();
+  const exported = (base?: boolean, head?: boolean) => ({
+    ...(base !== undefined && { base }),
+    ...(head !== undefined && { head }),
+  });
+  render(
+    <ReviewPage
+      review={pageWith({
+        range: 'abc123..def456',
+        diff: {
+          nodes: [
+            { id: 'web', kind: 'stack', label: 'web', path: '', state: 'unchanged' },
+            topFile('refund.ts', 'modified'),
+          ],
+          edges: [],
+        },
+        symbols: [
+          symbolsOf('web/file/refund.ts', [
+            {
+              name: 'charge',
+              kind: 'function',
+              exported: exported(true, true),
+              change: 'edited',
+              signature: { base: '()', head: '(at: Date)' },
+            },
+            { name: 'total', kind: 'function', exported: exported(true, true), change: 'edited' },
+            { name: 'old', kind: 'function', exported: exported(true), change: 'removed' },
+            { name: 'refund', kind: 'function', exported: exported(true, false), change: 'edited' },
+            {
+              name: 'tax',
+              kind: 'function',
+              exported: exported(true),
+              change: 'moved',
+              movedTo: 'web/file/tax.ts',
+            },
+            {
+              name: 'helper',
+              kind: 'function',
+              exported: exported(undefined, false),
+              change: 'added',
+            },
+            { name: 'fee', kind: 'function', exported: exported(false, true), change: 'edited' },
+            {
+              name: 'checkout',
+              kind: 'function',
+              exported: exported(undefined, true),
+              change: 'added',
+            },
+          ]),
+        ],
+      })}
+    />,
+  );
+
+  await user.click(await screen.findByRole('button', { name: 'refund.ts: modified' }));
+  await user.click(within(inspector()).getByRole('tab', { name: 'Symbols 8' }));
+  expect(symbolGroups()).toEqual([
+    [
+      'API',
+      [
+        'function charge, exported: edited',
+        'function old, exported: removed',
+        'function refund, no longer exported: edited',
+        'function tax, exported: moved',
+        'function fee, now exported: edited',
+        'function checkout, exported: added',
+      ],
+    ],
+    ['Edited', ['function total, exported: edited']],
+    ['Added', ['function helper: added']],
+  ]);
+  const charge = screen.getByRole('listitem', { name: 'function charge, exported: edited' });
+  expect(within(charge).getByRole('deletion').textContent).toBe('()');
+  expect(within(charge).getByRole('insertion').textContent).toBe('(at: Date)');
+  const total = screen.getByRole('listitem', { name: 'function total, exported: edited' });
+  expect(total.textContent).toBe('function total exported');
+  expect(
+    screen.getByRole('listitem', { name: 'function refund, no longer exported: edited' })
+      .textContent,
+  ).toBe('function refund no longer exported');
+  expect(screen.getByRole('listitem', { name: 'function helper: added' }).textContent).toBe(
+    'function helper',
+  );
+  expect(within(total).queryByRole('deletion')).toBeNull();
+});
+
+test('a renamed symbol says what it was renamed from, probably when its body changed too', async () => {
+  const user = userEvent.setup();
+  render(
+    <ReviewPage
+      review={pageWith({
+        range: 'abc123..def456',
+        diff: {
+          nodes: [
+            { id: 'web', kind: 'stack', label: 'web', path: '', state: 'unchanged' },
+            topFile('refund.ts', 'modified'),
+          ],
+          edges: [],
+        },
+        symbols: [
+          symbolsOf('web/file/refund.ts', [
+            {
+              name: 'settle',
+              kind: 'function',
+              exported: { base: false, head: false },
+              change: 'renamed',
+              renamedFrom: 'pay',
+            },
+            {
+              name: 'void',
+              scope: 'Refunds',
+              kind: 'method',
+              exported: { base: false, head: false },
+              change: 'renamed',
+              renamedFrom: 'Refunds.cancel',
+              probably: true,
+            },
+          ]),
+        ],
+      })}
+    />,
+  );
+
+  await user.click(await screen.findByRole('button', { name: 'refund.ts: modified' }));
+  await user.click(within(inspector()).getByRole('tab', { name: 'Symbols 2' }));
+  expect(screen.getByRole('listitem', { name: 'function settle: renamed' }).textContent).toBe(
+    'function settle renamed from pay',
+  );
+  expect(screen.getByRole('listitem', { name: 'method Refunds.void: renamed' }).textContent).toBe(
+    'method Refunds.void probably renamed from Refunds.cancel',
+  );
+});
+
+test('a moved symbol names the file it moved to or from, and goes to that file', async () => {
+  const user = userEvent.setup();
+  const moved = {
+    name: 'tax',
+    kind: 'function' as const,
+    exported: { base: false, head: false },
+    change: 'moved' as const,
+  };
+  render(
+    <ReviewPage
+      review={pageWith({
+        range: 'abc123..def456',
+        diff: {
+          nodes: [
+            { id: 'web', kind: 'stack', label: 'web', path: '', state: 'unchanged' },
+            topFile('refund.ts', 'modified'),
+            topFile('tax.ts', 'modified'),
+          ],
+          edges: [],
+        },
+        symbols: [
+          symbolsOf('web/file/refund.ts', [{ ...moved, movedTo: 'web/file/tax.ts' }]),
+          symbolsOf('web/file/tax.ts', [{ ...moved, movedFrom: 'web/file/refund.ts' }]),
+        ],
+      })}
+    />,
+  );
+
+  await user.click(await screen.findByRole('button', { name: 'refund.ts: modified' }));
+  await user.click(within(inspector()).getByRole('tab', { name: 'Symbols 1' }));
+  const movedTo = screen.getByRole('listitem', { name: 'function tax: moved' });
+  expect(movedTo.textContent).toBe('function tax moved to tax.ts');
+  await user.click(within(movedTo).getByRole('button', { name: 'tax.ts' }));
+  expect(within(inspector()).getByRole('heading', { level: 2 }).textContent).toBe('tax.ts');
+  const movedFrom = screen.getByRole('listitem', { name: 'function tax: moved' });
+  expect(movedFrom.textContent).toBe('function tax moved from refund.ts');
+  await user.click(within(movedFrom).getByRole('button', { name: 'refund.ts' }));
+  expect(within(inspector()).getByRole('heading', { level: 2 }).textContent).toBe('refund.ts');
+});
+
+test("a box's Symbols tab lists each file inside it with symbol changes, each with its own groups", async () => {
+  const user = userEvent.setup();
+  const inBilling = (label: string) => ({
+    ...topFile(label, 'modified'),
+    parent: 'web/module/billing',
+    path: `web/src/billing/${label}`,
+  });
+  const symbol = (name: string, change: SymbolStatement['change']): SymbolStatement => ({
+    name,
+    kind: 'function',
+    exported: { base: false, head: false },
+    change,
+  });
+  render(
+    <ReviewPage
+      review={pageWith({
+        range: 'abc123..def456',
+        diff: {
+          nodes: [
+            { id: 'web', kind: 'stack', label: 'web', path: '', state: 'unchanged' },
+            {
+              id: 'web/module/billing',
+              kind: 'module',
+              label: 'billing',
+              parent: 'web',
+              path: 'web/src/billing',
+              state: 'modified',
+            },
+            inBilling('refund.ts'),
+            inBilling('tax.ts'),
+            inBilling('total.ts'),
+            topFile('outside.ts', 'modified'),
+          ],
+          edges: [],
+        },
+        symbols: [
+          symbolsOf('web/file/refund.ts', [symbol('refund', 'edited')]),
+          symbolsOf('web/file/tax.ts', [symbol('tax', 'added'), symbol('round', 'unchanged')]),
+          symbolsOf('web/file/total.ts', [symbol('total', 'unchanged')]),
+          symbolsOf('web/file/outside.ts', [symbol('outside', 'edited')]),
+        ],
+      })}
+    />,
+  );
+
+  await user.click(await screen.findByRole('button', { name: 'billing: modified' }));
+  await user.click(within(inspector()).getByRole('tab', { name: 'Symbols 2' }));
+  const files = within(screen.getByRole('tabpanel', { name: 'Symbols' })).getAllByRole('region');
+  expect(
+    files.map(file => [
+      file.getAttribute('aria-label'),
+      within(file)
+        .getAllByRole('list')
+        .map(list => [
+          list.getAttribute('aria-label'),
+          within(list)
+            .getAllByRole('listitem')
+            .map(item => item.getAttribute('aria-label')),
+        ]),
+    ]),
+  ).toEqual([
+    ['refund.ts', [['Edited', ['function refund: edited']]]],
+    [
+      'tax.ts',
+      [
+        ['Added', ['function tax: added']],
+        ['Unchanged', ['function round: unchanged']],
+      ],
+    ],
+  ]);
+});
+
+test("a file whose symbols wouldn't parse shows the parse error on its Symbols tab, and in its box's", async () => {
+  const user = userEvent.setup();
+  render(
+    <ReviewPage
+      review={pageWith({
+        range: 'abc123..def456',
+        diff: {
+          nodes: [
+            { id: 'web', kind: 'stack', label: 'web', path: '', state: 'unchanged' },
+            {
+              id: 'web/module/billing',
+              kind: 'module',
+              label: 'billing',
+              parent: 'web',
+              path: 'web/src/billing',
+              state: 'modified',
+            },
+            {
+              ...topFile('refund.ts', 'modified'),
+              parent: 'web/module/billing',
+              path: 'web/src/billing/refund.ts',
+            },
+            topFile('total.ts', 'modified'),
+          ],
+          edges: [],
+        },
+        symbols: [
+          { node: 'web/file/refund.ts', stack: 'web', unreadable: 'Unexpected token (3:4)' },
+          { node: 'web/file/total.ts', stack: 'web', unreadable: 'Missing semicolon (7:1)' },
+        ],
+      })}
+    />,
+  );
+  const symbolsTab = () => screen.getByRole('tabpanel', { name: 'Symbols' });
+
+  await user.click(await screen.findByRole('button', { name: 'billing: modified' }));
+  await user.click(within(inspector()).getByRole('tab', { name: 'Symbols' }));
+  expect(
+    within(within(symbolsTab()).getByRole('region', { name: 'refund.ts' })).getByText(
+      'Unexpected token (3:4)',
+      { exact: false },
+    ),
+  ).toBeTruthy();
+  await user.click(screen.getByRole('button', { name: 'total.ts: modified' }));
+  expect(within(symbolsTab()).getByText('Missing semicolon (7:1)', { exact: false })).toBeTruthy();
 });

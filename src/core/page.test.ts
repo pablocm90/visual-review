@@ -6,7 +6,8 @@ import type { GraphNode } from './graph.ts';
 import { metricFindings } from './metric-findings.ts';
 import type { ReviewNotes } from './notes.ts';
 import { notedPageHtml, pageData, pageHtml, pageIn, servedPageHtml } from './page.ts';
-import type { RangeReading } from './read-range.ts';
+import type { RangeReading, SymbolFile } from './read-range.ts';
+import type { SymbolStatement } from './symbol-changes.ts';
 
 const webFile = (path: string): GraphNode => ({
   id: `web/file/${path}`,
@@ -41,6 +42,8 @@ const readingWith = (overrides: Partial<RangeReading>): RangeReading => ({
   renames: [],
   patches: [],
   tests: [],
+  symbols: [],
+  symbolsNotRead: [],
   danglingCalls: [],
   skipped: [],
   thresholds: { cyclomatic: 10, hotspot: { churn: 6, cyclomatic: 8 } },
@@ -48,8 +51,9 @@ const readingWith = (overrides: Partial<RangeReading>): RangeReading => ({
   ...overrides,
 });
 
-test("a reading's page data holds its diff, its dangling calls and test files, the patches of drawn files apart from the rest, its metric thresholds and churn window, and an empty list of skipped stacks", () => {
+test("a reading's page data holds its diff, its dangling calls, test files and symbol changes, the patches of drawn files apart from the rest, its metric thresholds and churn window, and an empty list of skipped stacks", () => {
   const tests = [{ path: 'web/a.test.ts', stack: 'web', unreadable: 'SyntaxError' }];
+  const symbols = [{ node: 'web/file/a.ts', stack: 'web', unreadable: 'SyntaxError' }];
   const thresholds = { cyclomatic: 12, hotspot: { churn: 5, cyclomatic: 9 }, lines: 300 };
   const reading = readingWith({
     thresholds,
@@ -57,14 +61,16 @@ test("a reading's page data holds its diff, its dangling calls and test files, t
     patches: [patch('web/src/a.ts'), patch('README.md')],
     danglingCalls: [{ from: 'web/file/a.ts', path: '/api/x' }],
     tests,
+    symbols,
   });
 
   expect(
-    pageData({ repo: 'shop', reading, range: 'main..feature', version: '1.2.3' }),
+    pageData({ repo: 'shop', reading, range: 'main..feature', version: '1.2.3', parsers }),
   ).toStrictEqual({
     repo: 'shop',
     range: 'main..feature',
     version: '1.2.3',
+    parsers: { '@babel/parser': '8.0.7' },
     diff: {
       nodes: [
         { ...webStack, state: 'unchanged' },
@@ -78,6 +84,7 @@ test("a reading's page data holds its diff, its dangling calls and test files, t
     patches: [patch('web/src/a.ts')],
     undrawn: [patch('README.md')],
     tests,
+    symbols,
     skipped: [],
     thresholds: { cyclomatic: 12, hotspot: { churn: 5, cyclomatic: 9 }, lines: 300 },
     churnDays: 30,
@@ -94,12 +101,15 @@ test("a pull request's page data names it, and lists the stacks a missing tool k
       reading: readingWith({ skipped }),
       range: 'abc..def',
       version,
+      parsers,
       pullRequest,
     }),
   ).toMatchObject({ range: 'abc..def', pullRequest, skipped });
 });
 
 const version = '1.2.3';
+
+const parsers = { '@babel/parser': '8.0.7' };
 
 test.for([
   { paths: ['README.md'], title: '1 changed file outside the graph' },
@@ -109,7 +119,9 @@ test.for([
   ({ paths, title }) => {
     const reading = readingWith({ patches: [patch('web/src/a.ts'), ...paths.map(patch)] });
 
-    expect(pageData({ repo: 'shop', reading, range: 'a..b', version }).findings).toStrictEqual([
+    expect(
+      pageData({ repo: 'shop', reading, range: 'a..b', version, parsers }).findings,
+    ).toStrictEqual([
       {
         id: 'structure:undrawn',
         dimension: 'structure',
@@ -129,8 +141,13 @@ test('fetch calls with no route are a routes finding for information on each cal
   ];
 
   expect(
-    pageData({ repo: 'shop', reading: readingWith({ danglingCalls }), range: 'a..b', version })
-      .findings,
+    pageData({
+      repo: 'shop',
+      reading: readingWith({ danglingCalls }),
+      range: 'a..b',
+      version,
+      parsers,
+    }).findings,
   ).toStrictEqual([
     {
       id: 'routes:dangling:web/file/a.ts',
@@ -155,7 +172,8 @@ test('stacks a missing tool kept from being read are a structure finding to look
   const skipped = [{ reader: 'rust' as const, tool: 'cargo', stacks: ['api', 'worker'] }];
 
   expect(
-    pageData({ repo: 'shop', reading: readingWith({ skipped }), range: 'a..b', version }).findings,
+    pageData({ repo: 'shop', reading: readingWith({ skipped }), range: 'a..b', version, parsers })
+      .findings,
   ).toStrictEqual([
     {
       id: 'structure:skipped:rust',
@@ -163,6 +181,351 @@ test('stacks a missing tool kept from being read are a structure finding to look
       level: 'look',
       title: 'api, worker not read: cargo not found on PATH',
     },
+  ]);
+});
+
+test('each stack with changed files whose reader reads no symbols is a structure finding for information on that stack', () => {
+  const reading = readingWith({ symbolsNotRead: ['api', 'admin'] });
+
+  expect(
+    pageData({ repo: 'shop', reading, range: 'a..b', version, parsers }).findings,
+  ).toStrictEqual([
+    {
+      id: 'structure:symbols-not-read:api',
+      dimension: 'structure',
+      level: 'info',
+      target: 'api',
+      title: 'symbols not read for api',
+    },
+    {
+      id: 'structure:symbols-not-read:admin',
+      dimension: 'structure',
+      level: 'info',
+      target: 'admin',
+      title: 'symbols not read for admin',
+    },
+  ]);
+});
+
+const symbolFile = (symbols: ReadonlyArray<SymbolStatement>): SymbolFile => ({
+  node: 'web/file/a.ts',
+  stack: 'web',
+  symbols,
+  exports: { added: [], removed: [] },
+  kind: 'api',
+});
+
+const findingsOfSymbols = (symbols: ReadonlyArray<SymbolFile>) =>
+  pageData({
+    repo: 'shop',
+    reading: readingWith({
+      symbols,
+      before: { nodes: [webStack, webFile('a.ts'), webFile('c.ts')], edges: [] },
+      after: { nodes: [webStack, webFile('a.ts'), webFile('b.ts')], edges: [] },
+    }),
+    range: 'a..b',
+    version,
+    parsers,
+  }).findings;
+
+test('an exported symbol removed, or no longer exported, is an api finding to look at on its file, named by its kind and qualified name', () => {
+  const symbols = [
+    symbolFile([
+      { name: 'charge', kind: 'function', exported: { base: true }, change: 'removed' },
+      {
+        name: 'refund',
+        scope: 'Orders',
+        kind: 'method',
+        exported: { base: true, head: false },
+        change: 'edited',
+      },
+      { name: 'helper', kind: 'function', exported: { base: false }, change: 'removed' },
+      { name: 'fresh', kind: 'function', exported: { head: false }, change: 'added' },
+      { name: 'total', kind: 'function', exported: { base: true, head: true }, change: 'edited' },
+    ]),
+  ];
+
+  expect(findingsOfSymbols(symbols)).toStrictEqual([
+    {
+      id: 'api:removed:web/file/a.ts#charge',
+      dimension: 'api',
+      level: 'look',
+      target: 'web/file/a.ts',
+      title: 'function charge removed',
+    },
+    {
+      id: 'api:removed:web/file/a.ts#Orders.refund',
+      dimension: 'api',
+      level: 'look',
+      target: 'web/file/a.ts',
+      title: 'method Orders.refund no longer exported',
+    },
+  ]);
+});
+
+test('an exported symbol renamed or moved away is removed under its former name, the title saying where it went, a file by its path, a probable rename saying how it was found', () => {
+  const symbols = [
+    symbolFile([
+      {
+        name: 'bill',
+        scope: 'Orders',
+        kind: 'method',
+        exported: { base: true, head: true },
+        change: 'renamed',
+        renamedFrom: 'Orders.charge',
+      },
+      {
+        name: 'pay',
+        kind: 'function',
+        exported: { base: true, head: false },
+        change: 'renamed',
+        renamedFrom: 'settle',
+        probably: true,
+      },
+      {
+        name: 'total',
+        kind: 'function',
+        exported: { base: true },
+        change: 'moved',
+        movedTo: 'web/file/b.ts',
+      },
+    ]),
+  ];
+
+  expect(findingsOfSymbols(symbols)).toStrictEqual([
+    {
+      id: 'api:removed:web/file/a.ts#Orders.charge',
+      dimension: 'api',
+      level: 'look',
+      target: 'web/file/a.ts',
+      title: 'method Orders.charge renamed to Orders.bill',
+    },
+    {
+      id: 'api:removed:web/file/a.ts#settle',
+      dimension: 'api',
+      level: 'look',
+      target: 'web/file/a.ts',
+      title: 'function settle probably renamed to pay',
+      detail: 'found by body similarity',
+    },
+    {
+      id: 'api:removed:web/file/a.ts#total',
+      dimension: 'api',
+      level: 'look',
+      target: 'web/file/a.ts',
+      title: 'function total moved to web/src/b.ts',
+    },
+  ]);
+});
+
+test('an exported symbol whose signature changed is an api finding to look at, its detail the signature before and after; one changed on a symbol not exported raises none', () => {
+  const signature = { base: '(order: Order)', head: '(order: Order, at: Date)' };
+  const symbols = [
+    symbolFile([
+      {
+        name: 'charge',
+        scope: 'Orders',
+        kind: 'method',
+        exported: { base: true, head: true },
+        change: 'edited',
+        signature,
+      },
+      {
+        name: 'quiet',
+        kind: 'function',
+        exported: { base: false, head: false },
+        change: 'edited',
+        signature,
+      },
+      { name: 'total', kind: 'function', exported: { base: true, head: true }, change: 'edited' },
+    ]),
+  ];
+
+  expect(findingsOfSymbols(symbols)).toStrictEqual([
+    {
+      id: 'api:signature:web/file/a.ts#Orders.charge',
+      dimension: 'api',
+      level: 'look',
+      target: 'web/file/a.ts',
+      title: "method Orders.charge's signature changed",
+      detail: '(order: Order) → (order: Order, at: Date)',
+    },
+  ]);
+});
+
+test('an export added, moved in or newly exported is an api finding for information', () => {
+  const symbols = [
+    symbolFile([
+      { name: 'charge', kind: 'function', exported: { head: true }, change: 'added' },
+      {
+        name: 'tax',
+        kind: 'function',
+        exported: { head: true },
+        change: 'moved',
+        movedFrom: 'web/file/c.ts',
+      },
+      {
+        name: 'Order',
+        kind: 'type',
+        exported: { base: false, head: true },
+        change: 'unchanged',
+      },
+      { name: 'helper', kind: 'function', exported: { head: false }, change: 'added' },
+    ]),
+  ];
+
+  expect(findingsOfSymbols(symbols)).toStrictEqual([
+    {
+      id: 'api:added:web/file/a.ts#charge',
+      dimension: 'api',
+      level: 'info',
+      target: 'web/file/a.ts',
+      title: 'function charge added',
+    },
+    {
+      id: 'api:added:web/file/a.ts#tax',
+      dimension: 'api',
+      level: 'info',
+      target: 'web/file/a.ts',
+      title: 'function tax moved from web/src/c.ts',
+    },
+    {
+      id: 'api:added:web/file/a.ts#Order',
+      dimension: 'api',
+      level: 'info',
+      target: 'web/file/a.ts',
+      title: 'type Order now exported',
+    },
+  ]);
+});
+
+const exportListFindings = (symbols: ReadonlyArray<SymbolFile>) =>
+  findingsOfSymbols(symbols).filter(({ id }) => id.startsWith('api:exports:'));
+
+test.for([
+  {
+    exports: { added: ['* from ./x'], removed: ['LIMIT', 'charge', 'settle'] },
+    level: 'look',
+    detail: 'removed LIMIT; added * from ./x',
+  },
+  { exports: { added: ['LIMIT', 'bill'], removed: [] }, level: 'info', detail: 'added LIMIT' },
+])(
+  'export names changed with no symbol of the file behind them are one api finding on the file, to look at when one was removed: $detail',
+  ({ exports, level, detail }) => {
+    const symbols = [
+      {
+        ...symbolFile([
+          { name: 'charge', kind: 'function', exported: { base: true }, change: 'removed' },
+          {
+            name: 'bill',
+            kind: 'function',
+            exported: { base: true, head: true },
+            change: 'renamed',
+            renamedFrom: 'settle',
+          },
+        ]),
+        exports,
+      },
+    ];
+
+    expect(exportListFindings(symbols)).toStrictEqual([
+      {
+        id: 'api:exports:web/file/a.ts',
+        dimension: 'api',
+        level,
+        target: 'web/file/a.ts',
+        title: 'export list changed',
+        detail,
+      },
+    ]);
+  },
+);
+
+test('an export name is behind a symbol only when that symbol raises an api finding of its own under it: not an unchanged local of the same name, nor a method', () => {
+  const symbols = [
+    {
+      ...symbolFile([
+        {
+          name: 'format',
+          kind: 'function',
+          exported: { base: false, head: false },
+          change: 'unchanged',
+        },
+        {
+          name: 'total',
+          scope: 'Receipt',
+          kind: 'method',
+          exported: { base: true },
+          change: 'removed',
+        },
+      ]),
+      exports: { added: [], removed: ['format', 'total'] },
+    },
+  ];
+
+  expect(exportListFindings(symbols).map(({ detail }) => detail)).toStrictEqual([
+    'removed format, total',
+  ]);
+});
+
+test('a file whose export names changed only by its symbols raises no export list finding', () => {
+  const symbols = [
+    {
+      ...symbolFile([
+        { name: 'charge', kind: 'function', exported: { head: true }, change: 'added' },
+      ]),
+      exports: { added: ['charge'], removed: [] },
+    },
+  ];
+
+  expect(exportListFindings(symbols)).toStrictEqual([]);
+});
+
+test("a changed file whose symbols wouldn't parse is a structure finding for information on it, its detail the parse error", () => {
+  const symbols = [{ node: 'web/file/a.ts', stack: 'web', unreadable: 'Unexpected token (3:4)' }];
+
+  expect(findingsOfSymbols(symbols)).toStrictEqual([
+    {
+      id: 'structure:unreadable-symbols:web/file/a.ts',
+      dimension: 'structure',
+      level: 'info',
+      target: 'web/file/a.ts',
+      title: 'symbols not read',
+      detail: 'Unexpected token (3:4)',
+    },
+  ]);
+});
+
+test("a class's methods raise no api finding of their own when the class itself was removed, renamed or added; under a class kept, a method's change is its own", () => {
+  const method = (
+    scope: string,
+    exported: SymbolStatement['exported'],
+    change: SymbolStatement['change'],
+  ): SymbolStatement => ({ name: 'charge', scope, kind: 'method', exported, change });
+  const symbols = [
+    symbolFile([
+      { name: 'Orders', kind: 'class', exported: { base: true }, change: 'removed' },
+      method('Orders', { base: true }, 'removed'),
+      {
+        name: 'Billing',
+        kind: 'class',
+        exported: { base: true, head: true },
+        change: 'renamed',
+        renamedFrom: 'Bills',
+      },
+      { ...method('Billing', { base: true, head: true }, 'renamed'), renamedFrom: 'Bills.charge' },
+      { name: 'Cart', kind: 'class', exported: { head: true }, change: 'added' },
+      method('Cart', { head: true }, 'added'),
+      { name: 'Till', kind: 'class', exported: { base: true, head: true }, change: 'edited' },
+      method('Till', { base: true }, 'removed'),
+    ]),
+  ];
+
+  expect(findingsOfSymbols(symbols).map(finding => finding.title)).toStrictEqual([
+    'class Orders removed',
+    'class Bills renamed to Billing',
+    'class Cart added',
+    'method Till.charge removed',
   ]);
 });
 
@@ -188,6 +551,7 @@ test('the page holds its data whole, a range that closes a script tag included, 
     reading: readingWith({}),
     range: 'main..x</script><b>',
     version,
+    parsers,
   });
 
   expect(pageIn(slotsOf(pageHtml({ viewer, data })))).toStrictEqual({
@@ -203,6 +567,7 @@ test('a served page gives back the token serve filled in, beside its data and no
     reading: readingWith({}),
     range: 'main..feature',
     version,
+    parsers,
   });
   const notes = notesWith({ 'web/file/a.ts': { text: 'Reads well.' } });
   const page = notedPageHtml({ page: pageHtml({ viewer, data }), notes, notesFile, version });
@@ -220,6 +585,7 @@ test('notes filled into a page come back whole, a note holding replacement patte
     reading: readingWith({}),
     range: 'main..feature',
     version,
+    parsers,
   });
   const notes = notesWith({ 'web/file/a.ts': { text: "Costs $& more, and $' too." } });
 
@@ -236,6 +602,7 @@ const pageFor = (pageVersion: string) =>
       reading: readingWith({}),
       range: 'main..feature',
       version: pageVersion,
+      parsers,
     }),
   });
 
@@ -284,7 +651,9 @@ test('a changed node that is a file on both sides gets its churn on each', () =>
   });
 
   expect(
-    pageData({ repo: 'shop', reading, range: 'main..feature', version }).metrics['web/file/a.ts'],
+    pageData({ repo: 'shop', reading, range: 'main..feature', version, parsers }).metrics[
+      'web/file/a.ts'
+    ],
   ).toEqual({
     base: { churn: 3, fanIn: 0, fanOut: 0 },
     head: { churn: 4, fanIn: 0, fanOut: 0 },
@@ -314,7 +683,9 @@ test("a measured file gets, beside its churn, its lines, functions, highest and 
   });
 
   expect(
-    pageData({ repo: 'shop', reading, range: 'main..feature', version }).metrics['web/file/a.ts'],
+    pageData({ repo: 'shop', reading, range: 'main..feature', version, parsers }).metrics[
+      'web/file/a.ts'
+    ],
   ).toEqual({
     base: {
       churn: 3,
@@ -371,7 +742,9 @@ test("a measured node's fan-in and fan-out count that side's edges into and out 
   });
 
   expect(
-    pageData({ repo: 'shop', reading, range: 'main..feature', version }).metrics['web/file/a.ts'],
+    pageData({ repo: 'shop', reading, range: 'main..feature', version, parsers }).metrics[
+      'web/file/a.ts'
+    ],
   ).toEqual({
     base: { churn: 1, fanIn: 1, fanOut: 0 },
     head: { churn: 1, fanIn: 2, fanOut: 3 },
@@ -388,7 +761,9 @@ test('a measured file with no functions has a highest and total cyclomatic of 0 
   });
 
   expect(
-    pageData({ repo: 'shop', reading, range: 'main..feature', version }).metrics['web/file/a.ts'],
+    pageData({ repo: 'shop', reading, range: 'main..feature', version, parsers }).metrics[
+      'web/file/a.ts'
+    ],
   ).toEqual({
     head: {
       churn: 1,
@@ -425,7 +800,9 @@ test.for([
   });
 
   expect(
-    pageData({ repo: 'shop', reading, range: 'main..feature', version }).metrics['web/file/a.ts'],
+    pageData({ repo: 'shop', reading, range: 'main..feature', version, parsers }).metrics[
+      'web/file/a.ts'
+    ],
   ).toStrictEqual(metrics);
 });
 
@@ -439,7 +816,7 @@ test("an unchanged file one edge from a changed node, on either side's edges, ge
     churn: { before: churn, after: churn },
   });
 
-  const { metrics } = pageData({ repo: 'shop', reading, range: 'main..feature', version });
+  const { metrics } = pageData({ repo: 'shop', reading, range: 'main..feature', version, parsers });
 
   expect(Object.keys(metrics).filter(id => id.startsWith('web/file/'))).toEqual([
     'web/file/a.ts',
@@ -458,7 +835,9 @@ test("a renamed file's base churn is read at the path it had on the base side", 
   });
 
   expect(
-    pageData({ repo: 'shop', reading, range: 'main..feature', version }).metrics['web/file/a.ts'],
+    pageData({ repo: 'shop', reading, range: 'main..feature', version, parsers }).metrics[
+      'web/file/a.ts'
+    ],
   ).toEqual({
     base: { churn: 5, fanIn: 0, fanOut: 0 },
     head: { churn: 1, fanIn: 0, fanOut: 0 },
@@ -475,7 +854,9 @@ test("a node whose file moved with no rename git saw reads its base churn at its
   });
 
   expect(
-    pageData({ repo: 'shop', reading, range: 'main..feature', version }).metrics['web/file/a.ts'],
+    pageData({ repo: 'shop', reading, range: 'main..feature', version, parsers }).metrics[
+      'web/file/a.ts'
+    ],
   ).toEqual({
     base: { churn: 5, fanIn: 0, fanOut: 0 },
     head: { churn: 1, fanIn: 0, fanOut: 0 },
@@ -494,7 +875,7 @@ test('a box gets, on each side, the highest churn among the measured nodes insid
     },
   });
 
-  const { metrics } = pageData({ repo: 'shop', reading, range: 'main..feature', version });
+  const { metrics } = pageData({ repo: 'shop', reading, range: 'main..feature', version, parsers });
 
   expect(metrics).toStrictEqual({
     web: {
@@ -541,7 +922,9 @@ test('a box takes, on each side, the highest of each measure among the measured 
   });
 
   expect(
-    pageData({ repo: 'shop', reading, range: 'main..feature', version }).metrics['web/box/m'],
+    pageData({ repo: 'shop', reading, range: 'main..feature', version, parsers }).metrics[
+      'web/box/m'
+    ],
   ).toEqual({
     highestInside: true,
     head: {
@@ -621,7 +1004,7 @@ test.for([
     });
 
     expect(
-      metricFindings(pageData({ repo: 'shop', reading, range: 'main..feature', version })),
+      metricFindings(pageData({ repo: 'shop', reading, range: 'main..feature', version, parsers })),
     ).toStrictEqual(
       level === undefined
         ? []
@@ -687,7 +1070,7 @@ test.for([
   const reading = readingOfA({ base, head, thresholds: { cyclomatic: 20, hotspot: threshold } });
 
   expect(
-    metricFindings(pageData({ repo: 'shop', reading, range: 'main..feature', version })),
+    metricFindings(pageData({ repo: 'shop', reading, range: 'main..feature', version, parsers })),
   ).toStrictEqual(
     level === undefined || head === undefined
       ? []
@@ -734,7 +1117,7 @@ test.for([
   });
 
   expect(
-    metricFindings(pageData({ repo: 'shop', reading, range: 'main..feature', version })),
+    metricFindings(pageData({ repo: 'shop', reading, range: 'main..feature', version, parsers })),
   ).toStrictEqual(findings.map(finding => ({ node: 'web/file/a.ts', ...finding })));
 });
 
@@ -767,7 +1150,7 @@ test.for([
     });
 
     expect(
-      pageData({ repo: 'shop', reading, range: 'main..feature', version }).findings,
+      pageData({ repo: 'shop', reading, range: 'main..feature', version, parsers }).findings,
     ).toStrictEqual(
       ['cyclomatic', 'hotspot', 'abc'].map((metric, at) => ({
         id: `metrics:${metric}:web/file/a.ts`,
