@@ -72,7 +72,11 @@ const findingOf = ({ node, statement, pathOf }: Placed): Finding | undefined => 
 };
 
 const exportsFinding = (file: FileSymbolChanges): ReadonlyArray<Finding> => {
-  const behind = new Set(file.symbols.flatMap(({ name, renamedFrom }) => [name, renamedFrom]));
+  const behind = new Set(
+    file.symbols
+      .filter(raisesItsOwn)
+      .flatMap(statement => [qualified(statement), statement.renamedFrom]),
+  );
   const unbacked = (names: ReadonlyArray<string>) => names.filter(name => !behind.has(name));
   const removed = unbacked(file.exports.removed);
   const added = unbacked(file.exports.added);

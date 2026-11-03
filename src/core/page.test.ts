@@ -398,6 +398,9 @@ test('an export added, moved in or newly exported is an api finding for informat
   ]);
 });
 
+const exportListFindings = (symbols: ReadonlyArray<SymbolFile>) =>
+  findingsOfSymbols(symbols).filter(({ id }) => id.startsWith('api:exports:'));
+
 test.for([
   {
     exports: { added: ['* from ./x'], removed: ['LIMIT', 'charge', 'settle'] },
@@ -411,11 +414,11 @@ test.for([
     const symbols = [
       {
         ...symbolFile([
-          { name: 'charge', kind: 'function', exported: { base: false }, change: 'removed' },
+          { name: 'charge', kind: 'function', exported: { base: true }, change: 'removed' },
           {
             name: 'bill',
             kind: 'function',
-            exported: { base: false, head: false },
+            exported: { base: true, head: true },
             change: 'renamed',
             renamedFrom: 'settle',
           },
@@ -424,7 +427,7 @@ test.for([
       },
     ];
 
-    expect(findingsOfSymbols(symbols)).toStrictEqual([
+    expect(exportListFindings(symbols)).toStrictEqual([
       {
         id: 'api:exports:web/file/a.ts',
         dimension: 'api',
@@ -437,17 +440,44 @@ test.for([
   },
 );
 
+test('an export name is behind a symbol only when that symbol raises an api finding of its own under it: not an unchanged local of the same name, nor a method', () => {
+  const symbols = [
+    {
+      ...symbolFile([
+        {
+          name: 'format',
+          kind: 'function',
+          exported: { base: false, head: false },
+          change: 'unchanged',
+        },
+        {
+          name: 'total',
+          scope: 'Receipt',
+          kind: 'method',
+          exported: { base: true },
+          change: 'removed',
+        },
+      ]),
+      exports: { added: [], removed: ['format', 'total'] },
+    },
+  ];
+
+  expect(exportListFindings(symbols).map(({ detail }) => detail)).toStrictEqual([
+    'removed format, total',
+  ]);
+});
+
 test('a file whose export names changed only by its symbols raises no export list finding', () => {
   const symbols = [
     {
       ...symbolFile([
-        { name: 'charge', kind: 'function', exported: { head: false }, change: 'added' },
+        { name: 'charge', kind: 'function', exported: { head: true }, change: 'added' },
       ]),
       exports: { added: ['charge'], removed: [] },
     },
   ];
 
-  expect(findingsOfSymbols(symbols)).toStrictEqual([]);
+  expect(exportListFindings(symbols)).toStrictEqual([]);
 });
 
 test("a changed file whose symbols wouldn't parse is a structure finding for information on it, its detail the parse error", () => {
