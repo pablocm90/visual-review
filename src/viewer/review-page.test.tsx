@@ -1789,6 +1789,16 @@ test('J, K and A act on Structure alone: on Metrics and Tests they neither walk 
   expect(within(readingOrder()).getByText('0 of 3 parts read')).toBeDefined();
 });
 
+test('J, K and A in capitals, with Caps Lock or Shift, walk and mark as in lower case', async () => {
+  const user = userEvent.setup();
+  render(<ReviewPage review={walkedReview()} />);
+  await screen.findByRole('group', { name: 'rust' });
+
+  await user.keyboard('JJKA');
+  expect(selectedPart()).toBe('application');
+  expect(readRows()).toEqual(['1 application']);
+});
+
 test('J, K and A held with Control, Meta or Alt are left to the browser, neither walking nor marking', async () => {
   const user = userEvent.setup();
   render(<ReviewPage review={walkedReview()} />);

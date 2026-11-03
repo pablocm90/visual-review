@@ -1371,13 +1371,10 @@ export const ReviewPage = ({ review, notes, send }: ReviewPageProps) => {
     const keyed = (event: globalThis.KeyboardEvent) => {
       if (event.target instanceof HTMLTextAreaElement) return;
       if (event.ctrlKey || event.metaKey || event.altKey) return;
-      if (event.key === 'j') walk(1);
-      if (event.key === 'k') walk(-1);
-      if (
-        event.key === 'a' &&
-        selected !== undefined &&
-        review.readingOrder.parts.includes(selected)
-      )
+      const key = event.key.toLowerCase();
+      if (key === 'j') walk(1);
+      if (key === 'k') walk(-1);
+      if (key === 'a' && selected !== undefined && review.readingOrder.parts.includes(selected))
         setRead(current => toggled(current, selected));
     };
     document.addEventListener('keydown', keyed);
