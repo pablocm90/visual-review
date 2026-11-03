@@ -2056,6 +2056,25 @@ test('the review says how many parts of the reading order were read before it is
   expect(within(panel()).queryByText(/read$/)).toBeNull();
 });
 
+test('the open tray names the parts read with nothing to say, in reading order, a blank draft saying nothing', async () => {
+  const user = userEvent.setup();
+  render(<ReviewPage review={walkedReview()} send={async () => {}} />);
+  const rust = await screen.findByRole('group', { name: 'rust' });
+  await user.keyboard('jajaja');
+  await user.click(within(rust).getByRole('button', { name: 'cli-adapter: added' }));
+  await user.type(within(noteTab()).getByRole('textbox', { name: 'Your comment' }), 'Why?');
+  await user.click(within(rust).getByRole('button', { name: 'legacy: removed' }));
+  await user.type(within(noteTab()).getByRole('textbox', { name: 'Your comment' }), ' ');
+  await openReview(user);
+
+  const silent = within(tray()).getByRole('list', { name: 'Read, nothing to say' });
+  expect(
+    within(silent)
+      .getAllByRole('listitem')
+      .map(item => item.textContent),
+  ).toEqual(['application', 'legacy']);
+});
+
 test('A on a node outside the reading order keeps no mark, so it starts unread when the range, moved on, makes it a part', async () => {
   const user = userEvent.setup();
   const walked = walkedReview();

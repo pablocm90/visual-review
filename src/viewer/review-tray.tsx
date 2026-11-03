@@ -136,6 +136,13 @@ export const ReviewTray = ({
                 ))}
               </ul>
               {parts.length > 0 && <p>{partsRead({ read: read.length, parts: parts.length })}</p>}
+              <ul aria-label="Read, nothing to say">
+                {read
+                  .filter(part => !written.some(({ anchor }) => anchor.id === part))
+                  .map(part => (
+                    <li key={part}>{nameOf(part)}</li>
+                  ))}
+              </ul>
               <div role="radiogroup" aria-label="Verdict" className="verdict">
                 {VERDICTS.map(([value, label]) => (
                   <div key={value} className="verdict-option">
