@@ -2,6 +2,7 @@ import { useState } from 'react';
 import type { Finding } from '../core/findings.ts';
 import type { Answer, Comment, Review } from '../core/review.ts';
 
+import { COMMENT_KINDS } from './comment-form.tsx';
 import { ANSWER_KINDS, type Answers } from './finding-display.tsx';
 import { partsRead } from './reading-order-list.tsx';
 
@@ -26,12 +27,6 @@ const VERDICTS: ReadonlyArray<readonly [Review['verdict'], string]> = [
   ['approve', 'Approve'],
   ['comment', 'Comment'],
   ['request-changes', 'Request changes'],
-];
-
-export const COMMENT_KINDS: ReadonlyArray<readonly [Comment['kind'], string]> = [
-  ['change', 'Change this'],
-  ['question', 'Question'],
-  ['suggestion', 'Suggestion'],
 ];
 
 const kindLabels = new Map(COMMENT_KINDS);

@@ -5,7 +5,7 @@ export type Draft = Pick<Comment, 'kind' | 'text'>;
 
 export const NO_DRAFT: Draft = { kind: 'question', text: '' };
 
-const COMMENT_KINDS: ReadonlyArray<readonly [Comment['kind'], string]> = [
+export const COMMENT_KINDS: ReadonlyArray<readonly [Comment['kind'], string]> = [
   ['change', 'Change this'],
   ['question', 'Question'],
   ['suggestion', 'Suggestion'],
