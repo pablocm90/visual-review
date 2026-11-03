@@ -2197,7 +2197,7 @@ pre .hljs-emphasis {
   padding-left: 27px;
 }
 
-.finding .answer-kind {
+.finding-answer .answer-kind {
   display: inline-block;
   padding: 2px 8px;
   border: 1px solid var(--stack-line);
@@ -2206,7 +2206,7 @@ pre .hljs-emphasis {
   font-size: 12px;
 }
 
-.finding .answer-kind[aria-pressed="true"] {
+.finding-answer .answer-kind[aria-pressed="true"] {
   background: var(--unchanged-fill);
   color: var(--ink);
   font-weight: 600;
@@ -2221,4 +2221,9 @@ pre .hljs-emphasis {
   color: var(--ink);
   font: inherit;
   font-size: 12px;
+}
+
+.note-findings .finding-answer {
+  margin-top: 4px;
+  padding-left: 19px;
 }

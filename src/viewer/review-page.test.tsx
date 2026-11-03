@@ -457,12 +457,53 @@ test("It's fine takes an optional why, which goes with the answer unless blank",
   );
 });
 
+test("a finding under the inspector's note is answered there, the same answer as in the rail", async () => {
+  const user = userEvent.setup();
+  const sent = vi.fn(async () => {});
+  render(
+    <ReviewPage
+      review={pageWith({
+        ...review,
+        findings: [
+          findingOn('rust/crate/application', { id: 'metrics:cyclomatic:rust/crate/application' }),
+        ],
+      })}
+      send={sent}
+    />,
+  );
+
+  await user.click(await screen.findByRole('button', { name: 'application: modified' }));
+  await user.click(within(noteTab()).getByRole('button', { name: 'Fix this' }));
+  expect(
+    within(noteTab())
+      .getAllByRole('button', { pressed: true })
+      .map(button => button.textContent),
+  ).toEqual(['Fix this']);
+  await user.click(screen.getByRole('button', { name: 'Show 1 finding' }));
+  expect(
+    within(findingInRail('application'))
+      .getAllByRole('button', { pressed: true })
+      .map(button => button.textContent),
+  ).toEqual(['Fix this']);
+  await openReview(user);
+  await user.click(screen.getByRole('button', { name: 'Send to Claude' }));
+
+  expect(sent).toHaveBeenCalledExactlyOnceWith({
+    version: 3,
+    verdict: 'comment',
+    comments: [
+      { anchor: { kind: 'finding', id: 'metrics:cyclomatic:rust/crate/application' }, kind: 'fix' },
+    ],
+  });
+});
+
 test('a page that is not served has no comment field, no answers to findings and no Review button', async () => {
   const user = userEvent.setup();
   const page = pageWith({ ...review, findings: [findingOn('rust/crate/domain')] });
   const { rerender } = render(<ReviewPage review={page} send={async () => {}} />);
   const comment = () => within(noteTab()).queryByRole('textbox', { name: 'Your comment' });
   const answers = () => within(findingInRail('domain')).queryByRole('group', { name: 'Answer' });
+  const noteAnswers = () => within(noteTab()).queryByRole('group', { name: 'Answer' });
   const reviewButton = () => screen.queryByRole('button', { name: 'Review' });
 
   const rust = await screen.findByRole('group', { name: 'rust' });
@@ -470,11 +511,13 @@ test('a page that is not served has no comment field, no answers to findings and
   await user.click(screen.getByRole('button', { name: 'Show 1 finding' }));
   expect(comment()).not.toBeNull();
   expect(answers()).not.toBeNull();
+  expect(noteAnswers()).not.toBeNull();
   expect(reviewButton()).not.toBeNull();
 
   rerender(<ReviewPage review={page} />);
   expect(comment()).toBeNull();
   expect(answers()).toBeNull();
+  expect(noteAnswers()).toBeNull();
   expect(reviewButton()).toBeNull();
 });
 

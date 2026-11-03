@@ -34,7 +34,14 @@ import {
   visibleNodeOf,
 } from '../core/visible-diff.ts';
 import { ColourBy, type Colouring, ScaleLegend, type Shade, shadeOf } from './colour-by.tsx';
-import { type Answers, findingLine, LEVELS, LevelMark, worstOf } from './finding-display.tsx';
+import {
+  AnswerButtons,
+  type Answers,
+  findingLine,
+  LEVELS,
+  LevelMark,
+  worstOf,
+} from './finding-display.tsx';
 import { FindingsRail, LookFirst, nameOf, TriageStrip } from './findings-rail.tsx';
 import { highlightPatch, type PatchLine as Line, type Piece } from './highlight-patch.ts';
 import {
@@ -554,6 +561,8 @@ type InspectorProps = {
   readonly comment: Draft;
   readonly onComment: ((draft: Draft) => void) | undefined;
   readonly commentable: boolean;
+  readonly answers: Answers;
+  readonly onAnswer: ((answer: Answer) => void) | undefined;
   readonly width: number;
   readonly onClose: () => void;
 };
@@ -657,10 +666,18 @@ const nodeSections = ({
 
 type NotePanelProps = Pick<
   InspectorProps,
-  'note' | 'found' | 'comment' | 'onComment' | 'commentable'
+  'note' | 'found' | 'comment' | 'onComment' | 'commentable' | 'answers' | 'onAnswer'
 >;
 
-const NotePanel = ({ note, found, comment, onComment, commentable }: NotePanelProps) => (
+const NotePanel = ({
+  note,
+  found,
+  comment,
+  onComment,
+  commentable,
+  answers,
+  onAnswer,
+}: NotePanelProps) => (
   <>
     {found.length > 0 && (
       <ul className="note-findings" aria-label="Findings">
@@ -668,6 +685,9 @@ const NotePanel = ({ note, found, comment, onComment, commentable }: NotePanelPr
           <li key={finding.id}>
             <LevelMark level={finding.level} />
             {findingLine(finding)}
+            {onAnswer && (
+              <AnswerButtons id={finding.id} answer={answers[finding.id]} onAnswer={onAnswer} />
+            )}
           </li>
         ))}
       </ul>
@@ -802,6 +822,8 @@ type SidePanelProps = {
   readonly found: ReadonlyArray<Finding>;
   readonly comments: Comments;
   readonly onComment: ((comment: Comment) => void) | undefined;
+  readonly answers: Answers;
+  readonly onAnswer: ((answer: Answer) => void) | undefined;
   readonly chosenWidth: number | undefined;
   readonly onChooseWidth: (width: number) => void;
   readonly graphLeft: () => number;
@@ -819,6 +841,8 @@ const SidePanel = ({
   found,
   comments,
   onComment,
+  answers,
+  onAnswer,
   chosenWidth,
   onChooseWidth,
   graphLeft,
@@ -894,6 +918,8 @@ const SidePanel = ({
         commentable={
           node !== undefined || review.diff.edges.some(edge => edgeId(edge) === selected)
         }
+        answers={answers}
+        onAnswer={onAnswer}
         width={width}
         onClose={() => onCloseInspector(selected)}
       />
@@ -1555,6 +1581,8 @@ export const ReviewPage = ({ review, notes, send }: ReviewPageProps) => {
               found={selectedFindings}
               comments={comments}
               onComment={send && comment}
+              answers={answers}
+              onAnswer={send && answer}
               chosenWidth={chosenWidth}
               onChooseWidth={setChosenWidth}
               graphLeft={graphLeft}
