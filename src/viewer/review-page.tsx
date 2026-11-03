@@ -1367,6 +1367,7 @@ export const ReviewPage = ({ review, notes, send }: ReviewPageProps) => {
     if (next !== undefined) goTo(next);
   };
   useEffect(() => {
+    if (tab !== 'structure') return;
     const keyed = (event: globalThis.KeyboardEvent) => {
       if (event.target instanceof HTMLTextAreaElement) return;
       if (event.ctrlKey || event.metaKey || event.altKey) return;

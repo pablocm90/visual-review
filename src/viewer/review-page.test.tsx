@@ -1769,6 +1769,26 @@ test('stored read marks that are not a list of ids are ignored, the page startin
   expect(readRows()).toEqual([]);
 });
 
+test('J, K and A act on Structure alone: on Metrics and Tests they neither walk nor mark', async () => {
+  atHash('#structure');
+  const user = userEvent.setup();
+  render(<ReviewPage review={walkedReview()} />);
+  await screen.findByRole('group', { name: 'rust' });
+  await user.keyboard('j');
+
+  await user.click(screen.getByRole('link', { name: 'Metrics' }));
+  await waitFor(() => expect(currentTab()).toBe('Metrics'));
+  await user.keyboard('ja');
+  await user.click(screen.getByRole('link', { name: /^Tests/ }));
+  await waitFor(() => expect(currentTab()).toMatch(/^Tests/));
+  await user.keyboard('ja');
+  await user.click(screen.getByRole('link', { name: 'Structure' }));
+  await screen.findByRole('group', { name: 'rust' });
+
+  expect(selectedPart()).toBe('application');
+  expect(within(readingOrder()).getByText('0 of 3 parts read')).toBeDefined();
+});
+
 test('J, K and A held with Control, Meta or Alt are left to the browser, neither walking nor marking', async () => {
   const user = userEvent.setup();
   render(<ReviewPage review={walkedReview()} />);
