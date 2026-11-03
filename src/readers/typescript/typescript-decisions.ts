@@ -4,6 +4,7 @@ import { childrenOf, sourceOf } from './typescript-syntax.ts';
 
 type Walk = {
   readonly text: string;
+  readonly nested: ReadonlySet<unknown>;
   readonly depth: number;
 };
 
@@ -18,16 +19,19 @@ const decisionAt = ({ text, depth }: Walk, node: Node): Decision | undefined =>
     : undefined;
 
 const decisionsUnder = (walk: Walk, node: Node): ReadonlyArray<Decision> =>
-  childrenOf(node).flatMap(child => {
-    const own = decisionAt(walk, child);
-    const inner = decisionsUnder(own ? { ...walk, depth: walk.depth + 1 } : walk, child);
-    return own ? [own, ...inner] : inner;
-  });
+  childrenOf(node)
+    .filter(child => !walk.nested.has(child))
+    .flatMap(child => {
+      const own = decisionAt(walk, child);
+      const inner = decisionsUnder(own ? { ...walk, depth: walk.depth + 1 } : walk, child);
+      return own ? [own, ...inner] : inner;
+    });
 
 type DecisionsOptions = {
   readonly text: string;
   readonly node: Node;
+  readonly nested: ReadonlySet<unknown>;
 };
 
-export const decisionsIn = ({ text, node }: DecisionsOptions): ReadonlyArray<Decision> =>
-  decisionsUnder({ text, depth: 0 }, node);
+export const decisionsIn = ({ text, node, nested }: DecisionsOptions): ReadonlyArray<Decision> =>
+  decisionsUnder({ text, nested, depth: 0 }, node);

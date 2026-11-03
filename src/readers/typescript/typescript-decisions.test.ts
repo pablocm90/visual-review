@@ -24,3 +24,14 @@ test("a function's ifs are decisions in source order, each with its test, its de
     { kind: 'if', text: 'if (order.open)', depth: 0, line: 5 },
   ]);
 });
+
+test("an inner function's decisions are its own, not its parent's, and a callback's are its parent's", () => {
+  const lines = [
+    'function load(items) {',
+    '  const keep = item => { if (item.kept) return item; };',
+    '  items.forEach(item => { if (item.open) log(); });',
+    '}',
+  ];
+  expect(decisionsOf('load', ...lines)?.map(({ text }) => text)).toEqual(['if (item.open)']);
+  expect(decisionsOf('keep', ...lines)?.map(({ text }) => text)).toEqual(['if (item.kept)']);
+});

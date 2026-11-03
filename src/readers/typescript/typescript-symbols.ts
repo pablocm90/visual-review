@@ -228,7 +228,7 @@ export const symbolsOfTypeScript = (text: string, path: string): FileSymbols => 
         [...walked.heads, walked.node].map(node => ownText(text, node, declarations)).join(''),
       ),
       bodyTokens: tokensOf(text, walked.node, code, declarations),
-      decisions: decisionsIn({ text, node: walked.node }),
+      decisions: decisionsIn({ text, node: walked.node, nested }),
     })),
     astHash: hashOf(program, asIs),
     exports: program.body.flatMap(statement => namesExportedBy(text, statement)),
