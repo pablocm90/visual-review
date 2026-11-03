@@ -4357,6 +4357,52 @@ test("a comment on a changed logic line goes with the review, anchored on its de
   );
 });
 
+test('a decision removed in one place and added in another with the same text takes two comments, the later one counted', async () => {
+  const user = userEvent.setup();
+  const sent = vi.fn(async () => {});
+  const charge = {
+    ...edited('charge', 'Orders'),
+    logic: [
+      { change: 'removed', kind: 'guard', depth: 0, base: 'if (!order) return', line: 2 },
+      { change: 'same', kind: 'loop', depth: 0, head: 'for (const line of lines)', line: 3 },
+      { change: 'added', kind: 'guard', depth: 1, head: 'if (!order) return', line: 4 },
+    ],
+  } satisfies SymbolStatement;
+  render(<ReviewPage review={chargedPage([charge])} send={sent} />);
+
+  const symbols = await openSymbols(user);
+  for (const [change, text] of [
+    ['removed', 'Why here?'],
+    ['added', 'Better here.'],
+  ]) {
+    const line = within(
+      symbols.getByRole('listitem', { name: `${change} guard: if (!order) return` }),
+    );
+    await user.click(line.getByRole('button', { name: 'Comment' }));
+    await user.type(line.getByRole('textbox', { name: 'Your comment' }), text ?? '');
+  }
+  await openReview(user);
+  await user.click(screen.getByRole('button', { name: 'Send to Claude' }));
+
+  expect(sent).toHaveBeenCalledExactlyOnceWith(
+    sentReview({
+      reviewed: { range: 'abc123..def456' },
+      comments: [
+        {
+          anchor: { kind: 'decision', id: 'web/file/orders.ts#Orders.charge#if (!order) return' },
+          kind: 'question',
+          text: 'Why here?',
+        },
+        {
+          anchor: { kind: 'decision', id: 'web/file/orders.ts#Orders.charge#if (!order) return#2' },
+          kind: 'question',
+          text: 'Better here.',
+        },
+      ],
+    }),
+  );
+});
+
 test('a page not served offers no comment on a symbol or a logic line', async () => {
   const user = userEvent.setup();
   const charge = {

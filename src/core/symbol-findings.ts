@@ -145,9 +145,7 @@ export const decisionsOf = ({
   const lines = statement.logic ?? [];
   return lines.map((line, index) => {
     const text = decisionText(line);
-    const before = lines
-      .slice(0, index)
-      .filter(other => other.change === line.change && decisionText(other) === text).length;
+    const before = lines.slice(0, index).filter(other => decisionText(other) === text).length;
     return {
       line,
       id: `${node}#${qualified(statement)}#${text}${before === 0 ? '' : `#${before + 1}`}`,
