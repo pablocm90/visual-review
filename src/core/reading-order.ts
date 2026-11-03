@@ -56,10 +56,15 @@ type Reading = {
   readonly order: ReadonlyArray<number>;
 };
 
-const dependedUponFirst = (groups: ReadonlyArray<Group>, graph: Graph): ReadonlyArray<Group> => {
-  const sorted = groups.toSorted((one, other) => ((one[0] ?? '') < (other[0] ?? '') ? -1 : 1));
-  const indexOf = new Map(sorted.flatMap((group, index) => group.map(part => [part, index])));
-  const dependsOn = sorted.map(
+const byFirstPart = (one: Group, other: Group): number =>
+  (one[0] ?? '') < (other[0] ?? '') ? -1 : 1;
+
+const groupsDependedOn = (
+  groups: ReadonlyArray<Group>,
+  graph: Graph,
+): ReadonlyArray<ReadonlySet<number>> => {
+  const indexOf = new Map(groups.flatMap((group, index) => group.map(part => [part, index])));
+  return groups.map(
     (group, index) =>
       new Set(
         group
@@ -68,6 +73,11 @@ const dependedUponFirst = (groups: ReadonlyArray<Group>, graph: Graph): Readonly
           .filter(other => other !== index),
       ),
   );
+};
+
+const dependedUponFirst = (groups: ReadonlyArray<Group>, graph: Graph): ReadonlyArray<Group> => {
+  const sorted = groups.toSorted(byFirstPart);
+  const dependsOn = groupsDependedOn(sorted, graph);
   const dependents = Map.groupBy(
     dependsOn.flatMap((others, index) => [...others].map(other => ({ other, index }))),
     ({ other }) => other,
