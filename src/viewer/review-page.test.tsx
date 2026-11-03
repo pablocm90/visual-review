@@ -1636,6 +1636,34 @@ test('J and K walk the reading order from the selected part, starting at its fir
   expect(selectedPart()).toBe('application');
 });
 
+const readingOrder = () => screen.getByRole('navigation', { name: 'Reading order' });
+
+const readRows = () =>
+  within(readingOrder())
+    .getAllByRole('listitem')
+    .filter(row => within(row).queryByRole('img', { name: 'read' }) !== null)
+    .map(row => within(row).getByRole('button').textContent);
+
+test('A marks the selected part read, ticking its row and counting it at the head of the reading order, and A again leaves it unread', async () => {
+  const user = userEvent.setup();
+  render(<ReviewPage review={walkedReview()} />);
+  await screen.findByRole('group', { name: 'rust' });
+  expect(within(readingOrder()).getByText('0 of 3 parts read')).toBeDefined();
+
+  await user.keyboard('ja');
+  await user.keyboard('jja');
+  expect(readRows()).toEqual(['1 application', '3 legacy']);
+  expect(within(readingOrder()).getByText('2 of 3 parts read')).toBeDefined();
+
+  await user.keyboard('a');
+  expect(readRows()).toEqual(['1 application']);
+  expect(within(readingOrder()).getByText('1 of 3 parts read')).toBeDefined();
+
+  await user.click(screen.getByRole('button', { name: 'domain: unchanged' }));
+  await user.keyboard('a');
+  expect(within(readingOrder()).getByText('1 of 3 parts read')).toBeDefined();
+});
+
 test('look first lists the findings to look at in rank order, in the dimension a triage chip picks, collapsing to their count, each going to its node, seven at most and Show all opening the rail past them, and is absent when none needs a look', async () => {
   const user = userEvent.setup();
   const looks = (count: number) =>

@@ -1358,6 +1358,13 @@ export const ReviewPage = ({ review, notes, send }: ReviewPageProps) => {
     location.hash = '#structure';
     goTo(id);
   };
+  const [read, setRead] = useState<ReadonlySet<string>>(new Set());
+  const markRead = (id: string) =>
+    setRead(current =>
+      current.has(id)
+        ? new Set([...current].filter(other => other !== id))
+        : new Set([...current, id]),
+    );
   const walk = (step: number) => {
     const { parts } = review.readingOrder;
     const at = parts.indexOf(selected ?? '');
@@ -1368,6 +1375,12 @@ export const ReviewPage = ({ review, notes, send }: ReviewPageProps) => {
     const keyed = (event: KeyboardEvent) => {
       if (event.key === 'j') walk(1);
       if (event.key === 'k') walk(-1);
+      if (
+        event.key === 'a' &&
+        selected !== undefined &&
+        review.readingOrder.parts.includes(selected)
+      )
+        markRead(selected);
     };
     document.addEventListener('keydown', keyed);
     return () => document.removeEventListener('keydown', keyed);
@@ -1396,6 +1409,7 @@ export const ReviewPage = ({ review, notes, send }: ReviewPageProps) => {
             <div className="left-column">
               <ReadingOrderList
                 review={review}
+                read={read}
                 findings={findings}
                 onGoTo={goTo}
                 onShowOutside={showOutside}
