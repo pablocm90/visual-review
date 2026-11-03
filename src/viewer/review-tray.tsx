@@ -17,6 +17,7 @@ type ReviewTrayProps = {
   readonly answers: Answers;
   readonly findings: ReadonlyArray<Finding>;
   readonly nameOf: (id: string) => string;
+  readonly partOf: (id: string) => string;
   readonly onGoTo: (id: string) => void;
   readonly send: (review: Review) => Promise<void>;
 };
@@ -56,9 +57,15 @@ const suggestedFor = (written: ReadonlyArray<Drafted>): Review['verdict'] => {
   return 'approve';
 };
 
-const inReadingOrder = (written: ReadonlyArray<Comment>, parts: ReadonlyArray<string>) => {
+type InReadingOrder = {
+  readonly written: ReadonlyArray<Comment>;
+  readonly parts: ReadonlyArray<string>;
+  readonly partOf: (id: string) => string;
+};
+
+const inReadingOrder = ({ written, parts, partOf }: InReadingOrder) => {
   const rank = ({ anchor }: Comment) => {
-    const at = parts.indexOf(anchor.id);
+    const at = parts.indexOf(partOf(anchor.id));
     return at === -1 ? parts.length : at;
   };
   return written.toSorted(
@@ -152,6 +159,7 @@ export const ReviewTray = ({
   answers,
   findings,
   nameOf,
+  partOf,
   onGoTo,
   send,
 }: ReviewTrayProps) => {
@@ -163,7 +171,7 @@ export const ReviewTray = ({
   const drafted = Object.values(comments).filter(({ text }) => text.trim() !== '');
   const answered = Object.values(answers).map(withWhy);
   const written = [...drafted, ...answered];
-  const ordered = inReadingOrder(drafted, parts);
+  const ordered = inReadingOrder({ written: drafted, parts, partOf });
   const hasBody = body.trim() !== '';
   const suggested = suggestedFor(written);
   const verdict = picked ?? suggested;

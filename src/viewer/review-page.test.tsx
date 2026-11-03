@@ -4448,6 +4448,44 @@ test("the open tray names a symbol's draft by its file and scoped name, a decisi
   expect(within(inspector()).getByRole('tab', { selected: true }).textContent).toMatch(/^Symbols/);
 });
 
+test("the open tray lists a symbol's draft with its file's part in reading order, after the part's own", async () => {
+  const user = userEvent.setup();
+  const page = chargedPage([edited('charge', 'Orders')]);
+  render(
+    <ReviewPage
+      review={{
+        ...page,
+        diff: { ...page.diff, nodes: [...page.diff.nodes, topFile('cart.ts', 'modified')] },
+        readingOrder: { parts: ['web/file/orders.ts', 'web/file/cart.ts'], cycles: [] },
+      }}
+      send={vi.fn()}
+    />,
+  );
+  const draftOn = async (name: string, text: string) => {
+    await user.click(await screen.findByRole('button', { name }));
+    await user.type(within(noteTab()).getByRole('textbox', { name: 'Your comment' }), text);
+  };
+
+  await draftOn('cart.ts: modified', 'Cart?');
+  const symbols = await openSymbols(user);
+  const row = within(symbols.getByRole('listitem', { name: 'method Orders.charge: edited' }));
+  await user.click(row.getByRole('button', { name: 'Comment' }));
+  await user.type(row.getByRole('textbox', { name: 'Your comment' }), 'Charge?');
+  await user.click(within(inspector()).getByRole('tab', { name: 'Note' }));
+  await user.type(within(noteTab()).getByRole('textbox', { name: 'Your comment' }), 'Orders?');
+  await openReview(user);
+
+  expect(
+    within(within(tray()).getByRole('list', { name: 'Drafts' }))
+      .getAllByRole('listitem')
+      .map(item => item.textContent),
+  ).toEqual([
+    'orders.ts Question: Orders?',
+    'orders.ts › Orders.charge Question: Charge?',
+    'cart.ts Question: Cart?',
+  ]);
+});
+
 test("a symbol's comment shows again, open, when its Symbols tab is left and opened again", async () => {
   const user = userEvent.setup();
   render(<ReviewPage review={chargedPage([edited('charge', 'Orders')])} send={vi.fn()} />);

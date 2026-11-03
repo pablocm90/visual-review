@@ -1505,6 +1505,7 @@ export const ReviewPage = ({ review, notes, send }: ReviewPageProps) => {
           answers={answers}
           findings={findings}
           nameOf={anchorName}
+          partOf={id => symbolsAt.get(id)?.node ?? id}
           onGoTo={goToOnStructure}
           send={send}
         />
