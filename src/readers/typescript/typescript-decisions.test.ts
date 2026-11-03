@@ -33,7 +33,7 @@ test("an inner function's decisions are its own, not its parent's, and a callbac
     '}',
   ];
   expect(decisionsOf('load', ...lines)?.map(({ text }) => text)).toEqual(['if (item.open)']);
-  expect(decisionsOf('keep', ...lines)?.map(({ text }) => text)).toEqual(['if (item.kept)']);
+  expect(decisionsOf('keep', ...lines)?.map(({ text }) => text)).toEqual(['if (item.kept) return']);
 });
 
 test('an else if sits at the depth of the if it follows, and what it holds one deeper', () => {
@@ -48,4 +48,26 @@ test('an else if sits at the depth of the if it follows, and what it holds one d
       '}',
     )?.map(({ text, depth }) => `${depth} ${text}`),
   ).toEqual(['0 if (order.paid)', '0 if (order.open)', '1 if (order.late)']);
+});
+
+const kindsAndTexts = (name: string, ...lines: ReadonlyArray<string>) =>
+  decisionsOf(name, ...lines)?.map(({ kind, text }) => `${kind}: ${text}`);
+
+test('an if that only returns, with no else, is a guard', () => {
+  expect(
+    kindsAndTexts(
+      'charge',
+      'function charge(order) {',
+      '  if (!order) return;',
+      '  if (order.free) { return 0; }',
+      '  if (order.paid) return order.total; else pay();',
+      '  if (order.open) { pay(); return 1; }',
+      '}',
+    ),
+  ).toEqual([
+    'guard: if (!order) return',
+    'guard: if (order.free) return',
+    'if: if (order.paid)',
+    'if: if (order.open)',
+  ]);
 });

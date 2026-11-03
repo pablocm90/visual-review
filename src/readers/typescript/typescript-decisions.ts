@@ -8,15 +8,22 @@ type Walk = {
   readonly depth: number;
 };
 
-const decisionAt = ({ text, depth }: Walk, node: Node): Decision | undefined =>
-  node.type === 'IfStatement'
-    ? {
-        kind: 'if',
-        text: `if (${sourceOf(text, node.test)})`,
-        depth,
-        line: node.loc?.start.line ?? 0,
-      }
-    : undefined;
+const firstStatementOf = (node: Node): Node | undefined =>
+  node.type === 'BlockStatement' ? node.body[0] : node;
+
+const isGuard = (node: Node): boolean =>
+  node.type === 'IfStatement' &&
+  node.alternate === null &&
+  firstStatementOf(node.consequent)?.type === 'ReturnStatement';
+
+const decisionAt = ({ text, depth }: Walk, node: Node): Decision | undefined => {
+  if (node.type !== 'IfStatement') return undefined;
+  const condition = `if (${sourceOf(text, node.test)})`;
+  const line = node.loc?.start.line ?? 0;
+  return isGuard(node)
+    ? { kind: 'guard', text: `${condition} return`, depth, line }
+    : { kind: 'if', text: condition, depth, line };
+};
 
 const isElseIf = (node: Node, child: Node): boolean =>
   node.type === 'IfStatement' && node.alternate === child;
