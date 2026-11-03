@@ -147,3 +147,24 @@ test('in a gap, decisions of a kind pair in order and the rest of the base are r
     'changed if (c)',
   ]);
 });
+
+test('decisions that differ only in the whitespace between their tokens are the same; whitespace between two words or inside a string still counts', () => {
+  expect(
+    logicDiff({
+      base: [
+        decision({ text: 'if (a>0)' }),
+        decision({ text: 'if (key in order)' }),
+        decision({ text: "if (name === 'a b')" }),
+      ],
+      head: [
+        decision({ text: 'if (a > 0)' }),
+        decision({ text: 'if (keyin order)' }),
+        decision({ text: "if (name === 'ab')" }),
+      ],
+    }).map(({ change, base, head }) => [change, base ?? head]),
+  ).toEqual([
+    ['same', 'if (a > 0)'],
+    ['changed', 'if (key in order)'],
+    ['changed', "if (name === 'a b')"],
+  ]);
+});

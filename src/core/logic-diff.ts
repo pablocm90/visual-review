@@ -16,8 +16,23 @@ type Sides = {
 
 type Match = readonly [number, number];
 
+const STRINGS = /('(?:[^'\\]|\\.)*'|"(?:[^"\\]|\\.)*"|`(?:[^`\\]|\\.)*`)/;
+
+const isWord = (character: string | undefined): boolean => /[\w$]/.test(character ?? '');
+
+const spacingOf = (code: string): string =>
+  code.replace(/\s+/g, (space, at: number) =>
+    isWord(code[at - 1]) && isWord(code[at + space.length]) ? ' ' : '',
+  );
+
+const tokensOf = (text: string): string =>
+  text
+    .split(STRINGS)
+    .map((part, index) => (index % 2 === 0 ? spacingOf(part) : part))
+    .join('');
+
 const sameDecision = (one: Decision, other: Decision): boolean =>
-  one.kind === other.kind && one.text === other.text;
+  one.kind === other.kind && tokensOf(one.text) === tokensOf(other.text);
 
 type Row = ReadonlyArray<number>;
 
