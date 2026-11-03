@@ -286,7 +286,7 @@ test.for<{
 });
 
 test('changes only keeps the changed nodes and both ends of an added or removed edge, and hides a neighbour joined by an unchanged edge and an emptied stack', () => {
-  const only = changesOnly({
+  const diff: GraphDiff = {
     nodes: [
       node('rust', 'stack'),
       node('domain', 'package', 'rust'),
@@ -305,7 +305,8 @@ test('changes only keeps the changed nodes and both ends of an added or removed 
       { from: 'application', to: 'legacy', state: 'removed' },
       { from: 'shop', to: 'cli-adapter', state: 'unchanged' },
     ],
-  });
+  };
+  const only = changesOnly({ diff, expanded: new Set(), drawn: diff });
 
   expect(only.nodes.map(({ id }) => id)).toEqual([
     'rust',
@@ -318,4 +319,22 @@ test('changes only keeps the changed nodes and both ends of an added or removed 
     'cli-adapter -> application',
     'application -> legacy',
   ]);
+});
+
+test('changes only keeps the closed box an added import reaches, though an unchanged import merges with it on the drawn edge', () => {
+  const diff = nested([
+    { from: 'a1', to: 'b1', state: 'added' },
+    { from: 'a2', to: 'b1', state: 'unchanged' },
+  ]);
+  const withA = {
+    ...diff,
+    nodes: diff.nodes.map(each => (each.id === 'A' ? changed(each) : each)),
+  };
+  const drawn = visibleDiff({ diff: withA, expanded: new Set() });
+
+  const only = changesOnly({ diff: withA, expanded: new Set(), drawn });
+
+  expect(drawn.edges).toEqual([{ from: 'A', to: 'B', state: 'unchanged' }]);
+  expect(only.nodes.map(({ id }) => id)).toEqual(['web', 'A', 'B']);
+  expect(only.edges).toEqual(drawn.edges);
 });

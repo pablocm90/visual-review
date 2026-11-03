@@ -94,9 +94,15 @@ export const nearChanges = (diff: GraphDiff): GraphDiff => {
   return keeping(diff, [...changed, ...endsOf(diff.edges, touchesChange)]);
 };
 
-export const changesOnly = (diff: GraphDiff): GraphDiff => {
-  const { changed } = touchingChangeIn(diff);
-  return keeping(diff, [...changed, ...endsOf(diff.edges, edge => edge.state !== 'unchanged')]);
+type ChangesOnlyOptions = VisibleDiffOptions & {
+  readonly drawn: GraphDiff;
+};
+
+export const changesOnly = ({ diff, expanded, drawn }: ChangesOnlyOptions): GraphDiff => {
+  const visibleOf = visibleNodeOf({ diff, expanded });
+  const { changed } = touchingChangeIn(drawn);
+  const ends = endsOf(diff.edges, edge => edge.state !== 'unchanged').map(visibleOf);
+  return keeping(drawn, [...changed, ...ends]);
 };
 
 type MergedDiffOptions = VisibleDiffOptions & {

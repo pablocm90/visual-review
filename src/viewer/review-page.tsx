@@ -793,10 +793,16 @@ type DrawnAtOptions = {
 const drawnAt = ({ diff, expanded, noted, allEdges }: DrawnAtOptions): GraphDiff =>
   allEdges ? visibleDiff({ diff, expanded }) : mergedDiff({ diff, expanded, noted });
 
+type Keeping = {
+  readonly diff: GraphDiff;
+  readonly expanded: ReadonlySet<string>;
+  readonly drawn: GraphDiff;
+};
+
 const SCOPES = [
   ['Changes only', changesOnly],
-  ['Changed + 1 hop', nearChanges],
-  ['Everything', (diff: GraphDiff) => diff],
+  ['Changed + 1 hop', ({ drawn }: Keeping) => nearChanges(drawn)],
+  ['Everything', ({ drawn }: Keeping) => drawn],
 ] as const;
 
 type Scope = (typeof SCOPES)[number];
@@ -1145,7 +1151,8 @@ export const ReviewPage = ({ review, notes, send }: ReviewPageProps) => {
   const triaged = findings.filter(finding => picked === undefined || finding.dimension === picked);
   const drawn = useMemo(() => {
     const [, keep] = scope;
-    return keep(drawnAt({ diff: review.diff, expanded, noted, allEdges }));
+    const atExpansion = drawnAt({ diff: review.diff, expanded, noted, allEdges });
+    return keep({ diff: review.diff, expanded, drawn: atExpansion });
   }, [review, expanded, noted, allEdges, scope]);
   const shown = useMemo(
     () => visibleNotes({ diff: review.diff, expanded, notes: notes?.notes ?? {} }),
@@ -1218,7 +1225,10 @@ export const ReviewPage = ({ review, notes, send }: ReviewPageProps) => {
     if (all) setAllEdges(true);
     const atAll = drawnAt({ ...at, allEdges: all });
     const narrower = SCOPES.slice(SCOPES.indexOf(scope), -1);
-    setScope(narrower.find(([, keep]) => isDrawn({ diff: keep(atAll), id })) ?? SCOPES[2]);
+    setScope(
+      narrower.find(([, keep]) => isDrawn({ diff: keep({ ...at, drawn: atAll }), id })) ??
+        SCOPES[2],
+    );
     centre(id);
     setFocusTarget(id);
   };
