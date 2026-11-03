@@ -51,10 +51,16 @@ export type Drafting = {
 
 type AnchoredCommentProps = {
   readonly anchor: Comment['anchor'];
-  readonly drafting: Drafting;
+  readonly drafting: Drafting | undefined;
 };
 
-export const AnchoredComment = ({ anchor, drafting }: AnchoredCommentProps) => {
+export const AnchoredComment = ({ anchor, drafting }: AnchoredCommentProps) =>
+  drafting && <OpenedComment anchor={anchor} drafting={drafting} />;
+
+const OpenedComment = ({
+  anchor,
+  drafting,
+}: AnchoredCommentProps & { readonly drafting: Drafting }) => {
   const [open, setOpen] = useState(false);
   const draft = drafting.draftOn(anchor.id);
   return open || draft.text !== '' ? (

@@ -137,7 +137,7 @@ const LogicLines = ({
             >
               <LogicText line={line} />
             </button>
-            {drafting && <AnchoredComment anchor={{ kind: 'decision', id }} drafting={drafting} />}
+            <AnchoredComment anchor={{ kind: 'decision', id }} drafting={drafting} />
           </>
         )}
       </li>
@@ -185,12 +185,10 @@ const SymbolList = ({
             <ins>{symbol.signature.head}</ins>
           </span>
         )}
-        {places.drafting && (
-          <AnchoredComment
-            anchor={{ kind: 'symbol', id: `${node}#${qualified(symbol)}` }}
-            drafting={places.drafting}
-          />
-        )}
+        <AnchoredComment
+          anchor={{ kind: 'symbol', id: `${node}#${qualified(symbol)}` }}
+          drafting={places.drafting}
+        />
         {symbol.logic !== undefined && (
           <LogicLines
             node={node}
