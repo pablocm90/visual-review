@@ -99,10 +99,16 @@ const dependedUponFirst = (groups: ReadonlyArray<Group>, graph: Graph): Readonly
 };
 
 export const readingOrder = (diff: GraphDiff): ReadingOrder => {
-  const parents = new Set(diff.nodes.flatMap(node => node.parent ?? []));
-  const changed = diff.nodes.filter(node => node.state !== 'unchanged' && !parents.has(node.id));
-  const removed = changed.filter(node => node.state === 'removed').map(node => node.id);
-  const parts = changed.filter(node => node.state !== 'removed').map(node => node.id);
+  const parentOf = new Map(diff.nodes.map(node => [node.id, node.parent]));
+  const ancestry = (id: string): ReadonlyArray<string> => {
+    const parent = parentOf.get(id);
+    return parent === undefined ? [id] : [id, ...ancestry(parent)];
+  };
+  const changed = diff.nodes.filter(node => node.state !== 'unchanged');
+  const holdingChanges = new Set(changed.flatMap(node => ancestry(node.id).slice(1)));
+  const innermost = changed.filter(node => !holdingChanges.has(node.id));
+  const removed = innermost.filter(node => node.state === 'removed').map(node => node.id);
+  const parts = innermost.filter(node => node.state !== 'removed').map(node => node.id);
   const targetsOf = new Map(
     [
       ...Map.groupBy(
@@ -120,11 +126,6 @@ export const readingOrder = (diff: GraphDiff): ReadingOrder => {
     return next.size === 0
       ? new Set(layers.flatMap(layer => [...layer]))
       : reached([...layers, next]);
-  };
-  const parentOf = new Map(diff.nodes.map(node => [node.id, node.parent]));
-  const ancestry = (id: string): ReadonlyArray<string> => {
-    const parent = parentOf.get(id);
-    return parent === undefined ? [id] : [id, ...ancestry(parent)];
   };
   const ancestries = new Map(parts.map(part => [part, ancestry(part)]));
   const partsUnder = Map.groupBy(

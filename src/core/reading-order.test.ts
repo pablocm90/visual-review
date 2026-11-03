@@ -121,7 +121,16 @@ test('orders the modules of two crates, at any depth, by the edge between the cr
   });
 });
 
-const crateCycle = (modules: ReadonlyArray<DiffedNode>): GraphDiff => ({
+const crateEdge = (from: string, to: string): DiffedEdge => ({
+  from: `api/crate/${from}`,
+  to: `api/crate/${to}`,
+  state: 'unchanged',
+});
+
+const twoCrates = (
+  modules: ReadonlyArray<DiffedNode>,
+  edges: ReadonlyArray<DiffedEdge>,
+): GraphDiff => ({
   nodes: [
     { id: 'api', kind: 'stack', label: 'api', path: '', state: 'modified' },
     ...['a', 'b'].map(
@@ -136,11 +145,11 @@ const crateCycle = (modules: ReadonlyArray<DiffedNode>): GraphDiff => ({
     ),
     ...modules,
   ],
-  edges: [
-    { from: 'api/crate/a', to: 'api/crate/b', state: 'unchanged' },
-    { from: 'api/crate/b', to: 'api/crate/a', state: 'unchanged' },
-  ],
+  edges,
 });
+
+const crateCycle = (modules: ReadonlyArray<DiffedNode>): GraphDiff =>
+  twoCrates(modules, [crateEdge('a', 'b'), crateEdge('b', 'a')]);
 
 const crateModule = (krate: string, name: string, state: DiffedNode['state'] = 'modified') => ({
   id: `api/mod/${krate}/${name}`,
@@ -170,6 +179,14 @@ test('reads a removed module inside a crate cycle once, after the rest', () => {
     crateModule('b', 'three'),
   ]);
   expect(readingOrder(diff).parts).toEqual(['api/mod/a/one', 'api/mod/b/three', 'api/mod/a/two']);
+});
+
+test('reads a modified crate whose modules are all unchanged as a part, ordered by its edges', () => {
+  const diff = twoCrates(
+    [crateModule('a', 'one'), crateModule('b', 'two', 'unchanged')],
+    [crateEdge('a', 'b')],
+  );
+  expect(readingOrder(diff).parts).toEqual(['api/crate/b', 'api/mod/a/one']);
 });
 
 test('orders a thousand changed files without stalling', () => {
