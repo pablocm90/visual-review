@@ -2049,6 +2049,16 @@ test('J, K and A typed in a comment are text, neither walking nor marking', asyn
   );
 });
 
+test('J walks the reading order with the All edges box focused', async () => {
+  const user = userEvent.setup();
+  render(<ReviewPage review={walkedReview()} />);
+  await screen.findByRole('group', { name: 'rust' });
+
+  await user.click(screen.getByRole('checkbox', { name: 'All edges' }));
+  await user.keyboard('j');
+  expect(selectedPart()).toBe('application');
+});
+
 test("J, K and A typed in why it's fine are text, neither walking nor marking", async () => {
   const user = userEvent.setup();
   render(
