@@ -51,3 +51,8 @@ test('reads files that import each other in id order, and says they do', () => {
     cycles: [['web/file/a.ts', 'web/file/b.ts']],
   });
 });
+
+test('reads removed files after the files the head holds, in id order', () => {
+  const diff = diffOf([file('b.ts', 'removed'), file('a.ts', 'removed'), file('c.ts')]);
+  expect(readingOrder(diff).parts).toEqual(['web/file/c.ts', 'web/file/a.ts', 'web/file/b.ts']);
+});

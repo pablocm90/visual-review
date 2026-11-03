@@ -30,6 +30,7 @@ export const readingOrder = (diff: GraphDiff): ReadingOrder => {
     .filter(node => node.state !== 'unchanged' && !parents.has(node.id))
     .map(node => node.id)
     .toSorted();
+  const removed = new Set(diff.nodes.filter(node => node.state === 'removed').map(node => node.id));
   const reached = (from: ReadonlySet<string>): ReadonlySet<string> => {
     const next = new Set([
       ...from,
@@ -42,6 +43,13 @@ export const readingOrder = (diff: GraphDiff): ReadingOrder => {
   const groupOf = (part: string): Group =>
     parts.filter(other => reaches(part, other) && reaches(other, part));
   const groups = [...new Map(parts.map(part => [groupOf(part).join(' '), groupOf(part)])).values()];
-  const order = ordered(groups, reaches);
-  return { parts: order.flat(), cycles: order.filter(group => group.length > 1) };
+  const isRemoved = (group: Group): boolean => group.some(part => removed.has(part));
+  const order = ordered(
+    groups.filter(group => !isRemoved(group)),
+    reaches,
+  );
+  return {
+    parts: [...order.flat(), ...groups.filter(isRemoved).flat()],
+    cycles: order.filter(group => group.length > 1),
+  };
 };
