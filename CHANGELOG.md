@@ -6,7 +6,7 @@ What changed in each release of `@pablocm90/visual-review`, newest first. Versio
 
 ### Changed
 
-- The header's Review panel is now the review tray, a bar at the page's foot on every tab. Closed, it counts the drafts by kind ("2 drafted · 1 change · 1 question"). Open, it lists your comments, those on parts in reading order first, each going to what it is on, the parts you read with nothing to say, the general comment, the verdict and Send.
+- The header's Review panel is now the review tray, a bar at the page's foot on every tab. Closed, it counts the drafts by kind ("2 drafted · 1 change · 1 question"). Open, it lists your comments, those on parts in reading order first, then your answers to findings, by the finding's title, each going to what it is on, the parts you read with nothing to say, the general comment, the verdict and Send.
 - The verdict starts at the one the drafts suggest, marked suggested: Request changes once there is a Change this or a Fix this, else Comment once there is a Question or an Explain, else Approve. It follows the drafts until you pick one, which then holds.
 
 ### Added
