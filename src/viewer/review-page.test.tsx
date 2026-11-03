@@ -2780,6 +2780,8 @@ test('on Kind of change a changed file is named with the strongest kind of its s
     />,
   );
   const web = await screen.findByRole('group', { name: 'web' });
+  await showEverything(user);
+  await within(web).findByRole('button', { name: 'same.ts: unchanged' });
 
   await user.click(colourBy('Kind of change'));
   expect(colourBy('Kind of change').getAttribute('aria-pressed')).toBe('true');
