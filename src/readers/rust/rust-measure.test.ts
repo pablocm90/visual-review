@@ -54,10 +54,10 @@ test('every fn with a body is a function, free, in an impl, a trait default or n
   );
 
   expect(measureRust(text).functions).toEqual([
-    { name: 'free', cyclomatic: 1, abc: noAbc },
-    { name: 'nested', cyclomatic: 1, abc: noAbc },
-    { name: 'open', cyclomatic: 1, abc: noAbc },
-    { name: 'shut', cyclomatic: 1, abc: noAbc },
+    { name: 'free', cyclomatic: 1, earlyReturns: 0, abc: noAbc },
+    { name: 'nested', cyclomatic: 1, earlyReturns: 0, abc: noAbc },
+    { name: 'open', cyclomatic: 1, earlyReturns: 0, abc: noAbc },
+    { name: 'shut', cyclomatic: 1, earlyReturns: 0, abc: noAbc },
   ]);
 });
 
@@ -90,12 +90,27 @@ test.for([
   { body: 'a && b;', cyclomatic: 2 },
   { body: 'a || b;', cyclomatic: 2 },
   { body: 'a == b;', cyclomatic: 1 },
-  { body: 'a?;', cyclomatic: 2 },
   { body: 'let g = |y| if y {};', cyclomatic: 2 },
   { body: 'fn g() { if a {} }', cyclomatic: 1 },
 ])('`$body` gives its fn cyclomatic $cyclomatic', ({ body, cyclomatic }) => {
   expect(cyclomaticOf(body)).toBe(cyclomatic);
 });
+
+const tries = Array.from({ length: 12 }, (_, at) => `let v${at} = step${at}()?;`).join(' ');
+const arms = Array.from({ length: 11 }, (_, at) => `${at} => run${at}(),`).join(' ');
+
+test.for([
+  { shape: 'made only of ?s', body: tries, cyclomatic: 1, earlyReturns: 12 },
+  { shape: 'long match', body: `match a { ${arms} }`, cyclomatic: 12, earlyReturns: 0 },
+])(
+  "a fn's ?s are its earlyReturns, apart from cyclomatic: one $shape has cyclomatic $cyclomatic against the cutoff of 10",
+  ({ body, cyclomatic, earlyReturns }) => {
+    expect(measureRust(`fn f() { ${body} }`).functions[0]).toMatchObject({
+      cyclomatic,
+      earlyReturns,
+    });
+  },
+);
 
 const abcOf = (body: string) => measureRust(`fn f() { ${body} }`).functions[0]?.abc;
 

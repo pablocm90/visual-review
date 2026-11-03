@@ -13,7 +13,6 @@ const DECISIONS = new Set([
   'for_expression',
   'loop_expression',
   'match_arm',
-  'try_expression',
   '&&',
   '||',
 ]);
@@ -43,6 +42,7 @@ const measureFunction = (item: Node): FunctionMeasures => {
   return {
     name: item.childForFieldName('name')?.text ?? '',
     cyclomatic: 1 + nodes.filter(node => DECISIONS.has(node.type)).length,
+    earlyReturns: nodes.filter(node => node.type === 'try_expression').length,
     abc: {
       assignments: nodes.filter(isAssignment).length,
       branches: nodes.filter(node => CALLS.has(node.type)).length,
