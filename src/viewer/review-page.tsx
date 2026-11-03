@@ -35,6 +35,7 @@ import {
 } from '../core/visible-diff.ts';
 import { anchorKey } from './anchors.ts';
 import { ColourBy, type Colouring, ScaleLegend, type Shade, shadeOf } from './colour-by.tsx';
+import { CommentField } from './comment-field.tsx';
 import {
   AnswerButtons,
   type Answers,
@@ -57,7 +58,7 @@ import { MetricsScreen } from './metrics-screen.tsx';
 import { MetricsTable } from './metrics-tab.tsx';
 import { storedReadMarks, storeReadMarks } from './read-marks.ts';
 import { ReadingOrderList } from './reading-order-list.tsx';
-import { COMMENT_KINDS, type Comments, ReviewTray } from './review-tray.tsx';
+import { type Comments, ReviewTray } from './review-tray.tsx';
 import { changedSymbolCount, hasSymbolNews, type LineAt, SymbolsOf } from './symbols-tab.tsx';
 import { changedCount, TestFiles, TestsScreen } from './tests-screen.tsx';
 import {
@@ -561,18 +562,15 @@ type InspectorProps = {
   readonly tests: ReadonlyArray<TestFile>;
   readonly symbols: ReadonlyArray<SymbolFile>;
   readonly onGoTo: (id: string) => void;
-  readonly comment: Draft;
-  readonly onComment: ((draft: Draft) => void) | undefined;
+  readonly anchor: Comment['anchor'];
+  readonly comments: Comments;
+  readonly onComment: ((comment: Comment) => void) | undefined;
   readonly commentable: boolean;
   readonly answers: Answers;
   readonly onAnswer: AnswerTo | undefined;
   readonly width: number;
   readonly onClose: () => void;
 };
-
-type Draft = Pick<Comment, 'kind' | 'text'>;
-
-const NO_DRAFT: Draft = { kind: 'question', text: '' };
 
 type InspectorTab = 'note' | 'metrics' | 'diff' | 'tests' | 'symbols';
 
@@ -663,13 +661,14 @@ const nodeSections = ({
 
 type NotePanelProps = Pick<
   InspectorProps,
-  'note' | 'found' | 'comment' | 'onComment' | 'commentable' | 'answers' | 'onAnswer'
+  'note' | 'found' | 'anchor' | 'comments' | 'onComment' | 'commentable' | 'answers' | 'onAnswer'
 >;
 
 const NotePanel = ({
   note,
   found,
-  comment,
+  anchor,
+  comments,
   onComment,
   commentable,
   answers,
@@ -692,28 +691,7 @@ const NotePanel = ({
     <p>{note?.text ?? 'No note'}</p>
     {onComment &&
       (commentable ? (
-        <>
-          <div role="radiogroup" aria-label="Comment kind" className="comment-kind">
-            {COMMENT_KINDS.map(([kind, label]) => (
-              <label key={kind}>
-                <input
-                  type="radio"
-                  name="comment-kind"
-                  checked={comment.kind === kind}
-                  onChange={() => onComment({ ...comment, kind })}
-                />
-                {label}
-              </label>
-            ))}
-          </div>
-          <label className="comment">
-            Your comment
-            <textarea
-              value={comment.text}
-              onChange={event => onComment({ ...comment, text: event.target.value })}
-            />
-          </label>
-        </>
+        <CommentField anchor={anchor} comments={comments} onComment={onComment} />
       ) : (
         <p>Drawn for several edges: open its ends to comment on one of them.</p>
       ))}
@@ -904,8 +882,9 @@ const SidePanel = ({
         tests={review.tests}
         symbols={review.symbols}
         onGoTo={onGoTo}
-        comment={comments[anchorKey(anchor)] ?? NO_DRAFT}
-        onComment={onComment && (draft => onComment({ anchor, ...draft }))}
+        anchor={anchor}
+        comments={comments}
+        onComment={onComment}
         commentable={
           node !== undefined || review.diff.edges.some(edge => edgeId(edge) === selected)
         }
