@@ -384,6 +384,9 @@ test("a finding in the rail is answered Fix this, It's fine or Explain, only the
   await screen.findByRole('group', { name: 'rust' });
   await user.click(screen.getByRole('button', { name: 'Show 2 findings' }));
   await answer('domain', 'Fix this');
+  expect(
+    within(findingInRail('domain')).queryByRole('textbox', { name: "Why it's fine" }),
+  ).toBeNull();
   await answer('application', 'Explain');
   await answer('domain', "It's fine");
   expect(
@@ -405,6 +408,39 @@ test("a finding in the rail is answered Fix this, It's fine or Explain, only the
       ],
     }),
   );
+});
+
+test("It's fine takes an optional why, which goes with the answer", async () => {
+  const user = userEvent.setup();
+  const sent = vi.fn(async () => {});
+  render(
+    <ReviewPage
+      review={pageWith({ ...review, findings: [findingOn('rust/crate/domain')] })}
+      send={sent}
+    />,
+  );
+
+  await screen.findByRole('group', { name: 'rust' });
+  await user.click(screen.getByRole('button', { name: 'Show 1 finding' }));
+  await user.click(within(findingInRail('domain')).getByRole('button', { name: "It's fine" }));
+  await user.type(
+    within(findingInRail('domain')).getByRole('textbox', { name: "Why it's fine" }),
+    'Generated code',
+  );
+  await openReview(user);
+  await user.click(screen.getByRole('button', { name: 'Send to Claude' }));
+
+  expect(sent).toHaveBeenCalledExactlyOnceWith({
+    version: 3,
+    verdict: 'comment',
+    comments: [
+      {
+        anchor: { kind: 'finding', id: 'metrics:lines:rust/crate/domain' },
+        kind: 'fine',
+        text: 'Generated code',
+      },
+    ],
+  });
 });
 
 test('a page that is not served has no comment field, no answers to findings and no Review button', async () => {

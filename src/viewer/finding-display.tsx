@@ -53,5 +53,13 @@ export const AnswerButtons = ({ id, answer, onAnswer }: AnswerButtonsProps) => (
         {label}
       </button>
     ))}
+    {answer?.kind === 'fine' && (
+      <input
+        aria-label="Why it's fine"
+        placeholder="Why it's fine (optional)"
+        value={answer.text ?? ''}
+        onChange={event => onAnswer({ ...answer, text: event.target.value })}
+      />
+    )}
   </div>
 );
