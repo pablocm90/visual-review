@@ -34,6 +34,7 @@ import {
   visibleNodeOf,
 } from '../core/visible-diff.ts';
 import { ColourBy, type Colouring, ScaleLegend, type Shade, shadeOf } from './colour-by.tsx';
+import { CommentForm, type Draft, NO_DRAFT } from './comment-form.tsx';
 import {
   AnswerButtons,
   type Answers,
@@ -56,7 +57,7 @@ import { MetricsScreen } from './metrics-screen.tsx';
 import { MetricsTable } from './metrics-tab.tsx';
 import { storedReadMarks, storeReadMarks } from './read-marks.ts';
 import { ReadingOrderList } from './reading-order-list.tsx';
-import { COMMENT_KINDS, type Comments, ReviewTray } from './review-tray.tsx';
+import { type Comments, ReviewTray } from './review-tray.tsx';
 import { changedSymbolCount, hasSymbolNews, type LineAt, SymbolsOf } from './symbols-tab.tsx';
 import { changedCount, TestFiles, TestsScreen } from './tests-screen.tsx';
 import {
@@ -569,10 +570,6 @@ type InspectorProps = {
   readonly onClose: () => void;
 };
 
-type Draft = Pick<Comment, 'kind' | 'text'>;
-
-const NO_DRAFT: Draft = { kind: 'question', text: '' };
-
 type InspectorTab = 'note' | 'metrics' | 'diff' | 'tests' | 'symbols';
 
 const INSPECTOR_TABS: Readonly<Record<InspectorTab, string>> = {
@@ -691,28 +688,7 @@ const NotePanel = ({
     <p>{note?.text ?? 'No note'}</p>
     {onComment &&
       (commentable ? (
-        <>
-          <div role="radiogroup" aria-label="Comment kind" className="comment-kind">
-            {COMMENT_KINDS.map(([kind, label]) => (
-              <label key={kind}>
-                <input
-                  type="radio"
-                  name="comment-kind"
-                  checked={comment.kind === kind}
-                  onChange={() => onComment({ ...comment, kind })}
-                />
-                {label}
-              </label>
-            ))}
-          </div>
-          <label className="comment">
-            Your comment
-            <textarea
-              value={comment.text}
-              onChange={event => onComment({ ...comment, text: event.target.value })}
-            />
-          </label>
-        </>
+        <CommentForm draft={comment} onDraft={onComment} />
       ) : (
         <p>Drawn for several edges: open its ends to comment on one of them.</p>
       ))}
