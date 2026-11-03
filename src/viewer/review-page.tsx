@@ -1296,6 +1296,15 @@ type ReviewPageProps = {
   readonly send?: ((review: Review) => Promise<void>) | undefined;
 };
 
+const withAnswer = (answers: Answers, id: string, given: Answer | undefined): Answers =>
+  given
+    ? { ...answers, [id]: given }
+    : Object.fromEntries(Object.entries(answers).filter(([answered]) => answered !== id));
+
+const typesText = (target: EventTarget | null) =>
+  target instanceof HTMLTextAreaElement ||
+  (target instanceof HTMLInputElement && target.type === 'text');
+
 export const ReviewPage = ({ review, notes, send }: ReviewPageProps) => {
   const tab = useTab();
   const [layout, setLayout] = useState<Layout>();
@@ -1310,12 +1319,8 @@ export const ReviewPage = ({ review, notes, send }: ReviewPageProps) => {
   };
   const [comments, setComments] = useState<Comments>({});
   const [answers, setAnswers] = useState<Answers>({});
-  const answer: AnswerTo = (id, given) =>
-    setAnswers(current =>
-      given
-        ? { ...current, [id]: given }
-        : Object.fromEntries(Object.entries(current).filter(([answered]) => answered !== id)),
-    );
+  const answer: AnswerTo | undefined =
+    send && ((id, given) => setAnswers(current => withAnswer(current, id, given)));
   const [chosenWidth, setChosenWidth] = useState<number>();
   const comment = (written: Comment) =>
     setComments(current => ({ ...current, [written.anchor.id]: written }));
@@ -1429,8 +1434,7 @@ export const ReviewPage = ({ review, notes, send }: ReviewPageProps) => {
   useEffect(() => {
     if (tab !== 'structure') return;
     const keyed = (event: globalThis.KeyboardEvent) => {
-      if (event.target instanceof HTMLTextAreaElement) return;
-      if (event.target instanceof HTMLInputElement && event.target.type === 'text') return;
+      if (typesText(event.target)) return;
       if (event.ctrlKey || event.metaKey || event.altKey) return;
       const key = event.key.toLowerCase();
       if (key === 'j') walk(1);
@@ -1485,7 +1489,7 @@ export const ReviewPage = ({ review, notes, send }: ReviewPageProps) => {
                 onGoTo={goTo}
                 onShowOutside={showOutside}
                 answers={answers}
-                onAnswer={send && answer}
+                onAnswer={answer}
               />
             </div>
             <div className="content">
@@ -1588,7 +1592,7 @@ export const ReviewPage = ({ review, notes, send }: ReviewPageProps) => {
               comments={comments}
               onComment={send && comment}
               answers={answers}
-              onAnswer={send && answer}
+              onAnswer={answer}
               chosenWidth={chosenWidth}
               onChooseWidth={setChosenWidth}
               graphLeft={graphLeft}
