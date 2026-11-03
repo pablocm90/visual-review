@@ -2,7 +2,7 @@ import { expect, test } from 'vitest';
 import { parseReview } from './review.ts';
 
 const reviewWith = (verdict = 'request-changes') => ({
-  version: 4,
+  version: 5,
   verdict,
   reviewed: { range: 'a1b2c3d..e4f5a6b', pullRequest: 16 },
   read: ['web/file/App.tsx', 'rust/crate/domain'],
@@ -21,6 +21,16 @@ const reviewWith = (verdict = 'request-changes') => ({
       anchor: { kind: 'part', id: 'web/module/modules/AppInfo' },
       kind: 'suggestion',
       text: 'Maybe split it.',
+    },
+    {
+      anchor: { kind: 'symbol', id: 'web/file/App.tsx#App.load' },
+      kind: 'question',
+      text: 'Why load here?',
+    },
+    {
+      anchor: { kind: 'decision', id: 'web/file/App.tsx#App#if (!open) return' },
+      kind: 'change',
+      text: 'Keep this guard.',
     },
     { anchor: { kind: 'finding', id: 'metrics:cyclomatic:web/file/App.tsx' }, kind: 'fix' },
     {
@@ -47,12 +57,12 @@ test('a review of a range that is no pull request reads back with no pull reques
 });
 
 test.for([
-  { problem: 'is not JSON', text: '{ "version": 3,', reason: 'SyntaxError' },
+  { problem: 'is not JSON', text: '{ "version": 4,', reason: 'SyntaxError' },
   { problem: 'has no version', text: '{ "comments": [] }', reason: 'no "version"' },
   {
     problem: 'has a version this one does not read',
-    text: '{ "version": 3, "comments": {} }',
-    reason: 'version 3 is unknown; this visual-review reads version 4',
+    text: '{ "version": 4, "comments": [] }',
+    reason: 'version 4 is unknown; this visual-review reads version 5',
   },
   {
     problem: 'has a key no review has',

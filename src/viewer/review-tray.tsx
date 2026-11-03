@@ -171,7 +171,7 @@ export const ReviewTray = ({
   const preview = previewOf({ verdict, read, parts, listed: [...ordered, ...answered], silent });
   const sendComments = () =>
     send({
-      version: 4,
+      version: 5,
       verdict,
       ...(hasBody ? { body } : {}),
       reviewed,

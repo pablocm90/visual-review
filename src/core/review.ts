@@ -1,13 +1,19 @@
 import { z } from 'zod';
 
-const reviewVersion = 4;
+const reviewVersion = 5;
 
 const CommentSchema = z
   .strictObject({
     anchor: z
       .strictObject({
-        kind: z.enum(['part', 'edge']).describe('What the comment is on'),
-        id: z.string().describe('A node id, or `<from> -> <to>` for an edge'),
+        kind: z
+          .enum(['part', 'edge', 'symbol', 'decision'])
+          .describe('What the comment is on: a part, an edge, a symbol or a logic line'),
+        id: z
+          .string()
+          .describe(
+            'A node id, `<from> -> <to>` for an edge, `<node>#<symbol>` for a symbol, `<node>#<symbol>#<text>` for a logic line',
+          ),
       })
       .readonly(),
     kind: z
