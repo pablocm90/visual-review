@@ -2072,6 +2072,24 @@ test('the review says how many parts of the reading order were read before it is
   expect(within(panel()).queryByText(/read$/)).toBeNull();
 });
 
+test('parts read with nothing drafted suggest Approve, sent with the parts read', async () => {
+  const user = userEvent.setup();
+  const sent = vi.fn(async () => {});
+  render(<ReviewPage review={walkedReview()} send={sent} />);
+  await screen.findByRole('group', { name: 'rust' });
+  await user.keyboard('jaja');
+  await openReview(user);
+
+  expect(suggestedVerdict()).toBe(verdict('Approve'));
+  await user.click(screen.getByRole('button', { name: 'Send to Claude' }));
+  expect(sent).toHaveBeenCalledExactlyOnceWith(
+    expect.objectContaining({
+      verdict: 'approve',
+      read: ['rust/crate/application', 'rust/crate/cli-adapter'],
+    }),
+  );
+});
+
 test('the open tray names the parts read with nothing to say, in reading order, a blank draft saying nothing', async () => {
   const user = userEvent.setup();
   render(<ReviewPage review={walkedReview()} send={async () => {}} />);
