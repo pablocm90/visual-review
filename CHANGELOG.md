@@ -16,7 +16,8 @@ What changed in each release of `@pablocm90/visual-review`, newest first. Versio
 
 - **What Claude gets**, in the open tray, previews the review as lines: the verdict and parts read, each comment's kind and anchor, and how many parts were read with no comment.
 - `GLOSSARY.md` defines review tray and suggested verdict.
-- On a served page the Symbols tab's symbols and changed logic lines each have a **Comment** button: it opens the kind and a comment field under the row, kept when the tab is left and opened again.
+- On a served page the Symbols tab's symbols and changed logic lines each have a **Comment** button: it opens the kind and a comment field under the row, kept when the tab is left and opened again. In the open tray a symbol's comment reads as its file and scoped name (`orders.ts › Orders.charge`), a logic line's as its function and text (`Orders.charge › if (!order.paid) return`); each is listed with its file's part in reading order, and going to it opens that file's Symbols tab. A part read with a comment on one of its symbols isn't listed as read with nothing to say.
+- The inspector keeps its tab when it is closed and opened again, as it already did from part to part.
 
 ## 0.15.0 — 2026-11-03
 
