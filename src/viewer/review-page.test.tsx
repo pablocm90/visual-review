@@ -278,7 +278,7 @@ test('the verdict picked beside Send to Claude goes with the review, Comment unt
   });
 });
 
-test('Send to Claude waits for a comment that is more than blanks, and sends no blank one', async () => {
+test('Send to Claude waits for a comment that is more than blanks, and sends no blank or cleared one', async () => {
   const user = userEvent.setup();
   const sent = vi.fn(async () => {});
   render(<ReviewPage review={pageWith(review)} send={sent} />);
@@ -295,6 +295,9 @@ test('Send to Claude waits for a comment that is more than blanks, and sends no 
   expect(sendButton()).toHaveProperty('disabled', true);
   await user.click(within(rust).getByRole('button', { name: 'application → domain: unchanged' }));
   await user.type(comment(), 'Why this way round?');
+  await user.click(within(rust).getByRole('button', { name: 'application: modified' }));
+  await user.type(comment(), 'Split the crate.');
+  await user.clear(comment());
   await user.click(sendButton());
 
   expect(sent).toHaveBeenCalledExactlyOnceWith({
