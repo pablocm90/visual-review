@@ -39,12 +39,23 @@ What a changed file's change is, the strongest that holds: an API change when it
 _Avoid_: change type, severity
 _In code_: `'api' | 'logic' | 'formatting'`
 
+**Decision**:
+A point in a function's own code where its path can fork or end early: a guard, an if, a ternary, a loop, a case, an outermost logical, a catch, a return inside a branch, a throw. Read as its normalised source text.
+_Avoid_: branch, condition
+_In code_: `Decision`, `DecisionKind`
+
+**Logic line**:
+One decision of an edited or renamed function, diffed across the sides: the same, added, removed, or changed (a base and a head decision of one kind paired in place).
+_Avoid_: logic diff (for one line), branch change
+_In code_: `LogicLine`
+
 ## Relationships
 
 - A **fact** may raise **findings**; a **finding** is never the only record of a fact.
 - Each **finding** has one **dimension** and one **level**; a **flag** is the only way a note raises one.
 - **Look first** holds only findings whose **level** is "needs a look".
 - A changed exported **symbol** raises a **finding** in the api dimension; a file's **kind of change** raises none of its own.
+- A removed guard or catch **logic line** raises a **finding** in the logic dimension that needs a look; a function's other **logic lines** that changed raise one for information; a file with either and no test changed alongside it raises one in the tests dimension.
 
 ## Flagged ambiguities
 
