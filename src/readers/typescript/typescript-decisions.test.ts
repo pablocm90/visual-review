@@ -85,6 +85,17 @@ test('a throw is a decision, named by the class it throws; an if that only throw
   ).toEqual([
     'guard: if (!order) throw new MissingOrder',
     'guard: if (order.void) throw new errors.Void',
+    'catch: catch (error)',
     'throw: throw error',
   ]);
+});
+
+test.for([
+  {
+    reason: 'a catch, by its parameter if it has one',
+    body: ['try { pay(); } catch (error) { log(error); }', 'try { pay(); } catch { log(); }'],
+    decisions: ['catch: catch (error)', 'catch: catch'],
+  },
+])('$reason is a decision', ({ body, decisions }) => {
+  expect(kindsAndTexts('charge', 'function charge(order) {', ...body, '}')).toEqual(decisions);
 });

@@ -33,16 +33,26 @@ const ifAt = ({ text, depth }: Walk, node: IfStatement): Decision => {
     : { kind: 'guard', text: `${condition} ${exit}`, depth, line };
 };
 
+type Head = Pick<Decision, 'kind' | 'text'>;
+
+const headOf = (text: string, node: Node): Head | undefined => {
+  switch (node.type) {
+    case 'ThrowStatement':
+      return { kind: 'throw', text: thrownBy(text, node) };
+    case 'CatchClause':
+      return {
+        kind: 'catch',
+        text: node.param ? `catch (${sourceOf(text, node.param)})` : 'catch',
+      };
+    default:
+      return undefined;
+  }
+};
+
 const decisionAt = (walk: Walk, node: Node): Decision | undefined => {
   if (node.type === 'IfStatement') return ifAt(walk, node);
-  return node.type === 'ThrowStatement'
-    ? {
-        kind: 'throw',
-        text: thrownBy(walk.text, node),
-        depth: walk.depth,
-        line: lineOf(node),
-      }
-    : undefined;
+  const head = headOf(walk.text, node);
+  return head && { ...head, depth: walk.depth, line: lineOf(node) };
 };
 
 const isElseIf = (node: Node, child: Node): boolean =>
