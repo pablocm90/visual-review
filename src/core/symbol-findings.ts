@@ -134,9 +134,14 @@ const changedFinding = (
 const logicFindings = (node: string, statement: SymbolStatement): ReadonlyArray<Finding> => {
   const name = qualified(statement);
   const lines = statement.logic ?? [];
+  const lost = lines.filter(isLost);
+  const occurrence = (base: string | undefined, index: number): string => {
+    const before = lost.slice(0, index).filter(line => line.base === base).length;
+    return before === 0 ? '' : `#${before + 1}`;
+  };
   return [
-    ...lines.filter(isLost).map(({ kind, base = '' }) => ({
-      id: `logic:removed:${node}#${name}#${base}`,
+    ...lost.map(({ kind, base = '' }, index) => ({
+      id: `logic:removed:${node}#${name}#${base}${occurrence(base, index)}`,
       dimension: 'logic' as const,
       level: 'look' as const,
       target: node,

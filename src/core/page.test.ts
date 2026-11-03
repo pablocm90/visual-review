@@ -582,6 +582,30 @@ test('a guard or catch removed from an edited function is a logic finding to loo
   ]);
 });
 
+test('two identical decisions removed from one function are two findings, the second id counting it', () => {
+  const lost = logicLine({ change: 'removed', kind: 'catch', base: 'catch (error)' });
+  const symbols = [
+    symbolFile([
+      {
+        name: 'charge',
+        kind: 'function',
+        exported: { base: true, head: true },
+        change: 'edited',
+        logic: [lost, logicLine({ change: 'same', kind: 'if', head: 'if (a)' }), lost],
+      },
+    ]),
+  ];
+
+  expect(
+    findingsOfSymbols(symbols)
+      .filter(({ id }) => id.startsWith('logic:removed:'))
+      .map(({ id }) => id),
+  ).toStrictEqual([
+    'logic:removed:web/file/a.ts#charge#catch (error)',
+    'logic:removed:web/file/a.ts#charge#catch (error)#2',
+  ]);
+});
+
 test("an edited function's other decision changes are one logic finding for information on its file, its detail counting them; a function that only lost a guard has none", () => {
   const symbols = [
     symbolFile([
