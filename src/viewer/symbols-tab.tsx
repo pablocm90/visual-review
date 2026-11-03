@@ -7,7 +7,7 @@ import {
   type SymbolChange,
   type SymbolStatement,
 } from '../core/symbol-changes.ts';
-import { decisionsOf } from '../core/symbol-findings.ts';
+import { decisionsOf, decisionText } from '../core/symbol-findings.ts';
 import { AnchoredComment, type Drafting } from './comment-form.tsx';
 
 type Group = readonly [string, (symbol: SymbolStatement) => boolean];
@@ -145,6 +145,34 @@ const LogicLines = ({
   </ul>
 );
 
+export type SymbolAnchor = { readonly node: string; readonly name: string };
+
+const symbolId = (node: string, symbol: SymbolStatement): string => `${node}#${qualified(symbol)}`;
+
+type SymbolAnchorsOptions = {
+  readonly files: ReadonlyArray<SymbolFile>;
+  readonly labelOf: (node: string) => string;
+};
+
+export const symbolAnchors = ({
+  files,
+  labelOf,
+}: SymbolAnchorsOptions): ReadonlyMap<string, SymbolAnchor> =>
+  new Map(
+    files.flatMap(({ node, ...file }) =>
+      ('symbols' in file ? file.symbols : []).flatMap(symbol => [
+        [
+          symbolId(node, symbol),
+          { node, name: `${labelOf(node)} › ${qualified(symbol)}` },
+        ] as const,
+        ...decisionsOf({ node, statement: symbol }).map(
+          ({ line, id }) =>
+            [id, { node, name: `${qualified(symbol)} › ${decisionText(line)}` }] as const,
+        ),
+      ]),
+    ),
+  );
+
 export const hasSymbolNews = (file: SymbolFile): boolean =>
   'unreadable' in file || changedSymbolCount([file]) > 0;
 
@@ -186,7 +214,7 @@ const SymbolList = ({
           </span>
         )}
         <AnchoredComment
-          anchor={{ kind: 'symbol', id: `${node}#${qualified(symbol)}` }}
+          anchor={{ kind: 'symbol', id: symbolId(node, symbol) }}
           drafting={places.drafting}
         />
         {symbol.logic !== undefined && (

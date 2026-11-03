@@ -4404,6 +4404,50 @@ test('a decision removed in one place and added in another with the same text ta
   );
 });
 
+test("the open tray names a symbol's draft by its file and scoped name, a decision's by its function and text, each going to its file's Symbols tab from any tab", async () => {
+  const user = userEvent.setup();
+  const charge = {
+    ...edited('charge', 'Orders'),
+    logic: [
+      { change: 'removed', kind: 'guard', depth: 0, base: 'if (!order.paid) return', line: 2 },
+    ],
+  } satisfies SymbolStatement;
+  render(<ReviewPage review={chargedPage([charge])} send={vi.fn()} />);
+
+  const symbols = await openSymbols(user);
+  const row = within(symbols.getByRole('listitem', { name: 'method Orders.charge: edited' }));
+  await user.click(row.getAllByRole('button', { name: 'Comment' })[0] as HTMLElement);
+  await user.type(row.getByRole('textbox', { name: 'Your comment' }), 'Why charge twice?');
+  const line = within(
+    symbols.getByRole('listitem', { name: 'removed guard: if (!order.paid) return' }),
+  );
+  await user.click(line.getByRole('button', { name: 'Comment' }));
+  await user.type(line.getByRole('textbox', { name: 'Your comment' }), 'Keep it.');
+  await user.click(screen.getByRole('button', { name: 'Close inspector' }));
+  await openReview(user);
+  const drafts = within(tray()).getByRole('list', { name: 'Drafts' });
+  expect(
+    within(drafts)
+      .getAllByRole('listitem')
+      .map(item => item.textContent),
+  ).toEqual([
+    'orders.ts › Orders.charge Question: Why charge twice?',
+    'Orders.charge › if (!order.paid) return Question: Keep it.',
+  ]);
+
+  await user.click(screen.getByRole('link', { name: 'Metrics' }));
+  await user.click(within(drafts).getByRole('button', { name: 'orders.ts › Orders.charge' }));
+  await waitFor(() => expect(currentTab()).toBe('Structure'));
+  expect(within(inspector()).getByRole('heading', { name: 'orders.ts' })).not.toBeNull();
+  expect(within(inspector()).getByRole('tab', { selected: true }).textContent).toMatch(/^Symbols/);
+
+  await user.click(within(inspector()).getByRole('tab', { name: 'Note' }));
+  await user.click(
+    within(drafts).getByRole('button', { name: 'Orders.charge › if (!order.paid) return' }),
+  );
+  expect(within(inspector()).getByRole('tab', { selected: true }).textContent).toMatch(/^Symbols/);
+});
+
 test("a symbol's comment shows again, open, when its Symbols tab is left and opened again", async () => {
   const user = userEvent.setup();
   render(<ReviewPage review={chargedPage([edited('charge', 'Orders')])} send={vi.fn()} />);

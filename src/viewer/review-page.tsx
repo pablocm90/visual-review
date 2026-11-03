@@ -58,7 +58,13 @@ import { MetricsTable } from './metrics-tab.tsx';
 import { storedReadMarks, storeReadMarks } from './read-marks.ts';
 import { ReadingOrderList } from './reading-order-list.tsx';
 import { type Comments, ReviewTray } from './review-tray.tsx';
-import { changedSymbolCount, hasSymbolNews, type LineAt, SymbolsOf } from './symbols-tab.tsx';
+import {
+  changedSymbolCount,
+  hasSymbolNews,
+  type LineAt,
+  SymbolsOf,
+  symbolAnchors,
+} from './symbols-tab.tsx';
 import { changedCount, TestFiles, TestsScreen } from './tests-screen.tsx';
 import {
   boxOf,
@@ -569,6 +575,8 @@ type InspectorProps = {
   readonly onAnswer: AnswerTo | undefined;
   readonly width: number;
   readonly onClose: () => void;
+  readonly tab: InspectorTab;
+  readonly onTab: (tab: InspectorTab) => void;
 };
 
 type InspectorTab = 'note' | 'metrics' | 'diff' | 'tests' | 'symbols';
@@ -700,8 +708,7 @@ const NotePanel = ({
 
 const SECTION_ORDER = Object.keys(INSPECTOR_TABS);
 
-const Inspector = ({ node, patches, width, onClose, ...props }: InspectorProps) => {
-  const [picked, setPicked] = useState<InspectorTab>('note');
+const Inspector = ({ node, patches, width, onClose, tab, onTab, ...props }: InspectorProps) => {
   const [landing, setLanding] = useState<LineAt & { readonly path?: string | undefined }>();
   const [landedOn, setLandedOn] = useState(node?.id);
   if (landedOn !== node?.id) {
@@ -710,7 +717,7 @@ const Inspector = ({ node, patches, width, onClose, ...props }: InspectorProps) 
   }
   const showLine = (at: LineAt) => {
     setLanding({ ...at, path: props.nodes.find(({ id }) => id === at.node)?.path });
-    setPicked('diff');
+    onTab('diff');
   };
   const sections: ReadonlyArray<Section> = [
     { tab: 'note' as const, panel: <NotePanel {...props} /> },
@@ -738,7 +745,7 @@ const Inspector = ({ node, patches, width, onClose, ...props }: InspectorProps) 
       : []),
     ...(node ? nodeSections({ ...props, node, onShowLine: showLine }) : []),
   ].toSorted((a, b) => SECTION_ORDER.indexOf(a.tab) - SECTION_ORDER.indexOf(b.tab));
-  const shown = sections.find(({ tab }) => tab === picked) ?? sections[0];
+  const shown = sections.find(section => section.tab === tab) ?? sections[0];
   return (
     <aside className="note" aria-label="Inspector" style={{ width }}>
       <button type="button" className="close" aria-label="Close inspector" onClick={onClose}>
@@ -746,16 +753,16 @@ const Inspector = ({ node, patches, width, onClose, ...props }: InspectorProps) 
       </button>
       {node && <InspectorHead nodes={props.nodes} node={node} />}
       <div className="inspector-tabs" role="tablist" aria-label="Inspector sections">
-        {sections.map(({ tab, count }) => (
+        {sections.map(section => (
           <button
-            key={tab}
+            key={section.tab}
             type="button"
             role="tab"
-            aria-selected={tab === shown?.tab}
-            onClick={() => setPicked(tab)}
+            aria-selected={section.tab === shown?.tab}
+            onClick={() => onTab(section.tab)}
           >
-            {INSPECTOR_TABS[tab]}
-            {count !== undefined && ` ${count}`}
+            {INSPECTOR_TABS[section.tab]}
+            {section.count !== undefined && ` ${section.count}`}
           </button>
         ))}
       </div>
@@ -805,6 +812,8 @@ type SidePanelProps = {
   readonly onCloseOutside: () => void;
   readonly onCloseInspector: (id: string) => void;
   readonly onGoTo: (id: string) => void;
+  readonly inspectorTab: InspectorTab;
+  readonly onInspectorTab: (tab: InspectorTab) => void;
 };
 
 const SidePanel = ({
@@ -824,6 +833,8 @@ const SidePanel = ({
   onCloseOutside,
   onCloseInspector,
   onGoTo,
+  inspectorTab,
+  onInspectorTab,
 }: SidePanelProps) => {
   const patches = outside
     ? review.undrawn
@@ -898,6 +909,8 @@ const SidePanel = ({
         onAnswer={onAnswer}
         width={width}
         onClose={() => onCloseInspector(selected)}
+        tab={inspectorTab}
+        onTab={onInspectorTab}
       />
     </>
   );
@@ -1170,6 +1183,7 @@ export const ReviewPage = ({ review, notes, send }: ReviewPageProps) => {
   const { frameElement, placed, frameProps, zoomAtCentre, fitToFrame, centre, pin } =
     useGraphView(layout);
   const [selected, setSelected] = useState<string>();
+  const [inspectorTab, setInspectorTab] = useState<InspectorTab>('note');
   const [outside, setOutside] = useState(false);
   const outsideOpener = useRef<HTMLButtonElement>(null);
   const select = (id: string | undefined) => {
@@ -1279,13 +1293,21 @@ export const ReviewPage = ({ review, notes, send }: ReviewPageProps) => {
     setFocusTarget(id);
   };
   const nodeLabels = new Map(review.diff.nodes.map(node => [node.id, node.label]));
+  const symbolsAt = symbolAnchors({
+    files: review.symbols,
+    labelOf: node => nodeLabels.get(node) ?? node,
+  });
   const anchorName = (id: string) =>
+    symbolsAt.get(id)?.name ??
     endsOfId(id)
       .map(end => nodeLabels.get(end) ?? end)
       .join(' → ');
   const goToOnStructure = (id: string) => {
     location.hash = '#structure';
-    goTo(id);
+    const symbol = symbolsAt.get(id);
+    if (symbol === undefined) return goTo(id);
+    goTo(symbol.node);
+    setInspectorTab('symbols');
   };
   const [read, setRead] = useState(() => storedReadMarks(review.range));
   useEffect(() => storeReadMarks(review.range, read), [review.range, read]);
@@ -1456,6 +1478,8 @@ export const ReviewPage = ({ review, notes, send }: ReviewPageProps) => {
               onCloseOutside={closeOutside}
               onCloseInspector={closeInspector}
               onGoTo={goTo}
+              inspectorTab={inspectorTab}
+              onInspectorTab={setInspectorTab}
             />
           </div>
         </>

@@ -135,7 +135,7 @@ type DecisionOptions = { readonly node: string; readonly statement: SymbolStatem
 
 type IdentifiedLine = { readonly line: LogicLine; readonly id: string };
 
-const decisionText = ({ change, base, head }: LogicLine): string =>
+export const decisionText = ({ change, base, head }: LogicLine): string =>
   (change === 'removed' ? base : head) ?? '';
 
 export const decisionsOf = ({
