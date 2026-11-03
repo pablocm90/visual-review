@@ -7,6 +7,7 @@ import {
   type SymbolChange,
   type SymbolStatement,
 } from '../core/symbol-changes.ts';
+import { decisionsOf } from '../core/symbol-findings.ts';
 import { AnchoredComment, type Drafting } from './comment-form.tsx';
 
 type Group = readonly [string, (symbol: SymbolStatement) => boolean];
@@ -104,14 +105,18 @@ const logicLabel = (line: LogicLine): string => `${line.change} ${line.kind}: ${
 type ShowLine = (at: Omit<LineAt, 'node'>) => void;
 
 const LogicLines = ({
+  node,
   symbol,
   onShowLine,
+  drafting,
 }: {
+  readonly node: string;
   readonly symbol: SymbolStatement;
   readonly onShowLine: ShowLine;
+  readonly drafting: Drafting | undefined;
 }) => (
   <ul className="logic-lines" aria-label={`Logic of ${symbol.kind} ${qualified(symbol)}`}>
-    {(symbol.logic ?? []).map(line => (
+    {decisionsOf({ node, statement: symbol }).map(({ line, id }) => (
       <li
         key={`${line.change} ${line.line} ${textOf(line)}`}
         className={`logic-${line.change}`}
@@ -121,16 +126,19 @@ const LogicLines = ({
         {line.change === 'same' ? (
           <LogicText line={line} />
         ) : (
-          <button
-            type="button"
-            className="logic-line"
-            aria-label={logicLabel(line)}
-            onClick={() =>
-              onShowLine({ side: line.change === 'removed' ? 'base' : 'head', line: line.line })
-            }
-          >
-            <LogicText line={line} />
-          </button>
+          <>
+            <button
+              type="button"
+              className="logic-line"
+              aria-label={logicLabel(line)}
+              onClick={() =>
+                onShowLine({ side: line.change === 'removed' ? 'base' : 'head', line: line.line })
+              }
+            >
+              <LogicText line={line} />
+            </button>
+            {drafting && <AnchoredComment anchor={{ kind: 'decision', id }} drafting={drafting} />}
+          </>
         )}
       </li>
     ))}
@@ -184,7 +192,12 @@ const SymbolList = ({
           />
         )}
         {symbol.logic !== undefined && (
-          <LogicLines symbol={symbol} onShowLine={at => places.onShowLine({ node, ...at })} />
+          <LogicLines
+            node={node}
+            symbol={symbol}
+            onShowLine={at => places.onShowLine({ node, ...at })}
+            drafting={places.drafting}
+          />
         )}
       </li>
     ))}

@@ -4318,9 +4318,52 @@ test("a comment on a symbol's row goes with the review, anchored on its file's n
   );
 });
 
-test('a page not served offers no comment on a symbol', async () => {
+test("a comment on a changed logic line goes with the review, anchored on its decision, the id its logic:removed finding has when it's a lost guard", async () => {
   const user = userEvent.setup();
-  render(<ReviewPage review={chargedPage([edited('charge', 'Orders')])} />);
+  const sent = vi.fn(async () => {});
+  const charge = {
+    ...edited('charge', 'Orders'),
+    logic: [
+      { change: 'removed', kind: 'guard', depth: 0, base: 'if (!order.paid) return', line: 2 },
+      { change: 'added', kind: 'throw', depth: 1, head: 'throw new Late()', line: 3 },
+    ],
+  } satisfies SymbolStatement;
+  render(<ReviewPage review={chargedPage([charge])} send={sent} />);
+
+  const symbols = await openSymbols(user);
+  const line = within(
+    symbols.getByRole('listitem', { name: 'removed guard: if (!order.paid) return' }),
+  );
+  await user.click(line.getByRole('button', { name: 'Comment' }));
+  await user.click(line.getByRole('radio', { name: 'Change this' }));
+  await user.type(line.getByRole('textbox', { name: 'Your comment' }), 'Keep this guard.');
+  await openReview(user);
+  await user.click(screen.getByRole('button', { name: 'Send to Claude' }));
+
+  expect(sent).toHaveBeenCalledExactlyOnceWith(
+    sentReview({
+      reviewed: { range: 'abc123..def456' },
+      comments: [
+        {
+          anchor: {
+            kind: 'decision',
+            id: 'web/file/orders.ts#Orders.charge#if (!order.paid) return',
+          },
+          kind: 'change',
+          text: 'Keep this guard.',
+        },
+      ],
+    }),
+  );
+});
+
+test('a page not served offers no comment on a symbol or a logic line', async () => {
+  const user = userEvent.setup();
+  const charge = {
+    ...edited('charge', 'Orders'),
+    logic: [{ change: 'added', kind: 'throw', depth: 0, head: 'throw new Late()', line: 3 }],
+  } satisfies SymbolStatement;
+  render(<ReviewPage review={chargedPage([charge])} />);
 
   const symbols = await openSymbols(user);
   expect(symbols.queryByRole('button', { name: 'Comment' })).toBeNull();
