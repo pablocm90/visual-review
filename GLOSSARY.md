@@ -79,6 +79,15 @@ A reviewer's one-click reply to a finding: Fix this (a task), It's fine (nothing
 _Avoid_: resolution, dismissal, comment (for an answer)
 _In code_: `Answer`, `'fix' | 'fine' | 'explain'`
 
+**Review tray**:
+The bar at the page's foot that gathers the review before it goes: closed, what is drafted, counted by kind; open, the drafts, the parts read with nothing to say, the general comment, the verdict and what Claude gets. Nothing goes until Send.
+_Avoid_: review panel, drawer, cart
+_In code_: `ReviewTray` (`src/viewer/review-tray.tsx`)
+
+**Suggested verdict**:
+The verdict the drafts point to: Request changes once any is a Change this or a Fix this, else Comment once any is a Question or an Explain, else Approve. The tray picks it until the reviewer picks one, which then holds.
+_Avoid_: default verdict, auto verdict
+
 ## Relationships
 
 - A **fact** may raise **findings**; a **finding** is never the only record of a fact.
@@ -87,7 +96,7 @@ _In code_: `Answer`, `'fix' | 'fine' | 'explain'`
 - A **read mark** is on a **part**; the count of parts read counts only the parts in the **reading order**.
 - **Look first** holds only findings whose **level** is "needs a look".
 - A changed exported **symbol** raises a **finding** in the api dimension; a file's **kind of change** raises none of its own.
-- A review holds at most one comment or **finding answer** per **anchor**, and each comment has one **comment kind**; the verdict is picked apart from the kinds and the answers.
+- A review holds at most one comment or **finding answer** per **anchor**, and each comment has one **comment kind**; the **suggested verdict** follows the kinds and the answers, and the verdict the reviewer picks overrides it.
 - A **flag** is answered like any other **finding**, under the id `notes:<node or edge id>`.
 - A removed guard or catch **logic line** raises a **finding** in the logic dimension that needs a look; a function's other **logic lines** that changed raise one for information; a file with either and no test changed alongside it raises one in the tests dimension.
 
