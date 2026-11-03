@@ -205,6 +205,44 @@ test("a served page's Review button opens the review, whose Send to Claude sends
   expect(screen.queryByRole('button', { name: 'Send to Claude' })).toBeNull();
 });
 
+test('each comment carries the kind picked beside it, Question until another is picked, kept per node or edge', async () => {
+  const user = userEvent.setup();
+  const sent = vi.fn(async () => {});
+  render(<ReviewPage review={pageWith(review)} send={sent} />);
+  const kind = (name: string) =>
+    within(within(noteTab()).getByRole('radiogroup', { name: 'Comment kind' })).getByRole('radio', {
+      name,
+    });
+
+  const rust = await screen.findByRole('group', { name: 'rust' });
+  await user.click(within(rust).getByRole('button', { name: 'domain: unchanged' }));
+  expect(kind('Question')).toHaveProperty('checked', true);
+  await user.click(kind('Change this'));
+  await user.type(
+    within(noteTab()).getByRole('textbox', { name: 'Your comment' }),
+    'Move the IO out of domain.',
+  );
+  await user.click(within(rust).getByRole('button', { name: 'application → domain: unchanged' }));
+  expect(kind('Question')).toHaveProperty('checked', true);
+  await user.click(kind('Suggestion'));
+  await user.click(within(rust).getByRole('button', { name: 'domain: unchanged' }));
+  expect(kind('Change this')).toHaveProperty('checked', true);
+  await openReview(user);
+  await user.click(screen.getByRole('button', { name: 'Send to Claude' }));
+
+  expect(sent).toHaveBeenCalledExactlyOnceWith({
+    version: 2,
+    verdict: 'comment',
+    comments: [
+      {
+        anchor: { kind: 'part', id: 'rust/crate/domain' },
+        kind: 'change',
+        text: 'Move the IO out of domain.',
+      },
+    ],
+  });
+});
+
 test('the verdict picked beside Send to Claude goes with the review, Comment until another is picked, and kept while the review is closed', async () => {
   const user = userEvent.setup();
   const sent = vi.fn(async () => {});

@@ -533,12 +533,23 @@ type InspectorProps = {
   readonly tests: ReadonlyArray<TestFile>;
   readonly symbols: ReadonlyArray<SymbolFile>;
   readonly onGoTo: (id: string) => void;
-  readonly comment: string;
-  readonly onComment: ((text: string) => void) | undefined;
+  readonly comment: Draft;
+  readonly onComment: ((draft: Draft) => void) | undefined;
   readonly commentable: boolean;
   readonly width: number;
   readonly onClose: () => void;
 };
+
+type Comment = Review['comments'][number];
+type Draft = Pick<Comment, 'kind' | 'text'>;
+
+const NO_DRAFT: Draft = { kind: 'question', text: '' };
+
+const COMMENT_KINDS: ReadonlyArray<readonly [Comment['kind'], string]> = [
+  ['change', 'Change this'],
+  ['question', 'Question'],
+  ['suggestion', 'Suggestion'],
+];
 
 type InspectorTab = 'note' | 'metrics' | 'diff' | 'tests' | 'symbols';
 
@@ -647,10 +658,28 @@ const NotePanel = ({ note, found, comment, onComment, commentable }: NotePanelPr
     <p>{note?.text ?? 'No note'}</p>
     {onComment &&
       (commentable ? (
-        <label className="comment">
-          Your comment
-          <textarea value={comment} onChange={event => onComment(event.target.value)} />
-        </label>
+        <>
+          <div role="radiogroup" aria-label="Comment kind" className="comment-kind">
+            {COMMENT_KINDS.map(([kind, label]) => (
+              <label key={kind}>
+                <input
+                  type="radio"
+                  name="comment-kind"
+                  checked={comment.kind === kind}
+                  onChange={() => onComment({ ...comment, kind })}
+                />
+                {label}
+              </label>
+            ))}
+          </div>
+          <label className="comment">
+            Your comment
+            <textarea
+              value={comment.text}
+              onChange={event => onComment({ ...comment, text: event.target.value })}
+            />
+          </label>
+        </>
       ) : (
         <p>Drawn for several edges: open its ends to comment on one of them.</p>
       ))}
@@ -755,7 +784,7 @@ type SidePanelProps = {
   readonly note: Note | undefined;
   readonly found: ReadonlyArray<Finding>;
   readonly comments: Comments;
-  readonly onComment: ((anchor: Anchor, text: string) => void) | undefined;
+  readonly onComment: ((comment: Comment) => void) | undefined;
   readonly chosenWidth: number | undefined;
   readonly onChooseWidth: (width: number) => void;
   readonly graphLeft: () => number;
@@ -836,10 +865,14 @@ const SidePanel = ({
         tests={review.tests}
         symbols={review.symbols}
         onGoTo={onGoTo}
-        comment={comments[selected]?.text ?? ''}
+        comment={comments[selected] ?? NO_DRAFT}
         onComment={
           onComment &&
-          (text => onComment({ kind: node === undefined ? 'edge' : 'part', id: selected }, text))
+          (draft =>
+            onComment({
+              anchor: { kind: node === undefined ? 'edge' : 'part', id: selected },
+              ...draft,
+            }))
         }
         commentable={
           node !== undefined || review.diff.edges.some(edge => edgeId(edge) === selected)
@@ -1049,8 +1082,6 @@ const useTab = (): Tab => {
   return tab;
 };
 
-type Comment = Review['comments'][number];
-type Anchor = Comment['anchor'];
 type Comments = Readonly<Record<string, Comment>>;
 
 type SendProps = {
@@ -1205,8 +1236,8 @@ export const ReviewPage = ({ review, notes, send }: ReviewPageProps) => {
   };
   const [comments, setComments] = useState<Comments>({});
   const [chosenWidth, setChosenWidth] = useState<number>();
-  const comment = (anchor: Anchor, text: string) =>
-    setComments(current => ({ ...current, [anchor.id]: { anchor, kind: 'question', text } }));
+  const comment = (written: Comment) =>
+    setComments(current => ({ ...current, [written.anchor.id]: written }));
   const [expanded, setExpanded] = useState<ReadonlySet<string>>(new Set());
   const expandable = useMemo(
     () => new Set(review.diff.nodes.flatMap(node => node.parent ?? [])),
