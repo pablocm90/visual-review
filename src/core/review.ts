@@ -27,6 +27,16 @@ const ReviewSchema = z
           .readonly(),
       )
       .readonly()
+      .superRefine((comments, context) => {
+        const counts = Map.groupBy(comments, ({ anchor }) => `${anchor.kind} ${anchor.id}`);
+        for (const [anchor, onIt] of counts) {
+          if (onIt.length > 1) {
+            context.addIssue(
+              `${anchor} has ${onIt.length} comments; a review holds one per anchor`,
+            );
+          }
+        }
+      })
       .describe("The reviewer's comments, one per anchor"),
   })
   .readonly();

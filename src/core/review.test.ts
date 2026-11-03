@@ -81,6 +81,17 @@ test.for([
     ),
     reason: 'anchor',
   },
+  {
+    problem: 'has two comments on one anchor',
+    text: JSON.stringify({
+      ...reviewWith(),
+      comments: [
+        { anchor: { kind: 'part', id: 'a' }, kind: 'question', text: 'Why?' },
+        { anchor: { kind: 'part', id: 'a' }, kind: 'change', text: 'Split it.' },
+      ],
+    }),
+    reason: 'part a has 2 comments; a review holds one per anchor',
+  },
 ])('a review that $problem is rejected saying why', ({ text, reason }) => {
   expect(() => parseReview(text)).toThrow(new RegExp(`^Invalid review: .*${reason}`, 's'));
 });
