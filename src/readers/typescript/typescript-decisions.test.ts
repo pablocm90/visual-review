@@ -101,6 +101,23 @@ test.for([
     body: ['return order.paid ? 0 : order.total;'],
     decisions: ['ternary: order.paid ?'],
   },
+  {
+    reason: 'a loop, by its head',
+    body: [
+      'for (let i = 0; i < 3; i++) pay();',
+      'for (const item of order.items) { pay(); }',
+      'for (const key in order) pay();',
+      'while (order.open) pay();',
+      'do { pay(); } while (order.late);',
+    ],
+    decisions: [
+      'loop: for (let i = 0; i < 3; i++)',
+      'loop: for (const item of order.items)',
+      'loop: for (const key in order)',
+      'loop: while (order.open)',
+      'loop: do … while (order.late)',
+    ],
+  },
 ])('$reason is a decision', ({ body, decisions }) => {
   expect(kindsAndTexts('charge', 'function charge(order) {', ...body, '}')).toEqual(decisions);
 });

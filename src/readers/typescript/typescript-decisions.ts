@@ -35,8 +35,18 @@ const ifAt = ({ text, depth }: Walk, node: IfStatement): Decision => {
 
 type Head = Pick<Decision, 'kind' | 'text'>;
 
+const loopHead = (text: string, node: Node, body: Node): string =>
+  text.slice(node.start ?? undefined, body.start ?? undefined).trim();
+
 const headOf = (text: string, node: Node): Head | undefined => {
   switch (node.type) {
+    case 'ForStatement':
+    case 'ForInStatement':
+    case 'ForOfStatement':
+    case 'WhileStatement':
+      return { kind: 'loop', text: loopHead(text, node, node.body) };
+    case 'DoWhileStatement':
+      return { kind: 'loop', text: `do … while (${sourceOf(text, node.test)})` };
     case 'ThrowStatement':
       return { kind: 'throw', text: thrownBy(text, node) };
     case 'CatchClause':
