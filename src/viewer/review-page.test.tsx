@@ -1531,6 +1531,10 @@ test("the reading order numbers the changed parts in its order, each marked with
           findingOn('rust/crate/legacy'),
           findingOn('rust/crate/domain'),
         ],
+        undrawn: [
+          { path: 'README.md', patch: '' },
+          { path: 'docs/a.md', patch: '' },
+        ],
       })}
     />,
   );
@@ -1541,7 +1545,12 @@ test("the reading order numbers the changed parts in its order, each marked with
     within(order)
       .getAllByRole('button')
       .map(item => item.textContent),
-  ).toEqual(['1 application', '2 cli-adapter', '3 legacy']);
+  ).toEqual(['1 application', '2 cli-adapter', '3 legacy', '4 README.md', '5 docs/a.md']);
+  expect(within(order).getByRole('heading', { name: 'Outside the graph' })).toBeDefined();
+  await user.click(within(order).getByRole('button', { name: '5 docs/a.md' }));
+  expect(within(inspector()).getByRole('heading', { level: 2 }).textContent).toBe(
+    'Changed files outside the graph',
+  );
   const [first, second, third] = within(order).getAllByRole('listitem');
   expect(
     within(second ?? order).getByRole('img', { name: 'needs a look, 2 findings' }),

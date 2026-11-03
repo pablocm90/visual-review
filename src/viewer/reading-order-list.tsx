@@ -3,9 +3,10 @@ import type { PageData } from '../core/page.ts';
 import { LEVELS, LevelMark, worstOf } from './finding-display.tsx';
 
 type ReadingOrderListProps = {
-  readonly review: Pick<PageData, 'diff' | 'readingOrder'>;
+  readonly review: Pick<PageData, 'diff' | 'readingOrder' | 'undrawn'>;
   readonly findings: ReadonlyArray<Finding>;
   readonly onGoTo: (id: string) => void;
+  readonly onShowOutside: (opener: HTMLButtonElement) => void;
 };
 
 const FindingsMark = ({ findings }: { readonly findings: ReadonlyArray<Finding> }) => {
@@ -18,7 +19,12 @@ const FindingsMark = ({ findings }: { readonly findings: ReadonlyArray<Finding> 
   );
 };
 
-export const ReadingOrderList = ({ review, findings, onGoTo }: ReadingOrderListProps) => {
+export const ReadingOrderList = ({
+  review,
+  findings,
+  onGoTo,
+  onShowOutside,
+}: ReadingOrderListProps) => {
   const labelOf = new Map(review.diff.nodes.map(node => [node.id, node.label]));
   const findingsOn = Map.groupBy(findings, finding => finding.target);
   return (
@@ -36,6 +42,21 @@ export const ReadingOrderList = ({ review, findings, onGoTo }: ReadingOrderListP
             </li>
           );
         })}
+      </ol>
+      <h3 className="reading-order-subtitle">Outside the graph</h3>
+      <ol className="reading-order-list">
+        {review.undrawn.map(({ path }, index) => (
+          <li key={path} className="reading-order-row">
+            <button
+              type="button"
+              className="reading-order-part"
+              onClick={event => onShowOutside(event.currentTarget)}
+            >
+              <span className="reading-number">{review.readingOrder.parts.length + index + 1}</span>{' '}
+              {path}
+            </button>
+          </li>
+        ))}
       </ol>
     </nav>
   );

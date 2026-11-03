@@ -2126,3 +2126,11 @@ pre .hljs-emphasis {
   margin: 0 2px 0 0;
   stroke: var(--muted);
 }
+
+.reading-order-subtitle {
+  margin: 12px 0 4px;
+  padding: 0 8px;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 600;
+}
