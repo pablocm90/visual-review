@@ -222,6 +222,7 @@ const NodeView = ({ node, drawing }: { readonly node: PlacedNode; readonly drawi
           {node.children.map(child => (
             <NodeView key={child.id} node={child} drawing={drawing} />
           ))}
+          {number !== undefined && <ReadingNumber number={number} />}
         </g>
         {toggle}
       </>

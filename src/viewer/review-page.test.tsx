@@ -3540,3 +3540,37 @@ test("a file whose symbols wouldn't parse shows the parse error on its Symbols t
   await user.click(screen.getByRole('button', { name: 'total.ts: modified' }));
   expect(within(symbolsTab()).getByText('Missing semicolon (7:1)', { exact: false })).toBeTruthy();
 });
+
+test('a box read as a part keeps its reading number once it is expanded, and an expanded box that is none gets no number', async () => {
+  const user = userEvent.setup();
+  render(
+    <ReviewPage
+      review={pageWith({
+        range: 'abc123..def456',
+        diff: {
+          nodes: [
+            { id: 'web', kind: 'stack', label: 'web', path: '', state: 'modified' },
+            webModule('utils', 'modified'),
+            webFile('utils', 'x.ts'),
+            webFile('utils', 'y.ts'),
+            webModule('lib'),
+            webFile('lib', 'z.ts'),
+          ],
+          edges: [],
+        },
+        readingOrder: { parts: ['web/module/utils'], cycles: [] },
+      })}
+    />,
+  );
+  await showEverything(user);
+  const web = await screen.findByRole('group', { name: 'web' });
+  await user.click(within(web).getByRole('button', { name: 'Expand utils' }));
+  await user.click(within(web).getByRole('button', { name: 'Expand lib' }));
+
+  const numbersIn = async (box: string) =>
+    within(await within(web).findByRole('group', { name: box }))
+      .queryAllByRole('img', { name: /^Reading order/ })
+      .map(number => number.getAttribute('aria-label'));
+  expect(await numbersIn('utils')).toEqual(['Reading order 1']);
+  expect(await numbersIn('lib')).toEqual([]);
+});
