@@ -2166,3 +2166,21 @@ pre .hljs-emphasis {
 .left-column:not(:has(.reading-order)) .findings-rail {
   flex-direction: column;
 }
+
+.reading-progress,
+.reading-keys {
+  margin: 0 0 8px;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.reading-keys kbd {
+  font-family: inherit;
+  font-weight: 600;
+}
+
+.reading-read {
+  color: var(--ink);
+  font-size: 12px;
+  font-weight: 600;
+}

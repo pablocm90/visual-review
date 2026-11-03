@@ -35,11 +35,16 @@ export const ReadingOrderList = ({
     <nav className="reading-order" aria-label="Reading order">
       <h2 className="reading-order-title">Reading order</h2>
       {review.readingOrder.parts.length > 0 && (
-        <p className="reading-progress">
-          {review.readingOrder.parts.filter(part => read.has(part)).length} of{' '}
-          {review.readingOrder.parts.length}{' '}
-          {review.readingOrder.parts.length === 1 ? 'part' : 'parts'} read
-        </p>
+        <>
+          <p className="reading-progress">
+            {review.readingOrder.parts.filter(part => read.has(part)).length} of{' '}
+            {review.readingOrder.parts.length}{' '}
+            {review.readingOrder.parts.length === 1 ? 'part' : 'parts'} read
+          </p>
+          <p className="reading-keys">
+            <kbd>J</kbd> / <kbd>K</kbd> next or previous, <kbd>A</kbd> mark read
+          </p>
+        </>
       )}
       <ol className="reading-order-list">
         {review.readingOrder.parts.map((part, index) => {
