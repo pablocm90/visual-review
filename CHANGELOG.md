@@ -2,6 +2,12 @@
 
 What changed in each release of `@pablocm90/visual-review`, newest first. Versions follow [semver](https://semver.org); while it is 0.x, a minor version may change the exported types.
 
+## 0.9.0 — 2026-11-03
+
+### Changed
+
+- The Structure graph opens on **Changes only**: the changed parts and both ends of each added or removed arrow, an added import into a closed box keeping that box even where an unchanged import shares its arrow. The **Changed + 1 hop** checkbox is now a **Show** choice of Changes only, Changed + 1 hop or Everything, and going to a part that isn't drawn widens it only as far as it needs.
+
 ## 0.8.0 — 2026-11-02
 
 ### Added
