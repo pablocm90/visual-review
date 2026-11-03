@@ -68,7 +68,9 @@ test('an if that only returns, with no else, is a guard', () => {
     'guard: if (!order) return',
     'guard: if (order.free) return',
     'if: if (order.paid)',
+    'return: return',
     'if: if (order.open)',
+    'return: return',
   ]);
 });
 
@@ -185,6 +187,21 @@ test.for([
       'logical: order.open &&= order.ready',
       'logical: order.late ||= order.overdue ?? false',
       'if: if (order.a && order.b)',
+    ],
+  },
+  {
+    reason: 'a return inside a branch, and what it returns',
+    body: [
+      'if (order.paid) { log(); return 1; }',
+      'for (const item of order.items) { log(); return order.late ? 1 : 2; }',
+      'return 0;',
+    ],
+    decisions: [
+      'if: if (order.paid)',
+      'return: return',
+      'loop: for (const item of order.items)',
+      'return: return',
+      'ternary: order.late ?',
     ],
   },
 ])('$reason is a decision', ({ body, decisions }) => {

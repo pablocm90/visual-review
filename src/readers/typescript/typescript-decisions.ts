@@ -73,6 +73,8 @@ const headOf = (text: string, node: Node): Head | undefined => {
 
 const decisionAt = (walk: Walk, node: Node): Decision | undefined => {
   if (node.type === 'IfStatement') return ifAt(walk, node);
+  if (node.type === 'ReturnStatement' && walk.depth > 0)
+    return { kind: 'return', text: 'return', depth: walk.depth, line: lineOf(node) };
   const head = headOf(walk.text, node);
   return head && { ...head, depth: walk.depth, line: lineOf(node) };
 };
@@ -94,6 +96,8 @@ const branchesOf = (node: Node): ReadonlyArray<Node | null> => {
       return [node.body];
     case 'SwitchCase':
       return node.consequent;
+    case 'ReturnStatement':
+      return [node.argument];
     default:
       return [];
   }
