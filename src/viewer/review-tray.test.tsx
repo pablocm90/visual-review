@@ -18,11 +18,14 @@ const drafted = (anchor: Comment['anchor']): Comment => ({
   text: 'Why?',
 });
 
-const renderTray = (comments: ReadonlyArray<Comment>, onGoTo = vi.fn()) => {
+const renderTray = (
+  comments: ReadonlyArray<Comment>,
+  { onGoTo = vi.fn(), read = [] }: { onGoTo?: () => void; read?: ReadonlyArray<string> } = {},
+) => {
   render(
     <ReviewTray
       reviewed={{ range: 'a..b' }}
-      read={[]}
+      read={read}
       parts={['web/file/src/pay.ts', 'web/file/src/cart/total.ts']}
       comments={Object.fromEntries(comments.map(comment => [anchorKey(comment.anchor), comment]))}
       answers={{}}
@@ -58,4 +61,15 @@ test("the open tray names each draft by its anchor, sorts it with its file's par
   expect(drafts.queryByRole('button', { name: /README/ })).toBeNull();
   await user.click(drafts.getByRole('button', { name: 'Cart.total in total.ts' }));
   expect(onGoTo).toHaveBeenCalledWith('web/file/src/cart/total.ts');
+});
+
+test('a part read with a comment on something inside it is not listed as read with nothing to say', async () => {
+  const user = userEvent.setup();
+  renderTray([drafted({ kind: 'symbol', id: 'web/file/src/cart/total.ts#Cart.total' })], {
+    read: ['web/file/src/pay.ts', 'web/file/src/cart/total.ts'],
+  });
+  await user.click(screen.getByRole('button', { name: 'Review' }));
+
+  const silent = within(screen.getByRole('list', { name: 'Read, nothing to say' }));
+  expect(silent.getAllByRole('listitem').map(item => item.textContent)).toEqual(['pay.ts']);
 });

@@ -182,7 +182,9 @@ export const ReviewTray = ({
   const hasBody = body.trim() !== '';
   const suggested = suggestedFor(written);
   const verdict = picked ?? suggested;
-  const silent = read.filter(part => !written.some(({ anchor }) => anchor.id === part));
+  const silent = read.filter(
+    part => !drafted.some(({ anchor }) => anchorTarget(anchor, nodes) === part),
+  );
   const preview = previewOf({ verdict, read, parts, ordered, answered, silent, nodes });
   const sendComments = () =>
     send({
