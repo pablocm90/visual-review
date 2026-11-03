@@ -130,6 +130,29 @@ test('what a loop or a case holds sits one deeper than it', () => {
   ).toEqual(['a', 'b', 'c', 'd', 'e', 'f'].map(test => `1 if (order.${test})`));
 });
 
+test('a decision reads without comments, with its whitespace collapsed, no space inside brackets and no trailing comma', () => {
+  expect(
+    kindsAndTexts(
+      'charge',
+      'function charge(order) {',
+      '  if (order.paid &&',
+      '      /* settled */ order.total > 0) pay();',
+      '  while (check( order.items, ) ) pay();',
+      '  for (const item of [ order.a, order.b, ]) pay();',
+      '  const ready = order.open // still open',
+      '    || order.late;',
+      '  if (matches(order, { paid: true, })) pay();',
+      '}',
+    ),
+  ).toEqual([
+    'if: if (order.paid && order.total > 0)',
+    'loop: while (check(order.items))',
+    'loop: for (const item of [order.a, order.b])',
+    'logical: order.open || order.late',
+    'if: if (matches(order, {paid: true}))',
+  ]);
+});
+
 test.for([
   {
     reason: 'a catch, by its parameter if it has one',
