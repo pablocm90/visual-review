@@ -1,13 +1,15 @@
 import { useState } from 'react';
 import type { Finding } from '../core/findings.ts';
+import type { GraphNode } from '../core/graph.ts';
 import type { Answer, Comment, Review } from '../core/review.ts';
-
+import { anchorKey, anchorName, anchorTarget } from './anchors.ts';
+import { COMMENT_KINDS, type Comments } from './comment-field.tsx';
 import { ANSWER_KINDS, type Answers } from './finding-display.tsx';
 import { partsRead } from './reading-order-list.tsx';
 
 type Drafted = Review['comments'][number];
 
-export type Comments = Readonly<Record<string, Comment>>;
+type Nodes = ReadonlyArray<Pick<GraphNode, 'id' | 'label' | 'path'>>;
 
 type ReviewTrayProps = {
   readonly reviewed: Review['reviewed'];
@@ -16,7 +18,7 @@ type ReviewTrayProps = {
   readonly comments: Comments;
   readonly answers: Answers;
   readonly findings: ReadonlyArray<Finding>;
-  readonly nameOf: (id: string) => string;
+  readonly nodes: Nodes;
   readonly onGoTo: (id: string) => void;
   readonly send: (review: Review) => Promise<void>;
 };
@@ -25,12 +27,6 @@ const VERDICTS: ReadonlyArray<readonly [Review['verdict'], string]> = [
   ['approve', 'Approve'],
   ['comment', 'Comment'],
   ['request-changes', 'Request changes'],
-];
-
-export const COMMENT_KINDS: ReadonlyArray<readonly [Comment['kind'], string]> = [
-  ['change', 'Change this'],
-  ['question', 'Question'],
-  ['suggestion', 'Suggestion'],
 ];
 
 const kindLabels = new Map(COMMENT_KINDS);
@@ -56,9 +52,15 @@ const suggestedFor = (written: ReadonlyArray<Drafted>): Review['verdict'] => {
   return 'approve';
 };
 
-const inReadingOrder = (written: ReadonlyArray<Comment>, parts: ReadonlyArray<string>) => {
+type InReadingOrder = {
+  readonly written: ReadonlyArray<Comment>;
+  readonly parts: ReadonlyArray<string>;
+  readonly nodes: Nodes;
+};
+
+const inReadingOrder = ({ written, parts, nodes }: InReadingOrder) => {
   const rank = ({ anchor }: Comment) => {
-    const at = parts.indexOf(anchor.id);
+    const at = parts.indexOf(anchorTarget(anchor, nodes) ?? '');
     return at === -1 ? parts.length : at;
   };
   return written.toSorted(
@@ -73,13 +75,16 @@ type PreviewOf = {
   readonly verdict: Review['verdict'];
   readonly read: Review['read'];
   readonly parts: ReadonlyArray<string>;
-  readonly listed: ReadonlyArray<Drafted>;
+  readonly ordered: ReadonlyArray<Comment>;
+  readonly answered: ReadonlyArray<Answer>;
   readonly silent: ReadonlyArray<string>;
+  readonly nodes: Nodes;
 };
 
-const previewOf = ({ verdict, read, parts, listed, silent }: PreviewOf) => [
+const previewOf = ({ verdict, read, parts, ordered, answered, silent, nodes }: PreviewOf) => [
   [verdict, ...(parts.length > 0 ? [`read ${read.length} of ${parts.length}`] : [])].join(' · '),
-  ...listed.map(({ kind, anchor }) => `${kind.padEnd(10)}${anchor.id}`),
+  ...ordered.map(({ kind, anchor }) => `${kind.padEnd(10)}${anchorName(anchor, nodes)}`),
+  ...answered.map(({ kind, anchor }) => `${kind.padEnd(10)}${anchor.id}`),
   ...(silent.length > 0
     ? [`${'read'.padEnd(10)}${counted(silent.length, 'part')}, no comment`]
     : []),
@@ -113,21 +118,24 @@ type DraftListProps = {
   readonly drafted: ReadonlyArray<Comment>;
   readonly answered: ReadonlyArray<Answer>;
   readonly findings: ReadonlyArray<Finding>;
-  readonly nameOf: (id: string) => string;
+  readonly nodes: Nodes;
   readonly onGoTo: (id: string) => void;
 };
 
-const DraftList = ({ drafted, answered, findings, nameOf, onGoTo }: DraftListProps) => (
+const DraftList = ({ drafted, answered, findings, nodes, onGoTo }: DraftListProps) => (
   <ul aria-label="Drafts" className="tray-list">
-    {drafted.map(({ anchor, kind, text }) => (
-      <Draft
-        key={anchor.id}
-        name={nameOf(anchor.id)}
-        onGo={() => onGoTo(anchor.id)}
-        label={kindLabels.get(kind)}
-        text={text}
-      />
-    ))}
+    {drafted.map(({ anchor, kind, text }) => {
+      const target = anchorTarget(anchor, nodes);
+      return (
+        <Draft
+          key={anchorKey(anchor)}
+          name={anchorName(anchor, nodes)}
+          onGo={target === undefined ? undefined : () => onGoTo(target)}
+          label={kindLabels.get(kind)}
+          text={text}
+        />
+      );
+    })}
     {answered.flatMap(({ anchor, kind, text }) =>
       findings
         .filter(finding => finding.id === anchor.id)
@@ -151,7 +159,7 @@ export const ReviewTray = ({
   comments,
   answers,
   findings,
-  nameOf,
+  nodes,
   onGoTo,
   send,
 }: ReviewTrayProps) => {
@@ -163,15 +171,17 @@ export const ReviewTray = ({
   const drafted = Object.values(comments).filter(({ text }) => text.trim() !== '');
   const answered = Object.values(answers).map(withWhy);
   const written = [...drafted, ...answered];
-  const ordered = inReadingOrder(drafted, parts);
+  const ordered = inReadingOrder({ written: drafted, parts, nodes });
   const hasBody = body.trim() !== '';
   const suggested = suggestedFor(written);
   const verdict = picked ?? suggested;
-  const silent = read.filter(part => !written.some(({ anchor }) => anchor.id === part));
-  const preview = previewOf({ verdict, read, parts, listed: [...ordered, ...answered], silent });
+  const silent = read.filter(
+    part => !drafted.some(({ anchor }) => anchorTarget(anchor, nodes) === part),
+  );
+  const preview = previewOf({ verdict, read, parts, ordered, answered, silent, nodes });
   const sendComments = () =>
     send({
-      version: 4,
+      version: 5,
       verdict,
       ...(hasBody ? { body } : {}),
       reviewed,
@@ -211,7 +221,7 @@ export const ReviewTray = ({
                   drafted={ordered}
                   answered={answered}
                   findings={findings}
-                  nameOf={nameOf}
+                  nodes={nodes}
                   onGoTo={onGoTo}
                 />
                 {parts.length > 0 && (
@@ -222,7 +232,7 @@ export const ReviewTray = ({
                 <ul aria-label="Read, nothing to say" className="tray-list">
                   {silent.map(part => (
                     <li key={part} className="silent-part">
-                      {nameOf(part)}
+                      {anchorName({ kind: 'part', id: part }, nodes)}
                     </li>
                   ))}
                 </ul>

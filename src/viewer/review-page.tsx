@@ -14,7 +14,7 @@ import {
 import type { DiffedNode, FilePatch, GraphDiff } from '../core/diff-graphs.ts';
 import { isAtOrUnder } from '../core/diff-graphs.ts';
 import { type Dimension, type Finding, findingsAt, findingsOf } from '../core/findings.ts';
-import { edgeId, endsOfId } from '../core/graph.ts';
+import { edgeId } from '../core/graph.ts';
 import { type MetricFinding, metricFindings } from '../core/metric-findings.ts';
 import type { NodeMetrics } from '../core/metrics.ts';
 import { type Note, type ReviewNotes, visibleNotes } from '../core/notes.ts';
@@ -33,7 +33,9 @@ import {
   visibleDiff,
   visibleNodeOf,
 } from '../core/visible-diff.ts';
+import { anchorKey } from './anchors.ts';
 import { ColourBy, type Colouring, ScaleLegend, type Shade, shadeOf } from './colour-by.tsx';
+import { CommentField, type Comments } from './comment-field.tsx';
 import {
   AnswerButtons,
   type Answers,
@@ -56,7 +58,7 @@ import { MetricsScreen } from './metrics-screen.tsx';
 import { MetricsTable } from './metrics-tab.tsx';
 import { storedReadMarks, storeReadMarks } from './read-marks.ts';
 import { ReadingOrderList } from './reading-order-list.tsx';
-import { COMMENT_KINDS, type Comments, ReviewTray } from './review-tray.tsx';
+import { ReviewTray } from './review-tray.tsx';
 import { changedSymbolCount, hasSymbolNews, type LineAt, SymbolsOf } from './symbols-tab.tsx';
 import { changedCount, TestFiles, TestsScreen } from './tests-screen.tsx';
 import {
@@ -560,18 +562,15 @@ type InspectorProps = {
   readonly tests: ReadonlyArray<TestFile>;
   readonly symbols: ReadonlyArray<SymbolFile>;
   readonly onGoTo: (id: string) => void;
-  readonly comment: Draft;
-  readonly onComment: ((draft: Draft) => void) | undefined;
+  readonly anchor: Comment['anchor'];
+  readonly comments: Comments;
+  readonly onComment: ((comment: Comment) => void) | undefined;
   readonly commentable: boolean;
   readonly answers: Answers;
   readonly onAnswer: AnswerTo | undefined;
   readonly width: number;
   readonly onClose: () => void;
 };
-
-type Draft = Pick<Comment, 'kind' | 'text'>;
-
-const NO_DRAFT: Draft = { kind: 'question', text: '' };
 
 type InspectorTab = 'note' | 'metrics' | 'diff' | 'tests' | 'symbols';
 
@@ -662,13 +661,14 @@ const nodeSections = ({
 
 type NotePanelProps = Pick<
   InspectorProps,
-  'note' | 'found' | 'comment' | 'onComment' | 'commentable' | 'answers' | 'onAnswer'
+  'note' | 'found' | 'anchor' | 'comments' | 'onComment' | 'commentable' | 'answers' | 'onAnswer'
 >;
 
 const NotePanel = ({
   note,
   found,
-  comment,
+  anchor,
+  comments,
   onComment,
   commentable,
   answers,
@@ -691,28 +691,7 @@ const NotePanel = ({
     <p>{note?.text ?? 'No note'}</p>
     {onComment &&
       (commentable ? (
-        <>
-          <div role="radiogroup" aria-label="Comment kind" className="comment-kind">
-            {COMMENT_KINDS.map(([kind, label]) => (
-              <label key={kind}>
-                <input
-                  type="radio"
-                  name="comment-kind"
-                  checked={comment.kind === kind}
-                  onChange={() => onComment({ ...comment, kind })}
-                />
-                {label}
-              </label>
-            ))}
-          </div>
-          <label className="comment">
-            Your comment
-            <textarea
-              value={comment.text}
-              onChange={event => onComment({ ...comment, text: event.target.value })}
-            />
-          </label>
-        </>
+        <CommentField anchor={anchor} comments={comments} onComment={onComment} />
       ) : (
         <p>Drawn for several edges: open its ends to comment on one of them.</p>
       ))}
@@ -888,6 +867,7 @@ const SidePanel = ({
     );
   }
   if (selected === undefined) return null;
+  const anchor = { kind: node === undefined ? 'edge' : 'part', id: selected } as const;
   return (
     <>
       {divider}
@@ -902,15 +882,9 @@ const SidePanel = ({
         tests={review.tests}
         symbols={review.symbols}
         onGoTo={onGoTo}
-        comment={comments[selected] ?? NO_DRAFT}
-        onComment={
-          onComment &&
-          (draft =>
-            onComment({
-              anchor: { kind: node === undefined ? 'edge' : 'part', id: selected },
-              ...draft,
-            }))
-        }
+        anchor={anchor}
+        comments={comments}
+        onComment={onComment}
         commentable={
           node !== undefined || review.diff.edges.some(edge => edgeId(edge) === selected)
         }
@@ -1202,7 +1176,7 @@ export const ReviewPage = ({ review, notes, send }: ReviewPageProps) => {
     send && ((id, given) => setAnswers(current => withAnswer(current, id, given)));
   const [chosenWidth, setChosenWidth] = useState<number>();
   const comment = (written: Comment) =>
-    setComments(current => ({ ...current, [written.anchor.id]: written }));
+    setComments(current => ({ ...current, [anchorKey(written.anchor)]: written }));
   const [expanded, setExpanded] = useState<ReadonlySet<string>>(new Set());
   const expandable = useMemo(
     () => new Set(review.diff.nodes.flatMap(node => node.parent ?? [])),
@@ -1298,11 +1272,6 @@ export const ReviewPage = ({ review, notes, send }: ReviewPageProps) => {
     centre(id);
     setFocusTarget(id);
   };
-  const nodeLabels = new Map(review.diff.nodes.map(node => [node.id, node.label]));
-  const anchorName = (id: string) =>
-    endsOfId(id)
-      .map(end => nodeLabels.get(end) ?? end)
-      .join(' → ');
   const goToOnStructure = (id: string) => {
     location.hash = '#structure';
     goTo(id);
@@ -1500,7 +1469,7 @@ export const ReviewPage = ({ review, notes, send }: ReviewPageProps) => {
           comments={comments}
           answers={answers}
           findings={findings}
-          nameOf={anchorName}
+          nodes={review.diff.nodes}
           onGoTo={goToOnStructure}
           send={send}
         />
