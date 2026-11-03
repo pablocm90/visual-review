@@ -1106,6 +1106,7 @@ type SendProps = {
   readonly read: Review['read'];
   readonly parts: number;
   readonly comments: Comments;
+  readonly answers: Answers;
   readonly send: (review: Review) => Promise<void>;
 };
 
@@ -1115,13 +1116,16 @@ const VERDICTS: ReadonlyArray<readonly [Review['verdict'], string]> = [
   ['request-changes', 'Request changes'],
 ];
 
-const SendToClaude = ({ reviewed, read, parts, comments, send }: SendProps) => {
+const SendToClaude = ({ reviewed, read, parts, comments, answers, send }: SendProps) => {
   const [verdict, setVerdict] = useState<Review['verdict']>('comment');
   const [open, setOpen] = useState(false);
   const [body, setBody] = useState('');
   const [sent, setSent] = useState(false);
   const [problem, setProblem] = useState<string>();
-  const written = Object.values(comments).filter(({ text }) => text.trim() !== '');
+  const written = [
+    ...Object.values(comments).filter(({ text }) => text.trim() !== ''),
+    ...Object.values(answers),
+  ];
   const hasBody = body.trim() !== '';
   const sendComments = () =>
     send({
@@ -1196,10 +1200,11 @@ type HeaderProps = {
   readonly tab: Tab;
   readonly read: Review['read'];
   readonly comments: Comments;
+  readonly answers: Answers;
   readonly send: ((review: Review) => Promise<void>) | undefined;
 };
 
-const Header = ({ review, tab, read, comments, send }: HeaderProps) => {
+const Header = ({ review, tab, read, comments, answers, send }: HeaderProps) => {
   const changed = changedCount(review.tests);
   return (
     <header className="review">
@@ -1244,6 +1249,7 @@ const Header = ({ review, tab, read, comments, send }: HeaderProps) => {
           read={read}
           parts={review.readingOrder.parts.length}
           comments={comments}
+          answers={answers}
           send={send}
         />
       )}
@@ -1419,6 +1425,7 @@ export const ReviewPage = ({ review, notes, send }: ReviewPageProps) => {
         tab={tab}
         read={review.readingOrder.parts.filter(part => read.has(part))}
         comments={comments}
+        answers={answers}
         send={send}
       />
       {tab === 'structure' && (

@@ -363,8 +363,9 @@ const findingInRail = (target: string) =>
     .getByRole('button', { name: new RegExp(`^${target}: `) })
     .closest('li') ?? screen.getByRole('list', { name: 'no such finding' });
 
-test("a finding in the rail is answered Fix this, It's fine or Explain, only the latest pressed", async () => {
+test("a finding in the rail is answered Fix this, It's fine or Explain, only the latest pressed and sent", async () => {
   const user = userEvent.setup();
+  const sent = vi.fn(async () => {});
   render(
     <ReviewPage
       review={pageWith({
@@ -374,7 +375,7 @@ test("a finding in the rail is answered Fix this, It's fine or Explain, only the
           findingOn('rust/crate/application', { id: 'metrics:cyclomatic:rust/crate/application' }),
         ],
       })}
-      send={async () => {}}
+      send={sent}
     />,
   );
   const answer = (target: string, name: string) =>
@@ -390,6 +391,20 @@ test("a finding in the rail is answered Fix this, It's fine or Explain, only the
       .getAllByRole('button', { pressed: true })
       .map(button => button.textContent),
   ).toEqual(["It's fine"]);
+
+  await openReview(user);
+  await user.click(screen.getByRole('button', { name: 'Send to Claude' }));
+  expect(sent).toHaveBeenCalledExactlyOnceWith(
+    sentReview({
+      comments: [
+        { anchor: { kind: 'finding', id: 'metrics:lines:rust/crate/domain' }, kind: 'fine' },
+        {
+          anchor: { kind: 'finding', id: 'metrics:cyclomatic:rust/crate/application' },
+          kind: 'explain',
+        },
+      ],
+    }),
+  );
 });
 
 test('a page that is not served has no comment field, no answers to findings and no Review button', async () => {
