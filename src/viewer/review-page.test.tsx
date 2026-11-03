@@ -1710,6 +1710,38 @@ test('with storage refusing every access, the page opens and marks hold until it
   expect(readRows()).toEqual(['1 application']);
 });
 
+test('a stored mark on a part no longer in the reading order, the range having moved on, is not counted', async () => {
+  const walked = walkedReview();
+  localStorage.setItem(
+    `visual-review:read:${walked.range}`,
+    '["rust/crate/legacy", "rust/crate/gone"]',
+  );
+  render(<ReviewPage review={walked} />);
+  await screen.findByRole('group', { name: 'rust' });
+
+  expect(within(readingOrder()).getByText('1 of 3 parts read')).toBeDefined();
+});
+
+test('A on a node outside the reading order keeps no mark, so it starts unread when the range, moved on, makes it a part', async () => {
+  const user = userEvent.setup();
+  const walked = walkedReview();
+  const first = render(<ReviewPage review={walked} />);
+  await user.click(await screen.findByRole('button', { name: 'domain: unchanged' }));
+  await user.keyboard('a');
+  first.unmount();
+
+  render(
+    <ReviewPage
+      review={{
+        ...walked,
+        readingOrder: { parts: [...walked.readingOrder.parts, 'rust/crate/domain'], cycles: [] },
+      }}
+    />,
+  );
+  await screen.findByRole('group', { name: 'rust' });
+  expect(within(readingOrder()).getByText('0 of 4 parts read')).toBeDefined();
+});
+
 test('stored read marks that are not a list of ids are ignored, the page starting with none read', async () => {
   const walked = walkedReview();
   localStorage.setItem(`visual-review:read:${walked.range}`, '["rust/crate/application", 7]');

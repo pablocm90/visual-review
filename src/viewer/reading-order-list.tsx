@@ -35,7 +35,8 @@ export const ReadingOrderList = ({
     <nav className="reading-order" aria-label="Reading order">
       <h2 className="reading-order-title">Reading order</h2>
       <p className="reading-progress">
-        {read.size} of {review.readingOrder.parts.length} parts read
+        {review.readingOrder.parts.filter(part => read.has(part)).length} of{' '}
+        {review.readingOrder.parts.length} parts read
       </p>
       <ol className="reading-order-list">
         {review.readingOrder.parts.map((part, index) => {
