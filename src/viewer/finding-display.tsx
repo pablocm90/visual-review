@@ -30,7 +30,7 @@ export type Answers = Readonly<Record<string, Answer>>;
 
 export type AnswerTo = (id: string, answer: Answer | undefined) => void;
 
-const ANSWER_KINDS: ReadonlyArray<readonly [Answer['kind'], string]> = [
+export const ANSWER_KINDS: ReadonlyArray<readonly [Answer['kind'], string]> = [
   ['fix', 'Fix this'],
   ['fine', "It's fine"],
   ['explain', 'Explain'],

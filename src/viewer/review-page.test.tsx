@@ -3,7 +3,7 @@ import { act, configure, fireEvent, render, screen, waitFor, within } from '@tes
 import userEvent from '@testing-library/user-event';
 import { expect, onTestFinished, test, vi } from 'vitest';
 import type { GraphDiff } from '../core/diff-graphs.ts';
-import { raisedFindings } from '../core/findings.ts';
+import { type Finding, raisedFindings } from '../core/findings.ts';
 import type { ReviewNotes } from '../core/notes.ts';
 import type { PageData } from '../core/page.ts';
 import type { SymbolFile } from '../core/read-range.ts';
@@ -246,6 +246,7 @@ test('each comment carries the kind picked beside it, Question until another is 
 
   expect(sent).toHaveBeenCalledExactlyOnceWith(
     sentReview({
+      verdict: 'request-changes',
       comments: [
         {
           anchor: { kind: 'part', id: 'rust/crate/domain' },
@@ -257,40 +258,64 @@ test('each comment carries the kind picked beside it, Question until another is 
   );
 });
 
-test('the verdict picked beside Send to Claude goes with the review, Comment until another is picked, and kept while the review is closed', async () => {
+const verdict = (name: string) =>
+  within(screen.getByRole('radiogroup', { name: 'Verdict' })).getByRole('radio', { name });
+
+const suggestedVerdict = () =>
+  within(screen.getByRole('radiogroup', { name: 'Verdict' })).getByRole('radio', {
+    description: 'suggested',
+  });
+
+test('the verdict follows the drafts, Approve with none or only suggestions, Comment once a question is drafted, Request changes once a change is, until one is picked, which holds as the drafts change and while the tray is closed', async () => {
   const user = userEvent.setup();
   const sent = vi.fn(async () => {});
   render(<ReviewPage review={pageWith(review)} send={sent} />);
-  const verdict = (name: string) =>
-    within(screen.getByRole('radiogroup', { name: 'Verdict' })).getByRole('radio', { name });
+  const comment = () => within(noteTab()).getByRole('textbox', { name: 'Your comment' });
 
   const rust = await screen.findByRole('group', { name: 'rust' });
   await openReview(user);
-  expect(verdict('Comment')).toHaveProperty('checked', true);
+  expect(verdict('Approve')).toHaveProperty('checked', true);
+  await user.click(within(rust).getByRole('button', { name: 'cli-adapter: added' }));
+  await pickKind(user, 'Suggestion');
+  await user.type(comment(), 'A builder might read better.');
+  expect(verdict('Approve')).toHaveProperty('checked', true);
   await user.click(within(rust).getByRole('button', { name: 'domain: unchanged' }));
-  await user.type(
-    within(noteTab()).getByRole('textbox', { name: 'Your comment' }),
-    'Keep domain free of IO.',
-  );
-  await user.click(verdict('Request changes'));
+  await user.type(comment(), 'Why here?');
+  expect(verdict('Comment')).toHaveProperty('checked', true);
+  await user.click(within(rust).getByRole('button', { name: 'application: modified' }));
+  await pickKind(user, 'Change this');
+  await user.type(comment(), 'Split it.');
+  expect(verdict('Request changes')).toHaveProperty('checked', true);
+  expect(suggestedVerdict()).toBe(verdict('Request changes'));
+
+  await user.click(verdict('Comment'));
+  await user.click(within(rust).getByRole('button', { name: 'legacy: removed' }));
+  await pickKind(user, 'Change this');
+  await user.type(comment(), 'Keep it a release longer.');
   await openReview(user);
   expect(screen.queryByRole('radiogroup', { name: 'Verdict' })).toBeNull();
   await openReview(user);
-  expect(verdict('Request changes')).toHaveProperty('checked', true);
+  expect(verdict('Comment')).toHaveProperty('checked', true);
+  expect(suggestedVerdict()).toBe(verdict('Request changes'));
   await user.click(screen.getByRole('button', { name: 'Send to Claude' }));
 
-  expect(sent).toHaveBeenCalledExactlyOnceWith(
-    sentReview({
-      verdict: 'request-changes',
-      comments: [
-        {
-          anchor: { kind: 'part', id: 'rust/crate/domain' },
-          kind: 'question',
-          text: 'Keep domain free of IO.',
-        },
-      ],
-    }),
-  );
+  expect(sent).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ verdict: 'comment' }));
+});
+
+test('picking the verdict already suggested holds it as the drafts change', async () => {
+  const user = userEvent.setup();
+  const sent = vi.fn(async () => {});
+  render(<ReviewPage review={pageWith(review)} send={sent} />);
+
+  const rust = await screen.findByRole('group', { name: 'rust' });
+  await openReview(user);
+  await user.click(verdict('Approve'));
+  await user.click(within(rust).getByRole('button', { name: 'domain: unchanged' }));
+  await user.type(within(noteTab()).getByRole('textbox', { name: 'Your comment' }), 'Why here?');
+  expect(suggestedVerdict()).toBe(verdict('Comment'));
+  await user.click(screen.getByRole('button', { name: 'Send to Claude' }));
+
+  expect(sent).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ verdict: 'approve' }));
 });
 
 test('Send to Claude waits for a comment that is more than blanks, and sends no blank or cleared one', async () => {
@@ -302,6 +327,7 @@ test('Send to Claude waits for a comment that is more than blanks, and sends no 
 
   const rust = await screen.findByRole('group', { name: 'rust' });
   await openReview(user);
+  await user.click(verdict('Comment'));
   expect(sendButton()).toHaveProperty('disabled', true);
   await user.type(screen.getByRole('textbox', { name: 'General comment' }), '  ');
   expect(sendButton()).toHaveProperty('disabled', true);
@@ -335,6 +361,7 @@ test('the general comment goes with the review as its body, and alone lets a Com
 
   await screen.findByRole('group', { name: 'rust' });
   await openReview(user);
+  await user.click(verdict('Comment'));
   await user.type(
     screen.getByRole('textbox', { name: 'General comment' }),
     'Ship it once the fetch moves.',
@@ -417,7 +444,7 @@ test("a finding in the rail is answered Fix this, It's fine or Explain, only the
   );
 });
 
-test("It's fine takes an optional why, which goes with the answer unless blank", async () => {
+test("It's fine takes an optional why, which goes with the answer in the tray and to Claude unless blank", async () => {
   const user = userEvent.setup();
   const sent = vi.fn(async () => {});
   render(
@@ -445,10 +472,16 @@ test("It's fine takes an optional why, which goes with the answer unless blank",
   await fine('domain', 'Generated code');
   await fine('application', '   ');
   await openReview(user);
+  expect(
+    within(within(tray()).getByRole('list', { name: 'Drafts' }))
+      .getAllByRole('listitem')
+      .map(item => item.textContent),
+  ).toEqual(["lines 900, over 800 It's fine: Generated code", "lines 900, over 800 It's fine"]);
   await user.click(screen.getByRole('button', { name: 'Send to Claude' }));
 
   expect(sent).toHaveBeenCalledExactlyOnceWith(
     sentReview({
+      verdict: 'approve',
       comments: [
         {
           anchor: { kind: 'finding', id: 'metrics:lines:rust/crate/domain' },
@@ -497,6 +530,7 @@ test("a finding under the inspector's note is answered there, the same answer as
 
   expect(sent).toHaveBeenCalledExactlyOnceWith(
     sentReview({
+      verdict: 'request-changes',
       comments: [
         {
           anchor: { kind: 'finding', id: 'metrics:cyclomatic:rust/crate/application' },
@@ -549,6 +583,148 @@ test('a send that fails says why and leaves Send to Claude to try again', async 
     'The review was not sent: 403 Forbidden',
   );
   expect(screen.getByRole('button', { name: 'Send to Claude' })).not.toBeNull();
+});
+
+const tray = () => screen.getByRole('region', { name: 'Review tray' });
+
+const pickKind = (user: ReturnType<typeof userEvent.setup>, name: string) =>
+  user.click(
+    within(within(noteTab()).getByRole('radiogroup', { name: 'Comment kind' })).getByRole('radio', {
+      name,
+    }),
+  );
+
+test("the review tray sits at the page's foot, its line counting the drafts and each kind among them, blank ones left out", async () => {
+  const user = userEvent.setup();
+  render(<ReviewPage review={pageWith(review)} send={async () => {}} />);
+  const comment = () => within(noteTab()).getByRole('textbox', { name: 'Your comment' });
+
+  const rust = await screen.findByRole('group', { name: 'rust' });
+  expect(within(tray()).getByText('Nothing drafted')).toBeDefined();
+  await user.click(within(rust).getByRole('button', { name: 'domain: unchanged' }));
+  await user.type(comment(), 'Why here?');
+  expect(within(tray()).getByText('1 drafted · 1 question')).toBeDefined();
+  await user.click(within(rust).getByRole('button', { name: 'application: modified' }));
+  await pickKind(user, 'Change this');
+  await user.type(comment(), 'Split it.');
+  await user.click(within(rust).getByRole('button', { name: 'application → domain: unchanged' }));
+  await user.type(comment(), 'And this?');
+  await user.click(within(rust).getByRole('button', { name: 'cli-adapter: added' }));
+  await user.type(comment(), '  ');
+  expect(within(tray()).getByText('3 drafted · 1 change · 2 questions')).toBeDefined();
+  expect(within(tray()).getByRole('button', { name: 'Review' })).toBeDefined();
+});
+
+test('the open tray lists the drafts, those on parts in reading order first, then the rest by id, an edge named by its ends, each going to what it is on from any tab', async () => {
+  const user = userEvent.setup();
+  render(
+    <ReviewPage
+      review={pageWith({
+        ...review,
+        readingOrder: { parts: ['rust/crate/legacy', 'rust/crate/application'], cycles: [] },
+      })}
+      send={async () => {}}
+    />,
+  );
+  const comment = () => within(noteTab()).getByRole('textbox', { name: 'Your comment' });
+  const draft = async (name: string, text: string) => {
+    await user.click(
+      within(screen.getByRole('group', { name: 'rust' })).getByRole('button', { name }),
+    );
+    await user.type(comment(), text);
+  };
+
+  await screen.findByRole('group', { name: 'rust' });
+  await draft('domain: unchanged', 'Why here?');
+  await draft('application: modified', 'Split it.');
+  await draft('application → domain: unchanged', 'And this?');
+  await draft('cli-adapter: added', ' ');
+  await draft('legacy: removed', 'Keep it.');
+  await pickKind(user, 'Change this');
+  await openReview(user);
+  const drafts = within(tray()).getByRole('list', { name: 'Drafts' });
+  expect(
+    within(drafts)
+      .getAllByRole('listitem')
+      .map(item => item.textContent),
+  ).toEqual([
+    'legacy Change this: Keep it.',
+    'application Question: Split it.',
+    'application → domain Question: And this?',
+    'domain Question: Why here?',
+  ]);
+
+  await user.click(screen.getByRole('link', { name: 'Metrics' }));
+  await user.click(within(drafts).getByRole('button', { name: 'legacy' }));
+  await waitFor(() => expect(currentTab()).toBe('Structure'));
+  const legacy = await screen.findByRole('button', { name: 'legacy: removed' });
+  await waitFor(() => expect(document.activeElement).toBe(legacy));
+  expect(within(inspector()).getByRole('heading', { name: 'legacy' })).not.toBeNull();
+});
+
+test("the open tray lists the finding answers after the comments, each named by its finding's title and going to its target, a finding with none listed without a way there", async () => {
+  const user = userEvent.setup();
+  const undrawn: Finding = {
+    id: 'structure:undrawn',
+    dimension: 'structure',
+    level: 'info',
+    title: '1 changed file outside the graph',
+    detail: 'plans/x.md',
+  };
+  render(
+    <ReviewPage
+      review={pageWith({
+        ...review,
+        findings: [
+          findingOn('rust/crate/domain'),
+          findingOn('rust/crate/application', {
+            id: 'metrics:cyclomatic:rust/crate/application',
+            title: 'cyclomatic 30, over 20',
+          }),
+          undrawn,
+        ],
+      })}
+      send={async () => {}}
+    />,
+  );
+  const rail = () => screen.getByRole('complementary', { name: 'Findings' });
+  const inRail = (title: string) => within(within(rail()).getByText(title).closest('li') ?? rail());
+  const answer = (title: string, name: string) =>
+    user.click(inRail(title).getByRole('button', { name }));
+
+  const rust = await screen.findByRole('group', { name: 'rust' });
+  await user.click(within(rust).getByRole('button', { name: 'domain: unchanged' }));
+  await user.type(within(noteTab()).getByRole('textbox', { name: 'Your comment' }), 'Why here?');
+  await user.click(screen.getByRole('button', { name: 'Show 3 findings' }));
+  await answer('cyclomatic 30, over 20', 'Explain');
+  await answer('lines 900, over 800', "It's fine");
+  await user.type(
+    inRail('lines 900, over 800').getByRole('textbox', { name: "Why it's fine" }),
+    'Generated',
+  );
+  await answer(undrawn.title, 'Fix this');
+  await openReview(user);
+  const drafts = within(tray()).getByRole('list', { name: 'Drafts' });
+  expect(
+    within(drafts)
+      .getAllByRole('listitem')
+      .map(item => item.textContent),
+  ).toEqual([
+    'domain Question: Why here?',
+    'cyclomatic 30, over 20 Explain',
+    "lines 900, over 800 It's fine: Generated",
+    '1 changed file outside the graph Fix this',
+  ]);
+  expect(
+    within(drafts)
+      .getAllByRole('button')
+      .map(button => button.textContent),
+  ).toEqual(['domain', 'cyclomatic 30, over 20', 'lines 900, over 800']);
+
+  await user.click(screen.getByRole('link', { name: 'Metrics' }));
+  await user.click(within(drafts).getByRole('button', { name: 'cyclomatic 30, over 20' }));
+  await waitFor(() => expect(currentTab()).toBe('Structure'));
+  expect(within(inspector()).getByRole('heading', { name: 'application' })).not.toBeNull();
 });
 
 type FrameOptions = {
@@ -1964,6 +2140,79 @@ test('the review says how many parts of the reading order were read before it is
   await screen.findByRole('group', { name: 'rust' });
   await openReview(user);
   expect(within(panel()).queryByText(/read$/)).toBeNull();
+});
+
+test('parts read with nothing drafted suggest Approve, sent with the parts read', async () => {
+  const user = userEvent.setup();
+  const sent = vi.fn(async () => {});
+  render(<ReviewPage review={walkedReview()} send={sent} />);
+  await screen.findByRole('group', { name: 'rust' });
+  await user.keyboard('jaja');
+  await openReview(user);
+
+  expect(suggestedVerdict()).toBe(verdict('Approve'));
+  await user.click(screen.getByRole('button', { name: 'Send to Claude' }));
+  expect(sent).toHaveBeenCalledExactlyOnceWith(
+    expect.objectContaining({
+      verdict: 'approve',
+      read: ['rust/crate/application', 'rust/crate/cli-adapter'],
+    }),
+  );
+});
+
+test('the open tray names the parts read with nothing to say, in reading order, a blank draft saying nothing', async () => {
+  const user = userEvent.setup();
+  render(<ReviewPage review={walkedReview()} send={async () => {}} />);
+  const rust = await screen.findByRole('group', { name: 'rust' });
+  await user.keyboard('jajaja');
+  await user.click(within(rust).getByRole('button', { name: 'cli-adapter: added' }));
+  await user.type(within(noteTab()).getByRole('textbox', { name: 'Your comment' }), 'Why?');
+  await user.click(within(rust).getByRole('button', { name: 'legacy: removed' }));
+  await user.type(within(noteTab()).getByRole('textbox', { name: 'Your comment' }), ' ');
+  await openReview(user);
+
+  const silent = within(tray()).getByRole('list', { name: 'Read, nothing to say' });
+  expect(
+    within(silent)
+      .getAllByRole('listitem')
+      .map(item => item.textContent),
+  ).toEqual(['application', 'legacy']);
+});
+
+test("the open tray previews what Claude gets as lines: the verdict and parts read, each draft's kind and anchor in the tray's order, and the parts read with nothing to say", async () => {
+  const user = userEvent.setup();
+  const walked = render(<ReviewPage review={walkedReview()} send={async () => {}} />);
+  const rust = await screen.findByRole('group', { name: 'rust' });
+  await user.keyboard('ja');
+  await user.click(within(rust).getByRole('button', { name: 'application → domain: unchanged' }));
+  await user.type(within(noteTab()).getByRole('textbox', { name: 'Your comment' }), 'Why?');
+  await user.click(within(rust).getByRole('button', { name: 'legacy: removed' }));
+  await pickKind(user, 'Change this');
+  await user.type(within(noteTab()).getByRole('textbox', { name: 'Your comment' }), 'Keep it.');
+  await openReview(user);
+
+  const preview = () => within(tray()).getByLabelText('What Claude gets').textContent?.split('\n');
+  expect(preview()).toEqual([
+    'request-changes · read 1 of 3',
+    'change    rust/crate/legacy',
+    'question  rust/crate/application -> rust/crate/domain',
+    'read      1 part, no comment',
+  ]);
+  await user.click(verdict('Comment'));
+  expect(preview()?.[0]).toBe('comment · read 1 of 3');
+  walked.unmount();
+
+  render(
+    <ReviewPage
+      review={pageWith({ ...review, findings: [findingOn('rust/crate/domain')] })}
+      send={async () => {}}
+    />,
+  );
+  await screen.findByRole('group', { name: 'rust' });
+  await user.click(screen.getByRole('button', { name: 'Show 1 finding' }));
+  await user.click(within(findingInRail('domain')).getByRole('button', { name: 'Fix this' }));
+  await openReview(user);
+  expect(preview()).toEqual(['request-changes', 'fix       metrics:lines:rust/crate/domain']);
 });
 
 test('A on a node outside the reading order keeps no mark, so it starts unread when the range, moved on, makes it a part', async () => {
