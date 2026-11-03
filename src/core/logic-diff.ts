@@ -112,7 +112,10 @@ const linesOfGap = ({ base, head }: Sides): ReadonlyArray<LogicLine> => {
 
 type Walked = { readonly lines: ReadonlyArray<LogicLine>; readonly from: Match };
 
+const MOST_MATCHED = 400;
+
 const linesOfMiddle = (sides: Sides): ReadonlyArray<LogicLine> => {
+  if (sides.base.length + sides.head.length > MOST_MATCHED) return linesOfGap(sides);
   const matches = matchesFrom(sides, lengthsFrom(sides, 0), [0, 0]);
   const { lines, from } = matches.reduce<Walked>(
     (walked, [row, column]) => ({

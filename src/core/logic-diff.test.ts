@@ -193,3 +193,37 @@ test('a decision appended to a function of thousands of decisions is one added l
     { change: 'added', kind: 'case', depth: 0, head: 'default:', line: 4001 },
   ]);
 });
+
+test('thousands of decisions all edited pair by kind in order, without looking for the same', () => {
+  const cases = (from: number) =>
+    Array.from({ length: 3000 }, (_, index) =>
+      decision({ kind: 'case', text: `case ${from + index}:`, line: index + 1 }),
+    );
+  const lines = logicDiff({ base: cases(0), head: cases(10_000) });
+  expect(lines.map(({ change }) => change)).toEqual(Array(3000).fill('changed'));
+  expect(lines[0]).toEqual({
+    change: 'changed',
+    kind: 'case',
+    depth: 0,
+    base: 'case 0:',
+    head: 'case 10000:',
+    line: 1,
+  });
+});
+
+test.for([
+  { kept: 199, changes: ['removed', ...Array(199).fill('same'), 'added'] },
+  { kept: 200, changes: Array(201).fill('changed') },
+])(
+  'up to 400 decisions between the same start and end are matched, past that they pair by kind ($kept kept)',
+  ({ kept, changes }) => {
+    const middle = Array.from({ length: kept }, (_, index) =>
+      decision({ kind: 'case', text: `case ${index}:` }),
+    );
+    const lines = logicDiff({
+      base: [decision({ kind: 'case', text: 'case -1:' }), ...middle],
+      head: [...middle, decision({ kind: 'case', text: 'case -2:' })],
+    });
+    expect(lines.map(({ change }) => change)).toEqual(changes);
+  },
+);
