@@ -1304,10 +1304,12 @@ export const ReviewPage = ({ review, notes, send }: ReviewPageProps) => {
       .join(' → ');
   const goToOnStructure = (id: string) => {
     location.hash = '#structure';
+    goTo(id);
+  };
+  const goToDraft = (id: string) => {
     const symbol = symbolsAt.get(id);
-    if (symbol === undefined) return goTo(id);
-    goTo(symbol.node);
-    setInspectorTab('symbols');
+    goToOnStructure(symbol?.node ?? id);
+    setInspectorTab(symbol === undefined ? 'note' : 'symbols');
   };
   const [read, setRead] = useState(() => storedReadMarks(review.range));
   useEffect(() => storeReadMarks(review.range, read), [review.range, read]);
@@ -1506,7 +1508,7 @@ export const ReviewPage = ({ review, notes, send }: ReviewPageProps) => {
           findings={findings}
           nameOf={anchorName}
           partOf={id => symbolsAt.get(id)?.node ?? id}
-          onGoTo={goToOnStructure}
+          onGoTo={goToDraft}
           send={send}
         />
       )}

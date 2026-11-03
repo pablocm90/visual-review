@@ -4485,6 +4485,14 @@ test("the open tray lists a symbol's draft with its file's part in reading order
     'orders.ts › Orders.charge Question: Charge?',
     'cart.ts Question: Cart?',
   ]);
+
+  const drafts = within(within(tray()).getByRole('list', { name: 'Drafts' }));
+  await user.click(drafts.getByRole('button', { name: 'orders.ts › Orders.charge' }));
+  await user.click(drafts.getByRole('button', { name: 'orders.ts' }));
+  expect(within(noteTab()).getByRole('textbox', { name: 'Your comment' })).toHaveProperty(
+    'value',
+    'Orders?',
+  );
 });
 
 test("a part read with a comment on one of its symbols isn't listed as read with nothing to say", async () => {
