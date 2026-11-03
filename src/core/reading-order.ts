@@ -7,61 +7,143 @@ export type ReadingOrder = {
 
 type Group = ReadonlyArray<string>;
 
-type Reaches = (part: string, other: string) => boolean;
+type Graph = ReadonlyMap<string, ReadonlyArray<string>>;
 
-const ordered = (groups: ReadonlyArray<Group>, reaches: Reaches): ReadonlyArray<Group> => {
-  const dependsOn = (group: Group, other: Group): boolean =>
-    other !== group && group.some(part => other.some(target => reaches(part, target)));
-  const [next] = groups.filter(group => !groups.some(other => dependsOn(group, other)));
-  return next === undefined
-    ? []
-    : [
-        next,
-        ...ordered(
-          groups.filter(group => group !== next),
-          reaches,
+type Walk = { readonly seen: ReadonlySet<string>; readonly order: ReadonlyArray<string> };
+
+const unwalked: Walk = { seen: new Set(), order: [] };
+
+const walk = (graph: Graph, id: string, from: Walk): Walk => {
+  if (from.seen.has(id)) return from;
+  const after = (graph.get(id) ?? []).reduce<Walk>((walked, next) => walk(graph, next, walked), {
+    ...from,
+    seen: new Set([...from.seen, id]),
+  });
+  return { ...after, order: [...after.order, id] };
+};
+
+const reversed = (ids: ReadonlyArray<string>, graph: Graph): Graph => {
+  const arrows = ids.flatMap(from => (graph.get(from) ?? []).map(to => ({ from, to })));
+  return new Map(
+    [...Map.groupBy(arrows, arrow => arrow.to)].map(([to, into]) => [
+      to,
+      into.map(arrow => arrow.from),
+    ]),
+  );
+};
+
+const stronglyConnected = (ids: ReadonlyArray<string>, graph: Graph): ReadonlyArray<Group> => {
+  const back = reversed(ids, graph);
+  return ids
+    .reduce<Walk>((walked, id) => walk(graph, id, walked), unwalked)
+    .order.toReversed()
+    .reduce<{ readonly walked: Walk; readonly groups: ReadonlyArray<Group> }>(
+      ({ walked, groups }, id) => {
+        const after = walk(back, id, walked);
+        const group = after.order.slice(walked.order.length);
+        return {
+          walked: after,
+          groups: [...groups, group.toSorted()],
+        };
+      },
+      { walked: unwalked, groups: [] },
+    ).groups;
+};
+
+type Reading = {
+  readonly ready: ReadonlyArray<number>;
+  readonly waiting: ReadonlyMap<number, number>;
+  readonly order: ReadonlyArray<number>;
+};
+
+const dependedUponFirst = (groups: ReadonlyArray<Group>, graph: Graph): ReadonlyArray<Group> => {
+  const sorted = groups.toSorted((one, other) => ((one[0] ?? '') < (other[0] ?? '') ? -1 : 1));
+  const indexOf = new Map(sorted.flatMap((group, index) => group.map(part => [part, index])));
+  const dependsOn = sorted.map(
+    (group, index) =>
+      new Set(
+        group
+          .flatMap(part => graph.get(part) ?? [])
+          .flatMap(target => indexOf.get(target) ?? [])
+          .filter(other => other !== index),
+      ),
+  );
+  const dependents = Map.groupBy(
+    dependsOn.flatMap((others, index) => [...others].map(other => ({ other, index }))),
+    ({ other }) => other,
+  );
+  const read = sorted.reduce<Reading>(
+    ({ ready, waiting, order }) => {
+      const [next, ...rest] = ready;
+      if (next === undefined) return { ready, waiting, order };
+      const waitingOnNext = (dependents.get(next) ?? []).map(({ index }) => index);
+      const left = new Map([
+        ...waiting,
+        ...waitingOnNext.map((index): [number, number] => [index, (waiting.get(index) ?? 0) - 1]),
+      ]);
+      return {
+        ready: [...rest, ...waitingOnNext.filter(index => left.get(index) === 0)].toSorted(
+          (one, other) => one - other,
         ),
-      ];
+        waiting: left,
+        order: [...order, next],
+      };
+    },
+    {
+      ready: dependsOn.flatMap((others, index) => (others.size === 0 ? [index] : [])),
+      waiting: new Map(dependsOn.map((others, index) => [index, others.size])),
+      order: [],
+    },
+  );
+  return read.order.flatMap(index => sorted.slice(index, index + 1));
 };
 
 export const readingOrder = (diff: GraphDiff): ReadingOrder => {
   const parents = new Set(diff.nodes.flatMap(node => node.parent ?? []));
-  const parts = diff.nodes
-    .filter(node => node.state !== 'unchanged' && !parents.has(node.id))
-    .map(node => node.id)
-    .toSorted();
-  const removed = new Set(diff.nodes.filter(node => node.state === 'removed').map(node => node.id));
-  const reached = (from: ReadonlySet<string>): ReadonlySet<string> => {
-    const next = new Set([
-      ...from,
-      ...diff.edges
-        .filter(edge => edge.state !== 'removed' && from.has(edge.from))
-        .map(edge => edge.to),
-    ]);
-    return next.size === from.size ? from : reached(next);
+  const changed = diff.nodes.filter(node => node.state !== 'unchanged' && !parents.has(node.id));
+  const removed = changed.filter(node => node.state === 'removed').map(node => node.id);
+  const parts = changed.filter(node => node.state !== 'removed').map(node => node.id);
+  const targetsOf = new Map(
+    [
+      ...Map.groupBy(
+        diff.edges.filter(edge => edge.state !== 'removed'),
+        edge => edge.from,
+      ),
+    ].map(([from, edges]) => [from, edges.map(edge => edge.to)]),
+  );
+  const reached = (layers: ReadonlyArray<ReadonlySet<string>>): ReadonlySet<string> => {
+    const next = new Set(
+      [...(layers.at(-1) ?? [])]
+        .flatMap(id => targetsOf.get(id) ?? [])
+        .filter(id => !layers.some(layer => layer.has(id))),
+    );
+    return next.size === 0
+      ? new Set(layers.flatMap(layer => [...layer]))
+      : reached([...layers, next]);
   };
   const parentOf = new Map(diff.nodes.map(node => [node.id, node.parent]));
   const ancestry = (id: string): ReadonlyArray<string> => {
     const parent = parentOf.get(id);
     return parent === undefined ? [id] : [id, ...ancestry(parent)];
   };
-  const reach = new Map(parts.map(part => [part, reached(new Set(ancestry(part)))]));
-  const reaches: Reaches = (part, other) => {
-    const own = ancestry(part);
-    return ancestry(other).some(
-      id => (id === other || !own.includes(id)) && (reach.get(part)?.has(id) ?? false),
-    );
-  };
-  const groupOf = (part: string): Group =>
-    parts.filter(other => reaches(part, other) && reaches(other, part));
-  const groups = [...new Map(parts.map(part => [groupOf(part).join(' '), groupOf(part)])).values()];
-  const isRemoved = (group: Group): boolean => group.some(part => removed.has(part));
-  const order = ordered(
-    groups.filter(group => !isRemoved(group)),
-    reaches,
+  const ancestries = new Map(parts.map(part => [part, ancestry(part)]));
+  const partsUnder = Map.groupBy(
+    parts.flatMap(part => (ancestries.get(part) ?? []).map(id => ({ id, part }))),
+    ({ id }) => id,
   );
+  const graph: Graph = new Map(
+    parts.map(part => {
+      const own = ancestries.get(part) ?? [];
+      const reach = [...reached([new Set(own)])].filter(id => !own.includes(id));
+      return [
+        part,
+        [...new Set(reach.flatMap(id => (partsUnder.get(id) ?? []).map(under => under.part)))],
+      ];
+    }),
+  );
+  const order = dependedUponFirst(stronglyConnected(parts, graph), graph);
   return {
-    parts: [...order.flat(), ...groups.filter(isRemoved).flat()],
+    parts: [...order.flat(), ...removed.toSorted()],
     cycles: order.filter(group => group.length > 1),
   };
 };

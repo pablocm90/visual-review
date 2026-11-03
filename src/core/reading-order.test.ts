@@ -52,6 +52,27 @@ test('reads files that import each other in id order, and says they do', () => {
   });
 });
 
+test('reads a file as soon as all it imports is read, before files later in id order', () => {
+  const diff = diffOf(
+    [file('d.ts'), file('c.ts'), file('b.ts'), file('a.ts')],
+    [edge('a.ts', 'b.ts')],
+  );
+  expect(readingOrder(diff).parts).toEqual([
+    'web/file/b.ts',
+    'web/file/a.ts',
+    'web/file/c.ts',
+    'web/file/d.ts',
+  ]);
+});
+
+test('reads a file only once everything it imports is read', () => {
+  const diff = diffOf(
+    [file('a.ts'), file('b.ts'), file('c.ts')],
+    [edge('a.ts', 'b.ts'), edge('a.ts', 'c.ts')],
+  );
+  expect(readingOrder(diff).parts).toEqual(['web/file/b.ts', 'web/file/c.ts', 'web/file/a.ts']);
+});
+
 test('reads removed files after the files the head holds, in id order', () => {
   const diff = diffOf([file('b.ts', 'removed'), file('a.ts', 'removed'), file('c.ts')]);
   expect(readingOrder(diff).parts).toEqual(['web/file/c.ts', 'web/file/a.ts', 'web/file/b.ts']);
@@ -98,4 +119,66 @@ test('orders the modules of two crates, at any depth, by the edge between the cr
     parts: ['api/mod/domain/model/order', 'api/mod/app/routes', 'api/mod/app/state'],
     cycles: [],
   });
+});
+
+const crateCycle = (modules: ReadonlyArray<DiffedNode>): GraphDiff => ({
+  nodes: [
+    { id: 'api', kind: 'stack', label: 'api', path: '', state: 'modified' },
+    ...['a', 'b'].map(
+      (name): DiffedNode => ({
+        id: `api/crate/${name}`,
+        kind: 'package',
+        label: name,
+        path: `crates/${name}`,
+        parent: 'api',
+        state: 'modified',
+      }),
+    ),
+    ...modules,
+  ],
+  edges: [
+    { from: 'api/crate/a', to: 'api/crate/b', state: 'unchanged' },
+    { from: 'api/crate/b', to: 'api/crate/a', state: 'unchanged' },
+  ],
+});
+
+const crateModule = (krate: string, name: string, state: DiffedNode['state'] = 'modified') => ({
+  id: `api/mod/${krate}/${name}`,
+  kind: 'module' as const,
+  label: name,
+  path: `crates/${krate}/src/${name}.rs`,
+  parent: `api/crate/${krate}`,
+  state,
+});
+
+test('reads the modules of two crates that depend on each other as one cycle, though two of them reach each other only through the other crate', () => {
+  const diff = crateCycle([
+    crateModule('a', 'one'),
+    crateModule('a', 'two'),
+    crateModule('b', 'three'),
+  ]);
+  expect(readingOrder(diff)).toEqual({
+    parts: ['api/mod/a/one', 'api/mod/a/two', 'api/mod/b/three'],
+    cycles: [['api/mod/a/one', 'api/mod/a/two', 'api/mod/b/three']],
+  });
+});
+
+test('reads a removed module inside a crate cycle once, after the rest', () => {
+  const diff = crateCycle([
+    crateModule('a', 'one'),
+    crateModule('a', 'two', 'removed'),
+    crateModule('b', 'three'),
+  ]);
+  expect(readingOrder(diff).parts).toEqual(['api/mod/a/one', 'api/mod/b/three', 'api/mod/a/two']);
+});
+
+test('orders a thousand changed files without stalling', () => {
+  const names = Array.from({ length: 1000 }, (_, index) => `f${String(index).padStart(4, '0')}.ts`);
+  const diff = diffOf(
+    names.map(name => file(name)),
+    names
+      .slice(1)
+      .flatMap((name, index) => (index % 10 === 0 ? [] : [edge(name, names[index] ?? '')])),
+  );
+  expect(readingOrder(diff).parts).toHaveLength(1000);
 });
