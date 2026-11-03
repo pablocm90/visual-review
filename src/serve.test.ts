@@ -240,7 +240,7 @@ test('serve without a page exits non-zero saying how to call it', async () => {
 });
 
 const reviewWith = (comments: Review['comments']): Review => ({
-  version: 3,
+  version: 4,
   verdict: 'comment',
   reviewed: { range: 'abc123..def456' },
   read: [],
@@ -251,7 +251,7 @@ test('a review sent from the served page is written beside it as <name>.review.j
   using server = await servedPage();
   const { origin, pathname } = new URL(server.url);
   const review = {
-    version: 3,
+    version: 4,
     verdict: 'comment',
     body: 'The fetch belongs in AppInfo; the rest reads well.',
     reviewed: { range: 'abc123..def456', pullRequest: 16 },
@@ -280,12 +280,12 @@ test('a review the page could not have sent is refused with 400 naming the probl
 
   const response = await fetch(`${origin}${pathname}/review`, {
     method: 'POST',
-    body: JSON.stringify({ version: 2, comments: {} }),
+    body: JSON.stringify({ version: 3, comments: {} }),
   });
 
   expect(response.status).toBe(400);
   expect(await response.text()).toBe(
-    'Invalid review: version 2 is unknown; this visual-review reads version 3',
+    'Invalid review: version 3 is unknown; this visual-review reads version 4',
   );
   expect(await statusFor({ url: server.url })).toBe(200);
 });

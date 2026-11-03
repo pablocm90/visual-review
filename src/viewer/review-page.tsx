@@ -20,7 +20,7 @@ import type { NodeMetrics } from '../core/metrics.ts';
 import { type Note, type ReviewNotes, visibleNotes } from '../core/notes.ts';
 import { type PageData, UNCOMMITTED } from '../core/page.ts';
 import type { SymbolFile } from '../core/read-range.ts';
-import type { Review } from '../core/review.ts';
+import type { Comment, Review } from '../core/review.ts';
 import type { TestFile } from '../core/test-changes.ts';
 import { testsAlongside } from '../core/tests-alongside.ts';
 import {
@@ -558,7 +558,6 @@ type InspectorProps = {
   readonly onClose: () => void;
 };
 
-type Comment = Review['comments'][number];
 type Draft = Pick<Comment, 'kind' | 'text'>;
 
 const NO_DRAFT: Draft = { kind: 'question', text: '' };
@@ -1126,7 +1125,7 @@ const SendToClaude = ({ reviewed, read, parts, comments, send }: SendProps) => {
   const hasBody = body.trim() !== '';
   const sendComments = () =>
     send({
-      version: 3,
+      version: 4,
       verdict,
       ...(hasBody ? { body } : {}),
       reviewed,

@@ -2,7 +2,7 @@ import { expect, test } from 'vitest';
 import { parseReview } from './review.ts';
 
 const reviewWith = (verdict = 'request-changes') => ({
-  version: 3,
+  version: 4,
   verdict,
   reviewed: { range: 'a1b2c3d..e4f5a6b', pullRequest: 16 },
   read: ['web/file/App.tsx', 'rust/crate/domain'],
@@ -22,6 +22,13 @@ const reviewWith = (verdict = 'request-changes') => ({
       kind: 'suggestion',
       text: 'Maybe split it.',
     },
+    { anchor: { kind: 'finding', id: 'metrics:cyclomatic:web/file/App.tsx' }, kind: 'fix' },
+    {
+      anchor: { kind: 'finding', id: 'api:signature:web/file/App.tsx#App' },
+      kind: 'fine',
+      text: 'Only the tests call it.',
+    },
+    { anchor: { kind: 'finding', id: 'notes:web/file/App.tsx' }, kind: 'explain' },
   ],
 });
 
@@ -44,8 +51,8 @@ test.for([
   { problem: 'has no version', text: '{ "comments": [] }', reason: 'no "version"' },
   {
     problem: 'has a version this one does not read',
-    text: '{ "version": 2, "comments": {} }',
-    reason: 'version 2 is unknown; this visual-review reads version 3',
+    text: '{ "version": 3, "comments": {} }',
+    reason: 'version 3 is unknown; this visual-review reads version 4',
   },
   {
     problem: 'has a key no review has',
@@ -90,6 +97,13 @@ test.for([
     reason: '"by"',
   },
   {
+    problem: 'has a key no answer has',
+    text: JSON.stringify(
+      withComment({ anchor: { kind: 'finding', id: 'a' }, kind: 'fix', by: 'me' }),
+    ),
+    reason: '"by"',
+  },
+  {
     problem: 'has a comment with no text',
     text: JSON.stringify(withComment({ anchor: { kind: 'part', id: 'a' }, kind: 'question' })),
     reason: 'text',
@@ -107,6 +121,29 @@ test.for([
       withComment({ anchor: { kind: 'commit', id: 'a' }, kind: 'question', text: 'Hm.' }),
     ),
     reason: 'anchor',
+  },
+  {
+    problem: 'answers a finding with a comment kind',
+    text: JSON.stringify(
+      withComment({ anchor: { kind: 'finding', id: 'a' }, kind: 'change', text: 'Split it.' }),
+    ),
+    reason: 'kind',
+  },
+  {
+    problem: 'comments on a part with a finding answer',
+    text: JSON.stringify(withComment({ anchor: { kind: 'part', id: 'a' }, kind: 'fix' })),
+    reason: 'kind',
+  },
+  {
+    problem: 'has two answers to one finding',
+    text: JSON.stringify({
+      ...reviewWith(),
+      comments: [
+        { anchor: { kind: 'finding', id: 'a' }, kind: 'fix' },
+        { anchor: { kind: 'finding', id: 'a' }, kind: 'fine' },
+      ],
+    }),
+    reason: 'finding a has 2 comments; a review holds one per anchor',
   },
   {
     problem: 'has two comments on one anchor',
