@@ -52,6 +52,9 @@ test("the open tray names each draft by its anchor, sorts it with its file's par
     'README.md:1 "# Shop" Question: Why?',
     'adds tax Question: Why?',
   ]);
+  expect(
+    within(screen.getByLabelText('What Claude gets')).getByText(/README/).textContent,
+  ).toContain('question  README.md:1 "# Shop"');
   expect(drafts.queryByRole('button', { name: /README/ })).toBeNull();
   await user.click(drafts.getByRole('button', { name: 'Cart.total in total.ts' }));
   expect(onGoTo).toHaveBeenCalledWith('web/file/src/cart/total.ts');

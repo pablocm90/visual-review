@@ -2179,7 +2179,7 @@ test('the open tray names the parts read with nothing to say, in reading order, 
   ).toEqual(['application', 'legacy']);
 });
 
-test("the open tray previews what Claude gets as lines: the verdict and parts read, each draft's kind and anchor in the tray's order, and the parts read with nothing to say", async () => {
+test("the open tray previews what Claude gets as lines: the verdict and parts read, each draft's kind and what it is on in the tray's order, and the parts read with nothing to say", async () => {
   const user = userEvent.setup();
   const walked = render(<ReviewPage review={walkedReview()} send={async () => {}} />);
   const rust = await screen.findByRole('group', { name: 'rust' });
@@ -2194,8 +2194,8 @@ test("the open tray previews what Claude gets as lines: the verdict and parts re
   const preview = () => within(tray()).getByLabelText('What Claude gets').textContent?.split('\n');
   expect(preview()).toEqual([
     'request-changes · read 1 of 3',
-    'change    rust/crate/legacy',
-    'question  rust/crate/application -> rust/crate/domain',
+    'change    legacy',
+    'question  application → domain',
     'read      1 part, no comment',
   ]);
   await user.click(verdict('Comment'));

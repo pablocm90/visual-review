@@ -82,13 +82,16 @@ type PreviewOf = {
   readonly verdict: Review['verdict'];
   readonly read: Review['read'];
   readonly parts: ReadonlyArray<string>;
-  readonly listed: ReadonlyArray<Drafted>;
+  readonly ordered: ReadonlyArray<Comment>;
+  readonly answered: ReadonlyArray<Answer>;
   readonly silent: ReadonlyArray<string>;
+  readonly nodes: Nodes;
 };
 
-const previewOf = ({ verdict, read, parts, listed, silent }: PreviewOf) => [
+const previewOf = ({ verdict, read, parts, ordered, answered, silent, nodes }: PreviewOf) => [
   [verdict, ...(parts.length > 0 ? [`read ${read.length} of ${parts.length}`] : [])].join(' · '),
-  ...listed.map(({ kind, anchor }) => `${kind.padEnd(10)}${anchor.id}`),
+  ...ordered.map(({ kind, anchor }) => `${kind.padEnd(10)}${anchorName(anchor, nodes)}`),
+  ...answered.map(({ kind, anchor }) => `${kind.padEnd(10)}${anchor.id}`),
   ...(silent.length > 0
     ? [`${'read'.padEnd(10)}${counted(silent.length, 'part')}, no comment`]
     : []),
@@ -180,7 +183,7 @@ export const ReviewTray = ({
   const suggested = suggestedFor(written);
   const verdict = picked ?? suggested;
   const silent = read.filter(part => !written.some(({ anchor }) => anchor.id === part));
-  const preview = previewOf({ verdict, read, parts, listed: [...ordered, ...answered], silent });
+  const preview = previewOf({ verdict, read, parts, ordered, answered, silent, nodes });
   const sendComments = () =>
     send({
       version: 5,
