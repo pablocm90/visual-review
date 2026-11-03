@@ -85,11 +85,11 @@ const parserVersions = async (): Promise<Readonly<Record<string, string>>> => {
   const versions = await Promise.all(
     PARSERS.map(async name => {
       const path = findPackageJSON(name, import.meta.url);
-      if (path === undefined) return [];
-      return [[name, PackageSchema.parse(JSON.parse(await readFile(path, 'utf8'))).version]];
+      if (path === undefined) throw new Error(`No package.json for ${name}`);
+      return [name, PackageSchema.parse(JSON.parse(await readFile(path, 'utf8'))).version] as const;
     }),
   );
-  return Object.fromEntries(versions.flat());
+  return Object.fromEntries(versions);
 };
 
 type FillNotesOptions = {
