@@ -302,6 +302,22 @@ test('the verdict follows the drafts, Approve with none or only suggestions, Com
   expect(sent).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ verdict: 'comment' }));
 });
 
+test('picking the verdict already suggested holds it as the drafts change', async () => {
+  const user = userEvent.setup();
+  const sent = vi.fn(async () => {});
+  render(<ReviewPage review={pageWith(review)} send={sent} />);
+
+  const rust = await screen.findByRole('group', { name: 'rust' });
+  await openReview(user);
+  await user.click(verdict('Approve'));
+  await user.click(within(rust).getByRole('button', { name: 'domain: unchanged' }));
+  await user.type(within(noteTab()).getByRole('textbox', { name: 'Your comment' }), 'Why here?');
+  expect(suggestedVerdict()).toBe(verdict('Comment'));
+  await user.click(screen.getByRole('button', { name: 'Send to Claude' }));
+
+  expect(sent).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ verdict: 'approve' }));
+});
+
 test('Send to Claude waits for a comment that is more than blanks, and sends no blank or cleared one', async () => {
   const user = userEvent.setup();
   const sent = vi.fn(async () => {});

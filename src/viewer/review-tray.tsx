@@ -172,7 +172,7 @@ export const ReviewTray = ({
                           type="radio"
                           name="verdict"
                           checked={verdict === value}
-                          onChange={() => setPicked(value)}
+                          onClick={() => setPicked(value)}
                           aria-describedby={value === suggested ? 'suggested-verdict' : undefined}
                         />
                         {label}
