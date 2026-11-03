@@ -754,8 +754,8 @@ type SidePanelProps = {
   readonly outside: boolean;
   readonly note: Note | undefined;
   readonly found: ReadonlyArray<Finding>;
-  readonly comments: Readonly<Record<string, string>>;
-  readonly onComment: ((id: string, text: string) => void) | undefined;
+  readonly comments: Comments;
+  readonly onComment: ((anchor: Anchor, text: string) => void) | undefined;
   readonly chosenWidth: number | undefined;
   readonly onChooseWidth: (width: number) => void;
   readonly graphLeft: () => number;
@@ -836,8 +836,11 @@ const SidePanel = ({
         tests={review.tests}
         symbols={review.symbols}
         onGoTo={onGoTo}
-        comment={comments[selected] ?? ''}
-        onComment={onComment && (text => onComment(selected, text))}
+        comment={comments[selected]?.text ?? ''}
+        onComment={
+          onComment &&
+          (text => onComment({ kind: node === undefined ? 'edge' : 'part', id: selected }, text))
+        }
         commentable={
           node !== undefined || review.diff.edges.some(edge => edgeId(edge) === selected)
         }
@@ -1046,8 +1049,12 @@ const useTab = (): Tab => {
   return tab;
 };
 
+type Comment = Review['comments'][number];
+type Anchor = Comment['anchor'];
+type Comments = Readonly<Record<string, Comment>>;
+
 type SendProps = {
-  readonly comments: Readonly<Record<string, string>>;
+  readonly comments: Comments;
   readonly send: (review: Review) => Promise<void>;
 };
 
@@ -1063,14 +1070,14 @@ const SendToClaude = ({ comments, send }: SendProps) => {
   const [body, setBody] = useState('');
   const [sent, setSent] = useState(false);
   const [problem, setProblem] = useState<string>();
-  const written = Object.entries(comments).filter(([, text]) => text.trim() !== '');
+  const written = Object.values(comments).filter(({ text }) => text.trim() !== '');
   const hasBody = body.trim() !== '';
   const sendComments = () =>
     send({
-      version: 1,
+      version: 2,
       verdict,
       ...(hasBody ? { body } : {}),
-      comments: Object.fromEntries(written.map(([id, text]) => [id, { text }])),
+      comments: written,
     }).then(
       () => setSent(true),
       (error: Error) => setProblem(error.message),
@@ -1133,7 +1140,7 @@ const SendToClaude = ({ comments, send }: SendProps) => {
 type HeaderProps = {
   readonly review: PageData;
   readonly tab: Tab;
-  readonly comments: Readonly<Record<string, string>>;
+  readonly comments: Comments;
   readonly send: ((review: Review) => Promise<void>) | undefined;
 };
 
@@ -1196,10 +1203,10 @@ export const ReviewPage = ({ review, notes, send }: ReviewPageProps) => {
     setOutside(false);
     setSelected(id);
   };
-  const [comments, setComments] = useState<Readonly<Record<string, string>>>({});
+  const [comments, setComments] = useState<Comments>({});
   const [chosenWidth, setChosenWidth] = useState<number>();
-  const comment = (id: string, text: string) =>
-    setComments(current => ({ ...current, [id]: text }));
+  const comment = (anchor: Anchor, text: string) =>
+    setComments(current => ({ ...current, [anchor.id]: { anchor, kind: 'question', text } }));
   const [expanded, setExpanded] = useState<ReadonlySet<string>>(new Set());
   const expandable = useMemo(
     () => new Set(review.diff.nodes.flatMap(node => node.parent ?? [])),

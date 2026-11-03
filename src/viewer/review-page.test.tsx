@@ -167,7 +167,7 @@ test("the Note tab's comment field holds a comment per node or edge, kept while 
   expect(comment()).toHaveProperty('value', 'Why this way round?');
 });
 
-test("a served page's Review button opens the review, whose Send to Claude sends each comment under its node's id or its edge's, then says it was sent", async () => {
+test("a served page's Review button opens the review, whose Send to Claude sends each comment on its node or its edge, then says it was sent", async () => {
   const user = userEvent.setup();
   const sent = vi.fn(async () => {});
   render(<ReviewPage review={pageWith(review)} send={sent} />);
@@ -186,12 +186,20 @@ test("a served page's Review button opens the review, whose Send to Claude sends
   await user.click(screen.getByRole('button', { name: 'Send to Claude' }));
 
   expect(sent).toHaveBeenCalledExactlyOnceWith({
-    version: 1,
+    version: 2,
     verdict: 'comment',
-    comments: {
-      'rust/crate/domain': { text: 'Keep domain free of IO.' },
-      'rust/crate/application -> rust/crate/domain': { text: 'Why this way round?' },
-    },
+    comments: [
+      {
+        anchor: { kind: 'part', id: 'rust/crate/domain' },
+        kind: 'question',
+        text: 'Keep domain free of IO.',
+      },
+      {
+        anchor: { kind: 'edge', id: 'rust/crate/application -> rust/crate/domain' },
+        kind: 'question',
+        text: 'Why this way round?',
+      },
+    ],
   });
   expect((await screen.findByRole('status', { name: 'Review' })).textContent).toBe('Sent');
   expect(screen.queryByRole('button', { name: 'Send to Claude' })).toBeNull();
@@ -220,9 +228,15 @@ test('the verdict picked beside Send to Claude goes with the review, Comment unt
   await user.click(screen.getByRole('button', { name: 'Send to Claude' }));
 
   expect(sent).toHaveBeenCalledExactlyOnceWith({
-    version: 1,
+    version: 2,
     verdict: 'request-changes',
-    comments: { 'rust/crate/domain': { text: 'Keep domain free of IO.' } },
+    comments: [
+      {
+        anchor: { kind: 'part', id: 'rust/crate/domain' },
+        kind: 'question',
+        text: 'Keep domain free of IO.',
+      },
+    ],
   });
 });
 
@@ -246,11 +260,15 @@ test('Send to Claude waits for a comment that is more than blanks, and sends no 
   await user.click(sendButton());
 
   expect(sent).toHaveBeenCalledExactlyOnceWith({
-    version: 1,
+    version: 2,
     verdict: 'comment',
-    comments: {
-      'rust/crate/application -> rust/crate/domain': { text: 'Why this way round?' },
-    },
+    comments: [
+      {
+        anchor: { kind: 'edge', id: 'rust/crate/application -> rust/crate/domain' },
+        kind: 'question',
+        text: 'Why this way round?',
+      },
+    ],
   });
 });
 
@@ -268,10 +286,10 @@ test('the general comment goes with the review as its body, and alone lets a Com
   await user.click(screen.getByRole('button', { name: 'Send to Claude' }));
 
   expect(sent).toHaveBeenCalledExactlyOnceWith({
-    version: 1,
+    version: 2,
     verdict: 'comment',
     body: 'Ship it once the fetch moves.',
-    comments: {},
+    comments: [],
   });
 });
 
@@ -285,7 +303,7 @@ test('an Approve can be sent with no comment', async () => {
   await user.click(screen.getByRole('radio', { name: 'Approve' }));
   await user.click(screen.getByRole('button', { name: 'Send to Claude' }));
 
-  expect(sent).toHaveBeenCalledExactlyOnceWith({ version: 1, verdict: 'approve', comments: {} });
+  expect(sent).toHaveBeenCalledExactlyOnceWith({ version: 2, verdict: 'approve', comments: [] });
 });
 
 test('a page that is not served has no comment field and no Review button', async () => {
