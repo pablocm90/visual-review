@@ -2,6 +2,13 @@
 
 What changed in each release of `@pablocm90/visual-review`, newest first. Versions follow [semver](https://semver.org); while it is 0.x, a minor version may change the exported types.
 
+## Unreleased
+
+### Added
+
+- A **Reading order** opens the page's left column: the changed parts numbered in the order to read them, what the others depend on first, the removed parts after the rest, then the changed files outside the graph. Parts that depend on each other are read in name order, and the first of them says so. Each row carries its findings' worst level and count; a click goes to the part, or opens the outside files' patches. Each drawn part carries its number.
+- The review data's `readingOrder` (`{ parts, cycles }`) holds that order, and the skill reads the parts in it.
+
 ## 0.11.0 — 2026-11-03
 
 ### Changed
