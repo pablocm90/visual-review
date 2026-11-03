@@ -1116,6 +1116,9 @@ const VERDICTS: ReadonlyArray<readonly [Review['verdict'], string]> = [
   ['request-changes', 'Request changes'],
 ];
 
+const withWhy = ({ text, ...answer }: Answer): Answer =>
+  text?.trim() ? { ...answer, text } : answer;
+
 const SendToClaude = ({ reviewed, read, parts, comments, answers, send }: SendProps) => {
   const [verdict, setVerdict] = useState<Review['verdict']>('comment');
   const [open, setOpen] = useState(false);
@@ -1124,7 +1127,7 @@ const SendToClaude = ({ reviewed, read, parts, comments, answers, send }: SendPr
   const [problem, setProblem] = useState<string>();
   const written = [
     ...Object.values(comments).filter(({ text }) => text.trim() !== ''),
-    ...Object.values(answers),
+    ...Object.values(answers).map(withWhy),
   ];
   const hasBody = body.trim() !== '';
   const sendComments = () =>
