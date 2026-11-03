@@ -146,7 +146,9 @@ const ownSymbol = (text: string, node: Node, holder: string | undefined) => {
 };
 
 const objectNameOf = (text: string, node: Node): string | undefined =>
-  node.type === 'VariableDeclarator' && node.init?.type === 'ObjectExpression'
+  node.type === 'VariableDeclarator' &&
+  node.init &&
+  unwrapped(node.init).type === 'ObjectExpression'
     ? nameOf(text, node.id)
     : undefined;
 
