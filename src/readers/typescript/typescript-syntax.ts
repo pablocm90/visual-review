@@ -159,19 +159,25 @@ const symbolOf = (
   declaration,
 });
 
-const symbolsUnder = (text: string, node: Node, scope: Scope): ReadonlyArray<WalkedSymbol> => {
-  const own = ownSymbol(text, node, scope.holder);
+type Within = {
+  readonly text: string;
+  readonly node: Node;
+  readonly own: OwnSymbol | undefined;
+  readonly scope: Scope;
+};
+
+const scopeWithin = ({ text, node, own, scope }: Within): Scope => {
   const name = own?.name ?? objectNameOf(text, node);
   const place = name === undefined ? scope.scope : qualified(scope.scope, name);
-  const inner = childrenOf(node).flatMap(child =>
-    symbolsUnder(
-      text,
-      child,
-      (own !== undefined && isFunction(own)) || scope.inFunction
-        ? { inFunction: true, holder: undefined, scope: place }
-        : { inFunction: false, holder: holderOf(text, node) ?? scope.holder, scope: place },
-    ),
-  );
+  return (own !== undefined && isFunction(own)) || scope.inFunction
+    ? { inFunction: true, holder: undefined, scope: place }
+    : { inFunction: false, holder: holderOf(text, node) ?? scope.holder, scope: place };
+};
+
+const symbolsUnder = (text: string, node: Node, scope: Scope): ReadonlyArray<WalkedSymbol> => {
+  const own = ownSymbol(text, node, scope.holder);
+  const within = scopeWithin({ text, node, own, scope });
+  const inner = childrenOf(node).flatMap(child => symbolsUnder(text, child, within));
   return own === undefined ? inner : [symbolOf(own, scope.scope, node), ...inner];
 };
 
