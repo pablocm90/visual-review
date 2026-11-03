@@ -594,6 +594,53 @@ test("the review tray sits at the page's foot, its line counting the drafts and 
   expect(within(tray()).getByRole('button', { name: 'Review' })).toBeDefined();
 });
 
+test('the open tray lists the drafts, those on parts in reading order first, then the rest by id, an edge named by its ends, each going to what it is on from any tab', async () => {
+  const user = userEvent.setup();
+  render(
+    <ReviewPage
+      review={pageWith({
+        ...review,
+        readingOrder: { parts: ['rust/crate/legacy', 'rust/crate/application'], cycles: [] },
+      })}
+      send={async () => {}}
+    />,
+  );
+  const comment = () => within(noteTab()).getByRole('textbox', { name: 'Your comment' });
+  const draft = async (name: string, text: string) => {
+    await user.click(
+      within(screen.getByRole('group', { name: 'rust' })).getByRole('button', { name }),
+    );
+    await user.type(comment(), text);
+  };
+
+  await screen.findByRole('group', { name: 'rust' });
+  await draft('domain: unchanged', 'Why here?');
+  await draft('application: modified', 'Split it.');
+  await draft('application → domain: unchanged', 'And this?');
+  await draft('cli-adapter: added', ' ');
+  await draft('legacy: removed', 'Keep it.');
+  await pickKind(user, 'Change this');
+  await openReview(user);
+  const drafts = within(tray()).getByRole('list', { name: 'Drafts' });
+  expect(
+    within(drafts)
+      .getAllByRole('listitem')
+      .map(item => item.textContent),
+  ).toEqual([
+    'legacy Change this: Keep it.',
+    'application Question: Split it.',
+    'application → domain Question: And this?',
+    'domain Question: Why here?',
+  ]);
+
+  await user.click(screen.getByRole('link', { name: 'Metrics' }));
+  await user.click(within(drafts).getByRole('button', { name: 'legacy' }));
+  await waitFor(() => expect(currentTab()).toBe('Structure'));
+  const legacy = await screen.findByRole('button', { name: 'legacy: removed' });
+  await waitFor(() => expect(document.activeElement).toBe(legacy));
+  expect(within(inspector()).getByRole('heading', { name: 'legacy' })).not.toBeNull();
+});
+
 type FrameOptions = {
   readonly width: number;
   readonly windowHeight: number;

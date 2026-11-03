@@ -14,7 +14,7 @@ import {
 import type { DiffedNode, FilePatch, GraphDiff } from '../core/diff-graphs.ts';
 import { isAtOrUnder } from '../core/diff-graphs.ts';
 import { type Dimension, type Finding, findingsAt, findingsOf } from '../core/findings.ts';
-import { edgeId } from '../core/graph.ts';
+import { edgeId, endsOfId } from '../core/graph.ts';
 import { type MetricFinding, metricFindings } from '../core/metric-findings.ts';
 import type { NodeMetrics } from '../core/metrics.ts';
 import { type Note, type ReviewNotes, visibleNotes } from '../core/notes.ts';
@@ -56,7 +56,7 @@ import { MetricsScreen } from './metrics-screen.tsx';
 import { MetricsTable } from './metrics-tab.tsx';
 import { storedReadMarks, storeReadMarks } from './read-marks.ts';
 import { ReadingOrderList } from './reading-order-list.tsx';
-import { type Comments, ReviewTray } from './review-tray.tsx';
+import { COMMENT_KINDS, type Comments, ReviewTray } from './review-tray.tsx';
 import { changedSymbolCount, hasSymbolNews, type LineAt, SymbolsOf } from './symbols-tab.tsx';
 import { changedCount, TestFiles, TestsScreen } from './tests-screen.tsx';
 import {
@@ -572,12 +572,6 @@ type InspectorProps = {
 type Draft = Pick<Comment, 'kind' | 'text'>;
 
 const NO_DRAFT: Draft = { kind: 'question', text: '' };
-
-const COMMENT_KINDS: ReadonlyArray<readonly [Comment['kind'], string]> = [
-  ['change', 'Change this'],
-  ['question', 'Question'],
-  ['suggestion', 'Suggestion'],
-];
 
 type InspectorTab = 'note' | 'metrics' | 'diff' | 'tests' | 'symbols';
 
@@ -1304,6 +1298,11 @@ export const ReviewPage = ({ review, notes, send }: ReviewPageProps) => {
     centre(id);
     setFocusTarget(id);
   };
+  const nodeLabels = new Map(review.diff.nodes.map(node => [node.id, node.label]));
+  const anchorName = (id: string) =>
+    endsOfId(id)
+      .map(end => nodeLabels.get(end) ?? end)
+      .join(' → ');
   const goToOnStructure = (id: string) => {
     location.hash = '#structure';
     goTo(id);
@@ -1497,9 +1496,11 @@ export const ReviewPage = ({ review, notes, send }: ReviewPageProps) => {
             ...(review.pullRequest && { pullRequest: review.pullRequest.number }),
           }}
           read={review.readingOrder.parts.filter(part => read.has(part))}
-          parts={review.readingOrder.parts.length}
+          parts={review.readingOrder.parts}
           comments={comments}
           answers={answers}
+          nameOf={anchorName}
+          onGoTo={goToOnStructure}
           send={send}
         />
       )}

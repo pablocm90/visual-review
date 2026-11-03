@@ -1,19 +1,21 @@
 import { useState } from 'react';
 import type { Answer, Comment, Review } from '../core/review.ts';
 
-type Drafted = Review['comments'][number];
-
 import type { Answers } from './finding-display.tsx';
 import { partsRead } from './reading-order-list.tsx';
+
+type Drafted = Review['comments'][number];
 
 export type Comments = Readonly<Record<string, Comment>>;
 
 type ReviewTrayProps = {
   readonly reviewed: Review['reviewed'];
   readonly read: Review['read'];
-  readonly parts: number;
+  readonly parts: ReadonlyArray<string>;
   readonly comments: Comments;
   readonly answers: Answers;
+  readonly nameOf: (id: string) => string;
+  readonly onGoTo: (id: string) => void;
   readonly send: (review: Review) => Promise<void>;
 };
 
@@ -23,7 +25,13 @@ const VERDICTS: ReadonlyArray<readonly [Review['verdict'], string]> = [
   ['request-changes', 'Request changes'],
 ];
 
-const KINDS: ReadonlyArray<Drafted['kind']> = ['change', 'question', 'suggestion'];
+export const COMMENT_KINDS: ReadonlyArray<readonly [Comment['kind'], string]> = [
+  ['change', 'Change this'],
+  ['question', 'Question'],
+  ['suggestion', 'Suggestion'],
+];
+
+const kindLabels = new Map(COMMENT_KINDS);
 
 const counted = (count: number, word: string) => `${count} ${word}${count === 1 ? '' : 's'}`;
 
@@ -32,7 +40,7 @@ const draftedLine = (written: ReadonlyArray<Drafted>) =>
     ? 'Nothing drafted'
     : [
         `${written.length} drafted`,
-        ...KINDS.flatMap(kind => {
+        ...COMMENT_KINDS.flatMap(([kind]) => {
           const count = written.filter(comment => comment.kind === kind).length;
           return count === 0 ? [] : [counted(count, kind)];
         }),
@@ -44,19 +52,36 @@ const suggestedFor = (written: ReadonlyArray<Drafted>): Review['verdict'] => {
   return 'approve';
 };
 
+const inReadingOrder = (written: ReadonlyArray<Comment>, parts: ReadonlyArray<string>) => {
+  const rank = ({ anchor }: Comment) => {
+    const at = parts.indexOf(anchor.id);
+    return at === -1 ? parts.length : at;
+  };
+  return written.toSorted(
+    (one, other) => rank(one) - rank(other) || one.anchor.id.localeCompare(other.anchor.id),
+  );
+};
+
 const withWhy = ({ text, ...answer }: Answer): Answer =>
   text?.trim() ? { ...answer, text } : answer;
 
-export const ReviewTray = ({ reviewed, read, parts, comments, answers, send }: ReviewTrayProps) => {
+export const ReviewTray = ({
+  reviewed,
+  read,
+  parts,
+  comments,
+  answers,
+  nameOf,
+  onGoTo,
+  send,
+}: ReviewTrayProps) => {
   const [picked, setPicked] = useState<Review['verdict']>();
   const [open, setOpen] = useState(false);
   const [body, setBody] = useState('');
   const [sent, setSent] = useState(false);
   const [problem, setProblem] = useState<string>();
-  const written = [
-    ...Object.values(comments).filter(({ text }) => text.trim() !== ''),
-    ...Object.values(answers).map(withWhy),
-  ];
+  const drafted = Object.values(comments).filter(({ text }) => text.trim() !== '');
+  const written = [...drafted, ...Object.values(answers).map(withWhy)];
   const hasBody = body.trim() !== '';
   const suggested = suggestedFor(written);
   const verdict = picked ?? suggested;
@@ -100,7 +125,17 @@ export const ReviewTray = ({ reviewed, read, parts, comments, answers, send }: R
                 General comment
                 <textarea value={body} onChange={event => setBody(event.target.value)} />
               </label>
-              {parts > 0 && <p>{partsRead({ read: read.length, parts })}</p>}
+              <ul aria-label="Drafts">
+                {inReadingOrder(drafted, parts).map(({ anchor, kind, text }) => (
+                  <li key={anchor.id}>
+                    <button type="button" onClick={() => onGoTo(anchor.id)}>
+                      {nameOf(anchor.id)}
+                    </button>{' '}
+                    {kindLabels.get(kind)}: {text}
+                  </li>
+                ))}
+              </ul>
+              {parts.length > 0 && <p>{partsRead({ read: read.length, parts: parts.length })}</p>}
               <div role="radiogroup" aria-label="Verdict" className="verdict">
                 {VERDICTS.map(([value, label]) => (
                   <div key={value} className="verdict-option">
