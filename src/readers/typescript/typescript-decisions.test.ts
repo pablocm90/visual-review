@@ -148,7 +148,7 @@ test('a decision reads without comments, with its whitespace collapsed, no space
     'if: if (order.paid && order.total > 0)',
     'loop: while (check(order.items))',
     'loop: for (const item of [order.a, order.b])',
-    'logical: order.open || order.late',
+    'logical: order.open ||',
     'if: if (matches(order, {paid: true}))',
   ]);
 });
@@ -193,7 +193,8 @@ test.for([
     decisions: ["case: case 'paid':", 'case: case State.Open:', 'case: default:'],
   },
   {
-    reason: 'the outermost logical expression or logical assignment, whole',
+    reason:
+      'the outermost logical expression or logical assignment, by its left side and operator, its right side a branch',
     body: [
       'const ready = order.paid && !order.void;',
       "log(order.note || order.id || 'none');",
@@ -201,14 +202,18 @@ test.for([
       'order.total += 1;',
       'order.open &&= order.ready;',
       'order.late ||= order.overdue ?? false;',
+      'const shown = order.open && (order.late ? 1 : 2);',
       'if (order.a && order.b) pay();',
     ],
     decisions: [
-      'logical: order.paid && !order.void',
-      "logical: order.note || order.id || 'none'",
-      'logical: order.total ??= 0',
-      'logical: order.open &&= order.ready',
-      'logical: order.late ||= order.overdue ?? false',
+      'logical: order.paid &&',
+      'logical: order.note || order.id ||',
+      'logical: order.total ??=',
+      'logical: order.open &&=',
+      'logical: order.late ||=',
+      'logical: order.overdue ??',
+      'logical: order.open &&',
+      'ternary: order.late ?',
       'if: if (order.a && order.b)',
     ],
   },

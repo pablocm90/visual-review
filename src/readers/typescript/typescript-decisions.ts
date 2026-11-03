@@ -76,6 +76,11 @@ type Head = Pick<Decision, 'kind' | 'text'>;
 const loopHead = (code: Code, node: Node, body: Node): string =>
   codeBetween(code, startOf(node), startOf(body));
 
+const logicalOf = (
+  code: Code,
+  { left, operator }: { readonly left: Node; readonly operator: string },
+): Head => ({ kind: 'logical', text: `${codeOf(code, left)} ${operator}` });
+
 const headOf = (code: Code, node: Node): Head | undefined => {
   switch (node.type) {
     case 'ForStatement':
@@ -95,11 +100,9 @@ const headOf = (code: Code, node: Node): Head | undefined => {
     case 'SwitchCase':
       return { kind: 'case', text: node.test ? `case ${codeOf(code, node.test)}:` : 'default:' };
     case 'LogicalExpression':
-      return { kind: 'logical', text: codeOf(code, node) };
+      return logicalOf(code, node);
     case 'AssignmentExpression':
-      return LOGICAL_ASSIGNMENTS.has(node.operator)
-        ? { kind: 'logical', text: codeOf(code, node) }
-        : undefined;
+      return LOGICAL_ASSIGNMENTS.has(node.operator) ? logicalOf(code, node) : undefined;
     case 'ConditionalExpression':
       return { kind: 'ternary', text: `${codeOf(code, node.test)} ?` };
     default:
@@ -136,6 +139,9 @@ const branchesOf = (node: Node): ReadonlyArray<Branch> => {
       return node.consequent;
     case 'ReturnStatement':
       return [node.argument];
+    case 'LogicalExpression':
+    case 'AssignmentExpression':
+      return [node.right];
     default:
       return [];
   }
