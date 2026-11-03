@@ -1664,6 +1664,21 @@ test('A marks the selected part read, ticking its row and counting it at the hea
   expect(within(readingOrder()).getByText('1 of 3 parts read')).toBeDefined();
 });
 
+test('J, K and A typed in a comment are text, neither walking nor marking', async () => {
+  const user = userEvent.setup();
+  render(<ReviewPage review={walkedReview()} send={async () => {}} />);
+  await screen.findByRole('group', { name: 'rust' });
+
+  await user.keyboard('j');
+  await user.type(within(noteTab()).getByRole('textbox', { name: 'Your comment' }), 'jaj');
+  expect(selectedPart()).toBe('application');
+  expect(within(readingOrder()).getByText('0 of 3 parts read')).toBeDefined();
+  expect(within(noteTab()).getByRole('textbox', { name: 'Your comment' })).toHaveProperty(
+    'value',
+    'jaj',
+  );
+});
+
 test('look first lists the findings to look at in rank order, in the dimension a triage chip picks, collapsing to their count, each going to its node, seven at most and Show all opening the rail past them, and is absent when none needs a look', async () => {
   const user = userEvent.setup();
   const looks = (count: number) =>

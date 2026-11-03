@@ -1366,6 +1366,7 @@ export const ReviewPage = ({ review, notes, send }: ReviewPageProps) => {
   };
   useEffect(() => {
     const keyed = (event: globalThis.KeyboardEvent) => {
+      if (event.target instanceof HTMLTextAreaElement) return;
       if (event.key === 'j') walk(1);
       if (event.key === 'k') walk(-1);
       if (
