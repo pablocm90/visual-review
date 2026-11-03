@@ -391,6 +391,7 @@ test("a finding in the rail is answered Fix this, It's fine or Explain, only the
   ).toBeNull();
   await answer('domain', 'Fix this');
   expect(within(findingInRail('domain')).queryAllByRole('button', { pressed: true })).toEqual([]);
+  await answer('domain', 'Fix this');
   await answer('application', 'Explain');
   await answer('domain', "It's fine");
   expect(
@@ -404,11 +405,11 @@ test("a finding in the rail is answered Fix this, It's fine or Explain, only the
   expect(sent).toHaveBeenCalledExactlyOnceWith(
     sentReview({
       comments: [
+        { anchor: { kind: 'finding', id: 'metrics:lines:rust/crate/domain' }, kind: 'fine' },
         {
           anchor: { kind: 'finding', id: 'metrics:cyclomatic:rust/crate/application' },
           kind: 'explain',
         },
-        { anchor: { kind: 'finding', id: 'metrics:lines:rust/crate/domain' }, kind: 'fine' },
       ],
     }),
   );
