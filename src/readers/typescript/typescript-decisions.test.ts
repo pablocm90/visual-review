@@ -118,6 +118,17 @@ test.for([
       'loop: do … while (order.late)',
     ],
   },
+  {
+    reason: 'a switch case, by its value',
+    body: [
+      'switch (order.state) {',
+      "  case 'paid': pay(); break;",
+      '  case State.Open:',
+      '  default: log();',
+      '}',
+    ],
+    decisions: ["case: case 'paid':", 'case: case State.Open:', 'case: default:'],
+  },
 ])('$reason is a decision', ({ body, decisions }) => {
   expect(kindsAndTexts('charge', 'function charge(order) {', ...body, '}')).toEqual(decisions);
 });
