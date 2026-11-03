@@ -50,6 +50,8 @@ const scrolledIntoView = vi.fn();
 
 Object.defineProperty(HTMLElement.prototype, 'scrollIntoView', { value: scrolledIntoView });
 
+vi.stubGlobal('scrollTo', vi.fn());
+
 type Diffed = GraphDiff['nodes'][number]['state'];
 
 const crate = (name: string, state: Diffed) => ({

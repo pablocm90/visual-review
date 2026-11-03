@@ -428,6 +428,12 @@ const Scoped = ({ scopes: [scope, ...inner], text }: Piece) =>
 
 type Landing = Omit<LineAt, 'node'>;
 
+const scrollInPanel = (element: HTMLElement, block: ScrollLogicalPosition) => {
+  const { scrollX, scrollY } = window;
+  element.scrollIntoView({ block });
+  window.scrollTo(scrollX, scrollY);
+};
+
 const isLandedOn = (line: Line, landing: Landing | undefined): boolean =>
   landing !== undefined && line[landing.side] === landing.line;
 
@@ -440,7 +446,7 @@ const PatchLine = ({
 }) => {
   const landOn = useCallback(
     (row: HTMLElement | null) => {
-      if (current) row?.scrollIntoView({ block: 'center' });
+      if (current && row) scrollInPanel(row, 'center');
     },
     [current],
   );
@@ -468,8 +474,8 @@ const Patch = ({
   const lines = useMemo(() => highlightPatch({ path, patch }), [path, patch]);
   const landOnTop = useCallback(
     (top: HTMLElement | null) => {
-      if (landing !== undefined && !lines.some(line => isLandedOn(line, landing)))
-        top?.scrollIntoView({ block: 'start' });
+      if (top && landing !== undefined && !lines.some(line => isLandedOn(line, landing)))
+        scrollInPanel(top, 'start');
     },
     [landing, lines],
   );
