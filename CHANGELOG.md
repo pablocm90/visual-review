@@ -2,6 +2,18 @@
 
 What changed in each release of `@pablocm90/visual-review`, newest first. Versions follow [semver](https://semver.org); while it is 0.x, a minor version may change the exported types.
 
+## 0.11.0 — 2026-11-03
+
+### Changed
+
+- Review files are review version 2: `comments` is a list, each `{ anchor: { kind: 'part' | 'edge', id }, kind: 'change' | 'question' | 'suggestion', text }`, its `id` a node id or `<from> -> <to>` as notes are keyed, in place of version 1's map of `{ text }` by id. A review with two comments on one anchor is refused, naming the anchor. `serve` refuses a version 1 review with 400.
+- The served page's Note tab picks a comment's kind above **Your comment**: **Change this**, **Question** (picked until another is) or **Suggestion**, kept per part or edge with its text. A comment typed then cleared is not sent.
+- The plugin's skill reads each comment's kind: under Request changes it does each Change this, answers each Question and takes or turns down each Suggestion, saying which; under Comment and Approve it answers each and changes nothing.
+
+### Added
+
+- `GLOSSARY.md` defines anchor and comment kind.
+
 ## 0.10.0 — 2026-11-03
 
 ### Added
