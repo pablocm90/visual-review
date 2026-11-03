@@ -3165,7 +3165,7 @@ test("a box's Symbols tab lists each file inside it with symbol changes, each wi
   ]);
 });
 
-test("an edited function's logic lines show under it on the Symbols tab, each with its change, kind and text, a changed one base then head", async () => {
+test("an edited function's logic lines show under it on the Symbols tab, each with its change, kind and text, a changed one base then head; a line that changed opens the Diff tab on its row, head side unless removed", async () => {
   const user = userEvent.setup();
   render(
     <ReviewPage
@@ -3207,6 +3207,22 @@ test("an edited function's logic lines show under it on the Symbols tab, each wi
             },
           ]),
         ],
+        patches: [
+          {
+            path: 'web/src/refund.ts',
+            patch: [
+              'diff --git a/web/src/refund.ts b/web/src/refund.ts',
+              '@@ -1,4 +1,5 @@',
+              ' function refund(order, lines) {',
+              '-  if (!paid) return;',
+              '+  const late = true;',
+              '   for (const line of lines) {',
+              '-    if (a > 0) {',
+              '+    if (a >= 0) {',
+              '+      throw new Late();',
+            ].join('\n'),
+          },
+        ],
       })}
     />,
   );
@@ -3226,6 +3242,30 @@ test("an edited function's logic lines show under it on the Symbols tab, each wi
     'changed if: if (a > 0) → if (a >= 0)',
     'added throw: throw new Late',
   ]);
+  expect(
+    within(logic)
+      .getAllByRole('button')
+      .map(button => button.getAttribute('aria-label')),
+  ).toEqual([
+    'removed guard: if (!paid) return',
+    'changed if: if (a > 0) → if (a >= 0)',
+    'added throw: throw new Late',
+  ]);
+  const landed = () => {
+    const row = scrolledIntoView.mock.contexts.at(-1);
+    return row instanceof HTMLElement ? [row.textContent, row.getAttribute('aria-current')] : [];
+  };
+
+  await user.click(within(logic).getByRole('button', { name: /^changed if/ }));
+  expect(within(inspector()).getByRole('tab', { selected: true }).textContent).toBe('Diff');
+  expect(landed()).toEqual(['+    if (a >= 0) {', 'true']);
+  await user.click(within(inspector()).getByRole('tab', { name: 'Symbols 1' }));
+  await user.click(
+    within(screen.getByRole('tabpanel', { name: 'Symbols' })).getByRole('button', {
+      name: /^removed guard/,
+    }),
+  );
+  expect(landed()).toEqual(['-  if (!paid) return;', 'true']);
 });
 
 test("a file whose symbols wouldn't parse shows the parse error on its Symbols tab, and in its box's", async () => {
