@@ -32,6 +32,15 @@ export type FileMeasures = {
 
 export type SymbolKind = 'function' | 'method' | 'class' | 'type';
 
+export type DecisionKind = 'if';
+
+export type Decision = {
+  readonly kind: DecisionKind;
+  readonly text: string;
+  readonly depth: number;
+  readonly line: number;
+};
+
 export type ReadSymbol = {
   readonly name: string;
   readonly scope?: string;
@@ -42,6 +51,7 @@ export type ReadSymbol = {
   readonly bodyHash: string;
   readonly textHash: string;
   readonly bodyTokens: ReadonlyArray<string>;
+  readonly decisions?: ReadonlyArray<Decision>;
 };
 
 export type FileSymbols = {
