@@ -100,6 +100,22 @@ const exportsFinding = (file: FileSymbolChanges): ReadonlyArray<Finding> => {
   ];
 };
 
+const LOST = new Set(['guard', 'catch']);
+
+const logicFindings = (node: string, statement: SymbolStatement): ReadonlyArray<Finding> => {
+  const name = qualified(statement);
+  return (statement.logic ?? [])
+    .filter(({ change, kind }) => change === 'removed' && LOST.has(kind))
+    .map(({ kind, base = '' }) => ({
+      id: `logic:removed:${node}#${name}#${base}`,
+      dimension: 'logic',
+      level: 'look',
+      target: node,
+      title: `${statement.kind} ${name} lost a ${kind}`,
+      detail: base,
+    }));
+};
+
 type SymbolFindingsOptions = {
   readonly files: ReadonlyArray<SymbolFile>;
   readonly nodes: ReadonlyArray<GraphNode>;
@@ -124,6 +140,7 @@ export const symbolFindings = ({ files, nodes }: SymbolFindingsOptions): Readonl
             statement => findingOf({ node: file.node, statement, pathOf }) ?? [],
           ),
           ...exportsFinding(file),
+          ...file.symbols.flatMap(statement => logicFindings(file.node, statement)),
         ],
   );
 };

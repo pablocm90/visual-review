@@ -3,6 +3,7 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { expect, test } from 'vitest';
 import type { GraphNode } from './graph.ts';
+import type { LogicLine } from './logic-diff.ts';
 import { metricFindings } from './metric-findings.ts';
 import type { ReviewNotes } from './notes.ts';
 import { notedPageHtml, pageData, pageHtml, pageIn, servedPageHtml } from './page.ts';
@@ -526,6 +527,51 @@ test("a class's methods raise no api finding of their own when the class itself 
     'class Bills renamed to Billing',
     'class Cart added',
     'method Till.charge removed',
+  ]);
+});
+
+const logicLine = (line: Partial<LogicLine> & Pick<LogicLine, 'change' | 'kind'>): LogicLine => ({
+  depth: 0,
+  line: 1,
+  ...line,
+});
+
+test('a guard or catch removed from an edited function is a logic finding to look at on its file, one per decision, its detail the text', () => {
+  const symbols = [
+    symbolFile([
+      {
+        name: 'charge',
+        scope: 'Orders',
+        kind: 'method',
+        exported: { base: true, head: true },
+        change: 'edited',
+        logic: [
+          logicLine({ change: 'removed', kind: 'guard', base: 'if (!order.paid) return' }),
+          logicLine({ change: 'same', kind: 'guard', head: 'if (!order) throw new Missing()' }),
+          logicLine({ change: 'removed', kind: 'if', base: 'if (order.total > 0)' }),
+          logicLine({ change: 'removed', kind: 'catch', base: 'catch (error)' }),
+        ],
+      },
+    ]),
+  ];
+
+  expect(findingsOfSymbols(symbols)).toStrictEqual([
+    {
+      id: 'logic:removed:web/file/a.ts#Orders.charge#if (!order.paid) return',
+      dimension: 'logic',
+      level: 'look',
+      target: 'web/file/a.ts',
+      title: 'method Orders.charge lost a guard',
+      detail: 'if (!order.paid) return',
+    },
+    {
+      id: 'logic:removed:web/file/a.ts#Orders.charge#catch (error)',
+      dimension: 'logic',
+      level: 'look',
+      target: 'web/file/a.ts',
+      title: 'method Orders.charge lost a catch',
+      detail: 'catch (error)',
+    },
   ]);
 });
 
