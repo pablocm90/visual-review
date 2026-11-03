@@ -150,7 +150,7 @@ const FindingsBadge = ({ x, y, findings, picked, onPress }: FindingsBadgeProps) 
 
 const ReadingNumber = ({ number }: { readonly number: number }) => (
   <g className="reading-badge" role="img" aria-label={`Reading order ${number}`}>
-    <circle className="reading-badge-disc" r={9} />
+    <circle className="reading-badge-disc" r={10} />
     <text className="reading-badge-number">{number}</text>
   </g>
 );

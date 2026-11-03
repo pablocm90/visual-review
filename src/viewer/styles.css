@@ -2077,9 +2077,10 @@ pre .hljs-emphasis {
 
 .reading-order-part {
   display: flex;
+  flex: 1 1 0;
   align-items: center;
   gap: 8px;
-  width: 100%;
+  min-width: 0;
   min-height: 36px;
   padding: 4px 8px;
   border: 0;
