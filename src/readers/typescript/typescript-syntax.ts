@@ -60,6 +60,13 @@ const declaredFunction = (text: string, node: Node): OwnFunction | undefined => 
     case 'FunctionDeclaration':
     case 'TSDeclareFunction':
       return { name: node.id ? sourceOf(text, node.id) : 'default', fn: node };
+    default:
+      return undefined;
+  }
+};
+
+const declaredMethod = (text: string, node: Node): OwnFunction | undefined => {
+  switch (node.type) {
     case 'ClassMethod':
     case 'ClassPrivateMethod':
     case 'ObjectMethod':
@@ -86,7 +93,7 @@ const assignedFunction = (text: string, node: Node): OwnFunction | undefined => 
 };
 
 const ownFunction = (text: string, node: Node): OwnFunction | undefined =>
-  declaredFunction(text, node) ?? assignedFunction(text, node);
+  declaredFunction(text, node) ?? declaredMethod(text, node) ?? assignedFunction(text, node);
 
 const holderOf = (text: string, node: Node): string | undefined => {
   if (node.type === 'VariableDeclarator') return nameOf(text, node.id);
