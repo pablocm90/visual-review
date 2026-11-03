@@ -1,15 +1,33 @@
 import { z } from 'zod';
 
-const reviewVersion = 4;
+const reviewVersion = 5;
+
+const anchorOn = <Kind extends string>(kind: Kind, id: string) =>
+  z.strictObject({ kind: z.literal(kind), id: z.string().describe(id) }).readonly();
 
 const CommentSchema = z
   .strictObject({
     anchor: z
-      .strictObject({
-        kind: z.enum(['part', 'edge']).describe('What the comment is on'),
-        id: z.string().describe('A node id, or `<from> -> <to>` for an edge'),
-      })
-      .readonly(),
+      .discriminatedUnion('kind', [
+        anchorOn('part', 'A node id'),
+        anchorOn('edge', '`<from> -> <to>`, the node ids at its ends'),
+        anchorOn('symbol', '`<file node id>#<scope.name>`: a function, method or class in a file'),
+        anchorOn(
+          'decision',
+          '`<file node id>#<scope.name>#<text>`: a logic line of a function, the id its logic finding names',
+        ),
+        anchorOn('test', '`<test file>#<heading › … › name>`: a test by its headings and name'),
+        z
+          .strictObject({
+            kind: z.literal('line'),
+            id: z
+              .string()
+              .describe('`<file>@<base|head>:<n>`: a diff line by its side and line number'),
+            text: z.string().describe("The line's text, since its number drifts between rounds"),
+          })
+          .readonly(),
+      ])
+      .describe('What the comment is on'),
     kind: z
       .enum(['change', 'question', 'suggestion'])
       .describe('What the comment asks for: a task, an answer, or a thought to weigh'),

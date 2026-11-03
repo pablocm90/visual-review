@@ -102,7 +102,7 @@ const openReview = (user: ReturnType<typeof userEvent.setup>) =>
   user.click(screen.getByRole('button', { name: 'Review' }));
 
 const sentReview = (sent: Partial<Review>): Review => ({
-  version: 4,
+  version: 5,
   verdict: 'comment',
   reviewed: { range: review.range },
   read: [],
