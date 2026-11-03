@@ -4403,6 +4403,28 @@ test('a decision removed in one place and added in another with the same text ta
   );
 });
 
+test("a symbol's comment shows again, open, when its Symbols tab is left and opened again", async () => {
+  const user = userEvent.setup();
+  render(<ReviewPage review={chargedPage([edited('charge', 'Orders')])} send={vi.fn()} />);
+  const row = () =>
+    within(
+      within(screen.getByRole('tabpanel', { name: 'Symbols' })).getByRole('listitem', {
+        name: 'method Orders.charge: edited',
+      }),
+    );
+
+  await openSymbols(user);
+  await user.click(row().getByRole('button', { name: 'Comment' }));
+  await user.type(row().getByRole('textbox', { name: 'Your comment' }), 'Why charge twice?');
+  await user.click(within(inspector()).getByRole('tab', { name: 'Note' }));
+  await user.click(within(inspector()).getByRole('tab', { name: /^Symbols/ }));
+
+  expect(row().getByRole('textbox', { name: 'Your comment' })).toHaveProperty(
+    'value',
+    'Why charge twice?',
+  );
+});
+
 test('a page not served offers no comment on a symbol or a logic line', async () => {
   const user = userEvent.setup();
   const charge = {
