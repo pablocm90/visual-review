@@ -34,7 +34,7 @@ import {
   visibleNodeOf,
 } from '../core/visible-diff.ts';
 import { ColourBy, type Colouring, ScaleLegend, type Shade, shadeOf } from './colour-by.tsx';
-import { CommentForm, type Draft, NO_DRAFT } from './comment-form.tsx';
+import { CommentForm, type Draft, type Drafting, NO_DRAFT } from './comment-form.tsx';
 import {
   AnswerButtons,
   type Answers,
@@ -557,6 +557,7 @@ type InspectorProps = {
   readonly findings: ReadonlyArray<MetricFinding>;
   readonly note: Note | undefined;
   readonly found: ReadonlyArray<Finding>;
+  readonly drafting: Drafting | undefined;
   readonly patches: ReadonlyArray<FilePatch>;
   readonly tests: ReadonlyArray<TestFile>;
   readonly symbols: ReadonlyArray<SymbolFile>;
@@ -588,7 +589,7 @@ type Section = {
 
 type NodeSectionsOptions = Pick<
   InspectorProps,
-  'nodes' | 'metrics' | 'findings' | 'tests' | 'symbols' | 'onGoTo'
+  'nodes' | 'metrics' | 'findings' | 'tests' | 'symbols' | 'onGoTo' | 'drafting'
 > & { readonly node: DiffNode; readonly onShowLine: (at: LineAt) => void };
 
 const nodeSections = ({
@@ -600,6 +601,7 @@ const nodeSections = ({
   symbols,
   onGoTo,
   onShowLine,
+  drafting,
 }: NodeSectionsOptions): ReadonlyArray<Section> => {
   const measured = metrics[node.id];
   const testsHere = testsAlongside({ nodes, node, tests });
@@ -648,6 +650,7 @@ const nodeSections = ({
                   nodes={nodes}
                   onGoTo={onGoTo}
                   onShowLine={onShowLine}
+                  drafting={drafting}
                 />
               </div>
             ),
@@ -878,6 +881,7 @@ const SidePanel = ({
         tests={review.tests}
         symbols={review.symbols}
         onGoTo={onGoTo}
+        drafting={onComment && { draftOn: id => comments[id] ?? NO_DRAFT, onDraft: onComment }}
         comment={comments[selected] ?? NO_DRAFT}
         onComment={
           onComment &&

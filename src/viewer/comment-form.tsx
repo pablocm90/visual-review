@@ -1,4 +1,4 @@
-import { useId } from 'react';
+import { useId, useState } from 'react';
 import type { Comment } from '../core/review.ts';
 
 export type Draft = Pick<Comment, 'kind' | 'text'>;
@@ -41,5 +41,29 @@ export const CommentForm = ({ draft, onDraft }: CommentFormProps) => {
         />
       </label>
     </>
+  );
+};
+
+export type Drafting = {
+  readonly draftOn: (id: string) => Draft;
+  readonly onDraft: (comment: Comment) => void;
+};
+
+type AnchoredCommentProps = {
+  readonly anchor: Comment['anchor'];
+  readonly drafting: Drafting;
+};
+
+export const AnchoredComment = ({ anchor, drafting }: AnchoredCommentProps) => {
+  const [open, setOpen] = useState(false);
+  return open ? (
+    <CommentForm
+      draft={drafting.draftOn(anchor.id)}
+      onDraft={draft => drafting.onDraft({ anchor, ...draft })}
+    />
+  ) : (
+    <button type="button" onClick={() => setOpen(true)}>
+      Comment
+    </button>
   );
 };

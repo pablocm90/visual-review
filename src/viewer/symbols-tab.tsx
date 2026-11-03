@@ -7,6 +7,7 @@ import {
   type SymbolChange,
   type SymbolStatement,
 } from '../core/symbol-changes.ts';
+import { AnchoredComment, type Drafting } from './comment-form.tsx';
 
 type Group = readonly [string, (symbol: SymbolStatement) => boolean];
 
@@ -42,6 +43,7 @@ type Places = {
   readonly nodes: ReadonlyArray<DiffedNode>;
   readonly onGoTo: (id: string) => void;
   readonly onShowLine: (at: LineAt) => void;
+  readonly drafting: Drafting | undefined;
 };
 
 const labelOf = (nodes: ReadonlyArray<DiffedNode>, id: string): string | undefined =>
@@ -174,6 +176,12 @@ const SymbolList = ({
             <del>{symbol.signature.base}</del>
             <ins>{symbol.signature.head}</ins>
           </span>
+        )}
+        {places.drafting && (
+          <AnchoredComment
+            anchor={{ kind: 'symbol', id: `${node}#${qualified(symbol)}` }}
+            drafting={places.drafting}
+          />
         )}
         {symbol.logic !== undefined && (
           <LogicLines symbol={symbol} onShowLine={at => places.onShowLine({ node, ...at })} />

@@ -4265,6 +4265,67 @@ test("a file whose symbols wouldn't parse shows the parse error on its Symbols t
   expect(within(symbolsTab()).getByText('Missing semicolon (7:1)', { exact: false })).toBeTruthy();
 });
 
+const chargedPage = (symbols: ReadonlyArray<SymbolStatement>) =>
+  pageWith({
+    range: 'abc123..def456',
+    diff: {
+      nodes: [
+        { id: 'web', kind: 'stack', label: 'web', path: '', state: 'unchanged' },
+        topFile('orders.ts', 'modified'),
+      ],
+      edges: [],
+    },
+    symbols: [symbolsOf('web/file/orders.ts', symbols)],
+  });
+
+const openSymbols = async (user: ReturnType<typeof userEvent.setup>) => {
+  await user.click(await screen.findByRole('button', { name: 'orders.ts: modified' }));
+  await user.click(within(inspector()).getByRole('tab', { name: /^Symbols/ }));
+  return within(screen.getByRole('tabpanel', { name: 'Symbols' }));
+};
+
+const edited = (name: string, scope?: string): SymbolStatement => ({
+  name,
+  ...(scope === undefined ? {} : { scope }),
+  kind: 'method',
+  exported: { base: false, head: false },
+  change: 'edited',
+});
+
+test("a comment on a symbol's row goes with the review, anchored on its file's node and its scoped name", async () => {
+  const user = userEvent.setup();
+  const sent = vi.fn(async () => {});
+  render(<ReviewPage review={chargedPage([edited('charge', 'Orders')])} send={sent} />);
+
+  const symbols = await openSymbols(user);
+  const row = within(symbols.getByRole('listitem', { name: 'method Orders.charge: edited' }));
+  await user.click(row.getByRole('button', { name: 'Comment' }));
+  await user.type(row.getByRole('textbox', { name: 'Your comment' }), 'Why charge twice?');
+  await openReview(user);
+  await user.click(screen.getByRole('button', { name: 'Send to Claude' }));
+
+  expect(sent).toHaveBeenCalledExactlyOnceWith(
+    sentReview({
+      reviewed: { range: 'abc123..def456' },
+      comments: [
+        {
+          anchor: { kind: 'symbol', id: 'web/file/orders.ts#Orders.charge' },
+          kind: 'question',
+          text: 'Why charge twice?',
+        },
+      ],
+    }),
+  );
+});
+
+test('a page not served offers no comment on a symbol', async () => {
+  const user = userEvent.setup();
+  render(<ReviewPage review={chargedPage([edited('charge', 'Orders')])} />);
+
+  const symbols = await openSymbols(user);
+  expect(symbols.queryByRole('button', { name: 'Comment' })).toBeNull();
+});
+
 test('a box read as a part keeps its reading number once it is expanded, and an expanded box that is none gets no number', async () => {
   const user = userEvent.setup();
   render(
