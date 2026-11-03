@@ -3093,7 +3093,7 @@ test('a moved symbol names the file it moved to or from, and goes to that file',
   expect(within(inspector()).getByRole('heading', { level: 2 }).textContent).toBe('refund.ts');
 });
 
-test("a box's Symbols tab lists each file inside it with symbol changes, each with its own groups", async () => {
+test("a box's Symbols tab lists each file inside it with symbol changes, each with its own groups; a logic line opens its own file's patch on its row", async () => {
   const user = userEvent.setup();
   const inBilling = (label: string) => ({
     ...topFile(label, 'modified'),
@@ -3129,10 +3129,27 @@ test("a box's Symbols tab lists each file inside it with symbol changes, each wi
           edges: [],
         },
         symbols: [
-          symbolsOf('web/file/refund.ts', [symbol('refund', 'edited')]),
+          symbolsOf('web/file/refund.ts', [
+            {
+              ...symbol('refund', 'edited'),
+              logic: [
+                { change: 'added', kind: 'throw', depth: 0, head: 'throw new Late', line: 2 },
+              ],
+            },
+          ]),
           symbolsOf('web/file/tax.ts', [symbol('tax', 'added'), symbol('round', 'unchanged')]),
           symbolsOf('web/file/total.ts', [symbol('total', 'unchanged')]),
           symbolsOf('web/file/outside.ts', [symbol('outside', 'edited')]),
+        ],
+        patches: [
+          {
+            path: 'web/src/billing/refund.ts',
+            patch: ['@@ -1,1 +1,2 @@', ' function refund() {', '+  throw new Late();'].join('\n'),
+          },
+          {
+            path: 'web/src/billing/tax.ts',
+            patch: ['@@ -1,1 +1,2 @@', ' function tax() {', '+  return 0;'].join('\n'),
+          },
         ],
       })}
     />,
@@ -3154,7 +3171,13 @@ test("a box's Symbols tab lists each file inside it with symbol changes, each wi
         ]),
     ]),
   ).toEqual([
-    ['refund.ts', [['Edited', ['function refund: edited']]]],
+    [
+      'refund.ts',
+      [
+        ['Edited', ['function refund: edited', 'added throw: throw new Late']],
+        ['Logic of function refund', ['added throw: throw new Late']],
+      ],
+    ],
     [
       'tax.ts',
       [
@@ -3163,6 +3186,24 @@ test("a box's Symbols tab lists each file inside it with symbol changes, each wi
       ],
     ],
   ]);
+
+  await user.click(
+    within(screen.getByRole('tabpanel', { name: 'Symbols' })).getByRole('button', {
+      name: /^added throw/,
+    }),
+  );
+  const changes = within(screen.getByRole('tabpanel', { name: 'Diff' }));
+  expect(
+    changes
+      .getAllByRole('group')
+      .map(patch => [patch.getAttribute('aria-label'), patch.hasAttribute('open')]),
+  ).toEqual([
+    ['web/src/billing/refund.ts', true],
+    ['web/src/billing/tax.ts', false],
+  ]);
+  expect(
+    Array.from(document.querySelectorAll('[aria-current="true"]'), row => row.textContent),
+  ).toEqual(['+  throw new Late();']);
 });
 
 test("an edited function's logic lines show under it on the Symbols tab, each with its change, kind and text, a changed one base then head; a line that changed opens the Diff tab on its row, head side unless removed", async () => {

@@ -658,14 +658,17 @@ const Inspector = ({ node, patches, width, onClose, ...props }: InspectorProps) 
             tab: 'diff' as const,
             panel: (
               <section className="changes" aria-label="Changes">
-                {patches.map(patch => (
-                  <Patch
-                    key={patch.path}
-                    {...patch}
-                    open={node?.kind === 'file'}
-                    landing={landing?.path === patch.path ? landing : undefined}
-                  />
-                ))}
+                {patches.map(patch => {
+                  const landed = landing?.path === patch.path;
+                  return (
+                    <Patch
+                      key={patch.path}
+                      {...patch}
+                      open={node?.kind === 'file' || landed}
+                      landing={landed ? landing : undefined}
+                    />
+                  );
+                })}
               </section>
             ),
           },
