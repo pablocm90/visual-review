@@ -4,6 +4,7 @@ node_modules
 dist/
 .reviews/
 .stryker-tmp/
+.playwright-mcp/
 reports/
 *.tgz
 !.claude/settings.json
