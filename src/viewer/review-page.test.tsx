@@ -4758,44 +4758,43 @@ test('going to a finding answer in the open tray opens Note, where the answer is
   expect(within(inspector()).getByRole('tab', { selected: true }).textContent).toBe('Note');
 });
 
-test('the unchanged symbols open by themselves when one holds a draft', async () => {
-  const user = userEvent.setup();
-  render(
-    <ReviewPage
-      review={pageWith({
-        range: review.range,
-        diff: {
-          nodes: [
-            { id: 'web', kind: 'stack', label: 'web', path: '', state: 'unchanged' },
-            topFile('tax.ts', 'modified'),
-          ],
-          edges: [],
+const pageWithAnUnchangedSymbol = () =>
+  pageWith({
+    range: review.range,
+    diff: {
+      nodes: [
+        { id: 'web', kind: 'stack', label: 'web', path: '', state: 'unchanged' },
+        topFile('tax.ts', 'modified'),
+      ],
+      edges: [],
+    },
+    symbols: [
+      symbolsOf('web/file/tax.ts', [
+        {
+          name: 'tax',
+          kind: 'function',
+          exported: { base: false, head: false },
+          change: 'edited',
+          logic: [{ change: 'added', kind: 'guard', depth: 0, head: 'if (!rate) return', line: 2 }],
         },
-        symbols: [
-          symbolsOf('web/file/tax.ts', [
-            {
-              name: 'tax',
-              kind: 'function',
-              exported: { base: false, head: false },
-              change: 'edited',
-            },
-            {
-              name: 'round',
-              kind: 'function',
-              exported: { base: false, head: false },
-              change: 'unchanged',
-            },
-          ]),
-        ],
-      })}
-      send={vi.fn(async () => {})}
-    />,
-  );
-  const unchanged = () => within(symbolsTab()).getByRole('group');
+        {
+          name: 'round',
+          kind: 'function',
+          exported: { base: false, head: false },
+          change: 'unchanged',
+        },
+      ]),
+    ],
+  });
 
-  await user.click(await screen.findByRole('button', { name: 'tax.ts: modified' }));
+const unchangedSymbols = () => within(symbolsTab()).getByRole('group');
+
+const leaveSymbolsAndComeBack = async (user: ReturnType<typeof userEvent.setup>) => {
+  await user.click(within(inspector()).getByRole('tab', { name: 'Note' }));
   await user.click(within(inspector()).getByRole('tab', { name: /^Symbols/ }));
-  expect(unchanged().hasAttribute('open')).toBe(false);
+};
+
+const draftOnTheUnchangedSymbol = async (user: ReturnType<typeof userEvent.setup>) => {
   await user.click(within(symbolsTab()).getByText('1 unchanged'));
   await user.click(within(symbolsTab()).getByRole('button', { name: 'Comment on function round' }));
   await write(
@@ -4803,8 +4802,35 @@ test('the unchanged symbols open by themselves when one holds a draft', async ()
     within(symbolsTab()).getByRole('textbox', { name: 'Your comment' }),
     'Why not?',
   );
-  await user.click(within(inspector()).getByRole('tab', { name: 'Note' }));
-  await user.click(within(inspector()).getByRole('tab', { name: /^Symbols/ }));
+};
 
-  expect(unchanged().hasAttribute('open')).toBe(true);
+test('the unchanged symbols open by themselves when one holds a draft', async () => {
+  const user = userEvent.setup();
+  render(<ReviewPage review={pageWithAnUnchangedSymbol()} send={vi.fn(async () => {})} />);
+
+  await user.click(await screen.findByRole('button', { name: 'tax.ts: modified' }));
+  await user.click(within(inspector()).getByRole('tab', { name: /^Symbols/ }));
+  expect(unchangedSymbols().hasAttribute('open')).toBe(false);
+  await draftOnTheUnchangedSymbol(user);
+  await leaveSymbolsAndComeBack(user);
+
+  expect(unchangedSymbols().hasAttribute('open')).toBe(true);
+});
+
+test('a page that is not served has no Comment toggle on a symbol or a logic line', async () => {
+  const user = userEvent.setup();
+  const page = pageWithAnUnchangedSymbol();
+  const { rerender } = render(<ReviewPage review={page} send={vi.fn(async () => {})} />);
+  const toggles = () =>
+    within(symbolsTab())
+      .queryAllByRole('button', { name: /^Comment on/ })
+      .map(toggle => toggle.getAttribute('aria-label'));
+
+  await user.click(await screen.findByRole('button', { name: 'tax.ts: modified' }));
+  await user.click(within(inspector()).getByRole('tab', { name: /^Symbols/ }));
+  expect(toggles()).toContain('Comment on function tax');
+  expect(toggles()).toContain('Comment on added guard: if (!rate) return');
+
+  rerender(<ReviewPage review={page} />);
+  expect(toggles()).toStrictEqual([]);
 });
