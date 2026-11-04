@@ -30,6 +30,15 @@ type Reading = {
   readonly notRead?: string;
 };
 
+const inTurn = <Item, Result>(
+  items: ReadonlyArray<Item>,
+  read: (item: Item) => Promise<Result>,
+): Promise<ReadonlyArray<Result>> =>
+  items.reduce<Promise<ReadonlyArray<Result>>>(
+    async (done, item) => [...(await done), await read(item)],
+    Promise.resolve([]),
+  );
+
 const readAt = async (
   repo: string,
   revision: string,
@@ -44,7 +53,7 @@ const readAt = async (
     .filter(file => basename(file) === lockfile.manifest && !SKIPPED.test(file));
   return lockfile.read({
     text: (await show(path)).replaceAll('\r\n', '\n'),
-    manifests: await Promise.all(manifests.map(show)),
+    manifests: await inTurn(manifests, show),
   });
 };
 
@@ -84,14 +93,12 @@ const changesOfGroup = async (
   { repo, base, head }: Revisions,
   group: ReadonlyArray<LockfileChange>,
 ): Promise<ReadonlyArray<DependencyChanges>> => {
-  const readings = await Promise.all(
-    group.map(async ({ name, ecosystem, before, after }) => ({
-      name,
-      ecosystem,
-      before: await readingAt(repo, base, before),
-      after: await readingAt(repo, head, after),
-    })),
-  );
+  const readings = await inTurn(group, async ({ name, ecosystem, before, after }) => ({
+    name,
+    ecosystem,
+    before: await readingAt(repo, base, before),
+    after: await readingAt(repo, head, after),
+  }));
   const failed = readings.flatMap(({ name, before, after }) => {
     const notRead = before.notRead ?? after.notRead;
     return notRead === undefined ? [] : [{ lockfile: name, notRead }];
@@ -132,7 +139,5 @@ export const readLockfiles = async ({
     lockfileChanges,
     ({ name, ecosystem }) => `${ecosystem} ${dirname(name)}`,
   );
-  return (
-    await Promise.all([...groups.values()].map(group => changesOfGroup(revisions, group)))
-  ).flat();
+  return (await inTurn([...groups.values()], group => changesOfGroup(revisions, group))).flat();
 };
