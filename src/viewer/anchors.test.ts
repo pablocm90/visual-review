@@ -55,6 +55,10 @@ test.for<{ anchor: Comment['anchor']; name: string }>([
     anchor: { kind: 'line', id: 'docs/a@b.md@head:3', text: 'Hello' },
     name: 'docs/a@b.md:3 "Hello"',
   },
+  {
+    anchor: { kind: 'line', id: 'web/src/cart/total.ts@head:7', text: '    return total;' },
+    name: 'total.ts:7 "return total;"',
+  },
 ])('a $anchor.kind anchor $anchor.id is named $name', ({ anchor, name }) => {
   expect(anchorName(anchor, nodes)).toBe(name);
 });
@@ -93,7 +97,7 @@ test("a patch's lines anchor on the side they read from, base when removed, else
     `--- a/${path}`,
     `+++ b/${path}`,
     '@@ -12,2 +40,2 @@ const a',
-    ' const kept = 1;',
+    '   const kept = 1;',
     '-if (!open) return;',
     '+if (!shut) return;',
     '\\ No newline at end of file',
@@ -101,7 +105,7 @@ test("a patch's lines anchor on the side they read from, base when removed, else
 
   expect(highlightPatch({ path, patch }).map(line => lineAnchor({ path, line }))).toStrictEqual([
     undefined,
-    { kind: 'line', id: 'src/a.ts@head:40', text: 'const kept = 1;' },
+    { kind: 'line', id: 'src/a.ts@head:40', text: '  const kept = 1;' },
     { kind: 'line', id: 'src/a.ts@base:13', text: 'if (!open) return;' },
     { kind: 'line', id: 'src/a.ts@head:41', text: 'if (!shut) return;' },
     undefined,

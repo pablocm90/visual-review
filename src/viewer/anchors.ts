@@ -68,7 +68,7 @@ export const anchorName = (anchor: Anchor, nodes: Nodes): string => {
   if (anchor.kind === 'line') {
     const file = fileOfLine(anchor.id);
     const label = nodes.find(node => node.path === file)?.label ?? file;
-    return `${label}:${lineNumber(anchor.id)} "${anchor.text}"`;
+    return `${label}:${lineNumber(anchor.id)} "${anchor.text.trim()}"`;
   }
   return endsOfId(anchor.id).map(labelOf).join(' → ');
 };
