@@ -3,6 +3,7 @@ import { join } from 'node:path';
 import { expect, test } from 'vitest';
 import { readRange } from '../test-support/read-range.ts';
 import { commit, git, gitRepo, writeFiles } from '../test-support/repos.ts';
+import { dependencyFindings } from './dependency-findings.ts';
 
 const cargoLock = (serde: string) => `version = 4
 
@@ -379,4 +380,167 @@ test('a rename out of a folder with an accent still compares across the rename',
   const { dependencyChanges } = await readRange({ repo, from: root, to });
 
   expect(dependencyChanges).toMatchObject([{ lockfile: 'server/Cargo.lock', packages: [] }]);
+});
+
+type Locked = {
+  readonly direct: Readonly<Record<string, string>>;
+  readonly transitive: Readonly<Record<string, string>>;
+};
+
+const cargoWith = ({ direct, transitive }: Locked, member = '0.1.0') => `version = 4
+
+[[package]]
+name = "app"
+version = "${member}"
+dependencies = [
+${Object.keys(direct)
+  .map(name => ` "${name}",`)
+  .join('\n')}
+]
+
+${Object.entries({ ...direct, ...transitive })
+  .map(
+    ([name, version]) => `[[package]]
+name = "${name}"
+version = "${version}"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+`,
+  )
+  .join('\n')}`;
+
+test.for([
+  { file: 'Cargo.lock', files: (locked: Locked) => ({ 'Cargo.lock': cargoWith(locked) }) },
+  {
+    file: 'Gemfile.lock',
+    files: ({ direct, transitive }: Locked) => ({
+      'Gemfile.lock': `GEM
+  remote: https://rubygems.org/
+  specs:
+${Object.entries({ ...direct, ...transitive })
+  .map(([name, version]) => `    ${name} (${version})`)
+  .join('\n')}
+
+DEPENDENCIES
+${Object.keys(direct)
+  .map(name => `  ${name}`)
+  .join('\n')}
+`,
+    }),
+  },
+  {
+    file: 'package-lock.json',
+    files: ({ direct, transitive }: Locked) => ({
+      'package-lock.json': JSON.stringify({
+        lockfileVersion: 3,
+        packages: {
+          '': { dependencies: direct },
+          ...Object.fromEntries(
+            Object.entries({ ...direct, ...transitive }).map(([name, version]) => [
+              `node_modules/${name}`,
+              { version },
+            ]),
+          ),
+        },
+      }),
+    }),
+  },
+  {
+    file: 'pnpm-lock.yaml',
+    files: ({ direct, transitive }: Locked) => ({
+      'pnpm-lock.yaml': `lockfileVersion: '9.0'
+
+importers:
+
+  .:
+    dependencies:
+${Object.entries(direct)
+  .map(
+    ([name, version]) => `      ${name}:
+        specifier: ^${version}
+        version: ${version}`,
+  )
+  .join('\n')}
+
+packages:
+
+${Object.entries({ ...direct, ...transitive })
+  .map(
+    ([name, version]) => `  ${name}@${version}:
+    resolution: {integrity: sha512-a}
+`,
+  )
+  .join('\n')}`,
+    }),
+  },
+  {
+    file: 'yarn.lock',
+    files: ({ direct, transitive }: Locked) => ({
+      'yarn.lock': yarnLock({ ...direct, ...transitive }),
+      'package.json': manifest(...Object.keys(direct)),
+    }),
+  },
+])(
+  '$file reads a package added, removed and major-bumped, direct or not',
+  async ({ file, files }) => {
+    using workspace = gitRepo(
+      files({
+        direct: { bumped: '1.0.0', dropped: '1.0.0' },
+        transitive: { deep: '1.0.0' },
+      }),
+    );
+    const { repo, root } = workspace;
+    const to = commit(
+      repo,
+      files({
+        direct: { bumped: '2.0.0', fresh: '1.0.0' },
+        transitive: { deep: '2.0.0' },
+      }),
+    );
+
+    const { dependencyChanges } = await readRange({ repo, from: root, to });
+
+    expect(dependencyChanges).toMatchObject([
+      {
+        lockfile: file,
+        packages: [
+          { name: 'bumped', change: 'major', direct: true, from: ['1.0.0'], to: ['2.0.0'] },
+          { name: 'deep', change: 'major', direct: false, from: ['1.0.0'], to: ['2.0.0'] },
+          { name: 'dropped', change: 'removed', direct: true, from: ['1.0.0'], to: [] },
+          { name: 'fresh', change: 'added', direct: true, from: [], to: ['1.0.0'] },
+        ],
+      },
+    ]);
+  },
+);
+
+test("a lockfile with only minor bumps and a member's new version raises nothing", async () => {
+  const locked = (serde: string, itoa: string): Locked => ({
+    direct: { serde },
+    transitive: { itoa },
+  });
+  using workspace = gitRepo({ 'Cargo.lock': cargoWith(locked('1.0.0', '1.0.0'), '0.1.0') });
+  const { repo, root } = workspace;
+  const to = commit(repo, { 'Cargo.lock': cargoWith(locked('1.4.0', '1.0.9'), '1.0.0') });
+
+  const { dependencyChanges } = await readRange({ repo, from: root, to });
+
+  expect(dependencyFindings(dependencyChanges)).toStrictEqual([]);
+});
+
+test('a lockfile added whole raises its direct packages and one roll-up', async () => {
+  using workspace = gitRepo({ 'README.md': '' });
+  const { repo, root } = workspace;
+  const to = commit(repo, {
+    'Cargo.lock': cargoWith({
+      direct: { serde: '1.0.0' },
+      transitive: { itoa: '1.0.0', ryu: '1.0.0' },
+    }),
+  });
+
+  const { dependencyChanges } = await readRange({ repo, from: root, to });
+
+  expect(dependencyFindings(dependencyChanges).map(({ id, level }) => [id, level])).toStrictEqual([
+    ['dependencies:Cargo.lock:serde', 'look'],
+    ['dependencies:transitive:Cargo.lock', 'info'],
+  ]);
 });
