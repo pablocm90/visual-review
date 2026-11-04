@@ -39,6 +39,32 @@ const whereOf = (
   };
 };
 
+type UnaskedChangesProps = Pick<Going, 'nodes' | 'onGoTo'> & {
+  readonly changes: ReadonlyArray<readonly [string, { readonly text: string }]>;
+};
+
+const UnaskedChanges = ({ changes, nodes, onGoTo }: UnaskedChangesProps) => {
+  if (changes.length === 0) return null;
+  return (
+    <>
+      <h3 className="last-review-subtitle">{UNASKED_TITLE}</h3>
+      <ul aria-label={UNASKED_TITLE} className="last-review-list">
+        {changes.map(([id, { text }]) => {
+          const name = anchorName({ kind: 'part', id }, nodes);
+          return (
+            <li key={id} className="last-comment" aria-label={`${name}: ${text}`}>
+              <button type="button" className="draft-target" onClick={() => onGoTo(id)}>
+                {name}
+              </button>
+              <p className="last-said">{text}</p>
+            </li>
+          );
+        })}
+      </ul>
+    </>
+  );
+};
+
 type LastReviewProps = Going & {
   readonly since: SinceReview;
   readonly unasked: ReviewNotes['unasked'];
@@ -100,24 +126,7 @@ export const LastReview = ({ since, unasked, ...going }: LastReviewProps) => {
             </ul>
           </>
         )}
-        {unaskedChanges.length > 0 && (
-          <>
-            <h3 className="last-review-subtitle">{UNASKED_TITLE}</h3>
-            <ul aria-label={UNASKED_TITLE} className="last-review-list">
-              {unaskedChanges.map(([id, { text }]) => {
-                const name = anchorName({ kind: 'part', id }, going.nodes);
-                return (
-                  <li key={id} className="last-comment" aria-label={`${name}: ${text}`}>
-                    <button type="button" className="draft-target" onClick={() => going.onGoTo(id)}>
-                      {name}
-                    </button>
-                    <p className="last-said">{text}</p>
-                  </li>
-                );
-              })}
-            </ul>
-          </>
-        )}
+        <UnaskedChanges changes={unaskedChanges} nodes={going.nodes} onGoTo={going.onGoTo} />
       </details>
     </section>
   );

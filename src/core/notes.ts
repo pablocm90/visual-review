@@ -167,6 +167,21 @@ type NotesProblemsOptions = {
     | undefined;
 };
 
+const lastReviewProblems = ({
+  notes,
+  said,
+}: Omit<NotesProblemsOptions, 'diff'>): ReadonlyArray<string> => {
+  const saidAnchors = new Set((said ?? []).map(({ anchor }) => anchorKey(anchor)));
+  return [
+    ...Object.keys(notes.answers ?? {})
+      .filter(key => !saidAnchors.has(key))
+      .map(key => `unknown comment ${key}`),
+    ...(said === undefined && notes.unasked !== undefined
+      ? ['unasked changes show under the last review, and this page has none']
+      : []),
+  ];
+};
+
 export const notesProblems = ({
   diff,
   notes,
@@ -186,7 +201,6 @@ export const notesProblems = ({
   ]);
   const collapsed = visibleDiff({ diff, expanded: new Set() });
   const shown = visibleNotes({ diff, expanded: new Set(), notes: notes.notes });
-  const saidAnchors = new Set((said ?? []).map(({ anchor }) => anchorKey(anchor)));
   const touched = [
     ...collapsed.nodes
       .filter(node => node.kind !== 'stack' && node.state !== 'unchanged')
@@ -202,11 +216,6 @@ export const notesProblems = ({
       .filter(id => !known.has(id))
       .map(id => `unknown id ${id}`),
     ...touched.filter(id => shown[id] === undefined).map(id => `no note on ${id}`),
-    ...Object.keys(notes.answers ?? {})
-      .filter(key => !saidAnchors.has(key))
-      .map(key => `unknown comment ${key}`),
-    ...(said === undefined && notes.unasked !== undefined
-      ? ['unasked changes show under the last review, and this page has none']
-      : []),
+    ...lastReviewProblems({ notes, said }),
   ];
 };
