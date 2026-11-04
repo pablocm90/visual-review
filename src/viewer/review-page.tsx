@@ -1306,10 +1306,12 @@ type GraphCaveatProps = {
 };
 
 const GraphCaveat = ({ since, nothingDrawn }: GraphCaveatProps) => {
-  const dropped = since === undefined ? [] : [...since.dropped.nodes, ...since.dropped.edges];
+  const dropped = since === undefined ? [] : Object.values(since.dropped).flat();
   if (dropped.length > 0)
     return (
-      <p className="caveat">Removed since the last review, so not drawn: {dropped.join(', ')}</p>
+      <p className="caveat">
+        Gone from the PR since the last review, so not shown: {dropped.join(', ')}
+      </p>
     );
   if (!nothingDrawn) return null;
   return (

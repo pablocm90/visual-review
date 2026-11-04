@@ -5470,7 +5470,7 @@ test("a later round offers 'Since last review' first in Show, Changes only still
 
   expect(pressed()).toEqual(['Since last review']);
   await waitFor(() => expect(buttonsIn(rust)).toEqual(['application: modified']));
-  expect(screen.queryByText(/so not drawn/)).toBeNull();
+  expect(screen.queryByText(/so not shown/)).toBeNull();
 
   await user.click(
     within(screen.getByRole('region', { name: 'Summary' })).getByRole('button', {
@@ -5577,7 +5577,7 @@ test("'Since last review' with only what it can't draw says that, not that nothi
 
   await user.click(shown('Since last review'));
 
-  await screen.findByText(/so not drawn/);
+  await screen.findByText(/so not shown/);
   expect(screen.queryByText(/Nothing in the graph changed/)).toBeNull();
 });
 
@@ -5594,6 +5594,10 @@ test("'Since last review' names what was added then and has since gone, which it
             dropped: {
               nodes: ['rust/crate/spike'],
               edges: ['rust/crate/spike -> rust/crate/cli'],
+              symbols: ['rust/file/gone.rs#gone'],
+              decisions: ['rust/file/gone.rs#gone#if (late)'],
+              tests: ['gone.test.ts#drops totals'],
+              files: ['gone.rs'],
             },
           }),
         },
@@ -5601,16 +5605,18 @@ test("'Since last review' names what was added then and has since gone, which it
     />,
   );
   await screen.findByRole('group', { name: 'rust' });
-  expect(screen.queryByText(/so not drawn/)).toBeNull();
+  expect(screen.queryByText(/so not shown/)).toBeNull();
 
   await user.click(shown('Since last review'));
 
-  const line = await screen.findByText(/so not drawn/);
-  expect(line.textContent).toContain('rust/crate/spike, rust/crate/spike -> rust/crate/cli');
+  const line = await screen.findByText(/so not shown/);
+  expect(line.textContent).toContain(
+    'rust/crate/spike, rust/crate/spike -> rust/crate/cli, rust/file/gone.rs#gone, rust/file/gone.rs#gone#if (late), gone.test.ts#drops totals, gone.rs',
+  );
 
   await user.click(shown('Changes only'));
 
-  expect(screen.queryByText(/so not drawn/)).toBeNull();
+  expect(screen.queryByText(/so not shown/)).toBeNull();
 });
 
 const pageWithSymbolsEditedThenAndSince = () =>
