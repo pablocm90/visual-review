@@ -1,8 +1,6 @@
-import { deepestHolding } from '../core/diff-graphs.ts';
+import { fileOfLine, split } from '../core/anchors.ts';
 import { endsOfId, type GraphNode } from '../core/graph.ts';
 import type { Comment } from '../core/review.ts';
-import type { TestFile } from '../core/test-changes.ts';
-import { nodeOfTests } from '../core/tests-alongside.ts';
 import type { PatchLine } from './highlight-patch.ts';
 
 type Anchor = Comment['anchor'];
@@ -28,13 +26,6 @@ export const lineAnchor = ({
 
 export const anchorKey = ({ kind, id }: Pick<Anchor, 'kind' | 'id'>): string => `${kind} ${id}`;
 
-const split = (id: string, at: string): readonly [string, string] => {
-  const cut = id.indexOf(at);
-  return [id.slice(0, cut), id.slice(cut + at.length)];
-};
-
-const fileOfLine = (id: string): string => id.slice(0, id.lastIndexOf('@'));
-
 const lineNumber = (id: string): string => id.slice(id.lastIndexOf(':') + 1);
 
 export const placeOfLine = (anchor: Anchor) => {
@@ -45,19 +36,6 @@ export const placeOfLine = (anchor: Anchor) => {
 };
 
 export type PlaceOfLine = NonNullable<ReturnType<typeof placeOfLine>>;
-
-export type TargetsOf = {
-  readonly nodes: Nodes;
-  readonly tests: ReadonlyArray<Pick<TestFile, 'path' | 'stack'>>;
-};
-
-export const anchorTarget = (anchor: Anchor, { nodes, tests }: TargetsOf): string | undefined => {
-  if (anchor.kind === 'symbol' || anchor.kind === 'decision') return split(anchor.id, '#')[0];
-  if (anchor.kind === 'line') return deepestHolding(fileOfLine(anchor.id), nodes)?.id;
-  if (anchor.kind !== 'test') return anchor.id;
-  const file = tests.find(({ path }) => path === split(anchor.id, '#')[0]);
-  return file && nodeOfTests({ nodes, file });
-};
 
 export const anchorName = (anchor: Anchor, nodes: Nodes): string => {
   const labelOf = (id: string) => nodes.find(node => node.id === id)?.label ?? id;
