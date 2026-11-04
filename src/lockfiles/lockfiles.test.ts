@@ -544,6 +544,36 @@ describe('package-lock.json', () => {
     },
   );
 
+  test.for([
+    { what: 'nothing declares its folder', declarations: {} },
+    { what: 'its folder is declared as another package', declarations: { hidden: 'npm:other@1' } },
+    { what: 'its folder is declared by a range', declarations: { hidden: '^1.0.0' } },
+    { what: 'another folder is declared as that package', declarations: { other: 'npm:react@1' } },
+  ])('a name on an installed entry does not count when $what', ({ declarations }) => {
+    expect(
+      read(
+        lock(3, {
+          '': { dependencies: declarations },
+          'node_modules/hidden': { name: 'react', version: '1.0.0' },
+        }),
+      ).versions,
+    ).toEqual({ hidden: ['1.0.0'] });
+  });
+
+  test('an alias declared by an installed package reads by its real name', () => {
+    expect(
+      read(
+        lock(3, {
+          'node_modules/cliui': {
+            version: '8.0.0',
+            dependencies: { 'width-cjs': 'npm:string-width@^4.2.0' },
+          },
+          'node_modules/width-cjs': { name: 'string-width', version: '4.2.3' },
+        }),
+      ).versions,
+    ).toEqual({ cliui: ['8.0.0'], 'string-width': ['4.2.3'] });
+  });
+
   test('a folder only named like node_modules is local', () => {
     expect(
       read(lock(3, { 'not_node_modules/web': { version: '1.0.0', dependencies: { zod: '*' } } })),
