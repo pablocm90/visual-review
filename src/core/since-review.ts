@@ -1,4 +1,5 @@
 import { diffGraphs, type FilePatch, type GraphDiff } from './diff-graphs.ts';
+import type { Finding } from './findings.ts';
 import { edgeId, type Graph } from './graph.ts';
 import { type PreviousComment, previousComments } from './previous-comments.ts';
 import type { ReviewedHead, ReviewedReading, SymbolFile } from './read-range.ts';
@@ -38,6 +39,7 @@ type SinceReviewOptions = {
   readonly patches: ReadonlyArray<FilePatch>;
   readonly symbols: ReadonlyArray<SymbolFile>;
   readonly tests: ReadonlyArray<TestFile>;
+  readonly findings: ReadonlyArray<Finding>;
 };
 
 const saidIn = (
@@ -180,9 +182,10 @@ export const sinceReviewOf = ({
   patches,
   symbols,
   tests,
+  findings,
 }: SinceReviewOptions): SinceReview => {
   const targets = { nodes: diff.nodes, tests };
-  const unmarked = () => saidIn(reviewed, previousComments({ ...reviewed, targets }));
+  const unmarked = () => saidIn(reviewed, previousComments({ ...reviewed, targets, findings }));
   if ('gone' in reviewed) return { ...unmarked(), gone: true };
   if ('unreadable' in reviewed) return { ...unmarked(), unreadable: reviewed.unreadable };
   const { pullRequest, ...side } = reviewed;
@@ -242,6 +245,7 @@ export const sinceReviewOf = ({
       previousComments({
         comments: reviewed.comments,
         targets,
+        findings,
         compared: {
           changed,
           held: { ...anchors.held, tests: testsSince.held, files: patches.map(({ path }) => path) },

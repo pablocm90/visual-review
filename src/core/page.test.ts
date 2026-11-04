@@ -3,7 +3,7 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { expect, test } from 'vitest';
 import { reviewedHead } from '../test-support/reviewed.ts';
-import type { GraphNode } from './graph.ts';
+import type { Graph, GraphNode } from './graph.ts';
 import type { LogicLine } from './logic-diff.ts';
 import { metricFindings } from './metric-findings.ts';
 import type { ReviewNotes } from './notes.ts';
@@ -2903,4 +2903,87 @@ test('changed since skips a test file that could not be read', () => {
   expect(
     pageData({ repo: 'shop', reading, range: 'a..b', version: '1.2.3', parsers: {} }).sinceReview,
   ).toMatchObject({ changed: { tests: [], dropped: { tests: [] } } });
+});
+
+const answering = (id: string): Review['comments'][number] => ({
+  anchor: { kind: 'finding', id },
+  kind: 'fine',
+});
+
+const answersReading = (id: string, reviewed: (graph: Graph) => ReviewedReading) => {
+  const nodes = [webStack, webFile('a.ts'), webFile('b.ts')];
+  return readingWith({
+    before: { nodes: [webStack], edges: [] },
+    after: { nodes, edges: [{ from: 'web/file/a.ts', to: 'web/file/b.ts' }] },
+    changedPaths: ['web/src/a.ts', 'web/src/b.ts'],
+    skipped: [{ reader: 'rust', tool: 'cargo', stacks: ['rust'] }],
+    danglingCalls: [
+      { from: 'web/file/a.ts', path: '/api/a' },
+      { from: 'web/file/b.ts', path: '/api/b' },
+    ],
+    reviewed: { ...reviewed({ nodes, edges: [] }), comments: [answering(id)] },
+  });
+};
+
+const commitOnA = commitOn('c1', 'web/src/a.ts');
+
+test.for([
+  {
+    on: 'a finding on a part changed since, with the commits on it',
+    id: 'routes:dangling:web/file/a.ts',
+    mark: { target: 'web/file/a.ts', changedSince: [commitOnA] },
+  },
+  {
+    on: 'a finding on a part as it was',
+    id: 'routes:dangling:web/file/b.ts',
+    mark: { target: 'web/file/b.ts' },
+  },
+  {
+    on: 'a note flag on a part changed since, which the page data does not raise',
+    id: 'notes:web/file/a.ts',
+    mark: { target: 'web/file/a.ts', changedSince: [commitOnA] },
+  },
+  {
+    on: 'a note flag on a part as it was, which the page data does not raise',
+    id: 'notes:web/file/b.ts',
+    mark: { target: 'web/file/b.ts' },
+  },
+  {
+    on: 'a note flag on an edge changed since',
+    id: 'notes:web/file/a.ts -> web/file/b.ts',
+    mark: { target: 'web/file/a.ts -> web/file/b.ts', changedSince: [commitOnA] },
+  },
+  {
+    on: 'a finding with no target, still raised, as it was',
+    id: 'structure:skipped:rust',
+    mark: {},
+  },
+  {
+    on: 'a finding no longer raised, changed with no commit to name',
+    id: 'routes:dangling:web/file/gone.ts',
+    mark: { changedSince: [] },
+  },
+])('a previous answer to $on', ({ id, mark }) => {
+  const previous = firstPrevious(
+    answersReading(id, before => ({
+      ...reviewedAt({ before, changedPaths: ['web/src/a.ts'] }),
+      commits: [commitOnA, commitOn('c2', 'web/src/elsewhere.ts')],
+    })),
+  );
+
+  expect(previous).toEqual({ ...answering(id), ...mark });
+});
+
+test.for([
+  {
+    on: 'a finding on a part',
+    id: 'routes:dangling:web/file/a.ts',
+    held: { target: 'web/file/a.ts' },
+  },
+  { on: 'a note flag on a part', id: 'notes:web/file/a.ts', held: { target: 'web/file/a.ts' } },
+  { on: 'a finding no longer raised', id: 'routes:dangling:web/file/gone.ts', held: {} },
+])('a previous answer to $on on a gone head keeps its target, with no mark', ({ id, held }) => {
+  const previous = firstPrevious(answersReading(id, () => ({ ...reviewedHead(), gone: true })));
+
+  expect(previous).toEqual({ ...answering(id), ...held });
 });

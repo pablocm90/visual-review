@@ -1,6 +1,7 @@
 import { anchorTarget, fileOfLine, split, type TargetsOf } from './anchors.ts';
 import type { Rename } from './diff-graphs.ts';
 import { isAtOrUnder } from './diff-graphs.ts';
+import { type Finding, targetOfNoteFlag } from './findings.ts';
 import { endsOfId, type GraphNode } from './graph.ts';
 import type { Commit, ReviewedHead } from './read-range.ts';
 import type { ChangedSince } from './since-review.ts';
@@ -24,6 +25,7 @@ type Compared = {
 type PreviousCommentsOptions = {
   readonly comments: ReadonlyArray<Said>;
   readonly targets: TargetsOf;
+  readonly findings: ReadonlyArray<Finding>;
   readonly compared?: Compared;
 };
 
@@ -115,14 +117,18 @@ const headId = (compared: Compared, anchor: Said['anchor']): string => {
   return `${compared.named(node)}#${rest}`;
 };
 
+type OnASubject = Exclude<Said['anchor'], { readonly kind: 'finding' }>;
+
+const onTheGraph = (target: string): OnASubject =>
+  target.includes(' -> ') ? { kind: 'edge', id: target } : { kind: 'part', id: target };
+
 export const previousComments = ({
   comments,
   targets,
+  findings,
   compared,
-}: PreviousCommentsOptions): ReadonlyArray<PreviousComment> =>
-  comments.map(comment => {
-    const { anchor } = comment;
-    if (anchor.kind === 'finding') return comment;
+}: PreviousCommentsOptions): ReadonlyArray<PreviousComment> => {
+  const placed = (comment: Said, anchor: OnASubject): PreviousComment => {
     const id = compared === undefined ? anchor.id : headId(compared, anchor);
     const target = anchorTarget({ ...anchor, id }, targets);
     return {
@@ -130,4 +136,15 @@ export const previousComments = ({
       ...(target === undefined ? {} : targetIn(targets, target)),
       ...(compared === undefined ? {} : markOf(compared, targets, anchor)),
     };
+  };
+  return comments.map(comment => {
+    const { anchor } = comment;
+    if (anchor.kind !== 'finding') return placed(comment, anchor);
+    const raised = findings.find(({ id }) => id === anchor.id);
+    const target = targetOfNoteFlag(anchor.id) ?? raised?.target;
+    if (target !== undefined) return placed(comment, onTheGraph(target));
+    return raised === undefined && compared !== undefined
+      ? { ...comment, changedSince: [] }
+      : comment;
   });
+};
