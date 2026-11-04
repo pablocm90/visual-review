@@ -2400,7 +2400,39 @@ main:has(> .review-tray) {
   text-decoration: line-through;
 }
 
+.changes pre .comment-kind,
+.changes pre .comment {
+  position: sticky;
+  left: 10px;
+  max-width: 480px;
+  margin-block: 6px;
+  white-space: normal;
+  font:
+    12px / 1.4 system-ui,
+    sans-serif;
+  user-select: text;
+}
+
 .tests .test .comment-kind,
 .tests .test .comment {
   text-indent: 0;
+}
+
+.changes pre .comment-on {
+  position: sticky;
+  right: 8px;
+  opacity: 0;
+  user-select: none;
+}
+
+.changes pre > :hover > .comment-on,
+.changes pre > :focus-within > .comment-on,
+.changes pre .comment-on[aria-expanded="true"] {
+  opacity: 1;
+}
+
+@media (hover: none) {
+  .changes pre .comment-on {
+    opacity: 1;
+  }
 }
