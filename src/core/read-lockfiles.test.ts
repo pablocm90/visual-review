@@ -2,7 +2,7 @@ import { symlinkSync } from 'node:fs';
 import { join } from 'node:path';
 import { expect, test } from 'vitest';
 import { readRange } from '../test-support/read-range.ts';
-import { commit, git, gitRepo } from '../test-support/repos.ts';
+import { commit, git, gitRepo, writeFiles } from '../test-support/repos.ts';
 
 const cargoLock = (serde: string) => `version = 4
 
@@ -148,3 +148,43 @@ test('a lockfile under a vendored or test folder raises nothing, at any depth', 
     'testing/Cargo.lock',
   ]);
 });
+
+test('a renamed lockfile compares across the rename, under its new path', async () => {
+  using workspace = gitRepo({ 'api/Cargo.lock': cargoLock('1.0.219') });
+  const { repo, root } = workspace;
+  git(repo, 'mv', 'api', 'server');
+  const to = commit(repo, { 'server/Cargo.lock': cargoLock('2.0.1') });
+
+  const { dependencyChanges } = await readRange({ repo, from: root, to });
+
+  expect(dependencyChanges).toStrictEqual([
+    {
+      lockfile: 'server/Cargo.lock',
+      ecosystem: 'cargo',
+      packages: [
+        { name: 'serde', change: 'major', direct: true, from: ['1.0.219'], to: ['2.0.1'] },
+      ],
+    },
+  ]);
+});
+
+test.for([
+  { from: 'Cargo.lock', to: 'Cargo.lock.bak', change: 'removed' },
+  { from: 'Cargo.lock.bak', to: 'Cargo.lock', change: 'added' },
+  { from: 'Cargo.lock', to: 'vendor/Cargo.lock', change: 'removed' },
+])(
+  'renaming $from to $to reads as its packages $change, under the new path',
+  async ({ from, to, change }) => {
+    using workspace = gitRepo({ [from]: cargoLock('1.0.219') });
+    const { repo, root } = workspace;
+    writeFiles(repo, { 'vendor/.keep': '' });
+    git(repo, 'mv', from, to);
+    const head = commit(repo, { 'README.md': 'renamed' });
+
+    const { dependencyChanges } = await readRange({ repo, from: root, to: head });
+
+    expect(dependencyChanges).toMatchObject([
+      { lockfile: to, packages: [{ name: 'serde', change }] },
+    ]);
+  },
+);
