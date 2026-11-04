@@ -246,3 +246,102 @@ test('a table created going down is no new table going up', () => {
     'index on users (email) added, not concurrently',
   ]);
 });
+
+const inChangeTable = (body: string) =>
+  migration(`change_table :users, bulk: true do |t|
+      ${body}
+    end`);
+
+test.for([
+  {
+    written: 't.remove :name, :age',
+    expected: ['column users.name removed', 'column users.age removed'],
+  },
+  { written: 't.remove_references :account', expected: ['reference users.account removed'] },
+  { written: 't.remove_belongs_to :account', expected: ['reference users.account removed'] },
+  { written: 't.remove_timestamps', expected: ['timestamps of users removed'] },
+  { written: 't.rename :name, :full_name', expected: ['column users.name renamed to full_name'] },
+  { written: 't.change :age, :bigint', expected: ['column users.age changed to bigint'] },
+  { written: 't.change_null :email, false', expected: ['column users.email set to null: false'] },
+  { written: 't.change_null :email, true', expected: [] },
+  {
+    written: 't.string :email, null: false',
+    expected: ['column users.email added as null: false with no default'],
+  },
+  {
+    written: 't.text :bio, :motto, null: false',
+    expected: [
+      'column users.bio added as null: false with no default',
+      'column users.motto added as null: false with no default',
+    ],
+  },
+  { written: 't.string :email', expected: [] },
+  {
+    written: 't.column :email, :string, null: false',
+    expected: ['column users.email added as null: false with no default'],
+  },
+  {
+    written: 't.references :account, null: false',
+    expected: ['reference users.account added as null: false with no default'],
+  },
+  {
+    written: 't.belongs_to :account, null: false',
+    expected: ['reference users.account added as null: false with no default'],
+  },
+  {
+    written: 't.timestamps',
+    expected: ['timestamps of users added as null: false with no default'],
+  },
+  { written: 't.timestamps null: true', expected: [] },
+  { written: 't.index :email', expected: ['index on users (email) added, not concurrently'] },
+  { written: 't.index :email, algorithm: :concurrently', expected: [] },
+  { written: 'other.remove :name', expected: [] },
+  { written: 'remove_column :orders, :state', expected: ['column orders.state removed'] },
+])('in change_table, $written names the block table', ({ written, expected }) => {
+  expect(railsMigrations.risks(inChangeTable(written)).map(({ title }) => title)).toStrictEqual(
+    expected,
+  );
+});
+
+test.for([
+  { written: 't.index :email', expected: [] },
+  { written: 't.string :email, null: false', expected: [] },
+  { written: 't.remove :name', expected: ['column users.name removed'] },
+])('change_table on a table created alongside: $written', ({ written, expected }) => {
+  expect(
+    railsMigrations
+      .risks(
+        migration(`create_table :users\n    change_table :users do |t|\n      ${written}\n    end`),
+      )
+      .map(({ title }) => title),
+  ).toStrictEqual(expected);
+});
+
+test('a create_table block raises nothing of its own', () => {
+  expect(
+    titles(`create_table :users do |t|
+      t.string :email, null: false
+      t.index :email
+      t.timestamps
+    end`),
+  ).toStrictEqual([]);
+});
+
+test.for([
+  {
+    reads: 'a change_table with no block parameter leaves bare calls bare',
+    written: `change_table :users do
+      remove_column :orders, :state
+    end`,
+    expected: ['column orders.state removed'],
+  },
+  {
+    reads: 'a block of some other call is no change_table',
+    written: `with_lock :users do |t|
+      t.remove :name
+    end`,
+    expected: [],
+  },
+])('$reads', ({ written, expected }) => {
+  expect(titles(written)).toStrictEqual(expected);
+});
