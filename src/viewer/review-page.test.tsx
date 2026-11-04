@@ -5704,6 +5704,31 @@ test('the unchanged symbols open by themselves when one is marked changed since,
   ).toBeTruthy();
 });
 
+test('a later round marks the test changed since the last review, not its namesake changed only before it', async () => {
+  const user = userEvent.setup();
+  render(
+    <ReviewPage
+      review={{
+        ...pageWithSameNamedTests(),
+        sinceReview: {
+          ...sinceReview,
+          changed: changedSince({ tests: ['total.test.ts#Cart › adds tax'] }),
+        },
+      }}
+    />,
+  );
+
+  await user.click(await screen.findByRole('button', { name: 'total.ts: modified' }));
+  await user.click(within(inspector()).getByRole('tab', { name: 'Tests 3' }));
+
+  const since = within(testsTab()).getByRole('listitem', {
+    name: 'adds tax: added, changed since',
+  });
+  expect(within(since).getByText('changed since')).toBeTruthy();
+  const before = within(testsTab()).getByRole('listitem', { name: 'adds tax: edited' });
+  expect(within(before).queryByText('changed since')).toBeNull();
+});
+
 test('a review whose reviewed head is gone says so, with that head short, in the header, and shows the full review', async () => {
   const head = 'a1b2c3d4e5f6a7b8c9d0a1b2c3d4e5f6a7b8c9d0';
   render(<ReviewPage review={pageWith({ ...review, sinceReview: { head, gone: true } })} />);
