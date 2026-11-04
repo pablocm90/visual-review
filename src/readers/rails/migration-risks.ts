@@ -91,6 +91,9 @@ const RULES: ReadonlyMap<string, Rule> = new Map<string, Rule>([
         ? []
         : [{ title: `column ${table}.${nameOf(column)} set to null: false`, why: SCANS }],
   ],
+]);
+
+const RULES_NEEDING_ROWS: ReadonlyMap<string, Rule> = new Map<string, Rule>([
   [
     'add_column',
     ({ table, args }) =>
@@ -117,20 +120,35 @@ const RULES: ReadonlyMap<string, Rule> = new Map<string, Rule>([
   ],
 ]);
 
-const risksOf = (call: Node): ReadonlyArray<MigrationRisk> => {
-  const rule = RULES.get(call.childForFieldName('method')?.text ?? '');
-  const [table, ...args] = call.childForFieldName('arguments')?.namedChildren ?? [];
-  if (rule === undefined || table === undefined) return [];
-  return rule({ table: nameOf(table), args }).map(risky => ({
-    ...risky,
-    line: call.startPosition.row + 1,
-  }));
-};
+const methodOf = (call: Node): string => call.childForFieldName('method')?.text ?? '';
+
+const argsOf = (call: Node): ReadonlyArray<Node> =>
+  call.childForFieldName('arguments')?.namedChildren ?? [];
+
+const risksOf =
+  (newTables: ReadonlySet<string>) =>
+  (call: Node): ReadonlyArray<MigrationRisk> => {
+    const [tableArg, ...args] = argsOf(call);
+    if (tableArg === undefined) return [];
+    const table = nameOf(tableArg);
+    const rule =
+      RULES.get(methodOf(call)) ??
+      (newTables.has(table) ? undefined : RULES_NEEDING_ROWS.get(methodOf(call)));
+    return (rule?.({ table, args }) ?? []).map(risky => ({
+      ...risky,
+      line: call.startPosition.row + 1,
+    }));
+  };
 
 export const railsMigrations: MigrationReader = {
   holds: () => false,
   risks: text => {
     const program = parseRuby(text);
-    return program === undefined ? [] : callsIn(program).flatMap(risksOf);
+    if (program === undefined) return [];
+    const calls = callsIn(program);
+    const newTables = new Set(
+      calls.filter(call => methodOf(call) === 'create_table').map(call => nameOf(argsOf(call)[0])),
+    );
+    return calls.flatMap(risksOf(newTables));
   },
 };

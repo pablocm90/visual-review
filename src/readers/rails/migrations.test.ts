@@ -164,3 +164,24 @@ test.for([
 ])('$written is flagged unless built concurrently', ({ written, expected }) => {
   expect(titles(written)).toStrictEqual(expected);
 });
+
+test.for([
+  { written: 'create_table :orders\n    add_index :orders, :user_id', expected: [] },
+  {
+    written: 'add_column :orders, :state, :string, null: false\n    create_table "orders"',
+    expected: [],
+  },
+  { written: 'create_table :orders\n    add_reference :orders, :user, null: false', expected: [] },
+  { written: 'create_table :orders\n    add_belongs_to :orders, :user, null: false', expected: [] },
+  { written: 'create_table :orders\n    add_timestamps :orders', expected: [] },
+  {
+    written: 'create_table :orders\n    add_index :users, :email',
+    expected: ['index on users (email) added, not concurrently'],
+  },
+  {
+    written: 'create_table :orders\n    remove_column :orders, :state',
+    expected: ['column orders.state removed'],
+  },
+])('a table created in the same file has no rows to protect: $written', ({ written, expected }) => {
+  expect(titles(written)).toStrictEqual(expected);
+});
