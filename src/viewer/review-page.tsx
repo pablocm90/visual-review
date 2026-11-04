@@ -33,7 +33,7 @@ import {
   visibleDiff,
   visibleNodeOf,
 } from '../core/visible-diff.ts';
-import { anchorKey, anchorName, fileOfLine, lineAnchor, placeOfLine } from './anchors.ts';
+import { anchorKey, anchorName, lineAnchor, placeOfLine } from './anchors.ts';
 import { ColourBy, type Colouring, ScaleLegend, type Shade, shadeOf } from './colour-by.tsx';
 import { CommentField, CommentOn, type Comments } from './comment-field.tsx';
 import {
@@ -531,7 +531,7 @@ const Patch = ({
     else scrollInPanel(top.current, 'start');
   }, [landed]);
   const holdsDraft = Object.values(commenting.comments).some(
-    ({ anchor }) => fileOfLine(anchor.id) === path,
+    ({ anchor }) => placeOfLine(anchor)?.path === path,
   );
   return (
     <details aria-label={path} open={open || holdsDraft} ref={top}>
