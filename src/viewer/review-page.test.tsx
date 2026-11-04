@@ -5364,7 +5364,7 @@ test("a later round offers 'Since last review' first in Show, Changes only still
       .map(button => button.textContent),
   ).toEqual(['Since last review', 'Changes only', 'Changed + 1 hop', 'Everything']);
   expect(pressed()).toEqual(['Changes only']);
-  expect(within(screen.getByRole('banner')).queryByText(/is gone/)).toBeNull();
+  expect(within(screen.getByRole('banner')).queryByText(/commit last reviewed/)).toBeNull();
 
   await user.click(shown('Since last review'));
 
@@ -5383,6 +5383,10 @@ test("a later round offers 'Since last review' first in Show, Changes only still
 test.for([
   { round: 'with no earlier review', since: {} },
   { round: 'whose reviewed head is gone', since: { sinceReview: { head: 'h1', gone: true } } },
+  {
+    round: "whose reviewed head couldn't be read",
+    since: { sinceReview: { head: 'h1', unreadable: 'cargo metadata failed' } },
+  },
 ] as const)('a review $round has no Since last review choice', async ({ since }) => {
   render(<ReviewPage review={pageWith({ ...review, ...since })} />);
   await screen.findByRole('group', { name: 'rust' });
@@ -5421,5 +5425,23 @@ test('a review whose reviewed head is gone says so, with that head short, in the
   expect(within(screen.getByRole('banner')).getByText(/is gone/).textContent).toContain(
     'a1b2c3d, is',
   );
+  expect(screen.getByRole('button', { name: 'cli-adapter: added' })).toBeDefined();
+});
+
+test("a review whose reviewed head couldn't be read says so, with that head short and the reason on hover, in the header, and shows the full review", async () => {
+  const head = 'a1b2c3d4e5f6a7b8c9d0a1b2c3d4e5f6a7b8c9d0';
+  render(
+    <ReviewPage
+      review={pageWith({
+        ...review,
+        sinceReview: { head, unreadable: 'cargo metadata failed' },
+      })}
+    />,
+  );
+  await screen.findByRole('group', { name: 'rust' });
+
+  const line = within(screen.getByRole('banner')).getByText(/couldn't be read/);
+  expect(line.textContent).toContain('a1b2c3d, couldn');
+  expect(line.getAttribute('title')).toBe('cargo metadata failed');
   expect(screen.getByRole('button', { name: 'cli-adapter: added' })).toBeDefined();
 });

@@ -21,6 +21,7 @@ import { type Note, type ReviewNotes, visibleNotes } from '../core/notes.ts';
 import { type PageData, UNCOMMITTED } from '../core/page.ts';
 import type { SymbolFile } from '../core/read-range.ts';
 import type { Answer, Comment, Review } from '../core/review.ts';
+import type { SinceReview } from '../core/since-review.ts';
 import type { TestFile } from '../core/test-changes.ts';
 import { testsAlongside } from '../core/tests-alongside.ts';
 import {
@@ -1213,6 +1214,23 @@ type HeaderProps = {
   readonly tab: Tab;
 };
 
+const UncomparedReview = ({ since }: { readonly since: SinceReview }) => {
+  if ('gone' in since)
+    return (
+      <p className="where">
+        The commit last reviewed, <Ref name={since.head} />, is gone: the full review is shown.
+      </p>
+    );
+  if ('unreadable' in since)
+    return (
+      <p className="where" title={since.unreadable}>
+        The commit last reviewed, <Ref name={since.head} />, couldn't be read: the full review is
+        shown.
+      </p>
+    );
+  return null;
+};
+
 const Header = ({ review, tab }: HeaderProps) => {
   const changed = changedCount(review.tests);
   return (
@@ -1235,12 +1253,7 @@ const Header = ({ review, tab }: HeaderProps) => {
             <ShortRange range={review.range} />
           )}
         </h1>
-        {review.sinceReview !== undefined && 'gone' in review.sinceReview && (
-          <p className="where">
-            The commit last reviewed, <Ref name={review.sinceReview.head} />, is gone: the full
-            review is shown.
-          </p>
-        )}
+        {review.sinceReview !== undefined && <UncomparedReview since={review.sinceReview} />}
       </div>
       <nav aria-label="Review">
         {TAB_ORDER.map(shown => (
