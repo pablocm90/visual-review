@@ -214,6 +214,23 @@ BUNDLED WITH
     });
   });
 
+  test('every dependencies section counts, as it does for Bundler', () => {
+    expect(
+      read(`DEPENDENCIES
+  faraday
+
+GEM
+  remote: https://rubygems.org/
+  specs:
+    faraday (2.14.0)
+    hidden (1.0.0)
+
+DEPENDENCIES
+  hidden
+`).direct,
+    ).toEqual(['faraday', 'hidden']);
+  });
+
   test('a text with no dependencies section is not read, and the message quotes none of it', () => {
     expect(() => read('../shared/Gemfile.lock')).toThrow(/^Gemfile\.lock format not recognised$/);
   });

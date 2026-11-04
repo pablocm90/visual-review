@@ -9,8 +9,8 @@ export const bundlerLockfile: Lockfile = {
   ecosystem: 'bundler',
   read: ({ text }) => {
     const sections = text.split(/^(?=[A-Z])/m);
-    const dependencies = sections.find(section => section.startsWith('DEPENDENCIES\n'));
-    if (dependencies === undefined) throw new Error('Gemfile.lock format not recognised');
+    const dependencies = sections.filter(section => section.startsWith('DEPENDENCIES\n'));
+    if (dependencies.length === 0) throw new Error('Gemfile.lock format not recognised');
     return {
       versions: lockedVersions(
         sections
@@ -18,7 +18,9 @@ export const bundlerLockfile: Lockfile = {
           .flatMap(section => [...section.matchAll(LOCKED_GEM)])
           .map(([, name = '', version = '']) => ({ name, version })),
       ),
-      direct: new Set((dependencies.match(DEPENDENCY) ?? []).map(name => name.trim())),
+      direct: new Set(
+        dependencies.flatMap(section => section.match(DEPENDENCY) ?? []).map(name => name.trim()),
+      ),
     };
   },
 };
