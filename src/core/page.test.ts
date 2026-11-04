@@ -48,7 +48,7 @@ const readingWith = (overrides: Partial<RangeReading>): RangeReading => ({
   symbolsNotRead: [],
   danglingCalls: [],
   skipped: [],
-  thresholds: { cyclomatic: 10, hotspot: { churn: 6, cyclomatic: 8 } },
+  thresholds: { cyclomatic: 10, splitParts: 4, hotspot: { churn: 6, cyclomatic: 8 } },
   churnDays: 90,
   ...overrides,
 });
@@ -56,7 +56,12 @@ const readingWith = (overrides: Partial<RangeReading>): RangeReading => ({
 test("a reading's page data holds its diff, the reading order of its changed parts, its dangling calls, test files and symbol changes, the patches of drawn files apart from the rest, its metric thresholds and churn window, and an empty list of skipped stacks", () => {
   const tests = [{ path: 'web/a.test.ts', stack: 'web', unreadable: 'SyntaxError' }];
   const symbols = [{ node: 'web/file/a.ts', stack: 'web', unreadable: 'SyntaxError' }];
-  const thresholds = { cyclomatic: 12, hotspot: { churn: 5, cyclomatic: 9 }, lines: 300 };
+  const thresholds = {
+    cyclomatic: 12,
+    splitParts: 4,
+    hotspot: { churn: 5, cyclomatic: 9 },
+    lines: 300,
+  };
   const reading = readingWith({
     thresholds,
     churnDays: 30,
@@ -89,7 +94,7 @@ test("a reading's page data holds its diff, the reading order of its changed par
     tests,
     symbols,
     skipped: [],
-    thresholds: { cyclomatic: 12, hotspot: { churn: 5, cyclomatic: 9 }, lines: 300 },
+    thresholds: { cyclomatic: 12, splitParts: 4, hotspot: { churn: 5, cyclomatic: 9 }, lines: 300 },
     churnDays: 30,
   });
 });
@@ -1285,6 +1290,42 @@ const readingOfA = ({
   });
 };
 
+const splitPageOf = (names: ReadonlyArray<string>) =>
+  pageData({
+    repo: 'shop',
+    reading: readingWith({
+      after: {
+        nodes: [webStack, ...names.map(webFile)],
+        edges: [
+          { from: 'web/file/a.ts', to: 'web/file/b.ts' },
+          { from: 'web/file/c.ts', to: 'web/file/d.ts' },
+        ],
+      },
+      thresholds: { cyclomatic: 10, splitParts: 2, hotspot: { churn: 6, cyclomatic: 8 } },
+    }),
+    range: 'main..feature',
+    version,
+    parsers,
+  }).findings.find(finding => finding.dimension === 'cohesion');
+
+test('parts that fall into separate groups raise one cohesion finding for information, with no target, holding the groups and counting the parts left out', () => {
+  expect(splitPageOf(['a.ts', 'b.ts', 'c.ts', 'd.ts', 'e.ts'])).toStrictEqual({
+    id: 'cohesion:split',
+    dimension: 'cohesion',
+    level: 'info',
+    title: 'may be 2 independent changes',
+    detail: expect.stringContaining('1 part in smaller groups'),
+    groups: [
+      ['web/file/b.ts', 'web/file/a.ts'],
+      ['web/file/d.ts', 'web/file/c.ts'],
+    ],
+  });
+});
+
+test('with no part left out, the detail counts none', () => {
+  expect(splitPageOf(['a.ts', 'b.ts', 'c.ts', 'd.ts'])?.detail).not.toContain('smaller groups');
+});
+
 test.for([
   { reason: 'a new file over it is one to look at', base: undefined, head: 5, level: 'look' },
   { reason: 'a file that crosses it is one to look at', base: 4, head: 5, level: 'look' },
@@ -1301,7 +1342,7 @@ test.for([
     const reading = readingOfA({
       base: file(base),
       head: file(head),
-      thresholds: { cyclomatic: 4, hotspot: { churn: 6, cyclomatic: 8 } },
+      thresholds: { cyclomatic: 4, splitParts: 4, hotspot: { churn: 6, cyclomatic: 8 } },
     });
 
     expect(
@@ -1368,7 +1409,11 @@ test.for([
   },
 ])('as a hotspot, $reason, and the boxes above it raise none', ({ base, head, level }) => {
   const threshold = { churn: 3, cyclomatic: 5 };
-  const reading = readingOfA({ base, head, thresholds: { cyclomatic: 20, hotspot: threshold } });
+  const reading = readingOfA({
+    base,
+    head,
+    thresholds: { cyclomatic: 20, splitParts: 4, hotspot: threshold },
+  });
 
   expect(
     metricFindings(pageData({ repo: 'shop', reading, range: 'main..feature', version, parsers })),
@@ -1414,7 +1459,12 @@ test.for([
   const reading = readingOfA({
     base: { churn: 1, cyclomatic: 1, ...base },
     head: { churn: 1, cyclomatic: 1, ...head },
-    thresholds: { cyclomatic: 10, hotspot: { churn: 6, cyclomatic: 8 }, ...thresholds },
+    thresholds: {
+      cyclomatic: 10,
+      splitParts: 4,
+      hotspot: { churn: 6, cyclomatic: 8 },
+      ...thresholds,
+    },
   });
 
   expect(
@@ -1447,7 +1497,7 @@ test.for([
     const reading = readingOfA({
       base,
       head: { churn: 3, cyclomatic: 14, abc: 31.46 },
-      thresholds: { cyclomatic: 4, hotspot: { churn: 3, cyclomatic: 5 }, abc: 30 },
+      thresholds: { cyclomatic: 4, splitParts: 4, hotspot: { churn: 3, cyclomatic: 5 }, abc: 30 },
     });
 
     expect(
