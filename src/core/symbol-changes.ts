@@ -229,7 +229,9 @@ const gainsOf = (statement: SymbolStatement, after: FileSymbols): ReadonlyArray<
   const decisions =
     statement.change === 'added'
       ? (after.symbols.find(read => sameSymbol(read, statement))?.decisions ?? [])
-      : [];
+      : (statement.logic ?? [])
+          .filter(({ change }) => change === 'added')
+          .map(line => ({ kind: line.kind, text: decisionText(line) }));
   return decisions.map(decision => ({ key: decisionKey(decision), owner: statement }));
 };
 

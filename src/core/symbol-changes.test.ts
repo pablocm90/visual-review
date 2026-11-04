@@ -618,3 +618,50 @@ test('a decision a function lost and a new function of the same file gained move
     },
   ]);
 });
+
+test('a decision lost to a new function in another changed file moved there too', () => {
+  const files = symbolChangesOf([
+    {
+      node: 'a',
+      before: read('function charge(order) { if (!order) return; pay(); }'),
+      after: read('function charge(order) { pay(); }'),
+    },
+    {
+      node: 'b',
+      before: none,
+      after: read('function checked(order) { if (!order) return; }'),
+    },
+  ]);
+
+  expect(logicOfIn(files, 'charge')?.map(({ change, movedTo }) => ({ change, movedTo }))).toEqual([
+    { change: 'moved', movedTo: 'checked' },
+  ]);
+});
+
+const lostOf = (base: ReadonlyArray<string>, head: ReadonlyArray<string>, name = 'charge') =>
+  logicOfIn(
+    symbolChangesOf([{ node: 'a', before: read(...base), after: read(...head) }]),
+    name,
+  )?.map(({ change, movedTo }) => ({ change, movedTo }));
+
+test('a decision an edited function gained takes one lost elsewhere; what it already had does not', () => {
+  expect(
+    lostOf(
+      [
+        'function charge(a) { if (!a) return; pay(); }',
+        'function check(a) { if (a.late) warn(); }',
+      ],
+      [
+        'function charge(a) { pay(); }',
+        'function check(a) { if (a.late) warn(); if (!a) return; }',
+      ],
+    ),
+  ).toEqual([{ change: 'moved', movedTo: 'check' }]);
+
+  expect(
+    lostOf(
+      ['function charge(a) { if (!a) return; pay(); }', 'function check(a) { if (!a) return; }'],
+      ['function charge(a) { pay(); }', 'function check(a) { if (!a) return; }'],
+    ),
+  ).toEqual([{ change: 'removed', movedTo: undefined }]);
+});
