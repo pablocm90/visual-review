@@ -128,6 +128,50 @@ const testsUnder = (statements: ReadonlyArray<TestStatement>): ReadonlyArray<Mar
     statement.kind === 'test' ? [statement] : testsUnder(statement.children),
   );
 
+type TestHeading = Extract<TestStatement, { kind: 'heading' }>;
+
+export type AnchoredTest = MarkedTest & { readonly trail: string };
+
+export type AnchoredStatement =
+  | AnchoredTest
+  | (Omit<TestHeading, 'children'> & {
+      readonly trail: string;
+      readonly children: ReadonlyArray<AnchoredStatement>;
+    });
+
+type Anchoring = {
+  readonly anchored: ReadonlyArray<AnchoredStatement>;
+  readonly seen: ReadonlyArray<string>;
+};
+
+const anchoring = (
+  statements: ReadonlyArray<TestStatement>,
+  headings: ReadonlyArray<string>,
+  start: ReadonlyArray<string>,
+): Anchoring =>
+  statements.reduce<Anchoring>(
+    ({ anchored, seen }, statement) => {
+      const named = [...headings, statement.name];
+      const plain = named.join(' › ');
+      const entry = `${statement.kind} ${plain}`;
+      const before = seen.filter(other => other === entry).length;
+      const trail = before === 0 ? plain : `${plain}#${before + 1}`;
+      if (statement.kind === 'test') {
+        return { anchored: [...anchored, { ...statement, trail }], seen: [...seen, entry] };
+      }
+      const inner = anchoring(statement.children, named, [...seen, entry]);
+      return {
+        anchored: [...anchored, { ...statement, trail, children: inner.anchored }],
+        seen: inner.seen,
+      };
+    },
+    { anchored: [], seen: start },
+  );
+
+export const anchoredTests = (
+  statements: ReadonlyArray<TestStatement>,
+): ReadonlyArray<AnchoredStatement> => anchoring(statements, [], []).anchored;
+
 export const withMovedTests = (files: ReadonlyArray<TestFile>): ReadonlyArray<TestFile> => {
   const pathsWhere = (name: string, change: TestChange): ReadonlyArray<string> =>
     files.flatMap(file =>
