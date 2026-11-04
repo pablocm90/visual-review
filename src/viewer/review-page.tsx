@@ -827,13 +827,13 @@ const Inspector = ({ node, patches, width, onClose, picked, onPick, ...props }: 
   );
 };
 
-type OutsideFilesProps = {
+type OutsideFilesProps = LineComments & {
   readonly patches: ReadonlyArray<FilePatch>;
   readonly width: number;
   readonly onClose: () => void;
 };
 
-const OutsideFiles = ({ patches, width, onClose }: OutsideFilesProps) => (
+const OutsideFiles = ({ patches, width, onClose, ...commenting }: OutsideFilesProps) => (
   <aside className="note" aria-label="Inspector" style={{ width }}>
     <button type="button" className="close" aria-label="Close inspector" onClick={onClose}>
       ×
@@ -841,14 +841,7 @@ const OutsideFiles = ({ patches, width, onClose }: OutsideFilesProps) => (
     <h2>Changed files outside the graph</h2>
     <section className="changes" aria-label="Changes">
       {patches.map(patch => (
-        <Patch
-          key={patch.path}
-          {...patch}
-          open={false}
-          nodes={[]}
-          comments={{}}
-          onComment={undefined}
-        />
+        <Patch key={patch.path} {...patch} open={false} {...commenting} />
       ))}
     </section>
   </aside>
@@ -932,7 +925,14 @@ const SidePanel = ({
     return (
       <>
         {divider}
-        <OutsideFiles patches={patches} width={width} onClose={onCloseOutside} />
+        <OutsideFiles
+          patches={patches}
+          width={width}
+          onClose={onCloseOutside}
+          nodes={review.diff.nodes}
+          comments={comments}
+          onComment={onComment}
+        />
       </>
     );
   }

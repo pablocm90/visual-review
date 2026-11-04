@@ -5115,3 +5115,55 @@ test("a served page's diff line takes a comment on its side and number, quoting 
   rerender(<ReviewPage review={page} />);
   expect(toggles()).toStrictEqual([]);
 });
+
+const pageWithUndrawnFile = () =>
+  pageWith({
+    ...review,
+    undrawn: [
+      { path: 'README.md', patch: '--- a/README.md\n+++ b/README.md\n@@ -1 +1 @@\n-old\n+new' },
+    ],
+    findings: [
+      {
+        id: 'structure:undrawn',
+        dimension: 'structure',
+        level: 'info',
+        title: '1 changed file outside the graph',
+        detail: 'README.md',
+      },
+    ],
+  });
+
+const openUndrawnFiles = async (user: ReturnType<typeof userEvent.setup>) => {
+  await user.click(await screen.findByRole('button', { name: 'Show 1 finding' }));
+  await user.click(
+    screen.getByRole('button', { name: 'README.md: 1 changed file outside the graph' }),
+  );
+};
+
+test("a served page's line in a file outside the graph takes a comment, named by its path", async () => {
+  const user = userEvent.setup();
+  const sent = vi.fn(async () => {});
+  render(<ReviewPage review={pageWithUndrawnFile()} send={sent} />);
+
+  await openUndrawnFiles(user);
+  await user.click(within(inspector()).getByText('README.md'));
+  await user.click(
+    within(inspector()).getByRole('button', { name: 'Comment on README.md:1 "new"' }),
+  );
+  await write(user, within(inspector()).getByRole('textbox', { name: 'Your comment' }), 'Why new?');
+  await openReview(user);
+  await user.click(screen.getByRole('button', { name: 'Send to Claude' }));
+
+  expect(sent).toHaveBeenCalledExactlyOnceWith(
+    sentReview({
+      verdict: 'comment',
+      comments: [
+        {
+          anchor: { kind: 'line', id: 'README.md@head:1', text: 'new' },
+          kind: 'question',
+          text: 'Why new?',
+        },
+      ],
+    }),
+  );
+});
