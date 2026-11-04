@@ -6482,7 +6482,66 @@ test('a last comment is resolved from the last review or under its anchor, sent 
   );
 });
 
-test('only a comment that asks for something offers Resolve, and only on a served page', async () => {
+test('a last comment takes a reply on its anchor at the head, beside a resolve of the same anchor, and holds its draft under the anchor', async () => {
+  const user = userEvent.setup();
+  const sent = vi.fn(async () => {});
+  render(
+    <ReviewPage
+      review={pageWith({
+        ...review,
+        sinceReview: {
+          ...sinceReview,
+          comments: [
+            saidOnPart('rust/crate/old-name', { target: 'rust/crate/application' }),
+            saidOnPart('rust/crate/cli-adapter'),
+            saidOnPart('rust/crate/domain'),
+          ],
+        },
+      })}
+      send={sent}
+    />,
+  );
+  await screen.findByRole('group', { name: 'rust' });
+  const said = (name: RegExp) =>
+    within(within(lastReviewSection()).getByRole('listitem', { name }));
+
+  const reply = said(/^application/).getByRole('button', { name: 'Reply' });
+  expect(reply.getAttribute('aria-expanded')).toBe('false');
+  expect(said(/^application/).queryByRole('textbox', { name: 'Your comment' })).toBeNull();
+  await user.click(reply);
+  expect(reply.getAttribute('aria-expanded')).toBe('true');
+  await write(user, said(/^application/).getByRole('textbox', { name: 'Your comment' }), 'Still?');
+  await user.click(said(/^application/).getByRole('button', { name: 'Resolve' }));
+  await user.click(said(/^domain/).getByRole('button', { name: 'Resolve' }));
+
+  await user.click(screen.getByRole('button', { name: 'application: modified' }));
+  const underAnchor = within(within(inspector()).getByRole('note', { name: /^Last review/ }));
+  expect(underAnchor.getByRole('button', { name: 'Reply' }).getAttribute('aria-expanded')).toBe(
+    'true',
+  );
+  expect(underAnchor.getByRole<HTMLTextAreaElement>('textbox').value).toBe('Still?');
+
+  await openReview(user);
+  await user.click(screen.getByRole('button', { name: 'Send to Claude' }));
+
+  expect(sent).toHaveBeenCalledExactlyOnceWith(
+    sentReview({
+      resolved: [
+        { kind: 'part', id: 'rust/crate/old-name' },
+        { kind: 'part', id: 'rust/crate/domain' },
+      ],
+      comments: [
+        {
+          anchor: { kind: 'part', id: 'rust/crate/application' },
+          kind: 'question',
+          text: 'Still?',
+        },
+      ],
+    }),
+  );
+});
+
+test('a comment that asks for something offers Resolve, a comment and not a finding answer offers Reply, and only on a served page', async () => {
   const comments: ReadonlyArray<PreviousComment> = [
     saidOnPart('rust/crate/application'),
     { anchor: { kind: 'finding', id: 'metrics:fine' }, kind: 'fine' },
@@ -6491,20 +6550,22 @@ test('only a comment that asks for something offers Resolve, and only on a serve
   const page = pageWith({ ...review, sinceReview: { ...sinceReview, comments } });
   const { unmount } = render(<ReviewPage review={page} send={async () => {}} />);
   await screen.findByRole('group', { name: 'rust' });
-  const resolvable = () =>
+  const offering = (name: string) =>
     within(lastReviewSection())
-      .queryAllByRole('button', { name: 'Resolve' })
+      .queryAllByRole('button', { name })
       .map(button => button.closest('li')?.getAttribute('aria-label'));
 
-  expect(resolvable()).toEqual([
+  expect(offering('Resolve')).toEqual([
     'application: Question, As it was',
     'metrics:fix: Fix this, As it was',
   ]);
+  expect(offering('Reply')).toEqual(['application: Question, As it was']);
   unmount();
 
   render(<ReviewPage review={page} />);
   await screen.findByRole('group', { name: 'rust' });
-  expect(resolvable()).toEqual([]);
+  expect(offering('Resolve')).toEqual([]);
+  expect(offering('Reply')).toEqual([]);
 });
 
 test('a last comment on an edge shows on the arrow drawn in its place, closed box or merged, named by its edge, unless its edge is drawn apart', async () => {

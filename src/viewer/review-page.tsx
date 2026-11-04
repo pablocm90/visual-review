@@ -1802,9 +1802,11 @@ const Page = ({ review, notes, send }: ReviewPageProps) => {
   return (
     <RespondingOnPage
       value={
-        send && {
+        comment && {
           resolved,
-          onResolve: comment => setResolved(current => withResolveToggled(current, comment)),
+          onResolve: said => setResolved(current => withResolveToggled(current, said)),
+          comments,
+          onComment: comment,
         }
       }
     >

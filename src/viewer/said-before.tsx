@@ -5,7 +5,7 @@ import type { PreviousComment } from '../core/previous-comments.ts';
 import type { Comment } from '../core/review.ts';
 import type { SinceReview } from '../core/since-review.ts';
 import { type PlaceOfLine, placeOfLine } from './anchors.ts';
-import { COMMENT_KINDS } from './comment-field.tsx';
+import { COMMENT_KINDS, CommentOpener, type Comments } from './comment-field.tsx';
 import { ANSWER_KINDS } from './finding-display.tsx';
 import { Ref } from './ref.tsx';
 
@@ -25,6 +25,11 @@ export const saidLabel = (said: Marked): string => {
 };
 
 type Answers = NonNullable<ReviewNotes['answers']>;
+
+const anchorAtHead = ({ anchor, target }: PreviousComment): PreviousComment['anchor'] =>
+  (anchor.kind === 'part' || anchor.kind === 'edge') && target !== undefined
+    ? { kind: anchor.kind, id: target }
+    : anchor;
 
 const SaidOnThisPage = createContext<{
   readonly byAnchor: ReadonlyMap<string, PreviousComment>;
@@ -54,6 +59,8 @@ const ClaudesAnswer = ({ answer }: { readonly answer: Answers[string] }) => (
 type Responding = {
   readonly resolved: ReadonlyArray<PreviousComment>;
   readonly onResolve: (comment: PreviousComment) => void;
+  readonly comments: Comments;
+  readonly onComment: (comment: Comment) => void;
 };
 
 const RespondingToLastSaid = createContext<Responding | undefined>(undefined);
@@ -86,6 +93,20 @@ const Resolve = ({ comment }: { readonly comment: PreviousComment }) => {
   );
 };
 
+const Reply = ({ comment }: { readonly comment: PreviousComment }) => {
+  const responding = useContext(RespondingToLastSaid);
+  const anchor = anchorAtHead(comment);
+  if (responding === undefined || anchor.kind === 'finding') return null;
+  return (
+    <CommentOpener
+      word="Reply"
+      anchor={anchor}
+      comments={responding.comments}
+      onComment={responding.onComment}
+    />
+  );
+};
+
 export const Said = (said: Marked) => {
   const { kind, text, changedSince = [], anchor } = said.comment;
   const mark = markOf(said);
@@ -106,16 +127,12 @@ export const Said = (said: Marked) => {
       )}
       {answer !== undefined && <ClaudesAnswer answer={answer} />}
       <Resolve comment={said.comment} />
+      <Reply comment={said.comment} />
     </>
   );
 };
 
-const keyOf = ({ anchor, target }: PreviousComment) =>
-  anchorKey(
-    (anchor.kind === 'part' || anchor.kind === 'edge') && target !== undefined
-      ? { kind: anchor.kind, id: target }
-      : anchor,
-  );
+const keyOf = (comment: PreviousComment) => anchorKey(anchorAtHead(comment));
 
 type LastSaidOnPageProps = {
   readonly since: SinceReview | undefined;
