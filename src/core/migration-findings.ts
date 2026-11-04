@@ -3,10 +3,7 @@ import type { Finding } from './findings.ts';
 import type { MigrationRisk } from './migration.ts';
 import type { MigrationReading } from './read-migrations.ts';
 
-const riskFindings = (
-  file: string,
-  risks: ReadonlyArray<MigrationRisk>,
-): ReadonlyArray<Finding> =>
+const riskFindings = (file: string, risks: ReadonlyArray<MigrationRisk>): ReadonlyArray<Finding> =>
   risks.map(({ title, why, line }, index) => ({
     id: countedId(
       `schema:${file}:${title}`,
