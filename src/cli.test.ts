@@ -4,6 +4,7 @@ import {
   mkdirSync,
   readdirSync,
   readFileSync,
+  rmSync,
   symlinkSync,
   utimesSync,
   writeFileSync,
@@ -271,6 +272,51 @@ test.for([
     expect(readFileSync(join(elsewhere, '.gitignore'), 'utf8')).toBe('mine\n');
   },
 );
+
+test('a link standing where a review writes is replaced by the file, what it points at left as it was', async () => {
+  using workspace = cargoWorkspace();
+  const { repo } = workspace;
+  const elsewhere = join(repo, 'elsewhere');
+  writeFileSync(elsewhere, 'mine\n');
+  mkdirSync(join(repo, '.reviews'));
+  ['.gitignore', 'HEAD..worktree.html', 'HEAD..worktree.json'].forEach(file => {
+    symlinkSync(elsewhere, join(repo, '.reviews', file));
+  });
+  commit(repo, { 'elsewhere-too': '' });
+
+  const run = await runCli(repo);
+
+  expect(run.code).toBe(0);
+  expect(readFileSync(elsewhere, 'utf8')).toBe('mine\n');
+  expect(
+    reviewDataIn(readFileSync(join(repo, '.reviews', 'HEAD..worktree.html'), 'utf8')),
+  ).toMatchObject({ range: 'HEAD..worktree' });
+  expect(readFileSync(join(repo, '.reviews', '.gitignore'), 'utf8')).toBe('*\n');
+  expect(
+    JSON.parse(readFileSync(join(repo, '.reviews', 'HEAD..worktree.json'), 'utf8')),
+  ).toMatchObject({ range: 'HEAD..worktree' });
+}, 60_000);
+
+test('--notes replaces a link standing at the page with the noted page, what it points at left as it was', async () => {
+  using workspace = cargoWorkspace();
+  const { repo } = workspace;
+  await runCli(repo, 'main..main');
+  const page = join(repo, '.reviews', 'main..main.html');
+  const elsewhere = join(repo, 'elsewhere.html');
+  const written = readFileSync(page, 'utf8');
+  writeFileSync(elsewhere, written);
+  rmSync(page);
+  symlinkSync(elsewhere, page);
+  const notesFile = join(repo, 'notes.json');
+  const notes = { version: 1, summary: [{ text: 'Nothing moves.' }], tests: 'None.', notes: {} };
+  writeFileSync(notesFile, JSON.stringify(notes));
+
+  const run = await runCli(repo, 'main..main', '--notes', notesFile);
+
+  expect(run.code).toBe(0);
+  expect(readFileSync(elsewhere, 'utf8')).toBe(written);
+  expect(pageOf(readFileSync(page, 'utf8')).notes).toEqual(notes);
+}, 60_000);
 
 test('run from a folder the branch lays out as a bare repository, a review refuses it and its config runs nothing', async () => {
   using workspace = cargoWorkspace();

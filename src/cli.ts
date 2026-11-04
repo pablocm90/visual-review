@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 import { execFile } from 'node:child_process';
-import { lstat, mkdir, readFile, writeFile } from 'node:fs/promises';
+import { lstat, mkdir, readFile } from 'node:fs/promises';
 import { findPackageJSON } from 'node:module';
 import { basename, join } from 'node:path';
 import { parseArgs, promisify } from 'node:util';
@@ -22,6 +22,7 @@ import { pruneReviews } from './git/prune-reviews.ts';
 import { readPullRequest } from './git/pull-request.ts';
 import { snapshotWorkingTree } from './git/working-tree.ts';
 import { servePage } from './serve.ts';
+import { writeAnew } from './write-anew.ts';
 
 const isDirectoryOrMissing = (path: string): Promise<boolean> =>
   lstat(path).then(
@@ -103,10 +104,10 @@ const fillNotes = async ({ range, page, notesFile }: FillNotesOptions): Promise<
   const written = await readFile(page, 'utf8').catch(() => {
     throw new Error(`No page for ${range} yet: run visual-review without --notes first`);
   });
-  await writeFile(
-    page,
-    notedPageHtml({ page: written, notes, notesFile, version: await ownVersion() }),
-  );
+  await writeAnew({
+    path: page,
+    content: notedPageHtml({ page: written, notes, notesFile, version: await ownVersion() }),
+  });
 };
 
 const writeReview = async (args: ReadonlyArray<string>): Promise<string> => {
@@ -164,9 +165,9 @@ const writeReview = async (args: ReadonlyArray<string>): Promise<string> => {
     pullRequest,
   });
   await mkdir(directory, { recursive: true });
-  await writeFile(join(directory, '.gitignore'), '*\n');
-  await writeFile(data, JSON.stringify(review));
-  await writeFile(page, await viewerWith(review));
+  await writeAnew({ path: join(directory, '.gitignore'), content: '*\n' });
+  await writeAnew({ path: data, content: JSON.stringify(review) });
+  await writeAnew({ path: page, content: await viewerWith(review) });
   await pruneReviews({ repo, keep: 20 });
   return page;
 };

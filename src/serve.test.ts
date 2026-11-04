@@ -8,6 +8,7 @@ import {
   readFileSync,
   rmSync,
   statSync,
+  symlinkSync,
   writeFileSync,
 } from 'node:fs';
 import { request } from 'node:http';
@@ -307,6 +308,22 @@ test('a review sent from the served page is written beside it as <name>.review.j
   expect(existsSync(server.page.replace(/\.html$/, '.serve'))).toBe(false);
 });
 
+test('a link standing where the review goes is replaced by the review, what it points at left as it was', async () => {
+  using server = await servedPage();
+  const { origin, pathname } = new URL(server.url);
+  const reviewFile = server.page.replace(/\.html$/, '.review.json');
+  const elsewhere = `${server.page}.elsewhere`;
+  writeFileSync(elsewhere, 'mine\n');
+  symlinkSync(elsewhere, reviewFile);
+  const review = reviewWith([]);
+
+  await sendReview({ origin, token: pathname.slice(1), review });
+
+  await server.exited;
+  expect(readFileSync(elsewhere, 'utf8')).toBe('mine\n');
+  expect(JSON.parse(readFileSync(reviewFile, 'utf8'))).toEqual(review);
+});
+
 test('a review the page could not have sent is refused with 400 naming the problem, and serve keeps serving', async () => {
   using server = await servedPage();
   const { origin, pathname } = new URL(server.url);
@@ -334,7 +351,7 @@ test('a review serve cannot write is answered 500 naming why, and serve keeps se
   });
 
   expect(response.status).toBe(500);
-  expect(await response.text()).toMatch(/^EISDIR/);
+  expect(await response.text()).toMatch(/EISDIR/);
   expect(await statusFor({ url: server.url })).toBe(200);
 });
 

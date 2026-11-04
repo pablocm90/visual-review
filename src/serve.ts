@@ -1,7 +1,7 @@
 import { spawn } from 'node:child_process';
 import { randomBytes } from 'node:crypto';
 import { once } from 'node:events';
-import { readFile, rm, writeFile } from 'node:fs/promises';
+import { readFile, rm } from 'node:fs/promises';
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { basename, dirname, join } from 'node:path';
@@ -9,6 +9,7 @@ import { text } from 'node:stream/consumers';
 import { z } from 'zod';
 import { servedPageHtml } from './core/page.ts';
 import { parseReview } from './core/review.ts';
+import { writeAnew } from './write-anew.ts';
 
 const opener = process.platform === 'darwin' ? 'open' : 'xdg-open';
 
@@ -76,9 +77,10 @@ const tookReview = async ({
     refuse({ response, status: 400, error: review });
     return false;
   }
-  const unwritten = await writeFile(reviewFile, `${JSON.stringify(review, null, 2)}\n`).catch(
-    (error: Error) => error,
-  );
+  const unwritten = await writeAnew({
+    path: reviewFile,
+    content: `${JSON.stringify(review, null, 2)}\n`,
+  }).catch((error: Error) => error);
   if (unwritten instanceof Error) {
     refuse({ response, status: 500, error: unwritten });
     return false;
@@ -180,14 +182,14 @@ export const servePage = async ({
   server.listen(0, '127.0.0.1');
   await once(server, 'listening');
   const { port } = server.address() as AddressInfo;
-  await rm(lockFile, { force: true })
-    .then(() =>
-      writeFile(lockFile, JSON.stringify({ pid: process.pid, port, token }), { mode: 0o600 }),
-    )
-    .catch((error: Error) => {
-      server.close();
-      throw error;
-    });
+  await writeAnew({
+    path: lockFile,
+    content: JSON.stringify({ pid: process.pid, port, token }),
+    mode: 0o600,
+  }).catch((error: Error) => {
+    server.close();
+    throw error;
+  });
   const host = `127.0.0.1:${port}`;
   const reviewFile = beside(page, 'review.json');
   const sent = Promise.withResolvers<string>();
