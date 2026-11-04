@@ -4877,7 +4877,7 @@ test('a page that is not served has no Comment toggle on a symbol or a logic lin
 
 const testsTab = () => screen.getByRole('tabpanel', { name: 'Tests' });
 
-const pageWithTwinTests = () =>
+const pageWithSameNamedTests = () =>
   pageWith({
     range: review.range,
     diff: {
@@ -4917,7 +4917,7 @@ const pageWithTwinTests = () =>
 test("a served page's test row in the inspector takes a comment, a removed test too, its id the test's file and headings, so tests of one name keep apart; a page not served has no toggle", async () => {
   const user = userEvent.setup();
   const sent = vi.fn(async () => {});
-  const page = pageWithTwinTests();
+  const page = pageWithSameNamedTests();
   const { rerender } = render(<ReviewPage review={page} send={sent} />);
   const commentOn = async (name: string, rowName: string, text: string) => {
     const row = within(within(testsTab()).getByRole('listitem', { name: rowName }));
@@ -4962,7 +4962,7 @@ test("a served page's test row in the inspector takes a comment, a removed test 
 
 test("a served page's Tests screen takes a comment on a test row, one draft with the inspector's Tests tab; a page not served has no toggle", async () => {
   const user = userEvent.setup();
-  const page = pageWithTwinTests();
+  const page = pageWithSameNamedTests();
   const { rerender } = render(<ReviewPage review={page} send={vi.fn(async () => {})} />);
   const row = (place: HTMLElement, rowName: string) =>
     within(within(place).getByRole('listitem', { name: rowName }));
@@ -5003,6 +5003,85 @@ test("a served page's Tests screen takes a comment on a test row, one draft with
   await user.click(screen.getByRole('link', { name: 'Tests 3' }));
   rerender(<ReviewPage review={page} />);
   expect(within(testChanges()).queryAllByRole('button', { name: /^Comment on/ })).toStrictEqual([]);
+});
+
+test('two tests of one name under one heading keep a draft each, in the inspector and on the Tests screen, and the review sends each on its own id', async () => {
+  const user = userEvent.setup();
+  atHash('#structure');
+  const sent = vi.fn(async () => {});
+  const added = { kind: 'test' as const, name: 'adds tax', change: 'added' as const };
+  render(
+    <ReviewPage
+      review={pageWith({
+        range: review.range,
+        diff: {
+          nodes: [
+            { id: 'web', kind: 'stack', label: 'web', path: '', state: 'unchanged' },
+            topFile('total.ts', 'modified'),
+          ],
+          edges: [],
+        },
+        tests: [
+          {
+            path: 'total.test.ts',
+            stack: 'web',
+            statements: [{ kind: 'heading', name: 'Cart', children: [added, added] }],
+          },
+        ],
+      })}
+      send={sent}
+    />,
+  );
+  const twin = (place: HTMLElement, index: number) => {
+    const row = within(place).getAllByRole('listitem', { name: 'adds tax: added' })[index];
+    if (row === undefined) throw new Error(`no twin ${index}`);
+    return within(row);
+  };
+  const field = (place: HTMLElement, index: number) =>
+    twin(place, index).getByRole('textbox', { name: 'Your comment' });
+
+  await user.click(await screen.findByRole('button', { name: 'total.ts: modified' }));
+  await user.click(within(inspector()).getByRole('tab', { name: 'Tests 2' }));
+  await user.click(twin(testsTab(), 0).getByRole('button', { name: 'Comment on Cart › adds tax' }));
+  await write(user, field(testsTab(), 0), 'The first.');
+  await user.click(
+    twin(testsTab(), 1).getByRole('button', { name: 'Comment on Cart › adds tax#2' }),
+  );
+  expect(field(testsTab(), 1)).toHaveProperty('value', '');
+
+  await user.click(screen.getByRole('link', { name: 'Tests 2' }));
+  const testChanges = screen.getByRole('region', { name: 'Test changes' });
+  expect(field(testChanges, 0)).toHaveProperty('value', 'The first.');
+  await user.click(
+    twin(testChanges, 1).getByRole('button', { name: 'Comment on Cart › adds tax#2' }),
+  );
+  expect(field(testChanges, 1)).toHaveProperty('value', '');
+  await write(user, field(testChanges, 1), 'The second.');
+  expect(field(testChanges, 0)).toHaveProperty('value', 'The first.');
+
+  await openReview(user);
+  const drafts = within(screen.getByRole('list', { name: 'Drafts' }));
+  expect(drafts.getByRole('button', { name: 'adds tax' })).toBeTruthy();
+  expect(drafts.getByRole('button', { name: 'adds tax#2' })).toBeTruthy();
+  await user.click(screen.getByRole('button', { name: 'Send to Claude' }));
+
+  expect(sent).toHaveBeenCalledExactlyOnceWith(
+    sentReview({
+      verdict: 'comment',
+      comments: [
+        {
+          anchor: { kind: 'test', id: 'total.test.ts#Cart › adds tax' },
+          kind: 'question',
+          text: 'The first.',
+        },
+        {
+          anchor: { kind: 'test', id: 'total.test.ts#Cart › adds tax#2' },
+          kind: 'question',
+          text: 'The second.',
+        },
+      ],
+    }),
+  );
 });
 
 test("a test's draft in the tray opens the Tests tab of the file it's named after, though no box holds it, showing the draft", async () => {
