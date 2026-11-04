@@ -1,5 +1,6 @@
 import type { DiffedEdge, DiffedNode, GraphDiff } from './diff-graphs.ts';
 import { edgeId, endsOfId } from './graph.ts';
+import type { ChangedSince } from './since-review.ts';
 
 const sameEnds = (one: DiffedEdge, other: DiffedEdge): boolean =>
   one.from === other.from && one.to === other.to;
@@ -104,6 +105,18 @@ export const changesOnly = ({ diff, expanded, drawn }: ChangesOnlyOptions): Grap
   const ends = endsOf(diff.edges, edge => edge.state !== 'unchanged').map(visibleOf);
   return keeping(drawn, [...changed, ...ends]);
 };
+
+type SinceLastReviewOptions = ChangesOnlyOptions & {
+  readonly changed: ChangedSince;
+};
+
+export const sinceLastReview = ({
+  diff,
+  expanded,
+  drawn,
+  changed: { nodes, edges },
+}: SinceLastReviewOptions): GraphDiff =>
+  keeping(drawn, [...nodes, ...edges.flatMap(endsOfId)].map(visibleNodeOf({ diff, expanded })));
 
 type MergedDiffOptions = VisibleDiffOptions & {
   readonly noted: ReadonlySet<string>;

@@ -2,14 +2,14 @@ import { diffGraphs, type GraphDiff } from './diff-graphs.ts';
 import { edgeId, type Graph } from './graph.ts';
 import type { ReviewedHead, ReviewedReading } from './read-range.ts';
 
+export type ChangedSince = {
+  readonly nodes: ReadonlyArray<string>;
+  readonly edges: ReadonlyArray<string>;
+};
+
 export type SinceReview =
   | { readonly head: string; readonly gone: true }
-  | (ReviewedHead & {
-      readonly changed: {
-        readonly nodes: ReadonlyArray<string>;
-        readonly edges: ReadonlyArray<string>;
-      };
-    });
+  | (ReviewedHead & { readonly changed: ChangedSince });
 
 type SinceReviewOptions = {
   readonly reviewed: ReviewedReading;
