@@ -2,6 +2,19 @@
 
 What changed in each release of `@pablocm90/visual-review`, newest first. Versions follow [semver](https://semver.org); while it is 0.x, a minor version may change the exported types.
 
+## 0.21.2 — 2026-11-04
+
+### Fixed
+
+- A page, its data and a review replace what stands at their path, rather than writing through it. The plugin's skill does the same for the notes.
+- A changed file with a non-ASCII name, or one that reads as a pathspec, is listed and diffed by its name as it is.
+- `serve` takes a `.serve` lock as live only if it is a regular file of mode 600 holding a token of the shape it writes. Any other is replaced.
+- Pruning counts only regular `.html` files as pages, so a dangling link or a folder at such a name no longer stops it or takes a kept place. A folder at the name of an older page's data goes with the page.
+
+### Changed
+
+- A review needs a `.git` entry at the repo's root, and git 2.38 or newer is the supported floor. A repo reached only through `GIT_DIR` and `GIT_WORK_TREE`, with no `.git` there, is now refused.
+
 ## 0.21.1 — 2026-11-04
 
 ### Security
