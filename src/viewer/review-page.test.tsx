@@ -6289,3 +6289,38 @@ test('a last comment on an unchanged symbol brings up the Symbols tab and opens 
   expect(unchangedSymbols().hasAttribute('open')).toBe(true);
   expect(within(unchangedSymbols()).getByText('Why not?')).toBeTruthy();
 });
+
+test("a last comment on a test shows under it on the Tests screen and the inspector's Tests tab, with no send too", async () => {
+  const user = userEvent.setup();
+  render(
+    <ReviewPage
+      review={{
+        ...pageWithSameNamedTests(),
+        sinceReview: {
+          ...sinceReview,
+          comments: [
+            {
+              anchor: { kind: 'test', id: 'total.test.ts#drops totals' },
+              kind: 'question',
+              text: 'Why gone?',
+            },
+          ],
+        },
+      }}
+    />,
+  );
+  const said = (place: HTMLElement) =>
+    within(within(place).getByRole('listitem', { name: 'drops totals: removed' })).getByRole(
+      'note',
+      { name: 'Last review: Question, As it was' },
+    );
+
+  await user.click(await screen.findByRole('button', { name: 'total.ts: modified' }));
+  await user.click(within(inspector()).getByRole('tab', { name: 'Tests 3' }));
+  expect(within(said(testsTab())).getByText('Why gone?')).toBeTruthy();
+
+  await user.click(screen.getByRole('link', { name: 'Tests 3' }));
+  expect(
+    within(said(screen.getByRole('region', { name: 'Test changes' }))).getByText('Why gone?'),
+  ).toBeTruthy();
+});
