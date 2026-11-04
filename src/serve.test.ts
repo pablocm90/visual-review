@@ -571,6 +571,14 @@ test('a page removed since it was served is answered 500 naming why', async () =
   expect(await response.text()).toMatch(/^ENOENT/);
 });
 
+const lockOf = ({ lockFile }: { readonly lockFile: string }): unknown =>
+  JSON.parse(readFileSync(lockFile, 'utf8'));
+
+const tokenAndPortOf = (url: string) => {
+  const { port, pathname } = new URL(url);
+  return { port: Number(port), token: pathname.slice(1) };
+};
+
 const endedPid = async (): Promise<number> => {
   const ended = spawn(process.execPath, ['-e', '']);
   await once(ended, 'close');
@@ -591,6 +599,7 @@ test.for([
   using server = await servedPage({ lock: await written() });
 
   expect((await fetch(server.url)).status).toBe(200);
+  expect(lockOf(server)).toMatchObject(tokenAndPortOf(server.url));
 });
 
 test('a lock naming a server that refuses its token is replaced by a new server', async () => {
@@ -605,6 +614,7 @@ test('a lock naming a server that refuses its token is replaced by a new server'
 
   expect(new URL(server.url).port).not.toBe(port);
   expect((await fetch(server.url)).status).toBe(200);
+  expect(lockOf(server)).toMatchObject(tokenAndPortOf(server.url));
 });
 
 test('the lock holding the token is readable by its owner only', async () => {
