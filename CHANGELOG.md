@@ -11,6 +11,20 @@ What changed in each release of `@pablocm90/visual-review`, newest first. Versio
 - Parts you marked read last round and unchanged since start out ticked, unless this page's range already has marks stored.
 - The review data's `sinceReview` carries the last review's `verdict` on every variant, and its `body`, `comments` (each with `target` and `changedSince`) and `calledFine`; a compared one adds `changedWithoutComment` and `stillRead`.
 
+## 0.22.1 — 2026-11-04
+
+### Fixed
+
+- A page, its data and a review replace what stands at their path, rather than writing through it, and a rewritten file keeps the mode it had. The plugin's skill does the same for the notes.
+- `serve` keeps its lock in `~/.cache/visual-review/serve/`, keyed by the page's real path, and no longer reads a `.serve` file beside the page. A leftover one from an earlier version does nothing and can be deleted.
+- A changed file whose name isn't valid UTF-8 raises a finding that needs a look, saying its patch can't be shown. Before, it was only a name in the list of files outside the graph.
+- Pruning counts only regular `.html` files as pages, so a dangling link or a folder at such a name no longer stops it or takes a kept place. A folder at the name of an older page's data goes with the page.
+
+### Changed
+
+- `serve` needs a home that is an absolute path and that it can write its lock under, where before it needed only to write beside the page.
+- A review needs a `.git` entry at the repo's root, and git 2.38 or newer is the supported floor. A repo reached only through `GIT_DIR` and `GIT_WORK_TREE`, or a `core.worktree` elsewhere, with no `.git` at that root, is now refused.
+
 ## 0.22.0 — 2026-11-04
 
 ### Added

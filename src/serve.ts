@@ -1,14 +1,16 @@
 import { spawn } from 'node:child_process';
-import { randomBytes } from 'node:crypto';
+import { createHash, randomBytes } from 'node:crypto';
 import { once } from 'node:events';
-import { readFile, rm, writeFile } from 'node:fs/promises';
+import { mkdir, readFile, realpath, rm } from 'node:fs/promises';
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http';
 import type { AddressInfo } from 'node:net';
-import { basename, dirname, join } from 'node:path';
+import { homedir } from 'node:os';
+import { basename, dirname, isAbsolute, join } from 'node:path';
 import { text } from 'node:stream/consumers';
 import { z } from 'zod';
 import { servedPageHtml } from './core/page.ts';
 import { parseReview } from './core/review.ts';
+import { writeAnew } from './write-anew.ts';
 
 const opener = process.platform === 'darwin' ? 'open' : 'xdg-open';
 
@@ -24,6 +26,20 @@ type Lock = z.infer<typeof LockSchema>;
 
 const urlOf = ({ port, token }: { readonly port: number; readonly token: string }): string =>
   `http://127.0.0.1:${port}/${token}`;
+
+const lockFileOf = async (page: string): Promise<string> => {
+  const home = homedir();
+  if (!isAbsolute(home)) throw new Error(`serve's lock needs an absolute home, not '${home}'`);
+  return join(
+    home,
+    '.cache',
+    'visual-review',
+    'serve',
+    `${createHash('sha256')
+      .update(await realpath(page))
+      .digest('hex')}.json`,
+  );
+};
 
 const liveLock = async (lockFile: string): Promise<Lock | undefined> => {
   const lock = await readFile(lockFile, 'utf8')
@@ -76,9 +92,10 @@ const tookReview = async ({
     refuse({ response, status: 400, error: review });
     return false;
   }
-  const unwritten = await writeFile(reviewFile, `${JSON.stringify(review, null, 2)}\n`).catch(
-    (error: Error) => error,
-  );
+  const unwritten = await writeAnew({
+    path: reviewFile,
+    content: `${JSON.stringify(review, null, 2)}\n`,
+  }).catch((error: Error) => error);
   if (unwritten instanceof Error) {
     refuse({ response, status: 500, error: unwritten });
     return false;
@@ -165,7 +182,7 @@ export const servePage = async ({
   open,
 }: ServePageOptions): Promise<string | undefined> => {
   if (page === undefined) throw new Error('Usage: visual-review serve [--no-open] <page.html>');
-  const lockFile = beside(page, 'serve');
+  const lockFile = await lockFileOf(page);
   const lock = await liveLock(lockFile);
   if (lock !== undefined) {
     if (open) openInBrowser(urlOf(lock));
@@ -180,13 +197,17 @@ export const servePage = async ({
   server.listen(0, '127.0.0.1');
   await once(server, 'listening');
   const { port } = server.address() as AddressInfo;
-  await rm(lockFile, { force: true })
+  await mkdir(dirname(lockFile), { recursive: true })
     .then(() =>
-      writeFile(lockFile, JSON.stringify({ pid: process.pid, port, token }), { mode: 0o600 }),
+      writeAnew({
+        path: lockFile,
+        content: JSON.stringify({ pid: process.pid, port, token }),
+        mode: 0o600,
+      }),
     )
     .catch((error: Error) => {
       server.close();
-      throw error;
+      throw new Error(`Can't write serve's lock: ${error.message}`);
     });
   const host = `127.0.0.1:${port}`;
   const reviewFile = beside(page, 'review.json');

@@ -67,6 +67,7 @@ export const counted = (count: number, one: string, many: string) =>
 
 type RaisedOptions = {
   readonly skipped: ReadonlyArray<Skipped>;
+  readonly changedPaths: ReadonlyArray<string>;
   readonly undrawn: ReadonlyArray<FilePatch>;
   readonly dangling: ReadonlyArray<DanglingCall>;
   readonly dependencyChanges: ReadonlyArray<DependencyChanges>;
@@ -121,10 +122,27 @@ const splitFinding = ({ groups, leftOut }: SplitSuggestion): Finding => ({
   groups,
 });
 
+const namesNotUtf8Finding = (paths: ReadonlyArray<string>): ReadonlyArray<Finding> =>
+  paths.length === 0
+    ? []
+    : [
+        {
+          id: 'structure:name-not-utf8',
+          dimension: 'structure',
+          level: 'look',
+          title:
+            paths.length === 1
+              ? "1 changed file's name isn't UTF-8, so its patch can't be shown"
+              : `${paths.length} changed files' names aren't UTF-8, so their patches can't be shown`,
+          detail: paths.join(', '),
+        },
+      ];
+
 export const skippedFindingId = (skip: Skipped) => `structure:skipped:${skip.reader}`;
 
 export const raisedFindings = ({
   skipped,
+  changedPaths,
   undrawn,
   dangling,
   dependencyChanges,
@@ -154,6 +172,7 @@ export const raisedFindings = ({
           detail: undrawn.map(patch => patch.path).join(', '),
         },
       ]),
+  ...namesNotUtf8Finding(changedPaths.filter(path => path.includes('\uFFFD'))),
   ...[...Map.groupBy(dangling, call => call.from)].map(
     ([from, calls]): Finding => ({
       id: `routes:dangling:${from}`,

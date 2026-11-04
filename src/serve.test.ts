@@ -1,18 +1,23 @@
 import { type ChildProcess, execFile, spawn } from 'node:child_process';
+import { createHash } from 'node:crypto';
 import { once } from 'node:events';
 import {
   chmodSync,
   existsSync,
   mkdirSync,
   mkdtempSync,
+  readdirSync,
   readFileSync,
+  realpathSync,
   rmSync,
   statSync,
+  symlinkSync,
   writeFileSync,
 } from 'node:fs';
-import { request } from 'node:http';
+import { createServer, request } from 'node:http';
+import type { AddressInfo } from 'node:net';
 import { tmpdir } from 'node:os';
-import { dirname, join } from 'node:path';
+import { basename, dirname, join } from 'node:path';
 import { createInterface } from 'node:readline';
 import { text } from 'node:stream/consumers';
 import { setTimeout as delay } from 'node:timers/promises';
@@ -74,6 +79,18 @@ const writtenPage = ({
   };
 };
 
+const aToken = 'a'.repeat(32);
+
+const lockDirectoryIn = (home: string): string => join(home, '.cache', 'visual-review', 'serve');
+
+type LockFileInOptions = { readonly home: string; readonly page: string };
+
+const lockFileIn = ({ home, page }: LockFileInOptions): string =>
+  join(
+    lockDirectoryIn(home),
+    `${createHash('sha256').update(realpathSync(page)).digest('hex')}.json`,
+  );
+
 const stderrOf = (child: ChildProcess) => {
   const url = Promise.withResolvers<string>();
   const read = async (): Promise<string> => {
@@ -94,6 +111,7 @@ type ServedPageOptions = {
   readonly idleMs?: number;
   readonly firstPingMs?: number;
   readonly lock?: string;
+  readonly beside?: string;
   readonly flags?: ReadonlyArray<string>;
 } & WrittenPageOptions;
 
@@ -102,18 +120,27 @@ const servedPage = async ({
   idleMs,
   firstPingMs,
   lock,
+  beside,
   flags = [],
   ...page
 }: ServedPageOptions = {}) => {
   const bin = fakeOpeners(openers);
   const written = writtenPage(page);
-  if (lock !== undefined) writeFileSync(written.page.replace(/\.html$/, '.serve'), lock);
+  const home = mkdtempSync(join(tmpdir(), 'visual-review-home-'));
+  if (lock !== undefined) {
+    mkdirSync(lockDirectoryIn(home), { recursive: true });
+    writeFileSync(lockFileIn({ home, page: written.page }), lock, { mode: 0o600 });
+  }
+  if (beside !== undefined) {
+    writeFileSync(written.page.replace(/\.html$/, '.serve'), beside, { mode: 0o600 });
+  }
   const child = spawn(
     process.execPath,
     [join(import.meta.dirname, 'cli.ts'), 'serve', ...flags, written.page],
     {
       env: {
         ...process.env,
+        HOME: home,
         PATH: bin.path,
         ...(idleMs === undefined ? {} : { VISUAL_REVIEW_IDLE_MS: String(idleMs) }),
         ...(firstPingMs === undefined ? {} : { VISUAL_REVIEW_FIRST_PING_MS: String(firstPingMs) }),
@@ -130,21 +157,24 @@ const servedPage = async ({
     opened: bin.opened,
     openedAny: bin.openedAny,
     forgetOpened: bin.forget,
-    serveAgain: (againFlags: ReadonlyArray<string> = []) =>
+    serveAgain: (againFlags: ReadonlyArray<string> = [], page: string = written.page) =>
       promisify(execFile)(
         process.execPath,
-        [join(import.meta.dirname, 'cli.ts'), 'serve', ...againFlags, written.page],
+        [join(import.meta.dirname, 'cli.ts'), 'serve', ...againFlags, page],
         {
-          env: { ...process.env, PATH: bin.path },
+          env: { ...process.env, HOME: home, PATH: bin.path },
           timeout: 3000,
         },
       ),
+    locks: () => readdirSync(lockDirectoryIn(home)),
+    lockFile: lockFileIn({ home, page: written.page }),
     exited,
     signal: (signal: NodeJS.Signals) => child.kill(signal),
     [Symbol.dispose]: () => {
       child.kill();
       written[Symbol.dispose]();
       bin[Symbol.dispose]();
+      rmSync(home, { recursive: true, force: true });
     },
   };
 };
@@ -304,7 +334,23 @@ test('a review sent from the served page is written beside it as <name>.review.j
   const reviewFile = server.page.replace(/\.html$/, '.review.json');
   expect(await server.exited).toMatchObject({ code: 0, stdout: `${reviewFile}\n` });
   expect(JSON.parse(readFileSync(reviewFile, 'utf8'))).toEqual(review);
-  expect(existsSync(server.page.replace(/\.html$/, '.serve'))).toBe(false);
+  expect(server.locks()).toEqual([]);
+});
+
+test('a link standing where the review goes is replaced by the review, what it points at left as it was', async () => {
+  using server = await servedPage();
+  const { origin, pathname } = new URL(server.url);
+  const reviewFile = server.page.replace(/\.html$/, '.review.json');
+  const elsewhere = `${server.page}.elsewhere`;
+  writeFileSync(elsewhere, 'mine\n');
+  symlinkSync(elsewhere, reviewFile);
+  const review = reviewWith([]);
+
+  await sendReview({ origin, token: pathname.slice(1), review });
+
+  await server.exited;
+  expect(readFileSync(elsewhere, 'utf8')).toBe('mine\n');
+  expect(JSON.parse(readFileSync(reviewFile, 'utf8'))).toEqual(review);
 });
 
 test('a review the page could not have sent is refused with 400 naming the problem, and serve keeps serving', async () => {
@@ -334,7 +380,7 @@ test('a review serve cannot write is answered 500 naming why, and serve keeps se
   });
 
   expect(response.status).toBe(500);
-  expect(await response.text()).toMatch(/^EISDIR/);
+  expect(await response.text()).toMatch(/EISDIR/);
   expect(await statusFor({ url: server.url })).toBe(200);
 });
 
@@ -351,22 +397,50 @@ test('sending a review the served page would refuse rejects with its answer, so 
   ).rejects.toThrow('The review was not sent: 403 Forbidden');
 });
 
-test('serve that cannot write its lock exits non-zero at once, saying why', async () => {
+test.for([
+  { home: 'an empty', value: '' },
+  { home: 'a relative', value: 'rel' },
+])('serve refuses $home home, writing no lock in the folder it runs from', async ({ value }) => {
   using bin = fakeOpeners(['xdg-open', 'open']);
   using written = writtenPage({});
-  chmodSync(dirname(written.page), 0o555);
-  using _writableAgain = { [Symbol.dispose]: () => chmodSync(dirname(written.page), 0o755) };
+  const cwd = dirname(written.page);
 
   const serving = promisify(execFile)(
     process.execPath,
     [join(import.meta.dirname, 'cli.ts'), 'serve', written.page],
-    { env: { ...process.env, PATH: bin.path }, timeout: 3000 },
+    { cwd, env: { ...process.env, HOME: value, PATH: bin.path }, timeout: 3000 },
   );
 
   await expect(serving).rejects.toMatchObject({
     code: 1,
     killed: false,
-    stderr: expect.stringContaining('EACCES'),
+    stderr: expect.stringContaining("serve's lock"),
+  });
+  expect(readdirSync(cwd)).toEqual([basename(written.page)]);
+});
+
+test('serve that cannot write its lock exits non-zero at once, saying why', async () => {
+  using bin = fakeOpeners(['xdg-open', 'open']);
+  using written = writtenPage({});
+  const home = mkdtempSync(join(tmpdir(), 'visual-review-home-'));
+  chmodSync(home, 0o555);
+  using _removed = {
+    [Symbol.dispose]: () => {
+      chmodSync(home, 0o755);
+      rmSync(home, { recursive: true, force: true });
+    },
+  };
+
+  const serving = promisify(execFile)(
+    process.execPath,
+    [join(import.meta.dirname, 'cli.ts'), 'serve', written.page],
+    { env: { ...process.env, HOME: home, PATH: bin.path }, timeout: 3000 },
+  );
+
+  await expect(serving).rejects.toMatchObject({
+    code: 1,
+    killed: false,
+    stderr: expect.stringMatching(/serve's lock.*EACCES/),
   });
 });
 
@@ -405,7 +479,7 @@ test('serve whose page never pings exits non-zero at the end of its first-ping w
     stdout: '',
     stderr: expect.stringContaining('No review sent: the page was not open in a tab'),
   });
-  expect(existsSync(server.page.replace(/\.html$/, '.serve'))).toBe(false);
+  expect(server.locks()).toEqual([]);
 });
 
 test('serve waits past its idle time for the page to first ping', async () => {
@@ -428,7 +502,7 @@ test.for(['SIGINT', 'SIGTERM'] as const)(
       stdout: '',
       stderr: expect.stringContaining('No review sent'),
     });
-    expect(existsSync(server.page.replace(/\.html$/, '.serve'))).toBe(false);
+    expect(server.locks()).toEqual([]);
   },
 );
 
@@ -519,6 +593,14 @@ test('a page removed since it was served is answered 500 naming why', async () =
   expect(await response.text()).toMatch(/^ENOENT/);
 });
 
+const lockOf = ({ lockFile }: { readonly lockFile: string }): unknown =>
+  JSON.parse(readFileSync(lockFile, 'utf8'));
+
+const tokenAndPortOf = (url: string) => {
+  const { port, pathname } = new URL(url);
+  return { port: Number(port), token: pathname.slice(1) };
+};
+
 const endedPid = async (): Promise<number> => {
   const ended = spawn(process.execPath, ['-e', '']);
   await once(ended, 'close');
@@ -528,17 +610,18 @@ const endedPid = async (): Promise<number> => {
 test.for([
   {
     lock: 'left by a serve that has ended',
-    written: async () => JSON.stringify({ pid: await endedPid(), port: 9, token: 'ended' }),
+    written: async () => JSON.stringify({ pid: await endedPid(), port: 9, token: aToken }),
   },
   { lock: 'serve could not have written', written: async () => '{"pid": 1, "port"' },
   {
     lock: 'whose pid another process has taken',
-    written: async () => JSON.stringify({ pid: process.pid, port: 9, token: 'ended' }),
+    written: async () => JSON.stringify({ pid: process.pid, port: 9, token: aToken }),
   },
 ])('a lock $lock is replaced by a new server', async ({ written }) => {
   using server = await servedPage({ lock: await written() });
 
   expect((await fetch(server.url)).status).toBe(200);
+  expect(lockOf(server)).toMatchObject(tokenAndPortOf(server.url));
 });
 
 test('a lock naming a server that refuses its token is replaced by a new server', async () => {
@@ -548,20 +631,65 @@ test('a lock naming a server that refuses its token is replaced by a new server'
   using server = await servedPage({
     directory: dirname(other.page),
     range: 'main..other',
-    lock: JSON.stringify({ pid: process.pid, port: Number(port), token: 'not-its-token' }),
+    lock: JSON.stringify({ pid: process.pid, port: Number(port), token: aToken }),
   });
 
   expect(new URL(server.url).port).not.toBe(port);
   expect((await fetch(server.url)).status).toBe(200);
+  expect(lockOf(server)).toMatchObject(tokenAndPortOf(server.url));
 });
 
-test('the lock holding the token is readable by its owner only, even when it replaces one anyone could read', async () => {
-  using server = await servedPage({
-    lock: JSON.stringify({ pid: await endedPid(), port: 9, token: 'ended' }),
-  });
-  const lockFile = server.page.replace(/\.html$/, '.serve');
+test('the lock holding the token is readable by its owner only', async () => {
+  using server = await servedPage();
 
-  expect(statSync(lockFile).mode & 0o777).toBe(0o600);
+  expect(statSync(server.lockFile).mode & 0o777).toBe(0o600);
+});
+
+const serverAnsweringAll = async () => {
+  const requests: Array<string | undefined> = [];
+  const server = createServer((incoming, response) => {
+    requests.push(incoming.url);
+    response.writeHead(204).end();
+  });
+  server.listen(0, '127.0.0.1');
+  await once(server, 'listening');
+  const { port } = server.address() as AddressInfo;
+  return { port, requests, [Symbol.dispose]: () => server.close() };
+};
+
+test('a lock in the folder of locks naming a live server is taken for it, so no other starts', async () => {
+  using named = await serverAnsweringAll();
+  using server = await servedPage({
+    flags: ['--no-open'],
+    lock: JSON.stringify({ pid: process.pid, port: named.port, token: aToken }),
+  });
+
+  expect(server.url).toBe(`http://127.0.0.1:${named.port}/${aToken}`);
+  expect(named.requests).toEqual([`/${aToken}/alive`]);
+  expect(await server.exited).toMatchObject({ code: 0, stdout: '' });
+});
+
+test('a lock file beside the page is not looked at: the server it names gets no request and a new one starts', async () => {
+  using named = await serverAnsweringAll();
+  using server = await servedPage({
+    beside: JSON.stringify({ pid: process.pid, port: named.port, token: aToken }),
+  });
+
+  expect(named.requests).toEqual([]);
+  expect((await fetch(server.url)).status).toBe(200);
+});
+
+test('a page served again through a link to its folder is the page already served', async () => {
+  using server = await servedPage();
+  await vi.waitFor(() => expect(server.opened()).toBe(server.url));
+  server.forgetOpened();
+  const linked = `${dirname(server.page)}-linked`;
+  symlinkSync(dirname(server.page), linked);
+  using _removed = { [Symbol.dispose]: () => rmSync(linked, { force: true }) };
+
+  await server.serveAgain([], join(linked, basename(server.page)));
+
+  await vi.waitFor(() => expect(server.opened()).toBe(server.url));
 });
 
 test('another page in the same folder is served by a server of its own, and each writes its own review', async () => {

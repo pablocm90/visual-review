@@ -68,6 +68,7 @@ export const pageData = ({
   const order = readingOrder(diff);
   const findings = raisedFindings({
     skipped: reading.skipped,
+    changedPaths: reading.changedPaths,
     undrawn,
     dangling: reading.danglingCalls,
     dependencyChanges: reading.dependencyChanges,

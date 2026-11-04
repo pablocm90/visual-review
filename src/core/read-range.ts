@@ -313,6 +313,8 @@ export const resolve = (repo: string, revision: string): Promise<string> =>
     throw new Error(`Unknown revision: ${revision}`);
   });
 
+const NAME_STATUS_ENTRY = /[RC]\d*\0([^\0]+)\0([^\0]+)\0|[A-Z]\0([^\0]+)\0/gy;
+
 const changesBetween = async (
   repo: string,
   from: string,
@@ -320,9 +322,9 @@ const changesBetween = async (
 ): Promise<ReadonlyArray<ReadonlyArray<string>>> =>
   [
     ...(await git(repo, 'diff', '--find-renames', '--name-status', '-z', from, to)).matchAll(
-      /(?:[RC]\d*\0([^\0]+)\0([^\0]+)|[A-Z]\0([^\0]+))\0/g,
+      NAME_STATUS_ENTRY,
     ),
-  ].map(([, ...paths]) => paths.filter(path => path !== undefined));
+  ].map(([, ...names]) => names.filter(name => name !== undefined));
 
 const commitOf = (record: string): Commit => {
   const [header = '', ...files] = record.replace('\0\n', '\0').split('\0');
