@@ -302,15 +302,18 @@ export const resolve = (repo: string, revision: string): Promise<string> =>
     throw new Error(`Unknown revision: ${revision}`);
   });
 
+const NAME_STATUS_ENTRY = /R\d+\0([^\0]+)\0([^\0]+)\0|[A-Z]\0([^\0]+)\0/gy;
+
 const changesBetween = async (
   repo: string,
   from: string,
   to: string,
 ): Promise<ReadonlyArray<ReadonlyArray<string>>> =>
-  (await git(repo, 'diff', '--find-renames', '--name-status', from, to))
-    .split('\n')
-    .filter(line => line !== '')
-    .map(line => line.split('\t').slice(1));
+  [
+    ...(await git(repo, 'diff', '--find-renames', '--name-status', '-z', from, to)).matchAll(
+      NAME_STATUS_ENTRY,
+    ),
+  ].map(([, ...names]) => names.filter(name => name !== undefined));
 
 const pathsIn = (changes: ReadonlyArray<ReadonlyArray<string>>) => ({
   changedPaths: changes.flat(),
@@ -519,7 +522,16 @@ export const readRange = async ({
       patches: await Promise.all(
         changes.map(async paths => ({
           path: paths.at(-1) ?? '',
-          patch: await git(repo, 'diff', '--find-renames', base, toCommit, '--', ...paths),
+          patch: await git(
+            repo,
+            '--literal-pathspecs',
+            'diff',
+            '--find-renames',
+            base,
+            toCommit,
+            '--',
+            ...paths,
+          ),
         })),
       ),
       ...(reviewed === undefined
