@@ -3,10 +3,12 @@ import type { GraphDiff } from './diff-graphs.ts';
 type SplitOptions = {
   readonly parts: ReadonlyArray<string>;
   readonly edges: GraphDiff['edges'];
+  readonly splitParts: number;
 };
 
 export type SplitSuggestion = {
   readonly groups: ReadonlyArray<ReadonlyArray<string>>;
+  readonly leftOut: number;
 };
 
 type Neighbours = ReadonlyMap<string, ReadonlyArray<string>>;
@@ -35,7 +37,11 @@ const spread = (
   return next.length === 0 ? seen : spread(new Set([...seen, ...next]), next, neighbours);
 };
 
-export const splitSuggestion = ({ parts, edges }: SplitOptions): SplitSuggestion => {
+export const splitSuggestion = ({
+  parts,
+  edges,
+  splitParts,
+}: SplitOptions): SplitSuggestion | undefined => {
   const isPart = new Set(parts);
   const neighbours = neighboursOf(
     edges.filter(({ from, to }) => isPart.has(from) && isPart.has(to)),
@@ -54,5 +60,7 @@ export const splitSuggestion = ({ parts, edges }: SplitOptions): SplitSuggestion
     },
     { seen: new Set(), groups: [] },
   );
-  return { groups };
+  const counted = groups.filter(group => group.length >= splitParts);
+  if (counted.length < 2) return undefined;
+  return { groups: counted, leftOut: parts.length - counted.flat().length };
 };
