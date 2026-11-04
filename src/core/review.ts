@@ -138,7 +138,18 @@ export const parseReview = (text: string): Review => {
   return review.data;
 };
 
-const PastReviewSchema = z.object({ verdict: VerdictSchema, reviewed: ReviewedSchema.loose() });
+const SaidSchema = z.union([CommentSchema, AnswerSchema]);
+
+const PastReviewSchema = z.object({
+  verdict: VerdictSchema,
+  reviewed: ReviewedSchema.loose(),
+  body: z.string().optional().catch(undefined),
+  read: z.array(z.string()).readonly().catch([]),
+  comments: z
+    .array(z.unknown())
+    .catch([])
+    .transform(comments => comments.flatMap(comment => SaidSchema.safeParse(comment).data ?? [])),
+});
 
 export const pastReviewOf = (text: string): z.infer<typeof PastReviewSchema> | undefined => {
   try {
