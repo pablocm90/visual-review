@@ -58,3 +58,58 @@ test.for([
     },
   ]);
 });
+
+const transitive = (name: string, change: PackageChange['change'] = 'added') =>
+  packageChange({ name, change, direct: false });
+
+test('transitive packages are one finding for information per lockfile, counting each kind', () => {
+  const [finding] = dependencyFindings(
+    inLockfile([
+      transitive('a'),
+      transitive('b', 'removed'),
+      transitive('c', 'major'),
+      transitive('d'),
+    ]),
+  );
+
+  expect(finding).toStrictEqual({
+    id: 'dependencies:transitive:web/pnpm-lock.yaml',
+    dimension: 'dependencies',
+    level: 'info',
+    file: 'web/pnpm-lock.yaml',
+    title:
+      '4 transitive packages changed in web/pnpm-lock.yaml: 2 added, 1 removed, 1 major-bumped',
+    detail: 'a, b, c, d',
+  });
+});
+
+test('a roll-up says one package in the singular, and leaves out kinds with none', () => {
+  const [finding] = dependencyFindings(inLockfile([transitive('a', 'removed')]));
+
+  expect(finding?.title).toBe('1 transitive package changed in web/pnpm-lock.yaml: 1 removed');
+});
+
+test.for([
+  { count: 20, detailEnd: 'p19' },
+  { count: 21, detailEnd: 'p19, and 1 more' },
+])('a roll-up of $count names the first 20: …$detailEnd', ({ count, detailEnd }) => {
+  const packages = Array.from({ length: count }, (_, index) => transitive(`p${index}`));
+
+  const [finding] = dependencyFindings(inLockfile(packages));
+
+  expect(finding?.detail?.startsWith('p0, p1, ')).toBe(true);
+  expect(finding?.detail?.endsWith(`, ${detailEnd}`)).toBe(true);
+});
+
+test("direct packages come before their lockfile's roll-up, and each lockfile rolls up apart", () => {
+  const findings = dependencyFindings([
+    ...inLockfile([transitive('a'), packageChange({ name: 'b' })], 'a/yarn.lock'),
+    ...inLockfile([transitive('c')], 'b/yarn.lock'),
+  ]);
+
+  expect(findings.map(({ id }) => id)).toStrictEqual([
+    'dependencies:a/yarn.lock:b',
+    'dependencies:transitive:a/yarn.lock',
+    'dependencies:transitive:b/yarn.lock',
+  ]);
+});
