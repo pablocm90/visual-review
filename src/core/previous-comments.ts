@@ -35,13 +35,17 @@ export const isInside = (tree: Compared['tree'], id: string, holder: string): bo
 };
 
 const commitsOn = (compared: Compared, parts: ReadonlyArray<string>): ReadonlyArray<Commit> => {
-  const { nodes: changed, dropped } = compared.changed;
-  const inside = [...changed, ...dropped.nodes].filter(id =>
-    parts.some(part => isInside(compared.tree, id, part)),
-  );
-  const nodes = compared.tree.filter(({ id }) => parts.includes(id) || inside.includes(id));
+  const { tree, changed } = compared;
+  const holdsNothing = (id: string) => !tree.some(({ parent }) => parent === id);
+  const own = tree.filter(({ id }) => parts.includes(id) && holdsNothing(id));
+  const inside = tree.filter(({ id }) => parts.some(part => isInside(tree, id, part)));
+  const filesSince = [...changed.files, ...changed.dropped.files];
   return compared.commits.filter(({ files }) =>
-    files.some(file => nodes.some(node => isAtOrUnder(file, node))),
+    files.some(
+      file =>
+        own.some(node => isAtOrUnder(file, node)) ||
+        (filesSince.includes(file) && inside.some(node => isAtOrUnder(file, node))),
+    ),
   );
 };
 
