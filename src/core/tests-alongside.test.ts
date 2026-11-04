@@ -1,7 +1,7 @@
 import { expect, test } from 'vitest';
 import type { GraphNode } from './graph.ts';
 import type { TestFile } from './test-changes.ts';
-import { testsAlongside } from './tests-alongside.ts';
+import { nodeOfTests, testsAlongside } from './tests-alongside.ts';
 
 const node = (id: string, kind: GraphNode['kind'], path: string, parent?: string): GraphNode => ({
   id,
@@ -85,4 +85,24 @@ test.for([
   const found = testsAlongside({ nodes, node: at, tests: [testFile(path, stack)] });
 
   expect(found.map(file => file.path)).toEqual(alongside ? [path] : []);
+});
+
+test.for([
+  { path: 'test/models/user_test.rb', stack: 'shop', at: 'shop/class/User' },
+  { path: 'web/src/refunds/refund.test.ts', stack: 'web', at: 'web/file/refunds/refund.ts' },
+  { path: 'web/src/refunds/rates.test.ts', stack: 'web', at: 'web/module/refunds' },
+  { path: 'web/src/orders/refund.test.ts', stack: 'web', at: 'web/module/orders' },
+  { path: 'test/models/order_test.rb', stack: 'shop', at: 'shop' },
+  { path: 'test/models/refund_test.rb', stack: 'shop', at: 'shop' },
+  { path: 'tools/check.test.ts', stack: 'skipped', at: undefined },
+])('$path, of stack $stack, is on $at, whose Tests tab shows it', ({ path, stack, at }) => {
+  const file = testFile(path, stack);
+
+  const found = nodeOfTests({ nodes, file });
+
+  expect(found).toBe(at);
+  const onIt = nodes.find(each => each.id === found);
+  expect(
+    onIt === undefined ? [file] : testsAlongside({ nodes, node: onIt, tests: [file] }),
+  ).toEqual([file]);
 });

@@ -60,6 +60,14 @@ const diffItems = <T, KeptState extends string>({
 export const isAtOrUnder = (path: string, node: Pick<GraphNode, 'path'>): boolean =>
   path === node.path || path.startsWith(`${node.path}/`);
 
+export const deepestHolding = <Node extends Pick<GraphNode, 'path'>>(
+  path: string,
+  nodes: ReadonlyArray<Node>,
+): Node | undefined =>
+  nodes
+    .filter(node => isAtOrUnder(path, node))
+    .toSorted((one, other) => other.path.length - one.path.length)[0];
+
 type PairNodesOptions = {
   readonly before: Graph;
   readonly after: Graph;
