@@ -1,6 +1,6 @@
 import { expect, test } from 'vitest';
 import { readRange } from '../test-support/read-range.ts';
-import { commit, gitRepo } from '../test-support/repos.ts';
+import { commit, git, gitRepo } from '../test-support/repos.ts';
 
 const cargoLock = (serde: string) => `version = 4
 
@@ -62,5 +62,23 @@ test('a lockfile with some or all of its lines ending in \\r\\n reads as it does
       ecosystem: 'bundler',
       packages: [{ name: 'rack', change: 'major', direct: true, from: ['2.2.0'], to: ['3.1.0'] }],
     },
+  ]);
+});
+
+test('a lockfile added whole reads as all its packages added, one removed whole as all removed', async () => {
+  using workspace = gitRepo({ 'README.md': '' });
+  const { repo, root } = workspace;
+  const added = commit(repo, { 'Cargo.lock': cargoLock('1.0.219') });
+  git(repo, 'rm', '--quiet', 'Cargo.lock');
+  const removed = commit(repo, { 'README.md': 'no lockfile' });
+
+  const addedRange = await readRange({ repo, from: root, to: added });
+  const removedRange = await readRange({ repo, from: added, to: removed });
+
+  expect(addedRange.dependencyChanges[0]?.packages).toStrictEqual([
+    { name: 'serde', change: 'added', direct: true, from: [], to: ['1.0.219'] },
+  ]);
+  expect(removedRange.dependencyChanges[0]?.packages).toStrictEqual([
+    { name: 'serde', change: 'removed', direct: true, from: ['1.0.219'], to: [] },
   ]);
 });

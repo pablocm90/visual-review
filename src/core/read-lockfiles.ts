@@ -1,13 +1,15 @@
 import { basename } from 'node:path';
 import { type PackageChange, packageChanges } from './dependency-changes.ts';
 import { git } from './git.ts';
-import type { Lockfile } from './lockfile.ts';
+import type { LockedPackages, Lockfile } from './lockfile.ts';
 
 export type DependencyChanges = {
   readonly lockfile: string;
   readonly ecosystem: string;
   readonly packages: ReadonlyArray<PackageChange>;
 };
+
+const ABSENT: LockedPackages = { versions: new Map(), direct: new Set() };
 
 type ReadLockfilesOptions = {
   readonly repo: string;
@@ -29,6 +31,7 @@ export const readLockfiles = ({
       const lockfile = lockfiles.find(({ file }) => file === basename(path));
       if (lockfile === undefined) return [];
       const readAt = async (revision: string) => {
+        if ((await git(repo, 'ls-tree', '--name-only', revision, '--', path)) === '') return ABSENT;
         const text = await git(repo, 'show', `${revision}:${path}`);
         return lockfile.read({ text: text.replaceAll('\r\n', '\n'), manifests: [] });
       };
