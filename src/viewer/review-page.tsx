@@ -1292,8 +1292,13 @@ export const ReviewPage = ({ review, notes, send }: ReviewPageProps) => {
   useEffect(() => {
     if (!inspecting) setInspectorTab('note');
   }, [inspecting]);
+  const goToOnNote = (id: string) => {
+    setInspectorTab('note');
+    goToOnStructure(id);
+  };
   const goToDraft = (id: string, { kind }: Comment['anchor']) => {
-    setInspectorTab(kind === 'symbol' || kind === 'decision' ? 'symbols' : 'note');
+    if (kind !== 'symbol' && kind !== 'decision') return goToOnNote(id);
+    setInspectorTab('symbols');
     goToOnStructure(id);
   };
   const [read, setRead] = useState(() => storedReadMarks(review.range));
@@ -1492,7 +1497,7 @@ export const ReviewPage = ({ review, notes, send }: ReviewPageProps) => {
           answers={answers}
           findings={findings}
           nodes={review.diff.nodes}
-          onGoTo={goToOnStructure}
+          onGoTo={goToOnNote}
           onGoToDraft={goToDraft}
           send={send}
         />

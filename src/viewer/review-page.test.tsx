@@ -4721,6 +4721,44 @@ test('the inspector goes back to Note when it closes or Structure is left, and h
   expect(onTab()).toBe('Note');
 });
 
+test('going to a finding answer in the open tray opens Note, where the answer is, whatever tab was up', async () => {
+  const user = userEvent.setup();
+  render(
+    <ReviewPage
+      review={pageWith({
+        range: review.range,
+        diff: {
+          nodes: [
+            { id: 'web', kind: 'stack', label: 'web', path: '', state: 'unchanged' },
+            topFile('tax.ts', 'modified'),
+          ],
+          edges: [],
+        },
+        findings: [findingOn('web/file/tax.ts')],
+        symbols: [
+          symbolsOf('web/file/tax.ts', [
+            {
+              name: 'tax',
+              kind: 'function',
+              exported: { base: false, head: false },
+              change: 'edited',
+            },
+          ]),
+        ],
+      })}
+      send={async () => {}}
+    />,
+  );
+
+  await user.click(await screen.findByRole('button', { name: 'tax.ts: modified' }));
+  await user.click(within(noteTab()).getByRole('button', { name: 'Fix this' }));
+  await user.click(within(inspector()).getByRole('tab', { name: /^Symbols/ }));
+  await openReview(user);
+  await user.click(screen.getByRole('button', { name: 'lines 900, over 800' }));
+
+  expect(within(inspector()).getByRole('tab', { selected: true }).textContent).toBe('Note');
+});
+
 test('the unchanged symbols open by themselves when one holds a draft', async () => {
   const user = userEvent.setup();
   render(
