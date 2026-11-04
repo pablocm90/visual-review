@@ -457,6 +457,8 @@ const Scoped = ({ scopes: [scope, ...inner], text }: Piece) =>
 
 type Landing = Omit<LineAt, 'node'>;
 
+type LandingIn = Landing & { readonly path: string | undefined };
+
 const scrollInPanel = (element: HTMLElement, block: ScrollLogicalPosition) => {
   const { scrollX, scrollY } = window;
   element.scrollIntoView({ block });
@@ -586,6 +588,8 @@ const InspectorHead = ({
 type InspectorProps = {
   readonly picked: InspectorTab;
   readonly onPick: (tab: InspectorTab) => void;
+  readonly landing: LandingIn | undefined;
+  readonly onLand: (landing: LandingIn) => void;
   readonly nodes: ReadonlyArray<DiffNode>;
   readonly node: DiffNode | undefined;
   readonly metrics: Readonly<Record<string, NodeMetrics>>;
@@ -616,6 +620,15 @@ const DRAFT_TABS: Partial<Record<Comment['anchor']['kind'], InspectorTab>> = {
 };
 
 const tabOfDraft = ({ kind }: Comment['anchor']): InspectorTab => DRAFT_TABS[kind] ?? 'note';
+
+const useLanding = (selected: string | undefined) => {
+  const [landed, setLanded] = useState<LandingIn & { readonly on: string | undefined }>();
+  if (landed !== undefined && landed.on !== selected) setLanded(undefined);
+  return [
+    landed,
+    (on: string | undefined, landing: LandingIn) => setLanded({ ...landing, on }),
+  ] as const;
+};
 
 const useInspectorTab = (screen: string, selected: string | undefined) => {
   const [inspectorTab, setInspectorTab] = useState<InspectorTab>('note');
@@ -761,15 +774,19 @@ const NotePanel = ({
 
 const SECTION_ORDER = Object.keys(INSPECTOR_TABS);
 
-const Inspector = ({ node, patches, width, onClose, picked, onPick, ...props }: InspectorProps) => {
-  const [landing, setLanding] = useState<LineAt & { readonly path?: string | undefined }>();
-  const [landedOn, setLandedOn] = useState(node?.id);
-  if (landedOn !== node?.id) {
-    setLandedOn(node?.id);
-    setLanding(undefined);
-  }
-  const showLine = (at: LineAt) => {
-    setLanding({ ...at, path: props.nodes.find(({ id }) => id === at.node)?.path });
+const Inspector = ({
+  node,
+  patches,
+  width,
+  onClose,
+  picked,
+  onPick,
+  landing,
+  onLand,
+  ...props
+}: InspectorProps) => {
+  const showLine = ({ node: at, ...line }: LineAt) => {
+    onLand({ ...line, path: props.nodes.find(({ id }) => id === at)?.path });
     onPick('diff');
   };
   const sections: ReadonlyArray<Section> = [
@@ -870,6 +887,8 @@ type SidePanelProps = {
   readonly onGoTo: (id: string) => void;
   readonly picked: InspectorTab;
   readonly onPick: (tab: InspectorTab) => void;
+  readonly landing: LandingIn | undefined;
+  readonly onLand: (landing: LandingIn) => void;
 };
 
 const SidePanel = ({
@@ -891,6 +910,8 @@ const SidePanel = ({
   onGoTo,
   picked,
   onPick,
+  landing,
+  onLand,
 }: SidePanelProps) => {
   const patches = outside
     ? review.undrawn
@@ -968,6 +989,8 @@ const SidePanel = ({
         onClose={() => onCloseInspector(selected)}
         picked={picked}
         onPick={onPick}
+        landing={landing}
+        onLand={onLand}
       />
     </>
   );
@@ -1355,6 +1378,7 @@ export const ReviewPage = ({ review, notes, send }: ReviewPageProps) => {
     goTo(id);
   };
   const [inspectorTab, setInspectorTab] = useInspectorTab(tab, selected);
+  const [landing, landOn] = useLanding(selected);
   const goToOnTab = (id: string, inspect: InspectorTab) => {
     setInspectorTab(inspect);
     goToOnStructure(id);
@@ -1530,6 +1554,8 @@ export const ReviewPage = ({ review, notes, send }: ReviewPageProps) => {
               onGoTo={goTo}
               picked={inspectorTab}
               onPick={setInspectorTab}
+              landing={landing}
+              onLand={line => landOn(selected, line)}
             />
           </div>
         </>
