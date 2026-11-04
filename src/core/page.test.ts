@@ -180,6 +180,28 @@ test('fetch calls with no route are a routes finding for information on each cal
   ]);
 });
 
+test("a lockfile's changes raise their findings on the page", () => {
+  const dependencyChanges = [
+    {
+      lockfile: 'pnpm-lock.yaml',
+      ecosystem: 'npm',
+      packages: [
+        { name: 'zod', change: 'major' as const, direct: true, from: ['3.0.0'], to: ['4.0.0'] },
+      ],
+    },
+  ];
+
+  expect(
+    pageData({
+      repo: 'shop',
+      reading: readingWith({ dependencyChanges }),
+      range: 'a..b',
+      version,
+      parsers,
+    }).findings.map(({ id }) => id),
+  ).toContain('dependencies:pnpm-lock.yaml:zod');
+});
+
 test('stacks a missing tool kept from being read are a structure finding to look at, on no node', () => {
   const skipped = [{ reader: 'rust' as const, tool: 'cargo', stacks: ['api', 'worker'] }];
 
