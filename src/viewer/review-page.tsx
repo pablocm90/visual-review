@@ -628,6 +628,7 @@ type InspectorProps = {
   readonly comments: Comments;
   readonly onComment: ((comment: Comment) => void) | undefined;
   readonly commentable: boolean;
+  readonly saidInPlace: ReadonlyArray<string>;
   readonly answers: Answers;
   readonly onAnswer: AnswerTo | undefined;
   readonly width: number;
@@ -763,16 +764,27 @@ const nodeSections = ({
 
 type NotePanelProps = Pick<
   InspectorProps,
-  'note' | 'found' | 'anchor' | 'comments' | 'onComment' | 'commentable' | 'answers' | 'onAnswer'
+  | 'nodes'
+  | 'note'
+  | 'found'
+  | 'anchor'
+  | 'comments'
+  | 'onComment'
+  | 'commentable'
+  | 'saidInPlace'
+  | 'answers'
+  | 'onAnswer'
 >;
 
 const NotePanel = ({
+  nodes,
   note,
   found,
   anchor,
   comments,
   onComment,
   commentable,
+  saidInPlace,
   answers,
   onAnswer,
 }: NotePanelProps) => (
@@ -792,6 +804,12 @@ const NotePanel = ({
     )}
     <p>{note?.text ?? 'No note'}</p>
     <SaidBefore on={anchor} />
+    {saidInPlace.map(id => (
+      <div key={id}>
+        <p className="said-edge">{anchorName({ kind: 'edge', id }, nodes)}</p>
+        <SaidBefore on={{ kind: 'edge', id }} />
+      </div>
+    ))}
     {onComment &&
       (commentable ? (
         <CommentField anchor={anchor} comments={comments} onComment={onComment} />
@@ -902,6 +920,7 @@ type SidePanelProps = {
   readonly node: DiffNode | undefined;
   readonly outside: boolean;
   readonly note: Note | undefined;
+  readonly saidInPlace: ReadonlyArray<string>;
   readonly found: ReadonlyArray<Finding>;
   readonly comments: Comments;
   readonly onComment: ((comment: Comment) => void) | undefined;
@@ -925,6 +944,7 @@ const SidePanel = ({
   node,
   outside,
   note,
+  saidInPlace,
   found,
   comments,
   onComment,
@@ -1012,6 +1032,7 @@ const SidePanel = ({
         commentable={
           node !== undefined || review.diff.edges.some(edge => edgeId(edge) === selected)
         }
+        saidInPlace={saidInPlace}
         answers={answers}
         onAnswer={onAnswer}
         width={width}
@@ -1034,6 +1055,23 @@ type DrawnAtOptions = {
 
 const drawnAt = ({ diff, expanded, noted, allEdges }: DrawnAtOptions): GraphDiff =>
   allEdges ? visibleDiff({ diff, expanded }) : mergedDiff({ diff, expanded, noted });
+
+type SaidInPlaceOptions = DrawnAtOptions & {
+  readonly comments: ReadonlyArray<PreviousComment>;
+  readonly arrow: string | undefined;
+};
+
+const edgesSaidInPlace = ({ comments, arrow, diff, ...at }: SaidInPlaceOptions) =>
+  comments
+    .flatMap(({ target }) => target ?? [])
+    .filter(
+      target =>
+        target !== arrow &&
+        drawnAt({
+          ...at,
+          diff: { ...diff, edges: diff.edges.filter(edge => edgeId(edge) === target) },
+        }).edges.some(edge => edgeId(edge) === arrow),
+    );
 
 type Keeping = {
   readonly diff: GraphDiff;
@@ -1401,16 +1439,17 @@ const Page = ({ review, notes, send }: ReviewPageProps) => {
   const findings = findingsOf({ data: review, notes });
   const triaged = findings.filter(finding => picked === undefined || finding.dimension === picked);
   const since = changedSinceShown(scope, review);
+  const unmerged = useMemo(() => unmergedWith(noted, since), [noted, since]);
   const drawn = useMemo(() => {
     const [, keep] = scope;
     const atExpansion = drawnAt({
       diff: review.diff,
       expanded,
-      noted: unmergedWith(noted, since),
+      noted: unmerged,
       allEdges,
     });
     return keep({ diff: review.diff, expanded, drawn: atExpansion });
-  }, [review, expanded, noted, allEdges, scope, since]);
+  }, [review, expanded, unmerged, allEdges, scope]);
   const shown = useMemo(
     () => visibleNotes({ diff: review.diff, expanded, notes: notes?.notes ?? {} }),
     [review, notes, expanded],
@@ -1678,6 +1717,14 @@ const Page = ({ review, notes, send }: ReviewPageProps) => {
                 outside={outside}
                 note={selectedNote}
                 found={selectedFindings}
+                saidInPlace={edgesSaidInPlace({
+                  comments: review.sinceReview?.comments ?? [],
+                  arrow: selected,
+                  diff: review.diff,
+                  expanded,
+                  noted: unmerged,
+                  allEdges,
+                })}
                 comments={comments}
                 onComment={comment}
                 answers={answers}

@@ -6221,6 +6221,76 @@ test('a last comment on a part or an edge shows under its anchor in the Note pan
   expect(within(inspector()).queryByText('Split this.')).toBeNull();
 });
 
+test('a last comment on an edge shows on the arrow drawn in its place, closed box or merged, named by its edge, unless its edge is drawn apart', async () => {
+  const user = userEvent.setup();
+  const cart = 'web/file/orders/cart.ts -> web/file/billing/invoice.ts';
+  const checkout = 'web/file/orders/checkout.ts -> web/file/billing/invoice.ts';
+  const saidOnImport = (target: string, text: string) => ({
+    anchor: { kind: 'edge' as const, id: target },
+    kind: 'question' as const,
+    text,
+    target,
+  });
+  render(
+    <ReviewPage
+      review={pageWith({
+        range: review.range,
+        diff: {
+          nodes: [
+            { id: 'web', kind: 'stack', label: 'web', path: '', state: 'unchanged' },
+            webModule('orders'),
+            webModule('billing'),
+            webFile('orders', 'cart.ts'),
+            webFile('orders', 'checkout.ts'),
+            webFile('billing', 'invoice.ts'),
+          ],
+          edges: [
+            webImport('orders/cart.ts', 'billing/invoice.ts', 'unchanged'),
+            webImport('orders/checkout.ts', 'billing/invoice.ts', 'unchanged'),
+          ],
+        },
+        sinceReview: {
+          ...sinceReview,
+          comments: [
+            saidOnImport(cart, 'Why the cart?'),
+            saidOnImport(checkout, 'Why the checkout?'),
+          ],
+        },
+      })}
+      notes={{ version: 1, tests: '', summary: [], notes: { [checkout]: { text: 'Paid.' } } }}
+    />,
+  );
+  await showEverything(user);
+  const web = await screen.findByRole('group', { name: 'web' });
+  const said = (text: string) => within(noteTab()).queryByText(text);
+
+  await user.click(within(web).getByRole('button', { name: 'orders → billing: unchanged' }));
+  expect(said('Why the cart?')).toBeTruthy();
+  expect(said('Why the checkout?')).toBeTruthy();
+  expect(within(noteTab()).getByText('cart.ts → invoice.ts')).toBeTruthy();
+
+  await user.click(within(web).getByRole('button', { name: 'Expand orders' }));
+  await user.click(within(web).getByRole('button', { name: 'Expand billing' }));
+  await within(web).findByRole('group', { name: 'billing' });
+  await user.click(await within(web).findByRole('button', { name: 'orders → billing: unchanged' }));
+  expect(said('Why the cart?')).toBeTruthy();
+  expect(said('Why the checkout?')).toBeNull();
+
+  await user.click(
+    await within(web).findByRole('button', { name: 'checkout.ts → invoice.ts: unchanged' }),
+  );
+  expect(said('Why the checkout?')).toBeTruthy();
+  expect(said('Why the cart?')).toBeNull();
+
+  await user.click(screen.getByRole('checkbox', { name: 'All edges' }));
+  await user.click(within(web).getByRole('button', { name: 'Collapse orders' }));
+  await user.click(
+    await within(web).findByRole('button', { name: 'orders → invoice.ts: unchanged' }),
+  );
+  expect(said('Why the cart?')).toBeTruthy();
+  expect(said('Why the checkout?')).toBeTruthy();
+});
+
 test('a last comment on a symbol or a logic line shows under it on the Symbols tab, with no send too', async () => {
   const user = userEvent.setup();
   render(

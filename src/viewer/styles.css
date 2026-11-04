@@ -2564,3 +2564,10 @@ main:has(> .review-tray) {
   width: fit-content;
   max-width: 480px;
 }
+
+.said-edge {
+  margin: 8px 0 -6px;
+  color: var(--muted);
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
