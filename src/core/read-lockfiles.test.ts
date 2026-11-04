@@ -188,3 +188,52 @@ test.for([
     ]);
   },
 );
+
+const yarnLock = (packages: Readonly<Record<string, string>>) =>
+  `# yarn lockfile v1\n\n${Object.entries(packages)
+    .map(([name, version]) => `${name}@^1.0.0:\n  version "${version}"\n`)
+    .join('\n')}`;
+
+const manifest = (...names: ReadonlyArray<string>) =>
+  JSON.stringify({ dependencies: Object.fromEntries(names.map(name => [name, '^1.0.0'])) });
+
+test("yarn.lock's direct packages come from each side's package.json files under its folder", async () => {
+  using workspace = gitRepo({
+    'web/yarn.lock': yarnLock({ dropped: '1.0.0', kept: '1.0.0' }),
+    'web/package.json': manifest('dropped'),
+    'web/apps/site/package.json': manifest('kept'),
+  });
+  const { repo, root } = workspace;
+  const to = commit(repo, {
+    'web/yarn.lock': yarnLock({ added: '1.0.0', kept: '1.0.0', transitive: '1.0.0' }),
+    'web/package.json': manifest('added'),
+    'web/apps/site/package.json': manifest(),
+    'web/vendor/dep/package.json': manifest('transitive'),
+    'package.json': manifest('transitive'),
+  });
+
+  const { dependencyChanges } = await readRange({ repo, from: root, to });
+
+  expect(dependencyChanges).toMatchObject([
+    {
+      packages: [
+        { name: 'added', change: 'added', direct: true },
+        { name: 'dropped', change: 'removed', direct: true },
+        { name: 'kept', change: 'no-longer-direct', direct: true },
+        { name: 'transitive', change: 'added', direct: false },
+      ],
+    },
+  ]);
+});
+
+test('an unreadable package.json beside a yarn.lock leaves it not read', async () => {
+  using workspace = gitRepo({ 'README.md': '' });
+  const { repo, root } = workspace;
+  const to = commit(repo, { 'yarn.lock': yarnLock({ zod: '1.0.0' }), 'package.json': 'SECRET' });
+
+  const { dependencyChanges } = await readRange({ repo, from: root, to });
+
+  expect(dependencyChanges).toStrictEqual([
+    { lockfile: 'yarn.lock', notRead: 'yarn.lock package.json not recognised' },
+  ]);
+});

@@ -1,4 +1,4 @@
-import { basename } from 'node:path';
+import { basename, dirname } from 'node:path';
 import { type PackageChange, packageChanges } from './dependency-changes.ts';
 import { git } from './git.ts';
 import type { LockedPackages, Lockfile } from './lockfile.ts';
@@ -42,8 +42,16 @@ const lockfileChange = async ({
     if (side === undefined) return ABSENT;
     const { path, lockfile } = side;
     if ((await git(repo, 'ls-tree', '--name-only', revision, '--', path)) === '') return ABSENT;
-    const text = await git(repo, 'show', `${revision}:${path}`);
-    return lockfile.read({ text: text.replaceAll('\r\n', '\n'), manifests: [] });
+    const show = (file: string) => git(repo, 'show', `${revision}:${file}`);
+    const manifests = (
+      await git(repo, 'ls-tree', '-r', '--name-only', revision, '--', `${dirname(path)}/`)
+    )
+      .split('\n')
+      .filter(file => basename(file) === lockfile.manifest && !SKIPPED.test(file));
+    return lockfile.read({
+      text: (await show(path)).replaceAll('\r\n', '\n'),
+      manifests: await Promise.all(manifests.map(show)),
+    });
   };
   try {
     return {

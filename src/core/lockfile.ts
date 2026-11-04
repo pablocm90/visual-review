@@ -6,6 +6,7 @@ export type LockedPackages = {
 export type Lockfile = {
   readonly file: string;
   readonly ecosystem: string;
+  readonly manifest?: string;
   readonly read: (sources: {
     readonly text: string;
     readonly manifests: ReadonlyArray<string>;

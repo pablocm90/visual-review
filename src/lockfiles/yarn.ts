@@ -41,6 +41,7 @@ const declaredIn = (manifest: string): ReadonlyArray<string> => {
 export const yarnLockfile: Lockfile = {
   file: 'yarn.lock',
   ecosystem: 'npm',
+  manifest: 'package.json',
   read: ({ text, manifests }) => {
     if (/^__metadata:$/m.test(text)) throw new Error('yarn.lock Yarn 2+ format');
     if (!/^# yarn lockfile v1$/m.test(text)) throw new Error(NOT_RECOGNISED);
