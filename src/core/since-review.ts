@@ -2,12 +2,13 @@ import { diffGraphs, type FilePatch, type GraphDiff } from './diff-graphs.ts';
 import { edgeId, type Graph } from './graph.ts';
 import type { ReviewedHead, ReviewedReading, SymbolFile } from './read-range.ts';
 import { isQuiet, qualified } from './symbol-changes.ts';
-import { type AnchoredSymbol, anchoredSymbols } from './symbol-findings.ts';
+import { type AnchoredSymbol, anchoredSymbols, decisionsOf } from './symbol-findings.ts';
 
 type Changed = {
   readonly nodes: ReadonlyArray<string>;
   readonly edges: ReadonlyArray<string>;
   readonly symbols: ReadonlyArray<string>;
+  readonly decisions: ReadonlyArray<string>;
   readonly files: ReadonlyArray<string>;
 };
 
@@ -74,6 +75,36 @@ const formerId = ({ id, node, item }: AnchoredSymbol & { readonly node: string }
     ? id
     : `${item.movedFrom ?? node}#${item.renamedFrom ?? qualified(item)}`;
 
+type SymbolsSinceOptions = {
+  readonly since: ReadonlyArray<SymbolFile>;
+  readonly atHead: ReadonlyArray<SymbolFile>;
+  readonly atReview: ReadonlyArray<SymbolFile>;
+  readonly named: (id: string) => string;
+};
+
+const symbolsSinceOf = ({ since, atHead, atReview, named }: SymbolsSinceOptions) => {
+  const head = anchorsIn(atHead);
+  const now = idsChanged(head);
+  const then = idsChanged(anchorsIn(atReview, named));
+  const kept = anchorsIn(since)
+    .filter(({ item }) => !isQuiet(item))
+    .filter(symbol => now.includes(symbol.id) || then.includes(formerId(symbol)));
+  return {
+    symbols: inTheHead(
+      kept.map(({ id }) => id),
+      head.map(({ id }) => id),
+    ),
+    decisions: inTheHead(
+      kept.flatMap(symbol =>
+        decisionsOf(symbol)
+          .filter(({ line }) => line.change !== 'same')
+          .map(({ id }) => id),
+      ),
+      head.flatMap(symbol => decisionsOf(symbol).map(({ id }) => id)),
+    ),
+  };
+};
+
 export const sinceReviewOf = ({
   reviewed,
   after,
@@ -108,28 +139,26 @@ export const sinceReviewOf = ({
     pathsSince.filter(path => !side.renames.some(({ from }) => from === path)),
     patches.map(({ path }) => path),
   );
-  const headSymbols = anchorsIn(symbols);
-  const symbolsNow = idsChanged(headSymbols);
-  const symbolsThen = idsChanged(anchorsIn(pullRequest.symbols, named));
-  const symbolsSince = inTheHead(
-    anchorsIn(side.symbols)
-      .filter(({ item }) => !isQuiet(item))
-      .filter(symbol => symbolsNow.includes(symbol.id) || symbolsThen.includes(formerId(symbol)))
-      .map(({ id }) => id),
-    headSymbols.map(({ id }) => id),
-  );
+  const anchors = symbolsSinceOf({
+    since: side.symbols,
+    atHead: symbols,
+    atReview: pullRequest.symbols,
+    named,
+  });
   return {
     head,
     verdict,
     changed: {
       nodes: nodes.drawn,
       edges: edges.drawn,
-      symbols: symbolsSince.drawn,
+      symbols: anchors.symbols.drawn,
+      decisions: anchors.decisions.drawn,
       files: files.drawn,
       dropped: {
         nodes: nodes.dropped,
         edges: edges.dropped,
-        symbols: symbolsSince.dropped,
+        symbols: anchors.symbols.dropped,
+        decisions: anchors.decisions.dropped,
         files: files.dropped,
       },
     },

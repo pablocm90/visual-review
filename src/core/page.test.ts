@@ -2075,3 +2075,73 @@ test('changed since skips a file whose symbols could not be read', () => {
     pageData({ repo: 'shop', reading, range: 'a..b', version: '1.2.3', parsers: {} }).sinceReview,
   ).toMatchObject({ changed: { symbols: [], dropped: { symbols: [] } } });
 });
+
+const ifLine = (change: LogicLine['change'], base: string | undefined, head: string | undefined) =>
+  logicLine({
+    change,
+    kind: 'if',
+    ...(base === undefined ? {} : { base }),
+    ...(head === undefined ? {} : { head }),
+  });
+
+test.for([
+  {
+    case: 'a line changed since, the same at the review',
+    since: [ifLine('changed', 'if (a)', 'if (b)'), ifLine('same', 'if (c)', 'if (c)')],
+    head: [ifLine('changed', 'if (z)', 'if (b)'), ifLine('same', 'if (c)', 'if (c)')],
+    decisions: ['web/file/a.ts#f#if (b)'],
+    dropped: [],
+  },
+  {
+    case: 'a line changed since that the head reads as the same, a revert',
+    since: [ifLine('changed', 'if (a)', 'if (b)')],
+    head: [ifLine('same', 'if (b)', 'if (b)')],
+    decisions: ['web/file/a.ts#f#if (b)'],
+    dropped: [],
+  },
+  {
+    case: 'a line removed since, gone from the head',
+    since: [ifLine('removed', 'if (gone)', undefined)],
+    head: [ifLine('added', undefined, 'if (other)')],
+    decisions: [],
+    dropped: ['web/file/a.ts#f#if (gone)'],
+  },
+])('changed since lists decisions: $case', ({ since, head, decisions, dropped }) => {
+  const edited = (logic: ReadonlyArray<LogicLine>) => [fn('f', 'edited', { logic })];
+  const reading = readingWith({
+    before: anchorGraph,
+    after: anchorGraph,
+    changedPaths: ['web/src/a.ts'],
+    symbols: [anchorFile('a.ts', edited(head))],
+    reviewed: reviewedAt({
+      before: anchorGraph,
+      changedPaths: ['web/src/a.ts'],
+      symbols: [anchorFile('a.ts', edited(since))],
+    }),
+  });
+
+  expect(
+    pageData({ repo: 'shop', reading, range: 'a..b', version: '1.2.3', parsers: {} }).sinceReview,
+  ).toMatchObject({ changed: { decisions, dropped: { decisions: dropped } } });
+});
+
+test('changed since lists no decision of a function a merge edited', () => {
+  const line = ifLine('changed', 'if (a)', 'if (b)');
+  const reading = readingWith({
+    before: anchorGraph,
+    after: anchorGraph,
+    changedPaths: ['web/src/a.ts'],
+    symbols: [
+      anchorFile('a.ts', [fn('f', 'unchanged', { logic: [ifLine('same', 'if (b)', 'if (b)')] })]),
+    ],
+    reviewed: reviewedAt({
+      before: anchorGraph,
+      changedPaths: ['web/src/a.ts'],
+      symbols: [anchorFile('a.ts', [fn('f', 'edited', { logic: [line] })])],
+    }),
+  });
+
+  expect(
+    pageData({ repo: 'shop', reading, range: 'a..b', version: '1.2.3', parsers: {} }).sinceReview,
+  ).toMatchObject({ changed: { symbols: [], decisions: [], dropped: { decisions: [] } } });
+});
