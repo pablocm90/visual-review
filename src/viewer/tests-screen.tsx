@@ -2,6 +2,7 @@ import { useState } from 'react';
 import type { GraphNode } from '../core/graph.ts';
 import type { ReviewNotes } from '../core/notes.ts';
 import type { PageData } from '../core/page.ts';
+import type { Comment } from '../core/review.ts';
 import {
   type MarkedTest,
   type TestChange,
@@ -11,6 +12,7 @@ import {
   testCounts,
 } from '../core/test-changes.ts';
 import { testsAlongside } from '../core/tests-alongside.ts';
+import { CommentOn, type Comments } from './comment-field.tsx';
 import { LevelMark } from './finding-display.tsx';
 
 const TEST_MARKS: Readonly<Record<TestChange, string>> = {
@@ -29,8 +31,25 @@ const movement = ({ movedTo, movedFrom }: MarkedTest) => {
   return undefined;
 };
 
-const TestLine = ({ test }: { readonly test: MarkedTest }) => {
+type Commenting = {
+  readonly comments: Comments;
+  readonly onComment: ((comment: Comment) => void) | undefined;
+};
+
+type TestPlace = Commenting & {
+  readonly path: string;
+  readonly headings: ReadonlyArray<string>;
+};
+
+const TestLine = ({
+  test,
+  path,
+  headings,
+  comments,
+  onComment,
+}: TestPlace & { readonly test: MarkedTest }) => {
   const moved = movement(test);
+  const trail = [...headings, test.name].join(' › ');
   return (
     <li
       className="test"
@@ -43,15 +62,32 @@ const TestLine = ({ test }: { readonly test: MarkedTest }) => {
       {test.name}
       {test.label && <span className="label">{test.label}</span>}
       {moved && <span className="moved">{moved.text}</span>}
+      {onComment && (
+        <CommentOn
+          name={trail}
+          anchor={{ kind: 'test', id: `${path}#${trail}` }}
+          comments={comments}
+          onComment={onComment}
+        />
+      )}
     </li>
   );
 };
 
-const TestTree = ({ statements }: { readonly statements: ReadonlyArray<TestStatement> }) => (
+const TestTree = ({
+  statements,
+  headings,
+  ...place
+}: TestPlace & { readonly statements: ReadonlyArray<TestStatement> }) => (
   <ul>
     {statements.map(statement =>
       statement.kind === 'test' ? (
-        <TestLine key={`test ${statement.name} ${statement.change}`} test={statement} />
+        <TestLine
+          key={`test ${statement.name} ${statement.change}`}
+          test={statement}
+          headings={headings}
+          {...place}
+        />
       ) : (
         <li
           key={`heading ${statement.name}`}
@@ -60,19 +96,23 @@ const TestTree = ({ statements }: { readonly statements: ReadonlyArray<TestState
         >
           <span>{statement.name}</span>
           {statement.label && <span className="label">{statement.label}</span>}
-          <TestTree statements={statement.children} />
+          <TestTree
+            statements={statement.children}
+            headings={[...headings, statement.name]}
+            {...place}
+          />
         </li>
       ),
     )}
   </ul>
 );
 
-type TestFilesProps = {
+type TestFilesProps = Commenting & {
   readonly files: ReadonlyArray<TestFile>;
   readonly nodes: ReadonlyArray<GraphNode>;
 };
 
-export const TestFiles = ({ files, nodes }: TestFilesProps) =>
+export const TestFiles = ({ files, nodes, ...commenting }: TestFilesProps) =>
   files.map(file => (
     <section key={file.path} aria-label={file.path}>
       <h3>
@@ -84,7 +124,7 @@ export const TestFiles = ({ files, nodes }: TestFilesProps) =>
         {file.new && <span className="new">new file</span>}
       </h3>
       {'statements' in file ? (
-        <TestTree statements={file.statements} />
+        <TestTree statements={file.statements} path={file.path} headings={[]} {...commenting} />
       ) : (
         <p>Couldn't read its tests: {file.unreadable}</p>
       )}
@@ -210,7 +250,7 @@ export const TestsScreen = ({ review, notes, selected, onGoTo }: TestsScreenProp
       </div>
       <section className="tests tests-files" aria-label="Test changes">
         {shown.length > 0 ? (
-          <TestFiles files={shown} nodes={review.diff.nodes} />
+          <TestFiles files={shown} nodes={review.diff.nodes} comments={{}} onComment={undefined} />
         ) : (
           <p>{forNode ? 'No test changed here.' : 'No test changed.'}</p>
         )}

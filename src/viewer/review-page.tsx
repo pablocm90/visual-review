@@ -647,7 +647,12 @@ const nodeSections = ({
             count: changedCount(testsHere),
             panel: (
               <div className="tests">
-                <TestFiles files={testsHere} nodes={nodes} />
+                <TestFiles
+                  files={testsHere}
+                  nodes={nodes}
+                  comments={comments}
+                  onComment={onComment}
+                />
               </div>
             ),
           },
