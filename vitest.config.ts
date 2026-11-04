@@ -4,14 +4,14 @@ export default defineConfig({
   test: {
     globals: true,
     unstubEnvs: true,
+    globalSetup: './vitest.setup.ts',
     exclude: [...configDefaults.exclude, '.claude/**'],
     projects: [
       {
         extends: true,
         test: {
           name: 'node',
-          include: ['**/*.test.ts'],
-          globalSetup: './vitest.setup.ts',
+          exclude: ['**/*.test.tsx'],
           sequence: { groupOrder: 0 },
         },
       },
@@ -20,6 +20,7 @@ export default defineConfig({
         test: {
           name: 'page',
           include: ['**/*.test.tsx'],
+          fileParallelism: false,
           sequence: { groupOrder: 1 },
         },
       },
