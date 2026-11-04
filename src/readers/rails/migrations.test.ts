@@ -159,6 +159,14 @@ test.for([
     written: 'add_index :orders, :user_id, algorithm: :inplace',
     expected: ['index on orders (user_id) added, not concurrently'],
   },
+  {
+    written: 'add_index :orders, %i[user_id state]',
+    expected: ['index on orders (user_id, state) added, not concurrently'],
+  },
+  {
+    written: 'add_index :orders, %w[user_id state]',
+    expected: ['index on orders (user_id, state) added, not concurrently'],
+  },
   { written: 'add_index :orders, :user_id, algorithm: :concurrently', expected: [] },
   { written: 'add_index :orders, :user_id, :algorithm => :concurrently', expected: [] },
 ])('$written is flagged unless built concurrently', ({ written, expected }) => {

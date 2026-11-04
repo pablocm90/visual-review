@@ -28,8 +28,12 @@ const nameOf = (node: Node | undefined): string => node?.text.replace(/^:?['"]?|
 const writtenIn = ({ namedChildren }: Node): ReadonlyArray<Node> =>
   namedChildren.filter(({ type }) => type !== 'comment');
 
+const LISTS: ReadonlySet<string> = new Set(['array', 'symbol_array', 'string_array']);
+
 const namesOf = (node: Node | undefined): string =>
-  node?.type === 'array' ? writtenIn(node).map(nameOf).join(', ') : nameOf(node);
+  node !== undefined && LISTS.has(node.type)
+    ? writtenIn(node).map(nameOf).join(', ')
+    : nameOf(node);
 
 const DOWN_FIELD: ReadonlyMap<string, string> = new Map([
   ['method', 'name'],
