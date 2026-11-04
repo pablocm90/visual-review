@@ -541,6 +541,8 @@ h1 {
 }
 
 .changes pre {
+  display: grid;
+  grid-template-columns: minmax(max-content, 1fr);
   margin: 6px 0 0;
   padding: 8px 0;
   overflow-x: auto;
@@ -2421,8 +2423,14 @@ main:has(> .review-tray) {
 .changes pre .comment-on {
   position: sticky;
   right: 8px;
+  background: var(--page);
   opacity: 0;
   user-select: none;
+}
+
+.changes pre .comment-on:hover,
+.changes pre .comment-on[aria-expanded="true"] {
+  background: var(--unchanged-fill);
 }
 
 .changes pre > :hover > .comment-on,
