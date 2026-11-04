@@ -623,18 +623,18 @@ test('a decision lost to a new function in another changed file moved there too'
   const files = symbolChangesOf([
     {
       node: 'a',
-      before: read('function charge(order) { if (!order) return; pay(); }'),
+      before: read('function charge(order) { if (order == null) return; pay(); }'),
       after: read('function charge(order) { pay(); }'),
     },
     {
       node: 'b',
       before: none,
-      after: read('function checked(order) { if (!order) return; }'),
+      after: read('class Cart { checked(order) { if (order==null) return; } }'),
     },
   ]);
 
   expect(logicOfIn(files, 'charge')?.map(({ change, movedTo }) => ({ change, movedTo }))).toEqual([
-    { change: 'moved', movedTo: 'checked' },
+    { change: 'moved', movedTo: 'Cart.checked' },
   ]);
 });
 
@@ -661,7 +661,10 @@ test('a decision an edited function gained takes one lost elsewhere; what it alr
   expect(
     lostOf(
       ['function charge(a) { if (!a) return; pay(); }', 'function check(a) { if (!a) return; }'],
-      ['function charge(a) { pay(); }', 'function check(a) { if (!a) return; }'],
+      [
+        'function charge(a) { pay(); }',
+        'function check(a) { if (!a) return; if (a.late) warn(); }',
+      ],
     ),
   ).toEqual([{ change: 'removed', movedTo: undefined }]);
 });
@@ -683,10 +686,13 @@ test.for([
     lines: [{ change: 'removed', movedTo: undefined }],
   },
   {
-    reason: 'the same text of another kind',
-    base: ['function charge(a) { try { pay(); } catch (error) { warn(); } }'],
-    head: ['function charge(a) { pay(); }', 'function check(a) { if (error) warn(); }'],
-    lines: [{ change: 'removed', movedTo: undefined }],
+    reason: 'a decision it keeps, though another function gained the same',
+    base: ['function charge(a) { if (!a) return; if (b) pay(); }', 'function check(a) { warn(); }'],
+    head: ['function charge(a) { if (!a) return; }', 'function check(a) { if (!a) return; }'],
+    lines: [
+      { change: 'same', movedTo: undefined },
+      { change: 'removed', movedTo: undefined },
+    ],
   },
   {
     reason: 'a decision that only moved inside its own function',
@@ -700,6 +706,25 @@ test.for([
   },
 ])('stays as it reads: $reason', ({ base, head, lines }) => {
   expect(lostOf(base, head)).toEqual(lines);
+});
+
+test('a gained decision of the same text but another kind takes no lost one', () => {
+  const after = read('function charge(a) { pay(); }', 'function check(a) { if (!a) return; }');
+  const files = symbolChangesOf([
+    {
+      node: 'a',
+      before: read('function charge(a) { if (!a) return; pay(); }'),
+      after: {
+        ...after,
+        symbols: after.symbols.map(symbol => ({
+          ...symbol,
+          decisions: symbol.decisions?.map(decision => ({ ...decision, kind: 'if' as const })),
+        })),
+      },
+    },
+  ]);
+
+  expect(logicOfIn(files, 'charge')?.map(({ change }) => change)).toEqual(['removed']);
 });
 
 test('a whole function moved between files gained nothing, so what another lost stays lost', () => {
