@@ -1465,17 +1465,27 @@ test.for([
 
 const nothingDropped = { nodes: [], edges: [] };
 
-const reviewedAt = (
-  overrides: Pick<ReviewedDiff, 'before' | 'changedPaths'> & {
-    readonly renames?: ReviewedDiff['renames'];
-    readonly pullRequest?: ReviewedDiff;
-  },
-): ReviewedReading => ({
+const reviewedAt = ({
+  pullRequest,
+  ...overrides
+}: Pick<ReviewedDiff, 'before' | 'changedPaths'> &
+  Partial<Pick<ReviewedDiff, 'renames' | 'symbols' | 'tests'>> & {
+    readonly pullRequest?: Partial<ReviewedDiff>;
+  }): ReviewedReading => ({
   head: 'h1',
   verdict: 'comment',
   renames: [],
-  pullRequest: { before: overrides.before, changedPaths: [], renames: [] },
+  symbols: [],
+  tests: [],
   ...overrides,
+  pullRequest: {
+    before: overrides.before,
+    changedPaths: [],
+    renames: [],
+    symbols: [],
+    tests: [],
+    ...pullRequest,
+  },
 });
 
 test.for([

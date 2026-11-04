@@ -42,6 +42,8 @@ export type ReviewedDiff = {
   readonly before: Graph;
   readonly changedPaths: ReadonlyArray<string>;
   readonly renames: ReadonlyArray<Rename>;
+  readonly symbols: ReadonlyArray<SymbolFile>;
+  readonly tests: ReadonlyArray<TestFile>;
 };
 
 export type ReviewedReading = ReviewedHead &
@@ -315,12 +317,58 @@ const pathsIn = (changes: ReadonlyArray<ReadonlyArray<string>>) => ({
   renames: changes.flatMap(([from = '', to]) => (to === undefined ? [] : [{ from, to }])),
 });
 
-type ReviewedSideOptions = Omit<ReadSideOptions, 'revision'> & {
+type Side = {
+  readonly directory: string;
+  readonly reading: StacksReading;
+};
+
+type ChangesAcrossOptions = {
+  readonly before: Side;
+  readonly after: Side;
+  readonly changes: ReadonlyArray<ReadonlyArray<string>>;
+};
+
+const changesAcross = async ({
+  before,
+  after,
+  changes,
+}: ChangesAcrossOptions): Promise<ReviewedDiff> => {
+  const paths = pathsIn(changes);
+  const diff = diffGraphs({ before: before.reading.graph, after: after.reading.graph, ...paths });
+  const stackOf = stackOfIn(diff.nodes);
+  const changed = new Set(diff.nodes.filter(node => node.state !== 'unchanged').map(n => n.id));
+  const sides = { before: before.directory, after: after.directory };
+  const { symbols } = await symbolsIn({
+    sides,
+    files: measuredNodes({ diff, before: before.reading.graph }).filter(({ id }) =>
+      changed.has(id),
+    ),
+    stacks: [...before.reading.stacks, ...after.reading.stacks],
+    stackOf,
+  });
+  return {
+    before: before.reading.graph,
+    ...paths,
+    symbols,
+    tests: withMovedTests(
+      await testsIn({
+        sides,
+        changes: changes.map(([from = '', to = from]) => ({ from, to })),
+        roots: [...before.reading.roots, ...after.reading.roots],
+      }),
+    ),
+  };
+};
+
+type ReviewedSideOptions = Omit<ReadSideOptions, 'revision' | 'directory'> & {
   readonly reviewed: ReviewedHead;
   readonly from: string;
   readonly to: string;
   readonly base: string;
-  readonly baseGraph: Graph;
+  readonly baseSide: Side;
+  readonly headSide: Side;
+  readonly directory: string;
+  readonly changedPaths: ReadonlyArray<string>;
 };
 
 const reviewedSide = async ({
@@ -328,27 +376,40 @@ const reviewedSide = async ({
   from,
   to,
   base,
-  baseGraph,
+  baseSide,
+  headSide,
+  changedPaths,
   ...side
 }: ReviewedSideOptions): Promise<ReviewedReading> => {
   const revision = await resolve(side.repo, reviewed.head).catch(() => undefined);
   if (revision === undefined) return { ...reviewed, gone: true };
   try {
-    const { graph } = await readSide({ ...side, revision });
+    const atReview = {
+      directory: side.directory,
+      reading: await readSide({ ...side, revision }),
+    };
     const forkedAt = await git(side.repo, 'merge-base', from, revision);
-    const forkGraph =
+    const directory = `${side.directory}-fork`;
+    const fork =
       forkedAt === base
-        ? baseGraph
-        : (await readSide({ ...side, revision: forkedAt, directory: `${side.directory}-fork` }))
-            .graph;
+        ? baseSide
+        : { directory, reading: await readSide({ ...side, revision: forkedAt, directory }) };
+    const pullRequest = await changesAcross({
+      before: fork,
+      after: atReview,
+      changes: await changesBetween(side.repo, forkedAt, revision),
+    });
+    const paths = [...changedPaths, ...pullRequest.changedPaths];
+    const changes = await changesBetween(side.repo, revision, to);
     return {
       ...reviewed,
-      before: graph,
-      ...pathsIn(await changesBetween(side.repo, revision, to)),
-      pullRequest: {
-        before: forkGraph,
-        ...pathsIn(await changesBetween(side.repo, forkedAt, revision)),
-      },
+      ...(await changesAcross({
+        before: atReview,
+        after: headSide,
+        changes: changes.filter(change => change.some(path => paths.includes(path))),
+      })),
+      ...pathsIn(changes),
+      pullRequest,
     };
   } catch (error) {
     return { ...reviewed, unreadable: String(error) };
@@ -460,7 +521,9 @@ export const readRange = async ({
               from: fromCommit,
               to: toCommit,
               base,
-              baseGraph: before.graph,
+              baseSide: { directory: sides.before, reading: before },
+              headSide: { directory: sides.after, reading: after },
+              changedPaths,
               directory: join(scratch, 'reviewed'),
               config,
               ...adapters,

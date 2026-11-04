@@ -953,10 +953,14 @@ test('a reviewed head reads as a side of its own, diffed plainly against the new
       'docs/new.md',
     ],
     renames: [{ from: 'docs/old.md', to: 'docs/new.md' }],
+    symbols: [],
+    tests: [],
     pullRequest: {
       before: range.before,
       changedPaths: ['crates/dropped/Cargo.toml', 'crates/dropped/src/lib.rs', 'docs/old.md'],
       renames: [],
+      symbols: [],
+      tests: [],
     },
   });
   expect(git(repo, 'worktree', 'list').split('\n')).toHaveLength(1);
@@ -988,6 +992,67 @@ test("a reviewed head holds the pull request's own diff from where it then forke
     },
   });
   expect(git(repo, 'worktree', 'list').split('\n')).toHaveLength(1);
+});
+
+test("a reviewed head holds the symbols and tests changed since it, and those of the pull request's own diff at it", async () => {
+  using repository = gitRepo({
+    ...rootPackage,
+    'src/index.ts': "import './a.ts';\nimport './b.ts';\nimport './main.ts';\n",
+    'src/a.ts': 'export const a = () => 1;\n',
+    'src/b.ts': 'export const b = () => 1;\n',
+    'src/c.ts': 'export const c = () => 1;\n',
+    'src/main.ts': 'export const main = () => 1;\n',
+    'src/a.test.ts': "test('one', () => { one(); });\n",
+    'src/b.test.ts': "test('one', () => { one(); });\n",
+  });
+  const { repo, root } = repository;
+  const head = commit(repo, {
+    'src/a.ts': 'export const a = () => 2;\n',
+    'src/b.ts': 'export const b = () => 2;\n',
+    'src/a.test.ts': "test('one', () => { two(); });\n",
+    'src/b.test.ts': "test('one', () => { two(); });\n",
+  });
+  git(repo, 'reset', '--quiet', '--hard', root);
+  const main = commit(repo, { 'src/main.ts': 'export const main = () => 2;\n' });
+  git(repo, 'merge', '--quiet', '--no-edit', head);
+  const to = commit(repo, {
+    'src/a.ts': 'export const a = () => 3;\n',
+    'src/a.test.ts': "test('one', () => { three(); });\n",
+    'src/b.ts': 'export const b = () => 1;\n',
+    'src/c.ts': 'export const c = () => 2;\n',
+  });
+
+  const range = await readRange({
+    repo,
+    from: main,
+    to,
+    reviewed: { head, verdict: 'comment' },
+  });
+
+  const stack = basename(repo);
+  const edited = (name: string) => [expect.objectContaining({ name, change: 'edited' })];
+  const editedTest = (path: string) => ({
+    path,
+    renamedFrom: undefined,
+    stack,
+    statements: [{ kind: 'test', name: 'one', change: 'edited', label: undefined }],
+  });
+  expect(range.reviewed).toMatchObject({
+    changedPaths: expect.arrayContaining(['src/main.ts']),
+    symbols: [
+      expect.objectContaining({ node: `${stack}/file/a.ts`, symbols: edited('a') }),
+      expect.objectContaining({ node: `${stack}/file/b.ts`, symbols: edited('b') }),
+      expect.objectContaining({ node: `${stack}/file/c.ts`, symbols: edited('c') }),
+    ],
+    tests: [editedTest('src/a.test.ts')],
+    pullRequest: {
+      symbols: [
+        expect.objectContaining({ node: `${stack}/file/a.ts`, symbols: edited('a') }),
+        expect.objectContaining({ node: `${stack}/file/b.ts`, symbols: edited('b') }),
+      ],
+      tests: [editedTest('src/a.test.ts'), editedTest('src/b.test.ts')],
+    },
+  });
 });
 
 test('a reviewed head that no longer resolves is gone, and the range still reads', async () => {
