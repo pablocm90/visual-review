@@ -185,3 +185,64 @@ test.for([
 ])('a table created in the same file has no rows to protect: $written', ({ written, expected }) => {
   expect(titles(written)).toStrictEqual(expected);
 });
+
+const inClass = (body: string) => `class Change < ActiveRecord::Migration[8.0]
+${body}
+end
+`;
+
+test.for([
+  {
+    reads: 'def up and def down',
+    written: `def up
+    remove_column :users, :up_side
+  end
+  def down
+    remove_column :users, :down_side
+  end`,
+  },
+  {
+    reads: 'def self.up and def self.down',
+    written: `def self.up
+    remove_column :users, :up_side
+  end
+  def self.down
+    remove_column :users, :down_side
+  end`,
+  },
+  {
+    reads: 'dir.up and dir.down',
+    written: `def change
+    reversible do |dir|
+      dir.up { remove_column :users, :up_side }
+      dir.down { remove_column :users, :down_side }
+    end
+  end`,
+  },
+  {
+    reads: 'a helper beside def down',
+    written: `def strip
+    remove_column :users, :up_side
+  end
+  def down
+    remove_column :users, :down_side
+  end`,
+  },
+])('only what runs going up is read: $reads', ({ written }) => {
+  expect(railsMigrations.risks(inClass(written)).map(({ title }) => title)).toStrictEqual([
+    'column users.up_side removed',
+  ]);
+});
+
+test('a table created going down is no new table going up', () => {
+  const written = `def up
+    add_index :orders, :state, algorithm: :concurrently
+    add_index :users, :email
+  end
+  def down
+    create_table :users
+  end`;
+  expect(railsMigrations.risks(inClass(written)).map(({ title }) => title)).toStrictEqual([
+    'index on users (email) added, not concurrently',
+  ]);
+});

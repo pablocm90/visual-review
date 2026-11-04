@@ -25,10 +25,19 @@ const nameOf = (node: Node | undefined): string => node?.text.replace(/^:?['"]?|
 const namesOf = (node: Node | undefined): string =>
   node?.type === 'array' ? node.namedChildren.map(nameOf).join(', ') : nameOf(node);
 
-const callsIn = (node: Node): ReadonlyArray<Node> => [
-  ...(node.type === 'call' ? [node] : []),
-  ...node.namedChildren.flatMap(callsIn),
-];
+const DOWN_FIELD: ReadonlyMap<string, string> = new Map([
+  ['method', 'name'],
+  ['singleton_method', 'name'],
+  ['call', 'method'],
+]);
+
+const runsGoingDown = (node: Node): boolean =>
+  node.childForFieldName(DOWN_FIELD.get(node.type) ?? '')?.text === 'down';
+
+const callsIn = (node: Node): ReadonlyArray<Node> =>
+  runsGoingDown(node)
+    ? []
+    : [...(node.type === 'call' ? [node] : []), ...node.namedChildren.flatMap(callsIn)];
 
 const isOption = ({ type }: Node): boolean => type === 'pair' || type === 'hash';
 
