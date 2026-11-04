@@ -485,6 +485,38 @@ describe('package-lock.json', () => {
     },
   );
 
+  test('an alias reads by its real name, and a link is no package and not direct', () => {
+    expect(
+      read(
+        lock(3, {
+          '': {
+            dependencies: {
+              '@scoped/alias': 'npm:@real/scoped@^1.0.0',
+              sibling: '*',
+              'string-width-cjs': 'npm:string-width@^4.2.0',
+              'bare-alias': 'npm:bare',
+              tarball: 'https://example.com/npm:tarball.tgz',
+            },
+          },
+          'packages/sibling': { version: '1.0.0' },
+          'node_modules/@scoped/alias': { name: '@real/scoped', version: '1.0.0' },
+          'node_modules/bare-alias': { name: 'bare', version: '2.0.0' },
+          'node_modules/sibling': { resolved: 'packages/sibling', link: true },
+          'node_modules/other/node_modules/sibling': { version: '4.0.0' },
+          'node_modules/string-width-cjs': { name: 'string-width', version: '4.2.3' },
+        }),
+      ),
+    ).toEqual({
+      versions: {
+        '@real/scoped': ['1.0.0'],
+        bare: ['2.0.0'],
+        sibling: ['4.0.0'],
+        'string-width': ['4.2.3'],
+      },
+      direct: ['@real/scoped', 'bare', 'string-width', 'tarball'],
+    });
+  });
+
   test.for([
     { what: 'a symlink', text: '../shared/package-lock.json', format: 'format not recognised' },
     { what: 'broken JSON', text: '{ "hidden": ', format: 'format not recognised' },

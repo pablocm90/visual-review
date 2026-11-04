@@ -3,6 +3,7 @@ import { type Lockfile, lockedVersions } from '../core/lockfile.ts';
 
 const NOT_RECOGNISED = 'package-lock.json format not recognised';
 const UNDER_NODE_MODULES = /(?:^|\/)node_modules\/((?:@[^/]+\/)?[^/]+)$/;
+const ALIAS = /^npm:((?:@[^/]+\/)?[^@]+)/;
 
 const Declarations = z.record(z.string(), z.string()).optional();
 const Lock = z.object({
@@ -11,7 +12,9 @@ const Lock = z.object({
     .record(
       z.string(),
       z.object({
+        name: z.string().optional(),
         version: z.string().optional(),
+        link: z.literal(true).optional(),
         dependencies: Declarations,
         devDependencies: Declarations,
         optionalDependencies: Declarations,
@@ -36,20 +39,25 @@ export const npmLockfile: Lockfile = {
     if (lockfileVersion !== 2 && lockfileVersion !== 3)
       throw new Error(`package-lock.json lockfile version ${lockfileVersion}`);
     if (packages === undefined) throw new Error(NOT_RECOGNISED);
-    const entries = Object.entries(packages);
+    const entries = Object.entries(packages).map(([path, entry]) => ({
+      ...entry,
+      folder: path.match(UNDER_NODE_MODULES)?.[1],
+    }));
+    const linked = new Set(entries.filter(({ link }) => link).map(({ folder }) => folder));
     return {
       versions: lockedVersions(
-        entries.flatMap(([path, { version = '' }]) => {
-          const name = path.match(UNDER_NODE_MODULES)?.[1];
-          return name === undefined ? [] : [{ name, version }];
-        }),
+        entries.flatMap(({ folder, link, name, version = '' }) =>
+          folder === undefined || link ? [] : [{ name: name ?? folder, version }],
+        ),
       ),
       direct: new Set(
         entries
-          .filter(([path]) => !UNDER_NODE_MODULES.test(path))
-          .flatMap(([, { dependencies, devDependencies, optionalDependencies }]) =>
-            Object.keys({ ...dependencies, ...devDependencies, ...optionalDependencies }),
-          ),
+          .filter(({ folder }) => folder === undefined)
+          .flatMap(({ dependencies, devDependencies, optionalDependencies }) =>
+            Object.entries({ ...dependencies, ...devDependencies, ...optionalDependencies }),
+          )
+          .filter(([name]) => !linked.has(name))
+          .map(([name, spec]) => spec.match(ALIAS)?.[1] ?? name),
       ),
     };
   },
