@@ -5004,3 +5004,53 @@ test("a served page's Tests screen takes a comment on a test row, one draft with
   rerender(<ReviewPage review={page} />);
   expect(within(testChanges()).queryAllByRole('button', { name: /^Comment on/ })).toStrictEqual([]);
 });
+
+test("a test's draft in the tray opens the Tests tab of the box holding its file, showing the draft", async () => {
+  const user = userEvent.setup();
+  render(
+    <ReviewPage
+      review={pageWith({
+        range: review.range,
+        diff: {
+          nodes: [
+            { id: 'web', kind: 'stack', label: 'web', path: '', state: 'unchanged' },
+            {
+              id: 'web/module/src/cart',
+              kind: 'module',
+              label: 'cart',
+              parent: 'web',
+              path: 'web/src/cart',
+              state: 'modified',
+            },
+          ],
+          edges: [],
+        },
+        tests: [
+          {
+            path: 'web/src/cart/total.test.ts',
+            stack: 'web',
+            statements: [{ kind: 'test', name: 'adds tax', change: 'added' }],
+          },
+        ],
+      })}
+      send={vi.fn(async () => {})}
+    />,
+  );
+  const rowField = () =>
+    within(within(testsTab()).getByRole('listitem', { name: 'adds tax: added' })).getByRole(
+      'textbox',
+      { name: 'Your comment' },
+    );
+
+  await user.click(await screen.findByRole('button', { name: 'cart: modified' }));
+  await user.click(within(inspector()).getByRole('tab', { name: 'Tests 1' }));
+  await user.click(within(testsTab()).getByRole('button', { name: 'Comment on adds tax' }));
+  await write(user, rowField(), 'Which rate?');
+  await user.click(screen.getByRole('button', { name: 'Close inspector' }));
+  await openReview(user);
+
+  await user.click(
+    within(screen.getByRole('list', { name: 'Drafts' })).getByRole('button', { name: 'adds tax' }),
+  );
+  expect(rowField()).toHaveProperty('value', 'Which rate?');
+});

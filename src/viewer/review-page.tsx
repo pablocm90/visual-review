@@ -576,8 +576,13 @@ type InspectorProps = {
 
 type InspectorTab = 'note' | 'metrics' | 'diff' | 'tests' | 'symbols';
 
-const tabOfDraft = ({ kind }: Comment['anchor']): InspectorTab =>
-  kind === 'symbol' || kind === 'decision' ? 'symbols' : 'note';
+const DRAFT_TABS: Partial<Record<Comment['anchor']['kind'], InspectorTab>> = {
+  symbol: 'symbols',
+  decision: 'symbols',
+  test: 'tests',
+};
+
+const tabOfDraft = ({ kind }: Comment['anchor']): InspectorTab => DRAFT_TABS[kind] ?? 'note';
 
 const useInspectorTab = (screen: string, selected: string | undefined) => {
   const [inspectorTab, setInspectorTab] = useState<InspectorTab>('note');
