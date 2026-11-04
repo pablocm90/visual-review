@@ -46,8 +46,17 @@ type SymbolChangesOptions = {
 
 type Keyed = Pick<ReadSymbol, 'name' | 'scope' | 'kind'>;
 
+const samePlace = (one: Keyed, other: Keyed): boolean =>
+  one.name === other.name && one.scope === other.scope;
+
 const sameSymbol = (one: Keyed, other: Keyed): boolean =>
-  one.kind === other.kind && one.name === other.name && one.scope === other.scope;
+  one.kind === other.kind && samePlace(one, other);
+
+const isAccessor = ({ kind }: Pick<Keyed, 'kind'>): boolean =>
+  kind === 'getter' || kind === 'setter';
+
+const turnedInto = (one: Pick<Keyed, 'kind'>, other: Pick<Keyed, 'kind'>): boolean =>
+  (one.kind === 'method' && isAccessor(other)) || (isAccessor(one) && other.kind === 'method');
 
 const named = ({ name, scope, kind }: ReadSymbol) =>
   scope === undefined ? { name, kind } : { name, scope, kind };
@@ -120,12 +129,32 @@ const kindOf = ({
   return before.astHash === after.astHash ? 'formatting' : 'logic';
 };
 
+const turnedSymbols = (
+  unpaired: ReadonlyArray<ReadSymbol>,
+  newcomers: ReadonlyArray<ReadSymbol>,
+): ReadonlyMap<ReadSymbol, ReadSymbol> =>
+  newcomers.reduce<ReadonlyMap<ReadSymbol, ReadSymbol>>((turned, symbol) => {
+    const taken = new Set(turned.values());
+    const former = unpaired.find(
+      candidate =>
+        !taken.has(candidate) && samePlace(candidate, symbol) && turnedInto(candidate, symbol),
+    );
+    return former === undefined ? turned : new Map([...turned, [symbol, former]]);
+  }, new Map());
+
 export const symbolChanges = ({ before, after }: SymbolChangesOptions): SymbolChanges => {
-  const removed = before.symbols.filter(
+  const unpaired = before.symbols.filter(
     symbol => !after.symbols.some(candidate => sameSymbol(candidate, symbol)),
   );
-  const partnerOf = (symbol: ReadSymbol) =>
+  const keptFrom = (symbol: ReadSymbol) =>
     before.symbols.find(candidate => sameSymbol(candidate, symbol));
+  const turned = turnedSymbols(
+    unpaired,
+    after.symbols.filter(symbol => keptFrom(symbol) === undefined),
+  );
+  const formers = new Set(turned.values());
+  const removed = unpaired.filter(symbol => !formers.has(symbol));
+  const partnerOf = (symbol: ReadSymbol) => keptFrom(symbol) ?? turned.get(symbol);
   const renames = new Map(
     after.symbols
       .filter(symbol => partnerOf(symbol) === undefined)
