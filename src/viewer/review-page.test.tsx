@@ -5392,3 +5392,22 @@ test.for([
       .map(button => button.textContent),
   ).toEqual(['Changes only', 'Changed + 1 hop', 'Everything']);
 });
+
+test("with 'Since last review' shown and nothing drawn changed since, the graph gives way to a line saying so", async () => {
+  const user = userEvent.setup();
+  render(
+    <ReviewPage
+      review={pageWith({
+        ...review,
+        sinceReview: { ...sinceReview, changed: { nodes: [], edges: [] } },
+      })}
+    />,
+  );
+  await screen.findByRole('group', { name: 'rust' });
+
+  await user.click(shown('Since last review'));
+
+  expect(
+    await screen.findByText('Nothing in the graph changed since the last review.'),
+  ).toBeTruthy();
+});

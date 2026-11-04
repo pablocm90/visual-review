@@ -1010,6 +1010,8 @@ type Keeping = {
 
 type Scope = readonly [name: string, keep: (keeping: Keeping) => GraphDiff];
 
+const SINCE_LAST_REVIEW = 'Since last review';
+
 const CHANGES_ONLY: Scope = ['Changes only', changesOnly];
 
 const EVERYTHING: Scope = ['Everything', ({ drawn }) => drawn];
@@ -1025,7 +1027,7 @@ const scopesOf = ({ sinceReview }: PageData): ReadonlyArray<Scope> =>
     ? WIDER_SCOPES
     : [
         [
-          'Since last review',
+          SINCE_LAST_REVIEW,
           keeping => sinceLastReview({ ...keeping, changed: sinceReview.changed }),
         ],
         ...WIDER_SCOPES,
@@ -1495,7 +1497,12 @@ export const ReviewPage = ({ review, notes, send }: ReviewPageProps) => {
               <div className="graph-key">
                 {colouring === 'change' ? <Legend /> : <ScaleLegend colouring={colouring} />}
               </div>
-              {drawn.nodes.length === 0 && <p className="caveat">Nothing in the graph changed.</p>}
+              {drawn.nodes.length === 0 && (
+                <p className="caveat">
+                  Nothing in the graph changed
+                  {scope[0] === SINCE_LAST_REVIEW && ' since the last review'}.
+                </p>
+              )}
               {layout && (
                 <div
                   className="frame"
