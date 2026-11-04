@@ -41,11 +41,13 @@ const DOWN_FIELD: ReadonlyMap<string, string> = new Map([
   ['call', 'method'],
 ]);
 
-const runsGoingDown = (node: Node): boolean =>
-  node.childForFieldName(DOWN_FIELD.get(node.type) ?? '')?.text === 'down';
+const BACKWARDS: ReadonlySet<string | undefined> = new Set(['down', 'revert']);
+
+const runsBackwards = (node: Node): boolean =>
+  BACKWARDS.has(node.childForFieldName(DOWN_FIELD.get(node.type) ?? '')?.text);
 
 const callsIn = (node: Node): ReadonlyArray<Node> =>
-  runsGoingDown(node)
+  runsBackwards(node)
     ? []
     : [...(node.type === 'call' ? [node] : []), ...node.namedChildren.flatMap(callsIn)];
 

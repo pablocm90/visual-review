@@ -252,6 +252,13 @@ test.for([
   end`,
   },
   {
+    reads: 'a revert block',
+    written: `def change
+    revert { remove_column :users, :down_side }
+    remove_column :users, :up_side
+  end`,
+  },
+  {
     reads: 'a helper beside def down',
     written: `def strip
     remove_column :users, :up_side
