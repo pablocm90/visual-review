@@ -2,6 +2,7 @@ import { describe, expect, test } from 'vitest';
 import type { Lockfile } from '../core/lockfile.ts';
 import { bundlerLockfile } from './bundler.ts';
 import { cargoLockfile } from './cargo.ts';
+import { npmLockfile } from './npm.ts';
 import { pnpmLockfile } from './pnpm.ts';
 
 const reading = (lockfile: Lockfile, text: string) => {
@@ -436,5 +437,62 @@ snapshots:
       versions: {},
       direct: [],
     });
+  });
+});
+
+describe('package-lock.json', () => {
+  const read = (text: string) => reading(npmLockfile, text);
+  const lock = (lockfileVersion: number, packages: Record<string, unknown>) =>
+    JSON.stringify({ name: 'shop', version: '1.0.0', lockfileVersion, packages }, null, 2);
+
+  test.for([2, 3])(
+    'version %i locks what sits under node_modules, and what a local entry declares is direct',
+    lockfileVersion => {
+      expect(
+        read(
+          lock(lockfileVersion, {
+            '': {
+              name: 'shop',
+              version: '1.0.0',
+              dependencies: { zod: '^4.0.0' },
+              devDependencies: { '@biomejs/biome': '^2.0.0' },
+              optionalDependencies: { fsevents: '^2.0.0' },
+            },
+            'packages/web': {
+              name: '@shop/web',
+              version: '3.0.0',
+              dependencies: { react: '^19.0.0' },
+            },
+            'node_modules/@biomejs/biome': { version: '2.5.15', dev: true },
+            'node_modules/fsevents': { version: '2.3.3', optional: true },
+            'node_modules/react': { version: '19.3.0', dependencies: { scheduler: '*' } },
+            'node_modules/scheduler': { version: '0.27.0' },
+            'node_modules/zod': { version: '4.6.7' },
+            'node_modules/react/node_modules/scheduler': { version: '0.26.0' },
+            'packages/web/node_modules/zod': { version: '3.25.0' },
+          }),
+        ),
+      ).toEqual({
+        versions: {
+          '@biomejs/biome': ['2.5.15'],
+          fsevents: ['2.3.3'],
+          react: ['19.3.0'],
+          scheduler: ['0.26.0', '0.27.0'],
+          zod: ['3.25.0', '4.6.7'],
+        },
+        direct: ['@biomejs/biome', 'fsevents', 'react', 'zod'],
+      });
+    },
+  );
+
+  test.for([
+    { what: 'a symlink', text: '../shared/package-lock.json', format: 'format not recognised' },
+    { what: 'broken JSON', text: '{ "hidden": ', format: 'format not recognised' },
+    { what: 'no lockfile version', text: '{ "packages": {} }', format: 'format not recognised' },
+    { what: 'no packages', text: '{ "lockfileVersion": 3 }', format: 'format not recognised' },
+    { what: 'version 1', text: '{ "lockfileVersion": 1 }', format: 'lockfile version 1' },
+    { what: 'a later version', text: lock(4, {}), format: 'lockfile version 4' },
+  ])('$what is not read, naming its format and nothing of the file', ({ text, format }) => {
+    expect(() => read(text)).toThrow(new Error(`package-lock.json ${format}`));
   });
 });
