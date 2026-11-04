@@ -4959,3 +4959,48 @@ test("a served page's test row in the inspector takes a comment, a removed test 
   rerender(<ReviewPage review={page} />);
   expect(within(testsTab()).queryAllByRole('button', { name: /^Comment on/ })).toStrictEqual([]);
 });
+
+test("a served page's Tests screen takes a comment on a test row, one draft with the inspector's Tests tab; a page not served has no toggle", async () => {
+  const user = userEvent.setup();
+  const page = pageWithTwinTests();
+  const { rerender } = render(<ReviewPage review={page} send={vi.fn(async () => {})} />);
+  const row = (place: HTMLElement, rowName: string) =>
+    within(within(place).getByRole('listitem', { name: rowName }));
+  const testChanges = () => screen.getByRole('region', { name: 'Test changes' });
+
+  await user.click(await screen.findByRole('button', { name: 'total.ts: modified' }));
+  await user.click(within(inspector()).getByRole('tab', { name: 'Tests 3' }));
+  await user.click(
+    row(testsTab(), 'adds tax: added').getByRole('button', { name: 'Comment on Cart › adds tax' }),
+  );
+  await write(
+    user,
+    row(testsTab(), 'adds tax: added').getByRole('textbox', { name: 'Your comment' }),
+    'From the inspector.',
+  );
+
+  await user.click(screen.getByRole('link', { name: 'Tests 3' }));
+  expect(
+    row(testChanges(), 'adds tax: added').getByRole('textbox', { name: 'Your comment' }),
+  ).toHaveProperty('value', 'From the inspector.');
+  await user.click(
+    row(testChanges(), 'drops totals: removed').getByRole('button', {
+      name: 'Comment on drops totals',
+    }),
+  );
+  await write(
+    user,
+    row(testChanges(), 'drops totals: removed').getByRole('textbox', { name: 'Your comment' }),
+    'From the screen.',
+  );
+
+  await user.click(screen.getByRole('link', { name: 'Structure' }));
+  await user.click(within(inspector()).getByRole('tab', { name: 'Tests 3' }));
+  expect(
+    row(testsTab(), 'drops totals: removed').getByRole('textbox', { name: 'Your comment' }),
+  ).toHaveProperty('value', 'From the screen.');
+
+  await user.click(screen.getByRole('link', { name: 'Tests 3' }));
+  rerender(<ReviewPage review={page} />);
+  expect(within(testChanges()).queryAllByRole('button', { name: /^Comment on/ })).toStrictEqual([]);
+});

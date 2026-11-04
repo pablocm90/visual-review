@@ -204,14 +204,20 @@ const ChangedNodes = ({ review, onGoTo }: ChangedNodesProps) => {
   );
 };
 
-type TestsScreenProps = {
+type TestsScreenProps = Commenting & {
   readonly review: PageData;
   readonly notes: ReviewNotes | undefined;
   readonly selected: GraphNode | undefined;
   readonly onGoTo: (id: string) => void;
 };
 
-export const TestsScreen = ({ review, notes, selected, onGoTo }: TestsScreenProps) => {
+export const TestsScreen = ({
+  review,
+  notes,
+  selected,
+  onGoTo,
+  ...commenting
+}: TestsScreenProps) => {
   const [forSelected, setForSelected] = useState(false);
   const alongside =
     selected && testsAlongside({ nodes: review.diff.nodes, node: selected, tests: review.tests });
@@ -250,7 +256,7 @@ export const TestsScreen = ({ review, notes, selected, onGoTo }: TestsScreenProp
       </div>
       <section className="tests tests-files" aria-label="Test changes">
         {shown.length > 0 ? (
-          <TestFiles files={shown} nodes={review.diff.nodes} comments={{}} onComment={undefined} />
+          <TestFiles files={shown} nodes={review.diff.nodes} {...commenting} />
         ) : (
           <p>{forNode ? 'No test changed here.' : 'No test changed.'}</p>
         )}

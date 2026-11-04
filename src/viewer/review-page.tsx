@@ -1491,6 +1491,8 @@ export const ReviewPage = ({ review, notes, send }: ReviewPageProps) => {
           notes={notes}
           selected={selectedNode}
           onGoTo={goToOnStructure}
+          comments={comments}
+          onComment={send && comment}
         />
       )}
       {send && (
