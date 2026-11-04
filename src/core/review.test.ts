@@ -1,5 +1,5 @@
 import { expect, test } from 'vitest';
-import { parseReview } from './review.ts';
+import { parseReview, pastReviewOf } from './review.ts';
 
 const reviewWith = (verdict = 'request-changes') => ({
   version: 5,
@@ -204,3 +204,61 @@ test.for([
 ])('a review that $problem is rejected saying why', ({ text, reason }) => {
   expect(() => parseReview(text)).toThrow(new RegExp(`^Invalid review: .*${reason}`, 's'));
 });
+
+test('a past review keeps what the reviewer said: general comment, parts read, comments and answers', () => {
+  const comment = { anchor: { kind: 'part', id: 'a' }, kind: 'change', text: 'Split it.' };
+  const answer = { anchor: { kind: 'finding', id: 'logic:changed:a' }, kind: 'fine', text: 'Ok.' };
+
+  expect(
+    pastReviewOf(
+      JSON.stringify({
+        ...reviewWith(),
+        body: 'Nearly.',
+        read: ['a'],
+        comments: [comment, answer],
+      }),
+    ),
+  ).toMatchObject({ body: 'Nearly.', read: ['a'], comments: [comment, answer] });
+});
+
+test.for([
+  {
+    format: 'has no parts read or comments',
+    written: {},
+    kept: { read: [], comments: [] },
+  },
+  {
+    format: 'keeps its comments by node',
+    written: { read: ['a'], comments: { a: 'Split it.' } },
+    kept: { read: ['a'], comments: [] },
+  },
+  {
+    format: 'holds a comment this one cannot read beside one it can',
+    written: {
+      read: 'all',
+      body: 3,
+      comments: [
+        { node: 'a', text: 'Old shape.' },
+        { anchor: { kind: 'part', id: 'b' }, kind: 'question', text: 'Why?' },
+      ],
+    },
+    kept: {
+      read: [],
+      comments: [{ anchor: { kind: 'part', id: 'b' }, kind: 'question', text: 'Why?' }],
+    },
+  },
+])(
+  'a past review of a format that $format still counts, with what it can read',
+  ({ written, kept }) => {
+    const past = pastReviewOf(
+      JSON.stringify({
+        verdict: 'comment',
+        reviewed: { range: 'a..b', pullRequest: 7 },
+        ...written,
+      }),
+    );
+
+    expect(past).toMatchObject({ verdict: 'comment', ...kept });
+    expect(past?.body).toBeUndefined();
+  },
+);

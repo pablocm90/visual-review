@@ -64,6 +64,22 @@ export const pageData = ({
   const metrics = nodeMetrics({ diff, ...reading });
   const undrawn = reading.patches.filter(patch => !isDrawn(patch));
   const order = readingOrder(diff);
+  const findings = raisedFindings({
+    skipped: reading.skipped,
+    changedPaths: reading.changedPaths,
+    undrawn,
+    dangling: reading.danglingCalls,
+    metricFindings: metricFindings({ metrics, thresholds: reading.thresholds }),
+    symbols: reading.symbols,
+    symbolsNotRead: reading.symbolsNotRead,
+    nodes: diff.nodes,
+    tests: reading.tests,
+    split: splitSuggestion({
+      parts: order.parts,
+      edges: diff.edges,
+      splitParts: reading.thresholds.splitParts,
+    }),
+  });
   return {
     repo,
     range,
@@ -73,22 +89,7 @@ export const pageData = ({
     diff,
     readingOrder: order,
     metrics,
-    findings: raisedFindings({
-      skipped: reading.skipped,
-      changedPaths: reading.changedPaths,
-      undrawn,
-      dangling: reading.danglingCalls,
-      metricFindings: metricFindings({ metrics, thresholds: reading.thresholds }),
-      symbols: reading.symbols,
-      symbolsNotRead: reading.symbolsNotRead,
-      nodes: diff.nodes,
-      tests: reading.tests,
-      split: splitSuggestion({
-        parts: order.parts,
-        edges: diff.edges,
-        splitParts: reading.thresholds.splitParts,
-      }),
-    }),
+    findings,
     dangling: reading.danglingCalls,
     patches: reading.patches.filter(isDrawn),
     undrawn,
@@ -108,6 +109,7 @@ export const pageData = ({
             patches: reading.patches,
             symbols: reading.symbols,
             tests: reading.tests,
+            findings,
           }),
         }),
   };
