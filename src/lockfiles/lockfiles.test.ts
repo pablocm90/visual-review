@@ -344,4 +344,97 @@ snapshots:
   ])('$what is not read, naming its format', ({ text, format }) => {
     expect(() => read(text)).toThrow(`pnpm-lock.yaml ${format}`);
   });
+
+  const plainImporter = `  .:
+    dependencies:
+      zod:
+        specifier: ^4.0.0
+        version: 4.6.7`;
+  const plainPackage = `  zod@4.6.7:
+    resolution: {integrity: sha512-a==}`;
+  test.for([
+    {
+      what: 'a package key in double quotes',
+      text: lock(plainImporter, `  "hidden@1.0.0":\n    resolution: {integrity: sha512-a==}`),
+    },
+    {
+      what: 'a package key written as a complex key',
+      text: lock(plainImporter, `  ? hidden@1.0.0\n  : resolution: {integrity: sha512-a==}`),
+    },
+    {
+      what: 'a package with flow values',
+      text: lock(plainImporter, '  hidden@1.0.0: {resolution: {integrity: sha512-a==}}'),
+    },
+    {
+      what: 'packages indented by another amount',
+      text: lock(plainImporter, '   hidden@1.0.0:\n     resolution: {integrity: sha512-a==}'),
+    },
+    {
+      what: 'a packages block in flow style',
+      text: `lockfileVersion: '9.0'\n\npackages: {hidden@1.0.0: {}}\n`,
+    },
+    {
+      what: 'a quoted packages header',
+      text: `lockfileVersion: '9.0'\n\n"packages":\n  hidden@1.0.0:\n    resolution: {}\n`,
+    },
+    {
+      what: 'a quoted importers header',
+      text: `lockfileVersion: '9.0'\n\n"importers":\n${plainImporter}\n`,
+    },
+    {
+      what: 'a quoted declarations key',
+      text: lock(
+        `  .:\n    'dependencies':\n      zod:\n        specifier: ^4.0.0\n        version: 4.6.7`,
+        plainPackage,
+      ),
+    },
+    {
+      what: 'declarations in flow style',
+      text: lock(
+        '  .:\n    dependencies: {zod: {specifier: ^4.0.0, version: 4.6.7}}',
+        plainPackage,
+      ),
+    },
+    {
+      what: 'a declared version in another shape',
+      text: lock(
+        '  .:\n    dependencies:\n      zod: {specifier: ^4.0.0, version: 4.6.7}',
+        plainPackage,
+      ),
+    },
+    {
+      what: 'a declaration with its fields swapped',
+      text: lock(
+        '  .:\n    dependencies:\n      zod:\n        version: 4.6.7\n        specifier: ^4.0.0',
+        plainPackage,
+      ),
+    },
+    {
+      what: 'a declared name in double quotes',
+      text: lock(
+        '  .:\n    dependencies:\n      "zod":\n        specifier: ^4.0.0\n        version: 4.6.7',
+        plainPackage,
+      ),
+    },
+    {
+      what: 'a package key with no version',
+      text: lock(plainImporter, '  hidden:\n    resolution: {integrity: sha512-a==}'),
+    },
+    {
+      what: 'an importer with a comment on its key',
+      text: lock(
+        `  .: # root\n    dependencies:\n      zod:\n        specifier: ^4.0.0\n        version: 4.6.7`,
+        plainPackage,
+      ),
+    },
+  ])('$what, which pnpm reads but this reader would misread, is not read', ({ text }) => {
+    expect(() => read(text)).toThrow('pnpm-lock.yaml format not recognised');
+  });
+
+  test('an importer with nothing declared, and no packages at all, reads as empty', () => {
+    expect(read(`lockfileVersion: '9.0'\n\nimporters:\n\n  .: {}\n`)).toEqual({
+      versions: {},
+      direct: [],
+    });
+  });
 });
