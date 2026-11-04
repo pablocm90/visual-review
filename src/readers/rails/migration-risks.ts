@@ -35,6 +35,12 @@ const RULES: ReadonlyMap<string, Rule> = new Map<string, Rule>([
   ['remove_reference', ({ table, args }) => [removed('reference', table, args[0])]],
   ['remove_belongs_to', ({ table, args }) => [removed('reference', table, args[0])]],
   ['remove_timestamps', ({ table }) => [stillRead(`timestamps of ${table} removed`)]],
+  [
+    'rename_column',
+    ({ table, args: [from, to] }) => [
+      stillRead(`column ${table}.${nameOf(from)} renamed to ${nameOf(to)}`),
+    ],
+  ],
 ]);
 
 const risksOf = (call: Node): ReadonlyArray<MigrationRisk> => {

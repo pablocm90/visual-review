@@ -45,6 +45,10 @@ test.for([
   { written: 'remove_belongs_to :users, :account', expected: ['reference users.account removed'] },
   { written: 'remove_timestamps :users', expected: ['timestamps of users removed'] },
   { written: 'connection.remove_column', expected: [] },
+  {
+    written: 'rename_column :users, :name, :full_name',
+    expected: ['column users.name renamed to full_name'],
+  },
 ])('$written reads as what it takes away', ({ written, expected }) => {
   expect(titles(written)).toStrictEqual(expected);
 });
