@@ -35,7 +35,7 @@ import {
   visibleDiff,
   visibleNodeOf,
 } from '../core/visible-diff.ts';
-import { anchorKey, anchorName, lineAnchor, placeOfLine } from './anchors.ts';
+import { anchorKey, anchorName, lineAnchor, type PlaceOfLine, placeOfLine } from './anchors.ts';
 import { ChangedSinceMarks, ChangedSinceTag, useIsChangedSince } from './changed-since.tsx';
 import { ColourBy, type Colouring, ScaleLegend, type Shade, shadeOf } from './colour-by.tsx';
 import { CommentField, CommentOn, type Comments } from './comment-field.tsx';
@@ -1473,6 +1473,11 @@ export const ReviewPage = ({ review, notes, send }: ReviewPageProps) => {
     if (place) landOn(id, place);
     goToOnTab(id, tabOfDraft(anchor));
   };
+  const goToOutside = (place: PlaceOfLine, opener: HTMLButtonElement) => {
+    landOn(null, place);
+    location.hash = '#structure';
+    showOutside(opener);
+  };
   const [read, setRead] = useState(() => storedReadMarks(review.range));
   useEffect(() => storeReadMarks(review.range, read), [review.range, read]);
   const walk = (step: number) => {
@@ -1521,7 +1526,10 @@ export const ReviewPage = ({ review, notes, send }: ReviewPageProps) => {
                 <LastReview
                   since={review.sinceReview}
                   nodes={review.diff.nodes}
+                  findings={findings}
+                  onGoTo={goTo}
                   onGoToDraft={goToDraft}
+                  onGoToOutside={goToOutside}
                 />
               )}
               <ReadingOrderList
@@ -1688,11 +1696,7 @@ export const ReviewPage = ({ review, notes, send }: ReviewPageProps) => {
           tests={review.tests}
           onGoTo={id => goToOnTab(id, 'note')}
           onGoToDraft={goToDraft}
-          onGoToOutside={(place, opener) => {
-            landOn(null, place);
-            location.hash = '#structure';
-            showOutside(opener);
-          }}
+          onGoToOutside={goToOutside}
           send={send}
         />
       )}

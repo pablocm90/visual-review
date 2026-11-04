@@ -6007,3 +6007,88 @@ test.for([
     within(lastReviewSection()).getByRole('listitem', { name: 'application: Question' }),
   ).toBeTruthy();
 });
+
+test('a last answer to a finding is listed by its title, going to its target; one no longer raised reads changed, naming no commit, with nowhere to go', async () => {
+  const user = userEvent.setup();
+  const raised: Finding = {
+    id: 'metrics:look:rust/crate/application',
+    dimension: 'metrics',
+    level: 'look',
+    title: 'application got harder',
+    target: 'rust/crate/application',
+  };
+  render(
+    <ReviewPage
+      review={pageWith({
+        ...review,
+        findings: [raised],
+        sinceReview: {
+          ...sinceReview,
+          comments: [
+            {
+              anchor: { kind: 'finding', id: raised.id },
+              kind: 'fine',
+              text: 'Worth it.',
+              target: 'rust/crate/application',
+            },
+            { anchor: { kind: 'finding', id: 'logic:old' }, kind: 'fix', changedSince: [] },
+          ],
+        },
+      })}
+    />,
+  );
+  await screen.findByRole('group', { name: 'rust' });
+
+  const last = within(lastReviewSection());
+  const answered = last.getByRole('listitem', {
+    name: "application got harder: It's fine, As it was",
+  });
+  expect(within(answered).getByText('Worth it.')).toBeTruthy();
+  const gone = last.getByRole('listitem', { name: 'logic:old: Fix this, Changed since' });
+  expect(within(gone).queryByRole('button')).toBeNull();
+  expect(within(gone).queryByRole('list')).toBeNull();
+
+  await user.click(last.getByRole('button', { name: 'application got harder' }));
+
+  expect(document.activeElement).toBe(
+    screen.getByRole('button', { name: 'application: modified' }),
+  );
+});
+
+test('a last comment on a line outside the graph goes to its row in the files outside it', async () => {
+  const user = userEvent.setup();
+  render(
+    <ReviewPage
+      review={{
+        ...pageWithUndrawnFile(),
+        sinceReview: {
+          ...sinceReview,
+          comments: [
+            {
+              anchor: { kind: 'line', id: 'README.md@head:1', text: 'new' },
+              kind: 'question',
+              text: 'Why new?',
+            },
+          ],
+        },
+      }}
+    />,
+  );
+  await screen.findByRole('group', { name: 'rust' });
+
+  await user.click(within(lastReviewSection()).getByRole('button', { name: 'README.md:1 "new"' }));
+
+  expect(within(inspector()).getByRole('heading', { level: 2 }).textContent).toBe(
+    'Changed files outside the graph',
+  );
+  expect(within(inspector()).getByRole('insertion', { current: true }).textContent).toContain(
+    'new',
+  );
+});
+
+test('a later round with nothing said and nothing changed without a comment has no last review section', async () => {
+  render(<ReviewPage review={pageWith({ ...review, sinceReview })} />);
+  await screen.findByRole('group', { name: 'rust' });
+
+  expect(screen.queryByRole('region', { name: 'Last review' })).toBeNull();
+});
