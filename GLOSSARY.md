@@ -65,7 +65,7 @@ _Avoid_: logic diff (for one line), branch change
 _In code_: `LogicLine`
 
 **Anchor**:
-What a reviewer's comment or answer is on, by its kind and id: a part the graph draws (a crate, module, file, class or box) or an edge, by the id notes are keyed by; a **symbol** in a file (`<file>#<scope.name>`); a **logic line** (`<file>#<scope.name>#<text>`, `#<n>` after it for a repeat, carrying its text; a removed guard's or catch's id is its finding's without `logic:removed:`); a test (`<test file>#<heading › … › name>`); a diff line (`<file>@<base|head>:<n>`, carrying its text, since its number drifts); or, for an answer, a finding, by its id. Two anchors of different kinds never share a comment, whatever their ids.
+What a reviewer's comment or answer is on, by its kind and id: a part the graph draws (a crate, module, file, class or box) or an edge, by the id notes are keyed by; a **symbol** in a file (`<file>#<scope.name>`, `#<n>` after it for the n-th of that name in the file, as a getter and its setter are); a **logic line** (`<symbol id>#<text>`, `#<n>` after it for a repeat, carrying its text; a removed guard's or catch's id is its finding's without `logic:removed:`); a test (`<test file>#<heading › … › name>`); a diff line (`<file>@<base|head>:<n>`, carrying its text, since its number drifts); or, for an answer, a finding, by its id. Two anchors of different kinds never share a comment, whatever their ids.
 _Avoid_: target (a finding's), key
 _In code_: `Review['comments'][number]['anchor']`, `{ kind: 'part' | 'edge' | 'symbol' | 'decision' | 'test' | 'line' | 'finding', id }`; `anchorKey`, `anchorName`, `anchorTarget` (`anchors.ts`)
 

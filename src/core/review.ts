@@ -20,10 +20,13 @@ const CommentSchema = z
       .discriminatedUnion('kind', [
         anchorOn('part', 'A node id'),
         anchorOn('edge', '`<from> -> <to>`, the node ids at its ends'),
-        anchorOn('symbol', '`<file node id>#<scope.name>`: a function, method or class in a file'),
+        anchorOn(
+          'symbol',
+          "`<file node id>#<scope.name>`: a function, method or class in a file, then `#<n>` on the n-th of the file's symbols of that name, as a getter and its setter are, in the page data's `symbols` order",
+        ),
         quotedAnchorOn(
           'decision',
-          "`<file node id>#<scope.name>#<text>`: a logic line of a function, its text the base side's when removed, else the head side's, then `#<n>` on the n-th line of the function whose id reads the same. A removed guard's or catch's id is its `logic:removed:` finding's id without that prefix",
+          "`<symbol id>#<text>`: a logic line of a function, the symbol's id with its `#<n>` if it has one, its text the base side's when removed, else the head side's, then `#<n>` on the n-th line of the function whose id reads the same. A removed guard's or catch's id is its `logic:removed:` finding's id without that prefix",
           "The logic line's text",
         ),
         anchorOn('test', '`<test file>#<heading › … › name>`: a test by its headings and name'),
