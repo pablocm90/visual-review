@@ -1,5 +1,6 @@
 import { diffGraphs, type FilePatch, type GraphDiff } from './diff-graphs.ts';
 import { edgeId, type Graph } from './graph.ts';
+import { type PreviousComment, previousComments } from './previous-comments.ts';
 import type { ReviewedHead, ReviewedReading, SymbolFile } from './read-range.ts';
 import { isQuiet, qualified } from './symbol-changes.ts';
 import { type AnchoredSymbol, anchoredSymbols, decisionsOf } from './symbol-findings.ts';
@@ -22,7 +23,9 @@ type Changed = {
 
 export type ChangedSince = Changed & { readonly dropped: Changed };
 
-type Said = Pick<ReviewedHead, 'head' | 'verdict' | 'body' | 'comments' | 'calledFine'>;
+type Said = Pick<ReviewedHead, 'head' | 'verdict' | 'body' | 'calledFine'> & {
+  readonly comments: ReadonlyArray<PreviousComment>;
+};
 
 export type SinceReview = Said &
   ({ readonly gone: true } | { readonly unreadable: string } | { readonly changed: ChangedSince });
@@ -37,7 +40,10 @@ type SinceReviewOptions = {
   readonly tests: ReadonlyArray<TestFile>;
 };
 
-const saidIn = ({ head, verdict, body, comments, calledFine }: ReviewedHead): Said => ({
+const saidIn = (
+  { head, verdict, body, calledFine }: ReviewedHead,
+  comments: ReadonlyArray<PreviousComment>,
+): Said => ({
   head,
   verdict,
   ...(body === undefined ? {} : { body }),
@@ -169,9 +175,10 @@ export const sinceReviewOf = ({
   symbols,
   tests,
 }: SinceReviewOptions): SinceReview => {
-  const said = saidIn(reviewed);
-  if ('gone' in reviewed) return { ...said, gone: true };
-  if ('unreadable' in reviewed) return { ...said, unreadable: reviewed.unreadable };
+  const targets = { nodes: diff.nodes, tests };
+  const unmarked = () => saidIn(reviewed, previousComments({ ...reviewed, targets }));
+  if ('gone' in reviewed) return { ...unmarked(), gone: true };
+  if ('unreadable' in reviewed) return { ...unmarked(), unreadable: reviewed.unreadable };
   const { pullRequest, ...side } = reviewed;
   const paths = [...changedPaths, ...pullRequest.changedPaths];
   const pathsSince = side.changedPaths.filter(path => paths.includes(path));
@@ -207,23 +214,36 @@ export const sinceReviewOf = ({
     atHead: tests,
     atReview: pullRequest.tests,
   });
-  return {
-    ...said,
-    changed: {
-      nodes: nodes.drawn,
-      edges: edges.drawn,
-      symbols: anchors.symbols.drawn,
-      decisions: anchors.decisions.drawn,
-      tests: testsSince.drawn,
-      files: files.drawn,
-      dropped: {
-        nodes: nodes.dropped,
-        edges: edges.dropped,
-        symbols: anchors.symbols.dropped,
-        decisions: anchors.decisions.dropped,
-        tests: testsSince.dropped,
-        files: files.dropped,
-      },
+  const changed = {
+    nodes: nodes.drawn,
+    edges: edges.drawn,
+    symbols: anchors.symbols.drawn,
+    decisions: anchors.decisions.drawn,
+    tests: testsSince.drawn,
+    files: files.drawn,
+    dropped: {
+      nodes: nodes.dropped,
+      edges: edges.dropped,
+      symbols: anchors.symbols.dropped,
+      decisions: anchors.decisions.dropped,
+      tests: testsSince.dropped,
+      files: files.dropped,
     },
+  };
+  return {
+    ...saidIn(
+      reviewed,
+      previousComments({
+        comments: reviewed.comments,
+        targets,
+        compared: {
+          changed,
+          commits: reviewed.commits,
+          tree: [...side.before.nodes, ...after.nodes],
+          named,
+        },
+      }),
+    ),
+    changed,
   };
 };

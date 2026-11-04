@@ -9,6 +9,7 @@ import { metricFindings } from './metric-findings.ts';
 import type { ReviewNotes } from './notes.ts';
 import { notedPageHtml, pageData, pageHtml, pageIn, servedPageHtml } from './page.ts';
 import type { RangeReading, ReviewedDiff, ReviewedReading, SymbolFile } from './read-range.ts';
+import type { Review } from './review.ts';
 import type { SymbolStatement } from './symbol-changes.ts';
 import type { TestFile } from './test-changes.ts';
 
@@ -1894,7 +1895,10 @@ test.for([
   { side: 'that no longer reads', reading: { unreadable: 'cargo metadata failed' } },
   {
     side: 'still compared',
-    reading: reviewedAt({ before: { nodes: [webStack], edges: [] }, changedPaths: [] }),
+    reading: reviewedAt({
+      before: { nodes: [webStack, webFile('a.ts')], edges: [] },
+      changedPaths: [],
+    }),
   },
 ])('page data keeps what the last review said at a head $side', ({ reading }) => {
   const said = {
@@ -1923,7 +1927,7 @@ test.for([
     body: 'Nearly there',
     calledFine: ['logic:changed:web/file/a.ts#run'],
   });
-  expect(sinceReview).toHaveProperty('comments.0.text', 'Split this');
+  expect(sinceReview?.comments).toEqual([{ ...said.comments[0], target: 'web/file/a.ts' }]);
 });
 
 test.for([
@@ -1992,6 +1996,136 @@ test('changed since lists a file renamed since by its new name alone', () => {
   expect(
     pageData({ repo: 'shop', reading, range: 'a..b', version: '1.2.3', parsers: {} }).sinceReview,
   ).toMatchObject({ changed: { files: [to], dropped: { files: [] } } });
+});
+
+const commitOn = (sha: string, ...files: ReadonlyArray<string>) => ({
+  sha,
+  subject: `Subject of ${sha}`,
+  files,
+});
+
+const onAPart = (id: string): Review['comments'][number] => ({
+  anchor: { kind: 'part', id },
+  kind: 'change',
+  text: 'Look at this',
+});
+
+const firstPrevious = (reading: RangeReading) => {
+  const { sinceReview } = pageData({
+    repo: 'shop',
+    reading,
+    range: 'a..b',
+    version: '1.2.3',
+    parsers: {},
+  });
+  return sinceReview?.comments[0];
+};
+
+test.for([
+  {
+    on: 'a part changed since, with the commits on its file',
+    id: 'web/file/a.ts',
+    target: 'web/file/a.ts',
+    changedSince: [commitOn('c1', 'web/src/a.ts')],
+  },
+  {
+    on: 'a part with a part changed inside it, which no commit touches itself',
+    id: 'web',
+    target: 'web',
+    changedSince: [commitOn('c1', 'web/src/a.ts')],
+  },
+  { on: 'a part as it was', id: 'web/file/b.ts', target: 'web/file/b.ts' },
+])('a previous comment on $on', ({ id, target, changedSince }) => {
+  const graph = { nodes: [webStack, webFile('a.ts'), webFile('b.ts')], edges: [] };
+  const previous = firstPrevious(
+    readingWith({
+      before: { nodes: [webStack], edges: [] },
+      after: graph,
+      changedPaths: ['web/src/a.ts', 'web/src/b.ts'],
+      reviewed: {
+        ...reviewedAt({ before: graph, changedPaths: ['web/src/a.ts'] }),
+        comments: [onAPart(id)],
+        commits: [commitOn('c1', 'web/src/a.ts'), commitOn('c2', 'web/src/elsewhere.ts')],
+      },
+    }),
+  );
+
+  expect(previous).toEqual({ ...onAPart(id), target, ...(changedSince && { changedSince }) });
+});
+
+test('a previous comment on a part renamed since goes by its new name, with the commits on both', () => {
+  const [before, after] = [webFile('a.ts'), webFile('b.ts')];
+  const [from, to] = [before.path, after.path];
+  const previous = firstPrevious(
+    readingWith({
+      before: { nodes: [webStack], edges: [] },
+      after: { nodes: [webStack, after], edges: [] },
+      changedPaths: [to],
+      reviewed: {
+        ...reviewedAt({
+          before: { nodes: [webStack, before], edges: [] },
+          changedPaths: [from, to],
+          renames: [{ from, to }],
+        }),
+        comments: [onAPart(before.id)],
+        commits: [commitOn('c1', from), commitOn('c2', to)],
+      },
+    }),
+  );
+
+  expect(previous).toMatchObject({
+    target: after.id,
+    changedSince: [commitOn('c1', from), commitOn('c2', to)],
+  });
+});
+
+const gone = webFile('a.ts');
+
+test.for([
+  {
+    on: 'a part gone since holds no target and reads as changed',
+    id: gone.id,
+    atFork: [webStack],
+    held: {},
+  },
+  {
+    on: "a part gone with main's merge, which the PR never changed, reads as changed too",
+    id: gone.id,
+    atFork: [webStack, gone],
+    held: {},
+  },
+  {
+    on: 'a part holding one gone since reads as changed, and is still its target',
+    id: 'web',
+    atFork: [webStack],
+    held: { target: 'web' },
+  },
+])('a previous comment on $on', ({ id, atFork, held }) => {
+  const previous = firstPrevious(
+    readingWith({
+      before: { nodes: [webStack], edges: [] },
+      after: { nodes: [webStack], edges: [] },
+      changedPaths: [],
+      reviewed: {
+        ...reviewedAt({
+          before: { nodes: [webStack, gone], edges: [] },
+          changedPaths: [gone.path],
+          pullRequest: {
+            before: { nodes: atFork, edges: [] },
+            changedPaths: atFork.length === 1 ? [gone.path] : [],
+          },
+        }),
+        comments: [onAPart(id)],
+        commits: [commitOn('c1', gone.path)],
+      },
+    }),
+  );
+
+  expect(previous).toEqual({
+    ...onAPart(id),
+    ...held,
+    changedSince: [commitOn('c1', gone.path)],
+  });
 });
 
 const anchorGraph = {
