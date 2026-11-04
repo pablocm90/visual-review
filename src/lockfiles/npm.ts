@@ -3,6 +3,7 @@ import { type Lockfile, lockedVersions } from '../core/lockfile.ts';
 
 const NOT_RECOGNISED = 'package-lock.json format not recognised';
 const UNDER_NODE_MODULES = /(?:^|\/)node_modules\/((?:@[^/]+\/)?[^/]+)$/;
+const NAMES_NODE_MODULES = /(?:^|\/)node_modules(?:\/|$)/;
 const ALIAS = /^npm:((?:@[^/]+\/)?[^@]+)/;
 
 const Declarations = z.record(z.string(), z.string()).optional();
@@ -31,6 +32,17 @@ const lockOf = (text: string): z.infer<typeof Lock> => {
   }
 };
 
+const folderOf = (path: string): string | undefined => {
+  const folder = path.match(UNDER_NODE_MODULES)?.[1];
+  if (folder === undefined && NAMES_NODE_MODULES.test(path)) throw new Error(NOT_RECOGNISED);
+  return folder;
+};
+
+const lockedVersion = (version: string | undefined): string => {
+  if (version === undefined) throw new Error(NOT_RECOGNISED);
+  return version;
+};
+
 export const npmLockfile: Lockfile = {
   file: 'package-lock.json',
   ecosystem: 'npm',
@@ -41,13 +53,15 @@ export const npmLockfile: Lockfile = {
     if (packages === undefined) throw new Error(NOT_RECOGNISED);
     const entries = Object.entries(packages).map(([path, entry]) => ({
       ...entry,
-      folder: path.match(UNDER_NODE_MODULES)?.[1],
+      folder: folderOf(path),
     }));
     const linked = new Set(entries.filter(({ link }) => link).map(({ folder }) => folder));
     return {
       versions: lockedVersions(
-        entries.flatMap(({ folder, link, name, version = '' }) =>
-          folder === undefined || link ? [] : [{ name: name ?? folder, version }],
+        entries.flatMap(({ folder, link, name, version }) =>
+          folder === undefined || link
+            ? []
+            : [{ name: name ?? folder, version: lockedVersion(version) }],
         ),
       ),
       direct: new Set(

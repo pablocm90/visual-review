@@ -527,4 +527,25 @@ describe('package-lock.json', () => {
   ])('$what is not read, naming its format and nothing of the file', ({ text, format }) => {
     expect(() => read(text)).toThrow(new Error(`package-lock.json ${format}`));
   });
+
+  test.for([
+    { what: 'an installed package with no version', path: 'node_modules/hidden', entry: {} },
+    { what: 'a link not marked true', path: 'node_modules/hidden', entry: { link: 'yes' } },
+    { what: 'a path past its package', path: 'node_modules/a/b', entry: { version: '1.0.0' } },
+    { what: 'a path climbing out', path: 'node_modules/../a', entry: { version: '1.0.0' } },
+    { what: 'a bare node_modules', path: 'web/node_modules', entry: { version: '1.0.0' } },
+  ])(
+    '$what, which npm might read but this reader would misread, is not read',
+    ({ path, entry }) => {
+      expect(() => read(lock(3, { [path]: entry }))).toThrow(
+        new Error('package-lock.json format not recognised'),
+      );
+    },
+  );
+
+  test('a folder only named like node_modules is local', () => {
+    expect(
+      read(lock(3, { 'not_node_modules/web': { version: '1.0.0', dependencies: { zod: '*' } } })),
+    ).toEqual({ versions: {}, direct: ['zod'] });
+  });
 });
