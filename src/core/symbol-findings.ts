@@ -114,7 +114,12 @@ const exportsFinding = (file: FileSymbolChanges): ReadonlyArray<Finding> => {
 const isLost = ({ change, kind }: LogicLine): boolean =>
   change === 'removed' && (kind === 'guard' || kind === 'catch');
 
-const COUNTED = ['added', 'changed', 'removed'] as const;
+const COUNTED = [
+  ['added', 'added'],
+  ['changed', 'changed'],
+  ['removed', 'removed'],
+  ['moved', 'moved (found by text)'],
+] as const;
 
 const changedFinding = (
   node: string,
@@ -123,7 +128,7 @@ const changedFinding = (
 ): ReadonlyArray<Finding> => {
   if (others.length === 0) return [];
   const counts = COUNTED.map(
-    change => [change, others.filter(line => line.change === change).length] as const,
+    ([change, words]) => [words, others.filter(line => line.change === change).length] as const,
   );
   return [
     {
@@ -134,7 +139,7 @@ const changedFinding = (
       title: `${statement.kind} ${qualified(statement)} changed its logic`,
       detail: counts
         .filter(([, count]) => count > 0)
-        .map(([change, count]) => `${count} ${change}`)
+        .map(([words, count]) => `${count} ${words}`)
         .join(', '),
     },
   ];

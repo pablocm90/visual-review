@@ -794,6 +794,37 @@ test("an edited function's other decision changes are one logic finding for info
   ]);
 });
 
+test("a moved guard or catch needs no look: it counts in its function's logic finding for information, which says how it was found", () => {
+  const symbols = [
+    symbolFile([
+      {
+        name: 'ReviewPage',
+        kind: 'function',
+        exported: { base: true, head: true },
+        change: 'edited',
+        logic: [
+          logicLine({ change: 'moved', kind: 'guard', base: 'if (!a) return', movedTo: 'Page' }),
+          logicLine({ change: 'moved', kind: 'catch', base: 'catch (error)', movedTo: 'Page' }),
+          logicLine({ change: 'added', kind: 'if', head: 'if (b)' }),
+        ],
+      },
+    ]),
+  ];
+
+  expect(findingsOfSymbols(symbols).filter(({ dimension }) => dimension === 'logic')).toStrictEqual(
+    [
+      {
+        id: 'logic:changed:web/file/a.ts#ReviewPage',
+        dimension: 'logic',
+        level: 'info',
+        target: 'web/file/a.ts',
+        title: 'function ReviewPage changed its logic',
+        detail: '1 added, 2 moved (found by text)',
+      },
+    ],
+  );
+});
+
 test('two accessors of one name each changing their logic are two findings, the later id counting the symbol and each title naming its kind', () => {
   const accessor = (kind: 'getter' | 'setter'): SymbolStatement => ({
     name: 'x',

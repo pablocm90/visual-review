@@ -665,3 +665,60 @@ test('a decision an edited function gained takes one lost elsewhere; what it alr
     ),
   ).toEqual([{ change: 'removed', movedTo: undefined }]);
 });
+
+test.for([
+  {
+    reason: 'two lost and one gained: the first moved, the second still lost',
+    base: ['function charge(a) { if (!a) return; pay(); if (!a) return; }'],
+    head: ['function charge(a) { pay(); }', 'function check(a) { if (!a) return; }'],
+    lines: [
+      { change: 'moved', movedTo: 'check' },
+      { change: 'removed', movedTo: undefined },
+    ],
+  },
+  {
+    reason: 'a condition reworded on the way',
+    base: ['function charge(a) { if (!a) return; pay(); }'],
+    head: ['function charge(a) { pay(); }', 'function check(a) { if (!a.id) return; }'],
+    lines: [{ change: 'removed', movedTo: undefined }],
+  },
+  {
+    reason: 'the same text of another kind',
+    base: ['function charge(a) { try { pay(); } catch (error) { warn(); } }'],
+    head: ['function charge(a) { pay(); }', 'function check(a) { if (error) warn(); }'],
+    lines: [{ change: 'removed', movedTo: undefined }],
+  },
+  {
+    reason: 'a decision that only moved inside its own function',
+    base: ['function charge(a) { if (!a) return; if (b) pay(); }'],
+    head: ['function charge(a) { if (b) pay(); if (!a) return; }'],
+    lines: [
+      { change: 'removed', movedTo: undefined },
+      { change: 'same', movedTo: undefined },
+      { change: 'added', movedTo: undefined },
+    ],
+  },
+])('stays as it reads: $reason', ({ base, head, lines }) => {
+  expect(lostOf(base, head)).toEqual(lines);
+});
+
+test('a whole function moved between files gained nothing, so what another lost stays lost', () => {
+  const moving = 'function check(a) { if (!a) return; }';
+  const files = symbolChangesOf([
+    {
+      node: 'a',
+      before: read('function charge(a) { if (!a) return; pay(); }', moving),
+      after: read('function charge(a) { pay(); }'),
+    },
+    { node: 'b', before: none, after: read(moving) },
+  ]);
+
+  expect(files.flatMap(file => file.symbols).map(({ name, change }) => ({ name, change }))).toEqual(
+    [
+      { name: 'charge', change: 'edited' },
+      { name: 'check', change: 'moved' },
+      { name: 'check', change: 'moved' },
+    ],
+  );
+  expect(logicOfIn(files, 'charge')?.map(({ change }) => change)).toEqual(['removed']);
+});
