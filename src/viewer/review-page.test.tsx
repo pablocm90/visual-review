@@ -5142,6 +5142,57 @@ test("the tray goes to a diff line's draft on the Diff tab", async () => {
   );
 });
 
+const patchOf = (path: string, ...hunkLines: ReadonlyArray<string>) => ({
+  path,
+  patch: [`--- a/${path}`, `+++ b/${path}`, ...hunkLines].join('\n'),
+});
+
+const pageWithFilesDrawnOnlyAsABox = () =>
+  pageWith({
+    range: review.range,
+    diff: {
+      nodes: [
+        { id: 'web', kind: 'stack', label: 'web', path: '', state: 'unchanged' },
+        webModule('billing', 'modified'),
+      ],
+      edges: [],
+    },
+    patches: [
+      patchOf('web/src/billing/refund.ts', '@@ -8 +8 @@', '-const late = 1;', '+const late = 2;'),
+      patchOf('web/src/billing/tax.ts', '@@ -3 +3 @@', '-const rate = 1;', '+const rate = 2;'),
+    ],
+  });
+
+test("the tray going to a diff line's draft in a file drawn only as its box opens that file's patch, and only that one", async () => {
+  const user = userEvent.setup();
+  render(<ReviewPage review={pageWithFilesDrawnOnlyAsABox()} send={vi.fn(async () => {})} />);
+  const name = 'web/src/billing/refund.ts:8 "const late = 2;"';
+  const patchesOpen = () =>
+    within(diffTab())
+      .getAllByRole('group')
+      .map(patch => [patch.getAttribute('aria-label'), patch.hasAttribute('open')]);
+
+  await user.click(await screen.findByRole('button', { name: 'billing: modified' }));
+  await user.click(within(inspector()).getByRole('tab', { name: 'Diff' }));
+  expect(patchesOpen()).toStrictEqual([
+    ['web/src/billing/refund.ts', false],
+    ['web/src/billing/tax.ts', false],
+  ]);
+  await user.click(within(diffTab()).getByText('web/src/billing/refund.ts'));
+  await user.click(within(diffTab()).getByRole('button', { name: `Comment on ${name}` }));
+  await write(user, within(diffTab()).getByRole('textbox', { name: 'Your comment' }), 'Why 2?');
+  await user.click(screen.getByRole('button', { name: 'Close inspector' }));
+  await openReview(user);
+
+  await user.click(
+    within(screen.getByRole('list', { name: 'Drafts' })).getByRole('button', { name }),
+  );
+  expect(patchesOpen()).toStrictEqual([
+    ['web/src/billing/refund.ts', true],
+    ['web/src/billing/tax.ts', false],
+  ]);
+});
+
 const pageWithUndrawnFile = () =>
   pageWith({
     ...review,

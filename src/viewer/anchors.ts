@@ -33,7 +33,7 @@ const split = (id: string, at: string): readonly [string, string] => {
   return [id.slice(0, cut), id.slice(cut + at.length)];
 };
 
-const fileOfLine = (id: string): string => id.slice(0, id.lastIndexOf('@'));
+export const fileOfLine = (id: string): string => id.slice(0, id.lastIndexOf('@'));
 
 const lineNumber = (id: string): string => id.slice(id.lastIndexOf(':') + 1);
 
