@@ -1,4 +1,4 @@
-import { isAtOrUnder } from './diff-graphs.ts';
+import { deepestHolding, isAtOrUnder } from './diff-graphs.ts';
 import { type GraphNode, stackOfIn } from './graph.ts';
 import type { TestFile } from './test-changes.ts';
 
@@ -26,4 +26,21 @@ export const testsAlongside = ({
       isAtOrUnder(path, node) ||
       inside.some(each => stem(each.path) === testedStem(path) && stackOf(each.id) === stack),
   );
+};
+
+type NodeOfTestsOptions = {
+  readonly nodes: ReadonlyArray<Pick<GraphNode, 'id' | 'parent' | 'path'>>;
+  readonly file: Pick<TestFile, 'path' | 'stack'>;
+};
+
+export const nodeOfTests = ({ nodes, file }: NodeOfTestsOptions): string | undefined => {
+  const holder = deepestHolding(file.path, nodes);
+  const stackOf = stackOfIn(nodes);
+  const named = nodes.find(
+    each =>
+      stem(each.path) === testedStem(file.path) &&
+      stackOf(each.id) === file.stack &&
+      (holder === undefined || isAtOrUnder(each.path, holder)),
+  );
+  return (named ?? holder ?? nodes.find(({ id }) => id === file.stack))?.id;
 };

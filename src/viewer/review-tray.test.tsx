@@ -7,9 +7,15 @@ import { anchorKey } from './anchors.ts';
 import { ReviewTray } from './review-tray.tsx';
 
 const nodes = [
-  { id: 'web/module/src/cart', label: 'cart', path: 'web/src/cart' },
-  { id: 'web/file/src/cart/total.ts', label: 'total.ts', path: 'web/src/cart/total.ts' },
-  { id: 'web/file/src/pay.ts', label: 'pay.ts', path: 'web/src/pay.ts' },
+  { id: 'web', label: 'web', path: '' },
+  { id: 'web/module/src/cart', label: 'cart', parent: 'web', path: 'web/src/cart' },
+  {
+    id: 'web/file/src/cart/total.ts',
+    label: 'total.ts',
+    parent: 'web/module/src/cart',
+    path: 'web/src/cart/total.ts',
+  },
+  { id: 'web/file/src/pay.ts', label: 'pay.ts', parent: 'web', path: 'web/src/pay.ts' },
 ];
 
 const drafted = (anchor: Comment['anchor']): Comment => ({
@@ -37,6 +43,7 @@ const renderTray = (
       answers={{}}
       findings={[]}
       nodes={nodes}
+      tests={[{ path: 'web/src/cart/total.test.ts', stack: 'web' }]}
       onGoTo={vi.fn()}
       onGoToDraft={onGoToDraft}
       send={async () => {}}
@@ -59,8 +66,8 @@ test("the open tray names each draft by its anchor, sorts it with its file's par
   expect(drafts.getAllByRole('listitem').map(item => item.textContent)).toEqual([
     'pay.ts Question: Why?',
     'Cart.total in total.ts Question: Why?',
-    'README.md:1 "# Shop" Question: Why?',
     'adds tax Question: Why?',
+    'README.md:1 "# Shop" Question: Why?',
   ]);
   expect(
     within(screen.getByLabelText('What Claude gets')).getByText(/README/).textContent,
@@ -73,13 +80,19 @@ test("the open tray names each draft by its anchor, sorts it with its file's par
   });
 });
 
-test('a part read with a comment on something inside it is not listed as read with nothing to say', async () => {
-  const user = userEvent.setup();
-  renderTray([drafted({ kind: 'symbol', id: 'web/file/src/cart/total.ts#Cart.total' })], {
-    read: ['web/file/src/pay.ts', 'web/file/src/cart/total.ts'],
-  });
-  await user.click(screen.getByRole('button', { name: 'Review' }));
+test.for<Comment['anchor']>([
+  { kind: 'symbol', id: 'web/file/src/cart/total.ts#Cart.total' },
+  { kind: 'test', id: 'web/src/cart/total.test.ts#Cart › adds tax' },
+])(
+  'a part read with a comment on its $kind is not listed as read with nothing to say',
+  async anchor => {
+    const user = userEvent.setup();
+    renderTray([drafted(anchor)], {
+      read: ['web/file/src/pay.ts', 'web/file/src/cart/total.ts'],
+    });
+    await user.click(screen.getByRole('button', { name: 'Review' }));
 
-  const silent = within(screen.getByRole('list', { name: 'Read, nothing to say' }));
-  expect(silent.getAllByRole('listitem').map(item => item.textContent)).toEqual(['pay.ts']);
-});
+    const silent = within(screen.getByRole('list', { name: 'Read, nothing to say' }));
+    expect(silent.getAllByRole('listitem').map(item => item.textContent)).toEqual(['pay.ts']);
+  },
+);

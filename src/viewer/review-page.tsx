@@ -576,8 +576,13 @@ type InspectorProps = {
 
 type InspectorTab = 'note' | 'metrics' | 'diff' | 'tests' | 'symbols';
 
-const tabOfDraft = ({ kind }: Comment['anchor']): InspectorTab =>
-  kind === 'symbol' || kind === 'decision' ? 'symbols' : 'note';
+const DRAFT_TABS: Partial<Record<Comment['anchor']['kind'], InspectorTab>> = {
+  symbol: 'symbols',
+  decision: 'symbols',
+  test: 'tests',
+};
+
+const tabOfDraft = ({ kind }: Comment['anchor']): InspectorTab => DRAFT_TABS[kind] ?? 'note';
 
 const useInspectorTab = (screen: string, selected: string | undefined) => {
   const [inspectorTab, setInspectorTab] = useState<InspectorTab>('note');
@@ -647,7 +652,12 @@ const nodeSections = ({
             count: changedCount(testsHere),
             panel: (
               <div className="tests">
-                <TestFiles files={testsHere} nodes={nodes} />
+                <TestFiles
+                  files={testsHere}
+                  nodes={nodes}
+                  comments={comments}
+                  onComment={onComment}
+                />
               </div>
             ),
           },
@@ -1198,8 +1208,10 @@ export const ReviewPage = ({ review, notes, send }: ReviewPageProps) => {
   const answer: AnswerTo | undefined =
     send && ((id, given) => setAnswers(current => withAnswer(current, id, given)));
   const [chosenWidth, setChosenWidth] = useState<number>();
-  const comment = (written: Comment) =>
-    setComments(current => ({ ...current, [anchorKey(written.anchor)]: written }));
+  const comment =
+    send &&
+    ((written: Comment) =>
+      setComments(current => ({ ...current, [anchorKey(written.anchor)]: written })));
   const [expanded, setExpanded] = useState<ReadonlySet<string>>(new Set());
   const expandable = useMemo(
     () => new Set(review.diff.nodes.flatMap(node => node.parent ?? [])),
@@ -1464,7 +1476,7 @@ export const ReviewPage = ({ review, notes, send }: ReviewPageProps) => {
               note={selectedNote}
               found={selectedFindings}
               comments={comments}
-              onComment={send && comment}
+              onComment={comment}
               answers={answers}
               onAnswer={answer}
               chosenWidth={chosenWidth}
@@ -1486,6 +1498,8 @@ export const ReviewPage = ({ review, notes, send }: ReviewPageProps) => {
           notes={notes}
           selected={selectedNode}
           onGoTo={goToOnStructure}
+          comments={comments}
+          onComment={comment}
         />
       )}
       {send && (
@@ -1500,6 +1514,7 @@ export const ReviewPage = ({ review, notes, send }: ReviewPageProps) => {
           answers={answers}
           findings={findings}
           nodes={review.diff.nodes}
+          tests={review.tests}
           onGoTo={id => goToOnTab(id, 'note')}
           onGoToDraft={(id, anchor) => goToOnTab(id, tabOfDraft(anchor))}
           send={send}

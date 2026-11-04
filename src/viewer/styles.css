@@ -767,11 +767,6 @@ pre .hljs-emphasis {
   color: var(--muted);
 }
 
-.tests .test[data-state="removed"] {
-  color: var(--muted);
-  text-decoration: line-through;
-}
-
 .tests .moved {
   margin-left: 8px;
   color: var(--muted);
@@ -2300,6 +2295,7 @@ main:has(> .review-tray) {
   color: var(--ramp-3);
   font: inherit;
   font-weight: 600;
+  text-align: left;
   cursor: pointer;
 }
 
@@ -2397,4 +2393,14 @@ main:has(> .review-tray) {
 .comment-on:focus-visible {
   outline: 2px solid var(--ramp-3);
   outline-offset: 1px;
+}
+
+.tests .test[data-state="removed"] .test-name {
+  color: var(--muted);
+  text-decoration: line-through;
+}
+
+.tests .test .comment-kind,
+.tests .test .comment {
+  text-indent: 0;
 }
