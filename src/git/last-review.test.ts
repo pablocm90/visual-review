@@ -1,11 +1,13 @@
-import { mkdirSync, mkdtempSync, rmSync, utimesSync, writeFileSync } from 'node:fs';
+import { mkdtempSync, rmSync, symlinkSync, utimesSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { expect, test } from 'vitest';
+import { git } from '../test-support/repos.ts';
 import { lastReviewOf } from './last-review.ts';
 
 const reviewsDirectory = () => {
   const directory = mkdtempSync(join(tmpdir(), 'visual-review-reviews-'));
+  git(directory, 'init', '--quiet');
   return { directory, [Symbol.dispose]: () => rmSync(directory, { recursive: true, force: true }) };
 };
 
@@ -38,6 +40,19 @@ test("the newest review of the pull request at another head is the last one, the
   await expect(lastReviewOf({ directory, pullRequest: 7, head: 'h2' })).resolves.toEqual({
     head: 'h1',
     verdict: 'request-changes',
+  });
+});
+
+test('a review file git tracks came with the repo, so it is no last review, however new', async () => {
+  using reviews = reviewsDirectory();
+  const { directory } = reviews;
+  writeReview(directory, { head: 'h0', writtenAt: 1_000 });
+  writeReview(directory, { head: 'h1', writtenAt: 2_000, verdict: 'approve' });
+  git(directory, 'add', '--force', 'base..h1.review.json');
+
+  await expect(lastReviewOf({ directory, pullRequest: 7, head: 'h2' })).resolves.toEqual({
+    head: 'h0',
+    verdict: 'comment',
   });
 });
 
@@ -109,7 +124,7 @@ test("a review file that can't be read is skipped, not a failed review", async (
   using reviews = reviewsDirectory();
   const { directory } = reviews;
   writeReview(directory, { head: 'h1', writtenAt: 1_000 });
-  mkdirSync(join(directory, 'base..h2.review.json'));
+  symlinkSync('missing', join(directory, 'base..h2.review.json'));
 
   await expect(lastReviewOf({ directory, pullRequest: 7, head: 'h3' })).resolves.toEqual({
     head: 'h1',

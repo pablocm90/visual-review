@@ -2,12 +2,19 @@ import { mkdtempSync, readdirSync, rmSync, utimesSync, writeFileSync } from 'nod
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { expect, test } from 'vitest';
+import { git } from '../test-support/repos.ts';
 import { pruneReviews } from './prune-reviews.ts';
 
 const reviewsDirectory = () => {
   const directory = mkdtempSync(join(tmpdir(), 'visual-review-reviews-'));
+  git(directory, 'init', '--quiet');
   return { directory, [Symbol.dispose]: () => rmSync(directory, { recursive: true, force: true }) };
 };
+
+const filesIn = (directory: string): ReadonlyArray<string> =>
+  readdirSync(directory)
+    .filter(file => file !== '.git')
+    .toSorted();
 
 const writePage = (
   directory: string,
@@ -31,7 +38,7 @@ test('keeps the most recently written pages and deletes older ones with their da
 
   await pruneReviews({ directory, keep: 1 });
 
-  expect(readdirSync(directory).sort()).toEqual([
+  expect(filesIn(directory)).toEqual([
     'b..newest.html',
     'b..newest.json',
     'b..newest.notes.json',
@@ -73,7 +80,7 @@ test("a pull request's newest review outlives its page, whatever its age, and it
 
   await pruneReviews({ directory, keep: 2 });
 
-  expect(readdirSync(directory).sort()).toEqual([
+  expect(filesIn(directory)).toEqual([
     'a..kept.html',
     'a..kept.json',
     'a..kept.review.json',
@@ -82,4 +89,16 @@ test("a pull request's newest review outlives its page, whatever its age, and it
     'a..shown.json',
     'b..other.review.json',
   ]);
+});
+
+test('a review file git tracks is left alone and takes no place as the newest review', async () => {
+  using reviews = reviewsDirectory();
+  const { directory } = reviews;
+  writeReviewOf(directory, { name: 'a..sent', pullRequest: 7, writtenAt: 1_000 });
+  writeReviewOf(directory, { name: 'a..tracked', pullRequest: 7, writtenAt: 2_000 });
+  git(directory, 'add', '--force', 'a..tracked.review.json');
+
+  await pruneReviews({ directory, keep: 1 });
+
+  expect(filesIn(directory)).toEqual(['a..sent.review.json', 'a..tracked.review.json']);
 });

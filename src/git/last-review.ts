@@ -1,7 +1,11 @@
-import { readdir, readFile, stat } from 'node:fs/promises';
+import { execFile } from 'node:child_process';
+import { readFile, stat } from 'node:fs/promises';
 import { join } from 'node:path';
+import { promisify } from 'node:util';
 import type { ReviewedHead } from '../core/read-range.ts';
 import { pastReviewOf } from '../core/review.ts';
+
+const run = promisify(execFile);
 
 const headOfRange = (range: string): string => range.slice(range.lastIndexOf('..') + 2);
 
@@ -33,10 +37,17 @@ const pullRequestReviewIn = async (
   ];
 };
 
+const untrackedFilesIn = async (directory: string): Promise<ReadonlyArray<string>> => {
+  const listed = await run('git', ['-C', directory, 'ls-files', '-z', '--others']).catch(() => ({
+    stdout: '',
+  }));
+  return listed.stdout.split('\0');
+};
+
 export const pullRequestReviewsIn = async (
   directory: string,
 ): Promise<ReadonlyArray<PullRequestReview>> => {
-  const files = await readdir(directory).catch(() => []);
+  const files = await untrackedFilesIn(directory);
   const reviews = await Promise.all(
     files
       .filter(file => file.endsWith(REVIEW))
