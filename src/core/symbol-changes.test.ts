@@ -576,3 +576,18 @@ test('a method gone and an unlike getter of another name are no pair', () => {
     { kind: 'method', name: 'foo', change: 'removed', logic: undefined },
   ]);
 });
+
+test('a method renamed and turned into a getter is still a rename', () => {
+  const body = 'return this.items.filter(item => item.open).map(item => item.total);';
+  expect(changesOfFoo(`  foo() { ${body} }`, `  get bar() { ${body} }`)).toStrictEqual([
+    { kind: 'getter', name: 'bar', change: 'renamed', logic: undefined },
+  ]);
+});
+
+test('a getter renamed to an equal-bodied setter is no rename', () => {
+  const body = 'this.items.filter(item => item.open).map(item => item.total);';
+  expect(changesOfFoo(`  get foo() { ${body} }`, `  set bar(v) { ${body} }`)).toStrictEqual([
+    { kind: 'setter', name: 'bar', change: 'added', logic: undefined },
+    { kind: 'getter', name: 'foo', change: 'removed', logic: undefined },
+  ]);
+});

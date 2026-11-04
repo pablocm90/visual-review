@@ -160,7 +160,7 @@ export const symbolChanges = ({ before, after }: SymbolChangesOptions): SymbolCh
       .filter(symbol => partnerOf(symbol) === undefined)
       .flatMap(symbol =>
         removed
-          .filter(former => former.kind === symbol.kind)
+          .filter(former => former.kind === symbol.kind || turnedInto(former, symbol))
           .map(former => ({ symbol, former, likeness: likenessOf(former, symbol) })),
       )
       .filter(({ likeness }) => likeness >= PROBABLY_RENAMED)
