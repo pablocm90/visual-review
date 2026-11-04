@@ -1,4 +1,4 @@
-import { type LogicLine, logicDiff } from './logic-diff.ts';
+import { decisionKey, decisionText, type LogicLine, logicDiff } from './logic-diff.ts';
 import type { FileSymbols, ReadSymbol, SymbolKind } from './reader.ts';
 
 export type SymbolChange =
@@ -223,6 +223,56 @@ type End = {
   readonly symbol: ReadSymbol;
 };
 
+type Gain = { readonly key: string; readonly owner: SymbolStatement };
+
+const gainsOf = (statement: SymbolStatement, after: FileSymbols): ReadonlyArray<Gain> => {
+  const decisions =
+    statement.change === 'added'
+      ? (after.symbols.find(read => sameSymbol(read, statement))?.decisions ?? [])
+      : [];
+  return decisions.map(decision => ({ key: decisionKey(decision), owner: statement }));
+};
+
+type Settled = { readonly after: FileSymbols; readonly symbols: ReadonlyArray<SymbolStatement> };
+
+const movesOf = (files: ReadonlyArray<Settled>): ReadonlyMap<LogicLine, Gain> => {
+  const gains = Map.groupBy(
+    files.flatMap(({ after, symbols }) => symbols.flatMap(symbol => gainsOf(symbol, after))),
+    ({ key }) => key,
+  );
+  const lost = files
+    .flatMap(({ symbols }) => symbols)
+    .flatMap(owner =>
+      (owner.logic ?? [])
+        .filter(({ change }) => change === 'removed')
+        .map(line => ({ owner, line })),
+    );
+  return new Map(
+    lost.reduce<ReadonlyArray<readonly [LogicLine, Gain]>>((moves, { owner, line }) => {
+      const gain = gains
+        .get(decisionKey({ kind: line.kind, text: decisionText(line) }))
+        ?.find(gain => gain.owner !== owner && !moves.some(([, taken]) => taken === gain));
+      return gain === undefined ? moves : moves.concat([[line, gain]]);
+    }, []),
+  );
+};
+
+const withMoves = (
+  statement: SymbolStatement,
+  moves: ReadonlyMap<LogicLine, Gain>,
+): SymbolStatement =>
+  statement.logic === undefined
+    ? statement
+    : {
+        ...statement,
+        logic: statement.logic.map(line => {
+          const gain = moves.get(line);
+          return gain === undefined
+            ? line
+            : { ...line, change: 'moved', movedTo: qualified(gain.owner) };
+        }),
+      };
+
 export const symbolChangesOf = (
   files: ReadonlyArray<SidedFile>,
 ): ReadonlyArray<FileSymbolChanges> => {
@@ -233,7 +283,7 @@ export const symbolChangesOf = (
       const symbol = sides[statement.change]?.symbols.find(read => sameSymbol(read, statement));
       return symbol === undefined ? [] : [{ node, statement, symbol }];
     });
-    return { node, changes, ends };
+    return { node, after, changes, ends };
   });
   const ends = paired.flatMap(file => file.ends);
   const onlyEndOf = (end: End): End | undefined => {
@@ -253,9 +303,16 @@ export const symbolChangesOf = (
       ? { change: 'moved', movedTo: other.node }
       : { change: 'moved', movedFrom: other.node };
   };
-  return paired.map(({ node, changes }) => ({
+  const settled = paired.map(({ node, after, changes }) => ({
+    node,
+    after,
+    changes,
+    symbols: changes.symbols.map(statement => ({ ...statement, ...moved(statement) })),
+  }));
+  const moves = movesOf(settled);
+  return settled.map(({ node, changes, symbols }) => ({
     node,
     ...changes,
-    symbols: changes.symbols.map(statement => ({ ...statement, ...moved(statement) })),
+    symbols: symbols.map(statement => withMoves(statement, moves)),
   }));
 };

@@ -1,7 +1,7 @@
 import { countedId } from './counted-id.ts';
 import type { Finding } from './findings.ts';
 import type { GraphNode } from './graph.ts';
-import type { LogicLine } from './logic-diff.ts';
+import { decisionText, type LogicLine } from './logic-diff.ts';
 import type { SymbolFile } from './read-range.ts';
 import { type FileSymbolChanges, qualified, type SymbolStatement } from './symbol-changes.ts';
 
@@ -139,8 +139,6 @@ const changedFinding = (
     },
   ];
 };
-
-const decisionText = ({ base, head }: LogicLine): string => head ?? base ?? '';
 
 const countingRepeats = <T>(
   items: ReadonlyArray<T>,

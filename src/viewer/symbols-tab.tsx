@@ -102,6 +102,7 @@ const MARKS: Readonly<Record<LogicLine['change'], string>> = {
   added: '+',
   removed: '−',
   changed: '~',
+  moved: '→',
 };
 
 const textOf = ({ base, head }: LogicLine): string =>

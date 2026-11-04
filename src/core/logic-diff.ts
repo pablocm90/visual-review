@@ -1,12 +1,13 @@
 import type { Decision, DecisionKind } from './reader.ts';
 
 export type LogicLine = {
-  readonly change: 'same' | 'added' | 'removed' | 'changed';
+  readonly change: 'same' | 'added' | 'removed' | 'changed' | 'moved';
   readonly kind: DecisionKind;
   readonly depth: number;
   readonly base?: string;
   readonly head?: string;
   readonly line: number;
+  readonly movedTo?: string;
 };
 
 type Sides = {
@@ -33,6 +34,11 @@ const tokensOf = (text: string): string =>
 
 const sameDecision = (one: Decision, other: Decision): boolean =>
   one.kind === other.kind && tokensOf(one.text) === tokensOf(other.text);
+
+export const decisionKey = ({ kind, text }: Pick<Decision, 'kind' | 'text'>): string =>
+  `${kind} ${tokensOf(text)}`;
+
+export const decisionText = ({ base, head }: LogicLine): string => head ?? base ?? '';
 
 type Row = ReadonlyArray<number>;
 

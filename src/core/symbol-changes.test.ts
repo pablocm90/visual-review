@@ -1,6 +1,6 @@
 import { expect, test } from 'vitest';
 import { symbolsOfTypeScript } from '../readers/typescript/typescript-symbols.ts';
-import { symbolChanges, symbolChangesOf } from './symbol-changes.ts';
+import { type FileSymbolChanges, symbolChanges, symbolChangesOf } from './symbol-changes.ts';
 
 const read = (...lines: ReadonlyArray<string>) =>
   symbolsOfTypeScript(lines.join('\n'), 'src/shop.ts');
@@ -589,5 +589,32 @@ test('a getter renamed to an equal-bodied setter is no rename', () => {
   expect(changesOfFoo(`  get foo() { ${body} }`, `  set bar(v) { ${body} }`)).toStrictEqual([
     { kind: 'setter', name: 'bar', change: 'added', logic: undefined },
     { kind: 'getter', name: 'foo', change: 'removed', logic: undefined },
+  ]);
+});
+
+const logicOfIn = (files: ReadonlyArray<FileSymbolChanges>, name: string) =>
+  files.flatMap(file => file.symbols).find(symbol => symbol.name === name)?.logic;
+
+test('a decision a function lost and a new function of the same file gained moved there', () => {
+  const [before, after] = [
+    read('function ReviewPage(open) {', '  if (!open) return;', '  draw();', '}'),
+    read(
+      'function ReviewPage(open) { return Page(open); }',
+      'function Page(open) {',
+      '  if (!open) return;',
+      '  draw();',
+      '}',
+    ),
+  ];
+
+  expect(logicOfIn(symbolChangesOf([{ node: 'a', before, after }]), 'ReviewPage')).toEqual([
+    {
+      change: 'moved',
+      kind: 'guard',
+      depth: 0,
+      base: 'if (!open) return',
+      line: 2,
+      movedTo: 'Page',
+    },
   ]);
 });
