@@ -133,24 +133,32 @@ const changedFinding = (
 
 const decisionText = ({ base, head }: LogicLine): string => head ?? base ?? '';
 
-type LogicDecision = {
-  readonly line: LogicLine;
+const countingRepeats = <T>(
+  items: ReadonlyArray<T>,
+  idOf: (item: T) => string,
+): ReadonlyArray<{ readonly item: T; readonly id: string }> =>
+  items.map((item, index) => {
+    const id = idOf(item);
+    const before = items.slice(0, index).filter(other => idOf(other) === id).length;
+    return { item, id: before === 0 ? id : `${id}#${before + 1}` };
+  });
+
+export type AnchoredSymbol = {
+  readonly item: SymbolStatement;
   readonly id: string;
-  readonly text: string;
 };
 
-export const decisionsOf = (
+export const anchoredSymbols = (
   node: string,
-  statement: SymbolStatement,
-): ReadonlyArray<LogicDecision> => {
-  const lines = statement.logic ?? [];
-  return lines.map((line, index) => {
-    const text = decisionText(line);
-    const before = lines.slice(0, index).filter(other => decisionText(other) === text).length;
-    const id = `${node}#${qualified(statement)}#${text}${before === 0 ? '' : `#${before + 1}`}`;
-    return { line, id, text };
-  });
-};
+  symbols: ReadonlyArray<SymbolStatement>,
+): ReadonlyArray<AnchoredSymbol> =>
+  countingRepeats(symbols, symbol => `${node}#${qualified(symbol)}`);
+
+export const decisionsOf = (node: string, statement: SymbolStatement) =>
+  countingRepeats(
+    statement.logic ?? [],
+    line => `${node}#${qualified(statement)}#${decisionText(line)}`,
+  ).map(({ item, id }) => ({ line: item, id, text: decisionText(item) }));
 
 const logicFindings = (node: string, statement: SymbolStatement): ReadonlyArray<Finding> => {
   const name = qualified(statement);

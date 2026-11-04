@@ -8,7 +8,7 @@ import {
   type SymbolChange,
   type SymbolStatement,
 } from '../core/symbol-changes.ts';
-import { decisionsOf } from '../core/symbol-findings.ts';
+import { type AnchoredSymbol, anchoredSymbols, decisionsOf } from '../core/symbol-findings.ts';
 import { anchorKey } from './anchors.ts';
 import { CommentOn, type Comments } from './comment-field.tsx';
 
@@ -49,8 +49,6 @@ type Places = {
   readonly comments: Comments;
   readonly onComment: ((comment: Comment) => void) | undefined;
 };
-
-const symbolId = (node: string, symbol: SymbolStatement): string => `${node}#${qualified(symbol)}`;
 
 const labelOf = (nodes: ReadonlyArray<DiffedNode>, id: string): string | undefined =>
   nodes.find(node => node.id === id)?.label;
@@ -182,14 +180,11 @@ const SymbolList = ({
 }: Places & {
   readonly node: string;
   readonly title: string;
-  readonly symbols: ReadonlyArray<SymbolStatement>;
+  readonly symbols: ReadonlyArray<AnchoredSymbol>;
 }) => (
   <ul aria-label={title}>
-    {symbols.map(symbol => (
-      <li
-        key={`${symbol.kind} ${qualified(symbol)}`}
-        aria-label={`${nameOf(symbol)}: ${symbol.change}`}
-      >
+    {symbols.map(({ item: symbol, id }) => (
+      <li key={id} aria-label={`${nameOf(symbol)}: ${symbol.change}`}>
         <span className="kind">{symbol.kind}</span> <code>{qualified(symbol)}</code>
         {exportMarkOf(symbol) !== undefined && (
           <span className="export-mark"> {exportMarkOf(symbol)}</span>
@@ -204,7 +199,7 @@ const SymbolList = ({
         {places.onComment && (
           <CommentOn
             name={`${symbol.kind} ${qualified(symbol)}`}
-            anchor={{ kind: 'symbol', id: symbolId(node, symbol) }}
+            anchor={{ kind: 'symbol', id }}
             comments={places.comments}
             onComment={places.onComment}
           />
@@ -224,15 +219,15 @@ const SymbolList = ({
 );
 
 const SymbolFiles = ({ file, ...places }: Places & { readonly file: SymbolFile }) => {
-  const files = [file];
-  const quiet = symbolsIn(files).filter(isQuiet);
+  const symbols = 'symbols' in file ? anchoredSymbols(file.node, file.symbols) : [];
+  const quiet = symbols.filter(({ item }) => isQuiet(item));
   return (
     <>
       {'unreadable' in file && (
         <p className="unreadable">Its symbols couldn't be read: {file.unreadable}</p>
       )}
       {GROUPS.flatMap(([title, holds]) => {
-        const grouped = symbolsIn(files).filter(holds);
+        const grouped = symbols.filter(({ item }) => holds(item));
         return grouped.length === 0
           ? []
           : [
@@ -246,9 +241,7 @@ const SymbolFiles = ({ file, ...places }: Places & { readonly file: SymbolFile }
         <details
           className="symbol-group"
           open={quiet.some(
-            symbol =>
-              places.comments[anchorKey({ kind: 'symbol', id: symbolId(file.node, symbol) })] !==
-              undefined,
+            ({ id }) => places.comments[anchorKey({ kind: 'symbol', id })] !== undefined,
           )}
         >
           <summary>{quiet.length} unchanged</summary>

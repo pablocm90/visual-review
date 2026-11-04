@@ -4533,6 +4533,73 @@ test('a draft in the open tray goes to the tab it was written on, though the ins
   ).toHaveProperty('value', 'On the line.');
 });
 
+test("same-named symbols in one file take a comment each, counted through the file's symbols whatever group shows them, and a draft on a later one still opens the unchanged", async () => {
+  const user = userEvent.setup();
+  const sent = vi.fn(async () => {});
+  const named = (kind: SymbolStatement['kind'], change: SymbolStatement['change']) => ({
+    name: 'F',
+    kind,
+    exported: { base: false, head: false },
+    change,
+  });
+  render(
+    <ReviewPage
+      review={pageWith({
+        range: review.range,
+        diff: {
+          nodes: [
+            { id: 'web', kind: 'stack', label: 'web', path: '', state: 'unchanged' },
+            topFile('tax.ts', 'modified'),
+          ],
+          edges: [],
+        },
+        symbols: [
+          symbolsOf('web/file/tax.ts', [
+            named('type', 'added'),
+            named('function', 'edited'),
+            named('function', 'unchanged'),
+          ]),
+        ],
+      })}
+      send={sent}
+    />,
+  );
+  const commentIn = async (group: string, name: string, text: string) => {
+    const row = within(within(symbolsTab()).getByRole('list', { name: group })).getByRole(
+      'listitem',
+    );
+    await user.click(within(row).getByRole('button', { name: `Comment on ${name}` }));
+    await user.type(within(row).getByRole('textbox', { name: 'Your comment' }), text);
+  };
+
+  await user.click(await screen.findByRole('button', { name: 'tax.ts: modified' }));
+  await user.click(within(inspector()).getByRole('tab', { name: /^Symbols/ }));
+  await commentIn('Edited', 'function F', 'On the edited one.');
+  await commentIn('Added', 'type F', 'On the type.');
+  await user.click(within(symbolsTab()).getByText('1 unchanged'));
+  await commentIn('Unchanged', 'function F', 'On the unchanged one.');
+  await user.click(within(inspector()).getByRole('tab', { name: 'Note' }));
+  await user.click(within(inspector()).getByRole('tab', { name: /^Symbols/ }));
+  expect(within(symbolsTab()).getByRole('group').hasAttribute('open')).toBe(true);
+  await openReview(user);
+  await user.click(screen.getByRole('button', { name: 'Send to Claude' }));
+
+  const on = (id: string, text: string) => ({
+    anchor: { kind: 'symbol' as const, id },
+    kind: 'question' as const,
+    text,
+  });
+  expect(sent).toHaveBeenCalledExactlyOnceWith(
+    sentReview({
+      comments: [
+        on('web/file/tax.ts#F#2', 'On the edited one.'),
+        on('web/file/tax.ts#F', 'On the type.'),
+        on('web/file/tax.ts#F#3', 'On the unchanged one.'),
+      ],
+    }),
+  );
+});
+
 test('the unchanged symbols open by themselves when one holds a draft', async () => {
   const user = userEvent.setup();
   render(
