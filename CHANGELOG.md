@@ -14,6 +14,7 @@ What changed in each release of `@pablocm90/visual-review`, newest first. Versio
 
 ### Changed
 
+- `serve` needs a home that is an absolute path and that it can write its lock under, where before it needed only to write beside the page.
 - A review needs a `.git` entry at the repo's root, and git 2.38 or newer is the supported floor. A repo reached only through `GIT_DIR` and `GIT_WORK_TREE`, or a `core.worktree` elsewhere, with no `.git` at that root, is now refused.
 
 ## 0.21.1 — 2026-11-04
