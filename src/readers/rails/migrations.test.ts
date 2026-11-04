@@ -182,6 +182,12 @@ test.for([
   { written: 'create_table :orders\n    add_reference :orders, :user, null: false', expected: [] },
   { written: 'create_table :orders\n    add_belongs_to :orders, :user, null: false', expected: [] },
   { written: 'create_table :orders\n    add_timestamps :orders', expected: [] },
+  { written: 'create_table :orders\n    change_column_null :orders, :state, false', expected: [] },
+  {
+    written:
+      'create_table :orders\n    change_table :orders do |t|\n      t.change_null :state, false\n    end',
+    expected: [],
+  },
   {
     written: 'create_table :orders\n    add_index :users, :email',
     expected: ['index on users (email) added, not concurrently'],

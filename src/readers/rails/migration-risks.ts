@@ -132,10 +132,10 @@ const RULES: ReadonlyMap<string, Rule> = new Map<string, Rule>([
   ['remove_timestamps', removesTimestamps],
   ['rename_column', renames],
   ['change_column', changesType],
-  ['change_column_null', changesNull],
 ]);
 
 const RULES_NEEDING_ROWS: ReadonlyMap<string, Rule> = new Map<string, Rule>([
+  ['change_column_null', changesNull],
   ['add_column', addsColumn],
   ['add_reference', addsEach('reference')],
   ['add_belongs_to', addsEach('reference')],
@@ -150,10 +150,10 @@ const CHANGE_TABLE_RULES: ReadonlyMap<string, Rule> = new Map<string, Rule>([
   ['remove_timestamps', removesTimestamps],
   ['rename', renames],
   ['change', changesType],
-  ['change_null', changesNull],
 ]);
 
 const CHANGE_TABLE_RULES_NEEDING_ROWS: ReadonlyMap<string, Rule> = new Map<string, Rule>([
+  ['change_null', changesNull],
   ['column', addsColumn],
   ['references', addsEach('reference')],
   ['belongs_to', addsEach('reference')],
