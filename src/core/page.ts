@@ -192,7 +192,11 @@ export const notedPageHtml = ({
   version,
 }: NotedPageHtmlOptions): string => {
   const data = writtenBy({ page, version, advice: 'run visual-review without --notes first' });
-  const problems = notesProblems({ diff: data.diff, notes });
+  const problems = notesProblems({
+    diff: data.diff,
+    notes,
+    said: data.sinceReview?.comments ?? [],
+  });
   if (problems.length > 0) {
     throw new Error(`Notes in ${notesFile} don't match the graph:\n${problems.join('\n')}`);
   }

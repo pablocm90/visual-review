@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { anchorKey } from './anchors.ts';
 import type { GraphDiff } from './diff-graphs.ts';
 import { DIMENSIONS } from './findings.ts';
 import { edgeId } from './graph.ts';
@@ -10,6 +11,21 @@ import {
 } from './visible-diff.ts';
 
 const notesVersion = 1;
+
+const answerOf = <Status extends string>(status: Status, means: string) =>
+  z.strictObject({ status: z.literal(status).describe(means), text: z.string() }).readonly();
+
+const AnswerSchema = z.discriminatedUnion('status', [
+  z
+    .strictObject({
+      status: z.literal('done').describe('What it asked for is done'),
+      commit: z.string().describe('The commit that did it'),
+      text: z.string(),
+    })
+    .readonly(),
+  answerOf('answered', 'It wanted an answer, and this is it'),
+  answerOf('declined', 'Not taken, and this says why'),
+]);
 
 const ReviewNotesSchema = z
   .strictObject({
@@ -44,6 +60,13 @@ const ReviewNotesSchema = z
       .readonly()
       .default({})
       .describe('Notes by node id, or by `<from> -> <to>` for an edge; left out, there are none'),
+    answers: z
+      .record(z.string(), AnswerSchema)
+      .readonly()
+      .optional()
+      .describe(
+        "Answers to the last review, by each comment's anchor as `<kind> <id>`; left out, there are none",
+      ),
   })
   .readonly();
 
@@ -132,9 +155,14 @@ export const visibleNotes = ({
 type NotesProblemsOptions = {
   readonly diff: GraphDiff;
   readonly notes: ReviewNotes;
+  readonly said: ReadonlyArray<{ readonly anchor: { readonly kind: string; readonly id: string } }>;
 };
 
-export const notesProblems = ({ diff, notes }: NotesProblemsOptions): ReadonlyArray<string> => {
+export const notesProblems = ({
+  diff,
+  notes,
+  said,
+}: NotesProblemsOptions): ReadonlyArray<string> => {
   const boxesAbove = boxesAboveIn(diff.nodes);
   const endsOf = (id: string): ReadonlyArray<string> => [id, ...boxesAbove(id)];
   const known = new Set([
@@ -149,6 +177,7 @@ export const notesProblems = ({ diff, notes }: NotesProblemsOptions): ReadonlyAr
   ]);
   const collapsed = visibleDiff({ diff, expanded: new Set() });
   const shown = visibleNotes({ diff, expanded: new Set(), notes: notes.notes });
+  const saidAnchors = new Set(said.map(({ anchor }) => anchorKey(anchor)));
   const touched = [
     ...collapsed.nodes
       .filter(node => node.kind !== 'stack' && node.state !== 'unchanged')
@@ -160,5 +189,8 @@ export const notesProblems = ({ diff, notes }: NotesProblemsOptions): ReadonlyAr
       .filter(id => !known.has(id))
       .map(id => `unknown id ${id}`),
     ...touched.filter(id => shown[id] === undefined).map(id => `no note on ${id}`),
+    ...Object.keys(notes.answers ?? {})
+      .filter(key => !saidAnchors.has(key))
+      .map(key => `unknown comment ${key}`),
   ];
 };
