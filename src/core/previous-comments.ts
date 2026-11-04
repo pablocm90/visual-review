@@ -46,7 +46,7 @@ const commitsOn = (compared: Compared, parts: ReadonlyArray<string>): ReadonlyAr
 const isHeld = (targets: TargetsOf, id: string): boolean =>
   targets.nodes.some(node => node.id === id);
 
-const partChanged = (compared: Compared, targets: TargetsOf, id: string): boolean =>
+export const partChanged = (compared: Compared, targets: TargetsOf, id: string): boolean =>
   !isHeld(targets, id) ||
   [...compared.changed.nodes, ...compared.changed.dropped.nodes].some(changed =>
     isInside(compared.tree, changed, id),

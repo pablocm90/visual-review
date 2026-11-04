@@ -5,6 +5,7 @@ import {
   type Compared,
   isInside,
   type PreviousComment,
+  partChanged,
   previousComments,
 } from './previous-comments.ts';
 import type { ReviewedHead, ReviewedReading, SymbolFile } from './read-range.ts';
@@ -40,6 +41,7 @@ export type SinceReview = Said &
     | {
         readonly changed: ChangedSince;
         readonly changedWithoutComment: ReadonlyArray<string>;
+        readonly stillRead: ReadonlyArray<string>;
       }
   );
 
@@ -270,5 +272,6 @@ export const sinceReviewOf = ({
       .filter(
         id => !commentedOn.some(target => isInside(tree, id, target) || isInside(tree, target, id)),
       ),
+    stillRead: reviewed.read.filter(id => !partChanged(compared, targets, id)),
   };
 };

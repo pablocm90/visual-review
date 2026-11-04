@@ -3067,3 +3067,12 @@ test('a box changed since with nothing changed inside it counts a comment on a p
     changedWithoutComment: [],
   });
 });
+
+test.for([
+  { part: 'unchanged since, which stays read', read: otherInBox, stillRead: [otherInBox] },
+  { part: 'changed since', read: fileInBox, stillRead: [] },
+  { part: 'gone since', read: 'web/file/gone.ts', stillRead: [] },
+  { part: 'holding one changed since', read: 'web', stillRead: [] },
+])('a part read last round and $part', ({ read, stillRead }) => {
+  expect(sinceWith({ since: ['web/src/cart/a.ts'], read: [read] })).toMatchObject({ stillRead });
+});
