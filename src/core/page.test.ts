@@ -1908,3 +1908,170 @@ test('changed since lists a file renamed since by its new name alone', () => {
     pageData({ repo: 'shop', reading, range: 'a..b', version: '1.2.3', parsers: {} }).sinceReview,
   ).toMatchObject({ changed: { files: [to], dropped: { files: [] } } });
 });
+
+const anchorGraph = {
+  nodes: [webStack, webFile('a.ts'), webFile('b.ts')],
+  edges: [],
+};
+
+const anchorFile = (name: string, symbols: ReadonlyArray<SymbolStatement>): SymbolFile => ({
+  ...symbolFile(symbols),
+  node: `web/file/${name}`,
+});
+
+const fn = (
+  name: string,
+  change: SymbolStatement['change'],
+  more: Partial<SymbolStatement> = {},
+): SymbolStatement => ({ name, kind: 'function', exported: {}, change, ...more });
+
+test.for([
+  {
+    case: 'a function edited since, edited in the PR too',
+    since: [fn('f', 'edited')],
+    head: [fn('f', 'edited')],
+    atReview: [fn('f', 'edited')],
+    symbols: ['web/file/a.ts#f'],
+    dropped: [],
+  },
+  {
+    case: 'a function edited in the PR but not since',
+    since: [fn('f', 'unchanged')],
+    head: [fn('f', 'edited')],
+    atReview: [fn('f', 'edited')],
+    symbols: [],
+    dropped: [],
+  },
+  {
+    case: 'a function only reformatted since',
+    since: [fn('f', 'formatting')],
+    head: [fn('f', 'edited')],
+    atReview: [fn('f', 'edited')],
+    symbols: [],
+    dropped: [],
+  },
+  {
+    case: 'a function a merge edited, which the PR leaves alone at either head',
+    since: [fn('f', 'edited')],
+    head: [fn('f', 'unchanged'), fn('g', 'edited')],
+    atReview: [fn('f', 'unchanged'), fn('g', 'edited')],
+    symbols: [],
+    dropped: [],
+  },
+  {
+    case: 'a function the PR changes only at the new head',
+    since: [fn('f', 'edited')],
+    head: [fn('f', 'edited')],
+    atReview: [fn('f', 'unchanged')],
+    symbols: ['web/file/a.ts#f'],
+    dropped: [],
+  },
+  {
+    case: 'a function reverted since, still in a file the PR changes',
+    since: [fn('f', 'edited')],
+    head: [fn('f', 'unchanged'), fn('g', 'edited')],
+    atReview: [fn('f', 'edited')],
+    symbols: ['web/file/a.ts#f'],
+    dropped: [],
+  },
+  {
+    case: 'a function reverted since, in a file the PR no longer changes',
+    since: [fn('f', 'edited')],
+    head: [],
+    atReview: [fn('f', 'edited')],
+    symbols: [],
+    dropped: ['web/file/a.ts#f'],
+  },
+  {
+    case: 'a function renamed back since, by its new name',
+    since: [fn('g', 'renamed', { renamedFrom: 'f' })],
+    head: [fn('g', 'unchanged'), fn('h', 'edited')],
+    atReview: [fn('f', 'renamed', { renamedFrom: 'g' })],
+    symbols: ['web/file/a.ts#g'],
+    dropped: [],
+  },
+])('changed since lists symbols: $case', ({ since, head, atReview, symbols, dropped }) => {
+  const reading = readingWith({
+    before: anchorGraph,
+    after: anchorGraph,
+    changedPaths: ['web/src/a.ts'],
+    symbols: head.length === 0 ? [] : [anchorFile('a.ts', head)],
+    reviewed: reviewedAt({
+      before: anchorGraph,
+      changedPaths: ['web/src/a.ts'],
+      symbols: [anchorFile('a.ts', since)],
+      pullRequest: { symbols: [anchorFile('a.ts', atReview)] },
+    }),
+  });
+
+  expect(
+    pageData({ repo: 'shop', reading, range: 'a..b', version: '1.2.3', parsers: {} }).sinceReview,
+  ).toMatchObject({ changed: { symbols, dropped: { symbols: dropped } } });
+});
+
+test('changed since finds a function moved back since by the file it was in at the review', () => {
+  const reading = readingWith({
+    before: anchorGraph,
+    after: anchorGraph,
+    changedPaths: ['web/src/a.ts', 'web/src/b.ts'],
+    symbols: [anchorFile('a.ts', [fn('f', 'unchanged'), fn('g', 'edited')])],
+    reviewed: reviewedAt({
+      before: anchorGraph,
+      changedPaths: ['web/src/a.ts', 'web/src/b.ts'],
+      symbols: [anchorFile('a.ts', [fn('f', 'moved', { movedFrom: 'web/file/b.ts' })])],
+      pullRequest: {
+        symbols: [anchorFile('b.ts', [fn('f', 'moved', { movedFrom: 'web/file/a.ts' })])],
+      },
+    }),
+  });
+
+  expect(
+    pageData({ repo: 'shop', reading, range: 'a..b', version: '1.2.3', parsers: {} }).sinceReview,
+  ).toMatchObject({ changed: { symbols: ['web/file/a.ts#f'] } });
+});
+
+test('changed since finds a function in a file renamed since by its name at the review', () => {
+  const reviewedGraph = { nodes: [webStack, webFile('old.ts')], edges: [] };
+  const headGraph = { nodes: [webStack, webFile('new.ts')], edges: [] };
+  const reading = readingWith({
+    before: { nodes: [webStack], edges: [] },
+    after: headGraph,
+    changedPaths: ['web/src/new.ts'],
+    symbols: [anchorFile('new.ts', [fn('f', 'unchanged'), fn('g', 'edited')])],
+    reviewed: reviewedAt({
+      before: reviewedGraph,
+      changedPaths: ['web/src/old.ts', 'web/src/new.ts'],
+      renames: [{ from: 'web/src/old.ts', to: 'web/src/new.ts' }],
+      symbols: [anchorFile('new.ts', [fn('f', 'edited')])],
+      pullRequest: {
+        before: { nodes: [webStack], edges: [] },
+        changedPaths: ['web/src/old.ts'],
+        symbols: [anchorFile('old.ts', [fn('f', 'edited')])],
+      },
+    }),
+  });
+
+  expect(
+    pageData({ repo: 'shop', reading, range: 'a..b', version: '1.2.3', parsers: {} }).sinceReview,
+  ).toMatchObject({ changed: { symbols: ['web/file/new.ts#f'] } });
+});
+
+test('changed since skips a file whose symbols could not be read', () => {
+  const unreadable = { node: 'web/file/a.ts', stack: 'web', unreadable: 'SyntaxError' };
+  const reading = readingWith({
+    before: anchorGraph,
+    after: anchorGraph,
+    changedPaths: ['web/src/a.ts'],
+    symbols: [unreadable],
+    reviewed: reviewedAt({
+      before: anchorGraph,
+      changedPaths: ['web/src/a.ts'],
+      symbols: [unreadable],
+      pullRequest: { symbols: [unreadable] },
+    }),
+  });
+
+  expect(
+    pageData({ repo: 'shop', reading, range: 'a..b', version: '1.2.3', parsers: {} }).sinceReview,
+  ).toMatchObject({ changed: { symbols: [], dropped: { symbols: [] } } });
+});

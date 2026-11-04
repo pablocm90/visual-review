@@ -8,6 +8,7 @@ import type { ReviewNotes } from '../core/notes.ts';
 import type { PageData } from '../core/page.ts';
 import type { SymbolFile } from '../core/read-range.ts';
 import type { Review } from '../core/review.ts';
+import type { ChangedSince } from '../core/since-review.ts';
 import type { Skipped } from '../core/skipped.ts';
 import type { KindOfChange, SymbolStatement } from '../core/symbol-changes.ts';
 import { symbolFindings } from '../core/symbol-findings.ts';
@@ -5420,15 +5421,23 @@ test("going to a line's draft shows its hidden field, and leaves hidden the one 
   expect(field()).toHaveProperty('value', 'Why 2?');
 });
 
+const nothingChanged = { nodes: [], edges: [], symbols: [], decisions: [], tests: [], files: [] };
+
+const changedSince = ({
+  dropped,
+  ...changed
+}: Partial<Omit<ChangedSince, 'dropped'>> & {
+  readonly dropped?: Partial<ChangedSince['dropped']>;
+}): ChangedSince => ({
+  ...nothingChanged,
+  ...changed,
+  dropped: { ...nothingChanged, ...dropped },
+});
+
 const sinceReview = {
   head: 'h1',
   verdict: 'comment' as const,
-  changed: {
-    nodes: ['rust/crate/application'],
-    edges: [],
-    files: [],
-    dropped: { nodes: [], edges: [], files: [] },
-  },
+  changed: changedSince({ nodes: ['rust/crate/application'] }),
 };
 
 test("a later round offers 'Since last review' first in Show, Changes only still picked; picked, it draws what changed since, and going to a part it hides widens Show", async () => {
@@ -5498,12 +5507,7 @@ test("with 'Since last review' shown and nothing drawn changed since, the graph 
         ...review,
         sinceReview: {
           ...sinceReview,
-          changed: {
-            nodes: [],
-            edges: [],
-            files: [],
-            dropped: { nodes: [], edges: [], files: [] },
-          },
+          changed: changedSince({}),
         },
       })}
     />,
@@ -5533,11 +5537,9 @@ test("'Since last review' draws an edge the PR has put back, though unchanged ed
         },
         sinceReview: {
           ...sinceReview,
-          changed: {
-            ...sinceReview.changed,
-            nodes: [],
+          changed: changedSince({
             edges: ['web/file/orders/cart.ts -> web/file/billing/invoice.ts'],
-          },
+          }),
         },
       })}
     />,
@@ -5566,12 +5568,7 @@ test("'Since last review' with only what it can't draw says that, not that nothi
         ...review,
         sinceReview: {
           ...sinceReview,
-          changed: {
-            nodes: [],
-            edges: [],
-            files: [],
-            dropped: { nodes: ['rust/crate/spike'], edges: [], files: [] },
-          },
+          changed: changedSince({ dropped: { nodes: ['rust/crate/spike'] } }),
         },
       })}
     />,
@@ -5592,15 +5589,13 @@ test("'Since last review' names what was added then and has since gone, which it
         ...review,
         sinceReview: {
           ...sinceReview,
-          changed: {
-            ...sinceReview.changed,
-            files: [],
+          changed: changedSince({
+            nodes: ['rust/crate/application'],
             dropped: {
               nodes: ['rust/crate/spike'],
               edges: ['rust/crate/spike -> rust/crate/cli'],
-              files: [],
             },
-          },
+          }),
         },
       })}
     />,

@@ -98,6 +98,7 @@ export const pageData = ({
             diff,
             changedPaths: reading.changedPaths,
             patches: reading.patches,
+            symbols: reading.symbols,
           }),
         }),
   };

@@ -1,10 +1,13 @@
 import { diffGraphs, type FilePatch, type GraphDiff } from './diff-graphs.ts';
 import { edgeId, type Graph } from './graph.ts';
-import type { ReviewedHead, ReviewedReading } from './read-range.ts';
+import type { ReviewedHead, ReviewedReading, SymbolFile } from './read-range.ts';
+import { isQuiet, qualified } from './symbol-changes.ts';
+import { type AnchoredSymbol, anchoredSymbols } from './symbol-findings.ts';
 
 type Changed = {
   readonly nodes: ReadonlyArray<string>;
   readonly edges: ReadonlyArray<string>;
+  readonly symbols: ReadonlyArray<string>;
   readonly files: ReadonlyArray<string>;
 };
 
@@ -21,6 +24,7 @@ type SinceReviewOptions = {
   readonly diff: GraphDiff;
   readonly changedPaths: ReadonlyArray<string>;
   readonly patches: ReadonlyArray<FilePatch>;
+  readonly symbols: ReadonlyArray<SymbolFile>;
 };
 
 const changedIn = ({ nodes, edges }: GraphDiff) => ({
@@ -49,12 +53,34 @@ const namedInTheHead = ({ reviewed, after, diff }: NamedInTheHeadOptions) => {
   return (id: string): string => renamedTo.get(id) ?? id;
 };
 
+const anchorsIn = (
+  files: ReadonlyArray<SymbolFile>,
+  nameOf: (node: string) => string = node => node,
+): ReadonlyArray<AnchoredSymbol & { readonly node: string }> =>
+  files.flatMap(file =>
+    'unreadable' in file
+      ? []
+      : anchoredSymbols(nameOf(file.node), file.symbols).map(symbol => ({
+          ...symbol,
+          node: file.node,
+        })),
+  );
+
+const idsChanged = (symbols: ReadonlyArray<AnchoredSymbol>): ReadonlyArray<string> =>
+  symbols.filter(({ item }) => !isQuiet(item)).map(({ id }) => id);
+
+const formerId = ({ id, node, item }: AnchoredSymbol & { readonly node: string }): string =>
+  item.movedFrom === undefined && item.renamedFrom === undefined
+    ? id
+    : `${item.movedFrom ?? node}#${item.renamedFrom ?? qualified(item)}`;
+
 export const sinceReviewOf = ({
   reviewed,
   after,
   diff,
   changedPaths,
   patches,
+  symbols,
 }: SinceReviewOptions): SinceReview => {
   if ('gone' in reviewed) return { head: reviewed.head, gone: true };
   if ('unreadable' in reviewed) return { head: reviewed.head, unreadable: reviewed.unreadable };
@@ -82,14 +108,30 @@ export const sinceReviewOf = ({
     pathsSince.filter(path => !side.renames.some(({ from }) => from === path)),
     patches.map(({ path }) => path),
   );
+  const headSymbols = anchorsIn(symbols);
+  const symbolsNow = idsChanged(headSymbols);
+  const symbolsThen = idsChanged(anchorsIn(pullRequest.symbols, named));
+  const symbolsSince = inTheHead(
+    anchorsIn(side.symbols)
+      .filter(({ item }) => !isQuiet(item))
+      .filter(symbol => symbolsNow.includes(symbol.id) || symbolsThen.includes(formerId(symbol)))
+      .map(({ id }) => id),
+    headSymbols.map(({ id }) => id),
+  );
   return {
     head,
     verdict,
     changed: {
       nodes: nodes.drawn,
       edges: edges.drawn,
+      symbols: symbolsSince.drawn,
       files: files.drawn,
-      dropped: { nodes: nodes.dropped, edges: edges.dropped, files: files.dropped },
+      dropped: {
+        nodes: nodes.dropped,
+        edges: edges.dropped,
+        symbols: symbolsSince.dropped,
+        files: files.dropped,
+      },
     },
   };
 };
