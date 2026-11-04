@@ -245,6 +245,7 @@ DEPENDENCIES
       spec: 'hidden  (1.0.0)',
     },
     { form: 'text after its version', spec: 'hidden (1.0.0) x' },
+    { form: 'a space in its name', spec: 'hidden    faraday (1.0.0)' },
   ])('a spec line with $form is not read, not skipped', ({ spec }) => {
     expect(() =>
       read(`GEM

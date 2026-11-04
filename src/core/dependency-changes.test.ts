@@ -25,6 +25,7 @@ test.for([
   { move: 'from an all-zero version', from: '0.0.0', to: '0.0.1' },
   { move: 'between 0.x versions with letters in their numbers', from: '0.1a', to: '0.9b' },
   { move: 'between non-numeric versions after a 0', from: '0.abc', to: '0.def' },
+  { move: 'between versions with a leading letter', from: 'v1.4.0', to: 'v1.9.2' },
 ])('a bump $move is major', ({ from, to }) => {
   expect(changeOf([from], [to])).toEqual(['major']);
 });
@@ -37,6 +38,7 @@ test.for([
   { move: 'a build to another', from: '5+a', to: '5+b' },
   { move: 'an all-zero prerelease to another', from: '0.0.0-canary.1', to: '0.0.0-canary.2' },
   { move: 'an all-zero prerelease to its release', from: '0.0.0-canary.1', to: '0.0.0' },
+  { move: 'an all-zero build to another', from: '0.0.0+a', to: '0.0.0+b' },
 ])('$move raises nothing', ({ from, to }) => {
   expect(changeOf([from], [to])).toEqual([]);
 });
