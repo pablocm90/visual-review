@@ -186,6 +186,24 @@ test.for([
   expect(titles(written)).toStrictEqual(expected);
 });
 
+test.for([
+  {
+    written: 'remove_columns :users,\n      :a, # legacy\n      :b',
+    expected: ['column users.a removed', 'column users.b removed'],
+  },
+  {
+    written: 'remove_column(\n      # why\n      :users, :name\n    )',
+    expected: ['column users.name removed'],
+  },
+  { written: 'change_column_null :users, :email, # allow\n      true', expected: [] },
+  {
+    written: 'add_index :orders, [:a, # first\n      :b]',
+    expected: ['index on orders (a, b) added, not concurrently'],
+  },
+])('a comment among the arguments is no argument: $written', ({ written, expected }) => {
+  expect(titles(written)).toStrictEqual(expected);
+});
+
 const inClass = (body: string) => `class Change < ActiveRecord::Migration[8.0]
 ${body}
 end

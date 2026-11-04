@@ -25,8 +25,11 @@ const BLOCKS_WRITES = 'Blocks writes to the table while the index builds.';
 
 const nameOf = (node: Node | undefined): string => node?.text.replace(/^:?['"]?|['"]$/g, '') ?? '';
 
+const writtenIn = ({ namedChildren }: Node): ReadonlyArray<Node> =>
+  namedChildren.filter(({ type }) => type !== 'comment');
+
 const namesOf = (node: Node | undefined): string =>
-  node?.type === 'array' ? node.namedChildren.map(nameOf).join(', ') : nameOf(node);
+  node?.type === 'array' ? writtenIn(node).map(nameOf).join(', ') : nameOf(node);
 
 const DOWN_FIELD: ReadonlyMap<string, string> = new Map([
   ['method', 'name'],
@@ -156,8 +159,10 @@ const CHANGE_TABLE_RULES_NEEDING_ROWS: ReadonlyMap<string, Rule> = new Map<strin
 
 const methodOf = (call: Node): string => call.childForFieldName('method')?.text ?? '';
 
-const argsOf = (call: Node): ReadonlyArray<Node> =>
-  call.childForFieldName('arguments')?.namedChildren ?? [];
+const argsOf = (call: Node): ReadonlyArray<Node> => {
+  const args = call.childForFieldName('arguments');
+  return args === null ? [] : writtenIn(args);
+};
 
 const enclosing = ({ parent }: Node): ReadonlyArray<Node> =>
   parent === null ? [] : [parent, ...enclosing(parent)];
