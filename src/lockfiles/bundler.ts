@@ -10,7 +10,7 @@ export const bundlerLockfile: Lockfile = {
   read: ({ text }) => {
     const sections = text.split(/^(?=[A-Z])/m);
     const dependencies = sections.filter(section => section.startsWith('DEPENDENCIES\n'));
-    if (dependencies.length === 0) throw new Error('Gemfile.lock format not recognised');
+    if (dependencies.length === 0) throw new Error('format not recognised');
     return {
       versions: lockedVersions(
         sections

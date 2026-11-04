@@ -90,13 +90,13 @@ test.for([
     format: 'a broken Cargo.lock',
     file: 'Cargo.lock',
     text: 'SECRET not a lockfile\n',
-    notRead: 'Cargo.lock format not recognised',
+    notRead: 'format not recognised',
   },
   {
     format: 'Yarn 2+',
     file: 'yarn.lock',
     text: '__metadata:\n  version: 8\n\n"SECRET@npm:1.0.0":\n  version: 1.0.0\n',
-    notRead: 'yarn.lock Yarn 2+ format',
+    notRead: 'Yarn 2+ format',
   },
 ])(
   '$format is not read, its message says why, and the review stands',
@@ -121,7 +121,7 @@ test('a symlink named as a lockfile is not read through to what it points at', a
   const { dependencyChanges } = await readRange({ repo, from: root, to });
 
   expect(dependencyChanges).toStrictEqual([
-    { lockfile: 'Cargo.lock', notRead: 'Cargo.lock format not recognised' },
+    { lockfile: 'Cargo.lock', notRead: 'format not recognised' },
   ]);
 });
 
@@ -234,7 +234,7 @@ test('an unreadable package.json beside a yarn.lock leaves it not read', async (
   const { dependencyChanges } = await readRange({ repo, from: root, to });
 
   expect(dependencyChanges).toStrictEqual([
-    { lockfile: 'yarn.lock', notRead: 'yarn.lock package.json not recognised' },
+    { lockfile: 'yarn.lock', notRead: 'package.json not recognised' },
   ]);
 });
 
@@ -280,14 +280,14 @@ test.for([
     from: { 'yarn.lock': '__metadata:\n  version: 8\n' },
     to: { 'pnpm-lock.yaml': pnpmLock('1.2.0') },
     lockfile: 'yarn.lock',
-    notRead: 'yarn.lock Yarn 2+ format',
+    notRead: 'Yarn 2+ format',
   },
   {
     what: 'the side that arrived',
     from: { 'yarn.lock': yarnLock({ zod: '1.0.0' }) },
     to: { 'pnpm-lock.yaml': "lockfileVersion: '6.0'\n" },
     lockfile: 'pnpm-lock.yaml',
-    notRead: 'pnpm-lock.yaml lockfile version 6',
+    notRead: 'lockfile version 6',
   },
 ])(
   'a move of package manager whose $what fails is not read, with no packages raised',

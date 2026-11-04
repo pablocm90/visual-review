@@ -2,7 +2,7 @@ import { z } from 'zod';
 import { type Lockfile, lockedVersions } from '../core/lockfile.ts';
 import { aliasOf, declarationsOf, Manifest } from './npm-manifest.ts';
 
-const NOT_RECOGNISED = 'package-lock.json format not recognised';
+const NOT_RECOGNISED = 'format not recognised';
 const UNDER_NODE_MODULES = /(?:^|\/)node_modules\/((?:@[^/]+\/)?[^/]+)$/;
 const NAMES_NODE_MODULES = /(?:^|\/)node_modules(?:\/|$)/;
 
@@ -42,7 +42,7 @@ export const npmLockfile: Lockfile = {
   read: ({ text }) => {
     const { lockfileVersion, packages } = lockOf(text);
     if (lockfileVersion !== 2 && lockfileVersion !== 3)
-      throw new Error(`package-lock.json lockfile version ${lockfileVersion}`);
+      throw new Error(`lockfile version ${lockfileVersion}`);
     if (packages === undefined) throw new Error(NOT_RECOGNISED);
     const entries = Object.entries(packages).map(([path, entry]) => ({
       ...entry,

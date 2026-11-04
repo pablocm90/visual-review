@@ -37,8 +37,8 @@ export const pnpmLockfile: Lockfile = {
   ecosystem: 'npm',
   read: ({ text }) => {
     const major = text.match(/^lockfileVersion: '?(\d+)/m)?.[1];
-    if (major === undefined) throw new Error('pnpm-lock.yaml format not recognised');
-    if (major !== '9') throw new Error(`pnpm-lock.yaml lockfile version ${major}`);
+    if (major === undefined) throw new Error('format not recognised');
+    if (major !== '9') throw new Error(`lockfile version ${major}`);
     const packagesSection = sectionOf(text, 'packages');
     const importers = sectionOf(text, 'importers');
     const packages = [...packagesSection.matchAll(PACKAGE_KEY)];
@@ -49,7 +49,7 @@ export const pnpmLockfile: Lockfile = {
       !everyLine(importers, IMPORTERS_LINE) ||
       declarations.some(([, entries = '']) => entries.replaceAll(DECLARED, '').trim() !== '')
     )
-      throw new Error('pnpm-lock.yaml format not recognised');
+      throw new Error('format not recognised');
     return {
       versions: lockedVersions(
         packages.map(([, quoted, plain]) => {

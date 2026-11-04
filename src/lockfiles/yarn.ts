@@ -17,7 +17,7 @@ const KNOWN_LINE = new RegExp(
     `^ {4}${KEYS} \\S.*$`,
   ].join('|'),
 );
-const NOT_RECOGNISED = 'yarn.lock format not recognised';
+const NOT_RECOGNISED = 'format not recognised';
 const LOCAL_SPEC = /^(?:file|link):/;
 
 const realNames = (pattern: string): ReadonlyArray<string> => {
@@ -34,7 +34,7 @@ const declaredIn = (manifest: string): ReadonlyArray<string> => {
       LOCAL_SPEC.test(spec) ? [] : [aliasOf(spec) ?? name],
     );
   } catch {
-    throw new Error('yarn.lock package.json not recognised');
+    throw new Error('package.json not recognised');
   }
 };
 
@@ -43,7 +43,7 @@ export const yarnLockfile: Lockfile = {
   ecosystem: 'npm',
   manifest: 'package.json',
   read: ({ text, manifests }) => {
-    if (/^__metadata:$/m.test(text)) throw new Error('yarn.lock Yarn 2+ format');
+    if (/^__metadata:$/m.test(text)) throw new Error('Yarn 2+ format');
     if (!/^# yarn lockfile v1$/m.test(text)) throw new Error(NOT_RECOGNISED);
     const lines = text.split('\n');
     const blocks = [...text.matchAll(BLOCK)];

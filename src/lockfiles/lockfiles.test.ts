@@ -107,7 +107,7 @@ ${registry}
     { what: 'a symlink', text: '../shared/Cargo.lock' },
     { what: 'an empty file', text: '' },
   ])('$what is not read, and the message quotes none of it', ({ text }) => {
-    expect(() => read(text)).toThrow(/^Cargo\.lock format not recognised$/);
+    expect(() => read(text)).toThrow(new Error('format not recognised'));
   });
 
   const crate = 'name = "evil"\nversion = "1.0.0"';
@@ -128,7 +128,7 @@ ${registry}
       text: `package = [{ name = "evil" }]\n\n[[package]]\n${crate}\n`,
     },
   ])('$what, which cargo reads but this reader would misread, is not read', ({ text }) => {
-    expect(() => read(text)).toThrow(/^Cargo\.lock format not recognised$/);
+    expect(() => read(text)).toThrow(new Error('format not recognised'));
   });
 
   test('an older lockfile, with a replacement and checksums in its metadata, is read', () => {
@@ -235,7 +235,7 @@ DEPENDENCIES
   });
 
   test('a text with no dependencies section is not read, and the message quotes none of it', () => {
-    expect(() => read('../shared/Gemfile.lock')).toThrow(/^Gemfile\.lock format not recognised$/);
+    expect(() => read('../shared/Gemfile.lock')).toThrow(new Error('format not recognised'));
   });
 });
 
@@ -344,7 +344,7 @@ snapshots:
     { what: 'pnpm 5', text: 'lockfileVersion: 5.4\n', format: 'lockfile version 5' },
     { what: 'a later pnpm', text: "lockfileVersion: '10.0'\n", format: 'lockfile version 10' },
   ])('$what is not read, naming its format', ({ text, format }) => {
-    expect(() => read(text)).toThrow(`pnpm-lock.yaml ${format}`);
+    expect(() => read(text)).toThrow(format);
   });
 
   const plainImporter = `  .:
@@ -430,7 +430,7 @@ snapshots:
       ),
     },
   ])('$what, which pnpm reads but this reader would misread, is not read', ({ text }) => {
-    expect(() => read(text)).toThrow('pnpm-lock.yaml format not recognised');
+    expect(() => read(text)).toThrow('format not recognised');
   });
 
   test('an importer with nothing declared, and no packages at all, reads as empty', () => {
@@ -526,7 +526,7 @@ describe('package-lock.json', () => {
     { what: 'version 1', text: '{ "lockfileVersion": 1 }', format: 'lockfile version 1' },
     { what: 'a later version', text: lock(4, {}), format: 'lockfile version 4' },
   ])('$what is not read, naming its format and nothing of the file', ({ text, format }) => {
-    expect(() => read(text)).toThrow(new Error(`package-lock.json ${format}`));
+    expect(() => read(text)).toThrow(new Error(format));
   });
 
   test.for([
@@ -551,7 +551,7 @@ describe('package-lock.json', () => {
     ({ path, entry }) => {
       expect(() =>
         read(lock(3, { 'node_modules/installed': { version: '1.0.0' }, [path]: entry })),
-      ).toThrow(new Error('package-lock.json format not recognised'));
+      ).toThrow(new Error('format not recognised'));
     },
   );
 
@@ -736,7 +736,7 @@ remeda@^2.0.0, remeda@^2.1.0:
     { what: 'a declaration that is no string', manifest: '{ "dependencies": { "hidden": 1 } }' },
   ])('a package.json with $what means the file is not read', ({ manifest }) => {
     expect(() => yarnLockfile.read({ text: v1(''), manifests: [manifest] })).toThrow(
-      new Error('yarn.lock package.json not recognised'),
+      new Error('package.json not recognised'),
     );
   });
 
@@ -753,7 +753,7 @@ remeda@^2.0.0, remeda@^2.1.0:
       format: 'Yarn 2+ format',
     },
   ])('$what is not read, naming its format', ({ text, format }) => {
-    expect(() => read(text)).toThrow(new Error(`yarn.lock ${format}`));
+    expect(() => read(text)).toThrow(new Error(format));
   });
 
   test.for([
@@ -771,6 +771,6 @@ remeda@^2.0.0, remeda@^2.1.0:
     { what: 'a space-only line', blocks: 'zod@^4:\n  version "4.0.0"\n  ' },
     { what: 'a scalar at the top level', blocks: 'zod@^4 "4.0.0"' },
   ])('$what, which yarn might read but this reader would misread, is not read', ({ blocks }) => {
-    expect(() => read(v1(blocks))).toThrow(new Error('yarn.lock format not recognised'));
+    expect(() => read(v1(blocks))).toThrow(new Error('format not recognised'));
   });
 });

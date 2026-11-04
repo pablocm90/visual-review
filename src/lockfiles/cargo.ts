@@ -35,7 +35,7 @@ export const cargoLockfile: Lockfile = {
     const packages = sections.filter(section => section.startsWith('[[package]]'));
     const headers = text.split('\n').filter(line => /^\s*\[/.test(line));
     if (!headers.every(line => HEADERS.has(line)) || !isCanonical(preamble, packages))
-      throw new Error('Cargo.lock format not recognised');
+      throw new Error('format not recognised');
     const isLocal = (block: string) => fieldOf(block, 'source') === '';
     return {
       versions: lockedVersions(
