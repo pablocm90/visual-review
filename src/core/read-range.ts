@@ -9,7 +9,9 @@ import { type Graph, stackOfIn } from './graph.ts';
 import type { DanglingCall } from './linker.ts';
 import type { Lockfile } from './lockfile.ts';
 import { type MeasuredNode, measuredNodes } from './metrics.ts';
+import type { MigrationReader } from './migration.ts';
 import { type DependencyChanges, readLockfiles } from './read-lockfiles.ts';
+import { type MigrationReading, readMigrations } from './read-migrations.ts';
 import {
   type Adapters,
   checkConfig,
@@ -77,6 +79,7 @@ export type RangeReading = {
   readonly symbols: ReadonlyArray<SymbolFile>;
   readonly symbolsNotRead: ReadonlyArray<string>;
   readonly dependencyChanges: ReadonlyArray<DependencyChanges>;
+  readonly migrations: ReadonlyArray<MigrationReading>;
   readonly danglingCalls: ReadonlyArray<DanglingCall>;
   readonly skipped: ReadonlyArray<Skipped>;
   readonly thresholds: Omit<Config['metrics'], 'churnDays'>;
@@ -86,6 +89,7 @@ export type RangeReading = {
 
 type ReadRangeOptions = Adapters & {
   readonly lockfiles: ReadonlyArray<Lockfile>;
+  readonly migrations: ReadonlyArray<MigrationReader>;
   readonly repo: string;
   readonly from: string;
   readonly to: string;
@@ -480,6 +484,7 @@ export const readRange = async ({
   churnTo = to,
   reviewed,
   lockfiles,
+  migrations,
   ...adapters
 }: ReadRangeOptions): Promise<RangeReading> => {
   const [fromCommit, toCommit] = await Promise.all([resolve(repo, from), resolve(repo, to)]);
@@ -553,6 +558,7 @@ export const readRange = async ({
       measures,
       ...anchors,
       dependencyChanges: await readLockfiles({ repo, base, head: toCommit, changes, lockfiles }),
+      migrations: await readMigrations({ repo, base, head: toCommit, changes, migrations }),
       danglingCalls: after.danglingCalls,
       skipped: skippedAcross([...before.skipped, ...after.skipped]),
       thresholds,

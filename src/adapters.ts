@@ -1,5 +1,6 @@
 import type { Linker } from './core/linker.ts';
 import type { Lockfile } from './core/lockfile.ts';
+import type { MigrationReader } from './core/migration.ts';
 import type { Reader } from './core/reader.ts';
 import { fetchAxumLinker } from './linkers/fetch-axum/linker.ts';
 import { bundlerLockfile } from './lockfiles/bundler.ts';
@@ -7,6 +8,7 @@ import { cargoLockfile } from './lockfiles/cargo.ts';
 import { npmLockfile } from './lockfiles/npm.ts';
 import { pnpmLockfile } from './lockfiles/pnpm.ts';
 import { yarnLockfile } from './lockfiles/yarn.ts';
+import { railsMigrations } from './readers/rails/migration-risks.ts';
 import { railsReader } from './readers/rails/reader.ts';
 import { rustReader } from './readers/rust/reader.ts';
 import { typeScriptReader } from './readers/typescript/reader.ts';
@@ -22,3 +24,5 @@ export const lockfiles: ReadonlyArray<Lockfile> = [
   npmLockfile,
   yarnLockfile,
 ];
+
+export const migrations: ReadonlyArray<MigrationReader> = [railsMigrations];
