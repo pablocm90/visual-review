@@ -124,18 +124,16 @@ const logicLabel = (line: LogicLine): string => `${line.change} ${line.kind}: ${
 type ShowLine = (at: Omit<LineAt, 'node'>) => void;
 
 const LogicLines = ({
-  node,
   symbol,
   onShowLine,
   comments,
   onComment,
 }: Pick<Places, 'comments' | 'onComment'> & {
-  readonly node: string;
-  readonly symbol: SymbolStatement;
+  readonly symbol: AnchoredSymbol;
   readonly onShowLine: ShowLine;
 }) => (
-  <ul className="logic-lines" aria-label={`Logic of ${symbol.kind} ${qualified(symbol)}`}>
-    {decisionsOf(node, symbol).map(({ line, id, text }) => (
+  <ul className="logic-lines" aria-label={`Logic of ${symbol.item.kind} ${qualified(symbol.item)}`}>
+    {decisionsOf(symbol).map(({ line, id, text }) => (
       <li
         key={id}
         className={`logic-${line.change}`}
@@ -206,8 +204,7 @@ const SymbolList = ({
         )}
         {symbol.logic !== undefined && (
           <LogicLines
-            node={node}
-            symbol={symbol}
+            symbol={{ item: symbol, id }}
             onShowLine={at => places.onShowLine({ node, ...at })}
             comments={places.comments}
             onComment={places.onComment}

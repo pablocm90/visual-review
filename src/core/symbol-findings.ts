@@ -154,17 +154,17 @@ export const anchoredSymbols = (
 ): ReadonlyArray<AnchoredSymbol> =>
   countingRepeats(symbols, symbol => `${node}#${qualified(symbol)}`);
 
-export const decisionsOf = (node: string, statement: SymbolStatement) =>
-  countingRepeats(
-    statement.logic ?? [],
-    line => `${node}#${qualified(statement)}#${decisionText(line)}`,
-  ).map(({ item, id }) => ({ line: item, id, text: decisionText(item) }));
+export const decisionsOf = ({ item: statement, id: symbolId }: AnchoredSymbol) =>
+  countingRepeats(statement.logic ?? [], line => `${symbolId}#${decisionText(line)}`).map(
+    ({ item, id }) => ({ line: item, id, text: decisionText(item) }),
+  );
 
-const logicFindings = (node: string, statement: SymbolStatement): ReadonlyArray<Finding> => {
+const logicFindings = (node: string, symbol: AnchoredSymbol): ReadonlyArray<Finding> => {
+  const statement = symbol.item;
   const name = qualified(statement);
   const lines = statement.logic ?? [];
   return [
-    ...decisionsOf(node, statement).flatMap(({ line, id }) =>
+    ...decisionsOf(symbol).flatMap(({ line, id }) =>
       isLost(line)
         ? [
             {
@@ -210,7 +210,9 @@ export const symbolFindings = ({ files, nodes }: SymbolFindingsOptions): Readonl
             statement => findingOf({ node: file.node, statement, pathOf }) ?? [],
           ),
           ...exportsFinding(file),
-          ...file.symbols.flatMap(statement => logicFindings(file.node, statement)),
+          ...anchoredSymbols(file.node, file.symbols).flatMap(symbol =>
+            logicFindings(file.node, symbol),
+          ),
         ],
   );
 };

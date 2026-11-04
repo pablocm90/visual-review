@@ -608,6 +608,26 @@ test("two identical decisions removed from one function are two findings, each i
   ]);
 });
 
+test("a guard lost by each of two same-named symbols is two findings, the later one's id counting the symbol", () => {
+  const accessor = {
+    name: 'x',
+    scope: 'C',
+    kind: 'method' as const,
+    exported: { base: false, head: false },
+    change: 'edited' as const,
+    logic: [logicLine({ change: 'removed', kind: 'guard', base: 'if (a) return' })],
+  };
+
+  expect(
+    findingsOfSymbols([symbolFile([accessor, accessor])])
+      .filter(({ id }) => id.startsWith('logic:removed:'))
+      .map(({ id }) => id),
+  ).toStrictEqual([
+    'logic:removed:web/file/a.ts#C.x#if (a) return',
+    'logic:removed:web/file/a.ts#C.x#2#if (a) return',
+  ]);
+});
+
 test("an edited function's other decision changes are one logic finding for information on its file, its detail counting them; a function that only lost a guard has none", () => {
   const symbols = [
     symbolFile([

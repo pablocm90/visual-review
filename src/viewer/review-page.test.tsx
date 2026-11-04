@@ -4459,6 +4459,69 @@ test("a served page's logic line takes a comment on its decision, the same id as
   );
 });
 
+test("a logic line of the later of two same-named symbols comments on its own decision, not its twin's", async () => {
+  const user = userEvent.setup();
+  const sent = vi.fn(async () => {});
+  const accessor = {
+    name: 'x',
+    scope: 'C',
+    kind: 'method' as const,
+    exported: { base: false, head: false },
+    change: 'edited' as const,
+    logic: [
+      {
+        change: 'removed' as const,
+        kind: 'guard' as const,
+        depth: 0,
+        base: 'if (a) return',
+        line: 3,
+      },
+    ],
+  };
+  render(
+    <ReviewPage
+      review={pageWith({
+        range: review.range,
+        diff: {
+          nodes: [
+            { id: 'web', kind: 'stack', label: 'web', path: '', state: 'unchanged' },
+            topFile('c.ts', 'modified'),
+          ],
+          edges: [],
+        },
+        symbols: [symbolsOf('web/file/c.ts', [accessor, accessor])],
+      })}
+      send={sent}
+    />,
+  );
+
+  await user.click(await screen.findByRole('button', { name: 'c.ts: modified' }));
+  await user.click(within(inspector()).getByRole('tab', { name: /^Symbols/ }));
+  const [, later] = within(symbolsTab()).getAllByRole('button', {
+    name: 'Comment on removed guard: if (a) return',
+  });
+  await user.click(later ?? symbolsTab());
+  await user.type(within(symbolsTab()).getByRole('textbox', { name: 'Your comment' }), 'Why?');
+  await openReview(user);
+  await user.click(screen.getByRole('button', { name: 'Send to Claude' }));
+
+  expect(sent).toHaveBeenCalledExactlyOnceWith(
+    sentReview({
+      comments: [
+        {
+          anchor: {
+            kind: 'decision',
+            id: 'web/file/c.ts#C.x#2#if (a) return',
+            text: 'if (a) return',
+          },
+          kind: 'question',
+          text: 'Why?',
+        },
+      ],
+    }),
+  );
+});
+
 test('a draft in the open tray goes to the tab it was written on, though the inspector was closed or on another tab', async () => {
   const user = userEvent.setup();
   render(
