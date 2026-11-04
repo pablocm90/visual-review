@@ -5630,6 +5630,10 @@ const pageWithSymbolsEditedThenAndSince = () =>
           kind: 'function',
           exported: { base: false, head: false },
           change: 'edited',
+          logic: [
+            { change: 'added', kind: 'guard', depth: 0, head: 'if (!rate) return', line: 2 },
+            { change: 'added', kind: 'if', depth: 0, head: 'if (rate > 1)', line: 3 },
+          ],
         },
         {
           name: 'round',
@@ -5641,7 +5645,10 @@ const pageWithSymbolsEditedThenAndSince = () =>
     ],
     sinceReview: {
       ...sinceReview,
-      changed: changedSince({ symbols: ['web/file/tax.ts#tax'] }),
+      changed: changedSince({
+        symbols: ['web/file/tax.ts#tax'],
+        decisions: ['web/file/tax.ts#tax#if (!rate) return'],
+      }),
     },
   });
 
@@ -5655,9 +5662,21 @@ test('a later round marks the symbol changed since the last review, not the one 
   const since = within(symbolsTab()).getByRole('listitem', {
     name: 'function tax: edited, changed since',
   });
-  expect(within(since).getByText('changed since')).toBeTruthy();
+  expect(within(since).getAllByText('changed since')).toHaveLength(2);
   const before = within(symbolsTab()).getByRole('listitem', { name: 'function round: edited' });
   expect(within(before).queryByText('changed since')).toBeNull();
+
+  const lineSince = within(since).getByRole('listitem', {
+    name: 'added guard: if (!rate) return, changed since',
+  });
+  expect(within(lineSince).getByText('changed since')).toBeTruthy();
+  expect(
+    within(lineSince).getByRole('button', {
+      name: 'added guard: if (!rate) return, changed since',
+    }),
+  ).toBeTruthy();
+  const lineBefore = within(since).getByRole('listitem', { name: 'added if: if (rate > 1)' });
+  expect(within(lineBefore).queryByText('changed since')).toBeNull();
 });
 
 test('the unchanged symbols open by themselves when one is marked changed since, as a symbol put back is', async () => {

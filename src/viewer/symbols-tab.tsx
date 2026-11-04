@@ -131,41 +131,52 @@ const LogicLines = ({
 }: Pick<Places, 'comments' | 'onComment'> & {
   readonly symbol: AnchoredSymbol;
   readonly onShowLine: ShowLine;
-}) => (
-  <ul className="logic-lines" aria-label={`Logic of ${symbol.item.kind} ${qualified(symbol.item)}`}>
-    {decisionsOf(symbol).map(({ line, id, text }) => (
-      <li
-        key={id}
-        className={`logic-${line.change}`}
-        aria-label={logicLabel(line)}
-        style={{ paddingInlineStart: `${line.depth}em` }}
-      >
-        {line.change === 'same' ? (
-          <LogicText line={line} />
-        ) : (
-          <button
-            type="button"
-            className="logic-line"
-            aria-label={logicLabel(line)}
-            onClick={() =>
-              onShowLine({ side: line.change === 'removed' ? 'base' : 'head', line: line.line })
-            }
+}) => {
+  const isChangedSince = useIsChangedSince();
+  return (
+    <ul
+      className="logic-lines"
+      aria-label={`Logic of ${symbol.item.kind} ${qualified(symbol.item)}`}
+    >
+      {decisionsOf(symbol).map(({ line, id, text }) => {
+        const marked = isChangedSince('decisions', id);
+        const label = sinceLabel(logicLabel(line), marked);
+        return (
+          <li
+            key={id}
+            className={`logic-${line.change}`}
+            aria-label={label}
+            style={{ paddingInlineStart: `${line.depth}em` }}
           >
-            <LogicText line={line} />
-          </button>
-        )}
-        {onComment && (
-          <CommentOn
-            name={logicLabel(line)}
-            anchor={{ kind: 'decision', id, text }}
-            comments={comments}
-            onComment={onComment}
-          />
-        )}
-      </li>
-    ))}
-  </ul>
-);
+            {line.change === 'same' ? (
+              <LogicText line={line} />
+            ) : (
+              <button
+                type="button"
+                className="logic-line"
+                aria-label={label}
+                onClick={() =>
+                  onShowLine({ side: line.change === 'removed' ? 'base' : 'head', line: line.line })
+                }
+              >
+                <LogicText line={line} />
+              </button>
+            )}
+            {marked && <ChangedSinceTag />}
+            {onComment && (
+              <CommentOn
+                name={logicLabel(line)}
+                anchor={{ kind: 'decision', id, text }}
+                comments={comments}
+                onComment={onComment}
+              />
+            )}
+          </li>
+        );
+      })}
+    </ul>
+  );
+};
 
 export const hasSymbolNews = (file: SymbolFile): boolean =>
   'unreadable' in file || changedSymbolCount([file]) > 0;
