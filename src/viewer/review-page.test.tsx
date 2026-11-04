@@ -984,16 +984,20 @@ test("toggling a box keeps the zoom and the box's corner where it was on screen,
     await press('Fit');
     expect(viewOf(web)).toBe(refitted);
   };
-  await press('100%');
-  await press('Zoom in');
-  await press('Collapse utils');
-  await waitFor(() => expect(within(web).queryByRole('group', { name: 'utils' })).toBeNull());
-  await waitFor(() => expect(zoomShown()).toBe('125%'));
+  const collapseUtilsAt125 = async () => {
+    await press('100%');
+    await press('Zoom in');
+    await press('Collapse utils');
+    await waitFor(() => expect(within(web).queryByRole('group', { name: 'utils' })).toBeNull());
+    expect(zoomShown()).toBe('125%');
+  };
+  await collapseUtilsAt125();
   await showEverything(user);
   await refitsFrom('125%');
 
-  await press('100%');
-  await press('Zoom in');
+  await press('Expand utils');
+  await within(web).findByRole('group', { name: 'utils' });
+  await collapseUtilsAt125();
   await user.click(screen.getByRole('checkbox', { name: 'All edges' }));
   await refitsFrom('125%');
 });
