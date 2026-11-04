@@ -5440,6 +5440,33 @@ test("a dependencies finding opens its lockfile's patch on the Diff tab of the n
   expect(scrolledIntoView.mock.contexts).toContain(patch);
 });
 
+test("an answer to a dependencies finding goes from the tray to its lockfile's patch, from any screen", async () => {
+  const user = userEvent.setup();
+  render(
+    <ReviewPage
+      review={pageWithLockfile('undrawn', 'pnpm-lock.yaml')}
+      send={vi.fn(async () => {})}
+    />,
+  );
+
+  await user.click(await screen.findByRole('button', { name: 'Show 2 findings' }));
+  const rail = screen.getByRole('complementary', { name: 'Findings' });
+  const finding = within(rail).getByText('zod 3.25.0 → 4.6.7').closest('li') ?? rail;
+  await user.click(within(finding).getByRole('button', { name: 'Fix this' }));
+  await user.click(screen.getByRole('link', { name: 'Tests' }));
+  await openReview(user);
+  await user.click(
+    within(screen.getByRole('list', { name: 'Drafts' })).getByRole('button', {
+      name: 'zod 3.25.0 → 4.6.7',
+    }),
+  );
+
+  expect(within(inspector()).getByRole('group', { name: 'pnpm-lock.yaml' })).toHaveProperty(
+    'open',
+    true,
+  );
+});
+
 test("a served page's line in a file outside the graph takes a comment, named by its path", async () => {
   const user = userEvent.setup();
   const sent = vi.fn(async () => {});

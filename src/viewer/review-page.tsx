@@ -1462,11 +1462,19 @@ export const ReviewPage = ({ review, notes, send }: ReviewPageProps) => {
     setInspectorTab(inspect);
     goToOnStructure(id);
   };
+  const showOutsideAt = (place: LandingIn, opener: HTMLButtonElement) => {
+    landOn(null, place);
+    location.hash = '#structure';
+    showOutside(opener);
+  };
   const showFile = (path: string, opener: HTMLButtonElement) => {
     const holder = deepestHolding(path, review.diff.nodes);
-    landOn(holder?.id ?? null, { path });
-    if (holder) goToOnTab(holder.id, 'diff');
-    else showOutside(opener);
+    if (holder === undefined) {
+      showOutsideAt({ path }, opener);
+      return;
+    }
+    landOn(holder.id, { path });
+    goToOnTab(holder.id, 'diff');
   };
   const [read, setRead] = useState(() => storedReadMarks(review.range));
   useEffect(() => storeReadMarks(review.range, read), [review.range, read]);
@@ -1682,11 +1690,8 @@ export const ReviewPage = ({ review, notes, send }: ReviewPageProps) => {
             if (place) landOn(id, place);
             goToOnTab(id, tabOfDraft(anchor));
           }}
-          onGoToOutside={(place, opener) => {
-            landOn(null, place);
-            location.hash = '#structure';
-            showOutside(opener);
-          }}
+          onGoToOutside={showOutsideAt}
+          onGoToFile={showFile}
           send={send}
         />
       )}
