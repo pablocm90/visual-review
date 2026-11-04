@@ -64,6 +64,7 @@ import { storedReadMarks, storeReadMarks } from './read-marks.ts';
 import { ReadingOrderList } from './reading-order-list.tsx';
 import { Ref, shortRef } from './ref.tsx';
 import { ReviewTray, verdictLabels } from './review-tray.tsx';
+import { LastSaidOnPage, SaidBefore } from './said-before.tsx';
 import { changedSymbolCount, type LineAt, SymbolsOf, useHasSymbolNews } from './symbols-tab.tsx';
 import { changedCount, TestFiles, TestsScreen } from './tests-screen.tsx';
 import {
@@ -766,6 +767,7 @@ const NotePanel = ({
       </ul>
     )}
     <p>{note?.text ?? 'No note'}</p>
+    <SaidBefore on={anchor} />
     {onComment &&
       (commentable ? (
         <CommentField anchor={anchor} comments={comments} onComment={onComment} />
@@ -1335,7 +1337,7 @@ const GraphCaveat = ({ since, nothingDrawn }: GraphCaveatProps) => {
   );
 };
 
-export const ReviewPage = ({ review, notes, send }: ReviewPageProps) => {
+const Page = ({ review, notes, send }: ReviewPageProps) => {
   const tab = useTab();
   const [layout, setLayout] = useState<Layout>();
   const { frameElement, placed, frameProps, zoomAtCentre, fitToFrame, centre, pin } =
@@ -1703,3 +1705,9 @@ export const ReviewPage = ({ review, notes, send }: ReviewPageProps) => {
     </main>
   );
 };
+
+export const ReviewPage = (props: ReviewPageProps) => (
+  <LastSaidOnPage since={props.review.sinceReview}>
+    <Page {...props} />
+  </LastSaidOnPage>
+);

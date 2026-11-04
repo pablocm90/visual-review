@@ -24,7 +24,8 @@ export const lineAnchor = ({
   };
 };
 
-export const anchorKey = ({ kind, id }: Pick<Anchor, 'kind' | 'id'>): string => `${kind} ${id}`;
+export const anchorKey = ({ kind, id }: { readonly kind: string; readonly id: string }): string =>
+  `${kind} ${id}`;
 
 const lineNumber = (id: string): string => id.slice(id.lastIndexOf(':') + 1);
 

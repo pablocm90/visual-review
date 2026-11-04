@@ -2540,3 +2540,12 @@ main:has(> .review-tray) {
   margin: 12px 0 4px;
   font-size: 13px;
 }
+
+.said-before {
+  margin: 8px 0;
+  padding: 6px 8px;
+  border-inline-start: 3px solid var(--stack-line);
+  font-size: 13px;
+  overflow-wrap: anywhere;
+  white-space: normal;
+}

@@ -5939,6 +5939,7 @@ const lastReviewSection = () => screen.getByRole('region', { name: 'Last review'
 const saidOnPart = (
   id: string,
   said: Partial<Pick<Comment, 'kind' | 'text'>> & {
+    readonly target?: string;
     readonly changedSince?: ReadonlyArray<Commit>;
   } = {},
 ): PreviousComment => ({
@@ -6153,4 +6154,52 @@ test('the last review lists the parts changed since with no comment on them, goi
   expect(document.activeElement).toBe(
     screen.getByRole('button', { name: 'application: modified' }),
   );
+});
+
+test('a last comment on a part or an edge shows under its anchor in the Note panel, with no send too', async () => {
+  const user = userEvent.setup();
+  const sha = 'c0ffee4d5e6fa7b8c9d0a1b2c3d4e5f6a7b8c9d0';
+  const edge = 'rust/crate/cli-adapter -> rust/crate/application';
+  render(
+    <ReviewPage
+      review={pageWith({
+        ...review,
+        sinceReview: {
+          ...sinceReview,
+          comments: [
+            saidOnPart('rust/crate/old-name', {
+              target: 'rust/crate/application',
+              kind: 'change',
+              text: 'Split this.',
+              changedSince: [{ sha, subject: 'split the application', files: [] }],
+            }),
+            {
+              anchor: { kind: 'edge', id: 'rust/crate/old-name -> rust/crate/application' },
+              kind: 'question',
+              text: 'Why this way?',
+              target: edge,
+            },
+          ],
+        },
+      })}
+    />,
+  );
+  await screen.findByRole('group', { name: 'rust' });
+
+  await user.click(screen.getByRole('button', { name: 'application: modified' }));
+  const said = within(inspector()).getByRole('note', {
+    name: 'Last review: Change this, Changed since',
+  });
+  expect(within(said).getByText('Split this.')).toBeTruthy();
+  expect(within(said).getByText('split the application')).toBeTruthy();
+
+  await user.click(
+    within(lastReviewSection()).getByRole('button', { name: 'cli-adapter → application' }),
+  );
+  expect(
+    within(
+      within(inspector()).getByRole('note', { name: 'Last review: Question, As it was' }),
+    ).getByText('Why this way?'),
+  ).toBeTruthy();
+  expect(within(inspector()).queryByText('Split this.')).toBeNull();
 });
