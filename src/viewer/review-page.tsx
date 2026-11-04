@@ -1026,6 +1026,12 @@ const WIDER_SCOPES: ReadonlyArray<Scope> = [
 const changedSinceIn = ({ sinceReview }: PageData): ChangedSince | undefined =>
   sinceReview !== undefined && 'changed' in sinceReview ? sinceReview.changed : undefined;
 
+const changedSinceShown = ([name]: Scope, review: PageData) =>
+  name === SINCE_LAST_REVIEW ? changedSinceIn(review) : undefined;
+
+const unmergedWith = (noted: ReadonlySet<string>, since: ChangedSince | undefined) =>
+  new Set([...noted, ...(since?.edges ?? [])]);
+
 const scopesOf = (review: PageData): ReadonlyArray<Scope> => {
   const changed = changedSinceIn(review);
   return changed === undefined
@@ -1289,13 +1295,26 @@ const typesText = (target: EventTarget | null) =>
   target instanceof HTMLTextAreaElement ||
   (target instanceof HTMLInputElement && target.type === 'text');
 
-const NothingDrawn = ({ scope }: { readonly scope: Scope }) => (
-  <p className="caveat">
-    {scope[0] === SINCE_LAST_REVIEW
-      ? 'Nothing in the graph changed since the last review.'
-      : 'Nothing in the graph changed.'}
-  </p>
-);
+type GraphCaveatProps = {
+  readonly since: ChangedSince | undefined;
+  readonly nothingDrawn: boolean;
+};
+
+const GraphCaveat = ({ since, nothingDrawn }: GraphCaveatProps) => {
+  const dropped = since === undefined ? [] : [...since.dropped.nodes, ...since.dropped.edges];
+  if (dropped.length > 0)
+    return (
+      <p className="caveat">Removed since the last review, so not drawn: {dropped.join(', ')}</p>
+    );
+  if (!nothingDrawn) return null;
+  return (
+    <p className="caveat">
+      {since === undefined
+        ? 'Nothing in the graph changed.'
+        : 'Nothing in the graph changed since the last review.'}
+    </p>
+  );
+};
 
 export const ReviewPage = ({ review, notes, send }: ReviewPageProps) => {
   const tab = useTab();
@@ -1333,14 +1352,13 @@ export const ReviewPage = ({ review, notes, send }: ReviewPageProps) => {
   const [railOpen, setRailOpen] = useState(false);
   const findings = findingsOf({ data: review, notes });
   const triaged = findings.filter(finding => picked === undefined || finding.dimension === picked);
-  const since = scope[0] === SINCE_LAST_REVIEW ? changedSinceIn(review) : undefined;
-  const dropped = since === undefined ? [] : [...since.dropped.nodes, ...since.dropped.edges];
+  const since = changedSinceShown(scope, review);
   const drawn = useMemo(() => {
     const [, keep] = scope;
     const atExpansion = drawnAt({
       diff: review.diff,
       expanded,
-      noted: new Set([...noted, ...(since?.edges ?? [])]),
+      noted: unmergedWith(noted, since),
       allEdges,
     });
     return keep({ diff: review.diff, expanded, drawn: atExpansion });
@@ -1530,13 +1548,7 @@ export const ReviewPage = ({ review, notes, send }: ReviewPageProps) => {
               <div className="graph-key">
                 {colouring === 'change' ? <Legend /> : <ScaleLegend colouring={colouring} />}
               </div>
-              {dropped.length > 0 ? (
-                <p className="caveat">
-                  Removed since the last review, so not drawn: {dropped.join(', ')}
-                </p>
-              ) : (
-                drawn.nodes.length === 0 && <NothingDrawn scope={scope} />
-              )}
+              <GraphCaveat since={since} nothingDrawn={drawn.nodes.length === 0} />
               {layout && (
                 <div
                   className="frame"
