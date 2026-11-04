@@ -61,6 +61,7 @@ import { MetricsScreen } from './metrics-screen.tsx';
 import { MetricsTable } from './metrics-tab.tsx';
 import { storedReadMarks, storeReadMarks } from './read-marks.ts';
 import { ReadingOrderList } from './reading-order-list.tsx';
+import { Ref, shortRef } from './ref.tsx';
 import { ReviewTray, verdictLabels } from './review-tray.tsx';
 import { changedSymbolCount, type LineAt, SymbolsOf, useHasSymbolNews } from './symbols-tab.tsx';
 import { changedCount, TestFiles, TestsScreen } from './tests-screen.tsx';
@@ -410,10 +411,6 @@ const Zoom = ({ scale, onZoom, onFit }: ZoomProps) => (
   </div>
 );
 
-const isFullSha = (ref: string) => /^[0-9a-f]{40}$/.test(ref);
-
-const shortRef = (ref: string) => (isFullSha(ref) ? ref.slice(0, 7) : ref);
-
 const endsOf = (range: string) => {
   const at = range.indexOf('..');
   return { from: range.slice(0, at), to: range.slice(at + 2) };
@@ -423,9 +420,6 @@ const shortRange = (range: string) => {
   const { from, to } = endsOf(range);
   return `${shortRef(from)}..${shortRef(to)}`;
 };
-
-const Ref = ({ name }: { readonly name: string }) =>
-  isFullSha(name) ? <abbr title={name}>{shortRef(name)}</abbr> : name;
 
 const ShortRange = ({ range }: { readonly range: string }) => {
   const { from, to } = endsOf(range);
