@@ -99,6 +99,25 @@ test('direct dependency findings rank below other findings with no target and ab
   ]);
 });
 
+test('a lockfile not read is a blind spot, ahead of the direct dependencies', () => {
+  const dependency = (id: string): Finding => ({
+    id,
+    dimension: 'dependencies',
+    level: 'look',
+    title: id,
+  });
+
+  expect(
+    lookFirst({
+      findings: [
+        dependency('dependencies:Cargo.lock:anyhow'),
+        dependency('dependencies:not-read:yarn.lock'),
+      ],
+      metrics: {},
+    }).map(finding => finding.id),
+  ).toStrictEqual(['dependencies:not-read:yarn.lock', 'dependencies:Cargo.lock:anyhow']);
+});
+
 const boxed = (id: string, parent: string) => ({
   id,
   kind: 'module' as const,

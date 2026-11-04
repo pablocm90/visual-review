@@ -211,8 +211,9 @@ export const lookFirst = ({ findings, metrics }: LookFirstOptions): ReadonlyArra
     target === undefined
       ? Number.POSITIVE_INFINITY
       : Math.max(...endsOfId(target).map(end => metrics[end]?.head?.[measure] ?? 0));
-  const isBlindSpot = ({ target, dimension }: Finding) =>
-    target === undefined && dimension !== 'dependencies';
+  const isBlindSpot = ({ target, dimension, id }: Finding) =>
+    target === undefined &&
+    (dimension !== 'dependencies' || id.startsWith('dependencies:not-read:'));
   const before = (one: Finding, other: Finding) =>
     Number(isBlindSpot(other)) - Number(isBlindSpot(one)) ||
     highest(other.target, 'fanIn') - highest(one.target, 'fanIn') ||
