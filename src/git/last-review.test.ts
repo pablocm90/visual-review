@@ -5,6 +5,11 @@ import { expect, test } from 'vitest';
 import { git } from '../test-support/repos.ts';
 import { lastReviewOf } from './last-review.ts';
 
+const H0 = '0'.repeat(40);
+const H1 = '1'.repeat(40);
+const H2 = '2'.repeat(40);
+const H3 = '3'.repeat(40);
+
 const reviewsDirectory = () => {
   const directory = mkdtempSync(join(tmpdir(), 'visual-review-reviews-'));
   git(directory, 'init', '--quiet');
@@ -33,12 +38,12 @@ const writeReview = (
 test("the newest review of the pull request at another head is the last one, the new head's own left out", async () => {
   using reviews = reviewsDirectory();
   const { directory } = reviews;
-  writeReview(directory, { head: 'h0', writtenAt: 1_000, verdict: 'approve' });
-  writeReview(directory, { head: 'h1', writtenAt: 2_000, verdict: 'request-changes' });
-  writeReview(directory, { head: 'h2', writtenAt: 3_000 });
+  writeReview(directory, { head: H0, writtenAt: 1_000, verdict: 'approve' });
+  writeReview(directory, { head: H1, writtenAt: 2_000, verdict: 'request-changes' });
+  writeReview(directory, { head: H2, writtenAt: 3_000 });
 
-  await expect(lastReviewOf({ directory, pullRequest: 7, head: 'h2' })).resolves.toEqual({
-    head: 'h1',
+  await expect(lastReviewOf({ directory, pullRequest: 7, head: H2 })).resolves.toEqual({
+    head: H1,
     verdict: 'request-changes',
   });
 });
@@ -46,12 +51,12 @@ test("the newest review of the pull request at another head is the last one, the
 test('a review file git tracks came with the repo, so it is no last review, however new', async () => {
   using reviews = reviewsDirectory();
   const { directory } = reviews;
-  writeReview(directory, { head: 'h0', writtenAt: 1_000 });
-  writeReview(directory, { head: 'h1', writtenAt: 2_000, verdict: 'approve' });
-  git(directory, 'add', '--force', 'base..h1.review.json');
+  writeReview(directory, { head: H0, writtenAt: 1_000 });
+  writeReview(directory, { head: H1, writtenAt: 2_000, verdict: 'approve' });
+  git(directory, 'add', '--force', `base..${H1}.review.json`);
 
-  await expect(lastReviewOf({ directory, pullRequest: 7, head: 'h2' })).resolves.toEqual({
-    head: 'h0',
+  await expect(lastReviewOf({ directory, pullRequest: 7, head: H2 })).resolves.toEqual({
+    head: H0,
     verdict: 'comment',
   });
 });
@@ -60,7 +65,7 @@ test.for([
   {
     reason: "another pull request's",
     write: (directory: string) =>
-      writeReview(directory, { head: 'h1', writtenAt: 1, pullRequest: 8 }),
+      writeReview(directory, { head: H1, writtenAt: 1, pullRequest: 8 }),
   },
   {
     reason: 'a range with no pull request',
@@ -91,25 +96,56 @@ test.for([
   const { directory } = reviews;
   write(directory);
 
-  await expect(lastReviewOf({ directory, pullRequest: 7, head: 'h2' })).resolves.toBeUndefined();
+  await expect(lastReviewOf({ directory, pullRequest: 7, head: H2 })).resolves.toBeUndefined();
 });
 
 test('a review in an older format still counts, whatever else it holds', async () => {
   using reviews = reviewsDirectory();
   const { directory } = reviews;
   writeFileSync(
-    join(directory, 'base..h1.review.json'),
+    join(directory, `base..${H1}.review.json`),
     JSON.stringify({
       version: 3,
       verdict: 'approve',
-      reviewed: { range: 'base..h1', pullRequest: 7, somethingOld: true },
+      reviewed: { range: `base..${H1}`, pullRequest: 7, somethingOld: true },
       comments: [{ on: 'old shape' }],
     }),
   );
 
-  await expect(lastReviewOf({ directory, pullRequest: 7, head: 'h2' })).resolves.toEqual({
-    head: 'h1',
+  await expect(lastReviewOf({ directory, pullRequest: 7, head: H2 })).resolves.toEqual({
+    head: H1,
     verdict: 'approve',
+  });
+});
+
+test.for([
+  { reason: 'a revision that is no full SHA', head: 'HEAD~0' },
+  { reason: 'a short SHA', head: '1'.repeat(39) },
+  { reason: 'a SHA too long', head: '1'.repeat(41) },
+  { reason: 'a SHA between the two lengths', head: '1'.repeat(63) },
+  { reason: 'uppercase hex', head: 'A'.repeat(40) },
+  { reason: 'a SHA with more after it', head: `${H1}\nHEAD` },
+  { reason: 'an option', head: '--output=x' },
+])('a review whose head is $reason is no last review', async ({ head }) => {
+  using reviews = reviewsDirectory();
+  const { directory } = reviews;
+  writeFileSync(
+    join(directory, 'a.review.json'),
+    JSON.stringify({ verdict: 'comment', reviewed: { range: `base..${head}`, pullRequest: 7 } }),
+  );
+
+  await expect(lastReviewOf({ directory, pullRequest: 7, head: H2 })).resolves.toBeUndefined();
+});
+
+test('a review of a SHA-256 head counts', async () => {
+  using reviews = reviewsDirectory();
+  const { directory } = reviews;
+  const head = '1'.repeat(64);
+  writeReview(directory, { head, writtenAt: 1_000 });
+
+  await expect(lastReviewOf({ directory, pullRequest: 7, head: H2 })).resolves.toEqual({
+    head,
+    verdict: 'comment',
   });
 });
 
@@ -117,17 +153,17 @@ test('with no reviews directory there is no last review', async () => {
   using reviews = reviewsDirectory();
   const directory = join(reviews.directory, 'missing');
 
-  await expect(lastReviewOf({ directory, pullRequest: 7, head: 'h2' })).resolves.toBeUndefined();
+  await expect(lastReviewOf({ directory, pullRequest: 7, head: H2 })).resolves.toBeUndefined();
 });
 
 test("a review file that can't be read is skipped, not a failed review", async () => {
   using reviews = reviewsDirectory();
   const { directory } = reviews;
-  writeReview(directory, { head: 'h1', writtenAt: 1_000 });
-  symlinkSync('missing', join(directory, 'base..h2.review.json'));
+  writeReview(directory, { head: H1, writtenAt: 1_000 });
+  symlinkSync('missing', join(directory, `base..${H2}.review.json`));
 
-  await expect(lastReviewOf({ directory, pullRequest: 7, head: 'h3' })).resolves.toEqual({
-    head: 'h1',
+  await expect(lastReviewOf({ directory, pullRequest: 7, head: H3 })).resolves.toEqual({
+    head: H1,
     verdict: 'comment',
   });
 });

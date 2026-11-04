@@ -57,7 +57,10 @@ const writeReviewOf = (
     file,
     JSON.stringify({
       verdict: 'comment',
-      reviewed: { range: name, ...(pullRequest === undefined ? {} : { pullRequest }) },
+      reviewed: {
+        range: `base..${'1'.repeat(40)}`,
+        ...(pullRequest === undefined ? {} : { pullRequest }),
+      },
     }),
   );
   utimesSync(file, writtenAt, writtenAt);

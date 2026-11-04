@@ -9,6 +9,8 @@ const run = promisify(execFile);
 
 const headOfRange = (range: string): string => range.slice(range.lastIndexOf('..') + 2);
 
+const FULL_SHA = /^(?:[0-9a-f]{40}|[0-9a-f]{64})$/;
+
 const REVIEW = '.review.json';
 
 export const pageNameOf = (reviewFile: string): string => reviewFile.slice(0, -REVIEW.length);
@@ -26,10 +28,12 @@ const pullRequestReviewIn = async (
   const path = join(directory, file);
   const past = pastReviewOf(await readFile(path, 'utf8'));
   if (past?.reviewed.pullRequest === undefined) return [];
+  const head = headOfRange(past.reviewed.range);
+  if (!FULL_SHA.test(head)) return [];
   return [
     {
       file,
-      head: headOfRange(past.reviewed.range),
+      head,
       verdict: past.verdict,
       pullRequest: past.reviewed.pullRequest,
       writtenAt: (await stat(path)).mtimeMs,
