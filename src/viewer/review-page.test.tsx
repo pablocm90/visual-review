@@ -5333,3 +5333,62 @@ test("going to a line's draft shows its hidden field, and leaves hidden the one 
   await goToDraft(added);
   expect(field()).toHaveProperty('value', 'Why 2?');
 });
+
+const sinceReview = {
+  head: 'h1',
+  verdict: 'comment' as const,
+  changed: { nodes: ['rust/crate/application'], edges: [] },
+};
+
+test("a later round offers 'Since last review' first in Show, Changes only still picked; picked, it draws what changed since, and going to a part it hides widens Show", async () => {
+  const user = userEvent.setup();
+  render(
+    <ReviewPage
+      review={pageWith({ ...review, sinceReview })}
+      notes={{
+        version: 1,
+        tests: '',
+        summary: [{ text: 'Check the CLI.', target: 'rust/crate/cli-adapter' }],
+        notes: {},
+      }}
+    />,
+  );
+  const rust = await screen.findByRole('group', { name: 'rust' });
+  const pressed = () =>
+    within(screen.getByRole('group', { name: 'Show' }))
+      .getAllByRole('button', { pressed: true })
+      .map(button => button.textContent);
+  expect(
+    within(screen.getByRole('group', { name: 'Show' }))
+      .getAllByRole('button')
+      .map(button => button.textContent),
+  ).toEqual(['Since last review', 'Changes only', 'Changed + 1 hop', 'Everything']);
+  expect(pressed()).toEqual(['Changes only']);
+
+  await user.click(shown('Since last review'));
+
+  expect(pressed()).toEqual(['Since last review']);
+  await waitFor(() => expect(buttonsIn(rust)).toEqual(['application: modified']));
+
+  await user.click(
+    within(screen.getByRole('region', { name: 'Summary' })).getByRole('button', {
+      name: 'Check the CLI.',
+    }),
+  );
+
+  expect(pressed()).toEqual(['Changes only']);
+});
+
+test.for([
+  { round: 'with no earlier review', since: {} },
+  { round: 'whose reviewed head is gone', since: { sinceReview: { head: 'h1', gone: true } } },
+] as const)('a review $round has no Since last review choice', async ({ since }) => {
+  render(<ReviewPage review={pageWith({ ...review, ...since })} />);
+  await screen.findByRole('group', { name: 'rust' });
+
+  expect(
+    within(screen.getByRole('group', { name: 'Show' }))
+      .getAllByRole('button')
+      .map(button => button.textContent),
+  ).toEqual(['Changes only', 'Changed + 1 hop', 'Everything']);
+});

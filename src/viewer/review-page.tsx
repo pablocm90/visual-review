@@ -30,6 +30,7 @@ import {
   isDrawn,
   mergedDiff,
   nearChanges,
+  sinceLastReview,
   visibleDiff,
   visibleNodeOf,
 } from '../core/visible-diff.ts';
@@ -1007,26 +1008,42 @@ type Keeping = {
   readonly drawn: GraphDiff;
 };
 
-const SCOPES = [
-  ['Changes only', changesOnly],
-  ['Changed + 1 hop', ({ drawn }: Keeping) => nearChanges(drawn)],
-  ['Everything', ({ drawn }: Keeping) => drawn],
-] as const;
+type Scope = readonly [name: string, keep: (keeping: Keeping) => GraphDiff];
 
-type Scope = (typeof SCOPES)[number];
+const CHANGES_ONLY: Scope = ['Changes only', changesOnly];
+
+const EVERYTHING: Scope = ['Everything', ({ drawn }) => drawn];
+
+const WIDER_SCOPES: ReadonlyArray<Scope> = [
+  CHANGES_ONLY,
+  ['Changed + 1 hop', ({ drawn }) => nearChanges(drawn)],
+  EVERYTHING,
+];
+
+const scopesOf = ({ sinceReview }: PageData): ReadonlyArray<Scope> =>
+  sinceReview === undefined || 'gone' in sinceReview
+    ? WIDER_SCOPES
+    : [
+        [
+          'Since last review',
+          keeping => sinceLastReview({ ...keeping, changed: sinceReview.changed }),
+        ],
+        ...WIDER_SCOPES,
+      ];
 
 type ShowProps = {
+  readonly scopes: ReadonlyArray<Scope>;
   readonly scope: Scope;
   readonly onPick: (scope: Scope) => void;
 };
 
-const Show = ({ scope, onPick }: ShowProps) => {
+const Show = ({ scopes, scope, onPick }: ShowProps) => {
   const label = useId();
   return (
     <div className="graph-choice">
       <span id={label}>Show</span>
       <div role="group" aria-labelledby={label}>
-        {SCOPES.map(each => (
+        {scopes.map(each => (
           <button
             key={each[0]}
             type="button"
@@ -1281,7 +1298,8 @@ export const ReviewPage = ({ review, notes, send }: ReviewPageProps) => {
   const visible = useMemo(() => visibleDiff({ diff: review.diff, expanded }), [review, expanded]);
   const [allEdges, setAllEdges] = useState(false);
   const noted = useMemo(() => new Set(Object.keys(notes?.notes ?? {})), [notes]);
-  const [scope, setScope] = useState<Scope>(SCOPES[0]);
+  const scopes = useMemo(() => scopesOf(review), [review]);
+  const [scope, setScope] = useState(CHANGES_ONLY);
   const [colouring, setColouring] = useState<Colouring>('change');
   const [picked, setPicked] = useState<Dimension>();
   const [railOpen, setRailOpen] = useState(false);
@@ -1360,10 +1378,10 @@ export const ReviewPage = ({ review, notes, send }: ReviewPageProps) => {
     const all = allEdges || !isDrawn({ diff: drawnAt({ ...at, allEdges: false }), id });
     if (all) setAllEdges(true);
     const atAll = drawnAt({ ...at, allEdges: all });
-    const narrower = SCOPES.slice(SCOPES.indexOf(scope), -1);
+    const narrower = scopes.slice(scopes.indexOf(scope), -1);
     setScope(
       narrower.find(([, keep]) => isDrawn({ diff: keep({ ...at, drawn: atAll }), id })) ??
-        SCOPES[2],
+        EVERYTHING,
     );
     centre(id);
     setFocusTarget(id);
@@ -1454,6 +1472,7 @@ export const ReviewPage = ({ review, notes, send }: ReviewPageProps) => {
                 <ColourBy colouring={colouring} onPick={setColouring} />
                 <div className="graph-filters">
                   <Show
+                    scopes={scopes}
                     scope={scope}
                     onPick={next => {
                       fitToFrame();
