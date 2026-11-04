@@ -2,6 +2,7 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { expect, test } from 'vitest';
+import { reviewedHead } from '../test-support/reviewed.ts';
 import type { GraphNode } from './graph.ts';
 import type { LogicLine } from './logic-diff.ts';
 import { metricFindings } from './metric-findings.ts';
@@ -1522,8 +1523,7 @@ const reviewedAt = ({
   Partial<Pick<ReviewedDiff, 'renames' | 'symbols' | 'tests'>> & {
     readonly pullRequest?: Partial<ReviewedDiff>;
   }): ReviewedReading => ({
-  head: 'h1',
-  verdict: 'comment',
+  ...reviewedHead(),
   renames: [],
   symbols: [],
   tests: [],
@@ -1878,15 +1878,12 @@ test('page data says the reviewed head is gone when its commit no longer reads, 
       parsers: {},
     });
 
-  expect(
-    data({ reviewed: { head: 'h1', verdict: 'approve', gone: true } }).sinceReview,
-  ).toMatchObject({
+  expect(data({ reviewed: { ...reviewedHead(), gone: true } }).sinceReview).toMatchObject({
     head: 'h1',
     gone: true,
   });
   expect(
-    data({ reviewed: { head: 'h1', verdict: 'approve', unreadable: 'cargo metadata failed' } })
-      .sinceReview,
+    data({ reviewed: { ...reviewedHead(), unreadable: 'cargo metadata failed' } }).sinceReview,
   ).toEqual({ head: 'h1', unreadable: 'cargo metadata failed' });
   expect(data({})).not.toHaveProperty('sinceReview');
 });

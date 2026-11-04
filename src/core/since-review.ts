@@ -25,7 +25,7 @@ export type ChangedSince = Changed & { readonly dropped: Changed };
 export type SinceReview =
   | { readonly head: string; readonly gone: true }
   | { readonly head: string; readonly unreadable: string }
-  | (ReviewedHead & { readonly changed: ChangedSince });
+  | (Pick<ReviewedHead, 'head' | 'verdict'> & { readonly changed: ChangedSince });
 
 type SinceReviewOptions = {
   readonly reviewed: ReviewedReading;

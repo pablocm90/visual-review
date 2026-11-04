@@ -36,6 +36,10 @@ export type SymbolFile = { readonly stack: string } & (
 export type ReviewedHead = {
   readonly head: string;
   readonly verdict: Review['verdict'];
+  readonly body?: string;
+  readonly read: ReadonlyArray<string>;
+  readonly comments: Review['comments'];
+  readonly calledFine: ReadonlyArray<string>;
 };
 
 export type ReviewedDiff = {
