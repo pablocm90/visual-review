@@ -6407,3 +6407,32 @@ test('a patch holding a last comment opens by itself', async () => {
     true,
   );
 });
+
+test('going to a last comment on a diff line lands on the row it shows at, the numbers having moved', async () => {
+  const user = userEvent.setup();
+  render(
+    <ReviewPage
+      review={{
+        ...pageWithPatch('@@ -12,1 +20,2 @@', ' const y = 0;', '+const x = 2;'),
+        sinceReview: {
+          ...sinceReview,
+          comments: [
+            {
+              anchor: { kind: 'line', id: 'web/src/x.ts@head:20', text: 'const x = 2;' },
+              kind: 'question',
+              text: 'Why 2?',
+              target: 'web/file/x.ts',
+            },
+          ],
+        },
+      }}
+    />,
+  );
+  await screen.findByRole('button', { name: 'x.ts: modified' });
+
+  await user.click(within(lastReviewSection()).getByRole('button', { name: /^x\.ts:20/ }));
+
+  expect(within(diffTab()).getByRole('insertion', { current: true }).textContent).toContain(
+    'Why 2?',
+  );
+});

@@ -462,7 +462,7 @@ const Scoped = ({ scopes: [scope, ...inner], text }: Piece) =>
     </span>
   );
 
-type Landing = Omit<LineAt, 'node'>;
+type Landing = Omit<LineAt, 'node'> & { readonly text?: string };
 
 type LandingIn = Landing & { readonly path: string | undefined };
 
@@ -472,8 +472,10 @@ const scrollInPanel = (element: HTMLElement, block: ScrollLogicalPosition) => {
   window.scrollTo(scrollX, scrollY);
 };
 
-const isLandedOn = (line: Line, landing: Landing | undefined): boolean =>
-  landing !== undefined && line[landing.side] === landing.line;
+const rowLandedOn = (lines: ReadonlyArray<Line>, path: string, landing: Landing) =>
+  landing.text === undefined
+    ? lines.findIndex(line => line[landing.side] === landing.line)
+    : rowOfLine(lines, { ...landing, path, text: landing.text });
 
 type LineComments = {
   readonly nodes: ReadonlyArray<DiffNode>;
@@ -497,7 +499,7 @@ const PatchLine = ({
 }) => {
   const { kind, prefix, pieces } = line;
   const anchor = lineAnchor({ path, line });
-  const marks = { 'aria-current': isLandedOn(line, landing) || undefined };
+  const marks = { 'aria-current': landing !== undefined || undefined };
   const code = (
     <>
       {prefix}
@@ -514,7 +516,7 @@ const PatchLine = ({
           name={anchorName(anchor, nodes)}
           comments={comments}
           onComment={onComment}
-          landing={isLandedOn(line, landing) ? landing : undefined}
+          landing={landing}
         />
       )}
     </>
@@ -539,6 +541,7 @@ const Patch = ({
   const saidAt = (row: number | undefined) =>
     placed.filter(said => said.row === row).map(({ anchor }) => anchor);
   const landed = landing?.path === path ? landing : undefined;
+  const landedRow = landed && rowLandedOn(lines, path, landed);
   const top = useRef<HTMLDetailsElement>(null);
   useLayoutEffect(() => {
     if (!top.current || landed === undefined) return;
@@ -567,7 +570,7 @@ const Patch = ({
             path={path}
             line={line}
             said={saidAt(index)}
-            landing={landed}
+            landing={index === landedRow ? landed : undefined}
             {...commenting}
           />
         ))}
