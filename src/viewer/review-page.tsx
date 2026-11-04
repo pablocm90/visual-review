@@ -1602,6 +1602,7 @@ const Page = ({ review, notes, send }: ReviewPageProps) => {
               {review.sinceReview !== undefined && (
                 <LastReview
                   since={review.sinceReview}
+                  unasked={notes?.unasked}
                   nodes={review.diff.nodes}
                   findings={findings}
                   onGoTo={goTo}

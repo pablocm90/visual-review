@@ -6275,6 +6275,48 @@ test('the last review lists the parts changed since with no comment on them, goi
   );
 });
 
+test('the last review lists what Claude changed unasked, going to each part or edge; with only those it still shows', async () => {
+  const user = userEvent.setup();
+  const edge = 'rust/crate/cli-adapter -> rust/crate/application';
+  render(
+    <ReviewPage
+      review={pageWith({ ...review, sinceReview })}
+      notes={{
+        version: 1,
+        tests: '',
+        summary: [],
+        notes: {},
+        unasked: {
+          'rust/crate/application': { text: 'Renamed the helper.' },
+          [edge]: { text: 'Dropped a cast.' },
+        },
+      }}
+    />,
+  );
+  await screen.findByRole('group', { name: 'rust' });
+
+  const unasked = within(
+    within(lastReviewSection()).getByRole('list', { name: 'Claude also changed' }),
+  );
+  expect(
+    within(unasked.getByRole('listitem', { name: 'application: Renamed the helper.' })).getByRole(
+      'button',
+      { name: 'application' },
+    ),
+  ).toBeTruthy();
+  expect(
+    unasked.getByRole('listitem', { name: 'cli-adapter → application: Dropped a cast.' }),
+  ).toBeTruthy();
+
+  expect(unasked.getByText('Renamed the helper.')).toBeTruthy();
+
+  await user.click(unasked.getByRole('button', { name: 'application' }));
+
+  expect(document.activeElement).toBe(
+    screen.getByRole('button', { name: 'application: modified' }),
+  );
+});
+
 test('a last comment on a part or an edge shows under its anchor in the Note panel, with no send too', async () => {
   const user = userEvent.setup();
   const sha = 'c0ffee4d5e6fa7b8c9d0a1b2c3d4e5f6a7b8c9d0';
