@@ -229,7 +229,11 @@ test("a PR's next round lists what changed since its last review, a merge of the
   expect(next.sinceReview).toEqual({
     head: pr.head,
     verdict: 'request-changes',
-    changed: { nodes: ['rust/crate/cli', 'rust/mod/cli/lib.rs'], edges: [] },
+    changed: {
+      nodes: ['rust/crate/cli', 'rust/mod/cli/lib.rs'],
+      edges: [],
+      dropped: { nodes: [], edges: [] },
+    },
   });
 }, 120_000);
 
