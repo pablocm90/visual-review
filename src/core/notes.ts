@@ -162,7 +162,9 @@ export const visibleNotes = ({
 type NotesProblemsOptions = {
   readonly diff: GraphDiff;
   readonly notes: ReviewNotes;
-  readonly said: ReadonlyArray<{ readonly anchor: { readonly kind: string; readonly id: string } }>;
+  readonly said:
+    | ReadonlyArray<{ readonly anchor: { readonly kind: string; readonly id: string } }>
+    | undefined;
 };
 
 export const notesProblems = ({
@@ -184,7 +186,7 @@ export const notesProblems = ({
   ]);
   const collapsed = visibleDiff({ diff, expanded: new Set() });
   const shown = visibleNotes({ diff, expanded: new Set(), notes: notes.notes });
-  const saidAnchors = new Set(said.map(({ anchor }) => anchorKey(anchor)));
+  const saidAnchors = new Set((said ?? []).map(({ anchor }) => anchorKey(anchor)));
   const touched = [
     ...collapsed.nodes
       .filter(node => node.kind !== 'stack' && node.state !== 'unchanged')
@@ -203,5 +205,8 @@ export const notesProblems = ({
     ...Object.keys(notes.answers ?? {})
       .filter(key => !saidAnchors.has(key))
       .map(key => `unknown comment ${key}`),
+    ...(said === undefined && notes.unasked !== undefined
+      ? ['unasked changes show under the last review, and this page has none']
+      : []),
   ];
 };

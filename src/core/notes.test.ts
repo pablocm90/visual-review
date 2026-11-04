@@ -329,6 +329,16 @@ test('an unasked change is known by a node or an edge of the graph', () => {
   ]);
 });
 
+test('an unasked change needs a last review to show under, even one that said nothing', () => {
+  const notes = notesWith({ unasked: { 'web/module/pages': { text: 'Renamed the helper.' } } });
+
+  expect(notesProblems({ diff, said: undefined, notes })).toEqual([
+    'unasked changes show under the last review, and this page has none',
+  ]);
+  expect(notesProblems({ diff, said: undefined, notes: notesWith() })).toEqual([]);
+  expect(notesProblems({ diff, said: [], notes })).toEqual([]);
+});
+
 test('a done answer names its commit', () => {
   const answers = { 'part web/module/pages': { status: 'done', text: 'Split it.' } };
   const text = JSON.stringify({ ...notesWith(), answers });

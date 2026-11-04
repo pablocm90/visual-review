@@ -1011,6 +1011,25 @@ test("notes on a later round's page may answer what its last review said, and on
   ).toThrow('unknown comment part web/file/b.ts');
 });
 
+test("notes on a first round's page may not list unasked changes", () => {
+  const page = pageHtml({
+    viewer,
+    data: pageData({
+      repo: 'shop',
+      reading: readingWith({}),
+      range: 'main..feature',
+      version,
+      parsers,
+    }),
+  });
+  const notes = {
+    ...notesWith({ 'web/file/a.ts': { text: 'Reads well.' } }),
+    unasked: { 'web/file/a.ts': { text: 'Renamed the helper.' } },
+  };
+
+  expect(() => notedPageHtml({ page, notes, notesFile, version })).toThrow('this page has none');
+});
+
 test('a changed node that is a file on both sides gets its churn on each', () => {
   const graph = { nodes: [webStack, webFile('a.ts'), webFile('b.ts')], edges: [] };
   const reading = readingWith({
