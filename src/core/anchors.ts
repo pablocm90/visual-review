@@ -11,6 +11,9 @@ export const split = (id: string, at: string): readonly [string, string] => {
   return [id.slice(0, cut), id.slice(cut + at.length)];
 };
 
+export const anchorKey = ({ kind, id }: { readonly kind: string; readonly id: string }): string =>
+  `${kind} ${id}`;
+
 export const fileOfLine = (id: string): string => id.slice(0, id.lastIndexOf('@'));
 
 export type TargetsOf = {

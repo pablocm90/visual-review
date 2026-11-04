@@ -11,6 +11,7 @@ import {
   useRef,
   useState,
 } from 'react';
+import { anchorKey } from '../core/anchors.ts';
 import type { DiffedNode, FilePatch, GraphDiff } from '../core/diff-graphs.ts';
 import { deepestHolding, isAtOrUnder } from '../core/diff-graphs.ts';
 import { type Dimension, type Finding, findingsAt, findingsOf } from '../core/findings.ts';
@@ -36,7 +37,7 @@ import {
   visibleDiff,
   visibleNodeOf,
 } from '../core/visible-diff.ts';
-import { anchorKey, anchorName, lineAnchor, placeOfLine, rowOfLine } from './anchors.ts';
+import { anchorName, lineAnchor, placeOfLine, rowOfLine } from './anchors.ts';
 import { ChangedSinceMarks, ChangedSinceTag, useIsChangedSince } from './changed-since.tsx';
 import { ColourBy, type Colouring, ScaleLegend, type Shade, shadeOf } from './colour-by.tsx';
 import { CommentField, CommentOn, type Comments } from './comment-field.tsx';

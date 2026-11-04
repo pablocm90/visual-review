@@ -1,8 +1,9 @@
 import { createContext, type ReactNode, useContext, useMemo } from 'react';
+import { anchorKey } from '../core/anchors.ts';
 import type { PreviousComment } from '../core/previous-comments.ts';
 import type { Comment } from '../core/review.ts';
 import type { SinceReview } from '../core/since-review.ts';
-import { anchorKey, type PlaceOfLine, placeOfLine } from './anchors.ts';
+import { type PlaceOfLine, placeOfLine } from './anchors.ts';
 import { COMMENT_KINDS } from './comment-field.tsx';
 import { ANSWER_KINDS } from './finding-display.tsx';
 import { Ref } from './ref.tsx';
