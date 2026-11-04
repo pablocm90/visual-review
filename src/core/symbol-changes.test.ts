@@ -708,6 +708,46 @@ test.for([
   expect(lostOf(base, head)).toEqual(lines);
 });
 
+test('a new function holds what a removed one held: only the rest of it was gained', () => {
+  const base = [
+    'function charge(a) { if (!a) return; pay(); }',
+    'function check(a) { if (!a) return; warn(); }',
+  ];
+  const rewritten = (...guards: ReadonlyArray<string>) => [
+    'function charge(a) { pay(); }',
+    `function verify(b, c, d) { ${guards.join(' ')} log(b); audit(c); notify(d); send(b, c, d); }`,
+  ];
+
+  expect(lostOf(base, rewritten('if (!a) return;'))).toEqual([
+    { change: 'removed', movedTo: undefined },
+  ]);
+  expect(lostOf(base, rewritten('if (!a) return;', 'if (!a) return;'))).toEqual([
+    { change: 'moved', movedTo: 'verify' },
+  ]);
+  expect(
+    lostOf(
+      ['function charge(a) { if (!a) return; pay(); }', 'function check(a) { if (z) warn(); }'],
+      rewritten('if (!a) return;'),
+    ),
+  ).toEqual([{ change: 'moved', movedTo: 'verify' }]);
+});
+
+test('a function moved between files and edited brought its guard, so what another lost stays lost', () => {
+  const files = symbolChangesOf([
+    {
+      node: 'a',
+      before: read(
+        'function charge(a) { if (!a) return; pay(); }',
+        'function check(a) { if (!a) return; }',
+      ),
+      after: read('function charge(a) { pay(); }'),
+    },
+    { node: 'b', before: none, after: read('function check(a) { if (!a) return; warn(); }') },
+  ]);
+
+  expect(logicOfIn(files, 'charge')?.map(({ change }) => change)).toEqual(['removed']);
+});
+
 test('a gained decision of the same text but another kind takes no lost one', () => {
   const after = read('function charge(a) { pay(); }', 'function check(a) { if (!a) return; }');
   const files = symbolChangesOf([

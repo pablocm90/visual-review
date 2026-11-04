@@ -225,21 +225,42 @@ type End = {
 
 type Gain = { readonly key: string; readonly owner: SymbolStatement };
 
+const decisionsIn = (statement: SymbolStatement, side: FileSymbols) =>
+  side.symbols.find(read => sameSymbol(read, statement))?.decisions ?? [];
+
 const gainsOf = (statement: SymbolStatement, after: FileSymbols): ReadonlyArray<Gain> => {
   const decisions =
     statement.change === 'added'
-      ? (after.symbols.find(read => sameSymbol(read, statement))?.decisions ?? [])
+      ? decisionsIn(statement, after)
       : (statement.logic ?? [])
           .filter(({ change }) => change === 'added')
           .map(line => ({ kind: line.kind, text: decisionText(line) }));
   return decisions.map(decision => ({ key: decisionKey(decision), owner: statement }));
 };
 
-type Settled = { readonly after: FileSymbols; readonly symbols: ReadonlyArray<SymbolStatement> };
+type Settled = {
+  readonly before: FileSymbols;
+  readonly after: FileSymbols;
+  readonly symbols: ReadonlyArray<SymbolStatement>;
+};
+
+const heldByRemoved = ({ before, symbols }: Settled): ReadonlyArray<string> =>
+  symbols
+    .filter(({ change }) => change === 'removed')
+    .flatMap(symbol => decisionsIn(symbol, before))
+    .map(decisionKey);
+
+const withoutOne = (gains: ReadonlyArray<Gain>, key: string): ReadonlyArray<Gain> => {
+  const at = gains.findIndex(gain => gain.key === key);
+  return at === -1 ? gains : gains.toSpliced(at, 1);
+};
 
 const movesOf = (files: ReadonlyArray<Settled>): ReadonlyMap<LogicLine, Gain> => {
   const gains = Map.groupBy(
-    files.flatMap(({ after, symbols }) => symbols.flatMap(symbol => gainsOf(symbol, after))),
+    files.flatMap(heldByRemoved).reduce(
+      withoutOne,
+      files.flatMap(({ after, symbols }) => symbols.flatMap(symbol => gainsOf(symbol, after))),
+    ),
     ({ key }) => key,
   );
   const lost = files
@@ -285,7 +306,7 @@ export const symbolChangesOf = (
       const symbol = sides[statement.change]?.symbols.find(read => sameSymbol(read, statement));
       return symbol === undefined ? [] : [{ node, statement, symbol }];
     });
-    return { node, after, changes, ends };
+    return { node, before, after, changes, ends };
   });
   const ends = paired.flatMap(file => file.ends);
   const onlyEndOf = (end: End): End | undefined => {
@@ -305,8 +326,9 @@ export const symbolChangesOf = (
       ? { change: 'moved', movedTo: other.node }
       : { change: 'moved', movedFrom: other.node };
   };
-  const settled = paired.map(({ node, after, changes }) => ({
+  const settled = paired.map(({ node, before, after, changes }) => ({
     node,
+    before,
     after,
     changes,
     symbols: changes.symbols.map(statement => ({ ...statement, ...moved(statement) })),
