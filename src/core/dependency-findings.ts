@@ -13,6 +13,9 @@ const titleOf = ({ name, change, from, to }: PackageChange): string => {
 
 const NAMED = 20;
 
+const YARN_RULE =
+  "direct read from package.json files at or under its folder, so a nested one that isn't a workspace counts too";
+
 const KINDS = [
   ['added', 'added'],
   ['removed', 'removed'],
@@ -66,7 +69,9 @@ export const dependencyFindings = (
                 level: 'look',
                 file: change.lockfile,
                 title: titleOf(found),
-                detail: change.lockfile,
+                detail: change.lockfile.endsWith('yarn.lock')
+                  ? `${change.lockfile}: ${YARN_RULE}`
+                  : change.lockfile,
               }),
             ),
           ...rollUp(

@@ -127,3 +127,9 @@ test('a lockfile not read is a finding to look at, naming the format', () => {
     },
   ]);
 });
+
+test("yarn.lock's direct findings say their rule is a heuristic", () => {
+  const [finding] = dependencyFindings(inLockfile([packageChange()], 'web/yarn.lock'));
+
+  expect(finding?.detail).toContain('web/yarn.lock: direct read from package.json files');
+});
