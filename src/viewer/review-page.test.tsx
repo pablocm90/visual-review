@@ -6,8 +6,9 @@ import type { GraphDiff } from '../core/diff-graphs.ts';
 import { type Finding, raisedFindings } from '../core/findings.ts';
 import type { ReviewNotes } from '../core/notes.ts';
 import type { PageData } from '../core/page.ts';
-import type { SymbolFile } from '../core/read-range.ts';
-import type { Review } from '../core/review.ts';
+import type { PreviousComment } from '../core/previous-comments.ts';
+import type { Commit, SymbolFile } from '../core/read-range.ts';
+import type { Comment, Review } from '../core/review.ts';
 import type { ChangedSince } from '../core/since-review.ts';
 import type { Skipped } from '../core/skipped.ts';
 import type { KindOfChange, SymbolStatement } from '../core/symbol-changes.ts';
@@ -5932,3 +5933,77 @@ test.for([
     );
   },
 );
+
+const lastReviewSection = () => screen.getByRole('region', { name: 'Last review' });
+
+const saidOnPart = (
+  id: string,
+  said: Partial<Pick<Comment, 'kind' | 'text'>> & {
+    readonly changedSince?: ReadonlyArray<Commit>;
+  } = {},
+): PreviousComment => ({
+  anchor: { kind: 'part', id },
+  kind: 'question',
+  text: 'Why?',
+  target: id,
+  ...said,
+});
+
+test('a later round opens the left column with what the last review said, each comment marked by what became of it, going to its anchor', async () => {
+  const user = userEvent.setup();
+  const sha = 'c0ffee4d5e6fa7b8c9d0a1b2c3d4e5f6a7b8c9d0';
+  render(
+    <ReviewPage
+      review={pageWith({
+        ...review,
+        sinceReview: {
+          ...sinceReview,
+          body: 'Nearly there.',
+          comments: [
+            saidOnPart('rust/crate/application', {
+              kind: 'change',
+              text: 'Split this.',
+              changedSince: [{ sha, subject: 'split the application', files: [] }],
+            }),
+            saidOnPart('rust/crate/cli-adapter'),
+          ],
+        },
+      })}
+    />,
+  );
+  await screen.findByRole('group', { name: 'rust' });
+
+  const last = within(lastReviewSection());
+  expect(last.getByText('Nearly there.')).toBeTruthy();
+  const touched = last.getByRole('listitem', {
+    name: 'application: Change this, Changed since',
+  });
+  expect(within(touched).getByText('Split this.')).toBeTruthy();
+  expect(within(touched).getByText('split the application').parentElement?.textContent).toBe(
+    'c0ffee4 split the application',
+  );
+  expect(last.getByRole('listitem', { name: 'cli-adapter: Question, As it was' })).toBeTruthy();
+
+  await user.click(last.getByRole('button', { name: 'cli-adapter' }));
+
+  expect(document.activeElement).toBe(screen.getByRole('button', { name: 'cli-adapter: added' }));
+});
+
+test.for([
+  { round: 'whose head is gone', since: { gone: true } },
+  { round: "whose head couldn't be read", since: { unreadable: 'cargo metadata failed' } },
+] as const)('a later round $round lists the last comments with no mark', async ({ since }) => {
+  render(
+    <ReviewPage
+      review={pageWith({
+        ...review,
+        sinceReview: { ...lastReview, ...since, comments: [saidOnPart('rust/crate/application')] },
+      })}
+    />,
+  );
+  await screen.findByRole('group', { name: 'rust' });
+
+  expect(
+    within(lastReviewSection()).getByRole('listitem', { name: 'application: Question' }),
+  ).toBeTruthy();
+});

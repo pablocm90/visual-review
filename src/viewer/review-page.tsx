@@ -50,6 +50,7 @@ import {
 } from './finding-display.tsx';
 import { FindingsRail, LookFirst, nameOf, TriageStrip } from './findings-rail.tsx';
 import { highlightPatch, type PatchLine as Line, type Piece } from './highlight-patch.ts';
+import { LastReview } from './last-review.tsx';
 import {
   type Layout,
   layoutDiff,
@@ -1467,6 +1468,11 @@ export const ReviewPage = ({ review, notes, send }: ReviewPageProps) => {
     setInspectorTab(inspect);
     goToOnStructure(id);
   };
+  const goToDraft = (id: string, anchor: Comment['anchor']) => {
+    const place = placeOfLine(anchor);
+    if (place) landOn(id, place);
+    goToOnTab(id, tabOfDraft(anchor));
+  };
   const [read, setRead] = useState(() => storedReadMarks(review.range));
   useEffect(() => storeReadMarks(review.range, read), [review.range, read]);
   const walk = (step: number) => {
@@ -1511,6 +1517,13 @@ export const ReviewPage = ({ review, notes, send }: ReviewPageProps) => {
           </div>
           <div className="columns">
             <div className="left-column">
+              {review.sinceReview !== undefined && (
+                <LastReview
+                  since={review.sinceReview}
+                  nodes={review.diff.nodes}
+                  onGoToDraft={goToDraft}
+                />
+              )}
               <ReadingOrderList
                 review={review}
                 read={read}
@@ -1674,11 +1687,7 @@ export const ReviewPage = ({ review, notes, send }: ReviewPageProps) => {
           nodes={review.diff.nodes}
           tests={review.tests}
           onGoTo={id => goToOnTab(id, 'note')}
-          onGoToDraft={(id, anchor) => {
-            const place = placeOfLine(anchor);
-            if (place) landOn(id, place);
-            goToOnTab(id, tabOfDraft(anchor));
-          }}
+          onGoToDraft={goToDraft}
           onGoToOutside={(place, opener) => {
             landOn(null, place);
             location.hash = '#structure';

@@ -2482,3 +2482,56 @@ main:has(> .review-tray) {
   font-size: 12px;
   overflow-wrap: anywhere;
 }
+
+.last-review {
+  padding: 16px 0 0;
+}
+
+.last-review-title {
+  margin: 0 0 8px;
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.last-review-body {
+  margin: 0 0 8px;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.last-review-list {
+  display: grid;
+  gap: 8px;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.last-comment {
+  font-size: 13px;
+  overflow-wrap: anywhere;
+}
+
+.last-mark {
+  margin-inline-start: 6px;
+  padding: 0 4px;
+  border: 1px solid var(--stack-line);
+  border-radius: 3px;
+  color: var(--muted);
+  font-size: 11px;
+  white-space: nowrap;
+}
+
+.last-said {
+  margin: 2px 0 0;
+  white-space: pre-wrap;
+}
+
+.last-commits {
+  list-style: none;
+  margin: 2px 0 0;
+  padding: 0;
+  color: var(--muted);
+  font-size: 12px;
+}
