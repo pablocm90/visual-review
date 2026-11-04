@@ -1277,6 +1277,12 @@ const typesText = (target: EventTarget | null) =>
   target instanceof HTMLTextAreaElement ||
   (target instanceof HTMLInputElement && target.type === 'text');
 
+const NothingDrawn = ({ scope }: { readonly scope: Scope }) => (
+  <p className="caveat">
+    Nothing in the graph changed{scope[0] === SINCE_LAST_REVIEW && ' since the last review'}.
+  </p>
+);
+
 export const ReviewPage = ({ review, notes, send }: ReviewPageProps) => {
   const tab = useTab();
   const [layout, setLayout] = useState<Layout>();
@@ -1503,12 +1509,7 @@ export const ReviewPage = ({ review, notes, send }: ReviewPageProps) => {
               <div className="graph-key">
                 {colouring === 'change' ? <Legend /> : <ScaleLegend colouring={colouring} />}
               </div>
-              {drawn.nodes.length === 0 && (
-                <p className="caveat">
-                  Nothing in the graph changed
-                  {scope[0] === SINCE_LAST_REVIEW && ' since the last review'}.
-                </p>
-              )}
+              {drawn.nodes.length === 0 && <NothingDrawn scope={scope} />}
               {layout && (
                 <div
                   className="frame"
