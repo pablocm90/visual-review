@@ -2,7 +2,7 @@
 
 What changed in each release of `@pablocm90/visual-review`, newest first. Versions follow [semver](https://semver.org); while it is 0.x, a minor version may change the exported types.
 
-## 0.22.0 — 2026-11-04
+## 0.23.0 — 2026-11-04
 
 ### Added
 
@@ -10,6 +10,22 @@ What changed in each release of `@pablocm90/visual-review`, newest first. Versio
 - A finding you called It's fine in any review of the PR stays out of Look first on that PR, and its group tags it "called fine", until a later answer replaces it. It still counts on the triage chips.
 - Parts you marked read last round and unchanged since start out ticked, unless this page's range already has marks stored.
 - The review data's `sinceReview` carries the last review's `verdict` on every variant, and its `body`, `comments` (each with `target` and `changedSince`) and `calledFine`; a compared one adds `changedWithoutComment` and `stillRead`.
+
+## 0.22.0 — 2026-11-04
+
+### Added
+
+- A changed lockfile raises findings in the dependencies dimension: one that needs a look for each direct package added, removed, major-bumped, newly direct or no longer direct, such as `zod 3.25.0 → 4.6.7`, and one for information per lockfile rolling up its transitive packages. `pnpm-lock.yaml` (lockfile version 9), `package-lock.json` (2 or 3), `yarn.lock` (v1), `Cargo.lock` and `Gemfile.lock` are read. A minor or patch bump raises nothing; `0.2.1` to `0.3.0` is major, as `^` and Cargo read it. A lockfile that won't parse, or in another format, raises a finding that needs a look, and the rest of the review stands.
+- A dependency finding, in the rail, Look first or the tray, opens its lockfile's patch, on the Diff tab of the part holding it or among the files outside the graph.
+- The review data's `dependencyChanges` lists every package changed per lockfile, and a finding gains `file`, the path it opens.
+
+### Changed
+
+- Look first ranks direct dependency changes below what wasn't read and above the findings on parts.
+
+### Fixed
+
+- A changed file whose path holds an accent, a double quote or a tab, or starts with a colon, now reads as itself, and so has its patch.
 
 ## 0.21.1 — 2026-11-04
 

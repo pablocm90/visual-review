@@ -47,6 +47,7 @@ const renderTray = (
       onGoTo={vi.fn()}
       onGoToDraft={onGoToDraft}
       onGoToOutside={vi.fn()}
+      onGoToFile={vi.fn()}
       send={async () => {}}
     />,
   );

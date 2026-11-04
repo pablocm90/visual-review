@@ -12,7 +12,7 @@ import {
   useState,
 } from 'react';
 import type { DiffedNode, FilePatch, GraphDiff } from '../core/diff-graphs.ts';
-import { isAtOrUnder } from '../core/diff-graphs.ts';
+import { deepestHolding, isAtOrUnder } from '../core/diff-graphs.ts';
 import { type Dimension, type Finding, findingsAt, findingsOf } from '../core/findings.ts';
 import { edgeId } from '../core/graph.ts';
 import { type MetricFinding, metricFindings } from '../core/metric-findings.ts';
@@ -40,7 +40,6 @@ import {
   anchorKey,
   anchorName,
   lineAnchor,
-  type PlaceOfLine,
   placeOfLine,
   rowOfLine,
 } from './anchors.ts';
@@ -464,7 +463,7 @@ const Scoped = ({ scopes: [scope, ...inner], text }: Piece) =>
 
 type Landing = Omit<LineAt, 'node'> & { readonly text?: string };
 
-type LandingIn = Landing & { readonly path: string | undefined };
+type LandingIn = Partial<Landing> & { readonly path: string | undefined };
 
 const scrollInPanel = (element: HTMLElement, block: ScrollLogicalPosition) => {
   const { scrollX, scrollY } = window;
@@ -472,10 +471,16 @@ const scrollInPanel = (element: HTMLElement, block: ScrollLogicalPosition) => {
   window.scrollTo(scrollX, scrollY);
 };
 
-const rowLandedOn = (lines: ReadonlyArray<Line>, path: string, landing: Landing) =>
-  landing.text === undefined
-    ? lines.findIndex(line => line[landing.side] === landing.line)
-    : rowOfLine(lines, { ...landing, path, text: landing.text });
+const rowLandedOn = (
+  lines: ReadonlyArray<Line>,
+  path: string,
+  { side, line, text }: Partial<Landing>,
+) => {
+  if (side === undefined || line === undefined) return undefined;
+  return text === undefined
+    ? lines.findIndex(row => row[side] === line)
+    : rowOfLine(lines, { path, side, line, text });
+};
 
 type LineComments = {
   readonly nodes: ReadonlyArray<DiffNode>;
@@ -495,7 +500,7 @@ const PatchLine = ({
   readonly path: string;
   readonly line: Line;
   readonly said: ReadonlyArray<PreviousComment['anchor']>;
-  readonly landing: Landing | undefined;
+  readonly landing: Partial<Landing> | undefined;
 }) => {
   const { kind, prefix, pieces } = line;
   const anchor = lineAnchor({ path, line });
@@ -1541,10 +1546,19 @@ const Page = ({ review, notes, send }: ReviewPageProps) => {
     if (place) landOn(id, place);
     goToOnTab(id, tabOfDraft(anchor));
   };
-  const goToOutside = (place: PlaceOfLine, opener: HTMLButtonElement) => {
+  const showOutsideAt = (place: LandingIn, opener: HTMLButtonElement) => {
     landOn(null, place);
     location.hash = '#structure';
     showOutside(opener);
+  };
+  const showFile = (path: string, opener: HTMLButtonElement) => {
+    const holder = deepestHolding(path, review.diff.nodes);
+    if (holder === undefined) {
+      showOutsideAt({ path }, opener);
+      return;
+    }
+    landOn(holder.id, { path });
+    goToOnTab(holder.id, 'diff');
   };
   const [read, setRead] = useState(() => storedReadMarks(review.range, stillReadIn(review)));
   useEffect(() => storeReadMarks(review.range, read), [review.range, read]);
@@ -1597,7 +1611,7 @@ const Page = ({ review, notes, send }: ReviewPageProps) => {
                   findings={findings}
                   onGoTo={goTo}
                   onGoToDraft={goToDraft}
-                  onGoToOutside={goToOutside}
+                  onGoToOutside={showOutsideAt}
                 />
               )}
               <ReadingOrderList
@@ -1614,6 +1628,7 @@ const Page = ({ review, notes, send }: ReviewPageProps) => {
                 review={review}
                 onGoTo={goTo}
                 onShowOutside={showOutside}
+                onShowFile={showFile}
                 answers={answers}
                 onAnswer={answer}
               />
@@ -1627,6 +1642,7 @@ const Page = ({ review, notes, send }: ReviewPageProps) => {
                 review={review}
                 onGoTo={goTo}
                 onShowOutside={showOutside}
+                onShowFile={showFile}
               />
               <div className="graph-controls">
                 <ColourBy colouring={colouring} onPick={setColouring} />
@@ -1772,7 +1788,8 @@ const Page = ({ review, notes, send }: ReviewPageProps) => {
           tests={review.tests}
           onGoTo={id => goToOnTab(id, 'note')}
           onGoToDraft={goToDraft}
-          onGoToOutside={goToOutside}
+          onGoToOutside={showOutsideAt}
+          onGoToFile={showFile}
           send={send}
         />
       )}
