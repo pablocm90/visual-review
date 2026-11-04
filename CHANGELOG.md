@@ -2,6 +2,12 @@
 
 What changed in each release of `@pablocm90/visual-review`, newest first. Versions follow [semver](https://semver.org); while it is 0.x, a minor version may change the exported types.
 
+## 0.24.0 — 2026-11-05
+
+### Changed
+
+- A decision a function lost that another symbol gained, in any changed file read, reads **moved to** that symbol, rather than removed. A moved guard or catch counts in its function's logic finding, for information, which says it was found by text, so extracting a method no longer ranks each of its guards first. Found by text alone: the guard's new home may not be called. Each gain takes one lost line, and a guard the other symbol already had, or whose condition was reworded, still needs a look.
+
 ## 0.23.0 — 2026-11-05
 
 ### Added
