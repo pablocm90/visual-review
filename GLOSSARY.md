@@ -45,7 +45,7 @@ _Avoid_: top findings, priorities
 A note's short label for a concern; on the page it becomes a finding that needs a look, in the note's dimension.
 
 **Symbol**:
-A named function, method, getter, setter, class, type, interface or enum in a file, scoped by what holds it, paired across the sides by scope, name and kind, and marked added, removed, edited, renamed, moved, formatting only or unchanged.
+A named function, method, getter, setter, class, type, interface or enum in a file, scoped by what holds it, paired across the sides by scope, name and kind (a method turned into a getter or setter stays paired), and marked added, removed, edited, renamed, moved, formatting only or unchanged.
 _Avoid_: declaration, member
 _In code_: `ReadSymbol` (one side's reading), `SymbolStatement` (paired across the sides)
 
