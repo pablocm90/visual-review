@@ -2898,6 +2898,7 @@ test("a Metrics row is marked by the level of the node's finding on it, a hotspo
         },
         thresholds: {
           cyclomatic: 10,
+          splitParts: 4,
           hotspot: { churn: 5, cyclomatic: 10 },
           lines: 800,
           abc: 30,

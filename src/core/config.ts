@@ -77,6 +77,9 @@ const MetricsSchema = z.strictObject({
     .positive()
     .optional()
     .describe("The largest ABC size a node's file may have; off unless set"),
+  splitParts: Threshold.default(4).describe(
+    'The parts a separate group of changes reaches to count towards a split suggestion',
+  ),
 });
 
 const ConfigSchema = z.strictObject({

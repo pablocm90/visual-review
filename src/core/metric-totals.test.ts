@@ -32,7 +32,7 @@ const measured = (
 
 const unmeasured: NodeMeasures = { churn: 2, fanIn: 0, fanOut: 0 };
 
-const thresholds = { cyclomatic: 10, hotspot: { churn: 6, cyclomatic: 8 } };
+const thresholds = { cyclomatic: 10, splitParts: 4, hotspot: { churn: 6, cyclomatic: 8 } };
 
 const reviewOf = (rows: ReadonlyArray<readonly [DiffedNode, NodeMetrics]>) => {
   const metrics: Readonly<Record<string, NodeMetrics>> = {

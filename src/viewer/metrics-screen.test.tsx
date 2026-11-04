@@ -30,7 +30,7 @@ const cyclomatic = (functions: ReadonlyArray<readonly [string, number]>) => ({
 
 const reviewOf = ({
   rows,
-  thresholds = { cyclomatic: 10, hotspot: { churn: 6, cyclomatic: 8 } },
+  thresholds = { cyclomatic: 10, splitParts: 4, hotspot: { churn: 6, cyclomatic: 8 } },
   churnDays = 90,
   stackLabels = {},
 }: {
@@ -73,7 +73,7 @@ test("the totals give the changed leaves' lines head − base, their functions o
   const { rerender } = render(
     <ReviewPage
       review={reviewOf({
-        thresholds: { cyclomatic: 12, hotspot: { churn: 6, cyclomatic: 8 } },
+        thresholds: { cyclomatic: 12, splitParts: 4, hotspot: { churn: 6, cyclomatic: 8 } },
         churnDays: 30,
         rows: [
           [
@@ -345,7 +345,13 @@ test("a cell carries the level mark of its node's finding on that metric, the ho
   render(
     <ReviewPage
       review={reviewOf({
-        thresholds: { cyclomatic: 10, lines: 150, abc: 20, hotspot: { churn: 6, cyclomatic: 8 } },
+        thresholds: {
+          cyclomatic: 10,
+          lines: 150,
+          abc: 20,
+          splitParts: 4,
+          hotspot: { churn: 6, cyclomatic: 8 },
+        },
         rows: [
           [
             crate('refunds', 'modified'),
