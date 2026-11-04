@@ -54,7 +54,7 @@ export const pullRequestReviewsIn = async (
   const files = await untrackedFilesIn(directory);
   const reviews = await Promise.all(
     files
-      .filter(file => file.endsWith(REVIEW))
+      .filter(file => file.endsWith(REVIEW) && !file.includes('/'))
       .map(file => pullRequestReviewIn(directory, file).catch(() => [])),
   );
   return reviews.flat().toSorted((one, other) => other.writtenAt - one.writtenAt);

@@ -94,7 +94,7 @@ test("a pull request's newest review outlives its page, whatever its age, and it
   ]);
 });
 
-test('a review file git tracks is left alone and takes no place as the newest review', async () => {
+test("a review file git tracks isn't pruned as stale and takes no place as the newest review", async () => {
   using reviews = reviewsDirectory();
   const { directory } = reviews;
   writeReviewOf(directory, { name: 'a..sent', pullRequest: 7, writtenAt: 1_000 });

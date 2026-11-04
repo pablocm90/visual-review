@@ -76,6 +76,13 @@ test.for([
       ),
   },
   {
+    reason: 'a file in a folder under the reviews',
+    write: (directory: string) => {
+      mkdirSync(join(directory, 'sub'));
+      writeReview(join(directory, 'sub'), { head: H1, writtenAt: 1 });
+    },
+  },
+  {
     reason: 'a file that is not JSON',
     write: (directory: string) => writeFileSync(join(directory, 'a..b.review.json'), '{'),
   },
