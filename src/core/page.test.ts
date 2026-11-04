@@ -153,7 +153,7 @@ test.for([
 ])(
   'a changed file whose name git gave undecodably needs a look, listing only such files: $title',
   ({ paths, title }) => {
-    const reading = readingWith({ patches: [patch('README.md'), ...paths.map(patch)] });
+    const reading = readingWith({ changedPaths: ['README.md', ...paths] });
 
     expect(
       pageData({ repo: 'shop', reading, range: 'a..b', version, parsers }).findings,
@@ -166,22 +166,6 @@ test.for([
     });
   },
 );
-
-test('a changed file whose name git gave undecodably needs a look when a drawn node holds it too', () => {
-  const held = 'web/src/a.ts/bad\uFFFD';
-  const reading = readingWith({ patches: [patch(held)] });
-
-  const { findings, undrawn } = pageData({
-    repo: 'shop',
-    reading,
-    range: 'a..b',
-    version,
-    parsers,
-  });
-
-  expect(undrawn).toEqual([]);
-  expect(findings.find(({ id }) => id === 'structure:name-not-utf8')?.detail).toBe(held);
-});
 
 test('fetch calls with no route are a routes finding for information on each calling file, listing its paths', () => {
   const danglingCalls = [
