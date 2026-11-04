@@ -5340,7 +5340,8 @@ const sinceReview = {
   changed: {
     nodes: ['rust/crate/application'],
     edges: [],
-    dropped: { nodes: [], edges: [] },
+    files: [],
+    dropped: { nodes: [], edges: [], files: [] },
   },
 };
 
@@ -5411,7 +5412,12 @@ test("with 'Since last review' shown and nothing drawn changed since, the graph 
         ...review,
         sinceReview: {
           ...sinceReview,
-          changed: { nodes: [], edges: [], dropped: { nodes: [], edges: [] } },
+          changed: {
+            nodes: [],
+            edges: [],
+            files: [],
+            dropped: { nodes: [], edges: [], files: [] },
+          },
         },
       })}
     />,
@@ -5474,7 +5480,12 @@ test("'Since last review' with only what it can't draw says that, not that nothi
         ...review,
         sinceReview: {
           ...sinceReview,
-          changed: { nodes: [], edges: [], dropped: { nodes: ['rust/crate/spike'], edges: [] } },
+          changed: {
+            nodes: [],
+            edges: [],
+            files: [],
+            dropped: { nodes: ['rust/crate/spike'], edges: [], files: [] },
+          },
         },
       })}
     />,
@@ -5497,7 +5508,12 @@ test("'Since last review' names what was added then and has since gone, which it
           ...sinceReview,
           changed: {
             ...sinceReview.changed,
-            dropped: { nodes: ['rust/crate/spike'], edges: ['rust/crate/spike -> rust/crate/cli'] },
+            files: [],
+            dropped: {
+              nodes: ['rust/crate/spike'],
+              edges: ['rust/crate/spike -> rust/crate/cli'],
+              files: [],
+            },
           },
         },
       })}

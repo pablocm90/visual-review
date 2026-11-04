@@ -1,15 +1,14 @@
-import { diffGraphs, type GraphDiff } from './diff-graphs.ts';
+import { diffGraphs, type FilePatch, type GraphDiff } from './diff-graphs.ts';
 import { edgeId, type Graph } from './graph.ts';
 import type { ReviewedHead, ReviewedReading } from './read-range.ts';
 
-export type ChangedSince = {
+type Changed = {
   readonly nodes: ReadonlyArray<string>;
   readonly edges: ReadonlyArray<string>;
-  readonly dropped: {
-    readonly nodes: ReadonlyArray<string>;
-    readonly edges: ReadonlyArray<string>;
-  };
+  readonly files: ReadonlyArray<string>;
 };
+
+export type ChangedSince = Changed & { readonly dropped: Changed };
 
 export type SinceReview =
   | { readonly head: string; readonly gone: true }
@@ -21,6 +20,7 @@ type SinceReviewOptions = {
   readonly after: Graph;
   readonly diff: GraphDiff;
   readonly changedPaths: ReadonlyArray<string>;
+  readonly patches: ReadonlyArray<FilePatch>;
 };
 
 const changedIn = ({ nodes, edges }: GraphDiff) => ({
@@ -54,16 +54,14 @@ export const sinceReviewOf = ({
   after,
   diff,
   changedPaths,
+  patches,
 }: SinceReviewOptions): SinceReview => {
   if ('gone' in reviewed) return { head: reviewed.head, gone: true };
   if ('unreadable' in reviewed) return { head: reviewed.head, unreadable: reviewed.unreadable };
   const { head, verdict, pullRequest, ...side } = reviewed;
   const paths = [...changedPaths, ...pullRequest.changedPaths];
-  const sinceDiff = diffGraphs({
-    ...side,
-    after,
-    changedPaths: side.changedPaths.filter(path => paths.includes(path)),
-  });
+  const pathsSince = side.changedPaths.filter(path => paths.includes(path));
+  const sinceDiff = diffGraphs({ ...side, after, changedPaths: pathsSince });
   const since = changedIn(sinceDiff);
   const now = changedIn(diff);
   const named = namedInTheHead({ reviewed: side.before, after, diff: sinceDiff });
@@ -80,13 +78,18 @@ export const sinceReviewOf = ({
     since.edges.filter(id => now.edges.includes(id) || then.edges.includes(id)),
     diff.edges.map(edgeId),
   );
+  const files = inTheHead(
+    pathsSince.filter(path => !side.renames.some(({ from }) => from === path)),
+    patches.map(({ path }) => path),
+  );
   return {
     head,
     verdict,
     changed: {
       nodes: nodes.drawn,
       edges: edges.drawn,
-      dropped: { nodes: nodes.dropped, edges: edges.dropped },
+      files: files.drawn,
+      dropped: { nodes: nodes.dropped, edges: edges.dropped, files: files.dropped },
     },
   };
 };

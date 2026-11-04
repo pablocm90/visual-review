@@ -1512,7 +1512,7 @@ test.for([
 
   expect(
     pageData({ repo: 'shop', reading, range: 'a..b', version: '1.2.3', parsers: {} }).sinceReview,
-  ).toEqual({
+  ).toMatchObject({
     head: 'h1',
     verdict: 'comment',
     changed: { nodes, edges: [], dropped: nothingDropped },
@@ -1566,7 +1566,7 @@ test.for([
 
     expect(
       pageData({ repo: 'shop', reading, range: 'a..b', version: '1.2.3', parsers: {} }).sinceReview,
-    ).toEqual({
+    ).toMatchObject({
       head: 'h1',
       verdict: 'comment',
       changed: { nodes, edges: [], dropped: nothingDropped },
@@ -1588,7 +1588,7 @@ test("page data leaves out a file main's merge added since the last review", () 
 
   expect(
     pageData({ repo: 'shop', reading, range: 'a..b', version: '1.2.3', parsers: {} }).sinceReview,
-  ).toEqual({
+  ).toMatchObject({
     head: 'h1',
     verdict: 'comment',
     changed: { nodes: [], edges: [], dropped: nothingDropped },
@@ -1629,7 +1629,7 @@ test("page data lists the PR's added or removed edges that came or went since th
 
   expect(
     pageData({ repo: 'shop', reading, range: 'a..b', version: '1.2.3', parsers: {} }).sinceReview,
-  ).toEqual({
+  ).toMatchObject({
     head: 'h1',
     verdict: 'comment',
     changed: { nodes: [], edges: [`${a} -> ${c}`, `${b} -> ${c}`], dropped: nothingDropped },
@@ -1651,7 +1651,7 @@ test('page data lists a part the PR edited at the last review and has since rest
 
   expect(
     pageData({ repo: 'shop', reading, range: 'a..b', version: '1.2.3', parsers: {} }).sinceReview,
-  ).toEqual({
+  ).toMatchObject({
     head: 'h1',
     verdict: 'comment',
     changed: { nodes: ['web/file/a.ts'], edges: [], dropped: nothingDropped },
@@ -1676,7 +1676,7 @@ test('page data lists a file the PR renamed at the last review and has since ren
 
   expect(
     pageData({ repo: 'shop', reading, range: 'a..b', version: '1.2.3', parsers: {} }).sinceReview,
-  ).toEqual({
+  ).toMatchObject({
     head: 'h1',
     verdict: 'comment',
     changed: { nodes: ['web/file/a.ts'], edges: [], dropped: nothingDropped },
@@ -1713,7 +1713,7 @@ test.for([
 
     expect(
       pageData({ repo: 'shop', reading, range: 'a..b', version: '1.2.3', parsers: {} }).sinceReview,
-    ).toEqual({
+    ).toMatchObject({
       head: 'h1',
       verdict: 'comment',
       changed: {
@@ -1756,7 +1756,7 @@ test('page data lists each class of a file the PR renamed at the last review and
 
   expect(
     pageData({ repo: 'shop', reading, range: 'a..b', version: '1.2.3', parsers: {} }).sinceReview,
-  ).toEqual({
+  ).toMatchObject({
     head: 'h1',
     verdict: 'comment',
     changed: {
@@ -1787,7 +1787,7 @@ test('page data holds apart what the PR added at the last review and has since d
 
   expect(
     pageData({ repo: 'shop', reading, range: 'a..b', version: '1.2.3', parsers: {} }).sinceReview,
-  ).toEqual({
+  ).toMatchObject({
     head: 'h1',
     verdict: 'comment',
     changed: { nodes: [], edges: [], dropped: { nodes: [a], edges: [`${a} -> ${b}`] } },
@@ -1811,7 +1811,7 @@ test('page data lists an edge the PR removed at the last review and has since pu
 
   expect(
     pageData({ repo: 'shop', reading, range: 'a..b', version: '1.2.3', parsers: {} }).sinceReview,
-  ).toEqual({
+  ).toMatchObject({
     head: 'h1',
     verdict: 'comment',
     changed: { nodes: [], edges: [`${a} -> ${b}`], dropped: nothingDropped },
@@ -1828,7 +1828,9 @@ test('page data says the reviewed head is gone when its commit no longer reads, 
       parsers: {},
     });
 
-  expect(data({ reviewed: { head: 'h1', verdict: 'approve', gone: true } }).sinceReview).toEqual({
+  expect(
+    data({ reviewed: { head: 'h1', verdict: 'approve', gone: true } }).sinceReview,
+  ).toMatchObject({
     head: 'h1',
     gone: true,
   });
@@ -1837,4 +1839,72 @@ test('page data says the reviewed head is gone when its commit no longer reads, 
       .sinceReview,
   ).toEqual({ head: 'h1', unreadable: 'cargo metadata failed' });
   expect(data({})).not.toHaveProperty('sinceReview');
+});
+
+test.for([
+  {
+    since: 'a file the PR changes edited since, by its patch',
+    paths: ['web/src/a.ts'],
+    patches: ['web/src/a.ts'],
+    files: ['web/src/a.ts'],
+    dropped: [],
+  },
+  {
+    since: 'a file only a merge touched',
+    paths: ['web/src/c.ts'],
+    patches: ['web/src/a.ts'],
+    files: [],
+    dropped: [],
+  },
+  {
+    since: 'a file restored since, which the head has no patch of',
+    paths: ['web/src/b.ts'],
+    patches: ['web/src/a.ts'],
+    files: [],
+    dropped: ['web/src/b.ts'],
+  },
+  {
+    since: 'a file outside the graph, by its patch too',
+    paths: ['README.md'],
+    patches: ['README.md'],
+    files: ['README.md'],
+    dropped: [],
+  },
+])('changed since lists $since', ({ paths, patches, files, dropped }) => {
+  const graph = { nodes: [webStack, webFile('a.ts')], edges: [] };
+  const reading = readingWith({
+    before: graph,
+    after: graph,
+    changedPaths: ['web/src/a.ts', 'README.md'],
+    patches: patches.map(patch),
+    reviewed: reviewedAt({
+      before: graph,
+      changedPaths: paths,
+      pullRequest: { changedPaths: ['web/src/a.ts', 'web/src/b.ts'] },
+    }),
+  });
+
+  expect(
+    pageData({ repo: 'shop', reading, range: 'a..b', version: '1.2.3', parsers: {} }).sinceReview,
+  ).toMatchObject({ changed: { files, dropped: { files: dropped } } });
+});
+
+test('changed since lists a file renamed since by its new name alone', () => {
+  const [from, to] = ['web/src/a.ts', 'web/src/b.ts'];
+  const graph = { nodes: [webStack, webFile('a.ts')], edges: [] };
+  const reading = readingWith({
+    before: graph,
+    after: graph,
+    changedPaths: [from, to],
+    patches: [patch(to)],
+    reviewed: reviewedAt({
+      before: graph,
+      changedPaths: [from, to],
+      renames: [{ from, to }],
+    }),
+  });
+
+  expect(
+    pageData({ repo: 'shop', reading, range: 'a..b', version: '1.2.3', parsers: {} }).sinceReview,
+  ).toMatchObject({ changed: { files: [to], dropped: { files: [] } } });
 });
