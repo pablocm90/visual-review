@@ -91,7 +91,14 @@ export const pageData = ({
     churnDays: reading.churnDays,
     ...(reading.reviewed === undefined
       ? {}
-      : { sinceReview: sinceReviewOf({ reviewed: reading.reviewed, after: reading.after, diff }) }),
+      : {
+          sinceReview: sinceReviewOf({
+            reviewed: reading.reviewed,
+            after: reading.after,
+            diff,
+            changedPaths: reading.changedPaths,
+          }),
+        }),
   };
 };
 

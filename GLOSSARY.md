@@ -94,7 +94,7 @@ _Avoid_: iteration, pass, cycle
 _In code_: `PageData.sinceReview`
 
 **Changed since**:
-What differs between the head last reviewed and the new head, among the parts the pull request itself changes, so a merge of its base branch counts only where it touches one of them. When the commit last reviewed can't be read there is nothing to compare, and the full review is shown.
+What differs between the head last reviewed and the new head, in the paths the pull request itself changes, so a merge of its base branch counts only where it touches one of them. When the commit last reviewed can't be read there is nothing to compare, and the full review is shown.
 _Avoid_: new changes, delta
 _In code_: `ChangedSince`, `sinceReviewOf` (`src/core/since-review.ts`); `sinceLastReview` (`visible-diff.ts`)
 

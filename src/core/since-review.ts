@@ -1,7 +1,6 @@
 import { diffGraphs, type GraphDiff } from './diff-graphs.ts';
 import { edgeId, type Graph } from './graph.ts';
 import type { ReviewedHead, ReviewedReading } from './read-range.ts';
-import { readingOrder } from './reading-order.ts';
 
 export type ChangedSince = {
   readonly nodes: ReadonlyArray<string>;
@@ -17,18 +16,30 @@ type SinceReviewOptions = {
   readonly reviewed: ReviewedReading;
   readonly after: Graph;
   readonly diff: GraphDiff;
+  readonly changedPaths: ReadonlyArray<string>;
 };
 
-const changedIn = (diff: GraphDiff) => ({
-  nodes: readingOrder(diff).parts,
-  edges: diff.edges.filter(edge => edge.state !== 'unchanged').map(edgeId),
+const changedIn = ({ nodes, edges }: GraphDiff) => ({
+  nodes: nodes.filter(node => node.state !== 'unchanged').map(node => node.id),
+  edges: edges.filter(edge => edge.state !== 'unchanged').map(edgeId),
 });
 
-export const sinceReviewOf = ({ reviewed, after, diff }: SinceReviewOptions): SinceReview => {
+export const sinceReviewOf = ({
+  reviewed,
+  after,
+  diff,
+  changedPaths,
+}: SinceReviewOptions): SinceReview => {
   if ('gone' in reviewed) return { head: reviewed.head, gone: true };
   if ('unreadable' in reviewed) return { head: reviewed.head, unreadable: reviewed.unreadable };
   const { head, verdict, ...side } = reviewed;
-  const since = changedIn(diffGraphs({ ...side, after }));
+  const since = changedIn(
+    diffGraphs({
+      ...side,
+      after,
+      changedPaths: side.changedPaths.filter(path => changedPaths.includes(path)),
+    }),
+  );
   const parts = changedIn(diff);
   return {
     head,
