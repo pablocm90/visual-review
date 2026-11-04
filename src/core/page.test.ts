@@ -2042,16 +2042,23 @@ test.for([
   },
   { on: 'a part as it was', id: 'web/file/b.ts', target: 'web/file/b.ts' },
 ])('a previous comment on $on', ({ id, target, changedSince }) => {
-  const graph = { nodes: [webStack, webFile('a.ts'), webFile('b.ts')], edges: [] };
+  const graph = {
+    nodes: [webStack, webFile('a.ts'), webFile('b.ts'), webFile('main.ts')],
+    edges: [],
+  };
   const previous = firstPrevious(
     readingWith({
-      before: { nodes: [webStack], edges: [] },
+      before: { nodes: [webStack, webFile('main.ts')], edges: [] },
       after: graph,
       changedPaths: ['web/src/a.ts', 'web/src/b.ts'],
       reviewed: {
-        ...reviewedAt({ before: graph, changedPaths: ['web/src/a.ts'] }),
+        ...reviewedAt({ before: graph, changedPaths: ['web/src/a.ts', 'web/src/main.ts'] }),
         comments: [onAPart(id)],
-        commits: [commitOn('c1', 'web/src/a.ts'), commitOn('c2', 'web/src/elsewhere.ts')],
+        commits: [
+          commitOn('c1', 'web/src/a.ts'),
+          commitOn('c2', 'web/src/elsewhere.ts'),
+          commitOn('merged', 'web/src/main.ts'),
+        ],
       },
     }),
   );
@@ -3000,6 +3007,30 @@ const boxed = {
 };
 const fileInBox = 'web/file/cart/a.ts';
 const otherInBox = 'web/file/cart/b.ts';
+
+test('a previous comment on a box lists the commits on the paths the PR changes in it, not one merged in beside them', () => {
+  const previous = firstPrevious(
+    readingWith({
+      before: { nodes: [webStack], edges: [] },
+      after: boxed,
+      changedPaths: ['web/src/cart/a.ts', 'web/src/cart/b.ts'],
+      patches: [{ path: 'web/src/cart/a.ts', patch: '@@ a' }],
+      reviewed: {
+        ...reviewedAt({
+          before: boxed,
+          changedPaths: ['web/src/cart/a.ts', 'web/src/cart/unrelated.ts'],
+        }),
+        comments: [onAPart(box('cart').id)],
+        commits: [
+          commitOn('c1', 'web/src/cart/a.ts'),
+          commitOn('merged', 'web/src/cart/unrelated.ts'),
+        ],
+      },
+    }),
+  );
+
+  expect(previous?.changedSince).toEqual([commitOn('c1', 'web/src/cart/a.ts')]);
+});
 
 const sinceWith = ({
   since,
