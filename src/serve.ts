@@ -1,7 +1,7 @@
 import { spawn } from 'node:child_process';
 import { randomBytes } from 'node:crypto';
 import { once } from 'node:events';
-import { readFile, rm } from 'node:fs/promises';
+import { constants, lstat, readFile, rm } from 'node:fs/promises';
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { basename, dirname, join } from 'node:path';
@@ -19,17 +19,29 @@ const openInBrowser = (url: string): void => {
     .unref();
 };
 
-const LockSchema = z.strictObject({ pid: z.number(), port: z.number(), token: z.string() });
+const LockSchema = z.strictObject({
+  pid: z.number(),
+  port: z.number(),
+  token: z.string().regex(/^[0-9a-f]{32}$/),
+});
 
 type Lock = z.infer<typeof LockSchema>;
 
 const urlOf = ({ port, token }: { readonly port: number; readonly token: string }): string =>
   `http://127.0.0.1:${port}/${token}`;
 
-const liveLock = async (lockFile: string): Promise<Lock | undefined> => {
-  const lock = await readFile(lockFile, 'utf8')
+const REGULAR_FILE_OWNER_ONLY = constants.S_IFREG | 0o600;
+
+const lockIn = async (lockFile: string): Promise<Lock | undefined> => {
+  const standing = await lstat(lockFile).catch(() => undefined);
+  if (standing?.mode !== REGULAR_FILE_OWNER_ONLY) return undefined;
+  return readFile(lockFile, 'utf8')
     .then(written => LockSchema.parse(JSON.parse(written)))
     .catch(() => undefined);
+};
+
+const liveLock = async (lockFile: string): Promise<Lock | undefined> => {
+  const lock = await lockIn(lockFile);
   const answered =
     lock !== undefined &&
     (await fetch(`${urlOf(lock)}/alive`, { method: 'POST', signal: AbortSignal.timeout(1000) })

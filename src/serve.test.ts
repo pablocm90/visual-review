@@ -11,7 +11,8 @@ import {
   symlinkSync,
   writeFileSync,
 } from 'node:fs';
-import { request } from 'node:http';
+import { createServer, request } from 'node:http';
+import type { AddressInfo } from 'node:net';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { createInterface } from 'node:readline';
@@ -75,6 +76,8 @@ const writtenPage = ({
   };
 };
 
+const aToken = 'a'.repeat(32);
+
 const stderrOf = (child: ChildProcess) => {
   const url = Promise.withResolvers<string>();
   const read = async (): Promise<string> => {
@@ -108,7 +111,9 @@ const servedPage = async ({
 }: ServedPageOptions = {}) => {
   const bin = fakeOpeners(openers);
   const written = writtenPage(page);
-  if (lock !== undefined) writeFileSync(written.page.replace(/\.html$/, '.serve'), lock);
+  if (lock !== undefined) {
+    writeFileSync(written.page.replace(/\.html$/, '.serve'), lock, { mode: 0o600 });
+  }
   const child = spawn(
     process.execPath,
     [join(import.meta.dirname, 'cli.ts'), 'serve', ...flags, written.page],
@@ -545,12 +550,12 @@ const endedPid = async (): Promise<number> => {
 test.for([
   {
     lock: 'left by a serve that has ended',
-    written: async () => JSON.stringify({ pid: await endedPid(), port: 9, token: 'ended' }),
+    written: async () => JSON.stringify({ pid: await endedPid(), port: 9, token: aToken }),
   },
   { lock: 'serve could not have written', written: async () => '{"pid": 1, "port"' },
   {
     lock: 'whose pid another process has taken',
-    written: async () => JSON.stringify({ pid: process.pid, port: 9, token: 'ended' }),
+    written: async () => JSON.stringify({ pid: process.pid, port: 9, token: aToken }),
   },
 ])('a lock $lock is replaced by a new server', async ({ written }) => {
   using server = await servedPage({ lock: await written() });
@@ -565,7 +570,7 @@ test('a lock naming a server that refuses its token is replaced by a new server'
   using server = await servedPage({
     directory: dirname(other.page),
     range: 'main..other',
-    lock: JSON.stringify({ pid: process.pid, port: Number(port), token: 'not-its-token' }),
+    lock: JSON.stringify({ pid: process.pid, port: Number(port), token: aToken }),
   });
 
   expect(new URL(server.url).port).not.toBe(port);
@@ -573,13 +578,68 @@ test('a lock naming a server that refuses its token is replaced by a new server'
 });
 
 test('the lock holding the token is readable by its owner only, even when it replaces one anyone could read', async () => {
-  using server = await servedPage({
-    lock: JSON.stringify({ pid: await endedPid(), port: 9, token: 'ended' }),
-  });
+  const directory = mkdtempSync(join(tmpdir(), 'visual-review-reviews-'));
+  const standing = join(directory, 'main..feature.serve');
+  writeFileSync(standing, JSON.stringify({ pid: await endedPid(), port: 9, token: aToken }));
+  chmodSync(standing, 0o644);
+
+  using server = await servedPage({ directory });
   const lockFile = server.page.replace(/\.html$/, '.serve');
 
   expect(statSync(lockFile).mode & 0o777).toBe(0o600);
 });
+
+const serverAnsweringAll = async () => {
+  const requests: Array<string | undefined> = [];
+  const server = createServer((incoming, response) => {
+    requests.push(incoming.url);
+    response.writeHead(204).end();
+  });
+  server.listen(0, '127.0.0.1');
+  await once(server, 'listening');
+  const { port } = server.address() as AddressInfo;
+  return { port, requests, [Symbol.dispose]: () => server.close() };
+};
+
+const writeOwnerOnly = (file: string, content: string) =>
+  writeFileSync(file, content, { mode: 0o600 });
+
+test.for([
+  {
+    lock: 'that others may read',
+    token: aToken,
+    lay: (file: string, content: string) => {
+      writeFileSync(file, content);
+      chmodSync(file, 0o644);
+    },
+  },
+  { lock: 'whose token starts with a path', token: `../${aToken}`, lay: writeOwnerOnly },
+  { lock: 'whose token ends with a path', token: `${aToken}/..`, lay: writeOwnerOnly },
+  { lock: 'whose token is too short', token: 'abc', lay: writeOwnerOnly },
+  {
+    lock: 'that is a link',
+    token: aToken,
+    lay: (file: string, content: string) => {
+      writeOwnerOnly(`${file}.target`, content);
+      symlinkSync(`${file}.target`, file);
+    },
+  },
+])(
+  'a lock $lock is not believed: the server it names gets no request and a new one starts',
+  async ({ token, lay }) => {
+    using named = await serverAnsweringAll();
+    const directory = mkdtempSync(join(tmpdir(), 'visual-review-reviews-'));
+    lay(
+      join(directory, 'main..feature.serve'),
+      JSON.stringify({ pid: process.pid, port: named.port, token }),
+    );
+
+    using server = await servedPage({ directory });
+
+    expect(named.requests).toEqual([]);
+    expect((await fetch(server.url)).status).toBe(200);
+  },
+);
 
 test('another page in the same folder is served by a server of its own, and each writes its own review', async () => {
   using first = await servedPage();
