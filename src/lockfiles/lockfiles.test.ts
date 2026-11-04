@@ -106,6 +106,47 @@ ${registry}
   ])('$what is not read, and the message quotes none of it', ({ text }) => {
     expect(() => read(text)).toThrow(/^Cargo\.lock format not recognised$/);
   });
+
+  const crate = 'name = "evil"\nversion = "1.0.0"';
+  test.for([
+    { what: 'a single-quoted source', text: `[[package]]\n${crate}\nsource = 'registry+x'\n` },
+    { what: 'an indented source', text: `[[package]]\n${crate}\n  source = "registry+x"\n` },
+    { what: 'a source with no spaces', text: `[[package]]\n${crate}\nsource="registry+x"\n` },
+    { what: 'a quoted key', text: `[[package]]\n${crate}\n"source" = "registry+x"\n` },
+    { what: 'a package with no name', text: '[[package]]\nversion = "1.0.0"\n' },
+    { what: 'a package with no version', text: '[[package]]\nname = "evil"\n' },
+    {
+      what: 'an indented header',
+      text: `[[package]]\n${crate}\nsource = "registry+x"\n\n[metadata]\n  [[package]]\n${crate}\n`,
+    },
+    { what: 'a spaced header', text: `[[package]]\n${crate}\n\n[[ package ]]\n${crate}\n` },
+    {
+      what: 'packages written as an inline array',
+      text: `package = [{ name = "evil" }]\n\n[[package]]\n${crate}\n`,
+    },
+  ])('$what, which cargo reads but this reader would misread, is not read', ({ text }) => {
+    expect(() => read(text)).toThrow(/^Cargo\.lock format not recognised$/);
+  });
+
+  test('an older lockfile, with a replacement and checksums in its metadata, is read', () => {
+    expect(
+      read(`[[package]]
+name = "itoa"
+version = "1.0.15"
+${registry}
+replace = "itoa 1.0.15 (git+https://example.com/itoa#abc123)"
+
+[[package]]
+name = "serde"
+version = "1.0.219"
+${registry}
+dependencies = []
+
+[metadata]
+"checksum itoa 1.0.15 (registry+https://example.com)" = "4a5f"
+`).versions,
+    ).toEqual({ itoa: ['1.0.15'], serde: ['1.0.219'] });
+  });
 });
 
 describe('Gemfile.lock', () => {
