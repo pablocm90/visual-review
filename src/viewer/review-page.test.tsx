@@ -6323,6 +6323,56 @@ test('a last comment on a part or an edge shows under its anchor in the Note pan
   expect(within(inspector()).queryByText('Split this.')).toBeNull();
 });
 
+test("Claude's answer shows under its comment, in the last review and under the anchor, and a comment with none shows no answer", async () => {
+  const user = userEvent.setup();
+  const sha = 'c0ffee4d5e6fa7b8c9d0a1b2c3d4e5f6a7b8c9d0';
+  render(
+    <ReviewPage
+      review={pageWith({
+        ...review,
+        sinceReview: {
+          ...sinceReview,
+          comments: [
+            saidOnPart('rust/crate/application', { kind: 'change', text: 'Split this.' }),
+            saidOnPart('rust/crate/cli-adapter', { text: 'Why this name?' }),
+            saidOnPart('rust/crate/domain', { kind: 'suggestion', text: 'Inline it?' }),
+          ],
+        },
+      })}
+      notes={{
+        version: 1,
+        tests: '',
+        summary: [],
+        notes: {},
+        answers: {
+          'part rust/crate/application': { status: 'done', commit: sha, text: 'Split in two.' },
+          'part rust/crate/domain': { status: 'declined', text: 'It has two callers.' },
+        },
+      }}
+    />,
+  );
+  await screen.findByRole('group', { name: 'rust' });
+
+  const last = within(lastReviewSection());
+  const done = within(
+    last.getByRole('listitem', { name: 'application: Change this, As it was' }),
+  ).getByRole('note', { name: 'Claude: Done' });
+  expect(within(done).getByText('c0ffee4')).toBeTruthy();
+  expect(within(done).getByText('Split in two.')).toBeTruthy();
+  expect(last.getByRole('note', { name: 'Claude: Declined' }).textContent).toContain(
+    'It has two callers.',
+  );
+  expect(
+    within(last.getByRole('listitem', { name: /^cli-adapter/ })).queryByRole('note'),
+  ).toBeNull();
+
+  await user.click(screen.getByRole('button', { name: 'application: modified' }));
+  const said = within(inspector()).getByRole('note', { name: /^Last review/ });
+  expect(
+    within(within(said).getByRole('note', { name: 'Claude: Done' })).getByText('Split in two.'),
+  ).toBeTruthy();
+});
+
 test('a last comment on an edge shows on the arrow drawn in its place, closed box or merged, named by its edge, unless its edge is drawn apart', async () => {
   const user = userEvent.setup();
   const cart = 'web/file/orders/cart.ts -> web/file/billing/invoice.ts';

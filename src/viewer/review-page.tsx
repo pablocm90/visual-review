@@ -1793,7 +1793,7 @@ const Page = ({ review, notes, send }: ReviewPageProps) => {
 };
 
 export const ReviewPage = (props: ReviewPageProps) => (
-  <LastSaidOnPage since={props.review.sinceReview}>
+  <LastSaidOnPage since={props.review.sinceReview} answers={props.notes?.answers}>
     <Page {...props} />
   </LastSaidOnPage>
 );

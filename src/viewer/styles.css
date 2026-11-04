@@ -2574,3 +2574,9 @@ main:has(> .review-tray) {
 .tests .test .said-before {
   text-indent: 0;
 }
+
+.claudes-answer {
+  margin: 4px 0 0;
+  padding-inline-start: 8px;
+  border-inline-start: 3px solid var(--stack-line);
+}
