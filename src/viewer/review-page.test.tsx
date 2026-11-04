@@ -467,7 +467,11 @@ test('a split finding has a button per group in the rail, naming its size and go
             level: 'info',
             title: 'may be 2 independent changes',
             detail: 'Read from the graph.',
-            groups: [['rust/crate/application', 'rust/crate/domain', 'web'], ['rust/crate/domain']],
+            groups: [
+              ['rust/crate/application', 'rust/crate/domain', 'web'],
+              ['rust/crate/domain'],
+              ['rust'],
+            ],
           },
         ],
       })}
@@ -478,10 +482,11 @@ test('a split finding has a button per group in the rail, naming its size and go
   await user.click(screen.getByRole('button', { name: 'Show 1 finding' }));
   const cohesion = within(screen.getByRole('region', { name: 'Cohesion' }));
 
-  await user.click(cohesion.getByRole('button', { name: '3 parts, from application' }));
+  await user.click(cohesion.getByRole('button', { name: '3 parts, from crates/application' }));
   expect(within(inspector()).getByRole('heading', { name: 'application' })).not.toBeNull();
-  await user.click(cohesion.getByRole('button', { name: '1 part, from domain' }));
+  await user.click(cohesion.getByRole('button', { name: '1 part, from crates/domain' }));
   expect(within(inspector()).getByRole('heading', { name: 'domain' })).not.toBeNull();
+  expect(cohesion.getByRole('button', { name: '1 part, from rust' })).not.toBeNull();
 
   await user.click(cohesion.getByRole('button', { name: 'Fix this' }));
   await openReview(user);

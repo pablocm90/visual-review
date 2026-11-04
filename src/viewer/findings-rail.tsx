@@ -68,6 +68,7 @@ const linesOf = ({ review, onGoTo, onShowOutside }: LineOptions) => {
     endsOfId(id)
       .map(end => labelOf.get(end) ?? end)
       .join(' → ');
+  const placeOf = new Map(review.diff.nodes.map(node => [node.id, node.path || node.label]));
   const lineOf = (finding: Finding): Line => {
     const { id, level, target, title, detail, groups } = finding;
     if (target !== undefined) {
@@ -89,7 +90,7 @@ const linesOf = ({ review, onGoTo, onShowOutside }: LineOptions) => {
         groups: groups.flatMap(group =>
           group.slice(0, 1).map(first => ({
             first,
-            name: `${counted(group.length, 'part', 'parts')}, from ${targetOf(first)}`,
+            name: `${counted(group.length, 'part', 'parts')}, from ${placeOf.get(first) ?? first}`,
             go: () => onGoTo(first),
           })),
         ),

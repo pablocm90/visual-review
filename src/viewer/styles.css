@@ -2470,4 +2470,5 @@ main:has(> .review-tray) {
   border-radius: 6px;
   color: var(--muted);
   font-size: 12px;
+  overflow-wrap: anywhere;
 }
