@@ -2308,6 +2308,23 @@ test('stored read marks that are not a list of ids are ignored, the page startin
   expect(readRows()).toEqual([]);
 });
 
+test.for([
+  { stored: undefined, rows: ['1 application'], why: 'nothing stored' },
+  { stored: '["rust/crate/legacy"]', rows: ['3 legacy'], why: 'marks stored' },
+  { stored: '[]', rows: [], why: 'every mark taken off' },
+  { stored: 'not json', rows: ['1 application'], why: 'a corrupt store' },
+])('on a later round with $why, the parts ticked at first are $rows', async ({ stored, rows }) => {
+  const walked = {
+    ...walkedReview(),
+    sinceReview: { ...sinceReview, stillRead: ['rust/crate/application'] },
+  };
+  if (stored !== undefined) localStorage.setItem(`visual-review:read:${walked.range}`, stored);
+  render(<ReviewPage review={walked} />);
+  await screen.findByRole('group', { name: 'rust' });
+
+  expect(readRows()).toEqual(rows);
+});
+
 test('J, K and A act on Structure alone: on Metrics and Tests they neither walk nor mark', async () => {
   const user = userEvent.setup();
   render(<ReviewPage review={walkedReview()} />);

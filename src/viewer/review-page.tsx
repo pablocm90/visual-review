@@ -1055,6 +1055,9 @@ const WIDER_SCOPES: ReadonlyArray<Scope> = [
   EVERYTHING,
 ];
 
+const stillReadIn = ({ sinceReview }: PageData): ReadonlyArray<string> =>
+  sinceReview !== undefined && 'stillRead' in sinceReview ? sinceReview.stillRead : [];
+
 const changedSinceIn = ({ sinceReview }: PageData): ChangedSince | undefined =>
   sinceReview !== undefined && 'changed' in sinceReview ? sinceReview.changed : undefined;
 
@@ -1504,7 +1507,7 @@ const Page = ({ review, notes, send }: ReviewPageProps) => {
     location.hash = '#structure';
     showOutside(opener);
   };
-  const [read, setRead] = useState(() => storedReadMarks(review.range));
+  const [read, setRead] = useState(() => storedReadMarks(review.range, stillReadIn(review)));
   useEffect(() => storeReadMarks(review.range, read), [review.range, read]);
   const walk = (step: number) => {
     const { parts } = review.readingOrder;
