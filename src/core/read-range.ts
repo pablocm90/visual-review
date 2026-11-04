@@ -41,6 +41,7 @@ export type ReviewedHead = {
 export type ReviewedReading = ReviewedHead &
   (
     | { readonly gone: true }
+    | { readonly unreadable: string }
     | {
         readonly before: Graph;
         readonly changedPaths: ReadonlyArray<string>;
@@ -319,12 +320,16 @@ const reviewedSide = async ({
 }: ReviewedSideOptions): Promise<ReviewedReading> => {
   const revision = await resolve(side.repo, reviewed.head).catch(() => undefined);
   if (revision === undefined) return { ...reviewed, gone: true };
-  const { graph } = await readSide({ ...side, revision });
-  return {
-    ...reviewed,
-    before: graph,
-    ...pathsIn(await changesBetween(side.repo, revision, to)),
-  };
+  try {
+    const { graph } = await readSide({ ...side, revision });
+    return {
+      ...reviewed,
+      before: graph,
+      ...pathsIn(await changesBetween(side.repo, revision, to)),
+    };
+  } catch (error) {
+    return { ...reviewed, unreadable: String(error) };
+  }
 };
 
 export const readRange = async ({

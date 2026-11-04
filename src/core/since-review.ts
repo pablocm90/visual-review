@@ -10,6 +10,7 @@ export type ChangedSince = {
 
 export type SinceReview =
   | { readonly head: string; readonly gone: true }
+  | { readonly head: string; readonly unreadable: string }
   | (ReviewedHead & { readonly changed: ChangedSince });
 
 type SinceReviewOptions = {
@@ -25,6 +26,7 @@ const changedIn = (diff: GraphDiff) => ({
 
 export const sinceReviewOf = ({ reviewed, after, diff }: SinceReviewOptions): SinceReview => {
   if ('gone' in reviewed) return { head: reviewed.head, gone: true };
+  if ('unreadable' in reviewed) return { head: reviewed.head, unreadable: reviewed.unreadable };
   const { head, verdict, ...side } = reviewed;
   const since = changedIn(diffGraphs({ ...side, after }));
   const parts = changedIn(diff);

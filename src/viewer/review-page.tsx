@@ -1023,7 +1023,7 @@ const WIDER_SCOPES: ReadonlyArray<Scope> = [
 ];
 
 const scopesOf = ({ sinceReview }: PageData): ReadonlyArray<Scope> =>
-  sinceReview === undefined || 'gone' in sinceReview
+  sinceReview === undefined || !('changed' in sinceReview)
     ? WIDER_SCOPES
     : [
         [

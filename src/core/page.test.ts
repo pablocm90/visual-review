@@ -1591,5 +1591,9 @@ test('page data says the reviewed head is gone when its commit no longer reads, 
     head: 'h1',
     gone: true,
   });
+  expect(
+    data({ reviewed: { head: 'h1', verdict: 'approve', unreadable: 'cargo metadata failed' } })
+      .sinceReview,
+  ).toEqual({ head: 'h1', unreadable: 'cargo metadata failed' });
   expect(data({})).not.toHaveProperty('sinceReview');
 });

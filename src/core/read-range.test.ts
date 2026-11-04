@@ -970,3 +970,26 @@ test('a reviewed head that no longer resolves is gone, and the range still reads
   expect(range.reviewed).toEqual({ head, verdict: 'approve', gone: true });
   expect(nodeIds(range.after)).toContain('rust/crate/cli');
 });
+
+test('a reviewed head that exists but fails to read is unreadable, saying why, and the range still reads', async () => {
+  using workspace = cargoWorkspace();
+  const { repo, root } = workspace;
+  const head = commit(repo, { 'crates/broken/Cargo.toml': 'not toml' });
+  git(repo, 'reset', '--quiet', '--hard', root);
+  const to = commit(repo, crateFiles('cli'));
+
+  const range = await readRange({
+    repo,
+    from: root,
+    to,
+    reviewed: { head, verdict: 'approve' },
+  });
+
+  expect(range.reviewed).toEqual({
+    head,
+    verdict: 'approve',
+    unreadable: expect.stringContaining('cargo metadata'),
+  });
+  expect(nodeIds(range.after)).toContain('rust/crate/cli');
+  expect(git(repo, 'worktree', 'list').split('\n')).toHaveLength(1);
+});
