@@ -2042,16 +2042,23 @@ test.for([
   },
   { on: 'a part as it was', id: 'web/file/b.ts', target: 'web/file/b.ts' },
 ])('a previous comment on $on', ({ id, target, changedSince }) => {
-  const graph = { nodes: [webStack, webFile('a.ts'), webFile('b.ts')], edges: [] };
+  const graph = {
+    nodes: [webStack, webFile('a.ts'), webFile('b.ts'), webFile('main.ts')],
+    edges: [],
+  };
   const previous = firstPrevious(
     readingWith({
-      before: { nodes: [webStack], edges: [] },
+      before: { nodes: [webStack, webFile('main.ts')], edges: [] },
       after: graph,
       changedPaths: ['web/src/a.ts', 'web/src/b.ts'],
       reviewed: {
-        ...reviewedAt({ before: graph, changedPaths: ['web/src/a.ts'] }),
+        ...reviewedAt({ before: graph, changedPaths: ['web/src/a.ts', 'web/src/main.ts'] }),
         comments: [onAPart(id)],
-        commits: [commitOn('c1', 'web/src/a.ts'), commitOn('c2', 'web/src/elsewhere.ts')],
+        commits: [
+          commitOn('c1', 'web/src/a.ts'),
+          commitOn('c2', 'web/src/elsewhere.ts'),
+          commitOn('merged', 'web/src/main.ts'),
+        ],
       },
     }),
   );
