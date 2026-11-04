@@ -1,3 +1,5 @@
+import { countedId } from './counted-id.ts';
+
 export type TestChange = 'added' | 'removed' | 'edited' | 'unchanged';
 
 export type TestLabel = 'skip' | 'only' | 'todo';
@@ -171,7 +173,7 @@ const anchoring = (
       const plain = named.join(' › ');
       const entry = `${statement.kind} ${plain}`;
       const before = seen.filter(other => other === entry).length;
-      const trail = before === 0 ? plain : `${plain}#${before + 1}`;
+      const trail = countedId(plain, before);
       if (statement.kind === 'test') {
         return { anchored: [...anchored, { ...statement, trail }], seen: [...seen, entry] };
       }
