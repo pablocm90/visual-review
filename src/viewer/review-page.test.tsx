@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { act, configure, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { expect, onTestFinished, test, vi } from 'vitest';
+import { afterEach, expect, onTestFinished, test, vi } from 'vitest';
 import type { GraphDiff } from '../core/diff-graphs.ts';
 import { type Finding, raisedFindings } from '../core/findings.ts';
 import type { ReviewNotes } from '../core/notes.ts';
@@ -92,6 +92,8 @@ const review = {
 configure({ asyncUtilTimeout: 3000 });
 
 await layoutDiff(review.diff);
+
+afterEach(() => history.replaceState(null, '', location.pathname));
 
 const shown = (name: string) =>
   within(screen.getByRole('group', { name: 'Show' })).getByRole('button', { name });
@@ -1081,10 +1083,7 @@ test('the Review nav links Structure, Metrics and Tests, and marks Structure the
   await screen.findByRole('group', { name: 'rust' });
 });
 
-const atHash = (hash: string) => {
-  history.replaceState(null, '', hash);
-  onTestFinished(() => history.replaceState(null, '', location.pathname));
-};
+const atHash = (hash: string) => history.replaceState(null, '', hash);
 
 const currentTab = () =>
   within(screen.getByRole('navigation', { name: 'Review' })).getByRole('link', { current: 'page' })
@@ -1102,7 +1101,6 @@ test.for([
 });
 
 test("the Tests tab's link counts the review's changed tests, a moved pair once, and carries no count with none changed", async () => {
-  atHash('');
   const user = userEvent.setup();
   const { rerender } = render(
     <ReviewPage
@@ -1219,7 +1217,6 @@ test("the Tests tab heads the test changes with what the notes say they pin, and
 });
 
 test('the Tests tab shows all the test changes by default, or, while a node is picked on Structure, those alongside it, saying so when none changed there; with the pick cleared it shows them all', async () => {
-  atHash('');
   const user = userEvent.setup();
   const added = (name: string) => ({ kind: 'test' as const, name, change: 'added' as const });
   render(
@@ -1290,7 +1287,6 @@ test('the Tests tab shows all the test changes by default, or, while a node is p
 });
 
 test('the Tests tab counts the shown tests by change, a moved pair once, as moved, even with only one of its files shown', async () => {
-  atHash('');
   const user = userEvent.setup();
   render(
     <ReviewPage
@@ -1430,7 +1426,6 @@ test("a Metrics row's node name goes to it on Structure, focused, its inspector 
 });
 
 test('picking a tab sets the hash and shows it, and back and forward move between the tabs', async () => {
-  atHash('');
   const user = userEvent.setup();
   render(<ReviewPage review={pageWith(review)} />);
   await screen.findByRole('group', { name: 'rust' });
@@ -2265,7 +2260,6 @@ test('stored read marks that are not a list of ids are ignored, the page startin
 });
 
 test('J, K and A act on Structure alone: on Metrics and Tests they neither walk nor mark', async () => {
-  atHash('#structure');
   const user = userEvent.setup();
   render(<ReviewPage review={walkedReview()} />);
   await screen.findByRole('group', { name: 'rust' });
@@ -4693,7 +4687,6 @@ test("same-named symbols in one file take a comment each, counted through the fi
 
 test('the inspector goes back to Note when it closes or Structure is left, and holds its tab between parts', async () => {
   const user = userEvent.setup();
-  atHash('#structure');
   const symbol = {
     name: 'tax',
     kind: 'function' as const,
@@ -4738,7 +4731,6 @@ test('the inspector goes back to Note when it closes or Structure is left, and h
 
 test('the inspector holds its tab through an edge selected between two parts', async () => {
   const user = userEvent.setup();
-  atHash('#structure');
   const symbol = {
     name: 'tax',
     kind: 'function' as const,
@@ -5023,7 +5015,6 @@ test("a served page's Tests screen takes a comment on a test row, one draft with
 
 test("a test's draft in the tray opens the Tests tab of the file it's named after, though no box holds it, showing the draft", async () => {
   const user = userEvent.setup();
-  atHash('#structure');
   render(
     <ReviewPage
       review={pageWith({
