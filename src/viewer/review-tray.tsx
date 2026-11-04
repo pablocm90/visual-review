@@ -15,6 +15,7 @@ type Nodes = ReadonlyArray<Pick<GraphNode, 'id' | 'label' | 'path'>>;
 type ReviewTrayProps = {
   readonly reviewed: Review['reviewed'];
   readonly read: Review['read'];
+  readonly resolved: Review['resolved'];
   readonly parts: ReadonlyArray<string>;
   readonly comments: Comments;
   readonly answers: Answers;
@@ -186,6 +187,7 @@ const DraftList = ({
 export const ReviewTray = ({
   reviewed,
   read,
+  resolved,
   parts,
   comments,
   answers,
@@ -221,7 +223,7 @@ export const ReviewTray = ({
       ...(hasBody ? { body } : {}),
       reviewed,
       read,
-      resolved: [],
+      resolved,
       comments: written,
     }).then(
       () => setSent(true),

@@ -51,6 +51,41 @@ const ClaudesAnswer = ({ answer }: { readonly answer: Answers[string] }) => (
   </div>
 );
 
+type Responding = {
+  readonly resolved: ReadonlyArray<PreviousComment>;
+  readonly onResolve: (comment: PreviousComment) => void;
+};
+
+const RespondingToLastSaid = createContext<Responding | undefined>(undefined);
+
+export const RespondingOnPage = RespondingToLastSaid.Provider;
+
+const sameAnchor = (one: PreviousComment, other: PreviousComment) =>
+  anchorKey(one.anchor) === anchorKey(other.anchor);
+
+export const withResolveToggled = (
+  resolved: ReadonlyArray<PreviousComment>,
+  comment: PreviousComment,
+): ReadonlyArray<PreviousComment> =>
+  resolved.some(each => sameAnchor(each, comment))
+    ? resolved.filter(each => !sameAnchor(each, comment))
+    : [...resolved, comment];
+
+const Resolve = ({ comment }: { readonly comment: PreviousComment }) => {
+  const responding = useContext(RespondingToLastSaid);
+  if (responding === undefined || comment.kind === 'fine') return null;
+  return (
+    <button
+      type="button"
+      className="said-resolve"
+      aria-pressed={responding.resolved.some(each => sameAnchor(each, comment))}
+      onClick={() => responding.onResolve(comment)}
+    >
+      Resolve
+    </button>
+  );
+};
+
 export const Said = (said: Marked) => {
   const { kind, text, changedSince = [], anchor } = said.comment;
   const mark = markOf(said);
@@ -70,6 +105,7 @@ export const Said = (said: Marked) => {
         </ul>
       )}
       {answer !== undefined && <ClaudesAnswer answer={answer} />}
+      <Resolve comment={said.comment} />
     </>
   );
 };

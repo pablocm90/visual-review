@@ -6416,6 +6416,82 @@ test("Claude's answer shows under its comment, in the last review and under the 
   ).toBeTruthy();
 });
 
+test('a last comment is resolved from the last review or under its anchor, sent as it was said, and pressing Resolve again takes it back', async () => {
+  const user = userEvent.setup();
+  const sent = vi.fn(async () => {});
+  render(
+    <ReviewPage
+      review={pageWith({
+        ...review,
+        sinceReview: {
+          ...sinceReview,
+          comments: [
+            saidOnPart('rust/crate/old-name', { target: 'rust/crate/application' }),
+            saidOnPart('rust/crate/cli-adapter'),
+            saidOnPart('rust/crate/domain'),
+          ],
+        },
+      })}
+      send={sent}
+    />,
+  );
+  await screen.findByRole('group', { name: 'rust' });
+  const resolveIn = (name: RegExp) =>
+    within(within(lastReviewSection()).getByRole('listitem', { name })).getByRole('button', {
+      name: 'Resolve',
+    });
+
+  await user.click(resolveIn(/^application/));
+  await user.click(resolveIn(/^domain/));
+  await user.click(screen.getByRole('button', { name: 'cli-adapter: added' }));
+  const underAnchor = within(
+    within(inspector()).getByRole('note', { name: /^Last review/ }),
+  ).getByRole('button', { name: 'Resolve' });
+  await user.click(underAnchor);
+  expect(underAnchor.getAttribute('aria-pressed')).toBe('true');
+  expect(resolveIn(/^cli-adapter/).getAttribute('aria-pressed')).toBe('true');
+  await user.click(resolveIn(/^domain/));
+  expect(resolveIn(/^domain/).getAttribute('aria-pressed')).toBe('false');
+
+  await openReview(user);
+  await user.click(screen.getByRole('button', { name: 'Send to Claude' }));
+
+  expect(sent).toHaveBeenCalledExactlyOnceWith(
+    sentReview({
+      verdict: 'approve',
+      resolved: [
+        { kind: 'part', id: 'rust/crate/old-name' },
+        { kind: 'part', id: 'rust/crate/cli-adapter' },
+      ],
+    }),
+  );
+});
+
+test('only a comment that asks for something offers Resolve, and only on a served page', async () => {
+  const comments: ReadonlyArray<PreviousComment> = [
+    saidOnPart('rust/crate/application'),
+    { anchor: { kind: 'finding', id: 'metrics:fine' }, kind: 'fine' },
+    { anchor: { kind: 'finding', id: 'metrics:fix' }, kind: 'fix' },
+  ];
+  const page = pageWith({ ...review, sinceReview: { ...sinceReview, comments } });
+  const { unmount } = render(<ReviewPage review={page} send={async () => {}} />);
+  await screen.findByRole('group', { name: 'rust' });
+  const resolvable = () =>
+    within(lastReviewSection())
+      .queryAllByRole('button', { name: 'Resolve' })
+      .map(button => button.closest('li')?.getAttribute('aria-label'));
+
+  expect(resolvable()).toEqual([
+    'application: Question, As it was',
+    'metrics:fix: Fix this, As it was',
+  ]);
+  unmount();
+
+  render(<ReviewPage review={page} />);
+  await screen.findByRole('group', { name: 'rust' });
+  expect(resolvable()).toEqual([]);
+});
+
 test('a last comment on an edge shows on the arrow drawn in its place, closed box or merged, named by its edge, unless its edge is drawn apart', async () => {
   const user = userEvent.setup();
   const cart = 'web/file/orders/cart.ts -> web/file/billing/invoice.ts';

@@ -66,7 +66,13 @@ import { storedReadMarks, storeReadMarks } from './read-marks.ts';
 import { ReadingOrderList } from './reading-order-list.tsx';
 import { Ref, shortRef } from './ref.tsx';
 import { ReviewTray, verdictLabels } from './review-tray.tsx';
-import { LastSaidOnPage, SaidBefore, useSaidLinesOf } from './said-before.tsx';
+import {
+  LastSaidOnPage,
+  RespondingOnPage,
+  SaidBefore,
+  useSaidLinesOf,
+  withResolveToggled,
+} from './said-before.tsx';
 import { changedSymbolCount, type LineAt, SymbolsOf, useHasSymbolNews } from './symbols-tab.tsx';
 import { changedCount, TestFiles, TestsScreen } from './tests-screen.tsx';
 import {
@@ -1416,6 +1422,7 @@ const Page = ({ review, notes, send }: ReviewPageProps) => {
   };
   const [comments, setComments] = useState<Comments>({});
   const [answers, setAnswers] = useState<Answers>({});
+  const [resolved, setResolved] = useState<ReadonlyArray<PreviousComment>>([]);
   const answer: AnswerTo | undefined =
     send && ((id, given) => setAnswers(current => withAnswer(current, id, given)));
   const [chosenWidth, setChosenWidth] = useState<number>();
@@ -1589,7 +1596,7 @@ const Page = ({ review, notes, send }: ReviewPageProps) => {
       setFocusTarget(undefined);
     }
   }, [layout, focusTarget, frameElement]);
-  return (
+  const page = (
     <main>
       <Header review={review} tab={tab} />
       {tab === 'structure' && (
@@ -1776,6 +1783,7 @@ const Page = ({ review, notes, send }: ReviewPageProps) => {
             ...(review.pullRequest && { pullRequest: review.pullRequest.number }),
           }}
           read={review.readingOrder.parts.filter(part => read.has(part))}
+          resolved={resolved.map(({ anchor }) => anchor)}
           parts={review.readingOrder.parts}
           comments={comments}
           answers={answers}
@@ -1790,6 +1798,18 @@ const Page = ({ review, notes, send }: ReviewPageProps) => {
         />
       )}
     </main>
+  );
+  return (
+    <RespondingOnPage
+      value={
+        send && {
+          resolved,
+          onResolve: comment => setResolved(current => withResolveToggled(current, comment)),
+        }
+      }
+    >
+      {page}
+    </RespondingOnPage>
   );
 };
 

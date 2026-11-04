@@ -38,6 +38,7 @@ const renderTray = (
     <ReviewTray
       reviewed={{ range: 'a..b' }}
       read={read}
+      resolved={[]}
       parts={['web/file/src/pay.ts', 'web/file/src/cart/total.ts']}
       comments={Object.fromEntries(comments.map(comment => [anchorKey(comment.anchor), comment]))}
       answers={{}}
