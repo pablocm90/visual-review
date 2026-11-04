@@ -1,6 +1,6 @@
 import { useId, useState } from 'react';
+import { anchorKey } from '../core/anchors.ts';
 import type { Comment } from '../core/review.ts';
-import { anchorKey } from './anchors.ts';
 
 export type Comments = Readonly<Record<string, Comment>>;
 

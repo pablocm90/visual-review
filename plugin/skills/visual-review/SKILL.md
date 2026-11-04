@@ -9,7 +9,7 @@ argument-hint: [<pr number> | <from>..<to>]
 Each `visual-review` below is shorthand for this command: run the command in full in its place, since nothing puts `visual-review` on `PATH`:
 
 ```sh
-npx -y --prefix="$(mktemp -d)" --package="${VISUAL_REVIEW_PACKAGE:-@pablocm90/visual-review@0.23.0}" visual-review
+npx -y --prefix="$(mktemp -d)" --package="${VISUAL_REVIEW_PACKAGE:-@pablocm90/visual-review@0.24.0}" visual-review
 ```
 
 The empty `--prefix` keeps the reviewed checkout's own `node_modules` and `.npmrc` from choosing what runs; the command still runs in the repo.
@@ -45,9 +45,27 @@ Run every command from the repository root (`git rev-parse --show-toplevel`, whi
    - `tests` is one or two sentences on the tests as a whole: what the listed tests pin, and what the change leaves untested, such as a modified part with no test change under it. When no test changed, say what that leaves unpinned. It heads the Tests tab.
    - Set `flag` to a short label only for a structural concern the graph shows: a new dependency direction, a layer reaching past its neighbour, a cycle, or coupling across the stack edge. The page shows it as a finding that needs a look. Give the note a `dimension` when another one in `notes.schema.json` fits the concern better, such as `dependencies` for coupling across the stack edge; left out, it is `structure`.
    - Keep to structure. Line-level findings belong to `/code-review`.
+   - When the data has `sinceReview` and you acted on that review, add `answers`, what became of each thing it said, and `unasked`, what you changed that nothing in it asked for:
 
-   Done when every touched crate, module, root file, Rails layer and class, and every added or removed edge between them as drawn with modules collapsed, has a note. A note on a file import counts for the module edge it is drawn into.
-4. Run `visual-review '<range>' --notes '<notes file>'`. It fills the notes into the page from step 1 without reading the range again. A non-zero exit names the notes file and either the contract error or one line per problem (`unknown id <id>`, `no note on <id>`): fix the file and rerun. Done when it exits 0.
+     ```json
+     {
+       "answers": {
+         "part rust/crate/http-adapter": { "status": "done", "commit": "<sha>", "text": "Split the route out." },
+         "finding logic:removed:web/file/a.ts#run": { "status": "answered", "text": "The caller already checks it." },
+         "edge web/file/App.tsx -> web/module/modules/AppInfo": { "status": "declined", "text": "It would widen the port." }
+       },
+       "unasked": {
+         "rust/crate/application": { "text": "Renamed the helper the split left misnamed." }
+       }
+     }
+     ```
+
+     - `answers` are keyed `<kind> <id>`, the `kind` and `id` of a comment's `anchor` in `sinceReview.comments`, as it was said, even when `target` has moved. Every comment there gets one, except a finding answer of kind `fine`, which asks for nothing. `status` is `done` with the `commit` that did it, `answered` for what wanted an answer, or `declined` for what you turned down, and `text` says what was done, the answer, or why not.
+     - `unasked` is keyed as `notes` are. List only changes the last review didn't ask for; a stack takes none. Leave it out when there are none.
+     - `sinceReview` holds the newest review at another head, so never a review of this very head. When the head hasn't moved since the review you acted on, as after a round that only answered, `sinceReview` is absent or holds an earlier head's review: answer that review in your reply, since `answers` refuses an anchor `sinceReview.comments` doesn't hold. With no `sinceReview`, leave both out: the page has nowhere to show them.
+
+   Done when every touched crate, module, root file, Rails layer and class, and every added or removed edge between them as drawn with modules collapsed, has a note. A note on a file import counts for the module edge it is drawn into. With `answers`, also when every comment in `sinceReview.comments` but a `fine` has one.
+4. Run `visual-review '<range>' --notes '<notes file>'`. It fills the notes into the page from step 1 without reading the range again. A non-zero exit names the notes file and either the contract error or one line per problem (`unknown id <id>`, `no note on <id>`, `unknown comment <kind> <id>` for an answer whose anchor isn't in `sinceReview.comments`, or the one line that `unasked` needs a last review): fix the file and rerun. Done when it exits 0.
 5. Run `visual-review serve '<page path>'` in the background, so you are told when it exits. It opens the page in the browser and prints `Serving <url>` on stderr. Done when that line is out, or when it has exited: then go to step 7.
 6. Reply with the page's URL and path and the flags you raised, one line each, or "no flags", and say that a review sent from the page's **Review** panel comes back to you.
 7. When `serve` exits, act on how it ended:

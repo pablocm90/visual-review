@@ -976,6 +976,60 @@ test('notes that leave a touched part without a note are refused, naming the not
   ).toThrow("Notes in x.notes.json don't match the graph:\nno note on web/file/a.ts");
 });
 
+test("notes on a later round's page may answer what its last review said, and only that", () => {
+  const page = pageHtml({
+    viewer,
+    data: {
+      ...pageData({
+        repo: 'shop',
+        reading: readingWith({}),
+        range: 'main..feature',
+        version,
+        parsers,
+      }),
+      sinceReview: {
+        head: 'h1',
+        verdict: 'comment',
+        comments: [
+          { anchor: { kind: 'part', id: 'web/file/a.ts' }, kind: 'question', text: 'Why?' },
+        ],
+        calledFine: [],
+        gone: true,
+      },
+    },
+  });
+  const answering = (key: string) => ({
+    ...notesWith({ 'web/file/a.ts': { text: 'Reads well.' } }),
+    answers: { [key]: { status: 'answered', text: 'To keep the format.' } as const },
+  });
+
+  expect(() =>
+    notedPageHtml({ page, notes: answering('part web/file/a.ts'), notesFile, version }),
+  ).not.toThrow();
+  expect(() =>
+    notedPageHtml({ page, notes: answering('part web/file/b.ts'), notesFile, version }),
+  ).toThrow('unknown comment part web/file/b.ts');
+});
+
+test("notes on a first round's page may not list unasked changes", () => {
+  const page = pageHtml({
+    viewer,
+    data: pageData({
+      repo: 'shop',
+      reading: readingWith({}),
+      range: 'main..feature',
+      version,
+      parsers,
+    }),
+  });
+  const notes = {
+    ...notesWith({ 'web/file/a.ts': { text: 'Reads well.' } }),
+    unasked: { 'web/file/a.ts': { text: 'Renamed the helper.' } },
+  };
+
+  expect(() => notedPageHtml({ page, notes, notesFile, version })).toThrow('this page has none');
+});
+
 test('a changed node that is a file on both sides gets its churn on each', () => {
   const graph = { nodes: [webStack, webFile('a.ts'), webFile('b.ts')], edges: [] };
   const reading = readingWith({

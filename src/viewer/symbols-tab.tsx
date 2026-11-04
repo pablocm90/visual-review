@@ -1,3 +1,4 @@
+import { anchorKey } from '../core/anchors.ts';
 import type { DiffedNode } from '../core/diff-graphs.ts';
 import type { LogicLine } from '../core/logic-diff.ts';
 import type { SymbolFile } from '../core/read-range.ts';
@@ -10,7 +11,6 @@ import {
   type SymbolStatement,
 } from '../core/symbol-changes.ts';
 import { type AnchoredSymbol, anchoredSymbols, decisionsOf } from '../core/symbol-findings.ts';
-import { anchorKey } from './anchors.ts';
 import { ChangedSinceTag, sinceLabel, useIsChangedSince } from './changed-since.tsx';
 import { CommentOn, type Comments } from './comment-field.tsx';
 import { SaidBefore, useHasSaid } from './said-before.tsx';

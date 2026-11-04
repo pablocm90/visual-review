@@ -117,6 +117,16 @@ What an earlier comment or finding answer reads when nothing changed under its a
 _Avoid_: unchanged, not addressed, ignored
 _In code_: `PreviousComment` (`src/core/previous-comments.ts`), its `changedSince` absent
 
+**Claude's answer**:
+What Claude says became of an earlier comment or finding answer on a later round: Done, with its commit, Answered or Declined, each with its text. It's keyed by the anchor as said, and shows under it wherever it shows.
+_Avoid_: answer alone (a finding answer is the reviewer's), reply, resolution
+_In code_: `ReviewNotes['answers']`
+
+**Unasked change**:
+A change Claude made on a later round that nothing in the last review asked for, by part or edge, listed in the last review so it isn't read as asked for.
+_Avoid_: extra, drive-by
+_In code_: `ReviewNotes['unasked']`
+
 **Called fine**:
 A finding whose newest answer in any review of its pull request is It's fine. It holds for the rest of that pull request, whatever changes under it, until a later answer replaces it.
 _Avoid_: dismissed, suppressed

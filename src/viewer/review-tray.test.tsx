@@ -2,8 +2,8 @@
 import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { expect, test, vi } from 'vitest';
+import { anchorKey } from '../core/anchors.ts';
 import type { Comment } from '../core/review.ts';
-import { anchorKey } from './anchors.ts';
 import { ReviewTray } from './review-tray.tsx';
 
 const nodes = [

@@ -1,7 +1,7 @@
 import { expect, test } from 'vitest';
-import { anchorTarget } from '../core/anchors.ts';
+import { anchorKey, anchorTarget } from '../core/anchors.ts';
 import type { Comment } from '../core/review.ts';
-import { anchorKey, anchorName, lineAnchor } from './anchors.ts';
+import { anchorName, lineAnchor } from './anchors.ts';
 import { highlightPatch } from './highlight-patch.ts';
 
 const nodes = [
