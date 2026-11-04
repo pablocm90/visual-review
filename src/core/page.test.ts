@@ -8,7 +8,13 @@ import type { LogicLine } from './logic-diff.ts';
 import { metricFindings } from './metric-findings.ts';
 import type { ReviewNotes } from './notes.ts';
 import { notedPageHtml, pageData, pageHtml, pageIn, servedPageHtml } from './page.ts';
-import type { RangeReading, ReviewedDiff, ReviewedReading, SymbolFile } from './read-range.ts';
+import type {
+  RangeReading,
+  ReviewedDiff,
+  ReviewedHead,
+  ReviewedReading,
+  SymbolFile,
+} from './read-range.ts';
 import type { Review } from './review.ts';
 import type { SymbolStatement } from './symbol-changes.ts';
 import type { TestFile } from './test-changes.ts';
@@ -2986,4 +2992,78 @@ test.for([
   const previous = firstPrevious(answersReading(id, () => ({ ...reviewedHead(), gone: true })));
 
   expect(previous).toEqual({ ...answering(id), ...held });
+});
+
+const boxed = {
+  nodes: [webStack, box('cart'), inBox('cart', 'a.ts'), inBox('cart', 'b.ts'), webFile('c.ts')],
+  edges: [],
+};
+const fileInBox = 'web/file/cart/a.ts';
+const otherInBox = 'web/file/cart/b.ts';
+
+const sinceWith = ({
+  since,
+  ...said
+}: Partial<Pick<ReviewedHead, 'comments' | 'read'>> & { readonly since: ReadonlyArray<string> }) =>
+  pageData({
+    repo: 'shop',
+    reading: readingWith({
+      before: { nodes: [webStack], edges: [] },
+      after: boxed,
+      changedPaths: ['web/src/cart/a.ts', 'web/src/cart/b.ts', 'web/src/cart/notes.txt'],
+      reviewed: { ...reviewedAt({ before: boxed, changedPaths: [...since] }), ...said },
+    }),
+    range: 'a..b',
+    version: '1.2.3',
+    parsers: {},
+  }).sinceReview;
+
+test.for([
+  {
+    with: 'no comment, naming the changed part and not the box around it',
+    comments: [],
+    listed: [fileInBox],
+  },
+  { with: 'a comment on it', comments: [onAPart(fileInBox)], listed: [] },
+  { with: 'a comment on a box around it', comments: [onAPart('web/box/cart')], listed: [] },
+  {
+    with: 'a comment on a symbol in it, which counts by its node',
+    comments: [{ anchor: { kind: 'symbol', id: `${fileInBox}#f` }, kind: 'change', text: 'Why?' }],
+    listed: [],
+  },
+  { with: 'an answer on it', comments: [answering(`notes:${fileInBox}`)], listed: [] },
+  {
+    with: 'an edge comment from it, which does not count',
+    comments: [
+      {
+        anchor: { kind: 'edge', id: `${fileInBox} -> ${otherInBox}` },
+        kind: 'change',
+        text: 'Why?',
+      },
+    ],
+    listed: [fileInBox],
+  },
+  {
+    with: 'an answer on an edge from it, which does not count',
+    comments: [answering(`notes:${fileInBox} -> ${otherInBox}`)],
+    listed: [fileInBox],
+  },
+  { with: 'a comment on another part', comments: [onAPart(otherInBox)], listed: [fileInBox] },
+] satisfies ReadonlyArray<{
+  with: string;
+  comments: Review['comments'];
+  listed: ReadonlyArray<string>;
+}>)('the parts changed since with $with', ({ comments, listed }) => {
+  expect(sinceWith({ since: ['web/src/cart/a.ts'], comments })).toMatchObject({
+    changedWithoutComment: listed,
+  });
+});
+
+test('a box changed since with nothing changed inside it counts a comment on a part inside it', () => {
+  const since = ['web/src/cart/notes.txt'];
+
+  expect(sinceWith({ since })).toMatchObject({ changedWithoutComment: ['web/box/cart'] });
+  expect(sinceWith({ since, comments: [onAPart(otherInBox)] })).toMatchObject({
+    changedWithoutComment: [],
+  });
 });

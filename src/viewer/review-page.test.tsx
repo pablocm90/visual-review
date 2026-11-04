@@ -5487,6 +5487,7 @@ const lastReview = { head: 'h1', verdict: 'comment' as const, comments: [], call
 const sinceReview = {
   ...lastReview,
   changed: changedSince({ nodes: ['rust/crate/application'] }),
+  changedWithoutComment: [],
 };
 
 test("a later round offers 'Since last review' first in Show, Changes only still picked; picked, it draws what changed since, and going to a part it hides widens Show", async () => {

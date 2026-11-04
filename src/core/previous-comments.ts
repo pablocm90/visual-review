@@ -13,7 +13,7 @@ export type PreviousComment = Said & {
   readonly changedSince?: ReadonlyArray<Commit>;
 };
 
-type Compared = {
+export type Compared = {
   readonly changed: ChangedSince;
   readonly held: Pick<ChangedSince, 'symbols' | 'decisions' | 'tests' | 'files'>;
   readonly renames: ReadonlyArray<Rename>;
@@ -29,7 +29,7 @@ type PreviousCommentsOptions = {
   readonly compared?: Compared;
 };
 
-const isInside = (tree: Compared['tree'], id: string, holder: string): boolean => {
+export const isInside = (tree: Compared['tree'], id: string, holder: string): boolean => {
   const parent = tree.find(node => node.id === id)?.parent;
   return id === holder || (parent !== undefined && isInside(tree, parent, holder));
 };

@@ -1,7 +1,12 @@
 import { diffGraphs, type FilePatch, type GraphDiff } from './diff-graphs.ts';
 import type { Finding } from './findings.ts';
 import { edgeId, type Graph } from './graph.ts';
-import { type PreviousComment, previousComments } from './previous-comments.ts';
+import {
+  type Compared,
+  isInside,
+  type PreviousComment,
+  previousComments,
+} from './previous-comments.ts';
 import type { ReviewedHead, ReviewedReading, SymbolFile } from './read-range.ts';
 import { isQuiet, qualified } from './symbol-changes.ts';
 import { type AnchoredSymbol, anchoredSymbols, decisionsOf } from './symbol-findings.ts';
@@ -29,7 +34,14 @@ type Said = Pick<ReviewedHead, 'head' | 'verdict' | 'body' | 'calledFine'> & {
 };
 
 export type SinceReview = Said &
-  ({ readonly gone: true } | { readonly unreadable: string } | { readonly changed: ChangedSince });
+  (
+    | { readonly gone: true }
+    | { readonly unreadable: string }
+    | {
+        readonly changed: ChangedSince;
+        readonly changedWithoutComment: ReadonlyArray<string>;
+      }
+  );
 
 type SinceReviewOptions = {
   readonly reviewed: ReviewedReading;
@@ -239,23 +251,24 @@ export const sinceReviewOf = ({
       files: files.dropped,
     },
   };
-  return {
-    ...saidIn(
-      reviewed,
-      previousComments({
-        comments: reviewed.comments,
-        targets,
-        findings,
-        compared: {
-          changed,
-          held: { ...anchors.held, tests: testsSince.held, files: patches.map(({ path }) => path) },
-          renames: side.renames,
-          commits: reviewed.commits,
-          tree: [...side.before.nodes, ...after.nodes],
-          named,
-        },
-      }),
-    ),
+  const tree = [...side.before.nodes, ...after.nodes];
+  const compared: Compared = {
     changed,
+    held: { ...anchors.held, tests: testsSince.held, files: patches.map(({ path }) => path) },
+    renames: side.renames,
+    commits: reviewed.commits,
+    tree,
+    named,
+  };
+  const comments = previousComments({ comments: reviewed.comments, targets, findings, compared });
+  const commentedOn = comments.flatMap(({ target }) => target ?? []);
+  return {
+    ...saidIn(reviewed, comments),
+    changed,
+    changedWithoutComment: changed.nodes
+      .filter(id => !changed.nodes.some(other => other !== id && isInside(tree, other, id)))
+      .filter(
+        id => !commentedOn.some(target => isInside(tree, id, target) || isInside(tree, target, id)),
+      ),
   };
 };
