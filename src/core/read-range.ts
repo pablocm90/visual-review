@@ -111,21 +111,26 @@ const skippedAcross = (skips: ReadonlyArray<Skipped>): ReadonlyArray<Skipped> =>
 const textIn = async (directory: string, path: string): Promise<string | undefined> =>
   existsSync(join(directory, path)) ? readFile(join(directory, path), 'utf8') : undefined;
 
+type SideDirectories = {
+  readonly before: string;
+  readonly after: string;
+};
+
 type TestFileOptions = {
-  readonly scratch: string;
+  readonly sides: SideDirectories;
   readonly change: Rename;
   readonly reader: Reader;
   readonly stack: string;
 };
 
 const testFileAt = async ({
-  scratch,
+  sides,
   change: { from, to },
   reader,
   stack,
 }: TestFileOptions): Promise<TestFile> => {
-  const before = await textIn(join(scratch, 'before'), from);
-  const after = await textIn(join(scratch, 'after'), to);
+  const before = await textIn(sides.before, from);
+  const after = await textIn(sides.after, to);
   const file = {
     path: to,
     renamedFrom: from === to ? undefined : from,
@@ -144,13 +149,13 @@ const isUnder = (path: string, root: string): boolean => !relative(root, path).s
 const depth = (root: string): number => (root === '.' ? 0 : root.split('/').length);
 
 type TestsInOptions = {
-  readonly scratch: string;
+  readonly sides: SideDirectories;
   readonly changes: ReadonlyArray<Rename>;
   readonly roots: ReadonlyArray<DrawnStack>;
 };
 
 const testsIn = async ({
-  scratch,
+  sides,
   changes,
   roots,
 }: TestsInOptions): Promise<ReadonlyArray<TestFile>> => {
@@ -161,7 +166,7 @@ const testsIn = async ({
         .toSorted((a, b) => depth(b.root) - depth(a.root))[0];
       return drawn === undefined
         ? []
-        : [testFileAt({ scratch, change, reader: drawn.reader, stack: drawn.stack })];
+        : [testFileAt({ sides, change, reader: drawn.reader, stack: drawn.stack })];
     }),
   );
   return files.filter(file => !('statements' in file) || file.statements.length > 0);
@@ -248,14 +253,14 @@ const symbolsAt = async ({
 };
 
 type SymbolsInOptions = {
-  readonly scratch: string;
+  readonly sides: SideDirectories;
   readonly files: ReadonlyArray<MeasuredNode>;
   readonly stacks: StacksReading['stacks'];
   readonly stackOf: (id: string) => string;
 };
 
 const symbolsIn = async ({
-  scratch,
+  sides: directories,
   files,
   stacks,
   stackOf,
@@ -267,8 +272,8 @@ const symbolsIn = async ({
       const read = symbolsReaderOf(stackOf(id));
       if (read === undefined) return [];
       const sides = await Promise.all([
-        symbolsAt({ directory: join(scratch, 'before'), read, path: basePath }),
-        symbolsAt({ directory: join(scratch, 'after'), read, path: headPath }),
+        symbolsAt({ directory: directories.before, read, path: basePath }),
+        symbolsAt({ directory: directories.after, read, path: headPath }),
       ]).then(
         ([before, after]) => ({ before, after }),
         error => ({ unreadable: String(error) }),
@@ -363,17 +368,18 @@ export const readRange = async ({
   const config = await configAt(repo, toCommit);
   const scratch = await realpath(await mkdtemp(join(tmpdir(), 'visual-review-')));
   try {
+    const sides = { before: join(scratch, 'before'), after: join(scratch, 'after') };
     const before = await readSide({
       repo,
       revision: base,
-      directory: join(scratch, 'before'),
+      directory: sides.before,
       config,
       ...adapters,
     });
     const after = await readSide({
       repo,
       revision: toCommit,
-      directory: join(scratch, 'after'),
+      directory: sides.after,
       config,
       ...adapters,
     });
@@ -385,19 +391,19 @@ export const readRange = async ({
     const measured = measuredNodes({ diff, before: before.graph });
     const measures = {
       before: await measuresAt({
-        directory: join(scratch, 'before'),
+        directory: sides.before,
         stacks: before.stacks,
         files: measured.map(({ id, basePath }) => ({ stack: stackOf(id), path: basePath })),
       }),
       after: await measuresAt({
-        directory: join(scratch, 'after'),
+        directory: sides.after,
         stacks: after.stacks,
         files: measured.map(({ id, headPath }) => ({ stack: stackOf(id), path: headPath })),
       }),
     };
     const changed = new Set(diff.nodes.filter(node => node.state !== 'unchanged').map(n => n.id));
     const { symbols, symbolsNotRead } = await symbolsIn({
-      scratch,
+      sides,
       files: measured.filter(({ id }) => changed.has(id)),
       stacks: [...before.stacks, ...after.stacks],
       stackOf,
@@ -407,14 +413,14 @@ export const readRange = async ({
       before: await churnAt({
         repo,
         revision: base,
-        directory: join(scratch, 'before'),
+        directory: sides.before,
         graph: before.graph,
         days: churnDays,
       }),
       after: await churnAt({
         repo,
         revision: churnTo,
-        directory: join(scratch, 'after'),
+        directory: sides.after,
         graph: after.graph,
         days: churnDays,
       }),
@@ -434,7 +440,7 @@ export const readRange = async ({
       renames,
       tests: withMovedTests(
         await testsIn({
-          scratch,
+          sides,
           changes: changes.map(([from = '', to = from]) => ({ from, to })),
           roots: [...before.roots, ...after.roots],
         }),

@@ -4,6 +4,7 @@ import type { SymbolFile } from '../core/read-range.ts';
 import type { Comment } from '../core/review.ts';
 import {
   changesApi,
+  isQuiet,
   qualified,
   type SymbolChange,
   type SymbolStatement,
@@ -30,8 +31,6 @@ const GROUPS: ReadonlyArray<Group> = [
 
 const symbolsIn = (files: ReadonlyArray<SymbolFile>): ReadonlyArray<SymbolStatement> =>
   files.flatMap(file => ('symbols' in file ? file.symbols : []));
-
-const isQuiet = (symbol: SymbolStatement): boolean => !GROUPS.some(([, holds]) => holds(symbol));
 
 export const changedSymbolCount = (files: ReadonlyArray<SymbolFile>): number =>
   symbolsIn(files).filter(symbol => !isQuiet(symbol)).length;
