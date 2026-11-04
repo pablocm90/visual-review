@@ -922,3 +922,51 @@ test('when reading a graph fails, the error surfaces and no worktree is left beh
   await expect(readRange({ repo, from: root, to: broken })).rejects.toThrow(/cargo metadata/);
   expect(git(repo, 'worktree', 'list').split('\n')).toHaveLength(1);
 });
+
+test('a reviewed head reads as a side of its own, diffed plainly against the new head', async () => {
+  using workspace = cargoWorkspace();
+  const { repo, root } = workspace;
+  const reviewed = commit(repo, { ...crateFiles('dropped'), 'docs/old.md': 'a long enough line\n' });
+  git(repo, 'reset', '--quiet', '--hard', root);
+  const to = commit(repo, { 'docs/new.md': 'a long enough line\n' });
+
+  const range = await readRange({
+    repo,
+    from: root,
+    to,
+    reviewed: { head: reviewed, verdict: 'comment' },
+  });
+
+  expect(range.reviewed).toEqual({
+    head: reviewed,
+    verdict: 'comment',
+    before: expect.objectContaining({
+      nodes: expect.arrayContaining([expect.objectContaining({ id: 'rust/crate/dropped' })]),
+    }),
+    changedPaths: [
+      'crates/dropped/Cargo.toml',
+      'crates/dropped/src/lib.rs',
+      'docs/old.md',
+      'docs/new.md',
+    ],
+    renames: [{ from: 'docs/old.md', to: 'docs/new.md' }],
+  });
+  expect(git(repo, 'worktree', 'list').split('\n')).toHaveLength(1);
+});
+
+test('a reviewed head that no longer resolves is gone, and the range still reads', async () => {
+  using workspace = cargoWorkspace();
+  const { repo, root } = workspace;
+  const to = commit(repo, crateFiles('cli'));
+  const head = 'feedfacefeedfacefeedfacefeedfacefeedface';
+
+  const range = await readRange({
+    repo,
+    from: root,
+    to,
+    reviewed: { head, verdict: 'approve' },
+  });
+
+  expect(range.reviewed).toEqual({ head, verdict: 'approve', gone: true });
+  expect(nodeIds(range.after)).toContain('rust/crate/cli');
+});

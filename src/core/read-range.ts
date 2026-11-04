@@ -71,6 +71,7 @@ type ReadRangeOptions = Adapters & {
   readonly from: string;
   readonly to: string;
   readonly churnTo?: string;
+  readonly reviewed?: ReviewedHead;
 };
 
 const git = async (repo: string, ...args: ReadonlyArray<string>): Promise<string> =>
@@ -291,11 +292,47 @@ const resolve = (repo: string, revision: string): Promise<string> =>
     throw new Error(`Unknown revision: ${revision}`);
   });
 
+const changesBetween = async (
+  repo: string,
+  from: string,
+  to: string,
+): Promise<ReadonlyArray<ReadonlyArray<string>>> =>
+  (await git(repo, 'diff', '--find-renames', '--name-status', from, to))
+    .split('\n')
+    .filter(line => line !== '')
+    .map(line => line.split('\t').slice(1));
+
+const pathsIn = (changes: ReadonlyArray<ReadonlyArray<string>>) => ({
+  changedPaths: changes.flat(),
+  renames: changes.flatMap(([from = '', to]) => (to === undefined ? [] : [{ from, to }])),
+});
+
+type ReviewedSideOptions = Omit<ReadSideOptions, 'revision'> & {
+  readonly reviewed: ReviewedHead;
+  readonly to: string;
+};
+
+const reviewedSide = async ({
+  reviewed,
+  to,
+  ...side
+}: ReviewedSideOptions): Promise<ReviewedReading> => {
+  const revision = await resolve(side.repo, reviewed.head).catch(() => undefined);
+  if (revision === undefined) return { ...reviewed, gone: true };
+  const { graph } = await readSide({ ...side, revision });
+  return {
+    ...reviewed,
+    before: graph,
+    ...pathsIn(await changesBetween(side.repo, revision, to)),
+  };
+};
+
 export const readRange = async ({
   repo,
   from,
   to,
   churnTo = to,
+  reviewed,
   ...adapters
 }: ReadRangeOptions): Promise<RangeReading> => {
   const [fromCommit, toCommit] = await Promise.all([resolve(repo, from), resolve(repo, to)]);
@@ -318,12 +355,8 @@ export const readRange = async ({
       ...adapters,
     });
     checkConfig(config, [...before.stacks, ...after.stacks], adapters.linkers);
-    const changes = (await git(repo, 'diff', '--find-renames', '--name-status', base, toCommit))
-      .split('\n')
-      .filter(line => line !== '')
-      .map(line => line.split('\t').slice(1));
-    const changedPaths = changes.flat();
-    const renames = changes.flatMap(([from = '', to]) => (to === undefined ? [] : [{ from, to }]));
+    const changes = await changesBetween(repo, base, toCommit);
+    const { changedPaths, renames } = pathsIn(changes);
     const diff = diffGraphs({ before: before.graph, after: after.graph, changedPaths, renames });
     const stackOf = stackOfIn(diff.nodes);
     const measured = measuredNodes({ diff, before: before.graph });
@@ -389,6 +422,18 @@ export const readRange = async ({
           patch: await git(repo, 'diff', '--find-renames', base, toCommit, '--', ...paths),
         })),
       ),
+      ...(reviewed === undefined
+        ? {}
+        : {
+            reviewed: await reviewedSide({
+              repo,
+              reviewed,
+              to: toCommit,
+              directory: join(scratch, 'reviewed'),
+              config,
+              ...adapters,
+            }),
+          }),
     };
   } finally {
     await rm(scratch, { recursive: true });
