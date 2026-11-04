@@ -926,7 +926,10 @@ test('when reading a graph fails, the error surfaces and no worktree is left beh
 test('a reviewed head reads as a side of its own, diffed plainly against the new head', async () => {
   using workspace = cargoWorkspace();
   const { repo, root } = workspace;
-  const reviewed = commit(repo, { ...crateFiles('dropped'), 'docs/old.md': 'a long enough line\n' });
+  const reviewed = commit(repo, {
+    ...crateFiles('dropped'),
+    'docs/old.md': 'a long enough line\n',
+  });
   git(repo, 'reset', '--quiet', '--hard', root);
   const to = commit(repo, { 'docs/new.md': 'a long enough line\n' });
 
