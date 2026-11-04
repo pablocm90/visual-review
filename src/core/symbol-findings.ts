@@ -1,3 +1,4 @@
+import { countedId } from './counted-id.ts';
 import type { Finding } from './findings.ts';
 import type { GraphNode } from './graph.ts';
 import type { LogicLine } from './logic-diff.ts';
@@ -148,7 +149,7 @@ const countingRepeats = <T>(
   items.map((item, index) => {
     const id = idOf(item);
     const before = items.slice(0, index).filter(other => idOf(other) === id).length;
-    return { item, id: before === 0 ? id : `${id}#${before + 1}` };
+    return { item, id: countedId(id, before) };
   });
 
 export type AnchoredSymbol = {
