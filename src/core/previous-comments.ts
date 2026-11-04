@@ -144,16 +144,19 @@ export const previousComments = ({
       ...(compared === undefined ? {} : markOf(compared, targets, anchor)),
     };
   };
+  const answered = (comment: Said, findingId: string): PreviousComment => {
+    const raised = findings.find(({ id }) => id === findingId);
+    const target = targetOfNoteFlag(findingId) ?? raised?.target;
+    if (target !== undefined) return placed(comment, onTheGraph(target));
+    if (raised !== undefined || compared === undefined) return comment;
+    const decision = compared.held.decisions.find(held => held === decisionOfLost(findingId));
+    return decision === undefined
+      ? { ...comment, changedSince: [] }
+      : placed(comment, { kind: 'decision', id: decision });
+  };
   return comments.map(comment => {
     const { anchor } = comment;
     if (anchor.kind !== 'finding') return placed(comment, anchor);
-    const raised = findings.find(({ id }) => id === anchor.id);
-    const target = targetOfNoteFlag(anchor.id) ?? raised?.target;
-    if (target !== undefined) return placed(comment, onTheGraph(target));
-    if (raised !== undefined || compared === undefined) return comment;
-    const decision = decisionOfLost(anchor.id);
-    return decision !== undefined && compared.held.decisions.includes(decision)
-      ? placed(comment, { kind: 'decision', id: decision })
-      : { ...comment, changedSince: [] };
+    return answered(comment, anchor.id);
   });
 };
