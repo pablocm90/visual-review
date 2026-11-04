@@ -171,6 +171,11 @@ export const decisionsOf = ({ item: statement, id: symbolId }: AnchoredSymbol) =
     ({ item, id }) => ({ line: item, id, text: decisionText(item) }),
   );
 
+const LOST_DECISION = 'logic:removed:';
+
+export const decisionOfLost = (findingId: string): string | undefined =>
+  findingId.startsWith(LOST_DECISION) ? findingId.slice(LOST_DECISION.length) : undefined;
+
 const logicFindings = (node: string, symbol: AnchoredSymbol): ReadonlyArray<Finding> => {
   const statement = symbol.item;
   const name = qualified(statement);
@@ -180,7 +185,7 @@ const logicFindings = (node: string, symbol: AnchoredSymbol): ReadonlyArray<Find
       isLost(line)
         ? [
             {
-              id: `logic:removed:${id}`,
+              id: `${LOST_DECISION}${id}`,
               dimension: 'logic' as const,
               level: 'look' as const,
               target: node,

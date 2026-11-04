@@ -18,7 +18,10 @@ export type TargetsOf = {
   readonly tests: ReadonlyArray<Pick<TestFile, 'path' | 'stack'>>;
 };
 
-export const anchorTarget = (anchor: Anchor, { nodes, tests }: TargetsOf): string | undefined => {
+export const anchorTarget = (
+  anchor: Pick<Anchor, 'kind' | 'id'>,
+  { nodes, tests }: TargetsOf,
+): string | undefined => {
   if (anchor.kind === 'symbol' || anchor.kind === 'decision') return split(anchor.id, '#')[0];
   if (anchor.kind === 'line') return deepestHolding(fileOfLine(anchor.id), nodes)?.id;
   if (anchor.kind !== 'test') return anchor.id;

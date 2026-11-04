@@ -3084,6 +3084,45 @@ test.for([
   expect(previous).toEqual({ ...answering(id), ...held });
 });
 
+test.for([
+  {
+    case: 'still in the function, read as moved, keeps its line and asks nothing new',
+    logic: [ifLine('moved', 'if (gone)', undefined)],
+    mark: { target: 'web/file/a.ts' },
+    withoutComment: [],
+  },
+  {
+    case: 'gone from the function is no longer raised, changed with no commit to name',
+    logic: [],
+    mark: { changedSince: [] },
+    withoutComment: ['web/file/a.ts'],
+  },
+])('a previous answer to a lost decision $case', ({ logic, mark, withoutComment }) => {
+  const id = 'logic:removed:web/file/a.ts#f#if (gone)';
+  const reading = readingWith({
+    before: anchorGraph,
+    after: anchorGraph,
+    changedPaths: ['web/src/a.ts'],
+    symbols: [anchorFile('a.ts', [editedWith(logic)])],
+    reviewed: {
+      ...reviewedAt({ before: anchorGraph, changedPaths: ['web/src/a.ts'] }),
+      comments: [answering(id)],
+      commits: [commitOnA],
+    },
+  });
+
+  const { sinceReview } = pageData({
+    repo: 'shop',
+    reading,
+    range: 'a..b',
+    version: '1.2.3',
+    parsers: {},
+  });
+
+  expect(sinceReview?.comments).toEqual([{ ...answering(id), ...mark }]);
+  expect(sinceReview).toMatchObject({ changedWithoutComment: withoutComment });
+});
+
 const boxed = {
   nodes: [webStack, box('cart'), inBox('cart', 'a.ts'), inBox('cart', 'b.ts'), webFile('c.ts')],
   edges: [],
