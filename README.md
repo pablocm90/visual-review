@@ -138,7 +138,7 @@ A review file is JSON in review version 5, whose schema is [`review.schema.json`
 
 ## Where pages go
 
-Pages go to `.reviews/` at the repo root, which git ignores. Each page is named by its range, for example `<sha>..<sha>.html` for a PR, with its data (`.json`), Claude's notes (`.notes.json`) and your review (`.review.json`) beside it. Only the 20 most recently written pages are kept, plus each PR's newest review, which its next round compares against. A review file git tracks is left alone and never compared against, since it came with the code rather than from you. Pages aren't hosted: each person runs the review they want to see.
+Pages go to `.reviews/` at the repo root, which git ignores. Each page is named by its range, for example `<sha>..<sha>.html` for a PR, with its data (`.json`), Claude's notes (`.notes.json`) and your review (`.review.json`) beside it. Only the 20 most recently written pages are kept, plus each PR's newest review, which its next round compares against. A review file git tracks is never compared against, since it came with the code rather than from you. Pages aren't hosted: each person runs the review they want to see.
 
 ## Contributing
 

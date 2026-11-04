@@ -7,7 +7,7 @@ What changed in each release of `@pablocm90/visual-review`, newest first. Versio
 ### Security
 
 - A review file the repo supplies no longer drives **Since last review**. A PR's author could force-add a `.reviews/*.review.json` naming the PR and a head just before the part to hide; with that branch checked out, the page offered the narrowed view first, under a forged verdict. Upgrade if you review PRs from people you don't fully trust, and treat a Since last review shown by an earlier version on such a branch as unverified.
-- A review file git tracks is now ignored, and pruning leaves it alone. A last review's head must be a full SHA and is compared with the new head as a commit, so `HEAD~0`, a short SHA or a tag object can't pass as an earlier head.
+- A review file git tracks is no longer compared against, and can't take the place of a PR's newest review when `.reviews/` is pruned. A last review's head must be a full SHA and is compared with the new head as a commit, so `HEAD~0`, a short SHA or a tag object can't pass as an earlier head.
 
 ## 0.20.0 — 2026-11-04
 
