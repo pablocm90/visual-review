@@ -67,6 +67,22 @@ const Moved = ({
   </span>
 );
 
+const Origin = ({ symbol, ...places }: Places & { readonly symbol: SymbolStatement }) => (
+  <>
+    {symbol.renamedFrom !== undefined && (
+      <span className="origin">
+        {' '}
+        {symbol.probably ? 'probably renamed from' : 'renamed from'}{' '}
+        <code>{symbol.renamedFrom}</code>
+      </span>
+    )}
+    {symbol.movedTo !== undefined && <Moved words="moved to" id={symbol.movedTo} {...places} />}
+    {symbol.movedFrom !== undefined && (
+      <Moved words="moved from" id={symbol.movedFrom} {...places} />
+    )}
+  </>
+);
+
 const exportMarkOf = ({ exported }: SymbolStatement): string | undefined => {
   if (exported.base === true && exported.head === false) return 'no longer exported';
   if (exported.base === false && exported.head === true) return 'now exported';
@@ -175,17 +191,7 @@ const SymbolList = ({
         {exportMarkOf(symbol) !== undefined && (
           <span className="export-mark"> {exportMarkOf(symbol)}</span>
         )}
-        {symbol.renamedFrom !== undefined && (
-          <span className="origin">
-            {' '}
-            {symbol.probably ? 'probably renamed from' : 'renamed from'}{' '}
-            <code>{symbol.renamedFrom}</code>
-          </span>
-        )}
-        {symbol.movedTo !== undefined && <Moved words="moved to" id={symbol.movedTo} {...places} />}
-        {symbol.movedFrom !== undefined && (
-          <Moved words="moved from" id={symbol.movedFrom} {...places} />
-        )}
+        <Origin symbol={symbol} {...places} />
         {symbol.signature && (
           <span className="signature">
             <del>{symbol.signature.base}</del>
