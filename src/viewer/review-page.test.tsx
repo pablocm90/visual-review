@@ -9,7 +9,7 @@ import type { PageData } from '../core/page.ts';
 import type { PreviousComment } from '../core/previous-comments.ts';
 import type { Commit, SymbolFile } from '../core/read-range.ts';
 import type { Comment, Review } from '../core/review.ts';
-import type { ChangedSince } from '../core/since-review.ts';
+import type { ChangedSince, SinceReview } from '../core/since-review.ts';
 import type { Skipped } from '../core/skipped.ts';
 import type { KindOfChange, SymbolStatement } from '../core/symbol-changes.ts';
 import { symbolFindings } from '../core/symbol-findings.ts';
@@ -6435,4 +6435,46 @@ test('going to a last comment on a diff line lands on the row it shows at, the n
   expect(within(diffTab()).getByRole('insertion', { current: true }).textContent).toContain(
     'Why 2?',
   );
+});
+
+const pageWithAnAnsweredFinding = (
+  since: Partial<Pick<SinceReview, 'calledFine' | 'comments'>>,
+) => {
+  const finding = (id: string, title: string): Finding => ({
+    id,
+    dimension: 'logic',
+    level: 'look',
+    target: 'rust/crate/application',
+    title,
+    detail: 'in tax',
+  });
+  return pageWith({
+    ...review,
+    findings: [finding('logic:a', 'lost a guard'), finding('logic:b', 'changed a branch')],
+    sinceReview: { ...sinceReview, ...since },
+  });
+};
+
+test('a last answer to a finding shows under it in the rail, not in the Look first band', async () => {
+  const user = userEvent.setup();
+  render(
+    <ReviewPage
+      review={pageWithAnAnsweredFinding({
+        comments: [{ anchor: { kind: 'finding', id: 'logic:a' }, kind: 'explain', text: 'Why?' }],
+      })}
+    />,
+  );
+
+  await user.click(await screen.findByRole('button', { name: 'Show 2 findings' }));
+
+  const answered = within(screen.getByRole('region', { name: 'Logic' }))
+    .getByRole('button', { name: /^application: lost a guard/ })
+    .closest('li');
+  expect(
+    within(answered ?? document.body).getByRole('note', {
+      name: 'Last review: Explain, As it was',
+    }),
+  ).toBeTruthy();
+  expect(within(screen.getByRole('region', { name: 'Look first' })).queryByRole('note')).toBeNull();
+  expect(screen.getAllByRole('note', { name: /^Last review/ })).toHaveLength(1);
 });

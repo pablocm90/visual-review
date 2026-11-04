@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react';
+import { type ReactNode, useRef, useState } from 'react';
 import {
   counted,
   DIMENSIONS,
@@ -18,6 +18,7 @@ import {
   findingLine,
   LevelMark,
 } from './finding-display.tsx';
+import { SaidBefore } from './said-before.tsx';
 
 type FindingsRailProps = {
   readonly findings: ReadonlyArray<Finding>;
@@ -114,9 +115,10 @@ type FindingItemProps = {
   readonly finding: Line;
   readonly answer?: Answer | undefined;
   readonly onAnswer?: AnswerTo | undefined;
+  readonly children?: ReactNode;
 };
 
-const FindingItem = ({ finding, answer, onAnswer }: FindingItemProps) => {
+const FindingItem = ({ finding, answer, onAnswer, children }: FindingItemProps) => {
   const said = (
     <>
       <span>{finding.sentence}</span>
@@ -152,6 +154,7 @@ const FindingItem = ({ finding, answer, onAnswer }: FindingItemProps) => {
           ))}
         </ul>
       )}
+      {children}
       {onAnswer && <AnswerButtons id={finding.id} answer={answer} onAnswer={onAnswer} />}
     </li>
   );
@@ -206,7 +209,9 @@ export const FindingsRail = (props: FindingsRailProps) => {
                   finding={finding}
                   answer={props.answers[finding.id]}
                   onAnswer={props.onAnswer}
-                />
+                >
+                  <SaidBefore on={{ kind: 'finding', id: finding.id }} />
+                </FindingItem>
               ))}
             </ul>
           </section>
