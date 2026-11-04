@@ -1,4 +1,12 @@
-import { mkdirSync, mkdtempSync, readdirSync, rmSync, utimesSync, writeFileSync } from 'node:fs';
+import {
+  mkdirSync,
+  mkdtempSync,
+  readdirSync,
+  rmSync,
+  symlinkSync,
+  utimesSync,
+  writeFileSync,
+} from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { expect, test } from 'vitest';
@@ -108,3 +116,26 @@ test("a review file git tracks isn't pruned as stale and takes no place as the n
 
   expect(filesIn(directory)).toEqual(['a..sent.review.json', 'a..tracked.review.json']);
 });
+
+test.for([
+  {
+    what: 'a link to nothing',
+    lay: (path: string) => symlinkSync('nowhere', path),
+  },
+  {
+    what: 'a folder',
+    lay: (path: string) => mkdirSync(path),
+  },
+])(
+  "$what named as a page isn't a page: it takes no place among those kept and stays",
+  async ({ lay }) => {
+    using reviews = reviewsDirectory();
+    const { repo, directory } = reviews;
+    writePage(directory, 'a..page', 1_000, ['html']);
+    lay(join(directory, 'b..standing.html'));
+
+    await pruneReviews({ repo, keep: 1 });
+
+    expect(filesIn(directory)).toEqual(['a..page.html', 'b..standing.html']);
+  },
+);

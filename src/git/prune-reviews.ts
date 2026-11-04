@@ -10,11 +10,11 @@ type PruneReviewsOptions = {
 export const pruneReviews = async ({ repo, keep }: PruneReviewsOptions): Promise<void> => {
   const directory = reviewsDirectoryOf(repo);
   const pages = await Promise.all(
-    (await readdir(directory))
-      .filter(file => file.endsWith('.html'))
-      .map(async file => ({
-        name: file.slice(0, -'.html'.length),
-        writtenAt: (await stat(join(directory, file))).mtimeMs,
+    (await readdir(directory, { withFileTypes: true }))
+      .filter(entry => entry.isFile() && entry.name.endsWith('.html'))
+      .map(async ({ name }) => ({
+        name: name.slice(0, -'.html'.length),
+        writtenAt: (await stat(join(directory, name))).mtimeMs,
       })),
   );
   const sorted = pages.toSorted((one, other) => other.writtenAt - one.writtenAt);
