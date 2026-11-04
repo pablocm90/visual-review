@@ -16,6 +16,8 @@ const REWRITES =
 
 const SCANS = 'Fails if a row holds NULL, and scans the table under a lock.';
 
+const NO_VALUE = 'Fails on a table with rows.';
+
 const nameOf = (node: Node | undefined): string => node?.text.replace(/^:?['"]?|['"]$/g, '') ?? '';
 
 const callsIn = (node: Node): ReadonlyArray<Node> => [
@@ -25,10 +27,35 @@ const callsIn = (node: Node): ReadonlyArray<Node> => [
 
 const isOption = ({ type }: Node): boolean => type === 'pair' || type === 'hash';
 
+const pairsOf = (arg: Node): ReadonlyArray<Node> => {
+  if (arg.type === 'pair') return [arg];
+  return arg.type === 'hash' ? arg.namedChildren : [];
+};
+
+const optionOf = (args: ReadonlyArray<Node>, key: string): Node | undefined =>
+  args
+    .flatMap(pairsOf)
+    .find(pair => nameOf(pair.childForFieldName('key') ?? undefined) === key)
+    ?.childForFieldName('value') ?? undefined;
+
+const leavesRowsEmpty = (args: ReadonlyArray<Node>, nullDefault: string): boolean => {
+  const fallback = optionOf(args, 'default');
+  const required = (optionOf(args, 'null')?.type ?? nullDefault) === 'false';
+  return required && (fallback === undefined || fallback.type === 'nil');
+};
+
+const addedRequired = (what: string): Risky => ({
+  title: `${what} added as null: false with no default`,
+  why: NO_VALUE,
+});
+
 const stillRead = (title: string): Risky => ({ title, why: STILL_READ });
 
 const removed = (word: string, table: string, name: Node | undefined): Risky =>
   stillRead(`${word} ${table}.${nameOf(name)} removed`);
+
+const addedReference: Rule = ({ table, args }) =>
+  leavesRowsEmpty(args, 'true') ? [addedRequired(`reference ${table}.${nameOf(args[0])}`)] : [];
 
 const RULES: ReadonlyMap<string, Rule> = new Map<string, Rule>([
   ['remove_column', ({ table, args }) => [removed('column', table, args[0])]],
@@ -58,6 +85,18 @@ const RULES: ReadonlyMap<string, Rule> = new Map<string, Rule>([
       allowed?.type === 'true'
         ? []
         : [{ title: `column ${table}.${nameOf(column)} set to null: false`, why: SCANS }],
+  ],
+  [
+    'add_column',
+    ({ table, args }) =>
+      leavesRowsEmpty(args, 'true') ? [addedRequired(`column ${table}.${nameOf(args[0])}`)] : [],
+  ],
+  ['add_reference', addedReference],
+  ['add_belongs_to', addedReference],
+  [
+    'add_timestamps',
+    ({ table, args }) =>
+      leavesRowsEmpty(args, 'false') ? [addedRequired(`timestamps of ${table}`)] : [],
   ],
 ]);
 

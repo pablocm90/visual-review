@@ -84,3 +84,54 @@ test.for([
 ])('$written is flagged unless it plainly allows NULL', ({ written, expected }) => {
   expect(titles(written)).toStrictEqual(expected);
 });
+
+test('adding a required column with no default says why that is a risk', () => {
+  expect(
+    railsMigrations.risks(migration('add_column :users, :email, :string, null: false')),
+  ).toStrictEqual([
+    {
+      title: 'column users.email added as null: false with no default',
+      why: 'Fails on a table with rows.',
+      line: 3,
+    },
+  ]);
+});
+
+test.for([
+  {
+    written: 'add_column :users, :email, :string, :null => false',
+    expected: ['column users.email added as null: false with no default'],
+  },
+  {
+    written: 'add_column :users, :email, :string, { null: false }',
+    expected: ['column users.email added as null: false with no default'],
+  },
+  {
+    written: 'add_column :users, :email, :string, null: false, default: nil',
+    expected: ['column users.email added as null: false with no default'],
+  },
+  { written: 'add_column :users, :email, :string', expected: [] },
+  { written: 'add_column :users, :email, :string, null: true', expected: [] },
+  { written: "add_column :users, :email, :string, null: false, default: ''", expected: [] },
+  {
+    written: 'add_reference :users, :account, null: false',
+    expected: ['reference users.account added as null: false with no default'],
+  },
+  {
+    written: 'add_belongs_to :users, :account, null: false',
+    expected: ['reference users.account added as null: false with no default'],
+  },
+  { written: 'add_reference :users, :account', expected: [] },
+  {
+    written: 'add_timestamps :users',
+    expected: ['timestamps of users added as null: false with no default'],
+  },
+  {
+    written: 'add_timestamps :users, null: false',
+    expected: ['timestamps of users added as null: false with no default'],
+  },
+  { written: 'add_timestamps :users, null: true', expected: [] },
+  { written: "add_timestamps :users, default: -> { 'now()' }", expected: [] },
+])('$written is flagged when rows would have no value', ({ written, expected }) => {
+  expect(titles(written)).toStrictEqual(expected);
+});
