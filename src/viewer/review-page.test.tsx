@@ -5048,3 +5048,70 @@ test("a test's draft in the tray opens the Tests tab of the file it's named afte
   );
   expect(rowField()).toHaveProperty('value', 'Which rate?');
 });
+
+const pageWithPatch = (...hunkLines: ReadonlyArray<string>) =>
+  pageWith({
+    range: review.range,
+    diff: {
+      nodes: [
+        { id: 'web', kind: 'stack', label: 'web', path: '', state: 'unchanged' },
+        topFile('x.ts', 'modified'),
+      ],
+      edges: [],
+    },
+    patches: [
+      {
+        path: 'web/src/x.ts',
+        patch: ['--- a/web/src/x.ts', '+++ b/web/src/x.ts', ...hunkLines].join('\n'),
+      },
+    ],
+  });
+
+const diffTab = () => screen.getByRole('tabpanel', { name: 'Diff' });
+
+test("a served page's diff line takes a comment on its side and number, quoting it; a hunk's header takes none, nor does any line on a page not served", async () => {
+  const user = userEvent.setup();
+  const sent = vi.fn(async () => {});
+  const page = pageWithPatch(
+    '@@ -12,2 +12,2 @@',
+    ' const y = 0;',
+    '-const x = 1;',
+    '+const x = 2;',
+  );
+  const { rerender } = render(<ReviewPage review={page} send={sent} />);
+  const toggles = () =>
+    within(diffTab())
+      .queryAllByRole('button', { name: /^Comment on/ })
+      .map(toggle => toggle.getAttribute('aria-label'));
+
+  await user.click(await screen.findByRole('button', { name: 'x.ts: modified' }));
+  await user.click(within(inspector()).getByRole('tab', { name: 'Diff' }));
+  expect(toggles()).toStrictEqual([
+    'Comment on x.ts:12 "const y = 0;"',
+    'Comment on x.ts:13 "const x = 1;"',
+    'Comment on x.ts:13 "const x = 2;"',
+  ]);
+
+  await user.click(
+    within(diffTab()).getByRole('button', { name: 'Comment on x.ts:13 "const x = 1;"' }),
+  );
+  await write(user, within(diffTab()).getByRole('textbox', { name: 'Your comment' }), 'Why 1?');
+  await openReview(user);
+  await user.click(screen.getByRole('button', { name: 'Send to Claude' }));
+
+  expect(sent).toHaveBeenCalledExactlyOnceWith(
+    sentReview({
+      verdict: 'comment',
+      comments: [
+        {
+          anchor: { kind: 'line', id: 'web/src/x.ts@base:13', text: 'const x = 1;' },
+          kind: 'question',
+          text: 'Why 1?',
+        },
+      ],
+    }),
+  );
+
+  rerender(<ReviewPage review={page} />);
+  expect(toggles()).toStrictEqual([]);
+});

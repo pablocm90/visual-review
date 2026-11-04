@@ -3,10 +3,28 @@ import { endsOfId, type GraphNode } from '../core/graph.ts';
 import type { Comment } from '../core/review.ts';
 import type { TestFile } from '../core/test-changes.ts';
 import { nodeOfTests } from '../core/tests-alongside.ts';
+import type { PatchLine } from './highlight-patch.ts';
 
 type Anchor = Comment['anchor'];
 
 type Nodes = ReadonlyArray<Pick<GraphNode, 'id' | 'label' | 'parent' | 'path'>>;
+
+export const lineAnchor = ({
+  path,
+  line: { kind, pieces, ...numbers },
+}: {
+  readonly path: string;
+  readonly line: PatchLine;
+}): Anchor | undefined => {
+  const side = kind === 'removed' ? 'base' : 'head';
+  const number = numbers[side];
+  if (number === undefined) return undefined;
+  return {
+    kind: 'line',
+    id: `${path}@${side}:${number}`,
+    text: pieces.map(({ text }) => text).join(''),
+  };
+};
 
 export const anchorKey = ({ kind, id }: Pick<Anchor, 'kind' | 'id'>): string => `${kind} ${id}`;
 

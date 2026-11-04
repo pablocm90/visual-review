@@ -33,9 +33,9 @@ import {
   visibleDiff,
   visibleNodeOf,
 } from '../core/visible-diff.ts';
-import { anchorKey } from './anchors.ts';
+import { anchorKey, anchorName, lineAnchor } from './anchors.ts';
 import { ColourBy, type Colouring, ScaleLegend, type Shade, shadeOf } from './colour-by.tsx';
-import { CommentField, type Comments } from './comment-field.tsx';
+import { CommentField, CommentOn, type Comments } from './comment-field.tsx';
 import {
   AnswerButtons,
   type Answers,
@@ -466,13 +466,26 @@ const scrollInPanel = (element: HTMLElement, block: ScrollLogicalPosition) => {
 const isLandedOn = (line: Line, landing: Landing | undefined): boolean =>
   landing !== undefined && line[landing.side] === landing.line;
 
+type LineComments = {
+  readonly nodes: ReadonlyArray<DiffNode>;
+  readonly comments: Comments;
+  readonly onComment: ((comment: Comment) => void) | undefined;
+};
+
 const PatchLine = ({
-  line: { kind, prefix, pieces },
+  path,
+  line,
   current,
-}: {
+  nodes,
+  comments,
+  onComment,
+}: LineComments & {
+  readonly path: string;
   readonly line: Line;
   readonly current: boolean;
 }) => {
+  const { kind, prefix, pieces } = line;
+  const anchor = lineAnchor({ path, line });
   const landOn = useCallback(
     (row: HTMLElement | null) => {
       if (current && row) scrollInPanel(row, 'center');
@@ -487,6 +500,14 @@ const PatchLine = ({
         // biome-ignore lint/suspicious/noArrayIndexKey: a line's pieces are fixed and may repeat
         <Scoped key={index} {...piece} />
       ))}
+      {onComment && anchor && (
+        <CommentOn
+          anchor={anchor}
+          name={anchorName(anchor, nodes)}
+          comments={comments}
+          onComment={onComment}
+        />
+      )}
     </>
   );
   if (kind === 'added') return <ins {...marks}>{code}</ins>;
@@ -499,7 +520,9 @@ const Patch = ({
   patch,
   open,
   landing,
-}: FilePatch & { readonly open: boolean; readonly landing?: Landing | undefined }) => {
+  ...commenting
+}: FilePatch &
+  LineComments & { readonly open: boolean; readonly landing?: Landing | undefined }) => {
   const lines = useMemo(() => highlightPatch({ path, patch }), [path, patch]);
   const landOnTop = useCallback(
     (top: HTMLElement | null) => {
@@ -513,8 +536,14 @@ const Patch = ({
       <summary>{path}</summary>
       <pre>
         {lines.map((line, index) => (
-          // biome-ignore lint/suspicious/noArrayIndexKey: a patch's lines are fixed and may repeat
-          <PatchLine key={index} line={line} current={isLandedOn(line, landing)} />
+          <PatchLine
+            // biome-ignore lint/suspicious/noArrayIndexKey: a patch's lines are fixed and may repeat
+            key={index}
+            path={path}
+            line={line}
+            current={isLandedOn(line, landing)}
+            {...commenting}
+          />
         ))}
       </pre>
     </details>
@@ -755,6 +784,9 @@ const Inspector = ({ node, patches, width, onClose, picked, onPick, ...props }: 
                       {...patch}
                       open={node?.kind === 'file' || landed}
                       landing={landed ? landing : undefined}
+                      nodes={props.nodes}
+                      comments={props.comments}
+                      onComment={props.onComment}
                     />
                   );
                 })}
@@ -809,7 +841,14 @@ const OutsideFiles = ({ patches, width, onClose }: OutsideFilesProps) => (
     <h2>Changed files outside the graph</h2>
     <section className="changes" aria-label="Changes">
       {patches.map(patch => (
-        <Patch key={patch.path} {...patch} open={false} />
+        <Patch
+          key={patch.path}
+          {...patch}
+          open={false}
+          nodes={[]}
+          comments={{}}
+          onComment={undefined}
+        />
       ))}
     </section>
   </aside>
