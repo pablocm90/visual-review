@@ -1,4 +1,5 @@
 import { type Lockfile, lockedVersions } from '../core/lockfile.ts';
+import { aliasOf, declarationsOf, Manifest } from './npm-manifest.ts';
 
 const KEYS = '(?:"[^"\\n]+"|[^\\s",:#]+)';
 const BLOCK = new RegExp(`^(${KEYS}(?:, ${KEYS})*):\\n {2}version "?([^"\\s]+)"?$`, 'gm');
@@ -17,20 +18,30 @@ const KNOWN_LINE = new RegExp(
   ].join('|'),
 );
 const NOT_RECOGNISED = 'yarn.lock format not recognised';
-const ALIAS = /^npm:((?:@[^/]+\/)?[^@]+)/;
+const LOCAL_SPEC = /^(?:file|link):/;
 
 const realNames = (pattern: string): ReadonlyArray<string> => {
   const at = pattern.indexOf('@', 1);
   if (at === -1) throw new Error(NOT_RECOGNISED);
   const range = pattern.slice(at + 1);
-  if (/^(?:file|link):/.test(range)) return [];
-  return [range.match(ALIAS)?.[1] ?? pattern.slice(0, at)];
+  if (LOCAL_SPEC.test(range)) return [];
+  return [aliasOf(range) ?? pattern.slice(0, at)];
+};
+
+const declaredIn = (manifest: string): ReadonlyArray<string> => {
+  try {
+    return declarationsOf(Manifest.parse(JSON.parse(manifest))).flatMap(([name, spec]) =>
+      LOCAL_SPEC.test(spec) ? [] : [aliasOf(spec) ?? name],
+    );
+  } catch {
+    throw new Error('yarn.lock package.json not recognised');
+  }
 };
 
 export const yarnLockfile: Lockfile = {
   file: 'yarn.lock',
   ecosystem: 'npm',
-  read: ({ text }) => {
+  read: ({ text, manifests }) => {
     if (/^__metadata:$/m.test(text)) throw new Error('yarn.lock Yarn 2+ format');
     if (!/^# yarn lockfile v1$/m.test(text)) throw new Error(NOT_RECOGNISED);
     const lines = text.split('\n');
@@ -49,7 +60,7 @@ export const yarnLockfile: Lockfile = {
             .map(name => ({ name, version })),
         ),
       ),
-      direct: new Set(),
+      direct: new Set(manifests.flatMap(declaredIn)),
     };
   },
 };

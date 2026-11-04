@@ -1,22 +1,17 @@
 import { z } from 'zod';
 import { type Lockfile, lockedVersions } from '../core/lockfile.ts';
+import { aliasOf, declarationsOf, Manifest } from './npm-manifest.ts';
 
 const NOT_RECOGNISED = 'package-lock.json format not recognised';
 const UNDER_NODE_MODULES = /(?:^|\/)node_modules\/((?:@[^/]+\/)?[^/]+)$/;
 const NAMES_NODE_MODULES = /(?:^|\/)node_modules(?:\/|$)/;
-const ALIAS = /^npm:((?:@[^/]+\/)?[^@]+)/;
 
-const Declarations = z.record(z.string(), z.string()).optional();
-const Entry = z.object({
+const Entry = Manifest.extend({
   name: z.string().optional(),
   version: z.string().optional(),
   link: z.literal(true).optional(),
   resolved: z.string().optional(),
-  dependencies: Declarations,
-  devDependencies: Declarations,
-  optionalDependencies: Declarations,
 });
-type Entry = z.infer<typeof Entry>;
 const Lock = z.object({
   lockfileVersion: z.number(),
   packages: z.record(z.string(), Entry).optional(),
@@ -35,16 +30,6 @@ const folderOf = (path: string): string | undefined => {
   if (folder === undefined && NAMES_NODE_MODULES.test(path)) throw new Error(NOT_RECOGNISED);
   return folder;
 };
-
-const declarationsOf = ({
-  dependencies,
-  devDependencies,
-  optionalDependencies,
-}: Entry): ReadonlyArray<[string, string]> => [
-  ...Object.entries(dependencies ?? {}),
-  ...Object.entries(devDependencies ?? {}),
-  ...Object.entries(optionalDependencies ?? {}),
-];
 
 const lockedVersion = (version: string | undefined): string => {
   if (version === undefined) throw new Error(NOT_RECOGNISED);
@@ -76,9 +61,7 @@ export const npmLockfile: Lockfile = {
     const declarations = entries.flatMap(declarationsOf);
     const nameOf = (folder: string, name: string | undefined): string =>
       name !== undefined &&
-      declarations.some(
-        ([declared, spec]) => declared === folder && spec.match(ALIAS)?.[1] === name,
-      )
+      declarations.some(([declared, spec]) => declared === folder && aliasOf(spec) === name)
         ? name
         : folder;
     return {

@@ -708,6 +708,38 @@ remeda@^2.0.0, remeda@^2.1.0:
     });
   });
 
+  test('what any package.json declares is direct, by its real name, a local one not', () => {
+    expect(
+      [
+        ...yarnLockfile.read({
+          text: v1('zod@^4:\n  version "4.0.0"'),
+          manifests: [
+            JSON.stringify({
+              name: 'shop',
+              dependencies: {
+                zod: '^4.0.0',
+                '@scoped/alias': 'npm:@real/scoped@^1.0.0',
+                local: 'file:../local',
+                linked: 'link:../linked',
+              },
+              devDependencies: { vitest: '^5.0.0' },
+            }),
+            JSON.stringify({ name: 'web', optionalDependencies: { fsevents: '^2.0.0' } }),
+          ],
+        }).direct,
+      ].toSorted(),
+    ).toEqual(['@real/scoped', 'fsevents', 'vitest', 'zod']);
+  });
+
+  test.for([
+    { what: 'broken JSON', manifest: '{ "hidden": ' },
+    { what: 'a declaration that is no string', manifest: '{ "dependencies": { "hidden": 1 } }' },
+  ])('a package.json with $what means the file is not read', ({ manifest }) => {
+    expect(() => yarnLockfile.read({ text: v1(''), manifests: [manifest] })).toThrow(
+      new Error('yarn.lock package.json not recognised'),
+    );
+  });
+
   test.for([
     { what: 'a symlink', text: '../shared/yarn.lock', format: 'format not recognised' },
     {
