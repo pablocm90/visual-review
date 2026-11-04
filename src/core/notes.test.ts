@@ -64,6 +64,7 @@ test('notes on every touched part of the collapsed view, keyed to nodes or to ed
   expect(
     notesProblems({
       diff,
+      said: [],
       notes: notesWith({
         notes: {
           ...notesWith().notes,
@@ -80,6 +81,7 @@ test('a note on a hidden import covers the edge it is drawn into while its modul
   expect(
     notesProblems({
       diff,
+      said: [],
       notes: notesWith({
         notes: {
           'web/module/pages': { text: 'Home now formats dates.' },
@@ -94,6 +96,7 @@ test('a stack that appears in the change is not asked for a note, since notes ca
   expect(
     notesProblems({
       diff: { ...diff, nodes: [{ ...stack, state: 'added' }, ...diff.nodes.slice(1)] },
+      said: [],
       notes: notesWith(),
     }),
   ).toEqual([]);
@@ -114,6 +117,7 @@ test('a note may be keyed by an edge between its ends or any of the boxes above 
   expect(
     notesProblems({
       diff: deep,
+      said: [],
       notes: notesWith({
         notes: {
           'web/module/pages -> web/module/utils': { text: 'Pages uses utils.' },
@@ -169,7 +173,7 @@ test.for([
     expected: ['no note on web/module/pages -> web/module/utils'],
   },
 ])('$problem is a problem', ({ notes, expected }) => {
-  expect(notesProblems({ diff, notes })).toEqual(expected);
+  expect(notesProblems({ diff, notes, said: [] })).toEqual(expected);
 });
 
 const file = 'x.notes.json';
@@ -270,6 +274,76 @@ test.for<{
     ],
   };
   expect(visibleNotes({ diff, expanded: new Set(), notes })).toEqual(shown);
+});
+
+test("an answer is known by its anchor's kind and id in the last review, whatever else the review holds", () => {
+  const answer = { status: 'answered', text: 'It keeps the old format.' } as const;
+  const said = [
+    { anchor: { kind: 'part', id: 'web/module/pages' } },
+    { anchor: { kind: 'finding', id: 'logic:changed:web/file/pages/home.tsx#render' } },
+  ];
+
+  expect(
+    notesProblems({
+      diff,
+      said,
+      notes: notesWith({
+        answers: {
+          'part web/module/pages': answer,
+          'finding logic:changed:web/file/pages/home.tsx#render': answer,
+          'edge web/module/pages': answer,
+          'part web/module/utils': answer,
+        },
+      }),
+    }),
+  ).toEqual(['unknown comment edge web/module/pages', 'unknown comment part web/module/utils']);
+});
+
+test('a notes file keeps its answers, each status with what it carries', () => {
+  const answers = {
+    'part web/module/pages': { status: 'done', commit: 'abc123', text: 'Split it.' },
+    'edge web/module/pages -> web/module/utils': {
+      status: 'answered',
+      text: 'It keeps the format.',
+    },
+    'finding logic:changed:x': { status: 'declined', text: 'It would widen the port.' },
+  } as const;
+  const text = JSON.stringify(notesWith({ answers }));
+
+  expect(parseNotes({ text, file }).answers).toEqual(answers);
+});
+
+test('an unasked change is known by a node or an edge of the graph', () => {
+  const text = JSON.stringify(
+    notesWith({
+      unasked: {
+        'web/module/pages': { text: 'Renamed the helper.' },
+        'web/module/pages -> web/module/utils': { text: 'Dropped a cast.' },
+        'web/module/gone': { text: 'Removed it.' },
+      },
+    }),
+  );
+
+  expect(notesProblems({ diff, said: [], notes: parseNotes({ text, file }) })).toEqual([
+    'unknown id web/module/gone',
+  ]);
+});
+
+test('an unasked change needs a last review to show under, even one that said nothing', () => {
+  const notes = notesWith({ unasked: { 'web/module/pages': { text: 'Renamed the helper.' } } });
+
+  expect(notesProblems({ diff, said: undefined, notes })).toEqual([
+    'unasked changes show under the last review, and this page has none',
+  ]);
+  expect(notesProblems({ diff, said: undefined, notes: notesWith() })).toEqual([]);
+  expect(notesProblems({ diff, said: [], notes })).toEqual([]);
+});
+
+test('a done answer names its commit', () => {
+  const answers = { 'part web/module/pages': { status: 'done', text: 'Split it.' } };
+  const text = JSON.stringify({ ...notesWith(), answers });
+
+  expect(() => parseNotes({ text, file })).toThrow('Invalid notes file');
 });
 
 test('a notes file that is not JSON is rejected naming the file', () => {

@@ -2,11 +2,18 @@
 
 What changed in each release of `@pablocm90/visual-review`, newest first. Versions follow [semver](https://semver.org); while it is 0.x, a minor version may change the exported types.
 
-## 0.24.0 — 2026-11-05
+## 0.25.0 — 2026-11-05
 
 ### Changed
 
-- A decision a function lost that another symbol gained, in any changed file read, reads **moved to** that symbol, rather than removed. A moved guard or catch counts in its function's logic finding, for information, which says it was found by text, so extracting a method no longer ranks each of its guards first. Found by text alone: the guard's new home may not be called. Each gain takes one lost line, and a guard the other symbol already had, or whose condition was reworded, still needs a look.
+- A decision a function lost that another symbol gained, in any changed file read, reads **moved to** that symbol, naming its file when that's another one, rather than removed. A moved guard or catch counts in its function's logic finding, for information, which says it was found by text, so extracting a method no longer ranks each of its guards first. Found by text alone: the guard's new home may not be called. Each gain takes one lost line, and a guard the other symbol already had, or whose condition was reworded, still needs a look.
+
+## 0.24.0 — 2026-11-05
+
+### Added
+
+- On a PR's later round, Claude's answers show under what you said: Done with its commit, Answered or Declined, each with its text, in the Last review section and under the anchor. The section also lists what Claude changed that nothing asked for, going to each part or edge. The plugin's skill writes both on the round after it acts on a review.
+- Notes take `answers`, keyed `<kind> <id>` by the last review's anchors, and `unasked`, keyed as `notes` are. `--notes` refuses an answer whose anchor the last review doesn't hold (`unknown comment <kind> <id>`), an `unasked` id the graph doesn't have, and `unasked` on a page with no last review. The notes version stays 1.
 
 ## 0.23.0 — 2026-11-05
 

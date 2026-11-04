@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { anchorKey } from './anchors.ts';
 import type { GraphDiff } from './diff-graphs.ts';
 import { DIMENSIONS } from './findings.ts';
 import { edgeId } from './graph.ts';
@@ -10,6 +11,21 @@ import {
 } from './visible-diff.ts';
 
 const notesVersion = 1;
+
+const answerOf = <Status extends string>(status: Status, means: string) =>
+  z.strictObject({ status: z.literal(status).describe(means), text: z.string() }).readonly();
+
+const AnswerSchema = z.discriminatedUnion('status', [
+  z
+    .strictObject({
+      status: z.literal('done').describe('What it asked for is done'),
+      commit: z.string().describe('The commit that did it'),
+      text: z.string(),
+    })
+    .readonly(),
+  answerOf('answered', 'It wanted an answer, and this is it'),
+  answerOf('declined', 'Not taken, and this says why'),
+]);
 
 const ReviewNotesSchema = z
   .strictObject({
@@ -44,6 +60,20 @@ const ReviewNotesSchema = z
       .readonly()
       .default({})
       .describe('Notes by node id, or by `<from> -> <to>` for an edge; left out, there are none'),
+    answers: z
+      .record(z.string(), AnswerSchema)
+      .readonly()
+      .optional()
+      .describe(
+        "Answers to the last review, by each comment's anchor as `<kind> <id>`; left out, there are none",
+      ),
+    unasked: z
+      .record(z.string(), z.strictObject({ text: z.string() }).readonly())
+      .readonly()
+      .optional()
+      .describe(
+        'Changes no comment asked for, by node id, or by `<from> -> <to>` for an edge; left out, there are none',
+      ),
   })
   .readonly();
 
@@ -132,9 +162,31 @@ export const visibleNotes = ({
 type NotesProblemsOptions = {
   readonly diff: GraphDiff;
   readonly notes: ReviewNotes;
+  readonly said:
+    | ReadonlyArray<{ readonly anchor: { readonly kind: string; readonly id: string } }>
+    | undefined;
 };
 
-export const notesProblems = ({ diff, notes }: NotesProblemsOptions): ReadonlyArray<string> => {
+const lastReviewProblems = ({
+  notes,
+  said,
+}: Omit<NotesProblemsOptions, 'diff'>): ReadonlyArray<string> => {
+  const saidAnchors = new Set((said ?? []).map(({ anchor }) => anchorKey(anchor)));
+  return [
+    ...Object.keys(notes.answers ?? {})
+      .filter(key => !saidAnchors.has(key))
+      .map(key => `unknown comment ${key}`),
+    ...(said === undefined && notes.unasked !== undefined
+      ? ['unasked changes show under the last review, and this page has none']
+      : []),
+  ];
+};
+
+export const notesProblems = ({
+  diff,
+  notes,
+  said,
+}: NotesProblemsOptions): ReadonlyArray<string> => {
   const boxesAbove = boxesAboveIn(diff.nodes);
   const endsOf = (id: string): ReadonlyArray<string> => [id, ...boxesAbove(id)];
   const known = new Set([
@@ -156,9 +208,14 @@ export const notesProblems = ({ diff, notes }: NotesProblemsOptions): ReadonlyAr
     ...collapsed.edges.filter(edge => edge.state !== 'unchanged').map(edgeId),
   ];
   return [
-    ...[...Object.keys(notes.notes), ...notes.summary.flatMap(item => item.target ?? [])]
+    ...[
+      ...Object.keys(notes.notes),
+      ...notes.summary.flatMap(item => item.target ?? []),
+      ...Object.keys(notes.unasked ?? {}),
+    ]
       .filter(id => !known.has(id))
       .map(id => `unknown id ${id}`),
     ...touched.filter(id => shown[id] === undefined).map(id => `no note on ${id}`),
+    ...lastReviewProblems({ notes, said }),
   ];
 };

@@ -1,8 +1,10 @@
 import { createContext, type ReactNode, useContext, useMemo } from 'react';
+import { anchorKey } from '../core/anchors.ts';
+import type { ReviewNotes } from '../core/notes.ts';
 import type { PreviousComment } from '../core/previous-comments.ts';
 import type { Comment } from '../core/review.ts';
 import type { SinceReview } from '../core/since-review.ts';
-import { anchorKey, type PlaceOfLine, placeOfLine } from './anchors.ts';
+import { type PlaceOfLine, placeOfLine } from './anchors.ts';
 import { COMMENT_KINDS } from './comment-field.tsx';
 import { ANSWER_KINDS } from './finding-display.tsx';
 import { Ref } from './ref.tsx';
@@ -22,9 +24,37 @@ export const saidLabel = (said: Marked): string => {
   return mark === undefined ? `${label}` : `${label}, ${mark}`;
 };
 
+type Answers = NonNullable<ReviewNotes['answers']>;
+
+const SaidOnThisPage = createContext<{
+  readonly byAnchor: ReadonlyMap<string, PreviousComment>;
+  readonly compared: boolean;
+  readonly answers: Answers;
+}>({ byAnchor: new Map(), compared: false, answers: {} });
+
+const ANSWER_LABELS = { done: 'Done', answered: 'Answered', declined: 'Declined' } as const;
+
+const ClaudesAnswer = ({ answer }: { readonly answer: Answers[string] }) => (
+  <div
+    role="note"
+    className="claudes-answer"
+    aria-label={`Claude: ${ANSWER_LABELS[answer.status]}`}
+  >
+    <span className="draft-kind">{ANSWER_LABELS[answer.status]}</span>
+    {answer.status === 'done' && (
+      <>
+        {' '}
+        <Ref name={answer.commit} />
+      </>
+    )}
+    <p className="last-said">{answer.text}</p>
+  </div>
+);
+
 export const Said = (said: Marked) => {
-  const { kind, text, changedSince = [] } = said.comment;
+  const { kind, text, changedSince = [], anchor } = said.comment;
   const mark = markOf(said);
+  const answer = useContext(SaidOnThisPage).answers[anchorKey(anchor)];
   return (
     <>
       <span className="draft-kind">{kindLabels.get(kind)}</span>
@@ -39,6 +69,7 @@ export const Said = (said: Marked) => {
           ))}
         </ul>
       )}
+      {answer !== undefined && <ClaudesAnswer answer={answer} />}
     </>
   );
 };
@@ -50,23 +81,20 @@ const keyOf = ({ anchor, target }: PreviousComment) =>
       : anchor,
   );
 
-const SaidOnThisPage = createContext<{
-  readonly byAnchor: ReadonlyMap<string, PreviousComment>;
-  readonly compared: boolean;
-}>({ byAnchor: new Map(), compared: false });
-
 type LastSaidOnPageProps = {
   readonly since: SinceReview | undefined;
+  readonly answers: Answers | undefined;
   readonly children: ReactNode;
 };
 
-export const LastSaidOnPage = ({ since, children }: LastSaidOnPageProps) => {
+export const LastSaidOnPage = ({ since, answers, children }: LastSaidOnPageProps) => {
   const said = useMemo(
     () => ({
       byAnchor: new Map(since?.comments.map(comment => [keyOf(comment), comment])),
       compared: since !== undefined && 'changed' in since,
+      answers: answers ?? {},
     }),
-    [since],
+    [since, answers],
   );
   return <SaidOnThisPage.Provider value={said}>{children}</SaidOnThisPage.Provider>;
 };
