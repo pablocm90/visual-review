@@ -86,3 +86,23 @@ export const pathTo = (...commands: ReadonlyArray<string>) => {
   });
   return { path: bin, [Symbol.dispose]: () => rmSync(bin, { recursive: true, force: true }) };
 };
+
+export const layOutBareRepository = ({
+  directory,
+  monitorTouches,
+}: {
+  readonly directory: string;
+  readonly monitorTouches: string;
+}): void => {
+  const monitor = join(directory, 'monitor.sh');
+  mkdirSync(join(directory, 'objects'), { recursive: true });
+  mkdirSync(join(directory, 'refs'));
+  writeFileSync(join(directory, 'objects', '.keep'), '');
+  writeFileSync(join(directory, 'refs', '.keep'), '');
+  writeFileSync(join(directory, 'HEAD'), 'ref: refs/heads/main\n');
+  writeFileSync(monitor, `#!/bin/sh\ntouch ${monitorTouches}\n`, { mode: 0o755 });
+  writeFileSync(
+    join(directory, 'config'),
+    `[core]\n\trepositoryformatversion = 0\n\tbare = false\n\tworktree = .\n\tfsmonitor = ${monitor}\n`,
+  );
+};

@@ -1,13 +1,14 @@
 import { readdir, rm, stat } from 'node:fs/promises';
 import { join } from 'node:path';
-import { pageNameOf, pullRequestReviewsIn } from './last-review.ts';
+import { pageNameOf, pullRequestReviewsIn, reviewsDirectoryOf } from './last-review.ts';
 
 type PruneReviewsOptions = {
-  readonly directory: string;
+  readonly repo: string;
   readonly keep: number;
 };
 
-export const pruneReviews = async ({ directory, keep }: PruneReviewsOptions): Promise<void> => {
+export const pruneReviews = async ({ repo, keep }: PruneReviewsOptions): Promise<void> => {
+  const directory = reviewsDirectoryOf(repo);
   const pages = await Promise.all(
     (await readdir(directory))
       .filter(file => file.endsWith('.html'))
@@ -18,7 +19,7 @@ export const pruneReviews = async ({ directory, keep }: PruneReviewsOptions): Pr
   );
   const sorted = pages.toSorted((one, other) => other.writtenAt - one.writtenAt);
   const shown = new Set(sorted.slice(0, keep).map(({ name }) => name));
-  const reviews = await pullRequestReviewsIn(directory);
+  const reviews = await pullRequestReviewsIn(repo);
   const newest = new Set(
     [...Map.groupBy(reviews, ({ pullRequest }) => pullRequest).values()].map(
       ([review]) => review?.file,

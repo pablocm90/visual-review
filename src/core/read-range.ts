@@ -297,7 +297,7 @@ const symbolsIn = async ({
   };
 };
 
-const resolve = (repo: string, revision: string): Promise<string> =>
+export const resolve = (repo: string, revision: string): Promise<string> =>
   git(repo, 'rev-parse', '--verify', '--quiet', `${revision}^{commit}`).catch(() => {
     throw new Error(`Unknown revision: ${revision}`);
   });

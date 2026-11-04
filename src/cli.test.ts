@@ -19,6 +19,7 @@ import {
   commit,
   crateFiles,
   git,
+  layOutBareRepository,
   pathTo,
   writeFiles,
 } from './test-support/repos.ts';
@@ -270,6 +271,19 @@ test.for([
     expect(readFileSync(join(elsewhere, '.gitignore'), 'utf8')).toBe('mine\n');
   },
 );
+
+test('run from a folder the branch lays out as a bare repository, a review refuses it and its config runs nothing', async () => {
+  using workspace = cargoWorkspace();
+  const { repo } = workspace;
+  const planted = join(repo, 'planted');
+  const ran = join(repo, 'ran');
+  layOutBareRepository({ directory: planted, monitorTouches: ran });
+
+  const run = await runCli(planted);
+
+  expect(run.code).not.toBe(0);
+  expect(existsSync(ran)).toBe(false);
+}, 60_000);
 
 test('writing a page keeps .reviews/ to the 20 most recently written pages', async () => {
   using workspace = cargoWorkspace();
