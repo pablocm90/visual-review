@@ -216,11 +216,12 @@ export const ReviewTray = ({
   const preview = previewOf({ verdict, read, parts, ordered, answered, silent, nodes });
   const sendComments = () =>
     send({
-      version: 5,
+      version: 6,
       verdict,
       ...(hasBody ? { body } : {}),
       reviewed,
       read,
+      resolved: [],
       comments: written,
     }).then(
       () => setSent(true),

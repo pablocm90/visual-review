@@ -112,10 +112,11 @@ const write = async (user: ReturnType<typeof userEvent.setup>, box: HTMLElement,
 };
 
 const sentReview = (sent: Partial<Review>): Review => ({
-  version: 5,
+  version: 6,
   verdict: 'comment',
   reviewed: { range: review.range },
   read: [],
+  resolved: [],
   comments: [],
   ...sent,
 });

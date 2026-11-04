@@ -2,10 +2,15 @@ import { expect, test } from 'vitest';
 import { parseReview, pastReviewOf } from './review.ts';
 
 const reviewWith = (verdict = 'request-changes') => ({
-  version: 5,
+  version: 6,
   verdict,
   reviewed: { range: 'a1b2c3d..e4f5a6b', pullRequest: 16 },
   read: ['web/file/App.tsx', 'rust/crate/domain'],
+  resolved: [
+    { kind: 'symbol', id: 'web/file/App.tsx#App.load' },
+    { kind: 'line', id: 'web/file/App.tsx@base:12', text: 'if (!open) return' },
+    { kind: 'finding', id: 'metrics:cyclomatic:web/file/App.tsx' },
+  ],
   comments: [
     {
       anchor: { kind: 'part', id: 'web/file/App.tsx' },
@@ -75,8 +80,8 @@ test.for([
   { problem: 'has no version', text: '{ "comments": [] }', reason: 'no "version"' },
   {
     problem: 'has a version this one does not read',
-    text: '{ "version": 4, "comments": {} }',
-    reason: 'version 4 is unknown; this visual-review reads version 5',
+    text: '{ "version": 5, "comments": {} }',
+    reason: 'version 5 is unknown; this visual-review reads version 6',
   },
   {
     problem: 'has a key no review has',
@@ -107,6 +112,16 @@ test.for([
     problem: 'does not say which parts were read',
     text: JSON.stringify({ ...reviewWith(), read: undefined }),
     reason: 'read',
+  },
+  {
+    problem: 'does not say which comments were resolved',
+    text: JSON.stringify({ ...reviewWith(), resolved: undefined }),
+    reason: 'resolved',
+  },
+  {
+    problem: 'resolves what no anchor names',
+    text: JSON.stringify({ ...reviewWith(), resolved: [{ kind: 'file', id: 'a.ts' }] }),
+    reason: 'resolved',
   },
   {
     problem: 'has a verdict the page does not offer',

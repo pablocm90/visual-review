@@ -303,10 +303,11 @@ test("serve loads no reader or linker, so it starts without paying for their par
 });
 
 const reviewWith = (comments: Review['comments']): Review => ({
-  version: 5,
+  version: 6,
   verdict: 'comment',
   reviewed: { range: 'abc123..def456' },
   read: [],
+  resolved: [],
   comments,
 });
 
@@ -314,11 +315,12 @@ test('a review sent from the served page is written beside it as <name>.review.j
   using server = await servedPage();
   const { origin, pathname } = new URL(server.url);
   const review = {
-    version: 5,
+    version: 6,
     verdict: 'comment',
     body: 'The fetch belongs in AppInfo; the rest reads well.',
     reviewed: { range: 'abc123..def456', pullRequest: 16 },
     read: ['web/file/AppInfo.tsx'],
+    resolved: [],
     comments: [
       {
         anchor: { kind: 'part', id: 'web/file/App.tsx' },
@@ -364,7 +366,7 @@ test('a review the page could not have sent is refused with 400 naming the probl
 
   expect(response.status).toBe(400);
   expect(await response.text()).toBe(
-    'Invalid review: version 4 is unknown; this visual-review reads version 5',
+    'Invalid review: version 4 is unknown; this visual-review reads version 6',
   );
   expect(await statusFor({ url: server.url })).toBe(200);
 });

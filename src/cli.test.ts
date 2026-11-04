@@ -216,10 +216,11 @@ test("a PR's next round lists what changed since its last review, a merge of the
   writeFileSync(
     join(pr.clone, '.reviews', `${firstRange}.review.json`),
     JSON.stringify({
-      version: 5,
+      version: 6,
       verdict: 'request-changes',
       reviewed: { range: firstRange, pullRequest: 7 },
       read: [],
+      resolved: [],
       comments: [],
     }),
   );
