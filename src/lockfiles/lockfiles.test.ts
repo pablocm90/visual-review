@@ -2,6 +2,7 @@ import { describe, expect, test } from 'vitest';
 import type { Lockfile } from '../core/lockfile.ts';
 import { bundlerLockfile } from './bundler.ts';
 import { cargoLockfile } from './cargo.ts';
+import { pnpmLockfile } from './pnpm.ts';
 
 const reading = (lockfile: Lockfile, text: string) => {
   const { versions, direct } = lockfile.read({ text, manifests: [] });
@@ -233,5 +234,114 @@ DEPENDENCIES
 
   test('a text with no dependencies section is not read, and the message quotes none of it', () => {
     expect(() => read('../shared/Gemfile.lock')).toThrow(/^Gemfile\.lock format not recognised$/);
+  });
+});
+
+describe('pnpm-lock.yaml', () => {
+  const read = (text: string) => reading(pnpmLockfile, text);
+  const lock = (importers: string, packages: string) => `lockfileVersion: '9.0'
+
+settings:
+  autoInstallPeers: true
+
+importers:
+
+${importers}
+
+packages:
+
+${packages}
+
+snapshots:
+
+  ignored@9.9.9: {}
+`;
+
+  test('locks its packages, and what any importer declares is direct', () => {
+    expect(
+      read(
+        lock(
+          `  .:
+    dependencies:
+      remeda:
+        specifier: ^2.51.0
+        version: 2.51.0
+    devDependencies:
+      '@biomejs/biome':
+        specifier: ^2.5.15
+        version: 2.5.15(typescript@7.0.2)
+
+  e2e:
+    optionalDependencies:
+      fsevents:
+        specifier: ^2.3.3
+        version: 2.3.3
+    dependenciesMeta:
+      notdeclared:
+        injected: true
+    publishDirectory: dist`,
+          `  '@biomejs/biome@2.5.15':
+    resolution: {integrity: sha512-a==}
+    engines: {node: '>=14.21.3'}
+
+  fsevents@2.3.3:
+    resolution: {integrity: sha512-b==}
+
+  'url-tarball@https://example.com/a@b.tgz':
+    resolution: {integrity: sha512-c==, tarball: https://example.com/a@b.tgz}
+
+  remeda@2.51.0:
+    resolution: {integrity: sha512-d==}
+
+  remeda@1.61.0:
+    resolution: {integrity: sha512-e==}`,
+        ),
+      ),
+    ).toEqual({
+      versions: {
+        '@biomejs/biome': ['2.5.15'],
+        fsevents: ['2.3.3'],
+        remeda: ['1.61.0', '2.51.0'],
+        'url-tarball': ['https://example.com/a@b.tgz'],
+      },
+      direct: ['@biomejs/biome', 'fsevents', 'remeda'],
+    });
+  });
+
+  test('an alias reads by its real name, and a link is not a declared package', () => {
+    expect(
+      read(
+        lock(
+          `  .:
+    dependencies:
+      '@scoped/alias':
+        specifier: npm:@real/scoped@^1.0.0
+        version: '@real/scoped@1.0.0(react@19.3.0)'
+      sibling:
+        specifier: workspace:*
+        version: link:../sibling
+      string-width-cjs:
+        specifier: npm:string-width@^4.2.0
+        version: string-width@4.2.3`,
+          `  '@real/scoped@1.0.0':
+    resolution: {integrity: sha512-a==}
+
+  sibling@1.0.0:
+    resolution: {integrity: sha512-b==}
+
+  string-width@4.2.3:
+    resolution: {integrity: sha512-c==}`,
+        ),
+      ).direct,
+    ).toEqual(['@real/scoped', 'string-width']);
+  });
+
+  test.for([
+    { what: 'a symlink', text: '../shared/pnpm-lock.yaml', format: 'format not recognised' },
+    { what: 'pnpm 6', text: "lockfileVersion: '6.0'\n", format: 'lockfile version 6' },
+    { what: 'pnpm 5', text: 'lockfileVersion: 5.4\n', format: 'lockfile version 5' },
+    { what: 'a later pnpm', text: "lockfileVersion: '10.0'\n", format: 'lockfile version 10' },
+  ])('$what is not read, naming its format', ({ text, format }) => {
+    expect(() => read(text)).toThrow(`pnpm-lock.yaml ${format}`);
   });
 });
