@@ -12,7 +12,7 @@ type Rule = (call: {
   readonly args: ReadonlyArray<Node>;
 }) => ReadonlyArray<Risky>;
 
-const MIGRATION_FILE = /(^|\/)db\/(\w+_)?migrate\/(.*\/)?\d+_[^/]*\.rb$/;
+const MIGRATION_FILE = /(?:^|\/)db\/(?:\w+_)?migrate\/(?:.*\/)?(\d+)_[^/]*\.rb$/;
 
 const REWRITES =
   'A type change can rewrite the table under a lock, and running code expects the old type.';
@@ -216,6 +216,7 @@ const risksOf =
 export const railsMigrations: MigrationReader = {
   holds: path =>
     MIGRATION_FILE.test(path) && !path.split('/').some(folder => NOT_SEARCHED.has(folder)),
+  version: path => MIGRATION_FILE.exec(path)?.[1],
   risks: text => {
     const program = parseRuby(text);
     if (program === undefined || program.hasError) throw new Error('Ruby syntax error');

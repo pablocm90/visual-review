@@ -6,5 +6,6 @@ export type MigrationRisk = {
 
 export type MigrationReader = {
   readonly holds: (path: string) => boolean;
+  readonly version: (path: string) => string | undefined;
   readonly risks: (text: string) => ReadonlyArray<MigrationRisk>;
 };

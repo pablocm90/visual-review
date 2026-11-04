@@ -13,6 +13,11 @@ type ReadMigrationsOptions = {
   readonly migrations: ReadonlyArray<MigrationReader>;
 };
 
+const keepsItsVersion = (
+  [from = '', to = '']: ReadonlyArray<string>,
+  reader: MigrationReader,
+): boolean => reader.holds(from) && reader.version(from) === reader.version(to);
+
 export const readMigrations = async ({
   repo,
   base,
@@ -33,7 +38,7 @@ export const readMigrations = async ({
     changes.map(async paths => {
       const file = paths.at(-1) ?? '';
       const reader = migrations.find(({ holds }) => holds(file));
-      if (reader === undefined) return [];
+      if (reader === undefined || keepsItsVersion(paths, reader)) return [];
       return (await atBase(file)) ? [] : [await readingOf(file, reader)];
     }),
   );

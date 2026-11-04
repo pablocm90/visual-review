@@ -54,6 +54,31 @@ test('a renamed migration counts as added: its version is new', async () => {
   expect(migrations).toStrictEqual([{ file: renamed, risks: [REMOVAL] }]);
 });
 
+test('a migration moved with its version kept has already run, so it is not read', async () => {
+  const written = migration('remove_column :users, :name');
+  using workspace = gitRepo({ [FILE]: written });
+  const { repo, root } = workspace;
+  git(repo, 'rm', '-q', FILE);
+  const to = commit(repo, { 'db/primary_migrate/20260101000000_strip_all_users.rb': written });
+
+  const { migrations } = await readRange({ repo, from: root, to });
+
+  expect(migrations).toStrictEqual([]);
+});
+
+test('a file that was no migration, moved in with its number kept, is read', async () => {
+  const vendored = 'vendor/db/migrate/20260101000000_strip_users.rb';
+  const written = migration('remove_column :users, :name');
+  using workspace = gitRepo({ [vendored]: written });
+  const { repo, root } = workspace;
+  git(repo, 'rm', '-q', vendored);
+  const to = commit(repo, { [FILE]: written });
+
+  const { migrations } = await readRange({ repo, from: root, to });
+
+  expect(migrations).toStrictEqual([{ file: FILE, risks: [REMOVAL] }]);
+});
+
 test('an added file that is no migration is not read', async () => {
   using workspace = gitRepo({ 'README.md': 'app' });
   const { repo, root } = workspace;
