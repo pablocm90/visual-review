@@ -4532,3 +4532,50 @@ test('a draft in the open tray goes to the tab it was written on, though the ins
     ),
   ).toHaveProperty('value', 'On the line.');
 });
+
+test('the unchanged symbols open by themselves when one holds a draft', async () => {
+  const user = userEvent.setup();
+  render(
+    <ReviewPage
+      review={pageWith({
+        range: review.range,
+        diff: {
+          nodes: [
+            { id: 'web', kind: 'stack', label: 'web', path: '', state: 'unchanged' },
+            topFile('tax.ts', 'modified'),
+          ],
+          edges: [],
+        },
+        symbols: [
+          symbolsOf('web/file/tax.ts', [
+            {
+              name: 'tax',
+              kind: 'function',
+              exported: { base: false, head: false },
+              change: 'edited',
+            },
+            {
+              name: 'round',
+              kind: 'function',
+              exported: { base: false, head: false },
+              change: 'unchanged',
+            },
+          ]),
+        ],
+      })}
+      send={vi.fn(async () => {})}
+    />,
+  );
+  const unchanged = () => within(symbolsTab()).getByRole('group');
+
+  await user.click(await screen.findByRole('button', { name: 'tax.ts: modified' }));
+  await user.click(within(inspector()).getByRole('tab', { name: /^Symbols/ }));
+  expect(unchanged().hasAttribute('open')).toBe(false);
+  await user.click(within(symbolsTab()).getByText('1 unchanged'));
+  await user.click(within(symbolsTab()).getByRole('button', { name: 'Comment on function round' }));
+  await user.type(within(symbolsTab()).getByRole('textbox', { name: 'Your comment' }), 'Why not?');
+  await user.click(within(inspector()).getByRole('tab', { name: 'Note' }));
+  await user.click(within(inspector()).getByRole('tab', { name: /^Symbols/ }));
+
+  expect(unchanged().hasAttribute('open')).toBe(true);
+});

@@ -9,6 +9,7 @@ import {
   type SymbolStatement,
 } from '../core/symbol-changes.ts';
 import { decisionsOf } from '../core/symbol-findings.ts';
+import { anchorKey } from './anchors.ts';
 import { CommentOn, type Comments } from './comment-field.tsx';
 
 type Group = readonly [string, (symbol: SymbolStatement) => boolean];
@@ -48,6 +49,8 @@ type Places = {
   readonly comments: Comments;
   readonly onComment: ((comment: Comment) => void) | undefined;
 };
+
+const symbolId = (node: string, symbol: SymbolStatement): string => `${node}#${qualified(symbol)}`;
 
 const labelOf = (nodes: ReadonlyArray<DiffedNode>, id: string): string | undefined =>
   nodes.find(node => node.id === id)?.label;
@@ -201,7 +204,7 @@ const SymbolList = ({
         {places.onComment && (
           <CommentOn
             name={`${symbol.kind} ${qualified(symbol)}`}
-            anchor={{ kind: 'symbol', id: `${node}#${qualified(symbol)}` }}
+            anchor={{ kind: 'symbol', id: symbolId(node, symbol) }}
             comments={places.comments}
             onComment={places.onComment}
           />
@@ -240,7 +243,14 @@ const SymbolFiles = ({ file, ...places }: Places & { readonly file: SymbolFile }
             ];
       })}
       {quiet.length > 0 && (
-        <details className="symbol-group">
+        <details
+          className="symbol-group"
+          open={quiet.some(
+            symbol =>
+              places.comments[anchorKey({ kind: 'symbol', id: symbolId(file.node, symbol) })] !==
+              undefined,
+          )}
+        >
           <summary>{quiet.length} unchanged</summary>
           <SymbolList node={file.node} title="Unchanged" symbols={quiet} {...places} />
         </details>
