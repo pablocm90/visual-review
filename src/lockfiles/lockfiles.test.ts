@@ -237,6 +237,26 @@ DEPENDENCIES
   test('a text with no dependencies section is not read, and the message quotes none of it', () => {
     expect(() => read('../shared/Gemfile.lock')).toThrow(new Error('format not recognised'));
   });
+
+  test.for([
+    { form: 'no version, which Bundler locks at 0', spec: 'hidden' },
+    {
+      form: 'two spaces before its version, which Bundler keeps in its name',
+      spec: 'hidden  (1.0.0)',
+    },
+    { form: 'text after its version', spec: 'hidden (1.0.0) x' },
+  ])('a spec line with $form is not read, not skipped', ({ spec }) => {
+    expect(() =>
+      read(`GEM
+  remote: https://rubygems.org/
+  specs:
+    ${spec}
+
+DEPENDENCIES
+  faraday
+`),
+    ).toThrow(new Error('format not recognised'));
+  });
 });
 
 describe('pnpm-lock.yaml', () => {
