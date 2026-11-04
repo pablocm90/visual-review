@@ -5367,6 +5367,66 @@ const openUndrawnFiles = async (user: ReturnType<typeof userEvent.setup>) => {
   );
 };
 
+const pageWithLockfile = (place: 'undrawn' | 'patches', path: string) =>
+  pageWith({
+    ...review,
+    undrawn: [{ path: 'README.md', patch: '--- a/README.md\n+++ b/README.md\n@@ -1 +1 @@\n-a\n+b' }],
+    [place]: [{ path, patch: `--- a/${path}\n+++ b/${path}\n@@ -1 +1 @@\n-old\n+new` }],
+    findings: [
+      {
+        id: `dependencies:${path}:zod`,
+        dimension: 'dependencies',
+        level: 'look',
+        file: path,
+        title: 'zod 3.25.0 → 4.6.7',
+        detail: path,
+      },
+    ],
+  });
+
+test("a dependencies finding opens its lockfile's patch among the files outside the graph, at its top, and closing them hands the keyboard focus back", async () => {
+  const user = userEvent.setup();
+  render(<ReviewPage review={pageWithLockfile('undrawn', 'pnpm-lock.yaml')} />);
+
+  await user.click(await screen.findByRole('button', { name: 'Show 1 finding' }));
+  const finding = () =>
+    within(screen.getByRole('complementary', { name: 'Findings' })).getByRole('button', {
+      name: 'pnpm-lock.yaml: zod 3.25.0 → 4.6.7',
+    });
+  await user.click(finding());
+
+  expect(within(inspector()).getByRole('heading', { level: 2 }).textContent).toBe(
+    'Changed files outside the graph',
+  );
+  const patch = within(inspector()).getByRole('group', { name: 'pnpm-lock.yaml' });
+  expect(patch.hasAttribute('open')).toBe(true);
+  expect(scrolledIntoView.mock.contexts).toContain(patch);
+
+  await user.click(within(inspector()).getByRole('button', { name: 'Close inspector' }));
+  expect(document.activeElement).toBe(finding());
+});
+
+test("a dependencies finding opens its lockfile's patch on the Diff tab of the node holding it, at its top", async () => {
+  const user = userEvent.setup();
+  const path = 'crates/application/Cargo.lock';
+  render(<ReviewPage review={pageWithLockfile('patches', path)} />);
+
+  await user.click(await screen.findByRole('button', { name: 'Show 1 finding' }));
+  await user.click(
+    within(screen.getByRole('complementary', { name: 'Findings' })).getByRole('button', {
+      name: `${path}: zod 3.25.0 → 4.6.7`,
+    }),
+  );
+
+  expect(within(inspector()).getByRole('heading', { level: 2 }).textContent).toBe('application');
+  expect(within(inspector()).getByRole('tab', { name: 'Diff' }).getAttribute('aria-selected')).toBe(
+    'true',
+  );
+  const patch = within(inspector()).getByRole('group', { name: path });
+  expect(patch.hasAttribute('open')).toBe(true);
+  expect(scrolledIntoView.mock.contexts).toContain(patch);
+});
+
 test("a served page's line in a file outside the graph takes a comment, named by its path", async () => {
   const user = userEvent.setup();
   const sent = vi.fn(async () => {});

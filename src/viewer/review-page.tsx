@@ -12,7 +12,7 @@ import {
   useState,
 } from 'react';
 import type { DiffedNode, FilePatch, GraphDiff } from '../core/diff-graphs.ts';
-import { isAtOrUnder } from '../core/diff-graphs.ts';
+import { deepestHolding, isAtOrUnder } from '../core/diff-graphs.ts';
 import { type Dimension, type Finding, findingsAt, findingsOf } from '../core/findings.ts';
 import { edgeId } from '../core/graph.ts';
 import { type MetricFinding, metricFindings } from '../core/metric-findings.ts';
@@ -460,7 +460,7 @@ const Scoped = ({ scopes: [scope, ...inner], text }: Piece) =>
 
 type Landing = Omit<LineAt, 'node'>;
 
-type LandingIn = Landing & { readonly path: string | undefined };
+type LandingIn = Partial<Landing> & { readonly path: string | undefined };
 
 const scrollInPanel = (element: HTMLElement, block: ScrollLogicalPosition) => {
   const { scrollX, scrollY } = window;
@@ -468,8 +468,8 @@ const scrollInPanel = (element: HTMLElement, block: ScrollLogicalPosition) => {
   window.scrollTo(scrollX, scrollY);
 };
 
-const isLandedOn = (line: Line, landing: Landing | undefined): boolean =>
-  landing !== undefined && line[landing.side] === landing.line;
+const isLandedOn = (line: Line, landing: Partial<Landing> | undefined): boolean =>
+  landing?.side !== undefined && line[landing.side] === landing.line;
 
 type LineComments = {
   readonly nodes: ReadonlyArray<DiffNode>;
@@ -487,7 +487,7 @@ const PatchLine = ({
 }: LineComments & {
   readonly path: string;
   readonly line: Line;
-  readonly landing: Landing | undefined;
+  readonly landing: Partial<Landing> | undefined;
 }) => {
   const { kind, prefix, pieces } = line;
   const anchor = lineAnchor({ path, line });
@@ -1462,6 +1462,12 @@ export const ReviewPage = ({ review, notes, send }: ReviewPageProps) => {
     setInspectorTab(inspect);
     goToOnStructure(id);
   };
+  const showFile = (path: string, opener: HTMLButtonElement) => {
+    const holder = deepestHolding(path, review.diff.nodes);
+    landOn(holder?.id ?? null, { path });
+    if (holder) goToOnTab(holder.id, 'diff');
+    else showOutside(opener);
+  };
   const [read, setRead] = useState(() => storedReadMarks(review.range));
   useEffect(() => storeReadMarks(review.range, read), [review.range, read]);
   const walk = (step: number) => {
@@ -1520,6 +1526,7 @@ export const ReviewPage = ({ review, notes, send }: ReviewPageProps) => {
                 review={review}
                 onGoTo={goTo}
                 onShowOutside={showOutside}
+                onShowFile={showFile}
                 answers={answers}
                 onAnswer={answer}
               />
@@ -1533,6 +1540,7 @@ export const ReviewPage = ({ review, notes, send }: ReviewPageProps) => {
                 review={review}
                 onGoTo={goTo}
                 onShowOutside={showOutside}
+                onShowFile={showFile}
               />
               <div className="graph-controls">
                 <ColourBy colouring={colouring} onPick={setColouring} />
