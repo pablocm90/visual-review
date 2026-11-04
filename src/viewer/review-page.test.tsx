@@ -5299,3 +5299,37 @@ test('the tray goes to a draft on a line outside the graph from any screen, open
   expect(within(inspector()).getByRole('insertion', { current: false })).toBeDefined();
   expect(scrolledIntoView).not.toHaveBeenCalled();
 });
+
+test("going to a line's draft shows its hidden field, and leaves hidden the one on the row it left", async () => {
+  const user = userEvent.setup();
+  render(
+    <ReviewPage
+      review={pageWithPatch('@@ -1 +1 @@', '-const x = 1;', '+const x = 2;')}
+      send={vi.fn(async () => {})}
+    />,
+  );
+  const removed = 'x.ts:1 "const x = 1;"';
+  const added = 'x.ts:1 "const x = 2;"';
+  const goToDraft = (name: string) =>
+    user.click(within(screen.getByRole('list', { name: 'Drafts' })).getByRole('button', { name }));
+  const toggle = (name: string) =>
+    user.click(within(diffTab()).getByRole('button', { name: `Comment on ${name}` }));
+
+  await user.click(await screen.findByRole('button', { name: 'x.ts: modified' }));
+  await user.click(within(inspector()).getByRole('tab', { name: 'Diff' }));
+  await toggle(removed);
+  await write(user, within(diffTab()).getByRole('textbox', { name: 'Your comment' }), 'Why 1?');
+  await toggle(removed);
+  await toggle(added);
+  await write(user, within(diffTab()).getByRole('textbox', { name: 'Your comment' }), 'Why 2?');
+  await toggle(added);
+  await openReview(user);
+
+  await goToDraft(removed);
+  const field = () => within(diffTab()).getByRole('textbox', { name: 'Your comment' });
+  expect(field()).toHaveProperty('value', 'Why 1?');
+
+  await toggle(removed);
+  await goToDraft(added);
+  expect(field()).toHaveProperty('value', 'Why 2?');
+});

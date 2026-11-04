@@ -502,6 +502,7 @@ const PatchLine = ({
           name={anchorName(anchor, nodes)}
           comments={comments}
           onComment={onComment}
+          landing={isLandedOn(line, landing) ? landing : undefined}
         />
       )}
     </>
