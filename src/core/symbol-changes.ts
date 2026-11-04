@@ -133,14 +133,17 @@ const turnedSymbols = (
   unpaired: ReadonlyArray<ReadSymbol>,
   newcomers: ReadonlyArray<ReadSymbol>,
 ): ReadonlyMap<ReadSymbol, ReadSymbol> =>
-  newcomers.reduce<ReadonlyMap<ReadSymbol, ReadSymbol>>((turned, symbol) => {
-    const taken = new Set(turned.values());
-    const former = unpaired.find(
-      candidate =>
-        !taken.has(candidate) && samePlace(candidate, symbol) && turnedInto(candidate, symbol),
-    );
-    return former === undefined ? turned : new Map([...turned, [symbol, former]]);
-  }, new Map());
+  new Map(
+    newcomers.reduce<ReadonlyArray<readonly [ReadSymbol, ReadSymbol]>>((turned, symbol) => {
+      const former = unpaired.find(
+        candidate =>
+          !turned.some(([, taken]) => taken === candidate) &&
+          samePlace(candidate, symbol) &&
+          turnedInto(candidate, symbol),
+      );
+      return former === undefined ? turned : turned.concat([[symbol, former]]);
+    }, []),
+  );
 
 export const symbolChanges = ({ before, after }: SymbolChangesOptions): SymbolChanges => {
   const unpaired = before.symbols.filter(
