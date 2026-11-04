@@ -5283,4 +5283,11 @@ test('the tray goes to a draft on a line outside the graph from any screen, open
 
   await user.click(within(inspector()).getByRole('button', { name: 'Close inspector' }));
   expect(document.activeElement).toBe(draft());
+
+  scrolledIntoView.mockClear();
+  await user.click(
+    screen.getByRole('button', { name: 'README.md: 1 changed file outside the graph' }),
+  );
+  expect(within(inspector()).getByRole('insertion', { current: false })).toBeDefined();
+  expect(scrolledIntoView).not.toHaveBeenCalled();
 });

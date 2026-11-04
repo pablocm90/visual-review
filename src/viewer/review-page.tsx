@@ -622,13 +622,12 @@ const DRAFT_TABS: Partial<Record<Comment['anchor']['kind'], InspectorTab>> = {
 
 const tabOfDraft = ({ kind }: Comment['anchor']): InspectorTab => DRAFT_TABS[kind] ?? 'note';
 
-const useLanding = (selected: string | undefined) => {
-  const [landed, setLanded] = useState<LandingIn & { readonly on: string | undefined }>();
-  if (landed !== undefined && landed.on !== selected) setLanded(undefined);
-  return [
-    landed,
-    (on: string | undefined, landing: LandingIn) => setLanded({ ...landing, on }),
-  ] as const;
+type LandingPlace = string | null | undefined;
+
+const useLanding = (place: LandingPlace) => {
+  const [landed, setLanded] = useState<LandingIn & { readonly on: LandingPlace }>();
+  if (landed !== undefined && landed.on !== place) setLanded(undefined);
+  return [landed, (on: LandingPlace, landing: LandingIn) => setLanded({ ...landing, on })] as const;
 };
 
 const useInspectorTab = (screen: string, selected: string | undefined) => {
@@ -1378,7 +1377,7 @@ export const ReviewPage = ({ review, notes, send }: ReviewPageProps) => {
     goTo(id);
   };
   const [inspectorTab, setInspectorTab] = useInspectorTab(tab, selected);
-  const [landing, landOn] = useLanding(selected);
+  const [landing, landOn] = useLanding(outside ? null : selected);
   const goToOnTab = (id: string, inspect: InspectorTab) => {
     setInspectorTab(inspect);
     goToOnStructure(id);
@@ -1591,7 +1590,7 @@ export const ReviewPage = ({ review, notes, send }: ReviewPageProps) => {
             goToOnTab(id, tabOfDraft(anchor));
           }}
           onGoToOutside={(place, opener) => {
-            landOn(undefined, place);
+            landOn(null, place);
             location.hash = '#structure';
             showOutside(opener);
           }}
