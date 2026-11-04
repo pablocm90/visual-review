@@ -23,6 +23,8 @@ test.for([
   { move: 'between non-numeric versions', from: 'abc123', to: 'def456' },
   { move: 'between hashes that start alike', from: '1abc', to: '1def' },
   { move: 'from an all-zero version', from: '0.0.0', to: '0.0.1' },
+  { move: 'between 0.x versions with letters in their numbers', from: '0.1a', to: '0.9b' },
+  { move: 'between non-numeric versions after a 0', from: '0.abc', to: '0.def' },
 ])('a bump $move is major', ({ from, to }) => {
   expect(changeOf([from], [to])).toEqual(['major']);
 });

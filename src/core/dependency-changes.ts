@@ -14,7 +14,7 @@ type PackageChangesOptions = {
 };
 
 const lineOf = (version: string): string =>
-  version.match(/^(?:0+\.)*(?:[1-9]\d*|0+)(?=$|[.+-])/)?.[0] ?? version;
+  version.match(/^(?:0+\.)*(?:[1-9]\d*(?=$|[.+-])|0+(?=$|[+-]))/)?.[0] ?? version;
 
 const linesOf = (versions: ReadonlyArray<string>): string =>
   [...new Set(versions.map(lineOf))].toSorted().join(' ');
