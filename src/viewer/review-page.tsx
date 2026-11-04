@@ -576,6 +576,18 @@ type InspectorProps = {
 
 type InspectorTab = 'note' | 'metrics' | 'diff' | 'tests' | 'symbols';
 
+const tabOfDraft = ({ kind }: Comment['anchor']): InspectorTab =>
+  kind === 'symbol' || kind === 'decision' ? 'symbols' : 'note';
+
+const useInspectorTab = (screen: string, node: DiffedNode | undefined) => {
+  const [inspectorTab, setInspectorTab] = useState<InspectorTab>('note');
+  const inspecting = screen === 'structure' && node !== undefined;
+  useEffect(() => {
+    if (!inspecting) setInspectorTab('note');
+  }, [inspecting]);
+  return [inspectorTab, setInspectorTab] as const;
+};
+
 const INSPECTOR_TABS: Readonly<Record<InspectorTab, string>> = {
   note: 'Note',
   metrics: 'Metrics',
@@ -1287,18 +1299,9 @@ export const ReviewPage = ({ review, notes, send }: ReviewPageProps) => {
     location.hash = '#structure';
     goTo(id);
   };
-  const [inspectorTab, setInspectorTab] = useState<InspectorTab>('note');
-  const inspecting = tab === 'structure' && selectedNode !== undefined;
-  useEffect(() => {
-    if (!inspecting) setInspectorTab('note');
-  }, [inspecting]);
-  const goToOnNote = (id: string) => {
-    setInspectorTab('note');
-    goToOnStructure(id);
-  };
-  const goToDraft = (id: string, { kind }: Comment['anchor']) => {
-    if (kind !== 'symbol' && kind !== 'decision') return goToOnNote(id);
-    setInspectorTab('symbols');
+  const [inspectorTab, setInspectorTab] = useInspectorTab(tab, selectedNode);
+  const goToOnTab = (id: string, inspect: InspectorTab) => {
+    setInspectorTab(inspect);
     goToOnStructure(id);
   };
   const [read, setRead] = useState(() => storedReadMarks(review.range));
@@ -1497,8 +1500,8 @@ export const ReviewPage = ({ review, notes, send }: ReviewPageProps) => {
           answers={answers}
           findings={findings}
           nodes={review.diff.nodes}
-          onGoTo={goToOnNote}
-          onGoToDraft={goToDraft}
+          onGoTo={id => goToOnTab(id, 'note')}
+          onGoToDraft={(id, anchor) => goToOnTab(id, tabOfDraft(anchor))}
           send={send}
         />
       )}
