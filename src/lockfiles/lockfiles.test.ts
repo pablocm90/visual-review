@@ -1,5 +1,6 @@
 import { describe, expect, test } from 'vitest';
 import type { Lockfile } from '../core/lockfile.ts';
+import { bundlerLockfile } from './bundler.ts';
 import { cargoLockfile } from './cargo.ts';
 
 const reading = (lockfile: Lockfile, text: string) => {
@@ -104,5 +105,75 @@ ${registry}
     { what: 'an empty file', text: '' },
   ])('$what is not read, and the message quotes none of it', ({ text }) => {
     expect(() => read(text)).toThrow(/^Cargo\.lock format not recognised$/);
+  });
+});
+
+describe('Gemfile.lock', () => {
+  const read = (text: string) => reading(bundlerLockfile, text);
+
+  test('locks the gems of its remote sources, each platform of one as one version', () => {
+    expect(
+      read(`GIT
+  remote: https://example.com/ponto.git
+  revision: abc123
+  specs:
+    ponto (2.1.0)
+      faraday (>= 1.0)
+
+PATH
+  remote: engines/billing
+  specs:
+    billing (0.3.0)
+      nokogiri
+
+GEM
+  remote: https://rubygems.org/
+  specs:
+    faraday (2.14.0)
+    nokogiri (1.19.4)
+    nokogiri (1.19.4-aarch64-linux-gnu)
+    nokogiri (1.19.4-java)
+    rspec-rails (8.0.0.rc1)
+
+PLUGIN SOURCE
+  remote: https://example.com/plugin
+  type: example
+  specs:
+    plugged (1.2.0)
+
+PLATFORMS
+  ruby
+  x86_64-linux
+
+DEPENDENCIES
+  billing!
+  nokogiri (>= 1.18)
+  ponto!
+  rspec-rails
+
+CHECKSUMS
+  faraday (2.14.0) sha256=abc
+    unchecked (9.9.9)
+
+RUBY VERSION
+   ruby 3.3.5p100
+
+BUNDLED WITH
+   2.6.2
+`),
+    ).toEqual({
+      versions: {
+        faraday: ['2.14.0'],
+        nokogiri: ['1.19.4'],
+        plugged: ['1.2.0'],
+        ponto: ['2.1.0'],
+        'rspec-rails': ['8.0.0.rc1'],
+      },
+      direct: ['billing', 'nokogiri', 'ponto', 'rspec-rails'],
+    });
+  });
+
+  test('a text with no dependencies section is not read, and the message quotes none of it', () => {
+    expect(() => read('../shared/Gemfile.lock')).toThrow(/^Gemfile\.lock format not recognised$/);
   });
 });
