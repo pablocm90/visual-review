@@ -88,6 +88,16 @@ _In code_: `ReviewTray` (`src/viewer/review-tray.tsx`)
 The verdict the drafts point to: Request changes once any is a Change this or a Fix this, else Comment once any is a Question or an Explain, else Approve. The tray picks it until the reviewer picks one, which then holds.
 _Avoid_: default verdict, auto verdict
 
+**Round**:
+One pass of a reviewer over a pull request, ending in a review sent from its page. The next round is the same pull request at another head, with an earlier review to compare against. Reviews of ranges and uncommitted work have no next round.
+_Avoid_: iteration, pass, cycle
+_In code_: `PageData.sinceReview`
+
+**Changed since**:
+What differs between the head last reviewed and the new head, in the paths the pull request itself changes, so a merge of its base branch counts only where it touches one of them. When the commit last reviewed can't be read there is nothing to compare, and the full review is shown.
+_Avoid_: new changes, delta
+_In code_: `ChangedSince`, `sinceReviewOf` (`src/core/since-review.ts`); `sinceLastReview` (`visible-diff.ts`)
+
 ## Relationships
 
 - A **fact** may raise **findings**; a **finding** is never the only record of a fact.
@@ -97,6 +107,7 @@ _Avoid_: default verdict, auto verdict
 - **Look first** holds only findings whose **level** is "needs a look".
 - A changed exported **symbol** raises a **finding** in the api dimension, under that symbol's id; a file's **kind of change** raises none of its own.
 - A review holds at most one comment or **finding answer** per **anchor**, and each comment has one **comment kind**; the **suggested verdict** follows the kinds and the answers, and the verdict the reviewer picks overrides it.
+- A **round** after the first compares against the newest review of its pull request at another head; **changed since** is always a subset of what the pull request changes at either head, so a part it has reverted counts.
 - A **flag** is answered like any other **finding**, under the id `notes:<node or edge id>`.
 - A removed guard or catch **logic line** raises a **finding** in the logic dimension that needs a look; a function's other **logic lines** that changed raise one for information; a file with either and no test changed alongside it raises one in the tests dimension.
 

@@ -16,6 +16,7 @@ import {
 } from './core/page.ts';
 import { readRange } from './core/read-range.ts';
 import { notReadLine } from './core/skipped.ts';
+import { lastReviewOf } from './git/last-review.ts';
 import { onPath } from './git/on-path.ts';
 import { pruneReviews } from './git/prune-reviews.ts';
 import { readPullRequest } from './git/pull-request.ts';
@@ -133,7 +134,17 @@ const writeReview = async (args: ReadonlyArray<string>): Promise<string> => {
     return page;
   }
   const { linkers, readers } = await import('./adapters.ts');
-  const reading = await readRange({ repo, ...revisions, readers, linkers, onPath });
+  const reviewed =
+    pullRequest &&
+    (await lastReviewOf({ directory, pullRequest: pullRequest.number, head: revisions.to }));
+  const reading = await readRange({
+    repo,
+    ...revisions,
+    ...(reviewed && { reviewed }),
+    readers,
+    linkers,
+    onPath,
+  });
   reading.skipped.forEach(skip => {
     console.error(notReadLine(skip));
   });

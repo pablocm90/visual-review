@@ -2,6 +2,18 @@
 
 What changed in each release of `@pablocm90/visual-review`, newest first. Versions follow [semver](https://semver.org); while it is 0.x, a minor version may change the exported types.
 
+## 0.18.0 — 2026-11-04
+
+### Added
+
+- On a PR's later round, once you have sent a review of an earlier head, **Show** offers **Since last review** first, with Changes only still the default. It draws what changed since that head, among the parts and paths the PR changes at either head, so merging the base branch in counts only where it touches one of those paths. A part reverted since counts, drawn as unchanged; one added then and removed since can't be drawn, so a line under Show names it. With nothing changed since, a line says so.
+- When the commit last reviewed is no longer in your clone, or can't be read, the header says so and the full review is shown, with no Since last review. The reason a read failed sits on the line's tooltip.
+- The review data's `sinceReview` holds the `head` last reviewed and either its `verdict` and `changed` (`nodes` and `edges` ids, and `dropped` for those the head can't draw), `gone: true` or `unreadable`. The plugin's skill says in its summary what changed since, or that it can't be told and why.
+
+### Changed
+
+- Pruning `.reviews/` keeps each PR's newest review past its page, so the next round has something to compare against, and removes the older ones left without a page.
+
 ## 0.17.0 — 2026-11-04
 
 ### Added

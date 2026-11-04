@@ -73,6 +73,13 @@ export const pullRequestRemote = ({
     clone,
     branchPoint,
     head,
+    mergeBaseAndPush: (files: Readonly<Record<string, string>>): string => {
+      git(upstream.repo, 'switch', '--quiet', 'feature');
+      git(upstream.repo, 'merge', '--quiet', '--no-edit', 'release');
+      const pushed = commit(upstream.repo, files);
+      git(upstream.repo, 'push', '--quiet', repository, 'feature:refs/pull/7/head');
+      return pushed;
+    },
     path: `${bin}${delimiter}${process.env['PATH'] ?? ''}`,
     [Symbol.dispose]: () => {
       upstream[Symbol.dispose]();

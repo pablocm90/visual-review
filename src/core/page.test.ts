@@ -7,7 +7,7 @@ import type { LogicLine } from './logic-diff.ts';
 import { metricFindings } from './metric-findings.ts';
 import type { ReviewNotes } from './notes.ts';
 import { notedPageHtml, pageData, pageHtml, pageIn, servedPageHtml } from './page.ts';
-import type { RangeReading, SymbolFile } from './read-range.ts';
+import type { RangeReading, ReviewedDiff, ReviewedReading, SymbolFile } from './read-range.ts';
 import type { SymbolStatement } from './symbol-changes.ts';
 import type { TestFile } from './test-changes.ts';
 
@@ -1462,3 +1462,369 @@ test.for([
     );
   },
 );
+
+const nothingDropped = { nodes: [], edges: [] };
+
+const reviewedAt = (
+  overrides: Pick<ReviewedDiff, 'before' | 'changedPaths'> & {
+    readonly renames?: ReviewedDiff['renames'];
+    readonly pullRequest?: ReviewedDiff;
+  },
+): ReviewedReading => ({
+  head: 'h1',
+  verdict: 'comment',
+  renames: [],
+  pullRequest: { before: overrides.before, changedPaths: [], renames: [] },
+  ...overrides,
+});
+
+test.for([
+  {
+    since: 'a commit touches a part the PR changes',
+    changedPaths: ['web/src/a.ts'],
+    nodes: ['web/file/a.ts'],
+  },
+  {
+    since: 'nothing touches the PR parts, as when main is merged in and touches only c.ts',
+    changedPaths: ['web/src/c.ts'],
+    nodes: [],
+  },
+])('page data lists what changed since the last review when $since', ({ changedPaths, nodes }) => {
+  const reading = readingWith({
+    before: { nodes: [webStack, webFile('c.ts')], edges: [] },
+    after: { nodes: [webStack, webFile('a.ts'), webFile('b.ts'), webFile('c.ts')], edges: [] },
+    changedPaths: ['web/src/a.ts', 'web/src/b.ts'],
+    reviewed: reviewedAt({
+      before: { nodes: [webStack, webFile('a.ts'), webFile('b.ts'), webFile('c.ts')], edges: [] },
+      changedPaths,
+    }),
+  });
+
+  expect(
+    pageData({ repo: 'shop', reading, range: 'a..b', version: '1.2.3', parsers: {} }).sinceReview,
+  ).toEqual({
+    head: 'h1',
+    verdict: 'comment',
+    changed: { nodes, edges: [], dropped: nothingDropped },
+  });
+});
+
+test.for([
+  {
+    since: "main's merge touches another file in a box the PR changes",
+    pullRequest: ['web/src/pkg/b.ts'],
+    changedPaths: ['web/src/pkg/c.ts'],
+    nodes: [],
+  },
+  {
+    since: "main's merge touches a box's own file where the PR changes a file in it",
+    pullRequest: ['web/src/pkg/b.ts'],
+    changedPaths: ['web/src/pkg/style.css'],
+    nodes: [],
+  },
+  {
+    since: 'a commit touches the file the PR changes in that box',
+    pullRequest: ['web/src/pkg/b.ts'],
+    changedPaths: ['web/src/pkg/b.ts', 'web/src/pkg/c.ts'],
+    nodes: ['web/box/pkg', 'web/file/pkg/b.ts'],
+  },
+  {
+    since: 'a commit touches a box the PR changes only outside its files',
+    pullRequest: ['web/src/pkg/style.css'],
+    changedPaths: ['web/src/pkg/style.css'],
+    nodes: ['web/box/pkg'],
+  },
+  {
+    since: "a commit touches only a box's own file where the PR also changes a file in it",
+    pullRequest: ['web/src/pkg/b.ts', 'web/src/pkg/style.css'],
+    changedPaths: ['web/src/pkg/style.css'],
+    nodes: ['web/box/pkg'],
+  },
+])(
+  'page data counts a box as changed since only through paths the PR changes, when $since',
+  ({ pullRequest, changedPaths, nodes }) => {
+    const graph = {
+      nodes: [webStack, box('pkg'), inBox('pkg', 'b.ts'), inBox('pkg', 'c.ts')],
+      edges: [],
+    };
+    const reading = readingWith({
+      before: graph,
+      after: graph,
+      changedPaths: pullRequest,
+      reviewed: reviewedAt({ before: graph, changedPaths }),
+    });
+
+    expect(
+      pageData({ repo: 'shop', reading, range: 'a..b', version: '1.2.3', parsers: {} }).sinceReview,
+    ).toEqual({
+      head: 'h1',
+      verdict: 'comment',
+      changed: { nodes, edges: [], dropped: nothingDropped },
+    });
+  },
+);
+
+test("page data leaves out a file main's merge added since the last review", () => {
+  const merged = { nodes: [webStack, webFile('a.ts'), webFile('c.ts')], edges: [] };
+  const reading = readingWith({
+    before: { nodes: [webStack, webFile('c.ts')], edges: [] },
+    after: merged,
+    changedPaths: ['web/src/a.ts'],
+    reviewed: reviewedAt({
+      before: { nodes: [webStack, webFile('a.ts')], edges: [] },
+      changedPaths: ['web/src/c.ts'],
+    }),
+  });
+
+  expect(
+    pageData({ repo: 'shop', reading, range: 'a..b', version: '1.2.3', parsers: {} }).sinceReview,
+  ).toEqual({
+    head: 'h1',
+    verdict: 'comment',
+    changed: { nodes: [], edges: [], dropped: nothingDropped },
+  });
+});
+
+test("page data lists the PR's added or removed edges that came or went since the last review, not the ones it already had or the ones main brought", () => {
+  const [a, b, c] = ['web/file/a.ts', 'web/file/b.ts', 'web/file/c.ts'];
+  const files = [webStack, webFile('a.ts'), webFile('b.ts'), webFile('c.ts')];
+  const reading = readingWith({
+    before: {
+      nodes: files,
+      edges: [
+        { from: c, to: a },
+        { from: b, to: c },
+      ],
+    },
+    after: {
+      nodes: files,
+      edges: [
+        { from: a, to: b },
+        { from: a, to: c },
+        { from: c, to: a },
+      ],
+    },
+    changedPaths: [],
+    reviewed: reviewedAt({
+      before: {
+        nodes: files,
+        edges: [
+          { from: a, to: b },
+          { from: b, to: c },
+        ],
+      },
+      changedPaths: [],
+    }),
+  });
+
+  expect(
+    pageData({ repo: 'shop', reading, range: 'a..b', version: '1.2.3', parsers: {} }).sinceReview,
+  ).toEqual({
+    head: 'h1',
+    verdict: 'comment',
+    changed: { nodes: [], edges: [`${a} -> ${c}`, `${b} -> ${c}`], dropped: nothingDropped },
+  });
+});
+
+test('page data lists a part the PR edited at the last review and has since restored, which the head draws as unchanged', () => {
+  const graph = { nodes: [webStack, webFile('a.ts')], edges: [] };
+  const reading = readingWith({
+    before: graph,
+    after: graph,
+    changedPaths: [],
+    reviewed: reviewedAt({
+      before: graph,
+      changedPaths: ['web/src/a.ts'],
+      pullRequest: { before: graph, changedPaths: ['web/src/a.ts'], renames: [] },
+    }),
+  });
+
+  expect(
+    pageData({ repo: 'shop', reading, range: 'a..b', version: '1.2.3', parsers: {} }).sinceReview,
+  ).toEqual({
+    head: 'h1',
+    verdict: 'comment',
+    changed: { nodes: ['web/file/a.ts'], edges: [], dropped: nothingDropped },
+  });
+});
+
+test('page data lists a file the PR renamed at the last review and has since renamed back', () => {
+  const [a, b] = ['web/src/a.ts', 'web/src/b.ts'];
+  const graph = { nodes: [webStack, webFile('a.ts')], edges: [] };
+  const atReview = { nodes: [webStack, webFile('b.ts')], edges: [] };
+  const reading = readingWith({
+    before: graph,
+    after: graph,
+    changedPaths: [],
+    reviewed: reviewedAt({
+      before: atReview,
+      changedPaths: [b, a],
+      renames: [{ from: b, to: a }],
+      pullRequest: { before: graph, changedPaths: [a, b], renames: [{ from: a, to: b }] },
+    }),
+  });
+
+  expect(
+    pageData({ repo: 'shop', reading, range: 'a..b', version: '1.2.3', parsers: {} }).sinceReview,
+  ).toEqual({
+    head: 'h1',
+    verdict: 'comment',
+    changed: { nodes: ['web/file/a.ts'], edges: [], dropped: nothingDropped },
+  });
+});
+
+test.for([
+  {
+    end: 'its target',
+    reviewedEdge: { from: 'web/file/use.ts', to: 'web/file/foo.ts' },
+    named: 'web/file/use.ts -> web/file/baz.ts',
+  },
+  {
+    end: 'its source',
+    reviewedEdge: { from: 'web/file/foo.ts', to: 'web/file/use.ts' },
+    named: 'web/file/baz.ts -> web/file/use.ts',
+  },
+])(
+  'page data names by the new name an edge the PR added at the last review and has since removed, having renamed $end',
+  ({ reviewedEdge, named }) => {
+    const before = { nodes: [webStack, webFile('use.ts'), webFile('foo.ts')], edges: [] };
+    const reading = readingWith({
+      before,
+      after: { nodes: [webStack, webFile('use.ts'), webFile('baz.ts')], edges: [] },
+      changedPaths: ['web/src/foo.ts', 'web/src/baz.ts'],
+      renames: [{ from: 'web/src/foo.ts', to: 'web/src/baz.ts' }],
+      reviewed: reviewedAt({
+        before: { ...before, edges: [reviewedEdge] },
+        changedPaths: ['web/src/foo.ts', 'web/src/baz.ts'],
+        renames: [{ from: 'web/src/foo.ts', to: 'web/src/baz.ts' }],
+        pullRequest: { before, changedPaths: ['web/src/use.ts'], renames: [] },
+      }),
+    });
+
+    expect(
+      pageData({ repo: 'shop', reading, range: 'a..b', version: '1.2.3', parsers: {} }).sinceReview,
+    ).toEqual({
+      head: 'h1',
+      verdict: 'comment',
+      changed: {
+        nodes: ['web/file/baz.ts'],
+        edges: [],
+        dropped: { nodes: [], edges: [named] },
+      },
+    });
+  },
+);
+
+test('page data lists each class of a file the PR renamed at the last review and has since renamed back, whose ids never changed', () => {
+  const [kept, moved] = ['web/src/kept.rb', 'web/src/moved.rb'];
+  const classAt = (name: string, path: string): GraphNode => ({
+    id: `web/class/${name}`,
+    kind: 'file',
+    label: name,
+    parent: 'web',
+    path,
+  });
+  const graphAt = (path: string) => ({
+    nodes: [webStack, classAt('One', path), classAt('Two', path)],
+    edges: [],
+  });
+  const reading = readingWith({
+    before: graphAt(kept),
+    after: graphAt(kept),
+    changedPaths: [],
+    reviewed: reviewedAt({
+      before: graphAt(moved),
+      changedPaths: [moved, kept],
+      renames: [{ from: moved, to: kept }],
+      pullRequest: {
+        before: graphAt(kept),
+        changedPaths: [kept, moved],
+        renames: [{ from: kept, to: moved }],
+      },
+    }),
+  });
+
+  expect(
+    pageData({ repo: 'shop', reading, range: 'a..b', version: '1.2.3', parsers: {} }).sinceReview,
+  ).toEqual({
+    head: 'h1',
+    verdict: 'comment',
+    changed: {
+      nodes: ['web/class/One', 'web/class/Two'],
+      edges: [],
+      dropped: nothingDropped,
+    },
+  });
+});
+
+test('page data holds apart what the PR added at the last review and has since deleted, which the head has no way to draw', () => {
+  const [a, b] = ['web/file/a.ts', 'web/file/b.ts'];
+  const without = { nodes: [webStack, webFile('b.ts')], edges: [] };
+  const atReview = {
+    nodes: [webStack, webFile('a.ts'), webFile('b.ts')],
+    edges: [{ from: a, to: b }],
+  };
+  const reading = readingWith({
+    before: without,
+    after: without,
+    changedPaths: [],
+    reviewed: reviewedAt({
+      before: atReview,
+      changedPaths: ['web/src/a.ts'],
+      pullRequest: { before: without, changedPaths: ['web/src/a.ts'], renames: [] },
+    }),
+  });
+
+  expect(
+    pageData({ repo: 'shop', reading, range: 'a..b', version: '1.2.3', parsers: {} }).sinceReview,
+  ).toEqual({
+    head: 'h1',
+    verdict: 'comment',
+    changed: { nodes: [], edges: [], dropped: { nodes: [a], edges: [`${a} -> ${b}`] } },
+  });
+});
+
+test('page data lists an edge the PR removed at the last review and has since put back', () => {
+  const [a, b] = ['web/file/a.ts', 'web/file/b.ts'];
+  const files = [webStack, webFile('a.ts'), webFile('b.ts')];
+  const linked = { nodes: files, edges: [{ from: a, to: b }] };
+  const reading = readingWith({
+    before: linked,
+    after: linked,
+    changedPaths: [],
+    reviewed: reviewedAt({
+      before: { nodes: files, edges: [] },
+      changedPaths: [],
+      pullRequest: { before: linked, changedPaths: [], renames: [] },
+    }),
+  });
+
+  expect(
+    pageData({ repo: 'shop', reading, range: 'a..b', version: '1.2.3', parsers: {} }).sinceReview,
+  ).toEqual({
+    head: 'h1',
+    verdict: 'comment',
+    changed: { nodes: [], edges: [`${a} -> ${b}`], dropped: nothingDropped },
+  });
+});
+
+test('page data says the reviewed head is gone when its commit no longer reads, and holds no last review when there was none', () => {
+  const data = (overrides: Partial<RangeReading>) =>
+    pageData({
+      repo: 'shop',
+      reading: readingWith(overrides),
+      range: 'a..b',
+      version: '1.2.3',
+      parsers: {},
+    });
+
+  expect(data({ reviewed: { head: 'h1', verdict: 'approve', gone: true } }).sinceReview).toEqual({
+    head: 'h1',
+    gone: true,
+  });
+  expect(
+    data({ reviewed: { head: 'h1', verdict: 'approve', unreadable: 'cargo metadata failed' } })
+      .sinceReview,
+  ).toEqual({ head: 'h1', unreadable: 'cargo metadata failed' });
+  expect(data({})).not.toHaveProperty('sinceReview');
+});

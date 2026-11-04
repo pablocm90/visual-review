@@ -5333,3 +5333,214 @@ test("going to a line's draft shows its hidden field, and leaves hidden the one 
   await goToDraft(added);
   expect(field()).toHaveProperty('value', 'Why 2?');
 });
+
+const sinceReview = {
+  head: 'h1',
+  verdict: 'comment' as const,
+  changed: {
+    nodes: ['rust/crate/application'],
+    edges: [],
+    dropped: { nodes: [], edges: [] },
+  },
+};
+
+test("a later round offers 'Since last review' first in Show, Changes only still picked; picked, it draws what changed since, and going to a part it hides widens Show", async () => {
+  const user = userEvent.setup();
+  render(
+    <ReviewPage
+      review={pageWith({ ...review, sinceReview })}
+      notes={{
+        version: 1,
+        tests: '',
+        summary: [{ text: 'Check the CLI.', target: 'rust/crate/cli-adapter' }],
+        notes: {},
+      }}
+    />,
+  );
+  const rust = await screen.findByRole('group', { name: 'rust' });
+  const pressed = () =>
+    within(screen.getByRole('group', { name: 'Show' }))
+      .getAllByRole('button', { pressed: true })
+      .map(button => button.textContent);
+  expect(
+    within(screen.getByRole('group', { name: 'Show' }))
+      .getAllByRole('button')
+      .map(button => button.textContent),
+  ).toEqual(['Since last review', 'Changes only', 'Changed + 1 hop', 'Everything']);
+  expect(pressed()).toEqual(['Changes only']);
+  expect(within(screen.getByRole('banner')).queryByText(/commit last reviewed/)).toBeNull();
+
+  await user.click(shown('Since last review'));
+
+  expect(pressed()).toEqual(['Since last review']);
+  await waitFor(() => expect(buttonsIn(rust)).toEqual(['application: modified']));
+  expect(screen.queryByText(/so not drawn/)).toBeNull();
+
+  await user.click(
+    within(screen.getByRole('region', { name: 'Summary' })).getByRole('button', {
+      name: 'Check the CLI.',
+    }),
+  );
+
+  expect(pressed()).toEqual(['Changes only']);
+});
+
+test.for([
+  { round: 'with no earlier review', since: {} },
+  { round: 'whose reviewed head is gone', since: { sinceReview: { head: 'h1', gone: true } } },
+  {
+    round: "whose reviewed head couldn't be read",
+    since: { sinceReview: { head: 'h1', unreadable: 'cargo metadata failed' } },
+  },
+] as const)('a review $round has no Since last review choice', async ({ since }) => {
+  render(<ReviewPage review={pageWith({ ...review, ...since })} />);
+  await screen.findByRole('group', { name: 'rust' });
+
+  expect(
+    within(screen.getByRole('group', { name: 'Show' }))
+      .getAllByRole('button')
+      .map(button => button.textContent),
+  ).toEqual(['Changes only', 'Changed + 1 hop', 'Everything']);
+});
+
+test("with 'Since last review' shown and nothing drawn changed since, the graph gives way to a line saying so", async () => {
+  const user = userEvent.setup();
+  render(
+    <ReviewPage
+      review={pageWith({
+        ...review,
+        sinceReview: {
+          ...sinceReview,
+          changed: { nodes: [], edges: [], dropped: { nodes: [], edges: [] } },
+        },
+      })}
+    />,
+  );
+  await screen.findByRole('group', { name: 'rust' });
+
+  await user.click(shown('Since last review'));
+
+  expect(await screen.findByText(/changed since the last review/)).toBeTruthy();
+});
+
+test("'Since last review' draws an edge the PR has put back, though unchanged edges otherwise merge", async () => {
+  const user = userEvent.setup();
+  render(
+    <ReviewPage
+      review={pageWith({
+        range: review.range,
+        diff: {
+          nodes: [
+            { id: 'web', kind: 'stack', label: 'web', path: '', state: 'unchanged' },
+            webModule('orders'),
+            webModule('billing'),
+            webFile('orders', 'cart.ts'),
+            webFile('billing', 'invoice.ts'),
+          ],
+          edges: [webImport('orders/cart.ts', 'billing/invoice.ts', 'unchanged')],
+        },
+        sinceReview: {
+          ...sinceReview,
+          changed: {
+            ...sinceReview.changed,
+            nodes: [],
+            edges: ['web/file/orders/cart.ts -> web/file/billing/invoice.ts'],
+          },
+        },
+      })}
+    />,
+  );
+  await screen.findByRole('group', { name: 'Show' });
+
+  await user.click(shown('Since last review'));
+
+  const web = await screen.findByRole('group', { name: 'web' });
+  await user.click(within(web).getByRole('button', { name: 'Expand orders' }));
+  await user.click(await within(web).findByRole('button', { name: 'Expand billing' }));
+
+  await waitFor(() => expect(buttonsIn(web)).toContain('cart.ts → invoice.ts: unchanged'));
+
+  await showEverything(user);
+
+  await waitFor(() => expect(buttonsIn(web)).toContain('orders → billing: unchanged'));
+  expect(buttonsIn(web)).not.toContain('cart.ts → invoice.ts: unchanged');
+});
+
+test("'Since last review' with only what it can't draw says that, not that nothing changed", async () => {
+  const user = userEvent.setup();
+  render(
+    <ReviewPage
+      review={pageWith({
+        ...review,
+        sinceReview: {
+          ...sinceReview,
+          changed: { nodes: [], edges: [], dropped: { nodes: ['rust/crate/spike'], edges: [] } },
+        },
+      })}
+    />,
+  );
+  await screen.findByRole('group', { name: 'rust' });
+
+  await user.click(shown('Since last review'));
+
+  await screen.findByText(/so not drawn/);
+  expect(screen.queryByText(/Nothing in the graph changed/)).toBeNull();
+});
+
+test("'Since last review' names what was added then and has since gone, which it can't draw", async () => {
+  const user = userEvent.setup();
+  render(
+    <ReviewPage
+      review={pageWith({
+        ...review,
+        sinceReview: {
+          ...sinceReview,
+          changed: {
+            ...sinceReview.changed,
+            dropped: { nodes: ['rust/crate/spike'], edges: ['rust/crate/spike -> rust/crate/cli'] },
+          },
+        },
+      })}
+    />,
+  );
+  await screen.findByRole('group', { name: 'rust' });
+  expect(screen.queryByText(/so not drawn/)).toBeNull();
+
+  await user.click(shown('Since last review'));
+
+  const line = await screen.findByText(/so not drawn/);
+  expect(line.textContent).toContain('rust/crate/spike, rust/crate/spike -> rust/crate/cli');
+
+  await user.click(shown('Changes only'));
+
+  expect(screen.queryByText(/so not drawn/)).toBeNull();
+});
+
+test('a review whose reviewed head is gone says so, with that head short, in the header, and shows the full review', async () => {
+  const head = 'a1b2c3d4e5f6a7b8c9d0a1b2c3d4e5f6a7b8c9d0';
+  render(<ReviewPage review={pageWith({ ...review, sinceReview: { head, gone: true } })} />);
+  await screen.findByRole('group', { name: 'rust' });
+
+  expect(within(screen.getByRole('banner')).getByText(/is gone/).textContent).toContain(
+    'a1b2c3d, is',
+  );
+  expect(screen.getByRole('button', { name: 'cli-adapter: added' })).toBeDefined();
+});
+
+test("a review whose reviewed head couldn't be read says so, with that head short and the reason on hover, in the header, and shows the full review", async () => {
+  const head = 'a1b2c3d4e5f6a7b8c9d0a1b2c3d4e5f6a7b8c9d0';
+  render(
+    <ReviewPage
+      review={pageWith({
+        ...review,
+        sinceReview: { head, unreadable: 'cargo metadata failed' },
+      })}
+    />,
+  );
+  await screen.findByRole('group', { name: 'rust' });
+
+  const line = within(screen.getByRole('banner')).getByText(/couldn't be read/);
+  expect(line.textContent).toContain('a1b2c3d, couldn');
+  expect(line.getAttribute('title')).toBe('cargo metadata failed');
+  expect(screen.getByRole('button', { name: 'cli-adapter: added' })).toBeDefined();
+});

@@ -5,6 +5,7 @@ import {
   expandedToShow,
   mergedDiff,
   nearChanges,
+  sinceLastReview,
   visibleDiff,
 } from './visible-diff.ts';
 
@@ -337,4 +338,39 @@ test('changes only keeps the closed box an added import reaches, though an uncha
   expect(drawn.edges).toEqual([{ from: 'A', to: 'B', state: 'unchanged' }]);
   expect(only.nodes.map(({ id }) => id)).toEqual(['web', 'A', 'B']);
   expect(only.edges).toEqual(drawn.edges);
+});
+
+test.for([
+  {
+    what: 'a node changed since, in its open box',
+    expanded: ['A'],
+    changed: { nodes: ['a1'], edges: [] },
+    kept: ['web', 'A', 'a1'],
+  },
+  {
+    what: 'a node changed since, as its closed box',
+    expanded: [],
+    changed: { nodes: ['a1'], edges: [] },
+    kept: ['web', 'A'],
+  },
+  {
+    what: 'the ends of an edge changed since, as their closed boxes',
+    expanded: [],
+    changed: { nodes: [], edges: ['b1 -> root'] },
+    kept: ['web', 'B', 'root'],
+  },
+  {
+    what: 'nothing, when nothing changed since',
+    expanded: [],
+    changed: { nodes: [], edges: [] },
+    kept: [],
+  },
+])('since the last review keeps $what', ({ expanded, changed: since, kept }) => {
+  const diff = nested([{ from: 'b1', to: 'root', state: 'added' }]);
+  const open = new Set(expanded);
+  const drawn = visibleDiff({ diff, expanded: open });
+
+  const only = sinceLastReview({ diff, expanded: open, drawn, changed: since });
+
+  expect(only.nodes.map(({ id }) => id)).toEqual(kept);
 });

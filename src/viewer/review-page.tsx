@@ -21,6 +21,7 @@ import { type Note, type ReviewNotes, visibleNotes } from '../core/notes.ts';
 import { type PageData, UNCOMMITTED } from '../core/page.ts';
 import type { SymbolFile } from '../core/read-range.ts';
 import type { Answer, Comment, Review } from '../core/review.ts';
+import type { ChangedSince, SinceReview } from '../core/since-review.ts';
 import type { TestFile } from '../core/test-changes.ts';
 import { testsAlongside } from '../core/tests-alongside.ts';
 import {
@@ -30,6 +31,7 @@ import {
   isDrawn,
   mergedDiff,
   nearChanges,
+  sinceLastReview,
   visibleDiff,
   visibleNodeOf,
 } from '../core/visible-diff.ts';
@@ -1007,26 +1009,49 @@ type Keeping = {
   readonly drawn: GraphDiff;
 };
 
-const SCOPES = [
-  ['Changes only', changesOnly],
-  ['Changed + 1 hop', ({ drawn }: Keeping) => nearChanges(drawn)],
-  ['Everything', ({ drawn }: Keeping) => drawn],
-] as const;
+type Scope = readonly [name: string, keep: (keeping: Keeping) => GraphDiff];
 
-type Scope = (typeof SCOPES)[number];
+const SINCE_LAST_REVIEW = 'Since last review';
+
+const CHANGES_ONLY: Scope = ['Changes only', changesOnly];
+
+const EVERYTHING: Scope = ['Everything', ({ drawn }) => drawn];
+
+const WIDER_SCOPES: ReadonlyArray<Scope> = [
+  CHANGES_ONLY,
+  ['Changed + 1 hop', ({ drawn }) => nearChanges(drawn)],
+  EVERYTHING,
+];
+
+const changedSinceIn = ({ sinceReview }: PageData): ChangedSince | undefined =>
+  sinceReview !== undefined && 'changed' in sinceReview ? sinceReview.changed : undefined;
+
+const changedSinceShown = ([name]: Scope, review: PageData) =>
+  name === SINCE_LAST_REVIEW ? changedSinceIn(review) : undefined;
+
+const unmergedWith = (noted: ReadonlySet<string>, since: ChangedSince | undefined) =>
+  new Set([...noted, ...(since?.edges ?? [])]);
+
+const scopesOf = (review: PageData): ReadonlyArray<Scope> => {
+  const changed = changedSinceIn(review);
+  return changed === undefined
+    ? WIDER_SCOPES
+    : [[SINCE_LAST_REVIEW, keeping => sinceLastReview({ ...keeping, changed })], ...WIDER_SCOPES];
+};
 
 type ShowProps = {
+  readonly scopes: ReadonlyArray<Scope>;
   readonly scope: Scope;
   readonly onPick: (scope: Scope) => void;
 };
 
-const Show = ({ scope, onPick }: ShowProps) => {
+const Show = ({ scopes, scope, onPick }: ShowProps) => {
   const label = useId();
   return (
     <div className="graph-choice">
       <span id={label}>Show</span>
       <div role="group" aria-labelledby={label}>
-        {SCOPES.map(each => (
+        {scopes.map(each => (
           <button
             key={each[0]}
             type="button"
@@ -1194,6 +1219,23 @@ type HeaderProps = {
   readonly tab: Tab;
 };
 
+const UncomparedReview = ({ since }: { readonly since: SinceReview }) => {
+  if ('gone' in since)
+    return (
+      <p className="where">
+        The commit last reviewed, <Ref name={since.head} />, is gone: the full review is shown.
+      </p>
+    );
+  if ('unreadable' in since)
+    return (
+      <p className="where" title={since.unreadable}>
+        The commit last reviewed, <Ref name={since.head} />, couldn't be read: the full review is
+        shown.
+      </p>
+    );
+  return null;
+};
+
 const Header = ({ review, tab }: HeaderProps) => {
   const changed = changedCount(review.tests);
   return (
@@ -1216,6 +1258,7 @@ const Header = ({ review, tab }: HeaderProps) => {
             <ShortRange range={review.range} />
           )}
         </h1>
+        {review.sinceReview !== undefined && <UncomparedReview since={review.sinceReview} />}
       </div>
       <nav aria-label="Review">
         {TAB_ORDER.map(shown => (
@@ -1252,6 +1295,27 @@ const typesText = (target: EventTarget | null) =>
   target instanceof HTMLTextAreaElement ||
   (target instanceof HTMLInputElement && target.type === 'text');
 
+type GraphCaveatProps = {
+  readonly since: ChangedSince | undefined;
+  readonly nothingDrawn: boolean;
+};
+
+const GraphCaveat = ({ since, nothingDrawn }: GraphCaveatProps) => {
+  const dropped = since === undefined ? [] : [...since.dropped.nodes, ...since.dropped.edges];
+  if (dropped.length > 0)
+    return (
+      <p className="caveat">Removed since the last review, so not drawn: {dropped.join(', ')}</p>
+    );
+  if (!nothingDrawn) return null;
+  return (
+    <p className="caveat">
+      {since === undefined
+        ? 'Nothing in the graph changed.'
+        : 'Nothing in the graph changed since the last review.'}
+    </p>
+  );
+};
+
 export const ReviewPage = ({ review, notes, send }: ReviewPageProps) => {
   const tab = useTab();
   const [layout, setLayout] = useState<Layout>();
@@ -1281,17 +1345,24 @@ export const ReviewPage = ({ review, notes, send }: ReviewPageProps) => {
   const visible = useMemo(() => visibleDiff({ diff: review.diff, expanded }), [review, expanded]);
   const [allEdges, setAllEdges] = useState(false);
   const noted = useMemo(() => new Set(Object.keys(notes?.notes ?? {})), [notes]);
-  const [scope, setScope] = useState<Scope>(SCOPES[0]);
+  const scopes = useMemo(() => scopesOf(review), [review]);
+  const [scope, setScope] = useState(CHANGES_ONLY);
   const [colouring, setColouring] = useState<Colouring>('change');
   const [picked, setPicked] = useState<Dimension>();
   const [railOpen, setRailOpen] = useState(false);
   const findings = findingsOf({ data: review, notes });
   const triaged = findings.filter(finding => picked === undefined || finding.dimension === picked);
+  const since = changedSinceShown(scope, review);
   const drawn = useMemo(() => {
     const [, keep] = scope;
-    const atExpansion = drawnAt({ diff: review.diff, expanded, noted, allEdges });
+    const atExpansion = drawnAt({
+      diff: review.diff,
+      expanded,
+      noted: unmergedWith(noted, since),
+      allEdges,
+    });
     return keep({ diff: review.diff, expanded, drawn: atExpansion });
-  }, [review, expanded, noted, allEdges, scope]);
+  }, [review, expanded, noted, allEdges, scope, since]);
   const shown = useMemo(
     () => visibleNotes({ diff: review.diff, expanded, notes: notes?.notes ?? {} }),
     [review, notes, expanded],
@@ -1360,10 +1431,10 @@ export const ReviewPage = ({ review, notes, send }: ReviewPageProps) => {
     const all = allEdges || !isDrawn({ diff: drawnAt({ ...at, allEdges: false }), id });
     if (all) setAllEdges(true);
     const atAll = drawnAt({ ...at, allEdges: all });
-    const narrower = SCOPES.slice(SCOPES.indexOf(scope), -1);
+    const narrower = scopes.slice(scopes.indexOf(scope), -1);
     setScope(
       narrower.find(([, keep]) => isDrawn({ diff: keep({ ...at, drawn: atAll }), id })) ??
-        SCOPES[2],
+        EVERYTHING,
     );
     centre(id);
     setFocusTarget(id);
@@ -1454,6 +1525,7 @@ export const ReviewPage = ({ review, notes, send }: ReviewPageProps) => {
                 <ColourBy colouring={colouring} onPick={setColouring} />
                 <div className="graph-filters">
                   <Show
+                    scopes={scopes}
                     scope={scope}
                     onPick={next => {
                       fitToFrame();
@@ -1476,7 +1548,7 @@ export const ReviewPage = ({ review, notes, send }: ReviewPageProps) => {
               <div className="graph-key">
                 {colouring === 'change' ? <Legend /> : <ScaleLegend colouring={colouring} />}
               </div>
-              {drawn.nodes.length === 0 && <p className="caveat">Nothing in the graph changed.</p>}
+              <GraphCaveat since={since} nothingDrawn={drawn.nodes.length === 0} />
               {layout && (
                 <div
                   className="frame"

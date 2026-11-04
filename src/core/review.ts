@@ -59,24 +59,25 @@ const AnswerSchema = z
   })
   .readonly();
 
+const VerdictSchema = z
+  .enum(['approve', 'comment', 'request-changes'])
+  .describe("The reviewer's verdict on the whole change");
+
+const ReviewedSchema = z.strictObject({
+  range: z
+    .string()
+    .describe(
+      'The range the page was drawn for, `<from>..<to>`, or `HEAD..worktree` for uncommitted work',
+    ),
+  pullRequest: z.number().optional().describe('The pull request it was drawn for'),
+});
+
 const ReviewSchema = z
   .strictObject({
     version: z.literal(reviewVersion).describe('The review format this file is written in'),
-    verdict: z
-      .enum(['approve', 'comment', 'request-changes'])
-      .describe("The reviewer's verdict on the whole change"),
+    verdict: VerdictSchema,
     body: z.string().optional().describe("The reviewer's general comment on the whole change"),
-    reviewed: z
-      .strictObject({
-        range: z
-          .string()
-          .describe(
-            'The range the page was drawn for, `<from>..<to>`, or `HEAD..worktree` for uncommitted work',
-          ),
-        pullRequest: z.number().optional().describe('The pull request it was drawn for'),
-      })
-      .readonly()
-      .describe('What the page was drawn for'),
+    reviewed: ReviewedSchema.readonly().describe('What the page was drawn for'),
     read: z
       .array(z.string())
       .readonly()
@@ -132,4 +133,14 @@ export const parseReview = (text: string): Review => {
     throw invalidReview(review.error);
   }
   return review.data;
+};
+
+const PastReviewSchema = z.object({ verdict: VerdictSchema, reviewed: ReviewedSchema.loose() });
+
+export const pastReviewOf = (text: string): z.infer<typeof PastReviewSchema> | undefined => {
+  try {
+    return PastReviewSchema.parse(JSON.parse(text));
+  } catch {
+    return undefined;
+  }
 };
