@@ -36,6 +36,6 @@ export const pruneReviews = async ({ repo, keep }: PruneReviewsOptions): Promise
   await Promise.all(
     [...older, ...stale]
       .filter(file => !newest.has(file))
-      .map(file => rm(join(directory, file), { force: true })),
+      .map(file => rm(join(directory, file), { force: true, recursive: true })),
   );
 };

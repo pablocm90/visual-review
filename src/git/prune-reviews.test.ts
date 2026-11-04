@@ -139,3 +139,15 @@ test.for([
     expect(filesIn(directory)).toEqual(['a..page.html', 'b..standing.html']);
   },
 );
+
+test("a folder at the name of an older page's data goes with the page", async () => {
+  using reviews = reviewsDirectory();
+  const { repo, directory } = reviews;
+  writePage(directory, 'a..older', 1_000, ['html']);
+  mkdirSync(join(directory, 'a..older.json'));
+  writePage(directory, 'b..newer', 2_000, ['html']);
+
+  await pruneReviews({ repo, keep: 1 });
+
+  expect(filesIn(directory)).toEqual(['b..newer.html']);
+});
