@@ -36,24 +36,32 @@ const lockedVersion = (version: string | undefined): string => {
   return version;
 };
 
+const entriesOf = (text: string) => {
+  const { lockfileVersion, packages } = lockOf(text);
+  if (lockfileVersion !== 2 && lockfileVersion !== 3)
+    throw new Error(`lockfile version ${lockfileVersion}`);
+  if (packages === undefined) throw new Error(NOT_RECOGNISED);
+  return Object.entries(packages).map(([path, entry]) => ({
+    ...entry,
+    path,
+    folder: folderOf(path),
+  }));
+};
+
+const assertLinksStayLocal = (entries: ReturnType<typeof entriesOf>): void => {
+  const locals: ReadonlySet<string | undefined> = new Set(
+    entries.filter(({ folder }) => folder === undefined).map(({ path }) => path),
+  );
+  if (entries.some(({ link, resolved }) => link && !locals.has(resolved)))
+    throw new Error(NOT_RECOGNISED);
+};
+
 export const npmLockfile: Lockfile = {
   file: 'package-lock.json',
   ecosystem: 'npm',
   read: ({ text }) => {
-    const { lockfileVersion, packages } = lockOf(text);
-    if (lockfileVersion !== 2 && lockfileVersion !== 3)
-      throw new Error(`lockfile version ${lockfileVersion}`);
-    if (packages === undefined) throw new Error(NOT_RECOGNISED);
-    const entries = Object.entries(packages).map(([path, entry]) => ({
-      ...entry,
-      path,
-      folder: folderOf(path),
-    }));
-    const locals: ReadonlySet<string | undefined> = new Set(
-      entries.filter(({ folder }) => folder === undefined).map(({ path }) => path),
-    );
-    if (entries.some(({ link, resolved }) => link && !locals.has(resolved)))
-      throw new Error(NOT_RECOGNISED);
+    const entries = entriesOf(text);
+    assertLinksStayLocal(entries);
     const byPath = new Map(entries.map(entry => [entry.path, entry]));
     const installedFor = (declarer: string, name: string) =>
       byPath.get(`${declarer && `${declarer}/`}node_modules/${name}`) ??

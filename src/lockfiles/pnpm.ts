@@ -32,36 +32,43 @@ const declaredName = (name: string, version: string): ReadonlyArray<string> => {
   return [/^(?:@[^/]+\/)?[^@/:]+@/.test(resolved) ? splitAtVersion(resolved)[0] : name];
 };
 
+const assertVersion9 = (text: string): void => {
+  const major = text.match(/^lockfileVersion: '?(\d+)/m)?.[1];
+  if (major === undefined) throw new Error('format not recognised');
+  if (major !== '9') throw new Error(`lockfile version ${major}`);
+};
+
+const lockedPackage = ([, quoted, plain]: RegExpExecArray) => {
+  const [name, version] = splitAtVersion(quoted ?? plain ?? '');
+  return { name, version };
+};
+
+const declaredNames = ([, entries = '']: RegExpExecArray): ReadonlyArray<string> =>
+  [...entries.matchAll(DECLARED)].flatMap(([, name = '', version = '']) =>
+    declaredName(name, version),
+  );
+
+const holdsOnlyDeclared = ([, entries = '']: RegExpExecArray): boolean =>
+  entries.replaceAll(DECLARED, '').trim() === '';
+
 export const pnpmLockfile: Lockfile = {
   file: 'pnpm-lock.yaml',
   ecosystem: 'npm',
   read: ({ text }) => {
-    const major = text.match(/^lockfileVersion: '?(\d+)/m)?.[1];
-    if (major === undefined) throw new Error('format not recognised');
-    if (major !== '9') throw new Error(`lockfile version ${major}`);
+    assertVersion9(text);
     const packagesSection = sectionOf(text, 'packages');
     const importers = sectionOf(text, 'importers');
-    const packages = [...packagesSection.matchAll(PACKAGE_KEY)];
     const declarations = [...importers.matchAll(DECLARATIONS)];
     if (
       !hasPlainHeaders(text) ||
       !everyLine(packagesSection, PACKAGES_LINE) ||
       !everyLine(importers, IMPORTERS_LINE) ||
-      declarations.some(([, entries = '']) => entries.replaceAll(DECLARED, '').trim() !== '')
+      !declarations.every(holdsOnlyDeclared)
     )
       throw new Error('format not recognised');
     return {
-      versions: lockedVersions(
-        packages.map(([, quoted, plain]) => {
-          const [name, version] = splitAtVersion(quoted ?? plain ?? '');
-          return { name, version };
-        }),
-      ),
-      direct: new Set(
-        declarations
-          .flatMap(([, entries = '']) => [...entries.matchAll(DECLARED)])
-          .flatMap(([, name = '', version = '']) => declaredName(name, version)),
-      ),
+      versions: lockedVersions([...packagesSection.matchAll(PACKAGE_KEY)].map(lockedPackage)),
+      direct: new Set(declarations.flatMap(declaredNames)),
     };
   },
 };
