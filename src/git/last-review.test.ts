@@ -10,7 +10,7 @@ import {
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { expect, test } from 'vitest';
-import { git, gitRepo } from '../test-support/repos.ts';
+import { git, gitRepo, layOutBareRepository } from '../test-support/repos.ts';
 import { lastReviewOf } from './last-review.ts';
 
 const H0 = '0'.repeat(40);
@@ -157,17 +157,7 @@ test('a .reviews folder laid out as a repository of its own is neither believed 
   const { repo, root } = repository;
   const directory = join(repo, '.reviews');
   const ran = join(repo, 'ran');
-  const monitor = join(repo, 'monitor.sh');
-  mkdirSync(join(directory, 'objects'), { recursive: true });
-  mkdirSync(join(directory, 'refs'));
-  writeFileSync(join(directory, 'objects', '.keep'), '');
-  writeFileSync(join(directory, 'refs', '.keep'), '');
-  writeFileSync(join(directory, 'HEAD'), 'ref: refs/heads/main\n');
-  writeFileSync(monitor, `#!/bin/sh\ntouch ${ran}\n`, { mode: 0o755 });
-  writeFileSync(
-    join(directory, 'config'),
-    `[core]\n\trepositoryformatversion = 0\n\tbare = false\n\tworktree = .\n\tfsmonitor = ${monitor}\n`,
-  );
+  layOutBareRepository({ directory, monitorTouches: ran });
   writeReview(directory, { head: H1, writtenAt: 1_000, verdict: 'approve' });
   git(repo, 'add', '--force', '.reviews');
   git(repo, 'tag', '--annotate', '--message', 'tag', 'tag');

@@ -116,7 +116,14 @@ const writeReview = async (args: ReadonlyArray<string>): Promise<string> => {
     options: { notes: { type: 'string' } },
   });
   requireOnPath('git', 'https://git-scm.com/downloads');
-  const repo = (await promisify(execFile)('git', ['rev-parse', '--show-toplevel'])).stdout.trim();
+  const repo = (
+    await promisify(execFile)('git', [
+      '-c',
+      'safe.bareRepository=explicit',
+      'rev-parse',
+      '--show-toplevel',
+    ])
+  ).stdout.trim();
   const {
     range,
     pullRequest,
