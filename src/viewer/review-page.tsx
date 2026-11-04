@@ -1235,6 +1235,12 @@ const Header = ({ review, tab }: HeaderProps) => {
             <ShortRange range={review.range} />
           )}
         </h1>
+        {review.sinceReview !== undefined && 'gone' in review.sinceReview && (
+          <p className="where">
+            The commit last reviewed, <Ref name={review.sinceReview.head} />, is gone: the full
+            review is shown.
+          </p>
+        )}
       </div>
       <nav aria-label="Review">
         {TAB_ORDER.map(shown => (

@@ -5364,6 +5364,7 @@ test("a later round offers 'Since last review' first in Show, Changes only still
       .map(button => button.textContent),
   ).toEqual(['Since last review', 'Changes only', 'Changed + 1 hop', 'Everything']);
   expect(pressed()).toEqual(['Changes only']);
+  expect(within(screen.getByRole('banner')).queryByText(/is gone/)).toBeNull();
 
   await user.click(shown('Since last review'));
 
@@ -5410,4 +5411,15 @@ test("with 'Since last review' shown and nothing drawn changed since, the graph 
   expect(
     await screen.findByText('Nothing in the graph changed since the last review.'),
   ).toBeTruthy();
+});
+
+test('a review whose reviewed head is gone says so, with that head short, in the header, and shows the full review', async () => {
+  const head = 'a1b2c3d4e5f6a7b8c9d0a1b2c3d4e5f6a7b8c9d0';
+  render(<ReviewPage review={pageWith({ ...review, sinceReview: { head, gone: true } })} />);
+  await screen.findByRole('group', { name: 'rust' });
+
+  expect(within(screen.getByRole('banner')).getByText(/is gone/).textContent).toContain(
+    'a1b2c3d, is',
+  );
+  expect(screen.getByRole('button', { name: 'cli-adapter: added' })).toBeDefined();
 });
