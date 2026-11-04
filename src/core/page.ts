@@ -75,6 +75,7 @@ export const pageData = ({
     metrics,
     findings: raisedFindings({
       skipped: reading.skipped,
+      patches: reading.patches,
       undrawn,
       dangling: reading.danglingCalls,
       metricFindings: metricFindings({ metrics, thresholds: reading.thresholds }),

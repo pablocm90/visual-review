@@ -64,6 +64,7 @@ export const counted = (count: number, one: string, many: string) =>
 
 type RaisedOptions = {
   readonly skipped: ReadonlyArray<Skipped>;
+  readonly patches: ReadonlyArray<FilePatch>;
   readonly undrawn: ReadonlyArray<FilePatch>;
   readonly dangling: ReadonlyArray<DanglingCall>;
   readonly metricFindings: ReadonlyArray<MetricFinding>;
@@ -137,6 +138,7 @@ export const skippedFindingId = (skip: Skipped) => `structure:skipped:${skip.rea
 
 export const raisedFindings = ({
   skipped,
+  patches,
   undrawn,
   dangling,
   metricFindings,
@@ -165,7 +167,7 @@ export const raisedFindings = ({
           detail: undrawn.map(patch => patch.path).join(', '),
         },
       ]),
-  ...namesNotUtf8Finding(undrawn.map(({ path }) => path).filter(path => path.includes('\uFFFD'))),
+  ...namesNotUtf8Finding(patches.map(({ path }) => path).filter(path => path.includes('\uFFFD'))),
   ...[...Map.groupBy(dangling, call => call.from)].map(
     ([from, calls]): Finding => ({
       id: `routes:dangling:${from}`,
