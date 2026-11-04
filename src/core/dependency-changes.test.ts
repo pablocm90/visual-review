@@ -33,6 +33,8 @@ test.for([
   { move: 'a prerelease to its release', from: '5-rc.1', to: '5.0.0' },
   { move: 'a Ruby prerelease to its release', from: '8.0.0.rc1', to: '8.0.1' },
   { move: 'a build to another', from: '5+a', to: '5+b' },
+  { move: 'an all-zero prerelease to another', from: '0.0.0-canary.1', to: '0.0.0-canary.2' },
+  { move: 'an all-zero prerelease to its release', from: '0.0.0-canary.1', to: '0.0.0' },
 ])('$move raises nothing', ({ from, to }) => {
   expect(changeOf([from], [to])).toEqual([]);
 });
