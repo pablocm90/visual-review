@@ -1,7 +1,15 @@
 import { expect, test } from 'vitest';
 import { readRustTests } from '../readers/rust/rust-tests.ts';
 import { readTypeScriptTests } from '../readers/typescript/typescript-tests.ts';
-import { type TestStatement, testChanges, testCounts, withMovedTests } from './test-changes.ts';
+import {
+  type AnchoredStatement,
+  anchoredTests,
+  type TestChange,
+  type TestStatement,
+  testChanges,
+  testCounts,
+  withMovedTests,
+} from './test-changes.ts';
 
 test('reads a new file as a tree of its describe blocks and tests, in source order', () => {
   const after = [
@@ -459,4 +467,90 @@ test.for([
   { end: 'the file it arrived in', path: 'crates/models/src/password.rs' },
 ])('counts a moved test as moved with only $end counted', ({ path }) => {
   expect(testCounts(signUpMoved().filter(file => file.path === path)).moved).toBe(1);
+});
+
+test('a test or heading keeps its headings and name as its trail, and from the second of its kind on that trail in a file gains its count, across headings of one name', () => {
+  const twice = (name: string): ReadonlyArray<TestStatement> => [
+    { kind: 'test', name, change: 'added' },
+    { kind: 'test', name, change: 'removed' },
+  ];
+  const trails = (statements: ReadonlyArray<AnchoredStatement>): ReadonlyArray<string> =>
+    statements.flatMap(statement =>
+      statement.kind === 'test'
+        ? [statement.trail]
+        : [statement.trail, ...trails(statement.children)],
+    );
+
+  expect(
+    trails(
+      anchoredTests([
+        { kind: 'heading', name: 'Cart', children: twice('adds tax') },
+        { kind: 'heading', name: 'Cart', children: twice('adds tax') },
+        { kind: 'test', name: 'Cart', change: 'added' },
+        {
+          kind: 'heading',
+          name: 'Till',
+          children: [{ kind: 'test', name: 'adds tax', change: 'added' }],
+        },
+      ]),
+    ),
+  ).toStrictEqual([
+    'Cart',
+    'Cart › adds tax',
+    'Cart › adds tax#2',
+    'Cart#2',
+    'Cart › adds tax#3',
+    'Cart › adds tax#4',
+    'Cart',
+    'Till',
+    'Till › adds tax',
+  ]);
+});
+
+const tests = (...sources: ReadonlyArray<string>) => sources.join('\n');
+const twin = (body: string) => `test('adds tax', () => { ${body} });`;
+const adds = (change: TestChange): TestStatement => ({ kind: 'test', name: 'adds tax', change });
+const other = (name: string, change: TestChange): TestStatement => ({ kind: 'test', name, change });
+
+test.for([
+  {
+    reason: 'an unchanged second twin against the second, the first edited',
+    before: tests(twin('one'), twin('two')),
+    after: tests(twin('three'), twin('two')),
+    expected: [adds('edited'), adds('unchanged')],
+  },
+  {
+    reason: 'a second twin gone as removed, and what followed it once',
+    before: tests(twin('one'), twin('two'), "test('drops totals', () => {});"),
+    after: tests(twin('one')),
+    expected: [adds('unchanged'), adds('removed'), other('drops totals', 'removed')],
+  },
+  {
+    reason: 'a new second twin as added, and what it replaced removed once',
+    before: tests(twin('one'), "test('drops totals', () => {});"),
+    after: tests(twin('one'), twin('two')),
+    expected: [adds('unchanged'), other('drops totals', 'removed'), adds('added')],
+  },
+  {
+    reason: 'the second of two headings of one name against the second',
+    before: tests(
+      "describe('Cart', () => { test('a', () => {}); });",
+      "describe('Cart', () => { test('b', () => { one }); });",
+    ),
+    after: tests(
+      "describe('Cart', () => { test('a', () => {}); });",
+      "describe('Cart', () => { test('b', () => { two }); });",
+    ),
+    expected: [
+      { kind: 'heading', name: 'Cart', children: [other('a', 'unchanged')] },
+      { kind: 'heading', name: 'Cart', children: [other('b', 'edited')] },
+    ],
+  },
+] satisfies ReadonlyArray<{
+  reason: string;
+  before: string;
+  after: string;
+  expected: ReadonlyArray<TestStatement>;
+}>)('pairs twins in order across the sides: $reason', ({ before, after, expected }) => {
+  expect(testChanges({ read: readTypeScriptTests, before, after })).toEqual(expected);
 });

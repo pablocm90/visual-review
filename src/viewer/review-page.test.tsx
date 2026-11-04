@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { act, configure, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { expect, onTestFinished, test, vi } from 'vitest';
+import { afterEach, expect, onTestFinished, test, vi } from 'vitest';
 import type { GraphDiff } from '../core/diff-graphs.ts';
 import { type Finding, raisedFindings } from '../core/findings.ts';
 import type { ReviewNotes } from '../core/notes.ts';
@@ -92,6 +92,8 @@ const review = {
 configure({ asyncUtilTimeout: 3000 });
 
 await layoutDiff(review.diff);
+
+afterEach(() => history.replaceState(null, '', location.pathname));
 
 const shown = (name: string) =>
   within(screen.getByRole('group', { name: 'Show' })).getByRole('button', { name });
@@ -984,15 +986,21 @@ test("toggling a box keeps the zoom and the box's corner where it was on screen,
     await press('Fit');
     expect(viewOf(web)).toBe(refitted);
   };
-  await user.click(screen.getByRole('checkbox', { name: 'All edges' }));
-  await refitsFrom('200%');
-
-  await press('100%');
-  await press('Zoom in');
-  await press('Collapse utils');
-  await waitFor(() => expect(within(web).queryByRole('group', { name: 'utils' })).toBeNull());
-  expect(zoomShown()).toBe('125%');
+  const collapseUtilsAt125 = async () => {
+    await press('100%');
+    await press('Zoom in');
+    await press('Collapse utils');
+    await waitFor(() => expect(within(web).queryByRole('group', { name: 'utils' })).toBeNull());
+    expect(zoomShown()).toBe('125%');
+  };
+  await collapseUtilsAt125();
   await showEverything(user);
+  await refitsFrom('125%');
+
+  await press('Expand utils');
+  await within(web).findByRole('group', { name: 'utils' });
+  await collapseUtilsAt125();
+  await user.click(screen.getByRole('checkbox', { name: 'All edges' }));
   await refitsFrom('125%');
 });
 
@@ -1075,10 +1083,7 @@ test('the Review nav links Structure, Metrics and Tests, and marks Structure the
   await screen.findByRole('group', { name: 'rust' });
 });
 
-const atHash = (hash: string) => {
-  history.replaceState(null, '', hash);
-  onTestFinished(() => history.replaceState(null, '', location.pathname));
-};
+const atHash = (hash: string) => history.replaceState(null, '', hash);
 
 const currentTab = () =>
   within(screen.getByRole('navigation', { name: 'Review' })).getByRole('link', { current: 'page' })
@@ -1096,7 +1101,6 @@ test.for([
 });
 
 test("the Tests tab's link counts the review's changed tests, a moved pair once, and carries no count with none changed", async () => {
-  atHash('');
   const user = userEvent.setup();
   const { rerender } = render(
     <ReviewPage
@@ -1213,7 +1217,6 @@ test("the Tests tab heads the test changes with what the notes say they pin, and
 });
 
 test('the Tests tab shows all the test changes by default, or, while a node is picked on Structure, those alongside it, saying so when none changed there; with the pick cleared it shows them all', async () => {
-  atHash('');
   const user = userEvent.setup();
   const added = (name: string) => ({ kind: 'test' as const, name, change: 'added' as const });
   render(
@@ -1284,7 +1287,6 @@ test('the Tests tab shows all the test changes by default, or, while a node is p
 });
 
 test('the Tests tab counts the shown tests by change, a moved pair once, as moved, even with only one of its files shown', async () => {
-  atHash('');
   const user = userEvent.setup();
   render(
     <ReviewPage
@@ -1424,7 +1426,6 @@ test("a Metrics row's node name goes to it on Structure, focused, its inspector 
 });
 
 test('picking a tab sets the hash and shows it, and back and forward move between the tabs', async () => {
-  atHash('');
   const user = userEvent.setup();
   render(<ReviewPage review={pageWith(review)} />);
   await screen.findByRole('group', { name: 'rust' });
@@ -1487,7 +1488,7 @@ test('the findings rail hands the keyboard focus to its other toggle as it opens
   const hide = screen.getByRole('button', { name: 'Hide findings' });
   expect(document.activeElement).toBe(hide);
 
-  const domain = screen.getByRole('button', { name: 'domain: unchanged' });
+  const domain = await screen.findByRole('button', { name: 'domain: unchanged' });
   await user.click(domain);
   expect(document.activeElement).toBe(domain);
 
@@ -1703,7 +1704,9 @@ test('the summary lists its items, not the flagged notes, and an item with a tar
   const focus = vi.spyOn(SVGElement.prototype, 'focus');
   onTestFinished(() => focus.mockRestore());
   await user.click(within(summary).getByRole('button', { name: 'The CLI is a new adapter.' }));
-  expect(document.activeElement).toBe(screen.getByRole('button', { name: 'cli-adapter: added' }));
+  await waitFor(() =>
+    expect(document.activeElement).toBe(screen.getByRole('button', { name: 'cli-adapter: added' })),
+  );
   expect(focus).toHaveBeenCalledWith({ preventScroll: true });
   expect(noteShown()).toBe('A second way in.');
 
@@ -1857,10 +1860,12 @@ test("a note's or a metric finding in the rail goes to its node or edge as the s
   await user.click(await screen.findByRole('button', { name: 'Show 2 findings' }));
   const rail = () => within(screen.getByRole('complementary', { name: 'Findings' }));
   await user.click(rail().getByRole('button', { name: /^cli-adapter → application: new/ }));
-  expect(document.activeElement).toBe(
-    screen.getByRole('button', {
-      name: 'cli-adapter → application: added, flagged: new dependency direction',
-    }),
+  await waitFor(() =>
+    expect(document.activeElement).toBe(
+      screen.getByRole('button', {
+        name: 'cli-adapter → application: added, flagged: new dependency direction',
+      }),
+    ),
   );
   expect(noteShown()).toBe('The CLI drives the use case.');
 
@@ -2255,7 +2260,6 @@ test('stored read marks that are not a list of ids are ignored, the page startin
 });
 
 test('J, K and A act on Structure alone: on Metrics and Tests they neither walk nor mark', async () => {
-  atHash('#structure');
   const user = userEvent.setup();
   render(<ReviewPage review={walkedReview()} />);
   await screen.findByRole('group', { name: 'rust' });
@@ -2388,7 +2392,9 @@ test('look first lists the findings to look at in rank order, in the dimension a
   await user.click(toggle());
   expect(items()).toHaveLength(3);
   await user.click(band().getByRole('button', { name: 'domain: second' }));
-  expect(document.activeElement).toBe(screen.getByRole('button', { name: 'domain: unchanged' }));
+  await waitFor(() =>
+    expect(document.activeElement).toBe(screen.getByRole('button', { name: 'domain: unchanged' })),
+  );
 
   rerender(<ReviewPage review={pageWith({ ...review, findings: looks(7) })} />);
   expect(items()).toHaveLength(7);
@@ -2498,7 +2504,7 @@ test("modules open collapsed, joined by their files' imports; a module's toggle 
     'Expand utils',
   ];
   expect(buttonsIn(web)).toEqual(collapsed);
-  expect(buttonsIn(screen.getByRole('group', { name: 'rust' }))).toEqual([
+  expect(buttonsIn(await screen.findByRole('group', { name: 'rust' }))).toEqual([
     'application → domain: unchanged',
     'domain: unchanged',
     'application: unchanged',
@@ -2537,7 +2543,11 @@ test("modules open collapsed, joined by their files' imports; a module's toggle 
   expect(document.activeElement).not.toBe(y);
 
   await user.click(within(web).getByRole('button', { name: 'Collapse modules/AppInfo' }));
+  await waitFor(() =>
+    expect(within(web).queryByRole('group', { name: 'modules/AppInfo' })).toBeNull(),
+  );
   await user.click(within(web).getByRole('button', { name: 'Collapse utils' }));
+  await waitFor(() => expect(within(web).queryByRole('group', { name: 'utils' })).toBeNull());
   await user.click(screen.getByRole('button', { name: /^Show \d+ findings?$/ }));
   await user.click(
     within(screen.getByRole('complementary', { name: 'Findings' })).getByRole('button', {
@@ -3069,7 +3079,7 @@ test("the rail's changed files outside the graph open in the inspector at the ch
   await user.click(within(readme).getByText('README.md'));
   expect(within(readme).getByRole('insertion').textContent).toBe('+new');
 
-  await user.click(screen.getByRole('button', { name: 'domain: unchanged' }));
+  await user.click(await screen.findByRole('button', { name: 'domain: unchanged' }));
   expect(within(inspector()).getByRole('heading', { level: 2 }).textContent).toBe('domain');
 
   const opener = screen.getByRole('button', { name: outside });
@@ -4677,7 +4687,6 @@ test("same-named symbols in one file take a comment each, counted through the fi
 
 test('the inspector goes back to Note when it closes or Structure is left, and holds its tab between parts', async () => {
   const user = userEvent.setup();
-  atHash('#structure');
   const symbol = {
     name: 'tax',
     kind: 'function' as const,
@@ -4722,7 +4731,6 @@ test('the inspector goes back to Note when it closes or Structure is left, and h
 
 test('the inspector holds its tab through an edge selected between two parts', async () => {
   const user = userEvent.setup();
-  atHash('#structure');
   const symbol = {
     name: 'tax',
     kind: 'function' as const,
@@ -4877,7 +4885,7 @@ test('a page that is not served has no Comment toggle on a symbol or a logic lin
 
 const testsTab = () => screen.getByRole('tabpanel', { name: 'Tests' });
 
-const pageWithTwinTests = () =>
+const pageWithSameNamedTests = () =>
   pageWith({
     range: review.range,
     diff: {
@@ -4917,7 +4925,7 @@ const pageWithTwinTests = () =>
 test("a served page's test row in the inspector takes a comment, a removed test too, its id the test's file and headings, so tests of one name keep apart; a page not served has no toggle", async () => {
   const user = userEvent.setup();
   const sent = vi.fn(async () => {});
-  const page = pageWithTwinTests();
+  const page = pageWithSameNamedTests();
   const { rerender } = render(<ReviewPage review={page} send={sent} />);
   const commentOn = async (name: string, rowName: string, text: string) => {
     const row = within(within(testsTab()).getByRole('listitem', { name: rowName }));
@@ -4962,7 +4970,7 @@ test("a served page's test row in the inspector takes a comment, a removed test 
 
 test("a served page's Tests screen takes a comment on a test row, one draft with the inspector's Tests tab; a page not served has no toggle", async () => {
   const user = userEvent.setup();
-  const page = pageWithTwinTests();
+  const page = pageWithSameNamedTests();
   const { rerender } = render(<ReviewPage review={page} send={vi.fn(async () => {})} />);
   const row = (place: HTMLElement, rowName: string) =>
     within(within(place).getByRole('listitem', { name: rowName }));
@@ -5005,9 +5013,87 @@ test("a served page's Tests screen takes a comment on a test row, one draft with
   expect(within(testChanges()).queryAllByRole('button', { name: /^Comment on/ })).toStrictEqual([]);
 });
 
-test("a test's draft in the tray opens the Tests tab of the file it's named after, though no box holds it, showing the draft", async () => {
+test('two tests of one name under one heading keep a draft each, in the inspector and on the Tests screen, and the review sends each on its own id', async () => {
   const user = userEvent.setup();
   atHash('#structure');
+  const sent = vi.fn(async () => {});
+  const added = { kind: 'test' as const, name: 'adds tax', change: 'added' as const };
+  render(
+    <ReviewPage
+      review={pageWith({
+        range: review.range,
+        diff: {
+          nodes: [
+            { id: 'web', kind: 'stack', label: 'web', path: '', state: 'unchanged' },
+            topFile('total.ts', 'modified'),
+          ],
+          edges: [],
+        },
+        tests: [
+          {
+            path: 'total.test.ts',
+            stack: 'web',
+            statements: [{ kind: 'heading', name: 'Cart', children: [added, added] }],
+          },
+        ],
+      })}
+      send={sent}
+    />,
+  );
+  const twin = (place: HTMLElement, index: number) => {
+    const row = within(place).getAllByRole('listitem', { name: 'adds tax: added' })[index];
+    if (row === undefined) throw new Error(`no twin ${index}`);
+    return within(row);
+  };
+  const field = (place: HTMLElement, index: number) =>
+    twin(place, index).getByRole('textbox', { name: 'Your comment' });
+
+  await user.click(await screen.findByRole('button', { name: 'total.ts: modified' }));
+  await user.click(within(inspector()).getByRole('tab', { name: 'Tests 2' }));
+  await user.click(twin(testsTab(), 0).getByRole('button', { name: 'Comment on Cart › adds tax' }));
+  await write(user, field(testsTab(), 0), 'The first.');
+  await user.click(
+    twin(testsTab(), 1).getByRole('button', { name: 'Comment on Cart › adds tax#2' }),
+  );
+  expect(field(testsTab(), 1)).toHaveProperty('value', '');
+
+  await user.click(screen.getByRole('link', { name: 'Tests 2' }));
+  const testChanges = screen.getByRole('region', { name: 'Test changes' });
+  expect(field(testChanges, 0)).toHaveProperty('value', 'The first.');
+  await user.click(
+    twin(testChanges, 1).getByRole('button', { name: 'Comment on Cart › adds tax#2' }),
+  );
+  expect(field(testChanges, 1)).toHaveProperty('value', '');
+  await write(user, field(testChanges, 1), 'The second.');
+  expect(field(testChanges, 0)).toHaveProperty('value', 'The first.');
+
+  await openReview(user);
+  const drafts = within(screen.getByRole('list', { name: 'Drafts' }));
+  expect(drafts.getByRole('button', { name: 'adds tax' })).toBeTruthy();
+  expect(drafts.getByRole('button', { name: 'adds tax#2' })).toBeTruthy();
+  await user.click(screen.getByRole('button', { name: 'Send to Claude' }));
+
+  expect(sent).toHaveBeenCalledExactlyOnceWith(
+    sentReview({
+      verdict: 'comment',
+      comments: [
+        {
+          anchor: { kind: 'test', id: 'total.test.ts#Cart › adds tax' },
+          kind: 'question',
+          text: 'The first.',
+        },
+        {
+          anchor: { kind: 'test', id: 'total.test.ts#Cart › adds tax#2' },
+          kind: 'question',
+          text: 'The second.',
+        },
+      ],
+    }),
+  );
+});
+
+test("a test's draft in the tray opens the Tests tab of the file it's named after, though no box holds it, showing the draft", async () => {
+  const user = userEvent.setup();
   render(
     <ReviewPage
       review={pageWith({
