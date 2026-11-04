@@ -1,4 +1,5 @@
-import { anchorTarget, split, type TargetsOf } from './anchors.ts';
+import { anchorTarget, fileOfLine, split, type TargetsOf } from './anchors.ts';
+import type { Rename } from './diff-graphs.ts';
 import { isAtOrUnder } from './diff-graphs.ts';
 import { endsOfId, type GraphNode } from './graph.ts';
 import type { Commit, ReviewedHead } from './read-range.ts';
@@ -13,7 +14,8 @@ export type PreviousComment = Said & {
 
 type Compared = {
   readonly changed: ChangedSince;
-  readonly held: Pick<ChangedSince, 'symbols' | 'decisions'>;
+  readonly held: Pick<ChangedSince, 'symbols' | 'decisions' | 'tests' | 'files'>;
+  readonly renames: ReadonlyArray<Rename>;
   readonly commits: ReadonlyArray<Commit>;
   readonly tree: ReadonlyArray<Pick<GraphNode, 'id' | 'parent' | 'path'>>;
   readonly named: (id: string) => string;
@@ -60,32 +62,57 @@ const edgeChanged = (compared: Compared, targets: TargetsOf, id: string): boolea
   );
 };
 
-const nodesOf = ({ kind, id }: Said['anchor']): ReadonlyArray<string> =>
-  kind === 'part' || kind === 'edge' ? endsOfId(id) : [split(id, '#')[0]];
+type InAFile = Extract<Said['anchor'], { readonly kind: 'test' | 'line' }>;
 
-const anchoredChanged = (compared: Compared, kind: 'symbols' | 'decisions', id: string): boolean =>
+const fileOf = ({ kind, id }: InAFile): string =>
+  kind === 'test' ? split(id, '#')[0] : fileOfLine(id);
+
+const isInAFile = (anchor: Said['anchor']): anchor is InAFile =>
+  anchor.kind === 'test' || anchor.kind === 'line';
+
+const headFile = ({ renames }: Compared, file: string): string =>
+  renames.find(({ from }) => from === file)?.to ?? file;
+
+const commitsOf = (compared: Compared, anchor: Said['anchor']): ReadonlyArray<Commit> => {
+  if (isInAFile(anchor)) {
+    const file = fileOf(anchor);
+    const head = headFile(compared, file);
+    return compared.commits.filter(({ files }) => files.includes(file) || files.includes(head));
+  }
+  const nodes =
+    anchor.kind === 'part' || anchor.kind === 'edge'
+      ? endsOfId(anchor.id)
+      : [split(anchor.id, '#')[0]];
+  return commitsOn(compared, [...nodes, ...nodes.map(compared.named)]);
+};
+
+const listed = (compared: Compared, kind: keyof Compared['held'], id: string): boolean =>
   !compared.held[kind].includes(id) || compared.changed[kind].includes(id);
 
 const isChanged = (compared: Compared, targets: TargetsOf, { kind, id }: Said['anchor']) => {
   if (kind === 'part') return partChanged(compared, targets, compared.named(id));
   if (kind === 'edge') return edgeChanged(compared, targets, id);
-  return anchoredChanged(compared, kind === 'symbol' ? 'symbols' : 'decisions', id);
+  if (kind === 'symbol') return listed(compared, 'symbols', id);
+  if (kind === 'decision') return listed(compared, 'decisions', id);
+  if (kind === 'test') return listed(compared, 'tests', id);
+  return listed(compared, 'files', fileOfLine(id));
 };
 
-const markOf = (compared: Compared, targets: TargetsOf, anchor: Said['anchor']) => {
-  const nodes = nodesOf(anchor);
-  return isChanged(compared, targets, anchor)
-    ? { changedSince: commitsOn(compared, [...nodes, ...nodes.map(compared.named)]) }
-    : {};
-};
+const markOf = (compared: Compared, targets: TargetsOf, anchor: Said['anchor']) =>
+  isChanged(compared, targets, anchor) ? { changedSince: commitsOf(compared, anchor) } : {};
 
 const targetIn = (targets: TargetsOf, id: string) =>
   endsOfId(id).every(end => isHeld(targets, end)) ? { target: id } : {};
 
-const headId = ({ kind, id }: Said['anchor'], named: (id: string) => string): string => {
-  if (kind === 'part' || kind === 'edge') return endsOfId(id).map(named).join(' -> ');
+const headId = (compared: Compared, anchor: Said['anchor']): string => {
+  const { kind, id } = anchor;
+  if (isInAFile(anchor)) {
+    const file = fileOf(anchor);
+    return `${headFile(compared, file)}${id.slice(file.length)}`;
+  }
+  if (kind === 'part' || kind === 'edge') return endsOfId(id).map(compared.named).join(' -> ');
   const [node, rest] = split(id, '#');
-  return `${named(node)}#${rest}`;
+  return `${compared.named(node)}#${rest}`;
 };
 
 export const previousComments = ({
@@ -95,9 +122,8 @@ export const previousComments = ({
 }: PreviousCommentsOptions): ReadonlyArray<PreviousComment> =>
   comments.map(comment => {
     const { anchor } = comment;
-    if (anchor.kind === 'test' || anchor.kind === 'line' || anchor.kind === 'finding')
-      return comment;
-    const id = headId(anchor, compared?.named ?? (end => end));
+    if (anchor.kind === 'finding') return comment;
+    const id = compared === undefined ? anchor.id : headId(compared, anchor);
     const target = anchorTarget({ ...anchor, id }, targets);
     return {
       ...comment,

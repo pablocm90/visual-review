@@ -160,12 +160,16 @@ const testsSinceOf = ({ since, atHead, atReview }: TestsSinceOptions) => {
   const head = testAnchorsIn(atHead);
   const now = changed(head).map(({ id }) => id);
   const then = changed(testAnchorsIn(atReview)).map(({ id }) => id);
-  return inTheHead(
-    changed(testAnchorsIn(since))
-      .filter(({ id, former }) => now.includes(id) || then.includes(former))
-      .map(({ id }) => id),
-    head.map(({ id }) => id),
-  );
+  const held = head.map(({ id }) => id);
+  return {
+    held,
+    ...inTheHead(
+      changed(testAnchorsIn(since))
+        .filter(({ id, former }) => now.includes(id) || then.includes(former))
+        .map(({ id }) => id),
+      held,
+    ),
+  };
 };
 
 export const sinceReviewOf = ({
@@ -240,7 +244,8 @@ export const sinceReviewOf = ({
         targets,
         compared: {
           changed,
-          held: anchors.held,
+          held: { ...anchors.held, tests: testsSince.held, files: patches.map(({ path }) => path) },
+          renames: side.renames,
           commits: reviewed.commits,
           tree: [...side.before.nodes, ...after.nodes],
           named,
