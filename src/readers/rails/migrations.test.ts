@@ -135,3 +135,32 @@ test.for([
 ])('$written is flagged when rows would have no value', ({ written, expected }) => {
   expect(titles(written)).toStrictEqual(expected);
 });
+
+test('adding an index says why that is a risk', () => {
+  expect(railsMigrations.risks(migration('add_index :orders, :user_id'))).toStrictEqual([
+    {
+      title: 'index on orders (user_id) added, not concurrently',
+      why: 'Blocks writes to the table while the index builds.',
+      line: 3,
+    },
+  ]);
+});
+
+test.for([
+  {
+    written: 'add_index :orders, [:user_id, "state"]',
+    expected: ['index on orders (user_id, state) added, not concurrently'],
+  },
+  {
+    written: 'add_index :orders, :user_id, unique: true',
+    expected: ['index on orders (user_id) added, not concurrently'],
+  },
+  {
+    written: 'add_index :orders, :user_id, algorithm: :inplace',
+    expected: ['index on orders (user_id) added, not concurrently'],
+  },
+  { written: 'add_index :orders, :user_id, algorithm: :concurrently', expected: [] },
+  { written: 'add_index :orders, :user_id, :algorithm => :concurrently', expected: [] },
+])('$written is flagged unless built concurrently', ({ written, expected }) => {
+  expect(titles(written)).toStrictEqual(expected);
+});

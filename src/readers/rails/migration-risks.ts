@@ -18,7 +18,12 @@ const SCANS = 'Fails if a row holds NULL, and scans the table under a lock.';
 
 const NO_VALUE = 'Fails on a table with rows.';
 
+const BLOCKS_WRITES = 'Blocks writes to the table while the index builds.';
+
 const nameOf = (node: Node | undefined): string => node?.text.replace(/^:?['"]?|['"]$/g, '') ?? '';
+
+const namesOf = (node: Node | undefined): string =>
+  node?.type === 'array' ? node.namedChildren.map(nameOf).join(', ') : nameOf(node);
 
 const callsIn = (node: Node): ReadonlyArray<Node> => [
   ...(node.type === 'call' ? [node] : []),
@@ -97,6 +102,18 @@ const RULES: ReadonlyMap<string, Rule> = new Map<string, Rule>([
     'add_timestamps',
     ({ table, args }) =>
       leavesRowsEmpty(args, 'false') ? [addedRequired(`timestamps of ${table}`)] : [],
+  ],
+  [
+    'add_index',
+    ({ table, args }) =>
+      optionOf(args, 'algorithm')?.text === ':concurrently'
+        ? []
+        : [
+            {
+              title: `index on ${table} (${namesOf(args[0])}) added, not concurrently`,
+              why: BLOCKS_WRITES,
+            },
+          ],
   ],
 ]);
 
