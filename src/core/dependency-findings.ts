@@ -47,7 +47,15 @@ export const dependencyFindings = (
 ): ReadonlyArray<Finding> =>
   changes.flatMap(change =>
     'notRead' in change
-      ? []
+      ? [
+          {
+            id: `dependencies:not-read:${change.lockfile}`,
+            dimension: 'dependencies',
+            level: 'look',
+            file: change.lockfile,
+            title: `${change.lockfile} not read: ${change.notRead}`,
+          },
+        ]
       : [
           ...change.packages
             .filter(found => found.direct)

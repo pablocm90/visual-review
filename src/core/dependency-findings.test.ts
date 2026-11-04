@@ -113,3 +113,17 @@ test("direct packages come before their lockfile's roll-up, and each lockfile ro
     'dependencies:transitive:b/yarn.lock',
   ]);
 });
+
+test('a lockfile not read is a finding to look at, naming the format', () => {
+  expect(
+    dependencyFindings([{ lockfile: 'web/yarn.lock', notRead: 'Yarn 2+ format' }]),
+  ).toStrictEqual([
+    {
+      id: 'dependencies:not-read:web/yarn.lock',
+      dimension: 'dependencies',
+      level: 'look',
+      file: 'web/yarn.lock',
+      title: 'web/yarn.lock not read: Yarn 2+ format',
+    },
+  ]);
+});
