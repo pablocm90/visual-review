@@ -1208,8 +1208,10 @@ export const ReviewPage = ({ review, notes, send }: ReviewPageProps) => {
   const answer: AnswerTo | undefined =
     send && ((id, given) => setAnswers(current => withAnswer(current, id, given)));
   const [chosenWidth, setChosenWidth] = useState<number>();
-  const comment = (written: Comment) =>
-    setComments(current => ({ ...current, [anchorKey(written.anchor)]: written }));
+  const comment =
+    send &&
+    ((written: Comment) =>
+      setComments(current => ({ ...current, [anchorKey(written.anchor)]: written })));
   const [expanded, setExpanded] = useState<ReadonlySet<string>>(new Set());
   const expandable = useMemo(
     () => new Set(review.diff.nodes.flatMap(node => node.parent ?? [])),
@@ -1474,7 +1476,7 @@ export const ReviewPage = ({ review, notes, send }: ReviewPageProps) => {
               note={selectedNote}
               found={selectedFindings}
               comments={comments}
-              onComment={send && comment}
+              onComment={comment}
               answers={answers}
               onAnswer={answer}
               chosenWidth={chosenWidth}
@@ -1497,7 +1499,7 @@ export const ReviewPage = ({ review, notes, send }: ReviewPageProps) => {
           selected={selectedNode}
           onGoTo={goToOnStructure}
           comments={comments}
-          onComment={send && comment}
+          onComment={comment}
         />
       )}
       {send && (
