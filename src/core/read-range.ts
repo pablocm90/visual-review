@@ -1,14 +1,15 @@
-import { execFile } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import { mkdtemp, readFile, realpath, rm, stat } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { basename, join, relative } from 'node:path';
-import { promisify } from 'node:util';
 import { CONFIG_FILE, type Config, parseConfig } from './config.ts';
 import { diffGraphs, type FilePatch, type GraphDiff, type Rename } from './diff-graphs.ts';
+import { git } from './git.ts';
 import { type Graph, stackOfIn } from './graph.ts';
 import type { DanglingCall } from './linker.ts';
+import type { Lockfile } from './lockfile.ts';
 import { type MeasuredNode, measuredNodes } from './metrics.ts';
+import { type DependencyChanges, readLockfiles } from './read-lockfiles.ts';
 import {
   type Adapters,
   checkConfig,
@@ -21,8 +22,6 @@ import type { Review } from './review.ts';
 import type { Skipped } from './skipped.ts';
 import { type FileSymbolChanges, symbolChangesOf } from './symbol-changes.ts';
 import { type TestFile, testChanges, withMovedTests } from './test-changes.ts';
-
-const run = promisify(execFile);
 
 export type Churn = Readonly<Record<string, number>>;
 
@@ -77,6 +76,7 @@ export type RangeReading = {
   readonly tests: ReadonlyArray<TestFile>;
   readonly symbols: ReadonlyArray<SymbolFile>;
   readonly symbolsNotRead: ReadonlyArray<string>;
+  readonly dependencyChanges: ReadonlyArray<DependencyChanges>;
   readonly danglingCalls: ReadonlyArray<DanglingCall>;
   readonly skipped: ReadonlyArray<Skipped>;
   readonly thresholds: Omit<Config['metrics'], 'churnDays'>;
@@ -85,15 +85,13 @@ export type RangeReading = {
 };
 
 type ReadRangeOptions = Adapters & {
+  readonly lockfiles: ReadonlyArray<Lockfile>;
   readonly repo: string;
   readonly from: string;
   readonly to: string;
   readonly churnTo?: string;
   readonly reviewed?: ReviewedHead;
 };
-
-const git = async (repo: string, ...args: ReadonlyArray<string>): Promise<string> =>
-  (await run('git', ['-C', repo, ...args], { maxBuffer: Number.POSITIVE_INFINITY })).stdout.trim();
 
 type ReadSideOptions = Adapters & {
   readonly repo: string;
@@ -320,10 +318,11 @@ const changesBetween = async (
   from: string,
   to: string,
 ): Promise<ReadonlyArray<ReadonlyArray<string>>> =>
-  (await git(repo, 'diff', '--find-renames', '--name-status', from, to))
-    .split('\n')
-    .filter(line => line !== '')
-    .map(line => line.split('\t').slice(1));
+  [
+    ...(await git(repo, 'diff', '--find-renames', '--name-status', '-z', from, to)).matchAll(
+      /(?:[RC]\d*\0([^\0]+)\0([^\0]+)|[A-Z]\0([^\0]+))\0/g,
+    ),
+  ].map(([, ...paths]) => paths.filter(path => path !== undefined));
 
 const commitOf = (record: string): Commit => {
   const [header = '', ...files] = record.replace('\0\n', '\0').split('\0');
@@ -478,6 +477,7 @@ export const readRange = async ({
   to,
   churnTo = to,
   reviewed,
+  lockfiles,
   ...adapters
 }: ReadRangeOptions): Promise<RangeReading> => {
   const [fromCommit, toCommit] = await Promise.all([resolve(repo, from), resolve(repo, to)]);
@@ -550,6 +550,7 @@ export const readRange = async ({
       churn,
       measures,
       ...anchors,
+      dependencyChanges: await readLockfiles({ repo, base, head: toCommit, changes, lockfiles }),
       danglingCalls: after.danglingCalls,
       skipped: skippedAcross([...before.skipped, ...after.skipped]),
       thresholds,
@@ -559,7 +560,16 @@ export const readRange = async ({
       patches: await Promise.all(
         changes.map(async paths => ({
           path: paths.at(-1) ?? '',
-          patch: await git(repo, 'diff', '--find-renames', base, toCommit, '--', ...paths),
+          patch: await git(
+            repo,
+            '--literal-pathspecs',
+            'diff',
+            '--find-renames',
+            base,
+            toCommit,
+            '--',
+            ...paths,
+          ),
         })),
       ),
       ...(reviewed === undefined

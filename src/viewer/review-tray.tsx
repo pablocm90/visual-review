@@ -24,6 +24,7 @@ type ReviewTrayProps = {
   readonly onGoTo: (id: string) => void;
   readonly onGoToDraft: (id: string, anchor: Comment['anchor']) => void;
   readonly onGoToOutside: (place: PlaceOfLine, opener: HTMLButtonElement) => void;
+  readonly onGoToFile: (path: string, opener: HTMLButtonElement) => void;
   readonly send: (review: Review) => Promise<void>;
 };
 
@@ -129,6 +130,7 @@ type DraftListProps = {
   readonly onGoTo: (id: string) => void;
   readonly onGoToDraft: (id: string, anchor: Comment['anchor']) => void;
   readonly onGoToOutside: (place: PlaceOfLine, opener: HTMLButtonElement) => void;
+  readonly onGoToFile: (path: string, opener: HTMLButtonElement) => void;
 };
 
 const DraftList = ({
@@ -140,6 +142,7 @@ const DraftList = ({
   onGoTo,
   onGoToDraft,
   onGoToOutside,
+  onGoToFile,
 }: DraftListProps) => (
   <ul aria-label="Drafts" className="tray-list">
     {drafted.map(({ anchor, kind, text }) => {
@@ -159,11 +162,17 @@ const DraftList = ({
     {answered.flatMap(({ anchor, kind, text }) =>
       findings
         .filter(finding => finding.id === anchor.id)
-        .map(({ id, title, target }) => (
+        .map(({ id, title, target, file }) => (
           <Draft
             key={id}
             name={title}
-            onGo={target === undefined ? undefined : () => onGoTo(target)}
+            onGo={
+              target !== undefined
+                ? () => onGoTo(target)
+                : file !== undefined
+                  ? opener => onGoToFile(file, opener)
+                  : undefined
+            }
             label={answerLabels.get(kind)}
             text={text}
           />
@@ -184,6 +193,7 @@ export const ReviewTray = ({
   onGoTo,
   onGoToDraft,
   onGoToOutside,
+  onGoToFile,
   send,
 }: ReviewTrayProps) => {
   const [picked, setPicked] = useState<Review['verdict']>();
@@ -249,6 +259,7 @@ export const ReviewTray = ({
                   onGoTo={onGoTo}
                   onGoToDraft={onGoToDraft}
                   onGoToOutside={onGoToOutside}
+                  onGoToFile={onGoToFile}
                 />
                 {parts.length > 0 && (
                   <p className="tray-read">

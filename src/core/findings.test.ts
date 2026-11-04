@@ -79,6 +79,45 @@ test('look first holds the findings to look at: untargeted ones first, then by t
   ]);
 });
 
+test('direct dependency findings rank below other findings with no target and above targeted ones', () => {
+  const findings: ReadonlyArray<Finding> = [
+    look('a', 'on a'),
+    {
+      id: 'dependencies:pnpm-lock.yaml:zod',
+      dimension: 'dependencies',
+      level: 'look',
+      file: 'pnpm-lock.yaml',
+      title: 'zod added at 4.0.0',
+    },
+    { id: 'structure:skipped:rust', dimension: 'structure', level: 'look', title: 'Rust skipped' },
+  ];
+
+  expect(lookFirst({ findings, metrics: {} }).map(finding => finding.id)).toStrictEqual([
+    'structure:skipped:rust',
+    'dependencies:pnpm-lock.yaml:zod',
+    'on a',
+  ]);
+});
+
+test('a lockfile not read is a blind spot, ahead of the direct dependencies', () => {
+  const dependency = (id: string): Finding => ({
+    id,
+    dimension: 'dependencies',
+    level: 'look',
+    title: id,
+  });
+
+  expect(
+    lookFirst({
+      findings: [
+        dependency('dependencies:Cargo.lock:anyhow'),
+        dependency('dependencies:not-read:yarn.lock'),
+      ],
+      metrics: {},
+    }).map(finding => finding.id),
+  ).toStrictEqual(['dependencies:not-read:yarn.lock', 'dependencies:Cargo.lock:anyhow']);
+});
+
 const boxed = (id: string, parent: string) => ({
   id,
   kind: 'module' as const,
