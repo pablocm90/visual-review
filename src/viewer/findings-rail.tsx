@@ -119,18 +119,20 @@ type FindingItemProps = {
   readonly children?: ReactNode;
 };
 
+const FindingSaid = ({ finding, calledFine }: Pick<FindingItemProps, 'finding' | 'calledFine'>) => (
+  <>
+    <span>{finding.sentence}</span>
+    {calledFine && <span className="called-fine">called fine</span>}
+    {finding.groups ? (
+      <span className="finding-target">{finding.target}</span>
+    ) : (
+      <code className="finding-target">{finding.target}</code>
+    )}
+  </>
+);
+
 const FindingItem = ({ finding, calledFine, answer, onAnswer, children }: FindingItemProps) => {
-  const said = (
-    <>
-      <span>{finding.sentence}</span>
-      {calledFine && <span className="called-fine">called fine</span>}
-      {finding.groups ? (
-        <span className="finding-target">{finding.target}</span>
-      ) : (
-        <code className="finding-target">{finding.target}</code>
-      )}
-    </>
-  );
+  const said = <FindingSaid finding={finding} calledFine={calledFine} />;
   return (
     <li className="finding">
       <LevelMark level={finding.level} />
