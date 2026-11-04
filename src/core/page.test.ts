@@ -1463,6 +1463,8 @@ test.for([
   },
 );
 
+const nothingDropped = { nodes: [], edges: [] };
+
 const reviewedAt = (
   overrides: Pick<ReviewedDiff, 'before' | 'changedPaths'> & {
     readonly pullRequest?: ReviewedDiff;
@@ -1499,7 +1501,11 @@ test.for([
 
   expect(
     pageData({ repo: 'shop', reading, range: 'a..b', version: '1.2.3', parsers: {} }).sinceReview,
-  ).toEqual({ head: 'h1', verdict: 'comment', changed: { nodes, edges: [] } });
+  ).toEqual({
+    head: 'h1',
+    verdict: 'comment',
+    changed: { nodes, edges: [], dropped: nothingDropped },
+  });
 });
 
 test.for([
@@ -1549,7 +1555,11 @@ test.for([
 
     expect(
       pageData({ repo: 'shop', reading, range: 'a..b', version: '1.2.3', parsers: {} }).sinceReview,
-    ).toEqual({ head: 'h1', verdict: 'comment', changed: { nodes, edges: [] } });
+    ).toEqual({
+      head: 'h1',
+      verdict: 'comment',
+      changed: { nodes, edges: [], dropped: nothingDropped },
+    });
   },
 );
 
@@ -1567,7 +1577,11 @@ test("page data leaves out a file main's merge added since the last review", () 
 
   expect(
     pageData({ repo: 'shop', reading, range: 'a..b', version: '1.2.3', parsers: {} }).sinceReview,
-  ).toEqual({ head: 'h1', verdict: 'comment', changed: { nodes: [], edges: [] } });
+  ).toEqual({
+    head: 'h1',
+    verdict: 'comment',
+    changed: { nodes: [], edges: [], dropped: nothingDropped },
+  });
 });
 
 test("page data lists the PR's added or removed edges that came or went since the last review, not the ones it already had or the ones main brought", () => {
@@ -1607,7 +1621,80 @@ test("page data lists the PR's added or removed edges that came or went since th
   ).toEqual({
     head: 'h1',
     verdict: 'comment',
-    changed: { nodes: [], edges: [`${a} -> ${c}`, `${b} -> ${c}`] },
+    changed: { nodes: [], edges: [`${a} -> ${c}`, `${b} -> ${c}`], dropped: nothingDropped },
+  });
+});
+
+test('page data lists a part the PR edited at the last review and has since restored, which the head draws as unchanged', () => {
+  const graph = { nodes: [webStack, webFile('a.ts')], edges: [] };
+  const reading = readingWith({
+    before: graph,
+    after: graph,
+    changedPaths: [],
+    reviewed: reviewedAt({
+      before: graph,
+      changedPaths: ['web/src/a.ts'],
+      pullRequest: { before: graph, changedPaths: ['web/src/a.ts'], renames: [] },
+    }),
+  });
+
+  expect(
+    pageData({ repo: 'shop', reading, range: 'a..b', version: '1.2.3', parsers: {} }).sinceReview,
+  ).toEqual({
+    head: 'h1',
+    verdict: 'comment',
+    changed: { nodes: ['web/file/a.ts'], edges: [], dropped: nothingDropped },
+  });
+});
+
+test('page data holds apart what the PR added at the last review and has since deleted, which the head has no way to draw', () => {
+  const [a, b] = ['web/file/a.ts', 'web/file/b.ts'];
+  const without = { nodes: [webStack, webFile('b.ts')], edges: [] };
+  const atReview = {
+    nodes: [webStack, webFile('a.ts'), webFile('b.ts')],
+    edges: [{ from: a, to: b }],
+  };
+  const reading = readingWith({
+    before: without,
+    after: without,
+    changedPaths: [],
+    reviewed: reviewedAt({
+      before: atReview,
+      changedPaths: ['web/src/a.ts'],
+      pullRequest: { before: without, changedPaths: ['web/src/a.ts'], renames: [] },
+    }),
+  });
+
+  expect(
+    pageData({ repo: 'shop', reading, range: 'a..b', version: '1.2.3', parsers: {} }).sinceReview,
+  ).toEqual({
+    head: 'h1',
+    verdict: 'comment',
+    changed: { nodes: [], edges: [], dropped: { nodes: [a], edges: [`${a} -> ${b}`] } },
+  });
+});
+
+test('page data lists an edge the PR removed at the last review and has since put back', () => {
+  const [a, b] = ['web/file/a.ts', 'web/file/b.ts'];
+  const files = [webStack, webFile('a.ts'), webFile('b.ts')];
+  const linked = { nodes: files, edges: [{ from: a, to: b }] };
+  const reading = readingWith({
+    before: linked,
+    after: linked,
+    changedPaths: [],
+    reviewed: reviewedAt({
+      before: { nodes: files, edges: [] },
+      changedPaths: [],
+      pullRequest: { before: linked, changedPaths: [], renames: [] },
+    }),
+  });
+
+  expect(
+    pageData({ repo: 'shop', reading, range: 'a..b', version: '1.2.3', parsers: {} }).sinceReview,
+  ).toEqual({
+    head: 'h1',
+    verdict: 'comment',
+    changed: { nodes: [], edges: [`${a} -> ${b}`], dropped: nothingDropped },
   });
 });
 

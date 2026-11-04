@@ -5,6 +5,10 @@ import type { ReviewedHead, ReviewedReading } from './read-range.ts';
 export type ChangedSince = {
   readonly nodes: ReadonlyArray<string>;
   readonly edges: ReadonlyArray<string>;
+  readonly dropped: {
+    readonly nodes: ReadonlyArray<string>;
+    readonly edges: ReadonlyArray<string>;
+  };
 };
 
 export type SinceReview =
@@ -24,6 +28,11 @@ const changedIn = ({ nodes, edges }: GraphDiff) => ({
   edges: edges.filter(edge => edge.state !== 'unchanged').map(edgeId),
 });
 
+const inTheHead = (ids: ReadonlyArray<string>, head: ReadonlyArray<string>) => ({
+  drawn: ids.filter(id => head.includes(id)),
+  dropped: ids.filter(id => !head.includes(id)),
+});
+
 export const sinceReviewOf = ({
   reviewed,
   after,
@@ -32,21 +41,32 @@ export const sinceReviewOf = ({
 }: SinceReviewOptions): SinceReview => {
   if ('gone' in reviewed) return { head: reviewed.head, gone: true };
   if ('unreadable' in reviewed) return { head: reviewed.head, unreadable: reviewed.unreadable };
-  const { head, verdict, ...side } = reviewed;
+  const { head, verdict, pullRequest, ...side } = reviewed;
+  const paths = [...changedPaths, ...pullRequest.changedPaths];
   const since = changedIn(
     diffGraphs({
       ...side,
       after,
-      changedPaths: side.changedPaths.filter(path => changedPaths.includes(path)),
+      changedPaths: side.changedPaths.filter(path => paths.includes(path)),
     }),
   );
-  const parts = changedIn(diff);
+  const now = changedIn(diff);
+  const then = changedIn(diffGraphs({ ...pullRequest, after: side.before }));
+  const nodes = inTheHead(
+    since.nodes.filter(id => now.nodes.includes(id) || then.nodes.includes(id)),
+    diff.nodes.map(node => node.id),
+  );
+  const edges = inTheHead(
+    since.edges.filter(id => now.edges.includes(id) || then.edges.includes(id)),
+    diff.edges.map(edgeId),
+  );
   return {
     head,
     verdict,
     changed: {
-      nodes: since.nodes.filter(id => parts.nodes.includes(id)),
-      edges: since.edges.filter(id => parts.edges.includes(id)),
+      nodes: nodes.drawn,
+      edges: edges.drawn,
+      dropped: { nodes: nodes.dropped, edges: edges.dropped },
     },
   };
 };

@@ -5337,7 +5337,11 @@ test("going to a line's draft shows its hidden field, and leaves hidden the one 
 const sinceReview = {
   head: 'h1',
   verdict: 'comment' as const,
-  changed: { nodes: ['rust/crate/application'], edges: [] },
+  changed: {
+    nodes: ['rust/crate/application'],
+    edges: [],
+    dropped: { nodes: [], edges: [] },
+  },
 };
 
 test("a later round offers 'Since last review' first in Show, Changes only still picked; picked, it draws what changed since, and going to a part it hides widens Show", async () => {
@@ -5404,7 +5408,10 @@ test("with 'Since last review' shown and nothing drawn changed since, the graph 
     <ReviewPage
       review={pageWith({
         ...review,
-        sinceReview: { ...sinceReview, changed: { nodes: [], edges: [] } },
+        sinceReview: {
+          ...sinceReview,
+          changed: { nodes: [], edges: [], dropped: { nodes: [], edges: [] } },
+        },
       })}
     />,
   );

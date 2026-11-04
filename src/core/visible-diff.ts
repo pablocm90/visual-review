@@ -107,7 +107,7 @@ export const changesOnly = ({ diff, expanded, drawn }: ChangesOnlyOptions): Grap
 };
 
 type SinceLastReviewOptions = ChangesOnlyOptions & {
-  readonly changed: ChangedSince;
+  readonly changed: Pick<ChangedSince, 'nodes' | 'edges'>;
 };
 
 export const sinceLastReview = ({
