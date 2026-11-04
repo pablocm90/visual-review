@@ -7,7 +7,7 @@ What changed in each release of `@pablocm90/visual-review`, newest first. Versio
 ### Fixed
 
 - Two tests of one name under one heading are two anchors on a served page, so each keeps its own draft: the second's id gains `#2`, as symbols and logic lines count. A test with no twin keeps its id.
-- Tests of one name pair in order across the sides: an unchanged second one no longer reads as edited, a removed one is listed, and a test removed after one no longer vanishes or shows twice.
+- Tests of one name pair in order across the sides: a second one unchanged in its place no longer reads as edited, a removed one is listed, and a test removed after one no longer vanishes or shows twice. Removing the first of two reads as an edit of the first and the removal of the second.
 
 ## 0.18.0 — 2026-11-04
 
