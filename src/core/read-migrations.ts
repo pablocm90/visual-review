@@ -1,4 +1,4 @@
-import { git } from './git.ts';
+import { git, gitUntrimmed } from './git.ts';
 import type { MigrationReader, MigrationRisk } from './migration.ts';
 
 export type MigrationReading =
@@ -29,7 +29,7 @@ export const readMigrations = async ({
     (await git(repo, '--literal-pathspecs', 'ls-tree', '--name-only', base, '--', file)) !== '';
   const readingOf = async (file: string, reader: MigrationReader): Promise<MigrationReading> => {
     try {
-      return { file, risks: reader.risks(await git(repo, 'show', `${head}:${file}`)) };
+      return { file, risks: reader.risks(await gitUntrimmed(repo, 'show', `${head}:${file}`)) };
     } catch (error) {
       return { file, notRead: error instanceof Error ? error.message : String(error) };
     }

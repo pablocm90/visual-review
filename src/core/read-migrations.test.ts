@@ -79,6 +79,16 @@ test('a file that was no migration, moved in with its number kept, is read', asy
   expect(migrations).toStrictEqual([{ file: FILE, risks: [REMOVAL] }]);
 });
 
+test('a risk names its line in the file, past any blank lines leading it', async () => {
+  using workspace = gitRepo({ 'README.md': 'app' });
+  const { repo, root } = workspace;
+  const to = commit(repo, { [FILE]: `\n\n${migration('remove_column :users, :name')}` });
+
+  const { migrations } = await readRange({ repo, from: root, to });
+
+  expect(migrations).toStrictEqual([{ file: FILE, risks: [{ ...REMOVAL, line: 5 }] }]);
+});
+
 test('an added file that is no migration is not read', async () => {
   using workspace = gitRepo({ 'README.md': 'app' });
   const { repo, root } = workspace;
