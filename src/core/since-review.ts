@@ -1,6 +1,7 @@
 import { diffGraphs, type GraphDiff } from './diff-graphs.ts';
 import { edgeId, type Graph } from './graph.ts';
 import type { ReviewedHead, ReviewedReading } from './read-range.ts';
+import { readingOrder } from './reading-order.ts';
 
 export type ChangedSince = {
   readonly nodes: ReadonlyArray<string>;
@@ -17,9 +18,9 @@ type SinceReviewOptions = {
   readonly diff: GraphDiff;
 };
 
-const changedIn = ({ nodes, edges }: GraphDiff) => ({
-  nodes: nodes.filter(node => node.state !== 'unchanged').map(node => node.id),
-  edges: edges.filter(edge => edge.state !== 'unchanged').map(edgeId),
+const changedIn = (diff: GraphDiff) => ({
+  nodes: readingOrder(diff).parts,
+  edges: diff.edges.filter(edge => edge.state !== 'unchanged').map(edgeId),
 });
 
 export const sinceReviewOf = ({ reviewed, after, diff }: SinceReviewOptions): SinceReview => {

@@ -1493,6 +1493,46 @@ test.for([
   ).toEqual({ head: 'h1', verdict: 'comment', changed: { nodes, edges: [] } });
 });
 
+test.for([
+  {
+    since: "main's merge touches another file in a box the PR changes",
+    pullRequest: ['web/src/pkg/b.ts'],
+    changedPaths: ['web/src/pkg/c.ts'],
+    nodes: [],
+  },
+  {
+    since: 'a commit touches the file the PR changes in that box',
+    pullRequest: ['web/src/pkg/b.ts'],
+    changedPaths: ['web/src/pkg/b.ts', 'web/src/pkg/c.ts'],
+    nodes: ['web/file/pkg/b.ts'],
+  },
+  {
+    since: 'a commit touches a box the PR changes only outside its files',
+    pullRequest: ['web/src/pkg/style.css'],
+    changedPaths: ['web/src/pkg/style.css'],
+    nodes: ['web/box/pkg'],
+  },
+])('page data lists parts, not the boxes holding them, when $since', ({
+  pullRequest,
+  changedPaths,
+  nodes,
+}) => {
+  const graph = {
+    nodes: [webStack, box('pkg'), inBox('pkg', 'b.ts'), inBox('pkg', 'c.ts')],
+    edges: [],
+  };
+  const reading = readingWith({
+    before: graph,
+    after: graph,
+    changedPaths: pullRequest,
+    reviewed: { head: 'h1', verdict: 'comment', before: graph, changedPaths, renames: [] },
+  });
+
+  expect(
+    pageData({ repo: 'shop', reading, range: 'a..b', version: '1.2.3', parsers: {} }).sinceReview,
+  ).toEqual({ head: 'h1', verdict: 'comment', changed: { nodes, edges: [] } });
+});
+
 test("page data lists the PR's added or removed edges that came or went since the last review, not the ones it already had or the ones main brought", () => {
   const [a, b, c] = ['web/file/a.ts', 'web/file/b.ts', 'web/file/c.ts'];
   const files = [webStack, webFile('a.ts'), webFile('b.ts'), webFile('c.ts')];
