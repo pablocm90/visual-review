@@ -31,7 +31,7 @@ const writePage = (
   directory: string,
   name: string,
   writtenAt: number,
-  extensions: ReadonlyArray<string> = ['html', 'json', 'notes.json', 'review.json', 'serve'],
+  extensions: ReadonlyArray<string> = ['html', 'json', 'notes.json', 'review.json'],
 ): void =>
   extensions.forEach(extension => {
     const file = join(directory, `${name}.${extension}`);
@@ -39,7 +39,7 @@ const writePage = (
     utimesSync(file, writtenAt, writtenAt);
   });
 
-test('keeps the most recently written pages and deletes older ones with their data, any notes, any review and any lock', async () => {
+test('keeps the most recently written pages and deletes older ones with their data, any notes and any review', async () => {
   using reviews = reviewsDirectory();
   const { repo, directory } = reviews;
   writePage(directory, 'a..oldest', 1_000, ['html', 'json']);
@@ -54,7 +54,6 @@ test('keeps the most recently written pages and deletes older ones with their da
     'b..newest.json',
     'b..newest.notes.json',
     'b..newest.review.json',
-    'b..newest.serve',
     'scratch.txt',
   ]);
 });

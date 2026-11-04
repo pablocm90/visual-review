@@ -1,9 +1,10 @@
 import { spawn } from 'node:child_process';
-import { randomBytes } from 'node:crypto';
+import { createHash, randomBytes } from 'node:crypto';
 import { once } from 'node:events';
-import { constants, lstat, readFile, rm } from 'node:fs/promises';
+import { mkdir, readFile, realpath, rm } from 'node:fs/promises';
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http';
 import type { AddressInfo } from 'node:net';
+import { homedir } from 'node:os';
 import { basename, dirname, join } from 'node:path';
 import { text } from 'node:stream/consumers';
 import { z } from 'zod';
@@ -19,29 +20,28 @@ const openInBrowser = (url: string): void => {
     .unref();
 };
 
-const LockSchema = z.strictObject({
-  pid: z.number(),
-  port: z.number(),
-  token: z.string().regex(/^[0-9a-f]{32}$/),
-});
+const LockSchema = z.strictObject({ pid: z.number(), port: z.number(), token: z.string() });
 
 type Lock = z.infer<typeof LockSchema>;
 
 const urlOf = ({ port, token }: { readonly port: number; readonly token: string }): string =>
   `http://127.0.0.1:${port}/${token}`;
 
-const REGULAR_FILE_OWNER_ONLY = constants.S_IFREG | 0o600;
-
-const lockIn = async (lockFile: string): Promise<Lock | undefined> => {
-  const standing = await lstat(lockFile).catch(() => undefined);
-  if (standing?.mode !== REGULAR_FILE_OWNER_ONLY) return undefined;
-  return readFile(lockFile, 'utf8')
-    .then(written => LockSchema.parse(JSON.parse(written)))
-    .catch(() => undefined);
-};
+const lockFileOf = async (page: string): Promise<string> =>
+  join(
+    homedir(),
+    '.cache',
+    'visual-review',
+    'serve',
+    `${createHash('sha256')
+      .update(await realpath(page))
+      .digest('hex')}.json`,
+  );
 
 const liveLock = async (lockFile: string): Promise<Lock | undefined> => {
-  const lock = await lockIn(lockFile);
+  const lock = await readFile(lockFile, 'utf8')
+    .then(written => LockSchema.parse(JSON.parse(written)))
+    .catch(() => undefined);
   const answered =
     lock !== undefined &&
     (await fetch(`${urlOf(lock)}/alive`, { method: 'POST', signal: AbortSignal.timeout(1000) })
@@ -179,7 +179,7 @@ export const servePage = async ({
   open,
 }: ServePageOptions): Promise<string | undefined> => {
   if (page === undefined) throw new Error('Usage: visual-review serve [--no-open] <page.html>');
-  const lockFile = beside(page, 'serve');
+  const lockFile = await lockFileOf(page);
   const lock = await liveLock(lockFile);
   if (lock !== undefined) {
     if (open) openInBrowser(urlOf(lock));
@@ -194,14 +194,18 @@ export const servePage = async ({
   server.listen(0, '127.0.0.1');
   await once(server, 'listening');
   const { port } = server.address() as AddressInfo;
-  await writeAnew({
-    path: lockFile,
-    content: JSON.stringify({ pid: process.pid, port, token }),
-    mode: 0o600,
-  }).catch((error: Error) => {
-    server.close();
-    throw error;
-  });
+  await mkdir(dirname(lockFile), { recursive: true })
+    .then(() =>
+      writeAnew({
+        path: lockFile,
+        content: JSON.stringify({ pid: process.pid, port, token }),
+        mode: 0o600,
+      }),
+    )
+    .catch((error: Error) => {
+      server.close();
+      throw error;
+    });
   const host = `127.0.0.1:${port}`;
   const reviewFile = beside(page, 'review.json');
   const sent = Promise.withResolvers<string>();

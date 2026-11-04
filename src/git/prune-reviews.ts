@@ -28,9 +28,7 @@ export const pruneReviews = async ({ repo, keep }: PruneReviewsOptions): Promise
   const older = sorted
     .slice(keep)
     .flatMap(({ name }) =>
-      ['html', 'json', 'notes.json', 'review.json', 'serve'].map(
-        extension => `${name}.${extension}`,
-      ),
+      ['html', 'json', 'notes.json', 'review.json'].map(extension => `${name}.${extension}`),
     );
   const stale = reviews.map(({ file }) => file).filter(file => !shown.has(pageNameOf(file)));
   await Promise.all(
