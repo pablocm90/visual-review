@@ -1,4 +1,12 @@
-import { mkdirSync, mkdtempSync, rmSync, symlinkSync, utimesSync, writeFileSync } from 'node:fs';
+import {
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  rmSync,
+  symlinkSync,
+  utimesSync,
+  writeFileSync,
+} from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { expect, test } from 'vitest';
@@ -11,9 +19,15 @@ const H2 = '2'.repeat(40);
 const H3 = '3'.repeat(40);
 
 const reviewsDirectory = () => {
-  const directory = mkdtempSync(join(tmpdir(), 'visual-review-reviews-'));
-  git(directory, 'init', '--quiet');
-  return { directory, [Symbol.dispose]: () => rmSync(directory, { recursive: true, force: true }) };
+  const repo = mkdtempSync(join(tmpdir(), 'visual-review-reviews-'));
+  git(repo, 'init', '--quiet');
+  const directory = join(repo, '.reviews');
+  mkdirSync(directory);
+  return {
+    repo,
+    directory,
+    [Symbol.dispose]: () => rmSync(repo, { recursive: true, force: true }),
+  };
 };
 
 type WrittenReview = {
@@ -37,12 +51,12 @@ const writeReview = (
 
 test("the newest review of the pull request at another head is the last one, the new head's own left out", async () => {
   using reviews = reviewsDirectory();
-  const { directory } = reviews;
+  const { repo, directory } = reviews;
   writeReview(directory, { head: H0, writtenAt: 1_000, verdict: 'approve' });
   writeReview(directory, { head: H1, writtenAt: 2_000, verdict: 'request-changes' });
   writeReview(directory, { head: H2, writtenAt: 3_000 });
 
-  await expect(lastReviewOf({ directory, pullRequest: 7, head: H2 })).resolves.toEqual({
+  await expect(lastReviewOf({ repo, pullRequest: 7, head: H2 })).resolves.toEqual({
     head: H1,
     verdict: 'request-changes',
   });
@@ -50,12 +64,12 @@ test("the newest review of the pull request at another head is the last one, the
 
 test('a review file git tracks came with the repo, so it is no last review, however new', async () => {
   using reviews = reviewsDirectory();
-  const { directory } = reviews;
+  const { repo, directory } = reviews;
   writeReview(directory, { head: H0, writtenAt: 1_000 });
   writeReview(directory, { head: H1, writtenAt: 2_000, verdict: 'approve' });
-  git(directory, 'add', '--force', `base..${H1}.review.json`);
+  git(repo, 'add', '--force', `.reviews/base..${H1}.review.json`);
 
-  await expect(lastReviewOf({ directory, pullRequest: 7, head: H2 })).resolves.toEqual({
+  await expect(lastReviewOf({ repo, pullRequest: 7, head: H2 })).resolves.toEqual({
     head: H0,
     verdict: 'comment',
   });
@@ -100,15 +114,15 @@ test.for([
   },
 ])('$reason is no last review', async ({ write }) => {
   using reviews = reviewsDirectory();
-  const { directory } = reviews;
+  const { repo, directory } = reviews;
   write(directory);
 
-  await expect(lastReviewOf({ directory, pullRequest: 7, head: H2 })).resolves.toBeUndefined();
+  await expect(lastReviewOf({ repo, pullRequest: 7, head: H2 })).resolves.toBeUndefined();
 });
 
 test('a review in an older format still counts, whatever else it holds', async () => {
   using reviews = reviewsDirectory();
-  const { directory } = reviews;
+  const { repo, directory } = reviews;
   writeFileSync(
     join(directory, `base..${H1}.review.json`),
     JSON.stringify({
@@ -119,7 +133,7 @@ test('a review in an older format still counts, whatever else it holds', async (
     }),
   );
 
-  await expect(lastReviewOf({ directory, pullRequest: 7, head: H2 })).resolves.toEqual({
+  await expect(lastReviewOf({ repo, pullRequest: 7, head: H2 })).resolves.toEqual({
     head: H1,
     verdict: 'approve',
   });
@@ -134,8 +148,44 @@ test("a tag object of the new head names the new head, so it's left out as its o
   writeReview(directory, { head: tag, writtenAt: 1_000 });
 
   await expect(
-    lastReviewOf({ directory, pullRequest: 7, head: repository.root }),
+    lastReviewOf({ repo: repository.repo, pullRequest: 7, head: repository.root }),
   ).resolves.toBeUndefined();
+});
+
+test('a .reviews folder laid out as a repository of its own is neither believed nor run', async () => {
+  using repository = gitRepo({ a: '' });
+  const { repo, root } = repository;
+  const directory = join(repo, '.reviews');
+  const ran = join(repo, 'ran');
+  const monitor = join(repo, 'monitor.sh');
+  mkdirSync(join(directory, 'objects'), { recursive: true });
+  mkdirSync(join(directory, 'refs'));
+  writeFileSync(join(directory, 'objects', '.keep'), '');
+  writeFileSync(join(directory, 'refs', '.keep'), '');
+  writeFileSync(join(directory, 'HEAD'), 'ref: refs/heads/main\n');
+  writeFileSync(monitor, `#!/bin/sh\ntouch ${ran}\n`, { mode: 0o755 });
+  writeFileSync(
+    join(directory, 'config'),
+    `[core]\n\trepositoryformatversion = 0\n\tbare = false\n\tworktree = .\n\tfsmonitor = ${monitor}\n`,
+  );
+  writeReview(directory, { head: H1, writtenAt: 1_000, verdict: 'approve' });
+  git(repo, 'add', '--force', '.reviews');
+  git(repo, 'tag', '--annotate', '--message', 'tag', 'tag');
+  writeReview(directory, { head: git(repo, 'rev-parse', 'tag'), writtenAt: 2_000 });
+
+  await expect(lastReviewOf({ repo, pullRequest: 7, head: root })).resolves.toBeUndefined();
+  expect(existsSync(ran)).toBe(false);
+});
+
+test('an untracked file of the same name elsewhere in the repo stands in for no tracked review', async () => {
+  using reviews = reviewsDirectory();
+  const { repo, directory } = reviews;
+  writeReview(directory, { head: H1, writtenAt: 1_000 });
+  git(repo, 'add', '--force', '.reviews');
+  mkdirSync(join(repo, 'reviews2'));
+  writeReview(join(repo, 'reviews2'), { head: H1, writtenAt: 1_000 });
+
+  await expect(lastReviewOf({ repo, pullRequest: 7, head: H2 })).resolves.toBeUndefined();
 });
 
 test.for([
@@ -148,22 +198,22 @@ test.for([
   { reason: 'an option', head: '--output=x' },
 ])('a review whose head is $reason is no last review', async ({ head }) => {
   using reviews = reviewsDirectory();
-  const { directory } = reviews;
+  const { repo, directory } = reviews;
   writeFileSync(
     join(directory, 'a.review.json'),
     JSON.stringify({ verdict: 'comment', reviewed: { range: `base..${head}`, pullRequest: 7 } }),
   );
 
-  await expect(lastReviewOf({ directory, pullRequest: 7, head: H2 })).resolves.toBeUndefined();
+  await expect(lastReviewOf({ repo, pullRequest: 7, head: H2 })).resolves.toBeUndefined();
 });
 
 test('a review of a SHA-256 head counts', async () => {
   using reviews = reviewsDirectory();
-  const { directory } = reviews;
+  const { repo, directory } = reviews;
   const head = '1'.repeat(64);
   writeReview(directory, { head, writtenAt: 1_000 });
 
-  await expect(lastReviewOf({ directory, pullRequest: 7, head: H2 })).resolves.toEqual({
+  await expect(lastReviewOf({ repo, pullRequest: 7, head: H2 })).resolves.toEqual({
     head,
     verdict: 'comment',
   });
@@ -171,18 +221,19 @@ test('a review of a SHA-256 head counts', async () => {
 
 test('with no reviews directory there is no last review', async () => {
   using reviews = reviewsDirectory();
-  const directory = join(reviews.directory, 'missing');
+  const { repo, directory } = reviews;
+  rmSync(directory, { recursive: true });
 
-  await expect(lastReviewOf({ directory, pullRequest: 7, head: H2 })).resolves.toBeUndefined();
+  await expect(lastReviewOf({ repo, pullRequest: 7, head: H2 })).resolves.toBeUndefined();
 });
 
 test("a review file that can't be read is skipped, not a failed review", async () => {
   using reviews = reviewsDirectory();
-  const { directory } = reviews;
+  const { repo, directory } = reviews;
   writeReview(directory, { head: H1, writtenAt: 1_000 });
   symlinkSync('missing', join(directory, `base..${H2}.review.json`));
 
-  await expect(lastReviewOf({ directory, pullRequest: 7, head: H3 })).resolves.toEqual({
+  await expect(lastReviewOf({ repo, pullRequest: 7, head: H3 })).resolves.toEqual({
     head: H1,
     verdict: 'comment',
   });

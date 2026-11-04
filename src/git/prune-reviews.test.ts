@@ -1,4 +1,4 @@
-import { mkdtempSync, readdirSync, rmSync, utimesSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readdirSync, rmSync, utimesSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { expect, test } from 'vitest';
@@ -6,15 +6,18 @@ import { git } from '../test-support/repos.ts';
 import { pruneReviews } from './prune-reviews.ts';
 
 const reviewsDirectory = () => {
-  const directory = mkdtempSync(join(tmpdir(), 'visual-review-reviews-'));
-  git(directory, 'init', '--quiet');
-  return { directory, [Symbol.dispose]: () => rmSync(directory, { recursive: true, force: true }) };
+  const repo = mkdtempSync(join(tmpdir(), 'visual-review-reviews-'));
+  git(repo, 'init', '--quiet');
+  const directory = join(repo, '.reviews');
+  mkdirSync(directory);
+  return {
+    repo,
+    directory,
+    [Symbol.dispose]: () => rmSync(repo, { recursive: true, force: true }),
+  };
 };
 
-const filesIn = (directory: string): ReadonlyArray<string> =>
-  readdirSync(directory)
-    .filter(file => file !== '.git')
-    .toSorted();
+const filesIn = (directory: string): ReadonlyArray<string> => readdirSync(directory).toSorted();
 
 const writePage = (
   directory: string,
@@ -30,13 +33,13 @@ const writePage = (
 
 test('keeps the most recently written pages and deletes older ones with their data, any notes, any review and any lock', async () => {
   using reviews = reviewsDirectory();
-  const { directory } = reviews;
+  const { repo, directory } = reviews;
   writePage(directory, 'a..oldest', 1_000, ['html', 'json']);
   writePage(directory, 'b..newest', 3_000);
   writePage(directory, 'c..middle', 2_000);
   writeFileSync(join(directory, 'scratch.txt'), '');
 
-  await pruneReviews({ directory, keep: 1 });
+  await pruneReviews({ repo, keep: 1 });
 
   expect(filesIn(directory)).toEqual([
     'b..newest.html',
@@ -68,7 +71,7 @@ const writeReviewOf = (
 
 test("a pull request's newest review outlives its page, whatever its age, and its older reviews go once their pages have", async () => {
   using reviews = reviewsDirectory();
-  const { directory } = reviews;
+  const { repo, directory } = reviews;
   writePage(directory, 'a..shown', 9_000, ['html', 'json']);
   writePage(directory, 'a..kept', 8_000, ['html', 'json']);
   writeReviewOf(directory, { name: 'a..kept', pullRequest: 7, writtenAt: 1_000 });
@@ -81,7 +84,7 @@ test("a pull request's newest review outlives its page, whatever its age, and it
   writePage(directory, 'c..range', 1_000, ['html', 'json']);
   writeReviewOf(directory, { name: 'c..range', writtenAt: 4_000 });
 
-  await pruneReviews({ directory, keep: 2 });
+  await pruneReviews({ repo, keep: 2 });
 
   expect(filesIn(directory)).toEqual([
     'a..kept.html',
@@ -96,12 +99,12 @@ test("a pull request's newest review outlives its page, whatever its age, and it
 
 test("a review file git tracks isn't pruned as stale and takes no place as the newest review", async () => {
   using reviews = reviewsDirectory();
-  const { directory } = reviews;
+  const { repo, directory } = reviews;
   writeReviewOf(directory, { name: 'a..sent', pullRequest: 7, writtenAt: 1_000 });
   writeReviewOf(directory, { name: 'a..tracked', pullRequest: 7, writtenAt: 2_000 });
-  git(directory, 'add', '--force', 'a..tracked.review.json');
+  git(repo, 'add', '--force', '.reviews/a..tracked.review.json');
 
-  await pruneReviews({ directory, keep: 1 });
+  await pruneReviews({ repo, keep: 1 });
 
   expect(filesIn(directory)).toEqual(['a..sent.review.json', 'a..tracked.review.json']);
 });

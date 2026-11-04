@@ -11,7 +11,11 @@ const headOfRange = (range: string): string => range.slice(range.lastIndexOf('..
 
 const FULL_SHA = /^(?:[0-9a-f]{40}|[0-9a-f]{64})$/;
 
+const REVIEWS = '.reviews';
+
 const REVIEW = '.review.json';
+
+export const reviewsDirectoryOf = (repo: string): string => join(repo, REVIEWS);
 
 export const pageNameOf = (reviewFile: string): string => reviewFile.slice(0, -REVIEW.length);
 
@@ -41,17 +45,16 @@ const pullRequestReviewIn = async (
   ];
 };
 
-const untrackedFilesIn = async (directory: string): Promise<ReadonlyArray<string>> => {
-  const listed = await run('git', ['-C', directory, 'ls-files', '-z', '--others']).catch(() => ({
-    stdout: '',
-  }));
-  return listed.stdout.split('\0');
+const untrackedReviewFilesOf = async (repo: string): Promise<ReadonlyArray<string>> => {
+  const { stdout } = await run('git', ['-C', repo, 'ls-files', '-z', '--others', '--', REVIEWS]);
+  return stdout.split('\0').map(path => path.slice(REVIEWS.length + 1));
 };
 
 export const pullRequestReviewsIn = async (
-  directory: string,
+  repo: string,
 ): Promise<ReadonlyArray<PullRequestReview>> => {
-  const files = await untrackedFilesIn(directory);
+  const directory = reviewsDirectoryOf(repo);
+  const files = await untrackedReviewFilesOf(repo);
   const reviews = await Promise.all(
     files
       .filter(file => file.endsWith(REVIEW) && !file.includes('/'))
@@ -61,21 +64,21 @@ export const pullRequestReviewsIn = async (
 };
 
 type LastReviewOptions = {
-  readonly directory: string;
+  readonly repo: string;
   readonly pullRequest: number;
   readonly head: string;
 };
 
 export const lastReviewOf = async ({
-  directory,
+  repo,
   pullRequest,
   head,
 }: LastReviewOptions): Promise<ReviewedHead | undefined> => {
-  const reviews = (await pullRequestReviewsIn(directory)).filter(
+  const reviews = (await pullRequestReviewsIn(repo)).filter(
     review => review.pullRequest === pullRequest,
   );
   const commits = await Promise.all(
-    reviews.map(review => resolve(directory, review.head).catch(() => review.head)),
+    reviews.map(review => resolve(repo, review.head).catch(() => review.head)),
   );
   const last = reviews.find((_, index) => commits[index] !== head);
   return last && { head: last.head, verdict: last.verdict };

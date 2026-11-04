@@ -16,7 +16,7 @@ import {
 } from './core/page.ts';
 import { readRange } from './core/read-range.ts';
 import { notReadLine } from './core/skipped.ts';
-import { lastReviewOf } from './git/last-review.ts';
+import { lastReviewOf, reviewsDirectoryOf } from './git/last-review.ts';
 import { onPath } from './git/on-path.ts';
 import { pruneReviews } from './git/prune-reviews.ts';
 import { readPullRequest } from './git/pull-request.ts';
@@ -123,7 +123,7 @@ const writeReview = async (args: ReadonlyArray<string>): Promise<string> => {
     repository = basename(repo),
     ...revisions
   } = await rangeOf(repo, positionals[0]);
-  const directory = join(repo, '.reviews');
+  const directory = reviewsDirectoryOf(repo);
   if (!(await isDirectoryOrMissing(directory)))
     throw new Error(`${directory} is not a directory, so no page is written into it`);
   const name = range.replaceAll('/', '_');
@@ -136,7 +136,7 @@ const writeReview = async (args: ReadonlyArray<string>): Promise<string> => {
   const { linkers, readers } = await import('./adapters.ts');
   const reviewed =
     pullRequest &&
-    (await lastReviewOf({ directory, pullRequest: pullRequest.number, head: revisions.to }));
+    (await lastReviewOf({ repo, pullRequest: pullRequest.number, head: revisions.to }));
   const reading = await readRange({
     repo,
     ...revisions,
@@ -160,7 +160,7 @@ const writeReview = async (args: ReadonlyArray<string>): Promise<string> => {
   await writeFile(join(directory, '.gitignore'), '*\n');
   await writeFile(data, JSON.stringify(review));
   await writeFile(page, await viewerWith(review));
-  await pruneReviews({ directory, keep: 20 });
+  await pruneReviews({ repo, keep: 20 });
   return page;
 };
 
