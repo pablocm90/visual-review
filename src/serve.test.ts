@@ -397,6 +397,28 @@ test('sending a review the served page would refuse rejects with its answer, so 
   ).rejects.toThrow('The review was not sent: 403 Forbidden');
 });
 
+test.for([
+  { home: 'an empty', value: '' },
+  { home: 'a relative', value: 'rel' },
+])('serve refuses $home home, writing no lock in the folder it runs from', async ({ value }) => {
+  using bin = fakeOpeners(['xdg-open', 'open']);
+  using written = writtenPage({});
+  const cwd = dirname(written.page);
+
+  const serving = promisify(execFile)(
+    process.execPath,
+    [join(import.meta.dirname, 'cli.ts'), 'serve', written.page],
+    { cwd, env: { ...process.env, HOME: value, PATH: bin.path }, timeout: 3000 },
+  );
+
+  await expect(serving).rejects.toMatchObject({
+    code: 1,
+    killed: false,
+    stderr: expect.stringContaining("serve's lock"),
+  });
+  expect(readdirSync(cwd)).toEqual([basename(written.page)]);
+});
+
 test('serve that cannot write its lock exits non-zero at once, saying why', async () => {
   using bin = fakeOpeners(['xdg-open', 'open']);
   using written = writtenPage({});
@@ -418,7 +440,7 @@ test('serve that cannot write its lock exits non-zero at once, saying why', asyn
   await expect(serving).rejects.toMatchObject({
     code: 1,
     killed: false,
-    stderr: expect.stringContaining('EACCES'),
+    stderr: expect.stringMatching(/serve's lock.*EACCES/),
   });
 });
 

@@ -5,7 +5,7 @@ import { mkdir, readFile, realpath, rm } from 'node:fs/promises';
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { homedir } from 'node:os';
-import { basename, dirname, join } from 'node:path';
+import { basename, dirname, isAbsolute, join } from 'node:path';
 import { text } from 'node:stream/consumers';
 import { z } from 'zod';
 import { servedPageHtml } from './core/page.ts';
@@ -27,9 +27,11 @@ type Lock = z.infer<typeof LockSchema>;
 const urlOf = ({ port, token }: { readonly port: number; readonly token: string }): string =>
   `http://127.0.0.1:${port}/${token}`;
 
-const lockFileOf = async (page: string): Promise<string> =>
-  join(
-    homedir(),
+const lockFileOf = async (page: string): Promise<string> => {
+  const home = homedir();
+  if (!isAbsolute(home)) throw new Error(`serve's lock needs an absolute home, not '${home}'`);
+  return join(
+    home,
     '.cache',
     'visual-review',
     'serve',
@@ -37,6 +39,7 @@ const lockFileOf = async (page: string): Promise<string> =>
       .update(await realpath(page))
       .digest('hex')}.json`,
   );
+};
 
 const liveLock = async (lockFile: string): Promise<Lock | undefined> => {
   const lock = await readFile(lockFile, 'utf8')
@@ -204,7 +207,7 @@ export const servePage = async ({
     )
     .catch((error: Error) => {
       server.close();
-      throw error;
+      throw new Error(`Can't write serve's lock: ${error.message}`);
     });
   const host = `127.0.0.1:${port}`;
   const reviewFile = beside(page, 'review.json');
