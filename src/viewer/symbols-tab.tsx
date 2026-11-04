@@ -228,6 +228,7 @@ const SymbolList = ({
 const SymbolFiles = ({ file, ...places }: Places & { readonly file: SymbolFile }) => {
   const symbols = 'symbols' in file ? anchoredSymbols(file.node, file.symbols) : [];
   const quiet = symbols.filter(({ item }) => isQuiet(item));
+  const isChangedSince = useIsChangedSince();
   return (
     <>
       {'unreadable' in file && (
@@ -248,7 +249,9 @@ const SymbolFiles = ({ file, ...places }: Places & { readonly file: SymbolFile }
         <details
           className="symbol-group"
           open={quiet.some(
-            ({ id }) => places.comments[anchorKey({ kind: 'symbol', id })] !== undefined,
+            ({ id }) =>
+              places.comments[anchorKey({ kind: 'symbol', id })] !== undefined ||
+              isChangedSince('symbols', id),
           )}
         >
           <summary>{quiet.length} unchanged</summary>
