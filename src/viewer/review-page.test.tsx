@@ -5250,3 +5250,37 @@ test("a served page's line in a file outside the graph takes a comment, named by
     }),
   );
 });
+
+test('the tray goes to a draft on a line outside the graph from any screen, opening those files at its row, each time; closing them hands the keyboard focus back to the draft', async () => {
+  const user = userEvent.setup();
+  render(<ReviewPage review={pageWithUndrawnFile()} send={vi.fn(async () => {})} />);
+  const name = 'README.md:1 "new"';
+  const draft = () =>
+    within(screen.getByRole('list', { name: 'Drafts' })).getByRole('button', { name });
+
+  await openUndrawnFiles(user);
+  await user.click(within(inspector()).getByText('README.md'));
+  await user.click(within(inspector()).getByRole('button', { name: `Comment on ${name}` }));
+  await write(user, within(inspector()).getByRole('textbox', { name: 'Your comment' }), 'Why new?');
+  await user.click(screen.getByRole('button', { name: 'domain: unchanged' }));
+  await user.click(screen.getByRole('link', { name: 'Tests' }));
+  await openReview(user);
+
+  await user.click(draft());
+  const row = within(inspector()).getByRole('insertion', { current: true });
+  expect(within(inspector()).getByRole('heading', { level: 2 }).textContent).toBe(
+    'Changed files outside the graph',
+  );
+  expect(within(row).getByRole('textbox', { name: 'Your comment' })).toHaveProperty(
+    'value',
+    'Why new?',
+  );
+  expect(scrolledIntoView.mock.contexts).toContain(row);
+
+  scrolledIntoView.mockClear();
+  await user.click(draft());
+  expect(scrolledIntoView.mock.contexts).toContain(row);
+
+  await user.click(within(inspector()).getByRole('button', { name: 'Close inspector' }));
+  expect(document.activeElement).toBe(draft());
+});

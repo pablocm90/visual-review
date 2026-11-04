@@ -44,6 +44,8 @@ export const placeOfLine = (anchor: Anchor) => {
   return { path, side, line: Number(lineNumber(anchor.id)) };
 };
 
+export type PlaceOfLine = NonNullable<ReturnType<typeof placeOfLine>>;
+
 export type TargetsOf = {
   readonly nodes: Nodes;
   readonly tests: ReadonlyArray<Pick<TestFile, 'path' | 'stack'>>;

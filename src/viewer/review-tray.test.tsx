@@ -46,6 +46,7 @@ const renderTray = (
       tests={[{ path: 'web/src/cart/total.test.ts', stack: 'web' }]}
       onGoTo={vi.fn()}
       onGoToDraft={onGoToDraft}
+      onGoToOutside={vi.fn()}
       send={async () => {}}
     />,
   );
@@ -58,6 +59,7 @@ test("the open tray names each draft by its anchor, sorts it with its file's par
     drafted({ kind: 'test', id: 'web/src/cart/total.test.ts#Cart › adds tax' }),
     drafted({ kind: 'symbol', id: 'web/file/src/cart/total.ts#Cart.total' }),
     drafted({ kind: 'line', id: 'README.md@head:1', text: '# Shop' }),
+    drafted({ kind: 'test', id: 'e2e/pay.spec.ts#Pay › refunds' }),
     drafted({ kind: 'part', id: 'web/file/src/pay.ts' }),
   ]);
   await user.click(screen.getByRole('button', { name: 'Review' }));
@@ -67,12 +69,13 @@ test("the open tray names each draft by its anchor, sorts it with its file's par
     'pay.ts Question: Why?',
     'Cart.total in total.ts Question: Why?',
     'adds tax Question: Why?',
+    'refunds Question: Why?',
     'README.md:1 "# Shop" Question: Why?',
   ]);
   expect(
     within(screen.getByLabelText('What Claude gets')).getByText(/README/).textContent,
   ).toContain('question  README.md:1 "# Shop"');
-  expect(drafts.queryByRole('button', { name: /README/ })).toBeNull();
+  expect(drafts.queryByRole('button', { name: 'refunds' })).toBeNull();
   await user.click(drafts.getByRole('button', { name: 'Cart.total in total.ts' }));
   expect(onGoToDraft).toHaveBeenCalledWith('web/file/src/cart/total.ts', {
     kind: 'symbol',

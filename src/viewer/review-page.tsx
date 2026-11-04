@@ -524,20 +524,21 @@ const Patch = ({
   landing,
   ...commenting
 }: FilePatch &
-  LineComments & { readonly open: boolean; readonly landing?: Landing | undefined }) => {
+  LineComments & { readonly open: boolean; readonly landing: LandingIn | undefined }) => {
   const lines = useMemo(() => highlightPatch({ path, patch }), [path, patch]);
+  const landed = landing?.path === path ? landing : undefined;
   const landOnTop = useCallback(
     (top: HTMLElement | null) => {
-      if (top && landing !== undefined && !lines.some(line => isLandedOn(line, landing)))
+      if (top && landed !== undefined && !lines.some(line => isLandedOn(line, landed)))
         scrollInPanel(top, 'start');
     },
-    [landing, lines],
+    [landed, lines],
   );
   const holdsDraft = Object.values(commenting.comments).some(
     ({ anchor }) => fileOfLine(anchor.id) === path,
   );
   return (
-    <details aria-label={path} open={open || holdsDraft} ref={landOnTop}>
+    <details aria-label={path} open={open || holdsDraft || landed !== undefined} ref={landOnTop}>
       <summary>{path}</summary>
       <pre>
         {lines.map((line, index) => (
@@ -546,7 +547,7 @@ const Patch = ({
             key={index}
             path={path}
             line={line}
-            landing={landing}
+            landing={landed}
             {...commenting}
           />
         ))}
@@ -797,20 +798,17 @@ const Inspector = ({
             tab: 'diff' as const,
             panel: (
               <section className="changes" aria-label="Changes">
-                {patches.map(patch => {
-                  const landed = landing?.path === patch.path;
-                  return (
-                    <Patch
-                      key={patch.path}
-                      {...patch}
-                      open={node?.kind === 'file' || landed}
-                      landing={landed ? landing : undefined}
-                      nodes={props.nodes}
-                      comments={props.comments}
-                      onComment={props.onComment}
-                    />
-                  );
-                })}
+                {patches.map(patch => (
+                  <Patch
+                    key={patch.path}
+                    {...patch}
+                    open={node?.kind === 'file'}
+                    landing={landing}
+                    nodes={props.nodes}
+                    comments={props.comments}
+                    onComment={props.onComment}
+                  />
+                ))}
               </section>
             ),
           },
@@ -850,11 +848,12 @@ const Inspector = ({
 
 type OutsideFilesProps = LineComments & {
   readonly patches: ReadonlyArray<FilePatch>;
+  readonly landing: LandingIn | undefined;
   readonly width: number;
   readonly onClose: () => void;
 };
 
-const OutsideFiles = ({ patches, width, onClose, ...commenting }: OutsideFilesProps) => (
+const OutsideFiles = ({ patches, landing, width, onClose, ...commenting }: OutsideFilesProps) => (
   <aside className="note" aria-label="Inspector" style={{ width }}>
     <button type="button" className="close" aria-label="Close inspector" onClick={onClose}>
       ×
@@ -862,7 +861,7 @@ const OutsideFiles = ({ patches, width, onClose, ...commenting }: OutsideFilesPr
     <h2>Changed files outside the graph</h2>
     <section className="changes" aria-label="Changes">
       {patches.map(patch => (
-        <Patch key={patch.path} {...patch} open={false} {...commenting} />
+        <Patch key={patch.path} {...patch} open={false} landing={landing} {...commenting} />
       ))}
     </section>
   </aside>
@@ -952,6 +951,7 @@ const SidePanel = ({
         {divider}
         <OutsideFiles
           patches={patches}
+          landing={landing}
           width={width}
           onClose={onCloseOutside}
           nodes={review.diff.nodes}
@@ -1589,6 +1589,11 @@ export const ReviewPage = ({ review, notes, send }: ReviewPageProps) => {
             const place = placeOfLine(anchor);
             if (place) landOn(id, place);
             goToOnTab(id, tabOfDraft(anchor));
+          }}
+          onGoToOutside={(place, opener) => {
+            landOn(undefined, place);
+            location.hash = '#structure';
+            showOutside(opener);
           }}
           send={send}
         />
