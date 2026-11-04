@@ -2449,7 +2449,11 @@ main:has(> .review-tray) {
   flex-wrap: wrap;
 }
 
-.finding-groups {
+.finding > .finding-said {
+  flex: 1 1 0;
+}
+
+.finding .finding-groups {
   display: flex;
   flex-wrap: wrap;
   flex-basis: 100%;

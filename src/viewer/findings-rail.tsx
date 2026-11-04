@@ -119,7 +119,11 @@ const FindingItem = ({ finding, answer, onAnswer }: FindingItemProps) => {
   const said = (
     <>
       <span>{finding.sentence}</span>
-      <code className="finding-target">{finding.target}</code>
+      {finding.groups ? (
+        <span className="finding-target">{finding.target}</span>
+      ) : (
+        <code className="finding-target">{finding.target}</code>
+      )}
     </>
   );
   return (
