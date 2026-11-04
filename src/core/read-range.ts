@@ -38,15 +38,17 @@ export type ReviewedHead = {
   readonly verdict: Review['verdict'];
 };
 
+export type ReviewedDiff = {
+  readonly before: Graph;
+  readonly changedPaths: ReadonlyArray<string>;
+  readonly renames: ReadonlyArray<Rename>;
+};
+
 export type ReviewedReading = ReviewedHead &
   (
     | { readonly gone: true }
     | { readonly unreadable: string }
-    | {
-        readonly before: Graph;
-        readonly changedPaths: ReadonlyArray<string>;
-        readonly renames: ReadonlyArray<Rename>;
-      }
+    | (ReviewedDiff & { readonly pullRequest: ReviewedDiff })
   );
 
 export type RangeReading = {
@@ -310,22 +312,38 @@ const pathsIn = (changes: ReadonlyArray<ReadonlyArray<string>>) => ({
 
 type ReviewedSideOptions = Omit<ReadSideOptions, 'revision'> & {
   readonly reviewed: ReviewedHead;
+  readonly from: string;
   readonly to: string;
+  readonly base: string;
+  readonly baseGraph: Graph;
 };
 
 const reviewedSide = async ({
   reviewed,
+  from,
   to,
+  base,
+  baseGraph,
   ...side
 }: ReviewedSideOptions): Promise<ReviewedReading> => {
   const revision = await resolve(side.repo, reviewed.head).catch(() => undefined);
   if (revision === undefined) return { ...reviewed, gone: true };
   try {
     const { graph } = await readSide({ ...side, revision });
+    const forkedAt = await git(side.repo, 'merge-base', from, revision);
+    const forkGraph =
+      forkedAt === base
+        ? baseGraph
+        : (await readSide({ ...side, revision: forkedAt, directory: `${side.directory}-fork` }))
+            .graph;
     return {
       ...reviewed,
       before: graph,
       ...pathsIn(await changesBetween(side.repo, revision, to)),
+      pullRequest: {
+        before: forkGraph,
+        ...pathsIn(await changesBetween(side.repo, forkedAt, revision)),
+      },
     };
   } catch (error) {
     return { ...reviewed, unreadable: String(error) };
@@ -433,7 +451,10 @@ export const readRange = async ({
             reviewed: await reviewedSide({
               repo,
               reviewed,
+              from: fromCommit,
               to: toCommit,
+              base,
+              baseGraph: before.graph,
               directory: join(scratch, 'reviewed'),
               config,
               ...adapters,

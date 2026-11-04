@@ -953,6 +953,39 @@ test('a reviewed head reads as a side of its own, diffed plainly against the new
       'docs/new.md',
     ],
     renames: [{ from: 'docs/old.md', to: 'docs/new.md' }],
+    pullRequest: {
+      before: range.before,
+      changedPaths: ['crates/dropped/Cargo.toml', 'crates/dropped/src/lib.rs', 'docs/old.md'],
+      renames: [],
+    },
+  });
+  expect(git(repo, 'worktree', 'list').split('\n')).toHaveLength(1);
+});
+
+test("a reviewed head holds the pull request's own diff from where it then forked, when the base branch has since been merged in", async () => {
+  using workspace = cargoWorkspace();
+  const { repo, root } = workspace;
+  const reviewed = commit(repo, crateFiles('feature'));
+  git(repo, 'reset', '--quiet', '--hard', root);
+  const main = commit(repo, crateFiles('later'));
+  git(repo, 'merge', '--quiet', '--no-edit', reviewed);
+  const to = git(repo, 'rev-parse', 'HEAD');
+
+  const range = await readRange({
+    repo,
+    from: main,
+    to,
+    reviewed: { head: reviewed, verdict: 'comment' },
+  });
+
+  expect(nodeIds(range.before)).toContain('rust/crate/later');
+  expect(range.reviewed).toMatchObject({
+    pullRequest: {
+      before: {
+        nodes: expect.not.arrayContaining([expect.objectContaining({ id: 'rust/crate/later' })]),
+      },
+      changedPaths: ['crates/feature/Cargo.toml', 'crates/feature/src/lib.rs'],
+    },
   });
   expect(git(repo, 'worktree', 'list').split('\n')).toHaveLength(1);
 });
@@ -995,4 +1028,25 @@ test('a reviewed head that exists but fails to read is unreadable, saying why, a
   });
   expect(nodeIds(range.after)).toContain('rust/crate/cli');
   expect(git(repo, 'worktree', 'list').split('\n')).toHaveLength(1);
+});
+
+test('a reviewed head whose own fork point fails to read is unreadable too, and the range still reads', async () => {
+  using workspace = cargoWorkspace();
+  const { repo } = workspace;
+  const broken = commit(repo, { 'crates/broken/Cargo.toml': 'not toml' });
+  const fixed = crateFiles('broken');
+  const head = commit(repo, { ...fixed, 'docs/mine.md': 'a long enough line\n' });
+  git(repo, 'reset', '--quiet', '--hard', broken);
+  const main = commit(repo, fixed);
+  git(repo, 'merge', '--quiet', '--no-edit', head);
+  const to = git(repo, 'rev-parse', 'HEAD');
+
+  const range = await readRange({ repo, from: main, to, reviewed: { head, verdict: 'approve' } });
+
+  expect(range.reviewed).toEqual({
+    head,
+    verdict: 'approve',
+    unreadable: expect.stringContaining('cargo metadata'),
+  });
+  expect(nodeIds(range.after)).toContain('rust/crate/broken');
 });

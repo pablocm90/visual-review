@@ -7,7 +7,7 @@ import type { LogicLine } from './logic-diff.ts';
 import { metricFindings } from './metric-findings.ts';
 import type { ReviewNotes } from './notes.ts';
 import { notedPageHtml, pageData, pageHtml, pageIn, servedPageHtml } from './page.ts';
-import type { RangeReading, SymbolFile } from './read-range.ts';
+import type { RangeReading, ReviewedDiff, ReviewedReading, SymbolFile } from './read-range.ts';
 import type { SymbolStatement } from './symbol-changes.ts';
 import type { TestFile } from './test-changes.ts';
 
@@ -1463,6 +1463,18 @@ test.for([
   },
 );
 
+const reviewedAt = (
+  overrides: Pick<ReviewedDiff, 'before' | 'changedPaths'> & {
+    readonly pullRequest?: ReviewedDiff;
+  },
+): ReviewedReading => ({
+  head: 'h1',
+  verdict: 'comment',
+  renames: [],
+  pullRequest: { before: overrides.before, changedPaths: [], renames: [] },
+  ...overrides,
+});
+
 test.for([
   {
     since: 'a commit touches a part the PR changes',
@@ -1479,13 +1491,10 @@ test.for([
     before: { nodes: [webStack, webFile('c.ts')], edges: [] },
     after: { nodes: [webStack, webFile('a.ts'), webFile('b.ts'), webFile('c.ts')], edges: [] },
     changedPaths: ['web/src/a.ts', 'web/src/b.ts'],
-    reviewed: {
-      head: 'h1',
-      verdict: 'comment',
+    reviewed: reviewedAt({
       before: { nodes: [webStack, webFile('a.ts'), webFile('b.ts'), webFile('c.ts')], edges: [] },
       changedPaths,
-      renames: [],
-    },
+    }),
   });
 
   expect(
@@ -1535,7 +1544,7 @@ test.for([
       before: graph,
       after: graph,
       changedPaths: pullRequest,
-      reviewed: { head: 'h1', verdict: 'comment', before: graph, changedPaths, renames: [] },
+      reviewed: reviewedAt({ before: graph, changedPaths }),
     });
 
     expect(
@@ -1550,13 +1559,10 @@ test("page data leaves out a file main's merge added since the last review", () 
     before: { nodes: [webStack, webFile('c.ts')], edges: [] },
     after: merged,
     changedPaths: ['web/src/a.ts'],
-    reviewed: {
-      head: 'h1',
-      verdict: 'comment',
+    reviewed: reviewedAt({
       before: { nodes: [webStack, webFile('a.ts')], edges: [] },
       changedPaths: ['web/src/c.ts'],
-      renames: [],
-    },
+    }),
   });
 
   expect(
@@ -1584,9 +1590,7 @@ test("page data lists the PR's added or removed edges that came or went since th
       ],
     },
     changedPaths: [],
-    reviewed: {
-      head: 'h1',
-      verdict: 'comment',
+    reviewed: reviewedAt({
       before: {
         nodes: files,
         edges: [
@@ -1595,8 +1599,7 @@ test("page data lists the PR's added or removed edges that came or went since th
         ],
       },
       changedPaths: [],
-      renames: [],
-    },
+    }),
   });
 
   expect(
