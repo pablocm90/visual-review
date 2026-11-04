@@ -200,6 +200,39 @@ test('a PR number reviews the PR from its merge base to its head, so its new cra
   });
 }, 60_000);
 
+test("a PR's next round lists what changed since its last review, a merge of the base left out", async () => {
+  using pr = pullRequestRemote();
+  const options = { cwd: pr.clone, env: { ...process.env, PATH: pr.path } };
+  const firstRange = `${pr.branchPoint}..${pr.head}`;
+  await runCliIn(options, '7');
+  const first = reviewDataIn(
+    readFileSync(join(pr.clone, '.reviews', `${firstRange}.html`), 'utf8'),
+  );
+  expect(first).not.toHaveProperty('sinceReview');
+  writeFileSync(
+    join(pr.clone, '.reviews', `${firstRange}.review.json`),
+    JSON.stringify({
+      version: 5,
+      verdict: 'request-changes',
+      reviewed: { range: firstRange, pullRequest: 7 },
+      read: [],
+      comments: [],
+    }),
+  );
+  const pushed = pr.mergeBaseAndPush({ 'crates/cli/src/lib.rs': 'pub fn run() {}\n' });
+
+  const run = await runCliIn(options, '7');
+
+  expect(run.code).toBe(0);
+  const next = reviewDataIn(readFileSync(run.stdout.trim(), 'utf8'));
+  expect(next.range.endsWith(pushed)).toBe(true);
+  expect(next.sinceReview).toEqual({
+    head: pr.head,
+    verdict: 'request-changes',
+    changed: { nodes: ['rust/crate/cli', 'rust/mod/cli/lib.rs'], edges: [] },
+  });
+}, 120_000);
+
 test('git ignores .reviews/ in a repo that does not, so a second review of the uncommitted work leaves the first page out of it', async () => {
   using workspace = cargoWorkspace();
   const { repo } = workspace;
