@@ -313,6 +313,22 @@ test('a notes file keeps its answers, each status with what it carries', () => {
   expect(parseNotes({ text, file }).answers).toEqual(answers);
 });
 
+test('an unasked change is known by a node or an edge of the graph', () => {
+  const text = JSON.stringify(
+    notesWith({
+      unasked: {
+        'web/module/pages': { text: 'Renamed the helper.' },
+        'web/module/pages -> web/module/utils': { text: 'Dropped a cast.' },
+        'web/module/gone': { text: 'Removed it.' },
+      },
+    }),
+  );
+
+  expect(notesProblems({ diff, said: [], notes: parseNotes({ text, file }) })).toEqual([
+    'unknown id web/module/gone',
+  ]);
+});
+
 test('a done answer names its commit', () => {
   const answers = { 'part web/module/pages': { status: 'done', text: 'Split it.' } };
   const text = JSON.stringify({ ...notesWith(), answers });

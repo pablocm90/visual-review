@@ -67,6 +67,13 @@ const ReviewNotesSchema = z
       .describe(
         "Answers to the last review, by each comment's anchor as `<kind> <id>`; left out, there are none",
       ),
+    unasked: z
+      .record(z.string(), z.strictObject({ text: z.string() }).readonly())
+      .readonly()
+      .optional()
+      .describe(
+        'Changes no comment asked for, by node id, or by `<from> -> <to>` for an edge; left out, there are none',
+      ),
   })
   .readonly();
 
@@ -185,7 +192,11 @@ export const notesProblems = ({
     ...collapsed.edges.filter(edge => edge.state !== 'unchanged').map(edgeId),
   ];
   return [
-    ...[...Object.keys(notes.notes), ...notes.summary.flatMap(item => item.target ?? [])]
+    ...[
+      ...Object.keys(notes.notes),
+      ...notes.summary.flatMap(item => item.target ?? []),
+      ...Object.keys(notes.unasked ?? {}),
+    ]
       .filter(id => !known.has(id))
       .map(id => `unknown id ${id}`),
     ...touched.filter(id => shown[id] === undefined).map(id => `no note on ${id}`),
