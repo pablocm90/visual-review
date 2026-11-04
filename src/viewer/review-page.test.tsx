@@ -5374,6 +5374,7 @@ test("a later round offers 'Since last review' first in Show, Changes only still
 
   expect(pressed()).toEqual(['Since last review']);
   await waitFor(() => expect(buttonsIn(rust)).toEqual(['application: modified']));
+  expect(screen.queryByText(/so not drawn/)).toBeNull();
 
   await user.click(
     within(screen.getByRole('region', { name: 'Summary' })).getByRole('button', {
@@ -5420,6 +5421,35 @@ test("with 'Since last review' shown and nothing drawn changed since, the graph 
   await user.click(shown('Since last review'));
 
   expect(await screen.findByText(/changed since the last review/)).toBeTruthy();
+});
+
+test("'Since last review' names what was added then and has since gone, which it can't draw", async () => {
+  const user = userEvent.setup();
+  render(
+    <ReviewPage
+      review={pageWith({
+        ...review,
+        sinceReview: {
+          ...sinceReview,
+          changed: {
+            ...sinceReview.changed,
+            dropped: { nodes: ['rust/crate/spike'], edges: ['rust/crate/spike -> rust/crate/cli'] },
+          },
+        },
+      })}
+    />,
+  );
+  await screen.findByRole('group', { name: 'rust' });
+  expect(screen.queryByText(/so not drawn/)).toBeNull();
+
+  await user.click(shown('Since last review'));
+
+  const line = await screen.findByText(/so not drawn/);
+  expect(line.textContent).toContain('rust/crate/spike, rust/crate/spike -> rust/crate/cli');
+
+  await user.click(shown('Changes only'));
+
+  expect(screen.queryByText(/so not drawn/)).toBeNull();
 });
 
 test('a review whose reviewed head is gone says so, with that head short, in the header, and shows the full review', async () => {

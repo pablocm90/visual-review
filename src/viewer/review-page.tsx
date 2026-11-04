@@ -1293,10 +1293,18 @@ const typesText = (target: EventTarget | null) =>
 const NothingDrawn = ({ scope }: { readonly scope: Scope }) => (
   <p className="caveat">
     {scope[0] === SINCE_LAST_REVIEW
-      ? 'Nothing in the graph that the PR still changes has changed since the last review.'
+      ? 'Nothing in the graph changed since the last review.'
       : 'Nothing in the graph changed.'}
   </p>
 );
+
+const DroppedSince = ({ since }: { readonly since: SinceReview | undefined }) => {
+  const { nodes = [], edges = [] } = since && 'changed' in since ? since.changed.dropped : {};
+  const dropped = [...nodes, ...edges];
+  return dropped.length === 0 ? null : (
+    <p className="caveat">Removed since the last review, so not drawn: {dropped.join(', ')}</p>
+  );
+};
 
 export const ReviewPage = ({ review, notes, send }: ReviewPageProps) => {
   const tab = useTab();
@@ -1524,6 +1532,7 @@ export const ReviewPage = ({ review, notes, send }: ReviewPageProps) => {
               <div className="graph-key">
                 {colouring === 'change' ? <Legend /> : <ScaleLegend colouring={colouring} />}
               </div>
+              {scope[0] === SINCE_LAST_REVIEW && <DroppedSince since={review.sinceReview} />}
               {drawn.nodes.length === 0 && <NothingDrawn scope={scope} />}
               {layout && (
                 <div
