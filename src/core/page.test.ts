@@ -1524,6 +1524,7 @@ const reviewedAt = ({
     readonly pullRequest?: Partial<ReviewedDiff>;
   }): ReviewedReading => ({
   ...reviewedHead(),
+  commits: [],
   renames: [],
   symbols: [],
   tests: [],
