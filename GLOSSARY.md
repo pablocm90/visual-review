@@ -32,6 +32,11 @@ The changed parts in the order to read them: a part after every part it depends 
 _Avoid_: priority, rank
 _In code_: `PageData.readingOrder`
 
+**Group**:
+Parts joined by edges of the change that run directly between them, or by a chain of such edges; an unchanged node, a shared box or a shared stack joins nothing. Two groups that reach `metrics.splitParts` raise the finding that the change may be independent changes.
+_Avoid_: cluster, component
+_In code_: `SplitSuggestion` (`src/core/split-suggestion.ts`), `Finding['groups']`
+
 **Read mark**:
 The reviewer's mark that they have read a part, kept in their browser for the page's range and sent with the review; a part read with no comment on it was read and found fine.
 _Avoid_: seen, viewed, done
