@@ -5729,6 +5729,28 @@ test('a later round marks the test changed since the last review, not its namesa
   expect(within(before).queryByText('changed since')).toBeNull();
 });
 
+test('a later round marks a patch whose file changed since the last review, not one changed only before it', async () => {
+  const user = userEvent.setup();
+  render(
+    <ReviewPage
+      review={{
+        ...pageWithFilesDrawnOnlyAsABox(),
+        sinceReview: {
+          ...sinceReview,
+          changed: changedSince({ files: ['web/src/billing/refund.ts'] }),
+        },
+      }}
+    />,
+  );
+  const patch = (name: string) => within(within(diffTab()).getByRole('group', { name }));
+
+  await user.click(await screen.findByRole('button', { name: 'billing: modified' }));
+  await user.click(within(inspector()).getByRole('tab', { name: 'Diff' }));
+
+  expect(patch('web/src/billing/refund.ts').getByText('changed since')).toBeTruthy();
+  expect(patch('web/src/billing/tax.ts').queryByText('changed since')).toBeNull();
+});
+
 test('a review whose reviewed head is gone says so, with that head short, in the header, and shows the full review', async () => {
   const head = 'a1b2c3d4e5f6a7b8c9d0a1b2c3d4e5f6a7b8c9d0';
   render(<ReviewPage review={pageWith({ ...review, sinceReview: { head, gone: true } })} />);

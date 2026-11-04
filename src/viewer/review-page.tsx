@@ -36,7 +36,7 @@ import {
   visibleNodeOf,
 } from '../core/visible-diff.ts';
 import { anchorKey, anchorName, lineAnchor, placeOfLine } from './anchors.ts';
-import { ChangedSinceMarks } from './changed-since.tsx';
+import { ChangedSinceMarks, ChangedSinceTag, useIsChangedSince } from './changed-since.tsx';
 import { ColourBy, type Colouring, ScaleLegend, type Shade, shadeOf } from './colour-by.tsx';
 import { CommentField, CommentOn, type Comments } from './comment-field.tsx';
 import {
@@ -524,6 +524,7 @@ const Patch = ({
 }: FilePatch &
   LineComments & { readonly open: boolean; readonly landing: LandingIn | undefined }) => {
   const lines = useMemo(() => highlightPatch({ path, patch }), [path, patch]);
+  const marked = useIsChangedSince()('files', path);
   const landed = landing?.path === path ? landing : undefined;
   const top = useRef<HTMLDetailsElement>(null);
   useLayoutEffect(() => {
@@ -538,7 +539,10 @@ const Patch = ({
   );
   return (
     <details aria-label={path} open={open || holdsDraft} ref={top}>
-      <summary>{path}</summary>
+      <summary>
+        {path}
+        {marked && <ChangedSinceTag />}
+      </summary>
       <pre>
         {lines.map((line, index) => (
           <PatchLine
