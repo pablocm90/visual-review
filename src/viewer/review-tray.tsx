@@ -2,7 +2,14 @@ import { useState } from 'react';
 import type { Finding } from '../core/findings.ts';
 import type { GraphNode } from '../core/graph.ts';
 import type { Answer, Comment, Review } from '../core/review.ts';
-import { anchorKey, anchorName, anchorTarget, type TargetsOf } from './anchors.ts';
+import {
+  anchorKey,
+  anchorName,
+  anchorTarget,
+  type PlaceOfLine,
+  placeOfLine,
+  type TargetsOf,
+} from './anchors.ts';
 import { COMMENT_KINDS, type Comments } from './comment-field.tsx';
 import { ANSWER_KINDS, type Answers } from './finding-display.tsx';
 import { partsRead } from './reading-order-list.tsx';
@@ -22,6 +29,7 @@ type ReviewTrayProps = {
   readonly tests: TargetsOf['tests'];
   readonly onGoTo: (id: string) => void;
   readonly onGoToDraft: (id: string, anchor: Comment['anchor']) => void;
+  readonly onGoToOutside: (place: PlaceOfLine, opener: HTMLButtonElement) => void;
   readonly send: (review: Review) => Promise<void>;
 };
 
@@ -96,7 +104,7 @@ const previewOf = ({ verdict, read, parts, ordered, answered, silent, nodes }: P
 
 type DraftProps = {
   readonly name: string;
-  readonly onGo: (() => void) | undefined;
+  readonly onGo: ((opener: HTMLButtonElement) => void) | undefined;
   readonly label: string | undefined;
   readonly text: string | undefined;
 };
@@ -106,7 +114,7 @@ const Draft = ({ name, onGo, label, text }: DraftProps) => (
     {onGo === undefined ? (
       name
     ) : (
-      <button type="button" className="draft-target" onClick={onGo}>
+      <button type="button" className="draft-target" onClick={event => onGo(event.currentTarget)}>
         {name}
       </button>
     )}{' '}
@@ -126,6 +134,7 @@ type DraftListProps = {
   readonly targetOf: TargetOf;
   readonly onGoTo: (id: string) => void;
   readonly onGoToDraft: (id: string, anchor: Comment['anchor']) => void;
+  readonly onGoToOutside: (place: PlaceOfLine, opener: HTMLButtonElement) => void;
 };
 
 const DraftList = ({
@@ -136,15 +145,18 @@ const DraftList = ({
   targetOf,
   onGoTo,
   onGoToDraft,
+  onGoToOutside,
 }: DraftListProps) => (
   <ul aria-label="Drafts" className="tray-list">
     {drafted.map(({ anchor, kind, text }) => {
       const target = targetOf(anchor);
+      const place = placeOfLine(anchor);
+      const goOutside = place && ((opener: HTMLButtonElement) => onGoToOutside(place, opener));
       return (
         <Draft
           key={anchorKey(anchor)}
           name={anchorName(anchor, nodes)}
-          onGo={target === undefined ? undefined : () => onGoToDraft(target, anchor)}
+          onGo={target === undefined ? goOutside : () => onGoToDraft(target, anchor)}
           label={kindLabels.get(kind)}
           text={text}
         />
@@ -177,6 +189,7 @@ export const ReviewTray = ({
   tests,
   onGoTo,
   onGoToDraft,
+  onGoToOutside,
   send,
 }: ReviewTrayProps) => {
   const [picked, setPicked] = useState<Review['verdict']>();
@@ -241,6 +254,7 @@ export const ReviewTray = ({
                   targetOf={targetOf}
                   onGoTo={onGoTo}
                   onGoToDraft={onGoToDraft}
+                  onGoToOutside={onGoToOutside}
                 />
                 {parts.length > 0 && (
                   <p className="tray-read">

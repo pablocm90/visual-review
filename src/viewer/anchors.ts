@@ -3,10 +3,28 @@ import { endsOfId, type GraphNode } from '../core/graph.ts';
 import type { Comment } from '../core/review.ts';
 import type { TestFile } from '../core/test-changes.ts';
 import { nodeOfTests } from '../core/tests-alongside.ts';
+import type { PatchLine } from './highlight-patch.ts';
 
 type Anchor = Comment['anchor'];
 
 type Nodes = ReadonlyArray<Pick<GraphNode, 'id' | 'label' | 'parent' | 'path'>>;
+
+export const lineAnchor = ({
+  path,
+  line: { kind, pieces, ...numbers },
+}: {
+  readonly path: string;
+  readonly line: PatchLine;
+}): Anchor | undefined => {
+  const side = kind === 'removed' ? 'base' : 'head';
+  const number = numbers[side];
+  if (number === undefined) return undefined;
+  return {
+    kind: 'line',
+    id: `${path}@${side}:${number}`,
+    text: pieces.map(({ text }) => text).join(''),
+  };
+};
 
 export const anchorKey = ({ kind, id }: Pick<Anchor, 'kind' | 'id'>): string => `${kind} ${id}`;
 
@@ -18,6 +36,15 @@ const split = (id: string, at: string): readonly [string, string] => {
 const fileOfLine = (id: string): string => id.slice(0, id.lastIndexOf('@'));
 
 const lineNumber = (id: string): string => id.slice(id.lastIndexOf(':') + 1);
+
+export const placeOfLine = (anchor: Anchor) => {
+  if (anchor.kind !== 'line') return undefined;
+  const path = fileOfLine(anchor.id);
+  const side: 'base' | 'head' = anchor.id.startsWith('@base:', path.length) ? 'base' : 'head';
+  return { path, side, line: Number(lineNumber(anchor.id)) };
+};
+
+export type PlaceOfLine = NonNullable<ReturnType<typeof placeOfLine>>;
 
 export type TargetsOf = {
   readonly nodes: Nodes;
@@ -43,7 +70,7 @@ export const anchorName = (anchor: Anchor, nodes: Nodes): string => {
   if (anchor.kind === 'line') {
     const file = fileOfLine(anchor.id);
     const label = nodes.find(node => node.path === file)?.label ?? file;
-    return `${label}:${lineNumber(anchor.id)} "${anchor.text}"`;
+    return `${label}:${lineNumber(anchor.id)} "${anchor.text.trim()}"`;
   }
   return endsOfId(anchor.id).map(labelOf).join(' → ');
 };

@@ -3,10 +3,10 @@ import {
   type MouseEvent,
   type PointerEvent,
   type ReactNode,
-  useCallback,
   useEffect,
   useEffectEvent,
   useId,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
@@ -33,9 +33,9 @@ import {
   visibleDiff,
   visibleNodeOf,
 } from '../core/visible-diff.ts';
-import { anchorKey } from './anchors.ts';
+import { anchorKey, anchorName, lineAnchor, placeOfLine } from './anchors.ts';
 import { ColourBy, type Colouring, ScaleLegend, type Shade, shadeOf } from './colour-by.tsx';
-import { CommentField, type Comments } from './comment-field.tsx';
+import { CommentField, CommentOn, type Comments } from './comment-field.tsx';
 import {
   AnswerButtons,
   type Answers,
@@ -457,6 +457,8 @@ const Scoped = ({ scopes: [scope, ...inner], text }: Piece) =>
 
 type Landing = Omit<LineAt, 'node'>;
 
+type LandingIn = Landing & { readonly path: string | undefined };
+
 const scrollInPanel = (element: HTMLElement, block: ScrollLogicalPosition) => {
   const { scrollX, scrollY } = window;
   element.scrollIntoView({ block });
@@ -466,20 +468,27 @@ const scrollInPanel = (element: HTMLElement, block: ScrollLogicalPosition) => {
 const isLandedOn = (line: Line, landing: Landing | undefined): boolean =>
   landing !== undefined && line[landing.side] === landing.line;
 
+type LineComments = {
+  readonly nodes: ReadonlyArray<DiffNode>;
+  readonly comments: Comments;
+  readonly onComment: ((comment: Comment) => void) | undefined;
+};
+
 const PatchLine = ({
-  line: { kind, prefix, pieces },
-  current,
-}: {
+  path,
+  line,
+  landing,
+  nodes,
+  comments,
+  onComment,
+}: LineComments & {
+  readonly path: string;
   readonly line: Line;
-  readonly current: boolean;
+  readonly landing: Landing | undefined;
 }) => {
-  const landOn = useCallback(
-    (row: HTMLElement | null) => {
-      if (current && row) scrollInPanel(row, 'center');
-    },
-    [current],
-  );
-  const marks = { ref: landOn, 'aria-current': current || undefined };
+  const { kind, prefix, pieces } = line;
+  const anchor = lineAnchor({ path, line });
+  const marks = { 'aria-current': isLandedOn(line, landing) || undefined };
   const code = (
     <>
       {prefix}
@@ -487,6 +496,15 @@ const PatchLine = ({
         // biome-ignore lint/suspicious/noArrayIndexKey: a line's pieces are fixed and may repeat
         <Scoped key={index} {...piece} />
       ))}
+      {onComment && anchor && (
+        <CommentOn
+          anchor={anchor}
+          name={anchorName(anchor, nodes)}
+          comments={comments}
+          onComment={onComment}
+          landing={isLandedOn(line, landing) ? landing : undefined}
+        />
+      )}
     </>
   );
   if (kind === 'added') return <ins {...marks}>{code}</ins>;
@@ -499,22 +517,35 @@ const Patch = ({
   patch,
   open,
   landing,
-}: FilePatch & { readonly open: boolean; readonly landing?: Landing | undefined }) => {
+  ...commenting
+}: FilePatch &
+  LineComments & { readonly open: boolean; readonly landing: LandingIn | undefined }) => {
   const lines = useMemo(() => highlightPatch({ path, patch }), [path, patch]);
-  const landOnTop = useCallback(
-    (top: HTMLElement | null) => {
-      if (top && landing !== undefined && !lines.some(line => isLandedOn(line, landing)))
-        scrollInPanel(top, 'start');
-    },
-    [landing, lines],
+  const landed = landing?.path === path ? landing : undefined;
+  const top = useRef<HTMLDetailsElement>(null);
+  useLayoutEffect(() => {
+    if (!top.current || landed === undefined) return;
+    top.current.open = true;
+    const row = top.current.querySelector<HTMLElement>('[aria-current]');
+    if (row) scrollInPanel(row, 'center');
+    else scrollInPanel(top.current, 'start');
+  }, [landed]);
+  const holdsDraft = Object.values(commenting.comments).some(
+    ({ anchor }) => placeOfLine(anchor)?.path === path,
   );
   return (
-    <details aria-label={path} open={open} ref={landOnTop}>
+    <details aria-label={path} open={open || holdsDraft} ref={top}>
       <summary>{path}</summary>
       <pre>
         {lines.map((line, index) => (
-          // biome-ignore lint/suspicious/noArrayIndexKey: a patch's lines are fixed and may repeat
-          <PatchLine key={index} line={line} current={isLandedOn(line, landing)} />
+          <PatchLine
+            // biome-ignore lint/suspicious/noArrayIndexKey: a patch's lines are fixed and may repeat
+            key={index}
+            path={path}
+            line={line}
+            landing={landed}
+            {...commenting}
+          />
         ))}
       </pre>
     </details>
@@ -554,6 +585,8 @@ const InspectorHead = ({
 type InspectorProps = {
   readonly picked: InspectorTab;
   readonly onPick: (tab: InspectorTab) => void;
+  readonly landing: LandingIn | undefined;
+  readonly onLand: (landing: LandingIn) => void;
   readonly nodes: ReadonlyArray<DiffNode>;
   readonly node: DiffNode | undefined;
   readonly metrics: Readonly<Record<string, NodeMetrics>>;
@@ -580,9 +613,18 @@ const DRAFT_TABS: Partial<Record<Comment['anchor']['kind'], InspectorTab>> = {
   symbol: 'symbols',
   decision: 'symbols',
   test: 'tests',
+  line: 'diff',
 };
 
 const tabOfDraft = ({ kind }: Comment['anchor']): InspectorTab => DRAFT_TABS[kind] ?? 'note';
+
+type LandingPlace = string | null | undefined;
+
+const useLanding = (place: LandingPlace) => {
+  const [landed, setLanded] = useState<LandingIn & { readonly on: LandingPlace }>();
+  if (landed !== undefined && landed.on !== place) setLanded(undefined);
+  return [landed, (on: LandingPlace, landing: LandingIn) => setLanded({ ...landing, on })] as const;
+};
 
 const useInspectorTab = (screen: string, selected: string | undefined) => {
   const [inspectorTab, setInspectorTab] = useState<InspectorTab>('note');
@@ -728,15 +770,19 @@ const NotePanel = ({
 
 const SECTION_ORDER = Object.keys(INSPECTOR_TABS);
 
-const Inspector = ({ node, patches, width, onClose, picked, onPick, ...props }: InspectorProps) => {
-  const [landing, setLanding] = useState<LineAt & { readonly path?: string | undefined }>();
-  const [landedOn, setLandedOn] = useState(node?.id);
-  if (landedOn !== node?.id) {
-    setLandedOn(node?.id);
-    setLanding(undefined);
-  }
-  const showLine = (at: LineAt) => {
-    setLanding({ ...at, path: props.nodes.find(({ id }) => id === at.node)?.path });
+const Inspector = ({
+  node,
+  patches,
+  width,
+  onClose,
+  picked,
+  onPick,
+  landing,
+  onLand,
+  ...props
+}: InspectorProps) => {
+  const showLine = ({ node: at, ...line }: LineAt) => {
+    onLand({ ...line, path: props.nodes.find(({ id }) => id === at)?.path });
     onPick('diff');
   };
   const sections: ReadonlyArray<Section> = [
@@ -747,17 +793,17 @@ const Inspector = ({ node, patches, width, onClose, picked, onPick, ...props }: 
             tab: 'diff' as const,
             panel: (
               <section className="changes" aria-label="Changes">
-                {patches.map(patch => {
-                  const landed = landing?.path === patch.path;
-                  return (
-                    <Patch
-                      key={patch.path}
-                      {...patch}
-                      open={node?.kind === 'file' || landed}
-                      landing={landed ? landing : undefined}
-                    />
-                  );
-                })}
+                {patches.map(patch => (
+                  <Patch
+                    key={patch.path}
+                    {...patch}
+                    open={node?.kind === 'file'}
+                    landing={landing}
+                    nodes={props.nodes}
+                    comments={props.comments}
+                    onComment={props.onComment}
+                  />
+                ))}
               </section>
             ),
           },
@@ -795,13 +841,14 @@ const Inspector = ({ node, patches, width, onClose, picked, onPick, ...props }: 
   );
 };
 
-type OutsideFilesProps = {
+type OutsideFilesProps = LineComments & {
   readonly patches: ReadonlyArray<FilePatch>;
+  readonly landing: LandingIn | undefined;
   readonly width: number;
   readonly onClose: () => void;
 };
 
-const OutsideFiles = ({ patches, width, onClose }: OutsideFilesProps) => (
+const OutsideFiles = ({ patches, landing, width, onClose, ...commenting }: OutsideFilesProps) => (
   <aside className="note" aria-label="Inspector" style={{ width }}>
     <button type="button" className="close" aria-label="Close inspector" onClick={onClose}>
       ×
@@ -809,7 +856,7 @@ const OutsideFiles = ({ patches, width, onClose }: OutsideFilesProps) => (
     <h2>Changed files outside the graph</h2>
     <section className="changes" aria-label="Changes">
       {patches.map(patch => (
-        <Patch key={patch.path} {...patch} open={false} />
+        <Patch key={patch.path} {...patch} open={false} landing={landing} {...commenting} />
       ))}
     </section>
   </aside>
@@ -834,6 +881,8 @@ type SidePanelProps = {
   readonly onGoTo: (id: string) => void;
   readonly picked: InspectorTab;
   readonly onPick: (tab: InspectorTab) => void;
+  readonly landing: LandingIn | undefined;
+  readonly onLand: (landing: LandingIn) => void;
 };
 
 const SidePanel = ({
@@ -855,6 +904,8 @@ const SidePanel = ({
   onGoTo,
   picked,
   onPick,
+  landing,
+  onLand,
 }: SidePanelProps) => {
   const patches = outside
     ? review.undrawn
@@ -893,7 +944,15 @@ const SidePanel = ({
     return (
       <>
         {divider}
-        <OutsideFiles patches={patches} width={width} onClose={onCloseOutside} />
+        <OutsideFiles
+          patches={patches}
+          landing={landing}
+          width={width}
+          onClose={onCloseOutside}
+          nodes={review.diff.nodes}
+          comments={comments}
+          onComment={onComment}
+        />
       </>
     );
   }
@@ -925,6 +984,8 @@ const SidePanel = ({
         onClose={() => onCloseInspector(selected)}
         picked={picked}
         onPick={onPick}
+        landing={landing}
+        onLand={onLand}
       />
     </>
   );
@@ -1312,6 +1373,7 @@ export const ReviewPage = ({ review, notes, send }: ReviewPageProps) => {
     goTo(id);
   };
   const [inspectorTab, setInspectorTab] = useInspectorTab(tab, selected);
+  const [landing, landOn] = useLanding(outside ? null : selected);
   const goToOnTab = (id: string, inspect: InspectorTab) => {
     setInspectorTab(inspect);
     goToOnStructure(id);
@@ -1487,6 +1549,8 @@ export const ReviewPage = ({ review, notes, send }: ReviewPageProps) => {
               onGoTo={goTo}
               picked={inspectorTab}
               onPick={setInspectorTab}
+              landing={landing}
+              onLand={line => landOn(selected, line)}
             />
           </div>
         </>
@@ -1516,7 +1580,16 @@ export const ReviewPage = ({ review, notes, send }: ReviewPageProps) => {
           nodes={review.diff.nodes}
           tests={review.tests}
           onGoTo={id => goToOnTab(id, 'note')}
-          onGoToDraft={(id, anchor) => goToOnTab(id, tabOfDraft(anchor))}
+          onGoToDraft={(id, anchor) => {
+            const place = placeOfLine(anchor);
+            if (place) landOn(id, place);
+            goToOnTab(id, tabOfDraft(anchor));
+          }}
+          onGoToOutside={(place, opener) => {
+            landOn(null, place);
+            location.hash = '#structure';
+            showOutside(opener);
+          }}
           send={send}
         />
       )}

@@ -47,10 +47,19 @@ export const CommentField = ({ anchor, comments, onComment }: CommentFieldProps)
   );
 };
 
-type CommentOnProps = CommentFieldProps & { readonly name: string };
+type CommentOnProps = CommentFieldProps & {
+  readonly name: string;
+  readonly landing?: object | undefined;
+};
 
-export const CommentOn = ({ name, ...field }: CommentOnProps) => {
-  const [open, setOpen] = useState(field.comments[anchorKey(field.anchor)] !== undefined);
+export const CommentOn = ({ name, landing, ...field }: CommentOnProps) => {
+  const drafted = field.comments[anchorKey(field.anchor)] !== undefined;
+  const [open, setOpen] = useState(drafted);
+  const [landed, setLanded] = useState(landing);
+  if (landing !== landed) {
+    setLanded(landing);
+    if (landing !== undefined && drafted) setOpen(true);
+  }
   return (
     <>
       <button

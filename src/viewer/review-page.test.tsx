@@ -5048,3 +5048,288 @@ test("a test's draft in the tray opens the Tests tab of the file it's named afte
   );
   expect(rowField()).toHaveProperty('value', 'Which rate?');
 });
+
+const pageWithPatch = (...hunkLines: ReadonlyArray<string>) =>
+  pageWith({
+    range: review.range,
+    diff: {
+      nodes: [
+        { id: 'web', kind: 'stack', label: 'web', path: '', state: 'unchanged' },
+        topFile('x.ts', 'modified'),
+      ],
+      edges: [],
+    },
+    patches: [
+      {
+        path: 'web/src/x.ts',
+        patch: ['--- a/web/src/x.ts', '+++ b/web/src/x.ts', ...hunkLines].join('\n'),
+      },
+    ],
+  });
+
+const diffTab = () => screen.getByRole('tabpanel', { name: 'Diff' });
+
+test("a served page's diff line takes a comment on its side and number, quoting it; a hunk's header takes none, nor does any line on a page not served", async () => {
+  const user = userEvent.setup();
+  const sent = vi.fn(async () => {});
+  const page = pageWithPatch(
+    '@@ -12,2 +12,2 @@',
+    ' const y = 0;',
+    '-const x = 1;',
+    '+const x = 2;',
+  );
+  const { rerender } = render(<ReviewPage review={page} send={sent} />);
+  const toggles = () =>
+    within(diffTab())
+      .queryAllByRole('button', { name: /^Comment on/ })
+      .map(toggle => toggle.getAttribute('aria-label'));
+
+  await user.click(await screen.findByRole('button', { name: 'x.ts: modified' }));
+  await user.click(within(inspector()).getByRole('tab', { name: 'Diff' }));
+  expect(toggles()).toStrictEqual([
+    'Comment on x.ts:12 "const y = 0;"',
+    'Comment on x.ts:13 "const x = 1;"',
+    'Comment on x.ts:13 "const x = 2;"',
+  ]);
+
+  await user.click(
+    within(diffTab()).getByRole('button', { name: 'Comment on x.ts:13 "const x = 1;"' }),
+  );
+  await write(user, within(diffTab()).getByRole('textbox', { name: 'Your comment' }), 'Why 1?');
+  await openReview(user);
+  await user.click(screen.getByRole('button', { name: 'Send to Claude' }));
+
+  expect(sent).toHaveBeenCalledExactlyOnceWith(
+    sentReview({
+      verdict: 'comment',
+      comments: [
+        {
+          anchor: { kind: 'line', id: 'web/src/x.ts@base:13', text: 'const x = 1;' },
+          kind: 'question',
+          text: 'Why 1?',
+        },
+      ],
+    }),
+  );
+
+  rerender(<ReviewPage review={page} />);
+  expect(toggles()).toStrictEqual([]);
+});
+
+test("the tray goes to a diff line's draft on the Diff tab, landing on its row on its side, each time", async () => {
+  const user = userEvent.setup();
+  render(
+    <ReviewPage
+      review={pageWithPatch('@@ -1 +1 @@', '-const x = 1;', '+const x = 2;')}
+      send={vi.fn(async () => {})}
+    />,
+  );
+  const name = 'x.ts:1 "const x = 1;"';
+  const goToDraft = () =>
+    user.click(within(screen.getByRole('list', { name: 'Drafts' })).getByRole('button', { name }));
+
+  await user.click(await screen.findByRole('button', { name: 'x.ts: modified' }));
+  await user.click(within(inspector()).getByRole('tab', { name: 'Diff' }));
+  await user.click(within(diffTab()).getByRole('button', { name: `Comment on ${name}` }));
+  await write(user, within(diffTab()).getByRole('textbox', { name: 'Your comment' }), 'Why 1?');
+  await user.click(screen.getByRole('button', { name: 'Close inspector' }));
+  await openReview(user);
+
+  await goToDraft();
+  const row = within(diffTab()).getByRole('deletion', { current: true });
+  expect(within(row).getByRole('textbox', { name: 'Your comment' })).toHaveProperty(
+    'value',
+    'Why 1?',
+  );
+  expect(scrolledIntoView.mock.contexts).toContain(row);
+
+  scrolledIntoView.mockClear();
+  await goToDraft();
+  expect(scrolledIntoView.mock.contexts).toContain(row);
+
+  const patch = within(diffTab()).getByRole('group', { name: 'web/src/x.ts' });
+  await user.click(within(patch).getByText('web/src/x.ts'));
+  expect(patch.hasAttribute('open')).toBe(false);
+  const shownWhenScrolled = vi.fn();
+  scrolledIntoView.mockImplementationOnce(() => shownWhenScrolled(patch.hasAttribute('open')));
+  await goToDraft();
+  expect(shownWhenScrolled.mock.calls).toStrictEqual([[true]]);
+});
+
+const patchOf = (path: string, ...hunkLines: ReadonlyArray<string>) => ({
+  path,
+  patch: [`--- a/${path}`, `+++ b/${path}`, ...hunkLines].join('\n'),
+});
+
+const pageWithFilesDrawnOnlyAsABox = () =>
+  pageWith({
+    range: review.range,
+    diff: {
+      nodes: [
+        { id: 'web', kind: 'stack', label: 'web', path: '', state: 'unchanged' },
+        webModule('billing', 'modified'),
+      ],
+      edges: [],
+    },
+    patches: [
+      patchOf('web/src/billing/refund.ts', '@@ -8 +8 @@', '-const late = 1;', '+const late = 2;'),
+      patchOf('web/src/billing/tax.ts', '@@ -3 +3 @@', '-const rate = 1;', '+const rate = 2;'),
+    ],
+  });
+
+test("the tray going to a diff line's draft in a file drawn only as its box opens that file's patch, and only that one", async () => {
+  const user = userEvent.setup();
+  render(<ReviewPage review={pageWithFilesDrawnOnlyAsABox()} send={vi.fn(async () => {})} />);
+  const name = 'web/src/billing/refund.ts:8 "const late = 2;"';
+  const patchesOpen = () =>
+    within(diffTab())
+      .getAllByRole('group')
+      .map(patch => [patch.getAttribute('aria-label'), patch.hasAttribute('open')]);
+
+  await user.click(await screen.findByRole('button', { name: 'billing: modified' }));
+  await user.click(within(inspector()).getByRole('tab', { name: 'Diff' }));
+  expect(patchesOpen()).toStrictEqual([
+    ['web/src/billing/refund.ts', false],
+    ['web/src/billing/tax.ts', false],
+  ]);
+  await user.click(within(diffTab()).getByText('web/src/billing/refund.ts'));
+  await user.click(within(diffTab()).getByRole('button', { name: `Comment on ${name}` }));
+  await write(user, within(diffTab()).getByRole('textbox', { name: 'Your comment' }), 'Why 2?');
+  await user.click(screen.getByRole('button', { name: 'Close inspector' }));
+  await openReview(user);
+
+  await user.click(
+    within(screen.getByRole('list', { name: 'Drafts' })).getByRole('button', { name }),
+  );
+  expect(patchesOpen()).toStrictEqual([
+    ['web/src/billing/refund.ts', true],
+    ['web/src/billing/tax.ts', false],
+  ]);
+});
+
+const pageWithUndrawnFile = () =>
+  pageWith({
+    ...review,
+    undrawn: [
+      { path: 'README.md', patch: '--- a/README.md\n+++ b/README.md\n@@ -1 +1 @@\n-old\n+new' },
+    ],
+    findings: [
+      {
+        id: 'structure:undrawn',
+        dimension: 'structure',
+        level: 'info',
+        title: '1 changed file outside the graph',
+        detail: 'README.md',
+      },
+    ],
+  });
+
+const openUndrawnFiles = async (user: ReturnType<typeof userEvent.setup>) => {
+  await user.click(await screen.findByRole('button', { name: 'Show 1 finding' }));
+  await user.click(
+    screen.getByRole('button', { name: 'README.md: 1 changed file outside the graph' }),
+  );
+};
+
+test("a served page's line in a file outside the graph takes a comment, named by its path", async () => {
+  const user = userEvent.setup();
+  const sent = vi.fn(async () => {});
+  render(<ReviewPage review={pageWithUndrawnFile()} send={sent} />);
+
+  await openUndrawnFiles(user);
+  await user.click(within(inspector()).getByText('README.md'));
+  await user.click(
+    within(inspector()).getByRole('button', { name: 'Comment on README.md:1 "new"' }),
+  );
+  await write(user, within(inspector()).getByRole('textbox', { name: 'Your comment' }), 'Why new?');
+  await openReview(user);
+  await user.click(screen.getByRole('button', { name: 'Send to Claude' }));
+
+  expect(sent).toHaveBeenCalledExactlyOnceWith(
+    sentReview({
+      verdict: 'comment',
+      comments: [
+        {
+          anchor: { kind: 'line', id: 'README.md@head:1', text: 'new' },
+          kind: 'question',
+          text: 'Why new?',
+        },
+      ],
+    }),
+  );
+});
+
+test('the tray goes to a draft on a line outside the graph from any screen, opening those files at its row, each time; closing them hands the keyboard focus back to the draft', async () => {
+  const user = userEvent.setup();
+  render(<ReviewPage review={pageWithUndrawnFile()} send={vi.fn(async () => {})} />);
+  const name = 'README.md:1 "new"';
+  const draft = () =>
+    within(screen.getByRole('list', { name: 'Drafts' })).getByRole('button', { name });
+
+  await openUndrawnFiles(user);
+  await user.click(within(inspector()).getByText('README.md'));
+  await user.click(within(inspector()).getByRole('button', { name: `Comment on ${name}` }));
+  await write(user, within(inspector()).getByRole('textbox', { name: 'Your comment' }), 'Why new?');
+  await user.click(screen.getByRole('button', { name: 'domain: unchanged' }));
+  await user.click(screen.getByRole('link', { name: 'Tests' }));
+  await openReview(user);
+
+  await user.click(draft());
+  const row = within(inspector()).getByRole('insertion', { current: true });
+  expect(within(inspector()).getByRole('heading', { level: 2 }).textContent).toBe(
+    'Changed files outside the graph',
+  );
+  expect(within(row).getByRole('textbox', { name: 'Your comment' })).toHaveProperty(
+    'value',
+    'Why new?',
+  );
+  expect(scrolledIntoView.mock.contexts).toContain(row);
+
+  scrolledIntoView.mockClear();
+  await user.click(draft());
+  expect(scrolledIntoView.mock.contexts).toContain(row);
+
+  await user.click(within(inspector()).getByRole('button', { name: 'Close inspector' }));
+  expect(document.activeElement).toBe(draft());
+
+  scrolledIntoView.mockClear();
+  await user.click(
+    screen.getByRole('button', { name: 'README.md: 1 changed file outside the graph' }),
+  );
+  expect(within(inspector()).getByRole('insertion', { current: false })).toBeDefined();
+  expect(scrolledIntoView).not.toHaveBeenCalled();
+});
+
+test("going to a line's draft shows its hidden field, and leaves hidden the one on the row it left", async () => {
+  const user = userEvent.setup();
+  render(
+    <ReviewPage
+      review={pageWithPatch('@@ -1 +1 @@', '-const x = 1;', '+const x = 2;')}
+      send={vi.fn(async () => {})}
+    />,
+  );
+  const removed = 'x.ts:1 "const x = 1;"';
+  const added = 'x.ts:1 "const x = 2;"';
+  const goToDraft = (name: string) =>
+    user.click(within(screen.getByRole('list', { name: 'Drafts' })).getByRole('button', { name }));
+  const toggle = (name: string) =>
+    user.click(within(diffTab()).getByRole('button', { name: `Comment on ${name}` }));
+
+  await user.click(await screen.findByRole('button', { name: 'x.ts: modified' }));
+  await user.click(within(inspector()).getByRole('tab', { name: 'Diff' }));
+  await toggle(removed);
+  await write(user, within(diffTab()).getByRole('textbox', { name: 'Your comment' }), 'Why 1?');
+  await toggle(removed);
+  await toggle(added);
+  await write(user, within(diffTab()).getByRole('textbox', { name: 'Your comment' }), 'Why 2?');
+  await toggle(added);
+  await openReview(user);
+
+  await goToDraft(removed);
+  const field = () => within(diffTab()).getByRole('textbox', { name: 'Your comment' });
+  expect(field()).toHaveProperty('value', 'Why 1?');
+
+  await toggle(removed);
+  await goToDraft(added);
+  expect(field()).toHaveProperty('value', 'Why 2?');
+});

@@ -2,6 +2,24 @@
 
 What changed in each release of `@pablocm90/visual-review`, newest first. Versions follow [semver](https://semver.org); while it is 0.x, a minor version may change the exported types.
 
+## 0.17.0 — 2026-11-04
+
+### Added
+
+- On a served page, a comment can now sit on more than a part or an edge. The Symbols tab has a **Comment** toggle on each symbol and logic line, the Tests tab and the Tests screen one on each test (the same comment in both), and a patch one on each of its lines, on the Diff tab and in the changed files outside the graph. A line's comment anchors on its side and number and quotes its code. The review format is unchanged: version 5 already reads these anchors.
+- A draft in the review tray goes to where it was written: its tab, the node its test sits on, or its row in a patch, from any screen and each time it is asked. A patch or field closed by hand opens again, and closing the files outside the graph hands the keyboard focus back to the draft.
+
+### Changed
+
+- A patch opens by itself when it holds a line draft, and the unchanged symbols when one holds a draft.
+- A logic line's decision id counts every line of its function that reads the same, and same-named symbols in a file count too, so each takes a comment of its own.
+- The inspector goes back to Note when it closes or Structure is left, and holds its tab through an edge selected between two parts.
+
+### Fixed
+
+- A method renamed or turned into a getter or setter still pairs across the sides, and keeps the logic it lost; a setter reads against the base's setter, not its getter.
+- Two accessors of one name get a finding id each, for an API change and for a logic change.
+
 ## 0.16.0 — 2026-11-03
 
 ### Changed

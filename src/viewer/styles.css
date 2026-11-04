@@ -541,6 +541,8 @@ h1 {
 }
 
 .changes pre {
+  display: grid;
+  grid-template-columns: minmax(max-content, 1fr);
   margin: 6px 0 0;
   padding: 8px 0;
   overflow-x: auto;
@@ -2400,7 +2402,45 @@ main:has(> .review-tray) {
   text-decoration: line-through;
 }
 
+.changes pre .comment-kind,
+.changes pre .comment {
+  position: sticky;
+  left: 10px;
+  max-width: 480px;
+  margin-block: 6px;
+  white-space: normal;
+  font:
+    12px / 1.4 system-ui,
+    sans-serif;
+  user-select: text;
+}
+
 .tests .test .comment-kind,
 .tests .test .comment {
   text-indent: 0;
+}
+
+.changes pre .comment-on {
+  position: sticky;
+  right: 8px;
+  background: var(--page);
+  opacity: 0;
+  user-select: none;
+}
+
+.changes pre .comment-on:hover,
+.changes pre .comment-on[aria-expanded="true"] {
+  background: var(--unchanged-fill);
+}
+
+.changes pre > :hover > .comment-on,
+.changes pre > :focus-within > .comment-on,
+.changes pre .comment-on[aria-expanded="true"] {
+  opacity: 1;
+}
+
+@media (hover: none) {
+  .changes pre .comment-on {
+    opacity: 1;
+  }
 }
