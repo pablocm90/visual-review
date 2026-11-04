@@ -1,7 +1,7 @@
 import { countedId } from './counted-id.ts';
 import type { Finding } from './findings.ts';
 import type { GraphNode } from './graph.ts';
-import type { LogicLine } from './logic-diff.ts';
+import { decisionText, type LogicLine } from './logic-diff.ts';
 import type { SymbolFile } from './read-range.ts';
 import { type FileSymbolChanges, qualified, type SymbolStatement } from './symbol-changes.ts';
 
@@ -114,7 +114,12 @@ const exportsFinding = (file: FileSymbolChanges): ReadonlyArray<Finding> => {
 const isLost = ({ change, kind }: LogicLine): boolean =>
   change === 'removed' && (kind === 'guard' || kind === 'catch');
 
-const COUNTED = ['added', 'changed', 'removed'] as const;
+const COUNTED = [
+  ['added', 'added'],
+  ['changed', 'changed'],
+  ['removed', 'removed'],
+  ['moved', 'moved (found by text)'],
+] as const;
 
 const changedFinding = (
   node: string,
@@ -123,7 +128,7 @@ const changedFinding = (
 ): ReadonlyArray<Finding> => {
   if (others.length === 0) return [];
   const counts = COUNTED.map(
-    change => [change, others.filter(line => line.change === change).length] as const,
+    ([change, words]) => [words, others.filter(line => line.change === change).length] as const,
   );
   return [
     {
@@ -134,13 +139,11 @@ const changedFinding = (
       title: `${statement.kind} ${qualified(statement)} changed its logic`,
       detail: counts
         .filter(([, count]) => count > 0)
-        .map(([change, count]) => `${count} ${change}`)
+        .map(([words, count]) => `${count} ${words}`)
         .join(', '),
     },
   ];
 };
-
-const decisionText = ({ base, head }: LogicLine): string => head ?? base ?? '';
 
 const countingRepeats = <T>(
   items: ReadonlyArray<T>,
@@ -168,6 +171,11 @@ export const decisionsOf = ({ item: statement, id: symbolId }: AnchoredSymbol) =
     ({ item, id }) => ({ line: item, id, text: decisionText(item) }),
   );
 
+const LOST_DECISION = 'logic:removed:';
+
+export const decisionOfLost = (findingId: string): string | undefined =>
+  findingId.startsWith(LOST_DECISION) ? findingId.slice(LOST_DECISION.length) : undefined;
+
 const logicFindings = (node: string, symbol: AnchoredSymbol): ReadonlyArray<Finding> => {
   const statement = symbol.item;
   const name = qualified(statement);
@@ -177,7 +185,7 @@ const logicFindings = (node: string, symbol: AnchoredSymbol): ReadonlyArray<Find
       isLost(line)
         ? [
             {
-              id: `logic:removed:${id}`,
+              id: `${LOST_DECISION}${id}`,
               dimension: 'logic' as const,
               level: 'look' as const,
               target: node,

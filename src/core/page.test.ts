@@ -794,6 +794,37 @@ test("an edited function's other decision changes are one logic finding for info
   ]);
 });
 
+test("a moved guard or catch needs no look: it counts in its function's logic finding for information, which says how it was found", () => {
+  const symbols = [
+    symbolFile([
+      {
+        name: 'ReviewPage',
+        kind: 'function',
+        exported: { base: true, head: true },
+        change: 'edited',
+        logic: [
+          logicLine({ change: 'moved', kind: 'guard', base: 'if (!a) return', movedTo: 'Page' }),
+          logicLine({ change: 'moved', kind: 'catch', base: 'catch (error)', movedTo: 'Page' }),
+          logicLine({ change: 'added', kind: 'if', head: 'if (b)' }),
+        ],
+      },
+    ]),
+  ];
+
+  expect(findingsOfSymbols(symbols).filter(({ dimension }) => dimension === 'logic')).toStrictEqual(
+    [
+      {
+        id: 'logic:changed:web/file/a.ts#ReviewPage',
+        dimension: 'logic',
+        level: 'info',
+        target: 'web/file/a.ts',
+        title: 'function ReviewPage changed its logic',
+        detail: '1 added, 2 moved (found by text)',
+      },
+    ],
+  );
+});
+
 test('two accessors of one name each changing their logic are two findings, the later id counting the symbol and each title naming its kind', () => {
   const accessor = (kind: 'getter' | 'setter'): SymbolStatement => ({
     name: 'x',
@@ -3105,6 +3136,45 @@ test.for([
   const previous = firstPrevious(answersReading(id, () => ({ ...reviewedHead(), gone: true })));
 
   expect(previous).toEqual({ ...answering(id), ...held });
+});
+
+test.for([
+  {
+    case: 'still in the function, read as moved, keeps its line and asks nothing new',
+    logic: [ifLine('moved', 'if (gone)', undefined)],
+    mark: { target: 'web/file/a.ts' },
+    withoutComment: [],
+  },
+  {
+    case: 'gone from the function is no longer raised, changed with no commit to name',
+    logic: [],
+    mark: { changedSince: [] },
+    withoutComment: ['web/file/a.ts'],
+  },
+])('a previous answer to a lost decision $case', ({ logic, mark, withoutComment }) => {
+  const id = 'logic:removed:web/file/a.ts#f#if (gone)';
+  const reading = readingWith({
+    before: anchorGraph,
+    after: anchorGraph,
+    changedPaths: ['web/src/a.ts'],
+    symbols: [anchorFile('a.ts', [editedWith(logic)])],
+    reviewed: {
+      ...reviewedAt({ before: anchorGraph, changedPaths: ['web/src/a.ts'] }),
+      comments: [answering(id)],
+      commits: [commitOnA],
+    },
+  });
+
+  const { sinceReview } = pageData({
+    repo: 'shop',
+    reading,
+    range: 'a..b',
+    version: '1.2.3',
+    parsers: {},
+  });
+
+  expect(sinceReview?.comments).toEqual([{ ...answering(id), ...mark }]);
+  expect(sinceReview).toMatchObject({ changedWithoutComment: withoutComment });
 });
 
 const boxed = {
