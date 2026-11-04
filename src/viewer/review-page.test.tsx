@@ -6324,3 +6324,86 @@ test("a last comment on a test shows under it on the Tests screen and the inspec
     within(said(screen.getByRole('region', { name: 'Test changes' }))).getByText('Why gone?'),
   ).toBeTruthy();
 });
+
+test('a last comment on a diff line shows at the nearest row reading the same on its side, or atop the patch when none does', async () => {
+  const user = userEvent.setup();
+  const onHead = (line: number, text: string, said: string): PreviousComment => ({
+    anchor: { kind: 'line', id: `web/src/x.ts@head:${line}`, text },
+    kind: 'question',
+    text: said,
+  });
+  render(
+    <ReviewPage
+      review={{
+        ...pageWithPatch(
+          '@@ -12,2 +20,4 @@',
+          ' const y = 0;',
+          '-const x = 1;',
+          '+const x = 2;',
+          '+other();',
+          '+const x = 2;',
+        ),
+        sinceReview: {
+          ...sinceReview,
+          comments: [
+            onHead(5, 'const x = 2;', 'Near the first.'),
+            onHead(24, 'const x = 2;', 'Near the last.'),
+            {
+              anchor: { kind: 'line', id: 'web/src/x.ts@base:40', text: 'const x = 1;' },
+              kind: 'change',
+              text: 'On the removed one.',
+              changedSince: [],
+            },
+            onHead(13, 'const x = 1;', 'On the other side.'),
+            onHead(21, 'vanished();', 'Gone since.'),
+          ],
+        },
+      }}
+    />,
+  );
+
+  await user.click(await screen.findByRole('button', { name: 'x.ts: modified' }));
+  await user.click(within(inspector()).getByRole('tab', { name: 'Diff' }));
+
+  const [first, , last] = within(diffTab()).getAllByRole('insertion');
+  const removed = within(diffTab()).getByRole('deletion');
+  const hunk = within(diffTab()).getByText(/-12,2/);
+  const noteSaying = (text: string) => within(diffTab()).getByText(text).closest('[role="note"]');
+  expect(first?.contains(noteSaying('Near the first.'))).toBe(true);
+  expect(last?.contains(noteSaying('Near the last.'))).toBe(true);
+  expect(
+    within(removed).getByRole('note', { name: 'Last review: Change this, Changed since' }),
+  ).toBeTruthy();
+  ['On the other side.', 'Gone since.'].forEach(text => {
+    expect(
+      noteSaying(text)?.compareDocumentPosition(hunk) === Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBe(true);
+  });
+});
+
+test('a patch holding a last comment opens by itself', async () => {
+  const user = userEvent.setup();
+  render(
+    <ReviewPage
+      review={{
+        ...pageWithUndrawnFile(),
+        sinceReview: {
+          ...sinceReview,
+          comments: [
+            {
+              anchor: { kind: 'line', id: 'README.md@head:1', text: 'new' },
+              kind: 'question',
+              text: 'Why new?',
+            },
+          ],
+        },
+      }}
+    />,
+  );
+
+  await openUndrawnFiles(user);
+
+  expect(within(inspector()).getByRole('group', { name: 'README.md' }).hasAttribute('open')).toBe(
+    true,
+  );
+});

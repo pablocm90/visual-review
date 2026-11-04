@@ -2,7 +2,7 @@ import { createContext, type ReactNode, useContext, useMemo } from 'react';
 import type { PreviousComment } from '../core/previous-comments.ts';
 import type { Comment } from '../core/review.ts';
 import type { SinceReview } from '../core/since-review.ts';
-import { anchorKey } from './anchors.ts';
+import { anchorKey, type PlaceOfLine, placeOfLine } from './anchors.ts';
 import { COMMENT_KINDS } from './comment-field.tsx';
 import { ANSWER_KINDS } from './finding-display.tsx';
 import { Ref } from './ref.tsx';
@@ -76,7 +76,21 @@ export const useHasSaid = () => {
   return (on: Pick<Comment['anchor'], 'kind' | 'id'>): boolean => byAnchor.has(anchorKey(on));
 };
 
-export const SaidBefore = ({ on }: { readonly on: Pick<Comment['anchor'], 'kind' | 'id'> }) => {
+export const useSaidLinesOf = (
+  path: string,
+): ReadonlyArray<{ readonly anchor: PreviousComment['anchor']; readonly place: PlaceOfLine }> => {
+  const { byAnchor } = useContext(SaidOnThisPage);
+  return [...byAnchor.values()].flatMap(({ anchor }) => {
+    const place = placeOfLine(anchor);
+    return place?.path === path ? [{ anchor, place }] : [];
+  });
+};
+
+export const SaidBefore = ({
+  on,
+}: {
+  readonly on: Pick<PreviousComment['anchor'], 'kind' | 'id'>;
+}) => {
   const { byAnchor, compared } = useContext(SaidOnThisPage);
   const comment = byAnchor.get(anchorKey(on));
   if (comment === undefined) return null;

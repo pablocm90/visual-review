@@ -1,5 +1,6 @@
 import { fileOfLine, split } from '../core/anchors.ts';
 import { endsOfId, type GraphNode } from '../core/graph.ts';
+import type { PreviousComment } from '../core/previous-comments.ts';
 import type { Comment } from '../core/review.ts';
 import type { PatchLine } from './highlight-patch.ts';
 
@@ -29,14 +30,31 @@ export const anchorKey = ({ kind, id }: { readonly kind: string; readonly id: st
 
 const lineNumber = (id: string): string => id.slice(id.lastIndexOf(':') + 1);
 
-export const placeOfLine = (anchor: Anchor) => {
+export const placeOfLine = (anchor: PreviousComment['anchor']) => {
   if (anchor.kind !== 'line') return undefined;
   const path = fileOfLine(anchor.id);
   const side: 'base' | 'head' = anchor.id.startsWith('@base:', path.length) ? 'base' : 'head';
-  return { path, side, line: Number(lineNumber(anchor.id)) };
+  return { path, side, line: Number(lineNumber(anchor.id)), text: anchor.text };
 };
 
 export type PlaceOfLine = NonNullable<ReturnType<typeof placeOfLine>>;
+
+export const rowOfLine = (
+  lines: ReadonlyArray<PatchLine>,
+  { path, side, line, text }: PlaceOfLine,
+): number | undefined => {
+  const rows = lines.flatMap((row, index) => {
+    const anchor = lineAnchor({ path, line: row });
+    const place = anchor && placeOfLine(anchor);
+    return place?.side === side && place.text === text
+      ? [{ index, away: Math.abs(place.line - line) }]
+      : [];
+  });
+  return rows.reduce<(typeof rows)[number] | undefined>(
+    (nearest, row) => (nearest === undefined || row.away < nearest.away ? row : nearest),
+    undefined,
+  )?.index;
+};
 
 export const anchorName = (anchor: Anchor, nodes: Nodes): string => {
   const labelOf = (id: string) => nodes.find(node => node.id === id)?.label ?? id;

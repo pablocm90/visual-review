@@ -19,6 +19,7 @@ import { type MetricFinding, metricFindings } from '../core/metric-findings.ts';
 import type { NodeMetrics } from '../core/metrics.ts';
 import { type Note, type ReviewNotes, visibleNotes } from '../core/notes.ts';
 import { type PageData, UNCOMMITTED } from '../core/page.ts';
+import type { PreviousComment } from '../core/previous-comments.ts';
 import type { SymbolFile } from '../core/read-range.ts';
 import type { Answer, Comment, Review } from '../core/review.ts';
 import type { ChangedSince, SinceReview } from '../core/since-review.ts';
@@ -35,7 +36,14 @@ import {
   visibleDiff,
   visibleNodeOf,
 } from '../core/visible-diff.ts';
-import { anchorKey, anchorName, lineAnchor, type PlaceOfLine, placeOfLine } from './anchors.ts';
+import {
+  anchorKey,
+  anchorName,
+  lineAnchor,
+  type PlaceOfLine,
+  placeOfLine,
+  rowOfLine,
+} from './anchors.ts';
 import { ChangedSinceMarks, ChangedSinceTag, useIsChangedSince } from './changed-since.tsx';
 import { ColourBy, type Colouring, ScaleLegend, type Shade, shadeOf } from './colour-by.tsx';
 import { CommentField, CommentOn, type Comments } from './comment-field.tsx';
@@ -64,7 +72,7 @@ import { storedReadMarks, storeReadMarks } from './read-marks.ts';
 import { ReadingOrderList } from './reading-order-list.tsx';
 import { Ref, shortRef } from './ref.tsx';
 import { ReviewTray, verdictLabels } from './review-tray.tsx';
-import { LastSaidOnPage, SaidBefore } from './said-before.tsx';
+import { LastSaidOnPage, SaidBefore, useSaidLinesOf } from './said-before.tsx';
 import { changedSymbolCount, type LineAt, SymbolsOf, useHasSymbolNews } from './symbols-tab.tsx';
 import { changedCount, TestFiles, TestsScreen } from './tests-screen.tsx';
 import {
@@ -476,6 +484,7 @@ type LineComments = {
 const PatchLine = ({
   path,
   line,
+  said,
   landing,
   nodes,
   comments,
@@ -483,6 +492,7 @@ const PatchLine = ({
 }: LineComments & {
   readonly path: string;
   readonly line: Line;
+  readonly said: ReadonlyArray<PreviousComment['anchor']>;
   readonly landing: Landing | undefined;
 }) => {
   const { kind, prefix, pieces } = line;
@@ -494,6 +504,9 @@ const PatchLine = ({
       {pieces.map((piece, index) => (
         // biome-ignore lint/suspicious/noArrayIndexKey: a line's pieces are fixed and may repeat
         <Scoped key={index} {...piece} />
+      ))}
+      {said.map(on => (
+        <SaidBefore key={on.id} on={on} />
       ))}
       {onComment && anchor && (
         <CommentOn
@@ -521,6 +534,10 @@ const Patch = ({
   LineComments & { readonly open: boolean; readonly landing: LandingIn | undefined }) => {
   const lines = useMemo(() => highlightPatch({ path, patch }), [path, patch]);
   const marked = useIsChangedSince()('files', path);
+  const saidLines = useSaidLinesOf(path);
+  const placed = saidLines.map(({ anchor, place }) => ({ anchor, row: rowOfLine(lines, place) }));
+  const saidAt = (row: number | undefined) =>
+    placed.filter(said => said.row === row).map(({ anchor }) => anchor);
   const landed = landing?.path === path ? landing : undefined;
   const top = useRef<HTMLDetailsElement>(null);
   useLayoutEffect(() => {
@@ -534,11 +551,14 @@ const Patch = ({
     ({ anchor }) => placeOfLine(anchor)?.path === path,
   );
   return (
-    <details aria-label={path} open={open || holdsDraft} ref={top}>
+    <details aria-label={path} open={open || holdsDraft || saidLines.length > 0} ref={top}>
       <summary>
         {path}
         <ChangedSinceTag marked={marked} />
       </summary>
+      {saidAt(undefined).map(on => (
+        <SaidBefore key={on.id} on={on} />
+      ))}
       <pre>
         {lines.map((line, index) => (
           <PatchLine
@@ -546,6 +566,7 @@ const Patch = ({
             key={index}
             path={path}
             line={line}
+            said={saidAt(index)}
             landing={landed}
             {...commenting}
           />
