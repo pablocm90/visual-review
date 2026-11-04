@@ -767,10 +767,6 @@ pre .hljs-emphasis {
   color: var(--muted);
 }
 
-.tests .test[data-state="removed"] {
-  color: var(--muted);
-}
-
 .tests .moved {
   margin-left: 8px;
   color: var(--muted);
@@ -2299,6 +2295,7 @@ main:has(> .review-tray) {
   color: var(--ramp-3);
   font: inherit;
   font-weight: 600;
+  text-align: left;
   cursor: pointer;
 }
 
@@ -2399,6 +2396,7 @@ main:has(> .review-tray) {
 }
 
 .tests .test[data-state="removed"] .test-name {
+  color: var(--muted);
   text-decoration: line-through;
 }
 
