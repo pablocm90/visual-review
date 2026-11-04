@@ -5710,6 +5710,63 @@ test('the unchanged symbols open by themselves when one is marked changed since,
   ).toBeTruthy();
 });
 
+test('a box shows a file whose only news is a symbol changed since the last review, not a file with no news at all', async () => {
+  const user = userEvent.setup();
+  const inBilling = (label: string) => ({
+    ...topFile(label, 'modified'),
+    parent: 'web/module/billing',
+    path: `web/src/billing/${label}`,
+  });
+  const unchanged = (name: string): SymbolStatement => ({
+    name,
+    kind: 'function',
+    exported: { base: false, head: false },
+    change: 'unchanged',
+  });
+  render(
+    <ReviewPage
+      review={pageWith({
+        range: review.range,
+        diff: {
+          nodes: [
+            { id: 'web', kind: 'stack', label: 'web', path: '', state: 'unchanged' },
+            {
+              id: 'web/module/billing',
+              kind: 'module',
+              label: 'billing',
+              parent: 'web',
+              path: 'web/src/billing',
+              state: 'modified',
+            },
+            inBilling('restored.ts'),
+            inBilling('quiet.ts'),
+          ],
+          edges: [],
+        },
+        symbols: [
+          symbolsOf('web/file/restored.ts', [unchanged('round')]),
+          symbolsOf('web/file/quiet.ts', [unchanged('floor')]),
+        ],
+        sinceReview: {
+          ...sinceReview,
+          changed: changedSince({ symbols: ['web/file/restored.ts#round'] }),
+        },
+      })}
+    />,
+  );
+
+  await user.click(await screen.findByRole('button', { name: 'billing: modified' }));
+  await user.click(within(inspector()).getByRole('tab', { name: 'Symbols' }));
+
+  expect(
+    within(within(symbolsTab()).getByRole('region', { name: 'restored.ts' })).getByRole(
+      'listitem',
+      { name: 'function round: unchanged, changed since', hidden: true },
+    ),
+  ).toBeTruthy();
+  expect(within(symbolsTab()).queryByRole('region', { name: 'quiet.ts' })).toBeNull();
+});
+
 test('a later round marks the test changed since the last review, not its namesake changed only before it', async () => {
   const user = userEvent.setup();
   render(

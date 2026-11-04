@@ -62,7 +62,7 @@ import { MetricsTable } from './metrics-tab.tsx';
 import { storedReadMarks, storeReadMarks } from './read-marks.ts';
 import { ReadingOrderList } from './reading-order-list.tsx';
 import { ReviewTray } from './review-tray.tsx';
-import { changedSymbolCount, hasSymbolNews, type LineAt, SymbolsOf } from './symbols-tab.tsx';
+import { changedSymbolCount, type LineAt, SymbolsOf, useHasSymbolNews } from './symbols-tab.tsx';
 import { changedCount, TestFiles, TestsScreen } from './tests-screen.tsx';
 import {
   boxOf,
@@ -659,7 +659,11 @@ type Section = {
 type NodeSectionsOptions = Pick<
   InspectorProps,
   'nodes' | 'metrics' | 'findings' | 'tests' | 'symbols' | 'onGoTo' | 'comments' | 'onComment'
-> & { readonly node: DiffNode; readonly onShowLine: (at: LineAt) => void };
+> & {
+  readonly node: DiffNode;
+  readonly onShowLine: (at: LineAt) => void;
+  readonly hasSymbolNews: (file: SymbolFile) => boolean;
+};
 
 const nodeSections = ({
   nodes,
@@ -672,6 +676,7 @@ const nodeSections = ({
   onShowLine,
   comments,
   onComment,
+  hasSymbolNews,
 }: NodeSectionsOptions): ReadonlyArray<Section> => {
   const measured = metrics[node.id];
   const testsHere = testsAlongside({ nodes, node, tests });
@@ -788,6 +793,7 @@ const Inspector = ({
   onLand,
   ...props
 }: InspectorProps) => {
+  const hasSymbolNews = useHasSymbolNews();
   const showLine = ({ node: at, ...line }: LineAt) => {
     onLand({ ...line, path: props.nodes.find(({ id }) => id === at)?.path });
     onPick('diff');
@@ -816,7 +822,7 @@ const Inspector = ({
           },
         ]
       : []),
-    ...(node ? nodeSections({ ...props, node, onShowLine: showLine }) : []),
+    ...(node ? nodeSections({ ...props, node, onShowLine: showLine, hasSymbolNews }) : []),
   ].toSorted((a, b) => SECTION_ORDER.indexOf(a.tab) - SECTION_ORDER.indexOf(b.tab));
   const shown = sections.find(({ tab }) => tab === picked) ?? sections[0];
   return (

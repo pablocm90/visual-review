@@ -178,8 +178,13 @@ const LogicLines = ({
   );
 };
 
-export const hasSymbolNews = (file: SymbolFile): boolean =>
-  'unreadable' in file || changedSymbolCount([file]) > 0;
+export const useHasSymbolNews = () => {
+  const isChangedSince = useIsChangedSince();
+  return (file: SymbolFile): boolean =>
+    'unreadable' in file ||
+    changedSymbolCount([file]) > 0 ||
+    anchoredSymbols(file.node, file.symbols).some(({ id }) => isChangedSince('symbols', id));
+};
 
 const SymbolList = ({
   node,
@@ -277,8 +282,9 @@ export const SymbolsOf = ({
   node,
   files,
   ...places
-}: Places & { readonly node: DiffedNode; readonly files: ReadonlyArray<SymbolFile> }) =>
-  node.kind === 'file'
+}: Places & { readonly node: DiffedNode; readonly files: ReadonlyArray<SymbolFile> }) => {
+  const hasSymbolNews = useHasSymbolNews();
+  return node.kind === 'file'
     ? files.map(file => <SymbolFiles key={file.node} file={file} {...places} />)
     : files.filter(hasSymbolNews).map(file => (
         <section
@@ -290,3 +296,4 @@ export const SymbolsOf = ({
           <SymbolFiles file={file} {...places} />
         </section>
       ));
+};
