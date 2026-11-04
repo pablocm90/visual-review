@@ -237,3 +237,111 @@ test('an unreadable package.json beside a yarn.lock leaves it not read', async (
     { lockfile: 'yarn.lock', notRead: 'yarn.lock package.json not recognised' },
   ]);
 });
+
+const pnpmLock = (zod: string) => `lockfileVersion: '9.0'
+
+importers:
+
+  .:
+    dependencies:
+      zod:
+        specifier: ^1.0.0
+        version: ${zod}
+
+packages:
+
+  zod@${zod}:
+    resolution: {integrity: sha512-a}
+`;
+
+test('moving package manager in one folder raises only what really moved, by the path at head', async () => {
+  using workspace = gitRepo({ 'web/pnpm-lock.yaml': pnpmLock('1.0.0') });
+  const { repo, root } = workspace;
+  git(repo, 'rm', '--quiet', 'web/pnpm-lock.yaml');
+  const to = commit(repo, {
+    'web/yarn.lock': yarnLock({ zod: '1.2.0', arrived: '1.0.0' }),
+    'web/package.json': manifest('zod', 'arrived'),
+  });
+
+  const { dependencyChanges } = await readRange({ repo, from: root, to });
+
+  expect(dependencyChanges).toStrictEqual([
+    {
+      lockfile: 'web/yarn.lock',
+      ecosystem: 'npm',
+      packages: [{ name: 'arrived', change: 'added', direct: true, from: [], to: ['1.0.0'] }],
+    },
+  ]);
+});
+
+test.for([
+  {
+    what: 'the side that left',
+    from: { 'yarn.lock': '__metadata:\n  version: 8\n' },
+    to: { 'pnpm-lock.yaml': pnpmLock('1.2.0') },
+    lockfile: 'yarn.lock',
+    notRead: 'yarn.lock Yarn 2+ format',
+  },
+  {
+    what: 'the side that arrived',
+    from: { 'yarn.lock': yarnLock({ zod: '1.0.0' }) },
+    to: { 'pnpm-lock.yaml': "lockfileVersion: '6.0'\n" },
+    lockfile: 'pnpm-lock.yaml',
+    notRead: 'pnpm-lock.yaml lockfile version 6',
+  },
+])(
+  'a move of package manager whose $what fails is not read, with no packages raised',
+  async ({ from, to, lockfile, notRead }) => {
+    using workspace = gitRepo(from);
+    const { repo, root } = workspace;
+    git(repo, 'rm', '--quiet', 'yarn.lock');
+    const head = commit(repo, to);
+
+    const { dependencyChanges } = await readRange({ repo, from: root, to: head });
+
+    expect(dependencyChanges).toStrictEqual([{ lockfile, notRead }]);
+  },
+);
+
+test('lockfiles of one ecosystem in other folders, or of another in the same one, stay apart', async () => {
+  using workspace = gitRepo({ 'README.md': '' });
+  const { repo, root } = workspace;
+  const to = commit(repo, {
+    'a/pnpm-lock.yaml': pnpmLock('1.2.0'),
+    'b/pnpm-lock.yaml': pnpmLock('1.2.0'),
+    'b/Cargo.lock': cargoLock('1.0.219'),
+  });
+
+  const { dependencyChanges } = await readRange({ repo, from: root, to });
+
+  expect(dependencyChanges.map(({ lockfile }) => lockfile)).toStrictEqual([
+    'a/pnpm-lock.yaml',
+    'b/Cargo.lock',
+    'b/pnpm-lock.yaml',
+  ]);
+});
+
+test('two lockfiles of a folder both changing read as one, their versions and direct names merged', async () => {
+  using workspace = gitRepo({
+    'yarn.lock': yarnLock({ zod: '2.0.0' }),
+    'pnpm-lock.yaml': pnpmLock('1.0.0'),
+  });
+  const { repo, root } = workspace;
+  const to = commit(repo, {
+    'yarn.lock': yarnLock({ zod: '3.0.0', declared: '1.0.0' }),
+    'package.json': manifest('declared'),
+    'pnpm-lock.yaml': pnpmLock('1.0.0').replace('specifier: ^1.0.0', 'specifier: ^1.0.1'),
+  });
+
+  const { dependencyChanges } = await readRange({ repo, from: root, to });
+
+  expect(dependencyChanges).toMatchObject([
+    {
+      lockfile: 'pnpm-lock.yaml',
+      packages: [
+        { name: 'declared', change: 'added', direct: true },
+        { name: 'zod', change: 'major', from: ['1.0.0', '2.0.0'], to: ['1.0.0', '3.0.0'] },
+      ],
+    },
+  ]);
+});
