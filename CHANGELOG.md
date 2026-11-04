@@ -2,6 +2,13 @@
 
 What changed in each release of `@pablocm90/visual-review`, newest first. Versions follow [semver](https://semver.org); while it is 0.x, a minor version may change the exported types.
 
+## Unreleased
+
+### Fixed
+
+- Two tests of one name under one heading are two anchors on a served page, so each keeps its own draft: the second's id gains `#2`, as symbols and logic lines count. A test with no twin keeps its id.
+- Tests of one name pair in order across the sides: an unchanged second one no longer reads as edited, a removed one is listed, and a test removed after one no longer vanishes or shows twice.
+
 ## 0.18.0 — 2026-11-04
 
 ### Added

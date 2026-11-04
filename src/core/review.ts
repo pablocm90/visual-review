@@ -29,7 +29,10 @@ const CommentSchema = z
           "`<symbol id>#<text>`: a logic line of a function, the symbol's id with its `#<n>` if it has one, its text the base side's when removed, else the head side's, then, from the second on, `#<n>` on the n-th line of the function whose id reads the same. A removed guard's or catch's id is its `logic:removed:` finding's id without that prefix",
           "The logic line's text",
         ),
-        anchorOn('test', '`<test file>#<heading › … › name>`: a test by its headings and name'),
+        anchorOn(
+          'test',
+          "`<test file>#<heading › … › name>`: a test by its headings and name, then, from the second on, `#<n>` on the n-th of the file's tests with those headings and that name, in the page data's `tests` order",
+        ),
         quotedAnchorOn(
           'line',
           '`<file>@<base|head>:<n>`: a diff line by its side and line number',
