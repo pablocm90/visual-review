@@ -5,7 +5,7 @@ import { tmpdir } from 'node:os';
 import { basename, join, relative } from 'node:path';
 import { promisify } from 'node:util';
 import { CONFIG_FILE, type Config, parseConfig } from './config.ts';
-import { diffGraphs, type FilePatch, type Rename } from './diff-graphs.ts';
+import { diffGraphs, type FilePatch, type GraphDiff, type Rename } from './diff-graphs.ts';
 import { type Graph, stackOfIn } from './graph.ts';
 import type { DanglingCall } from './linker.ts';
 import { type MeasuredNode, measuredNodes } from './metrics.ts';
@@ -328,28 +328,27 @@ type ChangesAcrossOptions = {
   readonly changes: ReadonlyArray<ReadonlyArray<string>>;
 };
 
-const changesAcross = async ({
+type AnchorsAcrossOptions = ChangesAcrossOptions & {
+  readonly diff: GraphDiff;
+  readonly measured: ReadonlyArray<MeasuredNode>;
+};
+
+const anchorsAcross = async ({
   before,
   after,
+  diff,
+  measured,
   changes,
-}: ChangesAcrossOptions): Promise<ReviewedDiff> => {
-  const paths = pathsIn(changes);
-  const diff = diffGraphs({ before: before.reading.graph, after: after.reading.graph, ...paths });
-  const stackOf = stackOfIn(diff.nodes);
+}: AnchorsAcrossOptions): Promise<Pick<RangeReading, 'symbols' | 'symbolsNotRead' | 'tests'>> => {
   const changed = new Set(diff.nodes.filter(node => node.state !== 'unchanged').map(n => n.id));
   const sides = { before: before.directory, after: after.directory };
-  const { symbols } = await symbolsIn({
-    sides,
-    files: measuredNodes({ diff, before: before.reading.graph }).filter(({ id }) =>
-      changed.has(id),
-    ),
-    stacks: [...before.reading.stacks, ...after.reading.stacks],
-    stackOf,
-  });
   return {
-    before: before.reading.graph,
-    ...paths,
-    symbols,
+    ...(await symbolsIn({
+      sides,
+      files: measured.filter(({ id }) => changed.has(id)),
+      stacks: [...before.reading.stacks, ...after.reading.stacks],
+      stackOf: stackOfIn(diff.nodes),
+    })),
     tests: withMovedTests(
       await testsIn({
         sides,
@@ -358,6 +357,23 @@ const changesAcross = async ({
       }),
     ),
   };
+};
+
+const changesAcross = async ({
+  before,
+  after,
+  changes,
+}: ChangesAcrossOptions): Promise<ReviewedDiff> => {
+  const paths = pathsIn(changes);
+  const diff = diffGraphs({ before: before.reading.graph, after: after.reading.graph, ...paths });
+  const { symbols, tests } = await anchorsAcross({
+    before,
+    after,
+    diff,
+    measured: measuredNodes({ diff, before: before.reading.graph }),
+    changes,
+  });
+  return { before: before.reading.graph, ...paths, symbols, tests };
 };
 
 type ReviewedSideOptions = Omit<ReadSideOptions, 'revision' | 'directory'> & {
@@ -462,12 +478,14 @@ export const readRange = async ({
         files: measured.map(({ id, headPath }) => ({ stack: stackOf(id), path: headPath })),
       }),
     };
-    const changed = new Set(diff.nodes.filter(node => node.state !== 'unchanged').map(n => n.id));
-    const { symbols, symbolsNotRead } = await symbolsIn({
-      sides,
-      files: measured.filter(({ id }) => changed.has(id)),
-      stacks: [...before.stacks, ...after.stacks],
-      stackOf,
+    const baseSide = { directory: sides.before, reading: before };
+    const headSide = { directory: sides.after, reading: after };
+    const anchors = await anchorsAcross({
+      before: baseSide,
+      after: headSide,
+      diff,
+      measured,
+      changes,
     });
     const { churnDays, ...thresholds } = config.metrics;
     const churn = {
@@ -491,21 +509,13 @@ export const readRange = async ({
       after: after.graph,
       churn,
       measures,
-      symbols,
-      symbolsNotRead,
+      ...anchors,
       danglingCalls: after.danglingCalls,
       skipped: skippedAcross([...before.skipped, ...after.skipped]),
       thresholds,
       churnDays,
       changedPaths,
       renames,
-      tests: withMovedTests(
-        await testsIn({
-          sides,
-          changes: changes.map(([from = '', to = from]) => ({ from, to })),
-          roots: [...before.roots, ...after.roots],
-        }),
-      ),
       patches: await Promise.all(
         changes.map(async paths => ({
           path: paths.at(-1) ?? '',
@@ -521,8 +531,8 @@ export const readRange = async ({
               from: fromCommit,
               to: toCommit,
               base,
-              baseSide: { directory: sides.before, reading: before },
-              headSide: { directory: sides.after, reading: after },
+              baseSide,
+              headSide,
               changedPaths,
               directory: join(scratch, 'reviewed'),
               config,
