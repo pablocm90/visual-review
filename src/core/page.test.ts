@@ -141,6 +141,32 @@ test.for([
   },
 );
 
+test.for([
+  {
+    paths: ['src/bad\uFFFD.ts'],
+    title: "1 changed file's name isn't UTF-8, so its patch can't be shown",
+  },
+  {
+    paths: ['src/bad\uFFFD.ts', 'caf\uFFFD.txt'],
+    title: "2 changed files' names aren't UTF-8, so their patches can't be shown",
+  },
+])(
+  'a changed file whose name git gave undecodably needs a look, listing only such files: $title',
+  ({ paths, title }) => {
+    const reading = readingWith({ patches: [patch('README.md'), ...paths.map(patch)] });
+
+    expect(
+      pageData({ repo: 'shop', reading, range: 'a..b', version, parsers }).findings,
+    ).toContainEqual({
+      id: 'structure:name-not-utf8',
+      dimension: 'structure',
+      level: 'look',
+      title,
+      detail: paths.join(', '),
+    });
+  },
+);
+
 test('fetch calls with no route are a routes finding for information on each calling file, listing its paths', () => {
   const danglingCalls = [
     { from: 'web/file/a.ts', path: '/api/a' },
