@@ -1783,7 +1783,7 @@ const Page = ({ review, notes, send }: ReviewPageProps) => {
             ...(review.pullRequest && { pullRequest: review.pullRequest.number }),
           }}
           read={review.readingOrder.parts.filter(part => read.has(part))}
-          resolved={resolved.map(({ anchor }) => anchor)}
+          resolved={resolved}
           parts={review.readingOrder.parts}
           comments={comments}
           answers={answers}

@@ -6454,6 +6454,21 @@ test('a last comment is resolved from the last review or under its anchor, sent 
   expect(resolveIn(/^domain/).getAttribute('aria-pressed')).toBe('false');
 
   await openReview(user);
+  const tray = within(screen.getByRole('region', { name: 'Review tray' }));
+  expect(tray.getByText(/drafted/).textContent).toBe('Nothing drafted · 2 resolved');
+  const listed = within(tray.getByRole('list', { name: 'Resolved' }));
+  expect(listed.getAllByRole('listitem').map(item => item.textContent)).toEqual([
+    'application Resolved',
+    'cli-adapter Resolved',
+  ]);
+  expect(tray.getByLabelText('What Claude gets').textContent).toContain(
+    'resolved  application\nresolved  cli-adapter',
+  );
+  await user.click(listed.getByRole('button', { name: 'application' }));
+  expect(document.activeElement).toBe(
+    screen.getByRole('button', { name: 'application: modified' }),
+  );
+
   await user.click(screen.getByRole('button', { name: 'Send to Claude' }));
 
   expect(sent).toHaveBeenCalledExactlyOnceWith(

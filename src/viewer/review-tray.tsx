@@ -2,10 +2,12 @@ import { useState } from 'react';
 import { anchorKey, anchorTarget, type TargetsOf } from '../core/anchors.ts';
 import type { Finding } from '../core/findings.ts';
 import type { GraphNode } from '../core/graph.ts';
+import type { PreviousComment } from '../core/previous-comments.ts';
 import type { Answer, Comment, Review } from '../core/review.ts';
 import { anchorName, type PlaceOfLine, placeOfLine } from './anchors.ts';
 import { COMMENT_KINDS, type Comments } from './comment-field.tsx';
 import { ANSWER_KINDS, type Answers } from './finding-display.tsx';
+import { whereOf } from './last-review.tsx';
 import { partsRead } from './reading-order-list.tsx';
 
 type Drafted = Review['comments'][number];
@@ -15,7 +17,7 @@ type Nodes = ReadonlyArray<Pick<GraphNode, 'id' | 'label' | 'path'>>;
 type ReviewTrayProps = {
   readonly reviewed: Review['reviewed'];
   readonly read: Review['read'];
-  readonly resolved: Review['resolved'];
+  readonly resolved: ReadonlyArray<PreviousComment>;
   readonly parts: ReadonlyArray<string>;
   readonly comments: Comments;
   readonly answers: Answers;
@@ -43,16 +45,19 @@ const answerLabels = new Map(ANSWER_KINDS);
 
 const counted = (count: number, word: string) => `${count} ${word}${count === 1 ? '' : 's'}`;
 
-const draftedLine = (written: ReadonlyArray<Drafted>) =>
-  written.length === 0
-    ? 'Nothing drafted'
-    : [
-        `${written.length} drafted`,
-        ...COMMENT_KINDS.flatMap(([kind]) => {
-          const count = written.filter(comment => comment.kind === kind).length;
-          return count === 0 ? [] : [counted(count, kind)];
-        }),
-      ].join(' · ');
+const draftedLine = (written: ReadonlyArray<Drafted>, resolved: number) =>
+  [
+    ...(written.length === 0
+      ? ['Nothing drafted']
+      : [
+          `${written.length} drafted`,
+          ...COMMENT_KINDS.flatMap(([kind]) => {
+            const count = written.filter(comment => comment.kind === kind).length;
+            return count === 0 ? [] : [counted(count, kind)];
+          }),
+        ]),
+    ...(resolved === 0 ? [] : [`${resolved} resolved`]),
+  ].join(' · ');
 
 const suggestedFor = (written: ReadonlyArray<Drafted>): Review['verdict'] => {
   if (written.some(({ kind }) => kind === 'change' || kind === 'fix')) return 'request-changes';
@@ -87,14 +92,25 @@ type PreviewOf = {
   readonly parts: ReadonlyArray<string>;
   readonly ordered: ReadonlyArray<Comment>;
   readonly answered: ReadonlyArray<Answer>;
+  readonly closed: ReadonlyArray<string>;
   readonly silent: ReadonlyArray<string>;
   readonly nodes: Nodes;
 };
 
-const previewOf = ({ verdict, read, parts, ordered, answered, silent, nodes }: PreviewOf) => [
+const previewOf = ({
+  verdict,
+  read,
+  parts,
+  ordered,
+  answered,
+  closed,
+  silent,
+  nodes,
+}: PreviewOf) => [
   [verdict, ...(parts.length > 0 ? [`read ${read.length} of ${parts.length}`] : [])].join(' · '),
   ...ordered.map(({ kind, anchor }) => `${kind.padEnd(10)}${anchorName(anchor, nodes)}`),
   ...answered.map(({ kind, anchor }) => `${kind.padEnd(10)}${anchor.id}`),
+  ...closed.map(name => `${'resolved'.padEnd(10)}${name}`),
   ...(silent.length > 0
     ? [`${'read'.padEnd(10)}${counted(silent.length, 'part')}, no comment`]
     : []),
@@ -215,7 +231,18 @@ export const ReviewTray = ({
   const verdict = picked ?? suggested;
   const commentedOn = new Set(drafted.map(({ anchor }) => targetOf(anchor)));
   const silent = read.filter(part => !commentedOn.has(part));
-  const preview = previewOf({ verdict, read, parts, ordered, answered, silent, nodes });
+  const going = { nodes, findings, onGoTo, onGoToDraft, onGoToOutside };
+  const closed = resolved.map(comment => ({ comment, ...whereOf(comment, going) }));
+  const preview = previewOf({
+    verdict,
+    read,
+    parts,
+    ordered,
+    answered,
+    closed: closed.map(({ name }) => name),
+    silent,
+    nodes,
+  });
   const sendComments = () =>
     send({
       version: 6,
@@ -223,7 +250,7 @@ export const ReviewTray = ({
       ...(hasBody ? { body } : {}),
       reviewed,
       read,
-      resolved,
+      resolved: resolved.map(({ anchor }) => anchor),
       comments: written,
     }).then(
       () => setSent(true),
@@ -237,7 +264,7 @@ export const ReviewTray = ({
         </p>
       ) : (
         <>
-          <p className="tray-count">{draftedLine(written)}</p>
+          <p className="tray-count">{draftedLine(written, resolved.length)}</p>
           <button
             type="button"
             className="tray-toggle"
@@ -266,6 +293,17 @@ export const ReviewTray = ({
                   onGoToOutside={onGoToOutside}
                   onGoToFile={onGoToFile}
                 />
+                <ul aria-label="Resolved" className="tray-list">
+                  {closed.map(({ comment: { anchor }, name, onGo }) => (
+                    <Draft
+                      key={anchorKey(anchor)}
+                      name={name}
+                      onGo={onGo}
+                      label="Resolved"
+                      text={undefined}
+                    />
+                  ))}
+                </ul>
                 {parts.length > 0 && (
                   <p className="tray-read">
                     {partsRead({ read: read.length, parts: parts.length })}
