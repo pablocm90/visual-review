@@ -6203,3 +6203,51 @@ test('a last comment on a part or an edge shows under its anchor in the Note pan
   ).toBeTruthy();
   expect(within(inspector()).queryByText('Split this.')).toBeNull();
 });
+
+test('a last comment on a symbol or a logic line shows under it on the Symbols tab, with no send too', async () => {
+  const user = userEvent.setup();
+  render(
+    <ReviewPage
+      review={{
+        ...pageWithAnUnchangedSymbol(),
+        sinceReview: {
+          ...sinceReview,
+          comments: [
+            {
+              anchor: { kind: 'symbol', id: 'web/file/tax.ts#tax' },
+              kind: 'change',
+              text: 'Rename this.',
+            },
+            {
+              anchor: {
+                kind: 'decision',
+                id: 'web/file/tax.ts#tax#if (!rate) return',
+                text: 'if (!rate) return',
+              },
+              kind: 'question',
+              text: 'What of zero?',
+              changedSince: [],
+            },
+          ],
+        },
+      }}
+    />,
+  );
+
+  await user.click(await screen.findByRole('button', { name: 'tax.ts: modified' }));
+  await user.click(within(inspector()).getByRole('tab', { name: /^Symbols/ }));
+
+  const symbol = within(symbolsTab()).getByRole('listitem', { name: /^function tax: edited/ });
+  expect(
+    within(
+      within(symbol).getByRole('note', { name: 'Last review: Change this, As it was' }),
+    ).getByText('Rename this.'),
+  ).toBeTruthy();
+  const decision = within(symbol).getByRole('listitem', { name: /^added guard/ });
+  expect(
+    within(
+      within(decision).getByRole('note', { name: 'Last review: Question, Changed since' }),
+    ).getByText('What of zero?'),
+  ).toBeTruthy();
+  expect(within(decision).queryByText('Rename this.')).toBeNull();
+});

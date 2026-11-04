@@ -13,6 +13,7 @@ import { type AnchoredSymbol, anchoredSymbols, decisionsOf } from '../core/symbo
 import { anchorKey } from './anchors.ts';
 import { ChangedSinceTag, sinceLabel, useIsChangedSince } from './changed-since.tsx';
 import { CommentOn, type Comments } from './comment-field.tsx';
+import { SaidBefore } from './said-before.tsx';
 
 type Group = readonly [string, (symbol: SymbolStatement) => boolean];
 
@@ -163,6 +164,7 @@ const LogicLines = ({
               </button>
             )}
             <ChangedSinceTag marked={marked} />
+            <SaidBefore on={{ kind: 'decision', id }} />
             {onComment && (
               <CommentOn
                 name={logicLabel(line)}
@@ -219,6 +221,7 @@ const SymbolList = ({
               <ins>{symbol.signature.head}</ins>
             </span>
           )}
+          <SaidBefore on={{ kind: 'symbol', id }} />
           {places.onComment && (
             <CommentOn
               name={`${symbol.kind} ${qualified(symbol)}`}
