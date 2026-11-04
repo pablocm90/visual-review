@@ -532,15 +532,26 @@ describe('package-lock.json', () => {
   test.for([
     { what: 'an installed package with no version', path: 'node_modules/hidden', entry: {} },
     { what: 'a link not marked true', path: 'node_modules/hidden', entry: { link: 'yes' } },
+    { what: 'a link with no target', path: 'node_modules/hidden', entry: { link: true } },
+    {
+      what: 'a link to nothing in the file',
+      path: 'node_modules/hidden',
+      entry: { link: true, resolved: 'packages/missing' },
+    },
+    {
+      what: 'a link to an installed package',
+      path: 'node_modules/hidden',
+      entry: { link: true, resolved: 'node_modules/installed' },
+    },
     { what: 'a path past its package', path: 'node_modules/a/b', entry: { version: '1.0.0' } },
     { what: 'a path climbing out', path: 'node_modules/../a', entry: { version: '1.0.0' } },
     { what: 'a bare node_modules', path: 'web/node_modules', entry: { version: '1.0.0' } },
   ])(
     '$what, which npm might read but this reader would misread, is not read',
     ({ path, entry }) => {
-      expect(() => read(lock(3, { [path]: entry }))).toThrow(
-        new Error('package-lock.json format not recognised'),
-      );
+      expect(() =>
+        read(lock(3, { 'node_modules/installed': { version: '1.0.0' }, [path]: entry })),
+      ).toThrow(new Error('package-lock.json format not recognised'));
     },
   );
 

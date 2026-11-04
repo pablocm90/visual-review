@@ -11,6 +11,7 @@ const Entry = z.object({
   name: z.string().optional(),
   version: z.string().optional(),
   link: z.literal(true).optional(),
+  resolved: z.string().optional(),
   dependencies: Declarations,
   devDependencies: Declarations,
   optionalDependencies: Declarations,
@@ -60,8 +61,14 @@ export const npmLockfile: Lockfile = {
     if (packages === undefined) throw new Error(NOT_RECOGNISED);
     const entries = Object.entries(packages).map(([path, entry]) => ({
       ...entry,
+      path,
       folder: folderOf(path),
     }));
+    const locals: ReadonlySet<string | undefined> = new Set(
+      entries.filter(({ folder }) => folder === undefined).map(({ path }) => path),
+    );
+    if (entries.some(({ link, resolved }) => link && !locals.has(resolved)))
+      throw new Error(NOT_RECOGNISED);
     const linked = new Set(entries.filter(({ link }) => link).map(({ folder }) => folder));
     const declarations = entries.flatMap(declarationsOf);
     const nameOf = (folder: string, name: string | undefined): string =>
