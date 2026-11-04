@@ -7,6 +7,7 @@ import { notesProblems, type ReviewNotes } from './notes.ts';
 import type { RangeReading, SymbolFile } from './read-range.ts';
 import { type ReadingOrder, readingOrder } from './reading-order.ts';
 import type { Review } from './review.ts';
+import { type SinceReview, sinceReviewOf } from './since-review.ts';
 import type { Skipped } from './skipped.ts';
 import type { TestFile } from './test-changes.ts';
 
@@ -34,6 +35,7 @@ export type PageData = {
   readonly skipped: ReadonlyArray<Skipped>;
   readonly thresholds: RangeReading['thresholds'];
   readonly churnDays: number;
+  readonly sinceReview?: SinceReview;
 };
 
 type PageDataOptions = {
@@ -87,6 +89,9 @@ export const pageData = ({
     skipped: reading.skipped,
     thresholds: reading.thresholds,
     churnDays: reading.churnDays,
+    ...(reading.reviewed === undefined
+      ? {}
+      : { sinceReview: sinceReviewOf({ reviewed: reading.reviewed, after: reading.after, diff }) }),
   };
 };
 

@@ -1462,3 +1462,94 @@ test.for([
     );
   },
 );
+
+test.for([
+  {
+    since: 'a commit touches a part the PR changes',
+    changedPaths: ['web/src/a.ts'],
+    nodes: ['web/file/a.ts'],
+  },
+  {
+    since: 'nothing touches the PR parts, as when main is merged in and touches only c.ts',
+    changedPaths: ['web/src/c.ts'],
+    nodes: [],
+  },
+])('page data lists what changed since the last review when $since', ({ changedPaths, nodes }) => {
+  const reading = readingWith({
+    before: { nodes: [webStack, webFile('c.ts')], edges: [] },
+    after: { nodes: [webStack, webFile('a.ts'), webFile('b.ts'), webFile('c.ts')], edges: [] },
+    changedPaths: ['web/src/a.ts', 'web/src/b.ts'],
+    reviewed: {
+      head: 'h1',
+      verdict: 'comment',
+      before: { nodes: [webStack, webFile('a.ts'), webFile('b.ts'), webFile('c.ts')], edges: [] },
+      changedPaths,
+      renames: [],
+    },
+  });
+
+  expect(
+    pageData({ repo: 'shop', reading, range: 'a..b', version: '1.2.3', parsers: {} }).sinceReview,
+  ).toEqual({ head: 'h1', verdict: 'comment', changed: { nodes, edges: [] } });
+});
+
+test("page data lists the PR's added or removed edges that came or went since the last review, not the ones it already had or the ones main brought", () => {
+  const [a, b, c] = ['web/file/a.ts', 'web/file/b.ts', 'web/file/c.ts'];
+  const files = [webStack, webFile('a.ts'), webFile('b.ts'), webFile('c.ts')];
+  const reading = readingWith({
+    before: {
+      nodes: files,
+      edges: [
+        { from: c, to: a },
+        { from: b, to: c },
+      ],
+    },
+    after: {
+      nodes: files,
+      edges: [
+        { from: a, to: b },
+        { from: a, to: c },
+        { from: c, to: a },
+      ],
+    },
+    changedPaths: [],
+    reviewed: {
+      head: 'h1',
+      verdict: 'comment',
+      before: {
+        nodes: files,
+        edges: [
+          { from: a, to: b },
+          { from: b, to: c },
+        ],
+      },
+      changedPaths: [],
+      renames: [],
+    },
+  });
+
+  expect(
+    pageData({ repo: 'shop', reading, range: 'a..b', version: '1.2.3', parsers: {} }).sinceReview,
+  ).toEqual({
+    head: 'h1',
+    verdict: 'comment',
+    changed: { nodes: [], edges: [`${a} -> ${c}`, `${b} -> ${c}`] },
+  });
+});
+
+test('page data says the reviewed head is gone when its commit no longer reads, and holds no last review when there was none', () => {
+  const data = (overrides: Partial<RangeReading>) =>
+    pageData({
+      repo: 'shop',
+      reading: readingWith(overrides),
+      range: 'a..b',
+      version: '1.2.3',
+      parsers: {},
+    });
+
+  expect(data({ reviewed: { head: 'h1', verdict: 'approve', gone: true } }).sinceReview).toEqual({
+    head: 'h1',
+    gone: true,
+  });
+  expect(data({})).not.toHaveProperty('sinceReview');
+});

@@ -17,6 +17,7 @@ import {
   type StacksReading,
 } from './read-stacks.ts';
 import type { FileMeasures, FileSymbols, Reader } from './reader.ts';
+import type { Review } from './review.ts';
 import type { Skipped } from './skipped.ts';
 import { type FileSymbolChanges, symbolChangesOf } from './symbol-changes.ts';
 import { type TestFile, testChanges, withMovedTests } from './test-changes.ts';
@@ -31,6 +32,21 @@ export type SymbolFile = { readonly stack: string } & (
   | FileSymbolChanges
   | { readonly node: string; readonly unreadable: string }
 );
+
+export type ReviewedHead = {
+  readonly head: string;
+  readonly verdict: Review['verdict'];
+};
+
+export type ReviewedReading = ReviewedHead &
+  (
+    | { readonly gone: true }
+    | {
+        readonly before: Graph;
+        readonly changedPaths: ReadonlyArray<string>;
+        readonly renames: ReadonlyArray<Rename>;
+      }
+  );
 
 export type RangeReading = {
   readonly before: Graph;
@@ -47,6 +63,7 @@ export type RangeReading = {
   readonly skipped: ReadonlyArray<Skipped>;
   readonly thresholds: Omit<Config['metrics'], 'churnDays'>;
   readonly churnDays: number;
+  readonly reviewed?: ReviewedReading;
 };
 
 type ReadRangeOptions = Adapters & {
