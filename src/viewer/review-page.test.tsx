@@ -4676,6 +4676,51 @@ test("same-named symbols in one file take a comment each, counted through the fi
   );
 });
 
+test('the inspector goes back to Note when it closes or Structure is left, and holds its tab between parts', async () => {
+  const user = userEvent.setup();
+  atHash('#structure');
+  const symbol = {
+    name: 'tax',
+    kind: 'function' as const,
+    exported: { base: false, head: false },
+    change: 'edited' as const,
+  };
+  render(
+    <ReviewPage
+      review={pageWith({
+        range: review.range,
+        diff: {
+          nodes: [
+            { id: 'web', kind: 'stack', label: 'web', path: '', state: 'unchanged' },
+            topFile('tax.ts', 'modified'),
+            topFile('vat.ts', 'modified'),
+          ],
+          edges: [],
+        },
+        symbols: [symbolsOf('web/file/tax.ts', [symbol]), symbolsOf('web/file/vat.ts', [symbol])],
+      })}
+    />,
+  );
+  const pickSymbols = () => user.click(within(inspector()).getByRole('tab', { name: /^Symbols/ }));
+  const onTab = () => within(inspector()).getByRole('tab', { selected: true }).textContent;
+
+  await user.click(await screen.findByRole('button', { name: 'tax.ts: modified' }));
+  await pickSymbols();
+  await user.click(screen.getByRole('button', { name: 'vat.ts: modified' }));
+  expect(onTab()).toMatch(/^Symbols/);
+
+  await user.click(within(inspector()).getByRole('button', { name: 'Close inspector' }));
+  await user.click(screen.getByRole('button', { name: 'tax.ts: modified' }));
+  expect(onTab()).toBe('Note');
+
+  await pickSymbols();
+  await user.click(screen.getByRole('link', { name: /^Tests/ }));
+  await screen.findByRole('group', { name: 'Tests shown' });
+  await user.click(screen.getByRole('link', { name: /^Structure/ }));
+  await screen.findByRole('button', { name: 'tax.ts: modified' });
+  expect(onTab()).toBe('Note');
+});
+
 test('the unchanged symbols open by themselves when one holds a draft', async () => {
   const user = userEvent.setup();
   render(

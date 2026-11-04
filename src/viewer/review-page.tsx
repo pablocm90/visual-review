@@ -1288,6 +1288,10 @@ export const ReviewPage = ({ review, notes, send }: ReviewPageProps) => {
     goTo(id);
   };
   const [inspectorTab, setInspectorTab] = useState<InspectorTab>('note');
+  const inspecting = tab === 'structure' && selectedNode !== undefined;
+  useEffect(() => {
+    if (!inspecting) setInspectorTab('note');
+  }, [inspecting]);
   const goToDraft = (id: string, { kind }: Comment['anchor']) => {
     setInspectorTab(kind === 'symbol' || kind === 'decision' ? 'symbols' : 'note');
     goToOnStructure(id);
