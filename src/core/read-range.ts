@@ -340,12 +340,12 @@ const anchorsAcross = async ({
   measured,
   changes,
 }: AnchorsAcrossOptions): Promise<Pick<RangeReading, 'symbols' | 'symbolsNotRead' | 'tests'>> => {
-  const changed = new Set(diff.nodes.filter(node => node.state !== 'unchanged').map(n => n.id));
+  const changed = new Set(changes.flat());
   const sides = { before: before.directory, after: after.directory };
   return {
     ...(await symbolsIn({
       sides,
-      files: measured.filter(({ id }) => changed.has(id)),
+      files: measured.filter(({ headPath }) => changed.has(headPath)),
       stacks: [...before.reading.stacks, ...after.reading.stacks],
       stackOf: stackOfIn(diff.nodes),
     })),

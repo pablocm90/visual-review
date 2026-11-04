@@ -1055,6 +1055,27 @@ test("a reviewed head holds the symbols and tests changed since it, and those of
   });
 });
 
+test('a merge since the review reads no symbols of the files it adds or removes outside the pull request', async () => {
+  using repository = gitRepo({
+    ...rootPackage,
+    'src/a.ts': 'export const a = () => 1;\n',
+    'src/gone.ts': 'export const gone = () => 1;\n',
+  });
+  const { repo, root } = repository;
+  const head = commit(repo, { 'src/a.ts': 'export const a = () => 2;\n' });
+  git(repo, 'reset', '--quiet', '--hard', root);
+  git(repo, 'rm', '--quiet', 'src/gone.ts');
+  const main = commit(repo, { 'src/merged.ts': 'export const merged = () => 1;\n' });
+  git(repo, 'merge', '--quiet', '--no-edit', head);
+  const to = commit(repo, { 'src/a.ts': 'export const a = () => 3;\n' });
+
+  const range = await readRange({ repo, from: main, to, reviewed: { head, verdict: 'comment' } });
+
+  expect(range.reviewed).toMatchObject({
+    symbols: [expect.objectContaining({ node: `${basename(repo)}/file/a.ts` })],
+  });
+});
+
 test('a reviewed head that no longer resolves is gone, and the range still reads', async () => {
   using workspace = cargoWorkspace();
   const { repo, root } = workspace;
