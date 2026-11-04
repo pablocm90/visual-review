@@ -12,6 +12,7 @@ import {
   symlinkedDirectory,
   writeFiles,
 } from '../test-support/repos.ts';
+import { reviewedHead } from '../test-support/reviewed.ts';
 
 const rootPackage = { 'package.json': '{}\n', 'src/index.ts': '' };
 
@@ -937,12 +938,12 @@ test('a reviewed head reads as a side of its own, diffed plainly against the new
     repo,
     from: root,
     to,
-    reviewed: { head: reviewed, verdict: 'comment' },
+    reviewed: reviewedHead({ head: reviewed, verdict: 'comment' }),
   });
 
   expect(range.reviewed).toEqual({
-    head: reviewed,
-    verdict: 'comment',
+    ...reviewedHead({ head: reviewed }),
+    commits: [{ sha: to, subject: 'docs/new.md', files: ['docs/new.md'] }],
     before: expect.objectContaining({
       nodes: expect.arrayContaining([expect.objectContaining({ id: 'rust/crate/dropped' })]),
     }),
@@ -979,7 +980,7 @@ test("a reviewed head holds the pull request's own diff from where it then forke
     repo,
     from: main,
     to,
-    reviewed: { head: reviewed, verdict: 'comment' },
+    reviewed: reviewedHead({ head: reviewed, verdict: 'comment' }),
   });
 
   expect(nodeIds(range.before)).toContain('rust/crate/later');
@@ -1026,7 +1027,7 @@ test("a reviewed head holds the symbols and tests changed since it, and those of
     repo,
     from: main,
     to,
-    reviewed: { head, verdict: 'comment' },
+    reviewed: reviewedHead({ head, verdict: 'comment' }),
   });
 
   const stack = basename(repo);
@@ -1069,7 +1070,12 @@ test('a merge since the review reads no symbols of the files it adds or removes 
   git(repo, 'merge', '--quiet', '--no-edit', head);
   const to = commit(repo, { 'src/a.ts': 'export const a = () => 3;\n' });
 
-  const range = await readRange({ repo, from: main, to, reviewed: { head, verdict: 'comment' } });
+  const range = await readRange({
+    repo,
+    from: main,
+    to,
+    reviewed: reviewedHead({ head, verdict: 'comment' }),
+  });
 
   expect(range.reviewed).toMatchObject({
     symbols: [expect.objectContaining({ node: `${basename(repo)}/file/a.ts` })],
@@ -1086,10 +1092,10 @@ test('a reviewed head that no longer resolves is gone, and the range still reads
     repo,
     from: root,
     to,
-    reviewed: { head, verdict: 'approve' },
+    reviewed: reviewedHead({ head, verdict: 'approve' }),
   });
 
-  expect(range.reviewed).toEqual({ head, verdict: 'approve', gone: true });
+  expect(range.reviewed).toMatchObject({ head, verdict: 'approve', gone: true });
   expect(nodeIds(range.after)).toContain('rust/crate/cli');
 });
 
@@ -1104,10 +1110,10 @@ test('a reviewed head that exists but fails to read is unreadable, saying why, a
     repo,
     from: root,
     to,
-    reviewed: { head, verdict: 'approve' },
+    reviewed: reviewedHead({ head, verdict: 'approve' }),
   });
 
-  expect(range.reviewed).toEqual({
+  expect(range.reviewed).toMatchObject({
     head,
     verdict: 'approve',
     unreadable: expect.stringContaining('cargo metadata'),
@@ -1127,12 +1133,60 @@ test('a reviewed head whose own fork point fails to read is unreadable too, and 
   git(repo, 'merge', '--quiet', '--no-edit', head);
   const to = git(repo, 'rev-parse', 'HEAD');
 
-  const range = await readRange({ repo, from: main, to, reviewed: { head, verdict: 'approve' } });
+  const range = await readRange({
+    repo,
+    from: main,
+    to,
+    reviewed: reviewedHead({ head, verdict: 'approve' }),
+  });
 
-  expect(range.reviewed).toEqual({
+  expect(range.reviewed).toMatchObject({
     head,
     verdict: 'approve',
     unreadable: expect.stringContaining('cargo metadata'),
   });
   expect(nodeIds(range.after)).toContain('rust/crate/broken');
+});
+
+test('the commits since the review each name their subject and files, a rename by both names, a non-ASCII name as it is, and a merge by none', async () => {
+  using repository = gitRepo({ ...rootPackage, 'src/old.ts': 'a line long enough to rename\n' });
+  const { repo, root } = repository;
+  const head = commit(repo, { 'src/a.ts': 'export const a = 1;\n' });
+  git(repo, 'checkout', '--quiet', '-b', 'main-moved', root);
+  const fromMain = commit(repo, { 'docs/naïve name.md': 'moved on\n' });
+  git(repo, 'checkout', '--quiet', '-');
+  git(repo, 'mv', 'src/old.ts', 'src/new.ts');
+  git(repo, 'commit', '--quiet', '--message', 'Rename\tit');
+  const renamed = git(repo, 'rev-parse', 'HEAD');
+  git(repo, 'merge', '--quiet', '--no-edit', fromMain);
+  const merge = git(repo, 'rev-parse', 'HEAD');
+
+  const range = await readRange({
+    repo,
+    from: root,
+    to: merge,
+    reviewed: reviewedHead({ head }),
+  });
+
+  const commits = range.reviewed && 'commits' in range.reviewed ? range.reviewed.commits : [];
+  expect(commits).toHaveLength(3);
+  expect(commits).toEqual(
+    expect.arrayContaining([
+      expect.objectContaining({ sha: merge, files: [] }),
+      { sha: renamed, subject: 'Rename\tit', files: ['src/new.ts', 'src/old.ts'] },
+      { sha: fromMain, subject: 'docs/naïve name.md', files: ['docs/naïve name.md'] },
+    ]),
+  );
+});
+
+test('no commits since a review of the same tree still reads as a comparable side', async () => {
+  using repository = gitRepo({ ...rootPackage, 'src/a.ts': 'export const a = 1;\n' });
+  const { repo, root } = repository;
+  const to = commit(repo, { 'src/b.ts': 'export const b = 1;\n' });
+  const ahead = commit(repo, { 'src/c.ts': 'export const c = 1;\n' });
+  git(repo, 'reset', '--quiet', '--hard', to);
+
+  const range = await readRange({ repo, from: root, to, reviewed: reviewedHead({ head: ahead }) });
+
+  expect(range.reviewed).toMatchObject({ commits: [] });
 });

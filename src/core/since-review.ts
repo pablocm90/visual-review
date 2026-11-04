@@ -1,5 +1,13 @@
 import { diffGraphs, type FilePatch, type GraphDiff } from './diff-graphs.ts';
+import type { Finding } from './findings.ts';
 import { edgeId, type Graph } from './graph.ts';
+import {
+  type Compared,
+  isInside,
+  type PreviousComment,
+  partChanged,
+  previousComments,
+} from './previous-comments.ts';
 import type { ReviewedHead, ReviewedReading, SymbolFile } from './read-range.ts';
 import { isQuiet, qualified } from './symbol-changes.ts';
 import { type AnchoredSymbol, anchoredSymbols, decisionsOf } from './symbol-findings.ts';
@@ -22,10 +30,20 @@ type Changed = {
 
 export type ChangedSince = Changed & { readonly dropped: Changed };
 
-export type SinceReview =
-  | { readonly head: string; readonly gone: true }
-  | { readonly head: string; readonly unreadable: string }
-  | (ReviewedHead & { readonly changed: ChangedSince });
+type Said = Pick<ReviewedHead, 'head' | 'verdict' | 'body' | 'calledFine'> & {
+  readonly comments: ReadonlyArray<PreviousComment>;
+};
+
+export type SinceReview = Said &
+  (
+    | { readonly gone: true }
+    | { readonly unreadable: string }
+    | {
+        readonly changed: ChangedSince;
+        readonly changedWithoutComment: ReadonlyArray<string>;
+        readonly stillRead: ReadonlyArray<string>;
+      }
+  );
 
 type SinceReviewOptions = {
   readonly reviewed: ReviewedReading;
@@ -35,7 +53,19 @@ type SinceReviewOptions = {
   readonly patches: ReadonlyArray<FilePatch>;
   readonly symbols: ReadonlyArray<SymbolFile>;
   readonly tests: ReadonlyArray<TestFile>;
+  readonly findings: ReadonlyArray<Finding>;
 };
+
+const saidIn = (
+  { head, verdict, body, calledFine }: ReviewedHead,
+  comments: ReadonlyArray<PreviousComment>,
+): Said => ({
+  head,
+  verdict,
+  ...(body === undefined ? {} : { body }),
+  comments,
+  calledFine,
+});
 
 const changedIn = ({ nodes, edges }: GraphDiff) => ({
   nodes: nodes.filter(node => node.state !== 'unchanged').map(node => node.id),
@@ -99,10 +129,12 @@ const symbolsSinceOf = ({ since, atHead, atReview, named }: SymbolsSinceOptions)
     .filter(({ item }) => !isQuiet(item))
     .filter(symbol => now.includes(symbol.id) || then.includes(formerId(symbol)));
   const headDecisions = head.flatMap(symbol => decisionsOf(symbol).map(({ id }) => id));
+  const headSymbols = head.map(({ id }) => id);
   return {
+    held: { symbols: headSymbols, decisions: headDecisions },
     symbols: inTheHead(
       kept.map(({ id }) => id),
-      head.map(({ id }) => id),
+      headSymbols,
     ),
     decisions: inTheHead(
       kept.flatMap(symbol =>
@@ -144,12 +176,31 @@ const testsSinceOf = ({ since, atHead, atReview }: TestsSinceOptions) => {
   const head = testAnchorsIn(atHead);
   const now = changed(head).map(({ id }) => id);
   const then = changed(testAnchorsIn(atReview)).map(({ id }) => id);
-  return inTheHead(
-    changed(testAnchorsIn(since))
-      .filter(({ id, former }) => now.includes(id) || then.includes(former))
-      .map(({ id }) => id),
-    head.map(({ id }) => id),
-  );
+  const held = head.map(({ id }) => id);
+  return {
+    held,
+    ...inTheHead(
+      changed(testAnchorsIn(since))
+        .filter(({ id, former }) => now.includes(id) || then.includes(former))
+        .map(({ id }) => id),
+      held,
+    ),
+  };
+};
+
+type WithoutCommentOptions = {
+  readonly nodes: ReadonlyArray<string>;
+  readonly tree: Compared['tree'];
+  readonly comments: ReadonlyArray<PreviousComment>;
+};
+
+const withoutComment = ({ nodes, tree, comments }: WithoutCommentOptions) => {
+  const commentedOn = comments.flatMap(({ target }) => target ?? []);
+  return nodes
+    .filter(id => !nodes.some(other => other !== id && isInside(tree, other, id)))
+    .filter(
+      id => !commentedOn.some(target => isInside(tree, id, target) || isInside(tree, target, id)),
+    );
 };
 
 export const sinceReviewOf = ({
@@ -160,10 +211,13 @@ export const sinceReviewOf = ({
   patches,
   symbols,
   tests,
+  findings,
 }: SinceReviewOptions): SinceReview => {
-  if ('gone' in reviewed) return { head: reviewed.head, gone: true };
-  if ('unreadable' in reviewed) return { head: reviewed.head, unreadable: reviewed.unreadable };
-  const { head, verdict, pullRequest, ...side } = reviewed;
+  const targets = { nodes: diff.nodes, tests };
+  const unmarked = () => saidIn(reviewed, previousComments({ ...reviewed, targets, findings }));
+  if ('gone' in reviewed) return { ...unmarked(), gone: true };
+  if ('unreadable' in reviewed) return { ...unmarked(), unreadable: reviewed.unreadable };
+  const { pullRequest, ...side } = reviewed;
   const paths = [...changedPaths, ...pullRequest.changedPaths];
   const pathsSince = side.changedPaths.filter(path => paths.includes(path));
   const sinceDiff = diffGraphs({ ...side, after, changedPaths: pathsSince });
@@ -198,24 +252,36 @@ export const sinceReviewOf = ({
     atHead: tests,
     atReview: pullRequest.tests,
   });
-  return {
-    head,
-    verdict,
-    changed: {
-      nodes: nodes.drawn,
-      edges: edges.drawn,
-      symbols: anchors.symbols.drawn,
-      decisions: anchors.decisions.drawn,
-      tests: testsSince.drawn,
-      files: files.drawn,
-      dropped: {
-        nodes: nodes.dropped,
-        edges: edges.dropped,
-        symbols: anchors.symbols.dropped,
-        decisions: anchors.decisions.dropped,
-        tests: testsSince.dropped,
-        files: files.dropped,
-      },
+  const changed = {
+    nodes: nodes.drawn,
+    edges: edges.drawn,
+    symbols: anchors.symbols.drawn,
+    decisions: anchors.decisions.drawn,
+    tests: testsSince.drawn,
+    files: files.drawn,
+    dropped: {
+      nodes: nodes.dropped,
+      edges: edges.dropped,
+      symbols: anchors.symbols.dropped,
+      decisions: anchors.decisions.dropped,
+      tests: testsSince.dropped,
+      files: files.dropped,
     },
+  };
+  const tree = [...side.before.nodes, ...after.nodes];
+  const compared: Compared = {
+    changed,
+    held: { ...anchors.held, tests: testsSince.held, files: patches.map(({ path }) => path) },
+    renames: side.renames,
+    commits: reviewed.commits,
+    tree,
+    named,
+  };
+  const comments = previousComments({ comments: reviewed.comments, targets, findings, compared });
+  return {
+    ...saidIn(reviewed, comments),
+    changed,
+    changedWithoutComment: withoutComment({ nodes: changed.nodes, tree, comments }),
+    stillRead: reviewed.read.filter(id => !partChanged(compared, targets, id)),
   };
 };

@@ -187,6 +187,11 @@ export const raisedFindings = ({
   ...dependencyFindings(dependencyChanges),
 ];
 
+const NOTE_FLAG = 'notes:';
+
+export const targetOfNoteFlag = (id: string): string | undefined =>
+  id.startsWith(NOTE_FLAG) ? id.slice(NOTE_FLAG.length) : undefined;
+
 type FindingsOfOptions = {
   readonly data: Pick<PageData, 'findings'>;
   readonly notes: ReviewNotes | undefined;
@@ -197,7 +202,7 @@ export const findingsOf = ({ data, notes }: FindingsOfOptions): ReadonlyArray<Fi
   ...Object.entries(notes?.notes ?? {}).flatMap(([id, { flag, dimension = 'structure' }]) =>
     flag === undefined
       ? []
-      : [{ id: `notes:${id}`, dimension, level: 'look' as const, target: id, title: flag }],
+      : [{ id: `${NOTE_FLAG}${id}`, dimension, level: 'look' as const, target: id, title: flag }],
   ),
 ];
 

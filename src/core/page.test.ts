@@ -2,12 +2,20 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { expect, test } from 'vitest';
-import type { GraphNode } from './graph.ts';
+import { reviewedHead } from '../test-support/reviewed.ts';
+import type { Graph, GraphNode } from './graph.ts';
 import type { LogicLine } from './logic-diff.ts';
 import { metricFindings } from './metric-findings.ts';
 import type { ReviewNotes } from './notes.ts';
 import { notedPageHtml, pageData, pageHtml, pageIn, servedPageHtml } from './page.ts';
-import type { RangeReading, ReviewedDiff, ReviewedReading, SymbolFile } from './read-range.ts';
+import type {
+  RangeReading,
+  ReviewedDiff,
+  ReviewedHead,
+  ReviewedReading,
+  SymbolFile,
+} from './read-range.ts';
+import type { Review } from './review.ts';
 import type { SymbolStatement } from './symbol-changes.ts';
 import type { TestFile } from './test-changes.ts';
 
@@ -1548,8 +1556,8 @@ const reviewedAt = ({
   Partial<Pick<ReviewedDiff, 'renames' | 'symbols' | 'tests'>> & {
     readonly pullRequest?: Partial<ReviewedDiff>;
   }): ReviewedReading => ({
-  head: 'h1',
-  verdict: 'comment',
+  ...reviewedHead(),
+  commits: [],
   renames: [],
   symbols: [],
   tests: [],
@@ -1904,17 +1912,54 @@ test('page data says the reviewed head is gone when its commit no longer reads, 
       parsers: {},
     });
 
-  expect(
-    data({ reviewed: { head: 'h1', verdict: 'approve', gone: true } }).sinceReview,
-  ).toMatchObject({
+  expect(data({ reviewed: { ...reviewedHead(), gone: true } }).sinceReview).toMatchObject({
     head: 'h1',
     gone: true,
   });
   expect(
-    data({ reviewed: { head: 'h1', verdict: 'approve', unreadable: 'cargo metadata failed' } })
-      .sinceReview,
-  ).toEqual({ head: 'h1', unreadable: 'cargo metadata failed' });
+    data({ reviewed: { ...reviewedHead(), unreadable: 'cargo metadata failed' } }).sinceReview,
+  ).toMatchObject({ head: 'h1', unreadable: 'cargo metadata failed' });
   expect(data({})).not.toHaveProperty('sinceReview');
+});
+
+test.for([
+  { side: 'whose commit is gone', reading: { gone: true as const } },
+  { side: 'that no longer reads', reading: { unreadable: 'cargo metadata failed' } },
+  {
+    side: 'still compared',
+    reading: reviewedAt({
+      before: { nodes: [webStack, webFile('a.ts')], edges: [] },
+      changedPaths: [],
+    }),
+  },
+])('page data keeps what the last review said at a head $side', ({ reading }) => {
+  const said = {
+    verdict: 'request-changes' as const,
+    body: 'Nearly there',
+    comments: [
+      {
+        anchor: { kind: 'part' as const, id: 'web/file/a.ts' },
+        kind: 'change' as const,
+        text: 'Split this',
+      },
+    ],
+    calledFine: ['logic:changed:web/file/a.ts#run'],
+  };
+
+  const { sinceReview } = pageData({
+    repo: 'shop',
+    reading: readingWith({ reviewed: { ...reviewedHead(), ...reading, ...said } }),
+    range: 'a..b',
+    version: '1.2.3',
+    parsers: {},
+  });
+
+  expect(sinceReview).toMatchObject({
+    verdict: 'request-changes',
+    body: 'Nearly there',
+    calledFine: ['logic:changed:web/file/a.ts#run'],
+  });
+  expect(sinceReview?.comments).toEqual([{ ...said.comments[0], target: 'web/file/a.ts' }]);
 });
 
 test.for([
@@ -1983,6 +2028,278 @@ test('changed since lists a file renamed since by its new name alone', () => {
   expect(
     pageData({ repo: 'shop', reading, range: 'a..b', version: '1.2.3', parsers: {} }).sinceReview,
   ).toMatchObject({ changed: { files: [to], dropped: { files: [] } } });
+});
+
+const commitOn = (sha: string, ...files: ReadonlyArray<string>) => ({
+  sha,
+  subject: `Subject of ${sha}`,
+  files,
+});
+
+const onAPart = (id: string): Review['comments'][number] => ({
+  anchor: { kind: 'part', id },
+  kind: 'change',
+  text: 'Look at this',
+});
+
+const firstPrevious = (reading: RangeReading) => {
+  const { sinceReview } = pageData({
+    repo: 'shop',
+    reading,
+    range: 'a..b',
+    version: '1.2.3',
+    parsers: {},
+  });
+  return sinceReview?.comments[0];
+};
+
+test.for([
+  {
+    on: 'a part changed since, with the commits on its file',
+    id: 'web/file/a.ts',
+    target: 'web/file/a.ts',
+    changedSince: [commitOn('c1', 'web/src/a.ts')],
+  },
+  {
+    on: 'a part with a part changed inside it, which no commit touches itself',
+    id: 'web',
+    target: 'web',
+    changedSince: [commitOn('c1', 'web/src/a.ts')],
+  },
+  { on: 'a part as it was', id: 'web/file/b.ts', target: 'web/file/b.ts' },
+])('a previous comment on $on', ({ id, target, changedSince }) => {
+  const graph = {
+    nodes: [webStack, webFile('a.ts'), webFile('b.ts'), webFile('main.ts')],
+    edges: [],
+  };
+  const previous = firstPrevious(
+    readingWith({
+      before: { nodes: [webStack, webFile('main.ts')], edges: [] },
+      after: graph,
+      changedPaths: ['web/src/a.ts', 'web/src/b.ts'],
+      reviewed: {
+        ...reviewedAt({ before: graph, changedPaths: ['web/src/a.ts', 'web/src/main.ts'] }),
+        comments: [onAPart(id)],
+        commits: [
+          commitOn('c1', 'web/src/a.ts'),
+          commitOn('c2', 'web/src/elsewhere.ts'),
+          commitOn('merged', 'web/src/main.ts'),
+        ],
+      },
+    }),
+  );
+
+  expect(previous).toEqual({ ...onAPart(id), target, ...(changedSince && { changedSince }) });
+});
+
+test('a previous comment on a part renamed since goes by its new name, with the commits on both', () => {
+  const [before, after] = [webFile('a.ts'), webFile('b.ts')];
+  const [from, to] = [before.path, after.path];
+  const previous = firstPrevious(
+    readingWith({
+      before: { nodes: [webStack], edges: [] },
+      after: { nodes: [webStack, after], edges: [] },
+      changedPaths: [to],
+      reviewed: {
+        ...reviewedAt({
+          before: { nodes: [webStack, before], edges: [] },
+          changedPaths: [from, to],
+          renames: [{ from, to }],
+        }),
+        comments: [onAPart(before.id)],
+        commits: [commitOn('c1', from), commitOn('c2', to)],
+      },
+    }),
+  );
+
+  expect(previous).toMatchObject({
+    target: after.id,
+    changedSince: [commitOn('c1', from), commitOn('c2', to)],
+  });
+});
+
+const gone = webFile('a.ts');
+
+test.for([
+  {
+    on: 'a part gone since holds no target and reads as changed',
+    id: gone.id,
+    atFork: [webStack],
+    held: {},
+  },
+  {
+    on: "a part gone with main's merge, which the PR never changed, reads as changed too",
+    id: gone.id,
+    atFork: [webStack, gone],
+    held: {},
+  },
+  {
+    on: 'a part holding one gone since reads as changed, and is still its target',
+    id: 'web',
+    atFork: [webStack],
+    held: { target: 'web' },
+  },
+])('a previous comment on $on', ({ id, atFork, held }) => {
+  const previous = firstPrevious(
+    readingWith({
+      before: { nodes: [webStack], edges: [] },
+      after: { nodes: [webStack], edges: [] },
+      changedPaths: [],
+      reviewed: {
+        ...reviewedAt({
+          before: { nodes: [webStack, gone], edges: [] },
+          changedPaths: [gone.path],
+          pullRequest: {
+            before: { nodes: atFork, edges: [] },
+            changedPaths: atFork.length === 1 ? [gone.path] : [],
+          },
+        }),
+        comments: [onAPart(id)],
+        commits: [commitOn('c1', gone.path)],
+      },
+    }),
+  );
+
+  expect(previous).toEqual({
+    ...onAPart(id),
+    ...held,
+    changedSince: [commitOn('c1', gone.path)],
+  });
+});
+
+const [fileA, fileB, fileC] = [webFile('a.ts'), webFile('b.ts'), webFile('c.ts')];
+const apiStack: GraphNode = { id: 'api', kind: 'stack', label: 'api', path: '' };
+const apiFile: GraphNode = {
+  id: 'api/file/x.ts',
+  kind: 'file',
+  label: 'x.ts',
+  parent: 'api',
+  path: 'api/src/x.ts',
+};
+const edgeNodes = [webStack, fileA, fileB, fileC, apiStack, apiFile];
+const edgeBetween = (from: GraphNode, to: GraphNode) => ({ from: from.id, to: to.id });
+const onAnEdge = (from: GraphNode, to: GraphNode): Review['comments'][number] => ({
+  anchor: { kind: 'edge', id: `${from.id} -> ${to.id}` },
+  kind: 'question',
+  text: 'Why this way?',
+});
+const commitsOnEveryFile = [
+  commitOn('c1', fileA.path),
+  commitOn('c2', fileB.path),
+  commitOn('c3', fileC.path),
+  commitOn('c4', apiFile.path),
+];
+
+test.for([
+  {
+    on: 'an edge added since, with the commits on both its ends',
+    comment: onAnEdge(fileA, fileB),
+    atReview: [],
+    atHead: [edgeBetween(fileA, fileB)],
+    changedSince: ['c1', 'c2'],
+  },
+  {
+    on: 'an edge removed since, which the head has no edge of',
+    comment: onAnEdge(fileA, fileB),
+    atReview: [edgeBetween(fileA, fileB)],
+    atHead: [],
+    changedSince: ['c1', 'c2'],
+  },
+  {
+    on: 'a merged edge between boxes, with an edge running inside it changed',
+    comment: onAnEdge(webStack, apiStack),
+    atReview: [],
+    atHead: [edgeBetween(fileA, apiFile)],
+    changedSince: ['c1', 'c2', 'c3', 'c4'],
+  },
+  {
+    on: 'an edge with changed edges sharing only its from or only its to, as it was',
+    comment: onAnEdge(fileA, fileB),
+    atReview: [edgeBetween(fileA, fileB)],
+    atHead: [edgeBetween(fileA, fileB), edgeBetween(fileA, fileC), edgeBetween(fileC, fileB)],
+  },
+  {
+    on: 'an edge between boxes with a changed edge the other way, as it was',
+    comment: onAnEdge(webStack, apiStack),
+    atReview: [],
+    atHead: [edgeBetween(apiFile, fileA)],
+  },
+])('a previous comment on $on', ({ comment, atReview, atHead, changedSince }) => {
+  const previous = firstPrevious(
+    readingWith({
+      before: { nodes: edgeNodes, edges: [] },
+      after: { nodes: edgeNodes, edges: atHead },
+      changedPaths: [fileA.path, fileB.path, fileC.path, apiFile.path],
+      reviewed: {
+        ...reviewedAt({
+          before: { nodes: edgeNodes, edges: atReview },
+          changedPaths: [fileA.path, fileB.path, fileC.path, apiFile.path],
+          pullRequest: { before: { nodes: edgeNodes, edges: [] } },
+        }),
+        comments: [comment],
+        commits: commitsOnEveryFile,
+      },
+    }),
+  );
+
+  expect(previous).toEqual({
+    ...comment,
+    target: comment.anchor.id,
+    ...(changedSince && {
+      changedSince: commitsOnEveryFile.filter(({ sha }) => changedSince.includes(sha)),
+    }),
+  });
+});
+
+test.for([
+  { end: 'from', comment: onAnEdge(fileA, fileB) },
+  { end: 'to', comment: onAnEdge(fileB, fileA) },
+])(
+  'a previous comment on an edge with its $end gone since holds no target and reads as changed',
+  ({ comment }) => {
+    const previous = firstPrevious(
+      readingWith({
+        before: { nodes: [webStack, fileB], edges: [] },
+        after: { nodes: [webStack, fileB], edges: [] },
+        changedPaths: [fileB.path],
+        reviewed: {
+          ...reviewedAt({
+            before: { nodes: [webStack, fileA, fileB], edges: [] },
+            changedPaths: [fileA.path],
+          }),
+          comments: [comment],
+          commits: [commitOn('c1', fileA.path)],
+        },
+      }),
+    );
+
+    expect(previous).toEqual({ ...comment, changedSince: [commitOn('c1', fileA.path)] });
+  },
+);
+
+test('a previous comment on an edge with an end renamed since goes by its new name, with the commits on both', () => {
+  const comment = onAnEdge(fileA, fileB);
+  const previous = firstPrevious(
+    readingWith({
+      before: { nodes: [webStack, fileB], edges: [] },
+      after: { nodes: [webStack, fileC, fileB], edges: [edgeBetween(fileC, fileB)] },
+      changedPaths: [fileC.path, fileB.path],
+      reviewed: {
+        ...reviewedAt({
+          before: { nodes: [webStack, fileA, fileB], edges: [edgeBetween(fileA, fileB)] },
+          changedPaths: [fileA.path, fileC.path],
+          renames: [{ from: fileA.path, to: fileC.path }],
+        }),
+        comments: [comment],
+        commits: [commitOn('c1', fileA.path), commitOn('c2', fileC.path)],
+      },
+    }),
+  );
+
+  expect(previous).toMatchObject({
+    target: `${fileC.id} -> ${fileB.id}`,
+    changedSince: [commitOn('c1', fileA.path), commitOn('c2', fileC.path)],
+  });
 });
 
 const anchorGraph = {
@@ -2161,6 +2478,114 @@ const ifLine = (change: LogicLine['change'], base: string | undefined, head: str
   });
 
 const editedWith = (logic: ReadonlyArray<LogicLine>) => fn('f', 'edited', { logic });
+
+const onSymbol = (id: string): Review['comments'][number] => ({
+  anchor: { kind: 'symbol', id },
+  kind: 'change',
+  text: 'Look at this',
+});
+
+const onDecision = (id: string, text: string): Review['comments'][number] => ({
+  anchor: { kind: 'decision', id, text },
+  kind: 'question',
+  text: 'Why this?',
+});
+
+test.for([
+  {
+    on: 'a symbol changed since',
+    comment: onSymbol('web/file/a.ts#f'),
+    since: [fn('f', 'edited')],
+    head: [fn('f', 'edited')],
+    changed: true,
+  },
+  {
+    on: 'a symbol as it was',
+    comment: onSymbol('web/file/a.ts#f'),
+    since: [fn('f', 'unchanged')],
+    head: [fn('f', 'edited')],
+    changed: false,
+  },
+  {
+    on: 'a symbol the head no longer holds',
+    comment: onSymbol('web/file/a.ts#f'),
+    since: [],
+    head: [fn('g', 'edited')],
+    changed: true,
+  },
+  {
+    on: 'a decision changed since',
+    comment: onDecision('web/file/a.ts#f#if (b)', 'if (b)'),
+    since: [editedWith([ifLine('changed', 'if (a)', 'if (b)')])],
+    head: [editedWith([ifLine('changed', 'if (z)', 'if (b)')])],
+    changed: true,
+  },
+  {
+    on: 'a decision as it was',
+    comment: onDecision('web/file/a.ts#f#if (b)', 'if (b)'),
+    since: [editedWith([ifLine('same', 'if (b)', 'if (b)')])],
+    head: [editedWith([ifLine('changed', 'if (z)', 'if (b)')])],
+    changed: false,
+  },
+  {
+    on: 'a decision the head no longer holds',
+    comment: onDecision('web/file/a.ts#f#if (b)', 'if (b)'),
+    since: [],
+    head: [editedWith([ifLine('changed', 'if (z)', 'if (c)')])],
+    changed: true,
+  },
+])('a previous comment on $on', ({ comment, since, head, changed }) => {
+  const commits = [commitOn('c1', 'web/src/a.ts'), commitOn('c2', 'web/src/b.ts')];
+  const previous = firstPrevious(
+    readingWith({
+      before: anchorGraph,
+      after: anchorGraph,
+      changedPaths: ['web/src/a.ts'],
+      symbols: [anchorFile('a.ts', head)],
+      reviewed: {
+        ...reviewedAt({
+          before: anchorGraph,
+          changedPaths: ['web/src/a.ts'],
+          symbols: [anchorFile('a.ts', since)],
+          pullRequest: { symbols: [anchorFile('a.ts', head)] },
+        }),
+        comments: [comment],
+        commits,
+      },
+    }),
+  );
+
+  expect(previous).toEqual({
+    ...comment,
+    target: 'web/file/a.ts',
+    ...(changed && { changedSince: [commitOn('c1', 'web/src/a.ts')] }),
+  });
+});
+
+test('a previous comment on a symbol in a file renamed since goes by the new file, with the commits on both', () => {
+  const previous = firstPrevious(
+    readingWith({
+      before: { nodes: [webStack], edges: [] },
+      after: { nodes: [webStack, webFile('new.ts')], edges: [] },
+      changedPaths: ['web/src/new.ts'],
+      symbols: [anchorFile('new.ts', [fn('f', 'edited')])],
+      reviewed: {
+        ...reviewedAt({
+          before: { nodes: [webStack, webFile('old.ts')], edges: [] },
+          changedPaths: ['web/src/old.ts', 'web/src/new.ts'],
+          renames: [{ from: 'web/src/old.ts', to: 'web/src/new.ts' }],
+        }),
+        comments: [onSymbol('web/file/old.ts#f')],
+        commits: [commitOn('c1', 'web/src/old.ts'), commitOn('c2', 'web/src/new.ts')],
+      },
+    }),
+  );
+
+  expect(previous).toMatchObject({
+    target: 'web/file/new.ts',
+    changedSince: [commitOn('c1', 'web/src/old.ts'), commitOn('c2', 'web/src/new.ts')],
+  });
+});
 
 test.for([
   {
@@ -2343,6 +2768,162 @@ test('changed since finds a test in a file renamed since by its path at the revi
   ).toMatchObject({ changed: { tests: [`${to}#cart › adds`] } });
 });
 
+const onTest = (id: string): Review['comments'][number] => ({
+  anchor: { kind: 'test', id },
+  kind: 'change',
+  text: 'Assert more',
+});
+
+const onLine = (id: string, text: string): Review['comments'][number] => ({
+  anchor: { kind: 'line', id, text },
+  kind: 'question',
+  text: 'Why this?',
+});
+
+const commitsOnTwoFiles = (first: string) => [
+  commitOn('c1', first),
+  commitOn('c2', 'web/src/b.ts'),
+];
+
+test.for([
+  {
+    on: 'a test changed since',
+    since: headed(testOf('adds', 'edited')),
+    head: headed(testOf('adds', 'edited')),
+    changed: true,
+  },
+  {
+    on: 'a test as it was',
+    since: headed(testOf('adds', 'unchanged')),
+    head: headed(testOf('adds', 'edited')),
+    changed: false,
+  },
+  {
+    on: 'a test the head no longer holds',
+    since: headed(testOf('adds', 'removed')),
+    head: headed(testOf('other', 'edited')),
+    changed: true,
+  },
+])('a previous comment on $on', ({ since, head, changed }) => {
+  const comment = onTest('web/a.test.ts#cart › adds');
+  const commits = commitsOnTwoFiles('web/a.test.ts');
+  const previous = firstPrevious(
+    readingWith({
+      before: anchorGraph,
+      after: anchorGraph,
+      changedPaths: ['web/a.test.ts'],
+      tests: [testFile('web/a.test.ts', head)],
+      reviewed: {
+        ...reviewedAt({
+          before: anchorGraph,
+          changedPaths: ['web/a.test.ts'],
+          tests: [testFile('web/a.test.ts', since)],
+          pullRequest: { tests: [testFile('web/a.test.ts', head)] },
+        }),
+        comments: [comment],
+        commits,
+      },
+    }),
+  );
+
+  expect(previous).toEqual({
+    ...comment,
+    target: 'web/file/a.ts',
+    ...(changed && { changedSince: [commitOn('c1', 'web/a.test.ts')] }),
+  });
+});
+
+test.for([
+  {
+    on: 'a diff line whose file changed since',
+    patches: ['web/src/a.ts'],
+    since: ['web/src/a.ts'],
+    changed: true,
+  },
+  {
+    on: 'a diff line whose file is as it was',
+    patches: ['web/src/a.ts'],
+    since: ['web/src/b.ts'],
+    changed: false,
+  },
+  {
+    on: 'a diff line in a file the PR no longer changes',
+    patches: ['web/src/b.ts'],
+    since: ['web/src/b.ts'],
+    changed: true,
+  },
+])('a previous comment on $on', ({ patches, since, changed }) => {
+  const comment = onLine('web/src/a.ts@head:3', 'if (open) return');
+  const previous = firstPrevious(
+    readingWith({
+      before: anchorGraph,
+      after: anchorGraph,
+      changedPaths: ['web/src/a.ts', 'web/src/b.ts'],
+      patches: patches.map(patch),
+      reviewed: {
+        ...reviewedAt({
+          before: anchorGraph,
+          changedPaths: since,
+          pullRequest: { changedPaths: ['web/src/a.ts', 'web/src/b.ts'] },
+        }),
+        comments: [comment],
+        commits: commitsOnTwoFiles('web/src/a.ts'),
+      },
+    }),
+  );
+
+  expect(previous).toEqual({
+    ...comment,
+    target: 'web/file/a.ts',
+    ...(changed && { changedSince: [commitOn('c1', 'web/src/a.ts')] }),
+  });
+});
+
+test.for([
+  {
+    on: 'a test',
+    comment: onTest('web/old.test.ts#cart › adds'),
+    from: 'web/old.test.ts',
+    to: 'web/new.test.ts',
+    target: 'web/file/new.ts',
+  },
+  {
+    on: 'a diff line',
+    comment: onLine('web/src/old.ts@base:3', 'if (open) return'),
+    from: 'web/src/old.ts',
+    to: 'web/src/new.ts',
+    target: 'web/file/new.ts',
+  },
+])(
+  'a previous comment on $on in a file renamed since goes by the new file, with the commits on both',
+  ({ comment, from, to, target }) => {
+    const graph = { nodes: [webStack, webFile('new.ts')], edges: [] };
+    const previous = firstPrevious(
+      readingWith({
+        before: graph,
+        after: graph,
+        changedPaths: [to],
+        patches: [patch(to)],
+        tests: [testFile('web/new.test.ts', headed(testOf('adds', 'edited')))],
+        reviewed: {
+          ...reviewedAt({
+            before: graph,
+            changedPaths: [from, to],
+            renames: [{ from, to }],
+          }),
+          comments: [comment],
+          commits: [commitOn('c1', from), commitOn('c2', to), commitOn('c3', 'web/src/other.ts')],
+        },
+      }),
+    );
+
+    expect(previous).toMatchObject({
+      target,
+      changedSince: [commitOn('c1', from), commitOn('c2', to)],
+    });
+  },
+);
+
 test('changed since skips a test file that could not be read', () => {
   const unreadable = { path: 'web/a.test.ts', stack: 'web', unreadable: 'SyntaxError' };
   const reading = readingWith({
@@ -2361,4 +2942,194 @@ test('changed since skips a test file that could not be read', () => {
   expect(
     pageData({ repo: 'shop', reading, range: 'a..b', version: '1.2.3', parsers: {} }).sinceReview,
   ).toMatchObject({ changed: { tests: [], dropped: { tests: [] } } });
+});
+
+const answering = (id: string): Review['comments'][number] => ({
+  anchor: { kind: 'finding', id },
+  kind: 'fine',
+});
+
+const answersReading = (id: string, reviewed: (graph: Graph) => ReviewedReading) => {
+  const nodes = [webStack, webFile('a.ts'), webFile('b.ts')];
+  return readingWith({
+    before: { nodes: [webStack], edges: [] },
+    after: { nodes, edges: [{ from: 'web/file/a.ts', to: 'web/file/b.ts' }] },
+    changedPaths: ['web/src/a.ts', 'web/src/b.ts'],
+    skipped: [{ reader: 'rust', tool: 'cargo', stacks: ['rust'] }],
+    danglingCalls: [
+      { from: 'web/file/a.ts', path: '/api/a' },
+      { from: 'web/file/b.ts', path: '/api/b' },
+    ],
+    reviewed: { ...reviewed({ nodes, edges: [] }), comments: [answering(id)] },
+  });
+};
+
+const commitOnA = commitOn('c1', 'web/src/a.ts');
+
+test.for([
+  {
+    on: 'a finding on a part changed since, with the commits on it',
+    id: 'routes:dangling:web/file/a.ts',
+    mark: { target: 'web/file/a.ts', changedSince: [commitOnA] },
+  },
+  {
+    on: 'a finding on a part as it was',
+    id: 'routes:dangling:web/file/b.ts',
+    mark: { target: 'web/file/b.ts' },
+  },
+  {
+    on: 'a note flag on a part changed since, which the page data does not raise',
+    id: 'notes:web/file/a.ts',
+    mark: { target: 'web/file/a.ts', changedSince: [commitOnA] },
+  },
+  {
+    on: 'a note flag on a part as it was, which the page data does not raise',
+    id: 'notes:web/file/b.ts',
+    mark: { target: 'web/file/b.ts' },
+  },
+  {
+    on: 'a note flag on an edge changed since',
+    id: 'notes:web/file/a.ts -> web/file/b.ts',
+    mark: { target: 'web/file/a.ts -> web/file/b.ts', changedSince: [commitOnA] },
+  },
+  {
+    on: 'a finding with no target, still raised, as it was',
+    id: 'structure:skipped:rust',
+    mark: {},
+  },
+  {
+    on: 'a finding no longer raised, changed with no commit to name',
+    id: 'routes:dangling:web/file/gone.ts',
+    mark: { changedSince: [] },
+  },
+])('a previous answer to $on', ({ id, mark }) => {
+  const previous = firstPrevious(
+    answersReading(id, before => ({
+      ...reviewedAt({ before, changedPaths: ['web/src/a.ts'] }),
+      commits: [commitOnA, commitOn('c2', 'web/src/elsewhere.ts')],
+    })),
+  );
+
+  expect(previous).toEqual({ ...answering(id), ...mark });
+});
+
+test.for([
+  {
+    on: 'a finding on a part',
+    id: 'routes:dangling:web/file/a.ts',
+    held: { target: 'web/file/a.ts' },
+  },
+  { on: 'a note flag on a part', id: 'notes:web/file/a.ts', held: { target: 'web/file/a.ts' } },
+  { on: 'a finding no longer raised', id: 'routes:dangling:web/file/gone.ts', held: {} },
+])('a previous answer to $on on a gone head keeps its target, with no mark', ({ id, held }) => {
+  const previous = firstPrevious(answersReading(id, () => ({ ...reviewedHead(), gone: true })));
+
+  expect(previous).toEqual({ ...answering(id), ...held });
+});
+
+const boxed = {
+  nodes: [webStack, box('cart'), inBox('cart', 'a.ts'), inBox('cart', 'b.ts'), webFile('c.ts')],
+  edges: [],
+};
+const fileInBox = 'web/file/cart/a.ts';
+const otherInBox = 'web/file/cart/b.ts';
+
+test('a previous comment on a box lists the commits on the paths the PR changes in it, not one merged in beside them', () => {
+  const previous = firstPrevious(
+    readingWith({
+      before: { nodes: [webStack], edges: [] },
+      after: boxed,
+      changedPaths: ['web/src/cart/a.ts', 'web/src/cart/b.ts'],
+      patches: [{ path: 'web/src/cart/a.ts', patch: '@@ a' }],
+      reviewed: {
+        ...reviewedAt({
+          before: boxed,
+          changedPaths: ['web/src/cart/a.ts', 'web/src/cart/unrelated.ts'],
+        }),
+        comments: [onAPart(box('cart').id)],
+        commits: [
+          commitOn('c1', 'web/src/cart/a.ts'),
+          commitOn('merged', 'web/src/cart/unrelated.ts'),
+        ],
+      },
+    }),
+  );
+
+  expect(previous?.changedSince).toEqual([commitOn('c1', 'web/src/cart/a.ts')]);
+});
+
+const sinceWith = ({
+  since,
+  ...said
+}: Partial<Pick<ReviewedHead, 'comments' | 'read'>> & { readonly since: ReadonlyArray<string> }) =>
+  pageData({
+    repo: 'shop',
+    reading: readingWith({
+      before: { nodes: [webStack], edges: [] },
+      after: boxed,
+      changedPaths: ['web/src/cart/a.ts', 'web/src/cart/b.ts', 'web/src/cart/notes.txt'],
+      reviewed: { ...reviewedAt({ before: boxed, changedPaths: [...since] }), ...said },
+    }),
+    range: 'a..b',
+    version: '1.2.3',
+    parsers: {},
+  }).sinceReview;
+
+test.for([
+  {
+    with: 'no comment, naming the changed part and not the box around it',
+    comments: [],
+    listed: [fileInBox],
+  },
+  { with: 'a comment on it', comments: [onAPart(fileInBox)], listed: [] },
+  { with: 'a comment on a box around it', comments: [onAPart('web/box/cart')], listed: [] },
+  {
+    with: 'a comment on a symbol in it, which counts by its node',
+    comments: [{ anchor: { kind: 'symbol', id: `${fileInBox}#f` }, kind: 'change', text: 'Why?' }],
+    listed: [],
+  },
+  { with: 'an answer on it', comments: [answering(`notes:${fileInBox}`)], listed: [] },
+  {
+    with: 'an edge comment from it, which does not count',
+    comments: [
+      {
+        anchor: { kind: 'edge', id: `${fileInBox} -> ${otherInBox}` },
+        kind: 'change',
+        text: 'Why?',
+      },
+    ],
+    listed: [fileInBox],
+  },
+  {
+    with: 'an answer on an edge from it, which does not count',
+    comments: [answering(`notes:${fileInBox} -> ${otherInBox}`)],
+    listed: [fileInBox],
+  },
+  { with: 'a comment on another part', comments: [onAPart(otherInBox)], listed: [fileInBox] },
+] satisfies ReadonlyArray<{
+  with: string;
+  comments: Review['comments'];
+  listed: ReadonlyArray<string>;
+}>)('the parts changed since with $with', ({ comments, listed }) => {
+  expect(sinceWith({ since: ['web/src/cart/a.ts'], comments })).toMatchObject({
+    changedWithoutComment: listed,
+  });
+});
+
+test('a box changed since with nothing changed inside it counts a comment on a part inside it', () => {
+  const since = ['web/src/cart/notes.txt'];
+
+  expect(sinceWith({ since })).toMatchObject({ changedWithoutComment: ['web/box/cart'] });
+  expect(sinceWith({ since, comments: [onAPart(otherInBox)] })).toMatchObject({
+    changedWithoutComment: [],
+  });
+});
+
+test.for([
+  { part: 'unchanged since, which stays read', read: otherInBox, stillRead: [otherInBox] },
+  { part: 'changed since', read: fileInBox, stillRead: [] },
+  { part: 'gone since', read: 'web/file/gone.ts', stillRead: [] },
+  { part: 'holding one changed since', read: 'web', stillRead: [] },
+])('a part read last round and $part', ({ read, stillRead }) => {
+  expect(sinceWith({ since: ['web/src/cart/a.ts'], read: [read] })).toMatchObject({ stillRead });
 });

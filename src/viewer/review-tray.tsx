@@ -1,15 +1,9 @@
 import { useState } from 'react';
+import { anchorTarget, type TargetsOf } from '../core/anchors.ts';
 import type { Finding } from '../core/findings.ts';
 import type { GraphNode } from '../core/graph.ts';
 import type { Answer, Comment, Review } from '../core/review.ts';
-import {
-  anchorKey,
-  anchorName,
-  anchorTarget,
-  type PlaceOfLine,
-  placeOfLine,
-  type TargetsOf,
-} from './anchors.ts';
+import { anchorKey, anchorName, type PlaceOfLine, placeOfLine } from './anchors.ts';
 import { COMMENT_KINDS, type Comments } from './comment-field.tsx';
 import { ANSWER_KINDS, type Answers } from './finding-display.tsx';
 import { partsRead } from './reading-order-list.tsx';

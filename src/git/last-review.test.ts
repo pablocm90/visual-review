@@ -35,16 +35,17 @@ type WrittenReview = {
   readonly writtenAt: number;
   readonly verdict?: string;
   readonly pullRequest?: number;
+  readonly said?: Record<string, unknown>;
 };
 
 const writeReview = (
   directory: string,
-  { head, writtenAt, verdict = 'comment', pullRequest = 7 }: WrittenReview,
+  { head, writtenAt, verdict = 'comment', pullRequest = 7, said = {} }: WrittenReview,
 ): void => {
   const file = join(directory, `base..${head}.review.json`);
   writeFileSync(
     file,
-    JSON.stringify({ verdict, reviewed: { range: `base..${head}`, pullRequest } }),
+    JSON.stringify({ verdict, reviewed: { range: `base..${head}`, pullRequest }, ...said }),
   );
   utimesSync(file, writtenAt, writtenAt);
 };
@@ -56,7 +57,7 @@ test("the newest review of the pull request at another head is the last one, the
   writeReview(directory, { head: H1, writtenAt: 2_000, verdict: 'request-changes' });
   writeReview(directory, { head: H2, writtenAt: 3_000 });
 
-  await expect(lastReviewOf({ repo, pullRequest: 7, head: H2 })).resolves.toEqual({
+  await expect(lastReviewOf({ repo, pullRequest: 7, head: H2 })).resolves.toMatchObject({
     head: H1,
     verdict: 'request-changes',
   });
@@ -69,7 +70,7 @@ test('a review file git tracks came with the repo, so it is no last review, howe
   writeReview(directory, { head: H1, writtenAt: 2_000, verdict: 'approve' });
   git(repo, 'add', '--force', `.reviews/base..${H1}.review.json`);
 
-  await expect(lastReviewOf({ repo, pullRequest: 7, head: H2 })).resolves.toEqual({
+  await expect(lastReviewOf({ repo, pullRequest: 7, head: H2 })).resolves.toMatchObject({
     head: H0,
     verdict: 'comment',
   });
@@ -133,7 +134,7 @@ test('a review in an older format still counts, whatever else it holds', async (
     }),
   );
 
-  await expect(lastReviewOf({ repo, pullRequest: 7, head: H2 })).resolves.toEqual({
+  await expect(lastReviewOf({ repo, pullRequest: 7, head: H2 })).resolves.toMatchObject({
     head: H1,
     verdict: 'approve',
   });
@@ -203,7 +204,7 @@ test('a review of a SHA-256 head counts', async () => {
   const head = '1'.repeat(64);
   writeReview(directory, { head, writtenAt: 1_000 });
 
-  await expect(lastReviewOf({ repo, pullRequest: 7, head: H2 })).resolves.toEqual({
+  await expect(lastReviewOf({ repo, pullRequest: 7, head: H2 })).resolves.toMatchObject({
     head,
     verdict: 'comment',
   });
@@ -223,8 +224,93 @@ test("a review file that can't be read is skipped, not a failed review", async (
   writeReview(directory, { head: H1, writtenAt: 1_000 });
   symlinkSync('missing', join(directory, `base..${H2}.review.json`));
 
-  await expect(lastReviewOf({ repo, pullRequest: 7, head: H3 })).resolves.toEqual({
+  await expect(lastReviewOf({ repo, pullRequest: 7, head: H3 })).resolves.toMatchObject({
     head: H1,
     verdict: 'comment',
   });
+});
+
+const answer = (id: string, kind: 'fix' | 'fine' | 'explain') => ({
+  anchor: { kind: 'finding', id },
+  kind,
+});
+
+test('the last review hands on what the reviewer said: general comment, parts read and comments', async () => {
+  using reviews = reviewsDirectory();
+  const { repo, directory } = reviews;
+  const comment = { anchor: { kind: 'part', id: 'web/a.ts' }, kind: 'change', text: 'Split it' };
+  writeReview(directory, {
+    head: H1,
+    writtenAt: 1_000,
+    said: { body: 'Nearly', read: ['web/a.ts'], comments: [comment] },
+  });
+
+  await expect(lastReviewOf({ repo, pullRequest: 7, head: H2 })).resolves.toEqual({
+    head: H1,
+    verdict: 'comment',
+    body: 'Nearly',
+    read: ['web/a.ts'],
+    comments: [comment],
+    calledFine: [],
+  });
+});
+
+test("a finding stays called fine over the pull request's reviews until a newer answer says otherwise", async () => {
+  using reviews = reviewsDirectory();
+  const { repo, directory } = reviews;
+  writeReview(directory, {
+    head: H0,
+    writtenAt: 1_000,
+    said: {
+      comments: [
+        answer('logic:held', 'fine'),
+        answer('logic:taken-back', 'fine'),
+        answer('logic:came-round', 'fix'),
+      ],
+    },
+  });
+  writeReview(directory, {
+    head: H1,
+    writtenAt: 2_000,
+    said: { comments: [answer('logic:taken-back', 'explain'), answer('logic:came-round', 'fine')] },
+  });
+  writeReview(directory, {
+    head: H2,
+    writtenAt: 3_000,
+    said: { comments: [answer('logic:at-this-head', 'fine')] },
+  });
+  writeReview(directory, {
+    head: H3,
+    writtenAt: 4_000,
+    pullRequest: 8,
+    said: { comments: [answer('logic:other-pull-request', 'fine')] },
+  });
+
+  const last = await lastReviewOf({ repo, pullRequest: 7, head: H2 });
+
+  expect(last?.head).toBe(H1);
+  expect(last?.calledFine.toSorted()).toEqual([
+    'logic:at-this-head',
+    'logic:came-round',
+    'logic:held',
+  ]);
+});
+
+test('a comment on a part of the same id takes back no answer', async () => {
+  using reviews = reviewsDirectory();
+  const { repo, directory } = reviews;
+  writeReview(directory, {
+    head: H0,
+    writtenAt: 1_000,
+    said: { comments: [answer('same', 'fine')] },
+  });
+  writeReview(directory, {
+    head: H1,
+    writtenAt: 2_000,
+    said: { comments: [{ anchor: { kind: 'part', id: 'same' }, kind: 'question', text: 'Why?' }] },
+  });
+
+  const last = await lastReviewOf({ repo, pullRequest: 7, head: H2 });
+
+  expect(last?.calledFine).toEqual(['same']);
 });
