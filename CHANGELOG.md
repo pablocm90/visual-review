@@ -6,7 +6,7 @@ What changed in each release of `@pablocm90/visual-review`, newest first. Versio
 
 ### Added
 
-- On a PR's later round, once you have sent a review of an earlier head, **Show** offers **Since last review** first, with Changes only still the default. It draws what changed since that head, among the parts the PR changes and in the paths it changes, so merging the base branch in counts only where it touches one of those paths. With nothing changed since, a line says so.
+- On a PR's later round, once you have sent a review of an earlier head, **Show** offers **Since last review** first, with Changes only still the default. It draws what changed since that head, among the parts the PR changes and in the paths it changes, so merging the base branch in counts only where it touches one of those paths. With nothing the PR still changes changed since, a line says so; a part reverted since the last review doesn't count.
 - When the commit last reviewed is no longer in your clone, or can't be read, the header says so and the full review is shown, with no Since last review. The reason a read failed sits on the line's tooltip.
 - The review data's `sinceReview` holds the `head` last reviewed and either its `verdict` and `changed` (`nodes` and `edges` ids), `gone: true` or `unreadable`. The plugin's skill says in its summary what changed since, or that it can't be told and why.
 

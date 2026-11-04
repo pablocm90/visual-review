@@ -5412,9 +5412,7 @@ test("with 'Since last review' shown and nothing drawn changed since, the graph 
 
   await user.click(shown('Since last review'));
 
-  expect(
-    await screen.findByText('Nothing in the graph changed since the last review.'),
-  ).toBeTruthy();
+  expect(await screen.findByText(/changed since the last review/)).toBeTruthy();
 });
 
 test('a review whose reviewed head is gone says so, with that head short, in the header, and shows the full review', async () => {

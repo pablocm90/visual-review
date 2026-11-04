@@ -1292,7 +1292,9 @@ const typesText = (target: EventTarget | null) =>
 
 const NothingDrawn = ({ scope }: { readonly scope: Scope }) => (
   <p className="caveat">
-    Nothing in the graph changed{scope[0] === SINCE_LAST_REVIEW && ' since the last review'}.
+    {scope[0] === SINCE_LAST_REVIEW
+      ? 'Nothing in the graph that the PR still changes has changed since the last review.'
+      : 'Nothing in the graph changed.'}
   </p>
 );
 
