@@ -5613,6 +5613,53 @@ test("'Since last review' names what was added then and has since gone, which it
   expect(screen.queryByText(/so not drawn/)).toBeNull();
 });
 
+const pageWithSymbolsEditedThenAndSince = () =>
+  pageWith({
+    range: review.range,
+    diff: {
+      nodes: [
+        { id: 'web', kind: 'stack', label: 'web', path: '', state: 'unchanged' },
+        topFile('tax.ts', 'modified'),
+      ],
+      edges: [],
+    },
+    symbols: [
+      symbolsOf('web/file/tax.ts', [
+        {
+          name: 'tax',
+          kind: 'function',
+          exported: { base: false, head: false },
+          change: 'edited',
+        },
+        {
+          name: 'round',
+          kind: 'function',
+          exported: { base: false, head: false },
+          change: 'edited',
+        },
+      ]),
+    ],
+    sinceReview: {
+      ...sinceReview,
+      changed: changedSince({ symbols: ['web/file/tax.ts#tax'] }),
+    },
+  });
+
+test('a later round marks the symbol changed since the last review, not the one edited only before it, whatever Show holds', async () => {
+  const user = userEvent.setup();
+  render(<ReviewPage review={pageWithSymbolsEditedThenAndSince()} />);
+
+  await user.click(await screen.findByRole('button', { name: 'tax.ts: modified' }));
+  await user.click(within(inspector()).getByRole('tab', { name: /^Symbols/ }));
+
+  const since = within(symbolsTab()).getByRole('listitem', {
+    name: 'function tax: edited, changed since',
+  });
+  expect(within(since).getByText('changed since')).toBeTruthy();
+  const before = within(symbolsTab()).getByRole('listitem', { name: 'function round: edited' });
+  expect(within(before).queryByText('changed since')).toBeNull();
+});
+
 test('a review whose reviewed head is gone says so, with that head short, in the header, and shows the full review', async () => {
   const head = 'a1b2c3d4e5f6a7b8c9d0a1b2c3d4e5f6a7b8c9d0';
   render(<ReviewPage review={pageWith({ ...review, sinceReview: { head, gone: true } })} />);

@@ -36,6 +36,7 @@ import {
   visibleNodeOf,
 } from '../core/visible-diff.ts';
 import { anchorKey, anchorName, lineAnchor, placeOfLine } from './anchors.ts';
+import { ChangedSinceMarks } from './changed-since.tsx';
 import { ColourBy, type Colouring, ScaleLegend, type Shade, shadeOf } from './colour-by.tsx';
 import { CommentField, CommentOn, type Comments } from './comment-field.tsx';
 import {
@@ -1316,7 +1317,7 @@ const GraphCaveat = ({ since, nothingDrawn }: GraphCaveatProps) => {
   );
 };
 
-export const ReviewPage = ({ review, notes, send }: ReviewPageProps) => {
+const Page = ({ review, notes, send }: ReviewPageProps) => {
   const tab = useTab();
   const [layout, setLayout] = useState<Layout>();
   const { frameElement, placed, frameProps, zoomAtCentre, fitToFrame, centre, pin } =
@@ -1668,3 +1669,9 @@ export const ReviewPage = ({ review, notes, send }: ReviewPageProps) => {
     </main>
   );
 };
+
+export const ReviewPage = (props: ReviewPageProps) => (
+  <ChangedSinceMarks value={changedSinceIn(props.review)}>
+    <Page {...props} />
+  </ChangedSinceMarks>
+);

@@ -11,6 +11,7 @@ import {
 } from '../core/symbol-changes.ts';
 import { type AnchoredSymbol, anchoredSymbols, decisionsOf } from '../core/symbol-findings.ts';
 import { anchorKey } from './anchors.ts';
+import { ChangedSinceTag, sinceLabel, useIsChangedSince } from './changed-since.tsx';
 import { CommentOn, type Comments } from './comment-field.tsx';
 
 type Group = readonly [string, (symbol: SymbolStatement) => boolean];
@@ -178,41 +179,51 @@ const SymbolList = ({
   readonly node: string;
   readonly title: string;
   readonly symbols: ReadonlyArray<AnchoredSymbol>;
-}) => (
-  <ul aria-label={title}>
-    {symbols.map(({ item: symbol, id }) => (
-      <li key={id} aria-label={`${nameOf(symbol)}: ${symbol.change}`}>
-        <span className="kind">{symbol.kind}</span> <code>{qualified(symbol)}</code>
-        {exportMarkOf(symbol) !== undefined && (
-          <span className="export-mark"> {exportMarkOf(symbol)}</span>
-        )}
-        <Origin symbol={symbol} {...places} />
-        {symbol.signature && (
-          <span className="signature">
-            <del>{symbol.signature.base}</del>
-            <ins>{symbol.signature.head}</ins>
-          </span>
-        )}
-        {places.onComment && (
-          <CommentOn
-            name={`${symbol.kind} ${qualified(symbol)}`}
-            anchor={{ kind: 'symbol', id }}
-            comments={places.comments}
-            onComment={places.onComment}
-          />
-        )}
-        {symbol.logic !== undefined && (
-          <LogicLines
-            symbol={{ item: symbol, id }}
-            onShowLine={at => places.onShowLine({ node, ...at })}
-            comments={places.comments}
-            onComment={places.onComment}
-          />
-        )}
-      </li>
-    ))}
-  </ul>
-);
+}) => {
+  const isChangedSince = useIsChangedSince();
+  return (
+    <ul aria-label={title}>
+      {symbols.map(({ item: symbol, id }) => (
+        <li
+          key={id}
+          aria-label={sinceLabel(
+            `${nameOf(symbol)}: ${symbol.change}`,
+            isChangedSince('symbols', id),
+          )}
+        >
+          <span className="kind">{symbol.kind}</span> <code>{qualified(symbol)}</code>
+          {exportMarkOf(symbol) !== undefined && (
+            <span className="export-mark"> {exportMarkOf(symbol)}</span>
+          )}
+          {isChangedSince('symbols', id) && <ChangedSinceTag />}
+          <Origin symbol={symbol} {...places} />
+          {symbol.signature && (
+            <span className="signature">
+              <del>{symbol.signature.base}</del>
+              <ins>{symbol.signature.head}</ins>
+            </span>
+          )}
+          {places.onComment && (
+            <CommentOn
+              name={`${symbol.kind} ${qualified(symbol)}`}
+              anchor={{ kind: 'symbol', id }}
+              comments={places.comments}
+              onComment={places.onComment}
+            />
+          )}
+          {symbol.logic !== undefined && (
+            <LogicLines
+              symbol={{ item: symbol, id }}
+              onShowLine={at => places.onShowLine({ node, ...at })}
+              comments={places.comments}
+              onComment={places.onComment}
+            />
+          )}
+        </li>
+      ))}
+    </ul>
+  );
+};
 
 const SymbolFiles = ({ file, ...places }: Places & { readonly file: SymbolFile }) => {
   const symbols = 'symbols' in file ? anchoredSymbols(file.node, file.symbols) : [];

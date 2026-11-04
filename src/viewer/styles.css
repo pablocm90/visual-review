@@ -2444,3 +2444,13 @@ main:has(> .review-tray) {
     opacity: 1;
   }
 }
+
+.changed-since {
+  margin-inline-start: 6px;
+  padding: 0 4px;
+  border: 1px solid var(--modified);
+  border-radius: 3px;
+  color: var(--modified);
+  font-size: 11px;
+  white-space: nowrap;
+}
