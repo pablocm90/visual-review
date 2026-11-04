@@ -74,7 +74,7 @@ _Avoid_: branch, condition
 _In code_: `Decision`, `DecisionKind`
 
 **Logic line**:
-One decision of an edited or renamed function, diffed across the sides: the same, added, removed, or changed (a base and a head decision of one kind paired in place).
+One decision of an edited or renamed function, diffed across the sides: the same, added, removed, changed (a base and a head decision of one kind paired in place), or moved (one it lost whose kind and text another symbol gained at the head, found by text alone).
 _Avoid_: logic diff (for one line), branch change
 _In code_: `LogicLine`
 
@@ -134,7 +134,7 @@ _In code_: `SinceReview['calledFine']`
 - A **round** after the first compares against the newest review of its pull request at another head; **changed since** is always a subset of what the pull request changes at either head, so a part it has reverted counts; a symbol, logic line, test or file is **changed since** by its own anchor id, a diff line by its file.
 - A **direct** package's **dependency change** raises its own **finding** that needs a look; a lockfile's transitive ones roll up into one **finding** for information.
 - A **flag** is answered like any other **finding**, under the id `notes:<node or edge id>`.
-- A removed guard or catch **logic line** raises a **finding** in the logic dimension that needs a look; a function's other **logic lines** that changed raise one for information; a file with either and no test changed alongside it raises one in the tests dimension.
+- A removed guard or catch **logic line** raises a **finding** in the logic dimension that needs a look; a function's other **logic lines** that changed, a moved one among them, raise one for information; a file with either and no test changed alongside it raises one in the tests dimension.
 
 ## Flagged ambiguities
 
