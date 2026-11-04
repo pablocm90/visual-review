@@ -4317,6 +4317,7 @@ test('a moved logic line names the symbol it moved to, and opens the Diff tab on
           nodes: [
             { id: 'web', kind: 'stack', label: 'web', path: '', state: 'unchanged' },
             topFile('refund.ts', 'modified'),
+            topFile('retry.ts', 'modified'),
           ],
           edges: [],
         },
@@ -4335,6 +4336,15 @@ test('a moved logic line names the symbol it moved to, and opens the Diff tab on
                   base: 'if (!paid) return',
                   line: 2,
                   movedTo: 'checked',
+                },
+                {
+                  change: 'moved',
+                  kind: 'catch',
+                  depth: 0,
+                  base: 'catch (error)',
+                  line: 3,
+                  movedTo: 'refund',
+                  movedToNode: 'web/file/retry.ts',
                 },
               ],
             },
@@ -4358,10 +4368,16 @@ test('a moved logic line names the symbol it moved to, and opens the Diff tab on
 
   await user.click(await screen.findByRole('button', { name: 'refund.ts: modified' }));
   await user.click(within(inspector()).getByRole('tab', { name: 'Symbols 1' }));
-  const line = within(screen.getByRole('tabpanel', { name: 'Symbols' })).getByRole('button', {
+  const panel = within(screen.getByRole('tabpanel', { name: 'Symbols' }));
+  const line = panel.getByRole('button', {
     name: 'moved guard: if (!paid) return, moved to checked',
   });
-  expect(line.textContent).toContain('moved to checked');
+  expect(line.textContent).toMatch(/moved to checked$/);
+  expect(
+    panel.getByRole('button', {
+      name: 'moved catch: catch (error), moved to refund in retry.ts',
+    }).textContent,
+  ).toMatch(/moved to refund in retry\.ts$/);
 
   await user.click(line);
   const row = scrolledIntoView.mock.contexts.at(-1);

@@ -223,22 +223,26 @@ type End = {
   readonly symbol: ReadSymbol;
 };
 
-type Gain = { readonly key: string; readonly owner: SymbolStatement };
+type Gain = { readonly key: string; readonly owner: SymbolStatement; readonly node: string };
 
 const decisionsIn = (statement: SymbolStatement, side: FileSymbols) =>
   side.symbols.find(read => sameSymbol(read, statement))?.decisions ?? [];
 
-const gainsOf = (statement: SymbolStatement, after: FileSymbols): ReadonlyArray<Gain> => {
+const gainsOf = (
+  statement: SymbolStatement,
+  { node, after }: Pick<Settled, 'node' | 'after'>,
+): ReadonlyArray<Gain> => {
   const decisions =
     statement.change === 'added'
       ? decisionsIn(statement, after)
       : (statement.logic ?? [])
           .filter(({ change }) => change === 'added')
           .map(line => ({ kind: line.kind, text: decisionText(line) }));
-  return decisions.map(decision => ({ key: decisionKey(decision), owner: statement }));
+  return decisions.map(decision => ({ key: decisionKey(decision), owner: statement, node }));
 };
 
 type Settled = {
+  readonly node: string;
   readonly before: FileSymbols;
   readonly after: FileSymbols;
   readonly symbols: ReadonlyArray<SymbolStatement>;
@@ -259,7 +263,7 @@ const movesOf = (files: ReadonlyArray<Settled>): ReadonlyMap<LogicLine, Gain> =>
   const gains = Map.groupBy(
     files.flatMap(heldByRemoved).reduce(
       withoutOne,
-      files.flatMap(({ after, symbols }) => symbols.flatMap(symbol => gainsOf(symbol, after))),
+      files.flatMap(file => file.symbols.flatMap(symbol => gainsOf(symbol, file))),
     ),
     ({ key }) => key,
   );
@@ -282,6 +286,7 @@ const movesOf = (files: ReadonlyArray<Settled>): ReadonlyMap<LogicLine, Gain> =>
 
 const withMoves = (
   statement: SymbolStatement,
+  node: string,
   moves: ReadonlyMap<LogicLine, Gain>,
 ): SymbolStatement =>
   statement.logic === undefined
@@ -292,7 +297,12 @@ const withMoves = (
           const gain = moves.get(line);
           return gain === undefined
             ? line
-            : { ...line, change: 'moved', movedTo: qualified(gain.owner) };
+            : {
+                ...line,
+                change: 'moved',
+                movedTo: qualified(gain.owner),
+                ...(gain.node === node ? {} : { movedToNode: gain.node }),
+              };
         }),
       };
 
@@ -337,6 +347,6 @@ export const symbolChangesOf = (
   return settled.map(({ node, changes, symbols }) => ({
     node,
     ...changes,
-    symbols: symbols.map(statement => withMoves(statement, moves)),
+    symbols: symbols.map(statement => withMoves(statement, node, moves)),
   }));
 };

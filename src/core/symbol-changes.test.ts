@@ -633,9 +633,13 @@ test('a decision lost to a new function in another changed file moved there too'
     },
   ]);
 
-  expect(logicOfIn(files, 'charge')?.map(({ change, movedTo }) => ({ change, movedTo }))).toEqual([
-    { change: 'moved', movedTo: 'Cart.checked' },
-  ]);
+  expect(
+    logicOfIn(files, 'charge')?.map(({ change, movedTo, movedToNode }) => ({
+      change,
+      movedTo,
+      movedToNode,
+    })),
+  ).toEqual([{ change: 'moved', movedTo: 'Cart.checked', movedToNode: 'b' }]);
 });
 
 const lostOf = (base: ReadonlyArray<string>, head: ReadonlyArray<string>, name = 'charge') =>
@@ -758,7 +762,10 @@ test('a gained decision of the same text but another kind takes no lost one', ()
         ...after,
         symbols: after.symbols.map(symbol => ({
           ...symbol,
-          decisions: symbol.decisions?.map(decision => ({ ...decision, kind: 'if' as const })),
+          decisions: (symbol.decisions ?? []).map(decision => ({
+            ...decision,
+            kind: 'if' as const,
+          })),
         })),
       },
     },

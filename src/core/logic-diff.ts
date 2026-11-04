@@ -8,6 +8,7 @@ export type LogicLine = {
   readonly head?: string;
   readonly line: number;
   readonly movedTo?: string;
+  readonly movedToNode?: string;
 };
 
 type Sides = {
