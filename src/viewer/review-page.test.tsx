@@ -5370,7 +5370,6 @@ const openUndrawnFiles = async (user: ReturnType<typeof userEvent.setup>) => {
 const pageWithLockfile = (place: 'undrawn' | 'patches', path: string) =>
   pageWith({
     ...review,
-    undrawn: [{ path: 'README.md', patch: '--- a/README.md\n+++ b/README.md\n@@ -1 +1 @@\n-a\n+b' }],
     [place]: [{ path, patch: `--- a/${path}\n+++ b/${path}\n@@ -1 +1 @@\n-old\n+new` }],
     findings: [
       {
@@ -5381,6 +5380,13 @@ const pageWithLockfile = (place: 'undrawn' | 'patches', path: string) =>
         title: 'zod 3.25.0 → 4.6.7',
         detail: path,
       },
+      {
+        id: `dependencies:not-read:${path}`,
+        dimension: 'dependencies',
+        level: 'look',
+        file: path,
+        title: `${path} not read: Yarn 2+ format`,
+      },
     ],
   });
 
@@ -5388,7 +5394,7 @@ test("a dependencies finding opens its lockfile's patch among the files outside 
   const user = userEvent.setup();
   render(<ReviewPage review={pageWithLockfile('undrawn', 'pnpm-lock.yaml')} />);
 
-  await user.click(await screen.findByRole('button', { name: 'Show 1 finding' }));
+  await user.click(await screen.findByRole('button', { name: 'Show 2 findings' }));
   const finding = () =>
     within(screen.getByRole('complementary', { name: 'Findings' })).getByRole('button', {
       name: 'pnpm-lock.yaml: zod 3.25.0 → 4.6.7',
@@ -5404,6 +5410,13 @@ test("a dependencies finding opens its lockfile's patch among the files outside 
 
   await user.click(within(inspector()).getByRole('button', { name: 'Close inspector' }));
   expect(document.activeElement).toBe(finding());
+
+  await user.click(
+    within(screen.getByRole('complementary', { name: 'Findings' })).getByRole('button', {
+      name: 'pnpm-lock.yaml not read: Yarn 2+ format',
+    }),
+  );
+  expect(within(inspector()).getByRole('group', { name: 'pnpm-lock.yaml' })).toBeDefined();
 });
 
 test("a dependencies finding opens its lockfile's patch on the Diff tab of the node holding it, at its top", async () => {
@@ -5411,7 +5424,7 @@ test("a dependencies finding opens its lockfile's patch on the Diff tab of the n
   const path = 'crates/application/Cargo.lock';
   render(<ReviewPage review={pageWithLockfile('patches', path)} />);
 
-  await user.click(await screen.findByRole('button', { name: 'Show 1 finding' }));
+  await user.click(await screen.findByRole('button', { name: 'Show 2 findings' }));
   await user.click(
     within(screen.getByRole('complementary', { name: 'Findings' })).getByRole('button', {
       name: `${path}: zod 3.25.0 → 4.6.7`,

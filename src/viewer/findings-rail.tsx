@@ -138,7 +138,7 @@ const FindingItem = ({ finding, answer, onAnswer }: FindingItemProps) => {
       {finding.act ? (
         <button
           type="button"
-          aria-label={`${finding.target}: ${finding.sentence}`}
+          aria-label={finding.target ? `${finding.target}: ${finding.sentence}` : finding.sentence}
           onClick={event => finding.act?.(event.currentTarget)}
         >
           {said}
