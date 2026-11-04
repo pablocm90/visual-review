@@ -13,7 +13,7 @@ The layout: `src/core/` holds the ports (`Reader`, `Linker`), config, `read-rang
 
 ## Commands
 
-- `pnpm install`, then `pnpm check` (biome), `pnpm typecheck` (tsc 7, no emit), `pnpm test` (vitest, ~30 s), `pnpm mutate` (Stryker), `pnpm build` (`dist/`: the CLI as JS via `tsconfig.build.json`, plus the page).
+- `pnpm install`, then `pnpm check` (biome), `pnpm typecheck` (tsc 7, no emit), `pnpm test` (vitest, ~40 s), `pnpm mutate` (Stryker), `pnpm build` (`dist/`: the CLI as JS via `tsconfig.build.json`, plus the page).
 - The package is `@pablocm90/visual-review` with the bin `visual-review` (`dist/cli.js`), shipping only `dist/`. Anything the CLI imports at runtime must be in `dependencies`; what only the page bundles (React, ELK, highlight.js) stays in `devDependencies`. Check an install with `pnpm pack` and `pnpm add <tarball>` in a scratch project.
 - **Pre-push gate:** `pnpm check && pnpm typecheck`. CI (`.github/workflows/ci.yml`, GitHub Actions on every push) runs those plus `pnpm test` and `pnpm build`, with git and cargo on the runner.
 - `src/index.ts` is the package entry: types only (`Reader`, `Graph`…). Node ids are part of a reader's contract (JSDoc on `GraphNode`): notes are keyed by them.
@@ -25,7 +25,7 @@ The layout: `src/core/` holds the ports (`Reader`, `Linker`), config, `read-rang
 - TypeScript strict with `noUncheckedIndexedAccess`, `exactOptionalPropertyTypes` and `noPropertyAccessFromIndexSignature`: index results are `T | undefined`, and `process.env['X']` takes brackets.
 - Biome: single quotes, width 100, arrow parens as needed; two a11y rules are off under `src/viewer/**`.
 - TypeScript 7 has no JS compiler API, so dependency-cruiser parses TS through `@swc/core`. Without it the web graph silently reads no modules.
-- The tests shell out to real `git` and `cargo`. `review-page.test.tsx` lays its fixture out once at load and waits up to 3 s (`asyncUtilTimeout`) in every `findBy` and `waitFor`, so a loaded machine renders the first page in time; ask before raising a timeout, and diagnose a flake with the test file run 12× in parallel under busy loops before blaming load.
+- The tests shell out to real `git` and `cargo`. `review-page.test.tsx` lays its fixture out once at load and waits up to 3 s (`asyncUtilTimeout`) in every `findBy` and `waitFor`, so a loaded machine renders the first page in time; ask before raising a timeout, and diagnose a flake with the test file run 12× in parallel under busy loops before blaming load. `vitest.config.ts` runs the `.test.ts` files first and the `.test.tsx` files after them, one at a time (`sequence.groupOrder`, `fileParallelism`), because a page test's slowdown follows the other files running during it: keep them apart. To expose a page test that reads before a relayout lands, delay `layoutDiff` by a temporary `setTimeout` and run the file at several delays; it should stay green.
 
 ## Conventions
 

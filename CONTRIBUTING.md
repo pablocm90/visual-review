@@ -20,7 +20,7 @@ Node runs the `.ts` sources directly by stripping their types, so there is no bu
 |---|---|
 | `pnpm check` | Biome: formatting and lint |
 | `pnpm typecheck` | `tsc` in strict mode, with no output |
-| `pnpm test` | Vitest, about 30 s. Its global setup builds the page first |
+| `pnpm test` | Vitest, about 40 s. Its global setup builds the page first |
 | `pnpm mutate` | Stryker mutation testing |
 | `pnpm build` | `dist/`: the CLI as JS, the page as one HTML file, and the JSON schemas |
 | `pnpm review <pr \| from..to>` | runs the CLI from source on this repo, or on uncommitted work with no argument |

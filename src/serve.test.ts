@@ -21,6 +21,15 @@ import { expect, test, vi } from 'vitest';
 import { pingServe, sendReview } from './core/page.ts';
 import type { Review } from './core/review.ts';
 
+const removeBesideItsOpener = (bin: string) => {
+  const remove = () => rmSync(bin, { recursive: true, force: true });
+  try {
+    remove();
+  } catch {
+    remove();
+  }
+};
+
 const fakeOpeners = (openers: ReadonlyArray<string>) => {
   const bin = mkdtempSync(join(tmpdir(), 'visual-review-opener-'));
   const opened = join(bin, 'opened');
@@ -34,7 +43,7 @@ const fakeOpeners = (openers: ReadonlyArray<string>) => {
     opened: () => readFileSync(opened, 'utf8'),
     openedAny: () => existsSync(opened),
     forget: () => rmSync(opened, { force: true }),
-    [Symbol.dispose]: () => rmSync(bin, { recursive: true, force: true }),
+    [Symbol.dispose]: () => removeBesideItsOpener(bin),
   };
 };
 
