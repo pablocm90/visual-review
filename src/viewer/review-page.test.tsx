@@ -5007,6 +5007,7 @@ test("a served page's Tests screen takes a comment on a test row, one draft with
 
 test("a test's draft in the tray opens the Tests tab of the file it's named after, though no box holds it, showing the draft", async () => {
   const user = userEvent.setup();
+  atHash('#structure');
   render(
     <ReviewPage
       review={pageWith({
