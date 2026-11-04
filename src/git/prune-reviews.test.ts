@@ -1,4 +1,12 @@
-import { mkdirSync, mkdtempSync, readdirSync, rmSync, utimesSync, writeFileSync } from 'node:fs';
+import {
+  mkdirSync,
+  mkdtempSync,
+  readdirSync,
+  rmSync,
+  symlinkSync,
+  utimesSync,
+  writeFileSync,
+} from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { expect, test } from 'vitest';
@@ -23,7 +31,7 @@ const writePage = (
   directory: string,
   name: string,
   writtenAt: number,
-  extensions: ReadonlyArray<string> = ['html', 'json', 'notes.json', 'review.json', 'serve'],
+  extensions: ReadonlyArray<string> = ['html', 'json', 'notes.json', 'review.json'],
 ): void =>
   extensions.forEach(extension => {
     const file = join(directory, `${name}.${extension}`);
@@ -31,7 +39,7 @@ const writePage = (
     utimesSync(file, writtenAt, writtenAt);
   });
 
-test('keeps the most recently written pages and deletes older ones with their data, any notes, any review and any lock', async () => {
+test('keeps the most recently written pages and deletes older ones with their data, any notes and any review', async () => {
   using reviews = reviewsDirectory();
   const { repo, directory } = reviews;
   writePage(directory, 'a..oldest', 1_000, ['html', 'json']);
@@ -46,7 +54,6 @@ test('keeps the most recently written pages and deletes older ones with their da
     'b..newest.json',
     'b..newest.notes.json',
     'b..newest.review.json',
-    'b..newest.serve',
     'scratch.txt',
   ]);
 });
@@ -107,4 +114,39 @@ test("a review file git tracks isn't pruned as stale and takes no place as the n
   await pruneReviews({ repo, keep: 1 });
 
   expect(filesIn(directory)).toEqual(['a..sent.review.json', 'a..tracked.review.json']);
+});
+
+test.for([
+  {
+    what: 'a link to nothing',
+    lay: (path: string) => symlinkSync('nowhere', path),
+  },
+  {
+    what: 'a folder',
+    lay: (path: string) => mkdirSync(path),
+  },
+])(
+  "$what named as a page isn't a page: it takes no place among those kept and stays",
+  async ({ lay }) => {
+    using reviews = reviewsDirectory();
+    const { repo, directory } = reviews;
+    writePage(directory, 'a..page', 1_000, ['html']);
+    lay(join(directory, 'b..standing.html'));
+
+    await pruneReviews({ repo, keep: 1 });
+
+    expect(filesIn(directory)).toEqual(['a..page.html', 'b..standing.html']);
+  },
+);
+
+test("a folder at the name of an older page's data goes with the page", async () => {
+  using reviews = reviewsDirectory();
+  const { repo, directory } = reviews;
+  writePage(directory, 'a..older', 1_000, ['html']);
+  mkdirSync(join(directory, 'a..older.json'));
+  writePage(directory, 'b..newer', 2_000, ['html']);
+
+  await pruneReviews({ repo, keep: 1 });
+
+  expect(filesIn(directory)).toEqual(['b..newer.html']);
 });

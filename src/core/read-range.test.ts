@@ -704,6 +704,34 @@ test('a skipped reader lists the stacks it would read on either side, those foun
   expect(range.skipped).toEqual([{ reader: 'rust', tool: 'cargo', stacks: ['rust', 'other'] }]);
 });
 
+test.for([
+  { name: 'a name git would quote', path: 'web/src/café.ts' },
+  { name: 'a name git would read as pathspec magic', path: ':(exclude)a.ts' },
+])('$name is listed as it is, with its own patch', { timeout: 60_000 }, async ({ path }) => {
+  using workspace = cargoWorkspace();
+  const { repo, root } = workspace;
+  const to = commit(repo, { [path]: 'export const edited = 1;\n', 'web/src/a.ts': 'other\n' });
+
+  const range = await readRange({ repo, from: root, to });
+
+  expect(range.changedPaths).toContain(path);
+  expect(range.patches.find(patch => patch.path === path)?.patch).toMatch(
+    /\+export const edited = 1;$/,
+  );
+});
+
+test('a renamed file whose names git would quote is one rename, listed by both', async () => {
+  using workspace = cargoWorkspace();
+  const { repo } = workspace;
+  const from = commit(repo, { 'web/src/é.ts': 'export const same = 1;\n' });
+  rmSync(join(repo, 'web/src/é.ts'));
+  const to = commit(repo, { 'web/src/è.ts': 'export const same = 1;\n' });
+
+  const range = await readRange({ repo, from, to });
+
+  expect(range.renames).toEqual([{ from: 'web/src/é.ts', to: 'web/src/è.ts' }]);
+}, 60_000);
+
 test('a file moved between modules is one rename, with one patch at its new path that shows only what changed', async () => {
   using workspace = cargoWorkspace();
   const { repo } = workspace;

@@ -1502,6 +1502,7 @@ test('a reader skipped for want of its tool is named once, at the top of the fin
         skipped,
         findings: raisedFindings({
           skipped,
+          changedPaths: [],
           undrawn: [],
           dangling: [],
           dependencyChanges: [],
