@@ -2,6 +2,13 @@
 
 What changed in each release of `@pablocm90/visual-review`, newest first. Versions follow [semver](https://semver.org); while it is 0.x, a minor version may change the exported types.
 
+## Unreleased
+
+### Added
+
+- A Rails migration the change adds raises a Schema finding that needs a look for each risky operation that runs going up: a column, reference or timestamps removed, a column renamed, a type changed, a column set to `null: false`, a required column added with no default, and an index added without `algorithm: :concurrently`. It names the line and why, ranks in Look first beside direct dependency changes, and opens the file's patch. A migration that doesn't parse raises a finding saying it wasn't read, ranked first.
+- The review data carries `migrations`.
+
 ## 0.24.0 — 2026-11-05
 
 ### Added
