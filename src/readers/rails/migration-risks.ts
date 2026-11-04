@@ -14,6 +14,8 @@ type Rule = (call: {
 const REWRITES =
   'A type change can rewrite the table under a lock, and running code expects the old type.';
 
+const SCANS = 'Fails if a row holds NULL, and scans the table under a lock.';
+
 const nameOf = (node: Node | undefined): string => node?.text.replace(/^:?['"]?|['"]$/g, '') ?? '';
 
 const callsIn = (node: Node): ReadonlyArray<Node> => [
@@ -49,6 +51,13 @@ const RULES: ReadonlyMap<string, Rule> = new Map<string, Rule>([
     ({ table, args: [column, type] }) => [
       { title: `column ${table}.${nameOf(column)} changed to ${nameOf(type)}`, why: REWRITES },
     ],
+  ],
+  [
+    'change_column_null',
+    ({ table, args: [column, allowed] }) =>
+      allowed?.type === 'true'
+        ? []
+        : [{ title: `column ${table}.${nameOf(column)} set to null: false`, why: SCANS }],
   ],
 ]);
 

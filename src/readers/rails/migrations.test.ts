@@ -62,3 +62,25 @@ test('changing a column type says what it becomes and why that is a risk', () =>
     },
   ]);
 });
+
+test('setting a column null: false says why that is a risk', () => {
+  expect(
+    railsMigrations.risks(migration('change_column_null :users, :email, false')),
+  ).toStrictEqual([
+    {
+      title: 'column users.email set to null: false',
+      why: 'Fails if a row holds NULL, and scans the table under a lock.',
+      line: 3,
+    },
+  ]);
+});
+
+test.for([
+  { written: 'change_column_null :users, :email, true', expected: [] },
+  {
+    written: 'change_column_null :users, :email, allow_null',
+    expected: ['column users.email set to null: false'],
+  },
+])('$written is flagged unless it plainly allows NULL', ({ written, expected }) => {
+  expect(titles(written)).toStrictEqual(expected);
+});
