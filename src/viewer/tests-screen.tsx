@@ -59,7 +59,7 @@ const TestLine = ({
       <span className="mark" aria-hidden="true">
         {moved?.mark ?? TEST_MARKS[test.change]}
       </span>
-      {test.name}
+      <span className="test-name">{test.name}</span>
       {test.label && <span className="label">{test.label}</span>}
       {moved && <span className="moved">{moved.text}</span>}
       {onComment && (
