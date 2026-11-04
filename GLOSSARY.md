@@ -45,7 +45,7 @@ _Avoid_: top findings, priorities
 A note's short label for a concern; on the page it becomes a finding that needs a look, in the note's dimension.
 
 **Symbol**:
-A named function, method, class, type, interface or enum in a file, scoped by what holds it, paired across the sides by scope, name and kind, and marked added, removed, edited, renamed, moved, formatting only or unchanged.
+A named function, method, getter, setter, class, type, interface or enum in a file, scoped by what holds it, paired across the sides by scope, name and kind, and marked added, removed, edited, renamed, moved, formatting only or unchanged.
 _Avoid_: declaration, member
 _In code_: `ReadSymbol` (one side's reading), `SymbolStatement` (paired across the sides)
 
@@ -95,7 +95,7 @@ _Avoid_: default verdict, auto verdict
 - The **reading order** holds every **part** once; a **finding** whose target is a part marks its row.
 - A **read mark** is on a **part**; the count of parts read counts only the parts in the **reading order**.
 - **Look first** holds only findings whose **level** is "needs a look".
-- A changed exported **symbol** raises a **finding** in the api dimension; a file's **kind of change** raises none of its own.
+- A changed exported **symbol** raises a **finding** in the api dimension, under that symbol's id; a file's **kind of change** raises none of its own.
 - A review holds at most one comment or **finding answer** per **anchor**, and each comment has one **comment kind**; the **suggested verdict** follows the kinds and the answers, and the verdict the reviewer picks overrides it.
 - A **flag** is answered like any other **finding**, under the id `notes:<node or edge id>`.
 - A removed guard or catch **logic line** raises a **finding** in the logic dimension that needs a look; a function's other **logic lines** that changed raise one for information; a file with either and no test changed alongside it raises one in the tests dimension.
