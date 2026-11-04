@@ -1,5 +1,5 @@
 import { randomBytes } from 'node:crypto';
-import { lstat, rename, rm, writeFile } from 'node:fs/promises';
+import { chmod, lstat, rename, rm, writeFile } from 'node:fs/promises';
 
 type WriteAnewOptions = {
   readonly path: string;
@@ -15,7 +15,9 @@ const modeOfFileAt = async (path: string): Promise<number | undefined> => {
 export const writeAnew = async ({ path, content, mode }: WriteAnewOptions): Promise<void> => {
   const temporary = `${path}.${randomBytes(8).toString('hex')}`;
   try {
-    await writeFile(temporary, content, { mode: mode ?? (await modeOfFileAt(path)) });
+    const kept = mode ?? (await modeOfFileAt(path));
+    await writeFile(temporary, content, { mode: kept });
+    if (kept !== undefined) await chmod(temporary, kept);
     await rename(temporary, path);
   } finally {
     await rm(temporary, { force: true });

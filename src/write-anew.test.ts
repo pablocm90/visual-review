@@ -40,15 +40,18 @@ test('a write that fails leaves nothing of its own beside the path', async () =>
   expect(readdirSync(directory.path)).toEqual(['taken']);
 });
 
-test('rewriting a file keeps the mode someone gave it', async () => {
+test.for([
+  { given: 'narrower than the umask allows', mode: 0o600 },
+  { given: 'wider than the umask allows', mode: 0o666 },
+])('rewriting a file keeps the mode someone gave it: $given', async ({ mode }) => {
   using directory = folder();
   const path = join(directory.path, 'page.html');
   writeFileSync(path, 'before');
-  chmodSync(path, 0o600);
+  chmodSync(path, mode);
 
   await writeAnew({ path, content: 'after' });
 
-  expect(statSync(path).mode & 0o777).toBe(0o600);
+  expect(statSync(path).mode & 0o777).toBe(mode);
 });
 
 test('replacing a link takes the mode of neither the link nor what it points at', async () => {
