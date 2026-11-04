@@ -2,6 +2,15 @@
 
 What changed in each release of `@pablocm90/visual-review`, newest first. Versions follow [semver](https://semver.org); while it is 0.x, a minor version may change the exported types.
 
+## 0.23.0 — 2026-11-05
+
+### Added
+
+- On a PR's later round, the page starts from what you asked. The header names the last review's verdict, and a **Last review** section atop the left column holds its general comment, each comment and finding answer, going to what it's on and marked **Changed since**, with the commits that touched its file, or **As it was**, and the parts changed since with no comment on them. Each one also shows under its anchor: the Note panel, also on the arrow drawn in an edge's place, a symbol, logic line or test, a diff line (found by its text, since line numbers drift) or a finding in the rail. When the earlier head can't be compared, as after a force-push and a prune, they show with no mark.
+- A finding you called It's fine in any review of the PR stays out of Look first on that PR, and its group tags it "called fine", until a later answer replaces it. It still counts on the triage chips.
+- Parts you marked read last round and unchanged since start out ticked, unless this page's range already has marks stored.
+- The review data's `sinceReview` carries the last review's `verdict` on every variant, and its `body`, `comments` (each with `target` and `changedSince`) and `calledFine`; a compared one adds `changedWithoutComment` and `stillRead`.
+
 ## 0.22.1 — 2026-11-04
 
 ### Fixed

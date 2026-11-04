@@ -19,6 +19,7 @@ import { type MetricFinding, metricFindings } from '../core/metric-findings.ts';
 import type { NodeMetrics } from '../core/metrics.ts';
 import { type Note, type ReviewNotes, visibleNotes } from '../core/notes.ts';
 import { type PageData, UNCOMMITTED } from '../core/page.ts';
+import type { PreviousComment } from '../core/previous-comments.ts';
 import type { SymbolFile } from '../core/read-range.ts';
 import type { Answer, Comment, Review } from '../core/review.ts';
 import type { ChangedSince, SinceReview } from '../core/since-review.ts';
@@ -35,7 +36,7 @@ import {
   visibleDiff,
   visibleNodeOf,
 } from '../core/visible-diff.ts';
-import { anchorKey, anchorName, lineAnchor, placeOfLine } from './anchors.ts';
+import { anchorKey, anchorName, lineAnchor, placeOfLine, rowOfLine } from './anchors.ts';
 import { ChangedSinceMarks, ChangedSinceTag, useIsChangedSince } from './changed-since.tsx';
 import { ColourBy, type Colouring, ScaleLegend, type Shade, shadeOf } from './colour-by.tsx';
 import { CommentField, CommentOn, type Comments } from './comment-field.tsx';
@@ -50,6 +51,7 @@ import {
 } from './finding-display.tsx';
 import { FindingsRail, LookFirst, nameOf, TriageStrip } from './findings-rail.tsx';
 import { highlightPatch, type PatchLine as Line, type Piece } from './highlight-patch.ts';
+import { LastReview } from './last-review.tsx';
 import {
   type Layout,
   layoutDiff,
@@ -61,7 +63,9 @@ import { MetricsScreen } from './metrics-screen.tsx';
 import { MetricsTable } from './metrics-tab.tsx';
 import { storedReadMarks, storeReadMarks } from './read-marks.ts';
 import { ReadingOrderList } from './reading-order-list.tsx';
-import { ReviewTray } from './review-tray.tsx';
+import { Ref, shortRef } from './ref.tsx';
+import { ReviewTray, verdictLabels } from './review-tray.tsx';
+import { LastSaidOnPage, SaidBefore, useSaidLinesOf } from './said-before.tsx';
 import { changedSymbolCount, type LineAt, SymbolsOf, useHasSymbolNews } from './symbols-tab.tsx';
 import { changedCount, TestFiles, TestsScreen } from './tests-screen.tsx';
 import {
@@ -410,10 +414,6 @@ const Zoom = ({ scale, onZoom, onFit }: ZoomProps) => (
   </div>
 );
 
-const isFullSha = (ref: string) => /^[0-9a-f]{40}$/.test(ref);
-
-const shortRef = (ref: string) => (isFullSha(ref) ? ref.slice(0, 7) : ref);
-
 const endsOf = (range: string) => {
   const at = range.indexOf('..');
   return { from: range.slice(0, at), to: range.slice(at + 2) };
@@ -423,9 +423,6 @@ const shortRange = (range: string) => {
   const { from, to } = endsOf(range);
   return `${shortRef(from)}..${shortRef(to)}`;
 };
-
-const Ref = ({ name }: { readonly name: string }) =>
-  isFullSha(name) ? <abbr title={name}>{shortRef(name)}</abbr> : name;
 
 const ShortRange = ({ range }: { readonly range: string }) => {
   const { from, to } = endsOf(range);
@@ -458,7 +455,7 @@ const Scoped = ({ scopes: [scope, ...inner], text }: Piece) =>
     </span>
   );
 
-type Landing = Omit<LineAt, 'node'>;
+type Landing = Omit<LineAt, 'node'> & { readonly text?: string };
 
 type LandingIn = Partial<Landing> & { readonly path: string | undefined };
 
@@ -468,8 +465,16 @@ const scrollInPanel = (element: HTMLElement, block: ScrollLogicalPosition) => {
   window.scrollTo(scrollX, scrollY);
 };
 
-const isLandedOn = (line: Line, landing: Partial<Landing> | undefined): boolean =>
-  landing?.side !== undefined && line[landing.side] === landing.line;
+const rowLandedOn = (
+  lines: ReadonlyArray<Line>,
+  path: string,
+  { side, line, text }: Partial<Landing>,
+) => {
+  if (side === undefined || line === undefined) return undefined;
+  return text === undefined
+    ? lines.findIndex(row => row[side] === line)
+    : rowOfLine(lines, { path, side, line, text });
+};
 
 type LineComments = {
   readonly nodes: ReadonlyArray<DiffNode>;
@@ -480,6 +485,7 @@ type LineComments = {
 const PatchLine = ({
   path,
   line,
+  said,
   landing,
   nodes,
   comments,
@@ -487,11 +493,12 @@ const PatchLine = ({
 }: LineComments & {
   readonly path: string;
   readonly line: Line;
+  readonly said: ReadonlyArray<PreviousComment['anchor']>;
   readonly landing: Partial<Landing> | undefined;
 }) => {
   const { kind, prefix, pieces } = line;
   const anchor = lineAnchor({ path, line });
-  const marks = { 'aria-current': isLandedOn(line, landing) || undefined };
+  const marks = { 'aria-current': landing !== undefined || undefined };
   const code = (
     <>
       {prefix}
@@ -499,13 +506,16 @@ const PatchLine = ({
         // biome-ignore lint/suspicious/noArrayIndexKey: a line's pieces are fixed and may repeat
         <Scoped key={index} {...piece} />
       ))}
+      {said.map(on => (
+        <SaidBefore key={on.id} on={on} />
+      ))}
       {onComment && anchor && (
         <CommentOn
           anchor={anchor}
           name={anchorName(anchor, nodes)}
           comments={comments}
           onComment={onComment}
-          landing={isLandedOn(line, landing) ? landing : undefined}
+          landing={landing}
         />
       )}
     </>
@@ -525,7 +535,12 @@ const Patch = ({
   LineComments & { readonly open: boolean; readonly landing: LandingIn | undefined }) => {
   const lines = useMemo(() => highlightPatch({ path, patch }), [path, patch]);
   const marked = useIsChangedSince()('files', path);
+  const saidLines = useSaidLinesOf(path);
+  const placed = saidLines.map(({ anchor, place }) => ({ anchor, row: rowOfLine(lines, place) }));
+  const saidAt = (row: number | undefined) =>
+    placed.filter(said => said.row === row).map(({ anchor }) => anchor);
   const landed = landing?.path === path ? landing : undefined;
+  const landedRow = landed && rowLandedOn(lines, path, landed);
   const top = useRef<HTMLDetailsElement>(null);
   useLayoutEffect(() => {
     if (!top.current || landed === undefined) return;
@@ -538,11 +553,14 @@ const Patch = ({
     ({ anchor }) => placeOfLine(anchor)?.path === path,
   );
   return (
-    <details aria-label={path} open={open || holdsDraft} ref={top}>
+    <details aria-label={path} open={open || holdsDraft || saidLines.length > 0} ref={top}>
       <summary>
         {path}
         <ChangedSinceTag marked={marked} />
       </summary>
+      {saidAt(undefined).map(on => (
+        <SaidBefore key={on.id} on={on} />
+      ))}
       <pre>
         {lines.map((line, index) => (
           <PatchLine
@@ -550,7 +568,8 @@ const Patch = ({
             key={index}
             path={path}
             line={line}
-            landing={landed}
+            said={saidAt(index)}
+            landing={index === landedRow ? landed : undefined}
             {...commenting}
           />
         ))}
@@ -608,6 +627,7 @@ type InspectorProps = {
   readonly comments: Comments;
   readonly onComment: ((comment: Comment) => void) | undefined;
   readonly commentable: boolean;
+  readonly saidInPlace: ReadonlyArray<string>;
   readonly answers: Answers;
   readonly onAnswer: AnswerTo | undefined;
   readonly width: number;
@@ -743,16 +763,27 @@ const nodeSections = ({
 
 type NotePanelProps = Pick<
   InspectorProps,
-  'note' | 'found' | 'anchor' | 'comments' | 'onComment' | 'commentable' | 'answers' | 'onAnswer'
+  | 'nodes'
+  | 'note'
+  | 'found'
+  | 'anchor'
+  | 'comments'
+  | 'onComment'
+  | 'commentable'
+  | 'saidInPlace'
+  | 'answers'
+  | 'onAnswer'
 >;
 
 const NotePanel = ({
+  nodes,
   note,
   found,
   anchor,
   comments,
   onComment,
   commentable,
+  saidInPlace,
   answers,
   onAnswer,
 }: NotePanelProps) => (
@@ -771,6 +802,13 @@ const NotePanel = ({
       </ul>
     )}
     <p>{note?.text ?? 'No note'}</p>
+    <SaidBefore on={anchor} />
+    {saidInPlace.map(id => (
+      <div key={id}>
+        <p className="said-edge">{anchorName({ kind: 'edge', id }, nodes)}</p>
+        <SaidBefore on={{ kind: 'edge', id }} />
+      </div>
+    ))}
     {onComment &&
       (commentable ? (
         <CommentField anchor={anchor} comments={comments} onComment={onComment} />
@@ -881,6 +919,7 @@ type SidePanelProps = {
   readonly node: DiffNode | undefined;
   readonly outside: boolean;
   readonly note: Note | undefined;
+  readonly saidInPlace: ReadonlyArray<string>;
   readonly found: ReadonlyArray<Finding>;
   readonly comments: Comments;
   readonly onComment: ((comment: Comment) => void) | undefined;
@@ -904,6 +943,7 @@ const SidePanel = ({
   node,
   outside,
   note,
+  saidInPlace,
   found,
   comments,
   onComment,
@@ -991,6 +1031,7 @@ const SidePanel = ({
         commentable={
           node !== undefined || review.diff.edges.some(edge => edgeId(edge) === selected)
         }
+        saidInPlace={saidInPlace}
         answers={answers}
         onAnswer={onAnswer}
         width={width}
@@ -1014,6 +1055,23 @@ type DrawnAtOptions = {
 const drawnAt = ({ diff, expanded, noted, allEdges }: DrawnAtOptions): GraphDiff =>
   allEdges ? visibleDiff({ diff, expanded }) : mergedDiff({ diff, expanded, noted });
 
+type SaidInPlaceOptions = DrawnAtOptions & {
+  readonly comments: ReadonlyArray<PreviousComment>;
+  readonly arrow: string | undefined;
+};
+
+const edgesSaidInPlace = ({ comments, arrow, diff, ...at }: SaidInPlaceOptions) =>
+  comments
+    .flatMap(({ target }) => target ?? [])
+    .filter(
+      target =>
+        target !== arrow &&
+        drawnAt({
+          ...at,
+          diff: { ...diff, edges: diff.edges.filter(edge => edgeId(edge) === target) },
+        }).edges.some(edge => edgeId(edge) === arrow),
+    );
+
 type Keeping = {
   readonly diff: GraphDiff;
   readonly expanded: ReadonlySet<string>;
@@ -1033,6 +1091,9 @@ const WIDER_SCOPES: ReadonlyArray<Scope> = [
   ['Changed + 1 hop', ({ drawn }) => nearChanges(drawn)],
   EVERYTHING,
 ];
+
+const stillReadIn = ({ sinceReview }: PageData): ReadonlyArray<string> =>
+  sinceReview !== undefined && 'stillRead' in sinceReview ? sinceReview.stillRead : [];
 
 const changedSinceIn = ({ sinceReview }: PageData): ChangedSince | undefined =>
   sinceReview !== undefined && 'changed' in sinceReview ? sinceReview.changed : undefined;
@@ -1230,6 +1291,12 @@ type HeaderProps = {
   readonly tab: Tab;
 };
 
+const LastVerdict = ({ since }: { readonly since: SinceReview }) => (
+  <p className="where">
+    Last review at <Ref name={since.head} />: {verdictLabels.get(since.verdict)}
+  </p>
+);
+
 const UncomparedReview = ({ since }: { readonly since: SinceReview }) => {
   if ('gone' in since)
     return (
@@ -1269,7 +1336,12 @@ const Header = ({ review, tab }: HeaderProps) => {
             <ShortRange range={review.range} />
           )}
         </h1>
-        {review.sinceReview !== undefined && <UncomparedReview since={review.sinceReview} />}
+        {review.sinceReview !== undefined && (
+          <>
+            <LastVerdict since={review.sinceReview} />
+            <UncomparedReview since={review.sinceReview} />
+          </>
+        )}
       </div>
       <nav aria-label="Review">
         {TAB_ORDER.map(shown => (
@@ -1329,7 +1401,7 @@ const GraphCaveat = ({ since, nothingDrawn }: GraphCaveatProps) => {
   );
 };
 
-export const ReviewPage = ({ review, notes, send }: ReviewPageProps) => {
+const Page = ({ review, notes, send }: ReviewPageProps) => {
   const tab = useTab();
   const [layout, setLayout] = useState<Layout>();
   const { frameElement, placed, frameProps, zoomAtCentre, fitToFrame, centre, pin } =
@@ -1366,16 +1438,17 @@ export const ReviewPage = ({ review, notes, send }: ReviewPageProps) => {
   const findings = findingsOf({ data: review, notes });
   const triaged = findings.filter(finding => picked === undefined || finding.dimension === picked);
   const since = changedSinceShown(scope, review);
+  const unmerged = useMemo(() => unmergedWith(noted, since), [noted, since]);
   const drawn = useMemo(() => {
     const [, keep] = scope;
     const atExpansion = drawnAt({
       diff: review.diff,
       expanded,
-      noted: unmergedWith(noted, since),
+      noted: unmerged,
       allEdges,
     });
     return keep({ diff: review.diff, expanded, drawn: atExpansion });
-  }, [review, expanded, noted, allEdges, scope, since]);
+  }, [review, expanded, unmerged, allEdges, scope]);
   const shown = useMemo(
     () => visibleNotes({ diff: review.diff, expanded, notes: notes?.notes ?? {} }),
     [review, notes, expanded],
@@ -1462,6 +1535,11 @@ export const ReviewPage = ({ review, notes, send }: ReviewPageProps) => {
     setInspectorTab(inspect);
     goToOnStructure(id);
   };
+  const goToDraft = (id: string, anchor: Comment['anchor']) => {
+    const place = placeOfLine(anchor);
+    if (place) landOn(id, place);
+    goToOnTab(id, tabOfDraft(anchor));
+  };
   const showOutsideAt = (place: LandingIn, opener: HTMLButtonElement) => {
     landOn(null, place);
     location.hash = '#structure';
@@ -1476,7 +1554,7 @@ export const ReviewPage = ({ review, notes, send }: ReviewPageProps) => {
     landOn(holder.id, { path });
     goToOnTab(holder.id, 'diff');
   };
-  const [read, setRead] = useState(() => storedReadMarks(review.range));
+  const [read, setRead] = useState(() => storedReadMarks(review.range, stillReadIn(review)));
   useEffect(() => storeReadMarks(review.range, read), [review.range, read]);
   const walk = (step: number) => {
     const { parts } = review.readingOrder;
@@ -1520,6 +1598,16 @@ export const ReviewPage = ({ review, notes, send }: ReviewPageProps) => {
           </div>
           <div className="columns">
             <div className="left-column">
+              {review.sinceReview !== undefined && (
+                <LastReview
+                  since={review.sinceReview}
+                  nodes={review.diff.nodes}
+                  findings={findings}
+                  onGoTo={goTo}
+                  onGoToDraft={goToDraft}
+                  onGoToOutside={showOutsideAt}
+                />
+              )}
               <ReadingOrderList
                 review={review}
                 read={read}
@@ -1639,6 +1727,14 @@ export const ReviewPage = ({ review, notes, send }: ReviewPageProps) => {
                 outside={outside}
                 note={selectedNote}
                 found={selectedFindings}
+                saidInPlace={edgesSaidInPlace({
+                  comments: review.sinceReview?.comments ?? [],
+                  arrow: selected,
+                  diff: review.diff,
+                  expanded,
+                  noted: unmerged,
+                  allEdges,
+                })}
                 comments={comments}
                 onComment={comment}
                 answers={answers}
@@ -1685,11 +1781,7 @@ export const ReviewPage = ({ review, notes, send }: ReviewPageProps) => {
           nodes={review.diff.nodes}
           tests={review.tests}
           onGoTo={id => goToOnTab(id, 'note')}
-          onGoToDraft={(id, anchor) => {
-            const place = placeOfLine(anchor);
-            if (place) landOn(id, place);
-            goToOnTab(id, tabOfDraft(anchor));
-          }}
+          onGoToDraft={goToDraft}
           onGoToOutside={showOutsideAt}
           onGoToFile={showFile}
           send={send}
@@ -1698,3 +1790,9 @@ export const ReviewPage = ({ review, notes, send }: ReviewPageProps) => {
     </main>
   );
 };
+
+export const ReviewPage = (props: ReviewPageProps) => (
+  <LastSaidOnPage since={props.review.sinceReview}>
+    <Page {...props} />
+  </LastSaidOnPage>
+);

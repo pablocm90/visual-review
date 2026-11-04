@@ -18,6 +18,7 @@ import { testsAlongside } from '../core/tests-alongside.ts';
 import { ChangedSinceTag, sinceLabel, useIsChangedSince } from './changed-since.tsx';
 import { CommentOn, type Comments } from './comment-field.tsx';
 import { LevelMark } from './finding-display.tsx';
+import { SaidBefore } from './said-before.tsx';
 
 const TEST_MARKS: Readonly<Record<TestChange, string>> = {
   added: '+',
@@ -69,6 +70,7 @@ const TestLine = ({
       {test.label && <span className="label">{test.label}</span>}
       {moved && <span className="moved">{moved.text}</span>}
       <ChangedSinceTag marked={marked} />
+      <SaidBefore on={{ kind: 'test', id }} />
       {onComment && (
         <CommentOn
           name={test.trail}

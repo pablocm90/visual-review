@@ -112,13 +112,23 @@ What differs between the head last reviewed and the new head, in the paths the p
 _Avoid_: new changes, delta
 _In code_: `ChangedSince`, `sinceReviewOf` (`src/core/since-review.ts`); `sinceLastReview` (`visible-diff.ts`)
 
+**As it was**:
+What an earlier comment or finding answer reads when nothing changed under its anchor since the last review, its opposite being "Changed since", shown with the commits that touched its file. A part or edge goes by what changed at or inside it; a symbol, logic line or test by its own anchor id; a diff line by its file. The commits always go by file, so one may touch the file and not the symbol commented on.
+_Avoid_: unchanged, not addressed, ignored
+_In code_: `PreviousComment` (`src/core/previous-comments.ts`), its `changedSince` absent
+
+**Called fine**:
+A finding whose newest answer in any review of its pull request is It's fine. It holds for the rest of that pull request, whatever changes under it, until a later answer replaces it.
+_Avoid_: dismissed, suppressed
+_In code_: `SinceReview['calledFine']`
+
 ## Relationships
 
 - A **fact** may raise **findings**; a **finding** is never the only record of a fact.
 - Each **finding** has one **dimension** and one **level**; a **flag** is the only way a note raises one.
 - The **reading order** holds every **part** once; a **finding** whose target is a part marks its row.
 - A **read mark** is on a **part**; the count of parts read counts only the parts in the **reading order**.
-- **Look first** holds only findings whose **level** is "needs a look".
+- **Look first** holds only findings whose **level** is "needs a look", leaving out any **called fine**; its group still lists one, tagged.
 - A changed exported **symbol** raises a **finding** in the api dimension, under that symbol's id; a file's **kind of change** raises none of its own.
 - A review holds at most one comment or **finding answer** per **anchor**, and each comment has one **comment kind**; the **suggested verdict** follows the kinds and the answers, and the verdict the reviewer picks overrides it.
 - A **round** after the first compares against the newest review of its pull request at another head; **changed since** is always a subset of what the pull request changes at either head, so a part it has reverted counts; a symbol, logic line, test or file is **changed since** by its own anchor id, a diff line by its file.

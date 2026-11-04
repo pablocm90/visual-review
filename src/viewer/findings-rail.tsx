@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react';
+import { type ReactNode, useRef, useState } from 'react';
 import {
   counted,
   DIMENSIONS,
@@ -18,12 +18,13 @@ import {
   findingLine,
   LevelMark,
 } from './finding-display.tsx';
+import { SaidBefore } from './said-before.tsx';
 
 type FindingsRailProps = {
   readonly findings: ReadonlyArray<Finding>;
   readonly open: boolean;
   readonly onOpen: (open: boolean) => void;
-  readonly review: Pick<PageData, 'diff' | 'skipped'>;
+  readonly review: Pick<PageData, 'diff' | 'skipped' | 'sinceReview'>;
   readonly onGoTo: (id: string) => void;
   readonly onShowOutside: (opener: HTMLButtonElement) => void;
   readonly onShowFile: (path: string, opener: HTMLButtonElement) => void;
@@ -117,28 +118,33 @@ const groupsOf = (props: FindingsRailProps): ReadonlyArray<Group> => {
 
 type FindingItemProps = {
   readonly finding: Line;
+  readonly calledFine?: boolean | undefined;
   readonly answer?: Answer | undefined;
   readonly onAnswer?: AnswerTo | undefined;
+  readonly children?: ReactNode;
 };
 
-const FindingItem = ({ finding, answer, onAnswer }: FindingItemProps) => {
-  const said = (
-    <>
-      <span>{finding.sentence}</span>
-      {finding.groups ? (
-        <span className="finding-target">{finding.target}</span>
-      ) : (
-        <code className="finding-target">{finding.target}</code>
-      )}
-    </>
-  );
+const FindingSaid = ({ finding, calledFine }: Pick<FindingItemProps, 'finding' | 'calledFine'>) => (
+  <>
+    <span>{finding.sentence}</span>
+    {calledFine && <span className="called-fine">called fine</span>}
+    {finding.groups ? (
+      <span className="finding-target">{finding.target}</span>
+    ) : (
+      <code className="finding-target">{finding.target}</code>
+    )}
+  </>
+);
+
+const FindingItem = ({ finding, calledFine, answer, onAnswer, children }: FindingItemProps) => {
+  const said = <FindingSaid finding={finding} calledFine={calledFine} />;
   return (
     <li className="finding">
       <LevelMark level={finding.level} />
       {finding.act ? (
         <button
           type="button"
-          aria-label={finding.target ? `${finding.target}: ${finding.sentence}` : finding.sentence}
+          aria-label={`${finding.target ? `${finding.target}: ` : ''}${finding.sentence}${calledFine ? ', called fine' : ''}`}
           onClick={event => finding.act?.(event.currentTarget)}
         >
           {said}
@@ -157,6 +163,7 @@ const FindingItem = ({ finding, answer, onAnswer }: FindingItemProps) => {
           ))}
         </ul>
       )}
+      {children}
       {onAnswer && <AnswerButtons id={finding.id} answer={answer} onAnswer={onAnswer} />}
     </li>
   );
@@ -209,9 +216,12 @@ export const FindingsRail = (props: FindingsRailProps) => {
                 <FindingItem
                   key={finding.id}
                   finding={finding}
+                  calledFine={props.review.sinceReview?.calledFine.includes(finding.id)}
                   answer={props.answers[finding.id]}
                   onAnswer={props.onAnswer}
-                />
+                >
+                  <SaidBefore on={{ kind: 'finding', id: finding.id }} />
+                </FindingItem>
               ))}
             </ul>
           </section>
@@ -274,14 +284,18 @@ export const TriageStrip = ({ findings, picked, onPick }: TriageStripProps) => {
 type LookFirstProps = LineOptions & {
   readonly findings: ReadonlyArray<Finding>;
   readonly onShowAll: () => void;
-  readonly review: Pick<PageData, 'diff' | 'metrics'>;
+  readonly review: Pick<PageData, 'diff' | 'metrics' | 'sinceReview'>;
 };
 
 const LOOK_FIRST_SHOWN = 7;
 
 export const LookFirst = (props: LookFirstProps) => {
   const [open, setOpen] = useState(true);
-  const ranked = lookFirst({ findings: props.findings, metrics: props.review.metrics });
+  const calledFine = props.review.sinceReview?.calledFine ?? [];
+  const ranked = lookFirst({
+    findings: props.findings.filter(finding => !calledFine.includes(finding.id)),
+    metrics: props.review.metrics,
+  });
   if (ranked.length === 0) return null;
   const lineOf = linesOf(props);
   return (

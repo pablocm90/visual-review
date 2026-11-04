@@ -6,9 +6,10 @@ import type { GraphDiff } from '../core/diff-graphs.ts';
 import { type Finding, raisedFindings } from '../core/findings.ts';
 import type { ReviewNotes } from '../core/notes.ts';
 import type { PageData } from '../core/page.ts';
-import type { SymbolFile } from '../core/read-range.ts';
-import type { Review } from '../core/review.ts';
-import type { ChangedSince } from '../core/since-review.ts';
+import type { PreviousComment } from '../core/previous-comments.ts';
+import type { Commit, SymbolFile } from '../core/read-range.ts';
+import type { Comment, Review } from '../core/review.ts';
+import type { ChangedSince, SinceReview } from '../core/since-review.ts';
 import type { Skipped } from '../core/skipped.ts';
 import type { KindOfChange, SymbolStatement } from '../core/symbol-changes.ts';
 import { symbolFindings } from '../core/symbol-findings.ts';
@@ -2307,6 +2308,23 @@ test('stored read marks that are not a list of ids are ignored, the page startin
   await screen.findByRole('group', { name: 'rust' });
 
   expect(readRows()).toEqual([]);
+});
+
+test.for([
+  { stored: undefined, rows: ['1 application'], why: 'nothing stored' },
+  { stored: '["rust/crate/legacy"]', rows: ['3 legacy'], why: 'marks stored' },
+  { stored: '[]', rows: [], why: 'every mark taken off' },
+  { stored: 'not json', rows: ['1 application'], why: 'a corrupt store' },
+])('on a later round with $why, the parts ticked at first are $rows', async ({ stored, rows }) => {
+  const walked = {
+    ...walkedReview(),
+    sinceReview: { ...sinceReview, stillRead: ['rust/crate/application'] },
+  };
+  if (stored !== undefined) localStorage.setItem(`visual-review:read:${walked.range}`, stored);
+  render(<ReviewPage review={walked} />);
+  await screen.findByRole('group', { name: 'rust' });
+
+  expect(readRows()).toEqual(rows);
 });
 
 test('J, K and A act on Structure alone: on Metrics and Tests they neither walk nor mark', async () => {
@@ -6006,4 +6024,663 @@ test("a review whose reviewed head couldn't be read says so, with that head shor
   expect(line.textContent).toContain('a1b2c3d, couldn');
   expect(line.getAttribute('title')).toBe('cargo metadata failed');
   expect(screen.getByRole('button', { name: 'cli-adapter: added' })).toBeDefined();
+});
+
+test.for([
+  {
+    round: 'compared',
+    since: { changed: sinceReview.changed, changedWithoutComment: [], stillRead: [] },
+  },
+  { round: 'whose head is gone', since: { gone: true } },
+  { round: "whose head couldn't be read", since: { unreadable: 'cargo metadata failed' } },
+] as const)(
+  'a later round $round says in the header what the last review concluded, and at which head',
+  async ({ since }) => {
+    const head = 'a1b2c3d4e5f6a7b8c9d0a1b2c3d4e5f6a7b8c9d0';
+    render(
+      <ReviewPage
+        review={pageWith({
+          ...review,
+          sinceReview: { ...lastReview, head, verdict: 'request-changes', ...since },
+        })}
+      />,
+    );
+    await screen.findByRole('group', { name: 'rust' });
+
+    expect(within(screen.getByRole('banner')).getByText(/Last review/).textContent).toBe(
+      'Last review at a1b2c3d: Request changes',
+    );
+  },
+);
+
+const lastReviewSection = () => screen.getByRole('region', { name: 'Last review' });
+
+const saidOnPart = (
+  id: string,
+  said: Partial<Pick<Comment, 'kind' | 'text'>> & {
+    readonly target?: string;
+    readonly changedSince?: ReadonlyArray<Commit>;
+  } = {},
+): PreviousComment => ({
+  anchor: { kind: 'part', id },
+  kind: 'question',
+  text: 'Why?',
+  target: id,
+  ...said,
+});
+
+test('a later round opens the left column with what the last review said, each comment marked by what became of it, going to its anchor', async () => {
+  const user = userEvent.setup();
+  const sha = 'c0ffee4d5e6fa7b8c9d0a1b2c3d4e5f6a7b8c9d0';
+  render(
+    <ReviewPage
+      review={pageWith({
+        ...review,
+        sinceReview: {
+          ...sinceReview,
+          body: 'Nearly there.',
+          comments: [
+            saidOnPart('rust/crate/application', {
+              kind: 'change',
+              text: 'Split this.',
+              changedSince: [{ sha, subject: 'split the application', files: [] }],
+            }),
+            saidOnPart('rust/crate/cli-adapter'),
+          ],
+        },
+      })}
+    />,
+  );
+  await screen.findByRole('group', { name: 'rust' });
+
+  const last = within(lastReviewSection());
+  expect(last.getByText('Nearly there.')).toBeTruthy();
+  const touched = last.getByRole('listitem', {
+    name: 'application: Change this, Changed since',
+  });
+  expect(within(touched).getByText('Split this.')).toBeTruthy();
+  expect(within(touched).getByText('split the application').parentElement?.textContent).toBe(
+    'c0ffee4 split the application',
+  );
+  expect(last.getByRole('listitem', { name: 'cli-adapter: Question, As it was' })).toBeTruthy();
+
+  await user.click(last.getByRole('button', { name: 'cli-adapter' }));
+
+  expect(document.activeElement).toBe(screen.getByRole('button', { name: 'cli-adapter: added' }));
+});
+
+test.for([
+  { round: 'whose head is gone', since: { gone: true } },
+  { round: "whose head couldn't be read", since: { unreadable: 'cargo metadata failed' } },
+] as const)('a later round $round lists the last comments with no mark', async ({ since }) => {
+  render(
+    <ReviewPage
+      review={pageWith({
+        ...review,
+        sinceReview: { ...lastReview, ...since, comments: [saidOnPart('rust/crate/application')] },
+      })}
+    />,
+  );
+  await screen.findByRole('group', { name: 'rust' });
+
+  expect(
+    within(lastReviewSection()).getByRole('listitem', { name: 'application: Question' }),
+  ).toBeTruthy();
+});
+
+test('a last answer to a finding is listed by its title, going to its target; one no longer raised reads changed, naming no commit, with nowhere to go', async () => {
+  const user = userEvent.setup();
+  const raised: Finding = {
+    id: 'metrics:look:rust/crate/application',
+    dimension: 'metrics',
+    level: 'look',
+    title: 'application got harder',
+    target: 'rust/crate/application',
+  };
+  render(
+    <ReviewPage
+      review={pageWith({
+        ...review,
+        findings: [raised],
+        sinceReview: {
+          ...sinceReview,
+          comments: [
+            {
+              anchor: { kind: 'finding', id: raised.id },
+              kind: 'fine',
+              text: 'Worth it.',
+              target: 'rust/crate/application',
+            },
+            { anchor: { kind: 'finding', id: 'logic:old' }, kind: 'fix', changedSince: [] },
+          ],
+        },
+      })}
+    />,
+  );
+  await screen.findByRole('group', { name: 'rust' });
+
+  const last = within(lastReviewSection());
+  const answered = last.getByRole('listitem', {
+    name: "application got harder: It's fine, As it was",
+  });
+  expect(within(answered).getByText('Worth it.')).toBeTruthy();
+  const gone = last.getByRole('listitem', { name: 'logic:old: Fix this, Changed since' });
+  expect(within(gone).queryByRole('button')).toBeNull();
+  expect(within(gone).queryByRole('list')).toBeNull();
+
+  await user.click(last.getByRole('button', { name: 'application got harder' }));
+
+  expect(document.activeElement).toBe(
+    screen.getByRole('button', { name: 'application: modified' }),
+  );
+});
+
+test('a last comment on a line outside the graph goes to its row in the files outside it', async () => {
+  const user = userEvent.setup();
+  render(
+    <ReviewPage
+      review={{
+        ...pageWithUndrawnFile(),
+        sinceReview: {
+          ...sinceReview,
+          comments: [
+            {
+              anchor: { kind: 'line', id: 'README.md@head:1', text: 'new' },
+              kind: 'question',
+              text: 'Why new?',
+            },
+          ],
+        },
+      }}
+    />,
+  );
+  await screen.findByRole('group', { name: 'rust' });
+
+  await user.click(within(lastReviewSection()).getByRole('button', { name: 'README.md:1 "new"' }));
+
+  expect(within(inspector()).getByRole('heading', { level: 2 }).textContent).toBe(
+    'Changed files outside the graph',
+  );
+  expect(within(inspector()).getByRole('insertion', { current: true }).textContent).toContain(
+    'new',
+  );
+});
+
+test('a later round with nothing said and nothing changed without a comment has no last review section', async () => {
+  render(<ReviewPage review={pageWith({ ...review, sinceReview })} />);
+  await screen.findByRole('group', { name: 'rust' });
+
+  expect(screen.queryByRole('region', { name: 'Last review' })).toBeNull();
+});
+
+test("a last comment on a part renamed since goes by the part's name at the head", async () => {
+  render(
+    <ReviewPage
+      review={pageWith({
+        ...review,
+        sinceReview: {
+          ...sinceReview,
+          comments: [
+            {
+              anchor: { kind: 'part', id: 'rust/crate/old-name' },
+              kind: 'question',
+              text: 'Why?',
+              target: 'rust/crate/application',
+              changedSince: [],
+            },
+            {
+              anchor: { kind: 'edge', id: 'rust/crate/old-name -> rust/crate/domain' },
+              kind: 'question',
+              text: 'Why?',
+              target: 'rust/crate/application -> rust/crate/domain',
+            },
+            {
+              anchor: { kind: 'symbol', id: 'rust/crate/application#run' },
+              kind: 'question',
+              text: 'Why?',
+              target: 'rust/crate/application',
+            },
+          ],
+        },
+      })}
+    />,
+  );
+  await screen.findByRole('group', { name: 'rust' });
+
+  const last = within(lastReviewSection());
+  expect(last.getByRole('button', { name: 'application' })).toBeTruthy();
+  expect(last.getByRole('button', { name: 'application → domain' })).toBeTruthy();
+  expect(last.getByRole('button', { name: 'run in application' })).toBeTruthy();
+});
+
+test('the last review lists the parts changed since with no comment on them, going to each; with only those it still shows', async () => {
+  const user = userEvent.setup();
+  render(
+    <ReviewPage
+      review={pageWith({
+        ...review,
+        sinceReview: { ...sinceReview, changedWithoutComment: ['rust/crate/application'] },
+      })}
+    />,
+  );
+  await screen.findByRole('group', { name: 'rust' });
+
+  const quiet = within(
+    within(lastReviewSection()).getByRole('list', { name: 'Changed since, no comment' }),
+  );
+  await user.click(quiet.getByRole('button', { name: 'application' }));
+
+  expect(document.activeElement).toBe(
+    screen.getByRole('button', { name: 'application: modified' }),
+  );
+});
+
+test('a last comment on a part or an edge shows under its anchor in the Note panel, with no send too', async () => {
+  const user = userEvent.setup();
+  const sha = 'c0ffee4d5e6fa7b8c9d0a1b2c3d4e5f6a7b8c9d0';
+  const edge = 'rust/crate/cli-adapter -> rust/crate/application';
+  render(
+    <ReviewPage
+      review={pageWith({
+        ...review,
+        sinceReview: {
+          ...sinceReview,
+          comments: [
+            saidOnPart('rust/crate/old-name', {
+              target: 'rust/crate/application',
+              kind: 'change',
+              text: 'Split this.',
+              changedSince: [{ sha, subject: 'split the application', files: [] }],
+            }),
+            {
+              anchor: { kind: 'edge', id: 'rust/crate/old-name -> rust/crate/application' },
+              kind: 'question',
+              text: 'Why this way?',
+              target: edge,
+            },
+          ],
+        },
+      })}
+    />,
+  );
+  await screen.findByRole('group', { name: 'rust' });
+
+  await user.click(screen.getByRole('button', { name: 'application: modified' }));
+  const said = within(inspector()).getByRole('note', {
+    name: 'Last review: Change this, Changed since',
+  });
+  expect(within(said).getByText('Split this.')).toBeTruthy();
+  expect(within(said).getByText('split the application')).toBeTruthy();
+
+  await user.click(
+    within(lastReviewSection()).getByRole('button', { name: 'cli-adapter → application' }),
+  );
+  expect(
+    within(
+      within(inspector()).getByRole('note', { name: 'Last review: Question, As it was' }),
+    ).getByText('Why this way?'),
+  ).toBeTruthy();
+  expect(within(inspector()).queryByText('Split this.')).toBeNull();
+});
+
+test('a last comment on an edge shows on the arrow drawn in its place, closed box or merged, named by its edge, unless its edge is drawn apart', async () => {
+  const user = userEvent.setup();
+  const cart = 'web/file/orders/cart.ts -> web/file/billing/invoice.ts';
+  const checkout = 'web/file/orders/checkout.ts -> web/file/billing/invoice.ts';
+  const saidOnImport = (target: string, text: string) => ({
+    anchor: { kind: 'edge' as const, id: target },
+    kind: 'question' as const,
+    text,
+    target,
+  });
+  render(
+    <ReviewPage
+      review={pageWith({
+        range: review.range,
+        diff: {
+          nodes: [
+            { id: 'web', kind: 'stack', label: 'web', path: '', state: 'unchanged' },
+            webModule('orders'),
+            webModule('billing'),
+            webFile('orders', 'cart.ts'),
+            webFile('orders', 'checkout.ts'),
+            webFile('billing', 'invoice.ts'),
+          ],
+          edges: [
+            webImport('orders/cart.ts', 'billing/invoice.ts', 'unchanged'),
+            webImport('orders/checkout.ts', 'billing/invoice.ts', 'unchanged'),
+          ],
+        },
+        sinceReview: {
+          ...sinceReview,
+          comments: [
+            saidOnImport(cart, 'Why the cart?'),
+            saidOnImport(checkout, 'Why the checkout?'),
+          ],
+        },
+      })}
+      notes={{ version: 1, tests: '', summary: [], notes: { [checkout]: { text: 'Paid.' } } }}
+    />,
+  );
+  await showEverything(user);
+  const web = await screen.findByRole('group', { name: 'web' });
+  const said = (text: string) => within(noteTab()).queryByText(text);
+
+  await user.click(within(web).getByRole('button', { name: 'orders → billing: unchanged' }));
+  expect(said('Why the cart?')).toBeTruthy();
+  expect(said('Why the checkout?')).toBeTruthy();
+  expect(within(noteTab()).getByText('cart.ts → invoice.ts')).toBeTruthy();
+
+  await user.click(within(web).getByRole('button', { name: 'Expand orders' }));
+  await user.click(within(web).getByRole('button', { name: 'Expand billing' }));
+  await within(web).findByRole('group', { name: 'billing' });
+  await user.click(await within(web).findByRole('button', { name: 'orders → billing: unchanged' }));
+  expect(said('Why the cart?')).toBeTruthy();
+  expect(said('Why the checkout?')).toBeNull();
+
+  await user.click(
+    await within(web).findByRole('button', { name: 'checkout.ts → invoice.ts: unchanged' }),
+  );
+  expect(said('Why the checkout?')).toBeTruthy();
+  expect(said('Why the cart?')).toBeNull();
+
+  await user.click(screen.getByRole('checkbox', { name: 'All edges' }));
+  await user.click(within(web).getByRole('button', { name: 'Collapse orders' }));
+  await user.click(
+    await within(web).findByRole('button', { name: 'orders → invoice.ts: unchanged' }),
+  );
+  expect(said('Why the cart?')).toBeTruthy();
+  expect(said('Why the checkout?')).toBeTruthy();
+});
+
+test('a last comment on a symbol or a logic line shows under it on the Symbols tab, with no send too', async () => {
+  const user = userEvent.setup();
+  render(
+    <ReviewPage
+      review={{
+        ...pageWithAnUnchangedSymbol(),
+        sinceReview: {
+          ...sinceReview,
+          comments: [
+            {
+              anchor: { kind: 'symbol', id: 'web/file/tax.ts#tax' },
+              kind: 'change',
+              text: 'Rename this.',
+            },
+            {
+              anchor: {
+                kind: 'decision',
+                id: 'web/file/tax.ts#tax#if (!rate) return',
+                text: 'if (!rate) return',
+              },
+              kind: 'question',
+              text: 'What of zero?',
+              changedSince: [],
+            },
+          ],
+        },
+      }}
+    />,
+  );
+
+  await user.click(await screen.findByRole('button', { name: 'tax.ts: modified' }));
+  await user.click(within(inspector()).getByRole('tab', { name: /^Symbols/ }));
+
+  const symbol = within(symbolsTab()).getByRole('listitem', { name: /^function tax: edited/ });
+  expect(
+    within(
+      within(symbol).getByRole('note', { name: 'Last review: Change this, As it was' }),
+    ).getByText('Rename this.'),
+  ).toBeTruthy();
+  const decision = within(symbol).getByRole('listitem', { name: /^added guard/ });
+  expect(
+    within(
+      within(decision).getByRole('note', { name: 'Last review: Question, Changed since' }),
+    ).getByText('What of zero?'),
+  ).toBeTruthy();
+  expect(within(decision).queryByText('Rename this.')).toBeNull();
+});
+
+test('a last comment on an unchanged symbol brings up the Symbols tab and opens the unchanged ones', async () => {
+  const user = userEvent.setup();
+  const page = pageWithAnUnchangedSymbol();
+  render(
+    <ReviewPage
+      review={{
+        ...page,
+        symbols: [
+          symbolsOf('web/file/tax.ts', [
+            {
+              name: 'round',
+              kind: 'function',
+              exported: { base: false, head: false },
+              change: 'unchanged',
+            },
+          ]),
+        ],
+        sinceReview: {
+          ...sinceReview,
+          comments: [
+            {
+              anchor: { kind: 'symbol', id: 'web/file/tax.ts#round' },
+              kind: 'question',
+              text: 'Why not?',
+            },
+          ],
+        },
+      }}
+    />,
+  );
+
+  await user.click(await screen.findByRole('button', { name: 'tax.ts: modified' }));
+  await user.click(within(inspector()).getByRole('tab', { name: /^Symbols/ }));
+
+  expect(unchangedSymbols().hasAttribute('open')).toBe(true);
+  expect(within(unchangedSymbols()).getByText('Why not?')).toBeTruthy();
+});
+
+test("a last comment on a test shows under it on the Tests screen and the inspector's Tests tab, with no send too", async () => {
+  const user = userEvent.setup();
+  render(
+    <ReviewPage
+      review={{
+        ...pageWithSameNamedTests(),
+        sinceReview: {
+          ...sinceReview,
+          comments: [
+            {
+              anchor: { kind: 'test', id: 'total.test.ts#drops totals' },
+              kind: 'question',
+              text: 'Why gone?',
+            },
+          ],
+        },
+      }}
+    />,
+  );
+  const said = (place: HTMLElement) =>
+    within(within(place).getByRole('listitem', { name: 'drops totals: removed' })).getByRole(
+      'note',
+      { name: 'Last review: Question, As it was' },
+    );
+
+  await user.click(await screen.findByRole('button', { name: 'total.ts: modified' }));
+  await user.click(within(inspector()).getByRole('tab', { name: 'Tests 3' }));
+  expect(within(said(testsTab())).getByText('Why gone?')).toBeTruthy();
+
+  await user.click(screen.getByRole('link', { name: 'Tests 3' }));
+  expect(
+    within(said(screen.getByRole('region', { name: 'Test changes' }))).getByText('Why gone?'),
+  ).toBeTruthy();
+});
+
+test('a last comment on a diff line shows at the nearest row reading the same on its side, or atop the patch when none does', async () => {
+  const user = userEvent.setup();
+  const onHead = (line: number, text: string, said: string): PreviousComment => ({
+    anchor: { kind: 'line', id: `web/src/x.ts@head:${line}`, text },
+    kind: 'question',
+    text: said,
+  });
+  render(
+    <ReviewPage
+      review={{
+        ...pageWithPatch(
+          '@@ -12,2 +20,4 @@',
+          ' const y = 0;',
+          '-const x = 1;',
+          '+const x = 2;',
+          '+other();',
+          '+const x = 2;',
+        ),
+        sinceReview: {
+          ...sinceReview,
+          comments: [
+            onHead(5, 'const x = 2;', 'Near the first.'),
+            onHead(24, 'const x = 2;', 'Near the last.'),
+            {
+              anchor: { kind: 'line', id: 'web/src/x.ts@base:40', text: 'const x = 1;' },
+              kind: 'change',
+              text: 'On the removed one.',
+              changedSince: [],
+            },
+            onHead(13, 'const x = 1;', 'On the other side.'),
+            onHead(21, 'vanished();', 'Gone since.'),
+          ],
+        },
+      }}
+    />,
+  );
+
+  await user.click(await screen.findByRole('button', { name: 'x.ts: modified' }));
+  await user.click(within(inspector()).getByRole('tab', { name: 'Diff' }));
+
+  const [first, , last] = within(diffTab()).getAllByRole('insertion');
+  const removed = within(diffTab()).getByRole('deletion');
+  const hunk = within(diffTab()).getByText(/-12,2/);
+  const noteSaying = (text: string) => within(diffTab()).getByText(text).closest('[role="note"]');
+  expect(first?.contains(noteSaying('Near the first.'))).toBe(true);
+  expect(last?.contains(noteSaying('Near the last.'))).toBe(true);
+  expect(
+    within(removed).getByRole('note', { name: 'Last review: Change this, Changed since' }),
+  ).toBeTruthy();
+  ['On the other side.', 'Gone since.'].forEach(text => {
+    expect(
+      noteSaying(text)?.compareDocumentPosition(hunk) === Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBe(true);
+  });
+});
+
+test('a patch holding a last comment opens by itself', async () => {
+  const user = userEvent.setup();
+  render(
+    <ReviewPage
+      review={{
+        ...pageWithUndrawnFile(),
+        sinceReview: {
+          ...sinceReview,
+          comments: [
+            {
+              anchor: { kind: 'line', id: 'README.md@head:1', text: 'new' },
+              kind: 'question',
+              text: 'Why new?',
+            },
+          ],
+        },
+      }}
+    />,
+  );
+
+  await openUndrawnFiles(user);
+
+  expect(within(inspector()).getByRole('group', { name: 'README.md' }).hasAttribute('open')).toBe(
+    true,
+  );
+});
+
+test('going to a last comment on a diff line lands on the row it shows at, the numbers having moved', async () => {
+  const user = userEvent.setup();
+  render(
+    <ReviewPage
+      review={{
+        ...pageWithPatch('@@ -12,1 +20,2 @@', ' const y = 0;', '+const x = 2;'),
+        sinceReview: {
+          ...sinceReview,
+          comments: [
+            {
+              anchor: { kind: 'line', id: 'web/src/x.ts@head:20', text: 'const x = 2;' },
+              kind: 'question',
+              text: 'Why 2?',
+              target: 'web/file/x.ts',
+            },
+          ],
+        },
+      }}
+    />,
+  );
+  await screen.findByRole('button', { name: 'x.ts: modified' });
+
+  await user.click(within(lastReviewSection()).getByRole('button', { name: /^x\.ts:20/ }));
+
+  expect(within(diffTab()).getByRole('insertion', { current: true }).textContent).toContain(
+    'Why 2?',
+  );
+});
+
+const pageWithAnAnsweredFinding = (
+  since: Partial<Pick<SinceReview, 'calledFine' | 'comments'>>,
+) => {
+  const finding = (id: string, title: string): Finding => ({
+    id,
+    dimension: 'logic',
+    level: 'look',
+    target: 'rust/crate/application',
+    title,
+    detail: 'in tax',
+  });
+  return pageWith({
+    ...review,
+    findings: [finding('logic:a', 'lost a guard'), finding('logic:b', 'changed a branch')],
+    sinceReview: { ...sinceReview, ...since },
+  });
+};
+
+test('a last answer to a finding shows under it in the rail, not in the Look first band', async () => {
+  const user = userEvent.setup();
+  render(
+    <ReviewPage
+      review={pageWithAnAnsweredFinding({
+        comments: [{ anchor: { kind: 'finding', id: 'logic:a' }, kind: 'explain', text: 'Why?' }],
+      })}
+    />,
+  );
+
+  await user.click(await screen.findByRole('button', { name: 'Show 2 findings' }));
+
+  const answered = within(screen.getByRole('region', { name: 'Logic' }))
+    .getByRole('button', { name: /^application: lost a guard/ })
+    .closest('li');
+  expect(
+    within(answered ?? document.body).getByRole('note', {
+      name: 'Last review: Explain, As it was',
+    }),
+  ).toBeTruthy();
+  expect(within(screen.getByRole('region', { name: 'Look first' })).queryByRole('note')).toBeNull();
+  expect(screen.getAllByRole('note', { name: /^Last review/ })).toHaveLength(1);
+});
+
+test('a finding called fine at the last review stays out of Look first and reads so in its group', async () => {
+  const user = userEvent.setup();
+  render(<ReviewPage review={pageWithAnAnsweredFinding({ calledFine: ['logic:a'] })} />);
+
+  const band = within(await screen.findByRole('region', { name: 'Look first' }));
+  expect(band.getByRole('button', { name: /^application: changed a branch/ })).toBeTruthy();
+  expect(band.queryByRole('button', { name: /lost a guard/ })).toBeNull();
+
+  await user.click(screen.getByRole('button', { name: 'Show 2 findings' }));
+  const group = within(screen.getByRole('region', { name: 'Logic' }));
+  expect(
+    group.getByRole('button', { name: /^application: lost a guard.*, called fine$/ }),
+  ).toBeTruthy();
+  expect(group.getByRole('button', { name: /^application: changed a branch.*[^e]$/ })).toBeTruthy();
+  expect(group.getAllByText('called fine')).toHaveLength(1);
 });
