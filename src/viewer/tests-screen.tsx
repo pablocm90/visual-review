@@ -11,9 +11,11 @@ import {
   type TestChange,
   type TestCounts,
   type TestFile,
+  testAnchorId,
   testCounts,
 } from '../core/test-changes.ts';
 import { testsAlongside } from '../core/tests-alongside.ts';
+import { ChangedSinceTag, sinceLabel, useIsChangedSince } from './changed-since.tsx';
 import { CommentOn, type Comments } from './comment-field.tsx';
 import { LevelMark } from './finding-display.tsx';
 
@@ -49,11 +51,16 @@ const TestLine = ({
   onComment,
 }: TestPlace & { readonly test: AnchoredTest }) => {
   const moved = movement(test);
+  const id = testAnchorId(path, test.trail);
+  const marked = useIsChangedSince()('tests', id);
   return (
     <li
       className="test"
       data-state={moved || test.change === 'edited' ? 'modified' : test.change}
-      aria-label={accessibleName([`${test.name}: ${moved?.text ?? test.change}`, test.label])}
+      aria-label={sinceLabel(
+        accessibleName([`${test.name}: ${moved?.text ?? test.change}`, test.label]),
+        marked,
+      )}
     >
       <span className="mark" aria-hidden="true">
         {moved?.mark ?? TEST_MARKS[test.change]}
@@ -61,10 +68,11 @@ const TestLine = ({
       <span className="test-name">{test.name}</span>
       {test.label && <span className="label">{test.label}</span>}
       {moved && <span className="moved">{moved.text}</span>}
+      <ChangedSinceTag marked={marked} />
       {onComment && (
         <CommentOn
           name={test.trail}
-          anchor={{ kind: 'test', id: `${path}#${test.trail}` }}
+          anchor={{ kind: 'test', id }}
           comments={comments}
           onComment={onComment}
         />

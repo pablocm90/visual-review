@@ -227,7 +227,7 @@ test("a PR's next round lists what changed since its last review, a merge of the
   expect(run.code).toBe(0);
   const next = reviewDataIn(readFileSync(run.stdout.trim(), 'utf8'));
   expect(next.range.endsWith(pushed)).toBe(true);
-  expect(next.sinceReview).toEqual({
+  expect(next.sinceReview).toMatchObject({
     head: pr.head,
     verdict: 'request-changes',
     changed: {

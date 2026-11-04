@@ -2,13 +2,24 @@
 
 What changed in each release of `@pablocm90/visual-review`, newest first. Versions follow [semver](https://semver.org); while it is 0.x, a minor version may change the exported types.
 
-## 0.20.1 — 2026-11-04
+## 0.21.1 — 2026-11-04
 
 ### Security
 
 - A review file the repo supplies no longer drives **Since last review**. A PR's author could force-add a `.reviews/*.review.json` naming the PR and a head just before the part to hide; with that branch checked out, the page offered the narrowed view first, under a forged verdict. Upgrade if you review PRs from people you don't fully trust, and treat a Since last review shown by an earlier version on such a branch as unverified.
 - A review file git tracks is no longer compared against, and can't take the place of a PR's newest review when `.reviews/` is pruned. A last review's head must be a full SHA and is compared with the new head as a commit, so `HEAD~0`, a short SHA or a tag object can't pass as an earlier head.
 - A review run from inside a folder a branch has laid out as a bare repository now refuses it, instead of taking it for the repo and running what that folder's config names.
+
+## 0.21.0 — 2026-11-04
+
+### Added
+
+- On a PR's later round, the Symbols tab, the Tests tab and screen, and the patches, on the Diff tab and among the files outside the graph, tag what changed since your last review "changed since", whatever **Show** holds. A diff line counts by its file. The unchanged symbols open by themselves when one is tagged, as a symbol the PR has put back is.
+- The review data's `sinceReview.changed` also lists the `symbols`, `decisions` and `tests` ids, the ones their comments anchor to, and the `files` paths changed since, with the same lists under `dropped` for what this head's review no longer holds.
+
+### Changed
+
+- The line under **Show** names everything in `dropped`, not only parts and edges, and says "Gone from the PR since the last review": a file the PR has restored hasn't been removed.
 
 ## 0.20.0 — 2026-11-04
 

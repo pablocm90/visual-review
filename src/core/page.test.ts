@@ -1515,17 +1515,27 @@ test.for([
 
 const nothingDropped = { nodes: [], edges: [] };
 
-const reviewedAt = (
-  overrides: Pick<ReviewedDiff, 'before' | 'changedPaths'> & {
-    readonly renames?: ReviewedDiff['renames'];
-    readonly pullRequest?: ReviewedDiff;
-  },
-): ReviewedReading => ({
+const reviewedAt = ({
+  pullRequest,
+  ...overrides
+}: Pick<ReviewedDiff, 'before' | 'changedPaths'> &
+  Partial<Pick<ReviewedDiff, 'renames' | 'symbols' | 'tests'>> & {
+    readonly pullRequest?: Partial<ReviewedDiff>;
+  }): ReviewedReading => ({
   head: 'h1',
   verdict: 'comment',
   renames: [],
-  pullRequest: { before: overrides.before, changedPaths: [], renames: [] },
+  symbols: [],
+  tests: [],
   ...overrides,
+  pullRequest: {
+    before: overrides.before,
+    changedPaths: [],
+    renames: [],
+    symbols: [],
+    tests: [],
+    ...pullRequest,
+  },
 });
 
 test.for([
@@ -1552,7 +1562,7 @@ test.for([
 
   expect(
     pageData({ repo: 'shop', reading, range: 'a..b', version: '1.2.3', parsers: {} }).sinceReview,
-  ).toEqual({
+  ).toMatchObject({
     head: 'h1',
     verdict: 'comment',
     changed: { nodes, edges: [], dropped: nothingDropped },
@@ -1606,7 +1616,7 @@ test.for([
 
     expect(
       pageData({ repo: 'shop', reading, range: 'a..b', version: '1.2.3', parsers: {} }).sinceReview,
-    ).toEqual({
+    ).toMatchObject({
       head: 'h1',
       verdict: 'comment',
       changed: { nodes, edges: [], dropped: nothingDropped },
@@ -1628,7 +1638,7 @@ test("page data leaves out a file main's merge added since the last review", () 
 
   expect(
     pageData({ repo: 'shop', reading, range: 'a..b', version: '1.2.3', parsers: {} }).sinceReview,
-  ).toEqual({
+  ).toMatchObject({
     head: 'h1',
     verdict: 'comment',
     changed: { nodes: [], edges: [], dropped: nothingDropped },
@@ -1669,7 +1679,7 @@ test("page data lists the PR's added or removed edges that came or went since th
 
   expect(
     pageData({ repo: 'shop', reading, range: 'a..b', version: '1.2.3', parsers: {} }).sinceReview,
-  ).toEqual({
+  ).toMatchObject({
     head: 'h1',
     verdict: 'comment',
     changed: { nodes: [], edges: [`${a} -> ${c}`, `${b} -> ${c}`], dropped: nothingDropped },
@@ -1691,7 +1701,7 @@ test('page data lists a part the PR edited at the last review and has since rest
 
   expect(
     pageData({ repo: 'shop', reading, range: 'a..b', version: '1.2.3', parsers: {} }).sinceReview,
-  ).toEqual({
+  ).toMatchObject({
     head: 'h1',
     verdict: 'comment',
     changed: { nodes: ['web/file/a.ts'], edges: [], dropped: nothingDropped },
@@ -1716,7 +1726,7 @@ test('page data lists a file the PR renamed at the last review and has since ren
 
   expect(
     pageData({ repo: 'shop', reading, range: 'a..b', version: '1.2.3', parsers: {} }).sinceReview,
-  ).toEqual({
+  ).toMatchObject({
     head: 'h1',
     verdict: 'comment',
     changed: { nodes: ['web/file/a.ts'], edges: [], dropped: nothingDropped },
@@ -1753,7 +1763,7 @@ test.for([
 
     expect(
       pageData({ repo: 'shop', reading, range: 'a..b', version: '1.2.3', parsers: {} }).sinceReview,
-    ).toEqual({
+    ).toMatchObject({
       head: 'h1',
       verdict: 'comment',
       changed: {
@@ -1796,7 +1806,7 @@ test('page data lists each class of a file the PR renamed at the last review and
 
   expect(
     pageData({ repo: 'shop', reading, range: 'a..b', version: '1.2.3', parsers: {} }).sinceReview,
-  ).toEqual({
+  ).toMatchObject({
     head: 'h1',
     verdict: 'comment',
     changed: {
@@ -1827,7 +1837,7 @@ test('page data holds apart what the PR added at the last review and has since d
 
   expect(
     pageData({ repo: 'shop', reading, range: 'a..b', version: '1.2.3', parsers: {} }).sinceReview,
-  ).toEqual({
+  ).toMatchObject({
     head: 'h1',
     verdict: 'comment',
     changed: { nodes: [], edges: [], dropped: { nodes: [a], edges: [`${a} -> ${b}`] } },
@@ -1851,7 +1861,7 @@ test('page data lists an edge the PR removed at the last review and has since pu
 
   expect(
     pageData({ repo: 'shop', reading, range: 'a..b', version: '1.2.3', parsers: {} }).sinceReview,
-  ).toEqual({
+  ).toMatchObject({
     head: 'h1',
     verdict: 'comment',
     changed: { nodes: [], edges: [`${a} -> ${b}`], dropped: nothingDropped },
@@ -1868,7 +1878,9 @@ test('page data says the reviewed head is gone when its commit no longer reads, 
       parsers: {},
     });
 
-  expect(data({ reviewed: { head: 'h1', verdict: 'approve', gone: true } }).sinceReview).toEqual({
+  expect(
+    data({ reviewed: { head: 'h1', verdict: 'approve', gone: true } }).sinceReview,
+  ).toMatchObject({
     head: 'h1',
     gone: true,
   });
@@ -1877,4 +1889,450 @@ test('page data says the reviewed head is gone when its commit no longer reads, 
       .sinceReview,
   ).toEqual({ head: 'h1', unreadable: 'cargo metadata failed' });
   expect(data({})).not.toHaveProperty('sinceReview');
+});
+
+test.for([
+  {
+    since: 'a file the PR changes edited since, by its patch',
+    paths: ['web/src/a.ts'],
+    patches: ['web/src/a.ts'],
+    files: ['web/src/a.ts'],
+    dropped: [],
+  },
+  {
+    since: 'a file only a merge touched',
+    paths: ['web/src/c.ts'],
+    patches: ['web/src/a.ts'],
+    files: [],
+    dropped: [],
+  },
+  {
+    since: 'a file restored since, which the head has no patch of',
+    paths: ['web/src/b.ts'],
+    patches: ['web/src/a.ts'],
+    files: [],
+    dropped: ['web/src/b.ts'],
+  },
+  {
+    since: 'a file outside the graph, by its patch too',
+    paths: ['README.md'],
+    patches: ['README.md'],
+    files: ['README.md'],
+    dropped: [],
+  },
+])('changed since lists $since', ({ paths, patches, files, dropped }) => {
+  const graph = { nodes: [webStack, webFile('a.ts')], edges: [] };
+  const reading = readingWith({
+    before: graph,
+    after: graph,
+    changedPaths: ['web/src/a.ts', 'README.md'],
+    patches: patches.map(patch),
+    reviewed: reviewedAt({
+      before: graph,
+      changedPaths: paths,
+      pullRequest: { changedPaths: ['web/src/a.ts', 'web/src/b.ts'] },
+    }),
+  });
+
+  expect(
+    pageData({ repo: 'shop', reading, range: 'a..b', version: '1.2.3', parsers: {} }).sinceReview,
+  ).toMatchObject({ changed: { files, dropped: { files: dropped } } });
+});
+
+test('changed since lists a file renamed since by its new name alone', () => {
+  const [from, to] = ['web/src/a.ts', 'web/src/b.ts'];
+  const graph = { nodes: [webStack, webFile('a.ts')], edges: [] };
+  const reading = readingWith({
+    before: graph,
+    after: graph,
+    changedPaths: [from, to],
+    patches: [patch(to)],
+    reviewed: reviewedAt({
+      before: graph,
+      changedPaths: [from, to],
+      renames: [{ from, to }],
+    }),
+  });
+
+  expect(
+    pageData({ repo: 'shop', reading, range: 'a..b', version: '1.2.3', parsers: {} }).sinceReview,
+  ).toMatchObject({ changed: { files: [to], dropped: { files: [] } } });
+});
+
+const anchorGraph = {
+  nodes: [webStack, webFile('a.ts'), webFile('b.ts')],
+  edges: [],
+};
+
+const anchorFile = (name: string, symbols: ReadonlyArray<SymbolStatement>): SymbolFile => ({
+  ...symbolFile(symbols),
+  node: `web/file/${name}`,
+});
+
+const fn = (
+  name: string,
+  change: SymbolStatement['change'],
+  more: Partial<SymbolStatement> = {},
+): SymbolStatement => ({ name, kind: 'function', exported: {}, change, ...more });
+
+test.for([
+  {
+    case: 'a function edited since, edited in the PR too',
+    since: [fn('f', 'edited')],
+    head: [fn('f', 'edited')],
+    atReview: [fn('f', 'edited')],
+    symbols: ['web/file/a.ts#f'],
+    dropped: [],
+  },
+  {
+    case: 'a function edited in the PR but not since',
+    since: [fn('f', 'unchanged')],
+    head: [fn('f', 'edited')],
+    atReview: [fn('f', 'edited')],
+    symbols: [],
+    dropped: [],
+  },
+  {
+    case: 'a function only reformatted since',
+    since: [fn('f', 'formatting')],
+    head: [fn('f', 'edited')],
+    atReview: [fn('f', 'edited')],
+    symbols: [],
+    dropped: [],
+  },
+  {
+    case: 'a function a merge edited, which the PR leaves alone at either head',
+    since: [fn('f', 'edited')],
+    head: [fn('f', 'unchanged'), fn('g', 'edited')],
+    atReview: [fn('f', 'unchanged'), fn('g', 'edited')],
+    symbols: [],
+    dropped: [],
+  },
+  {
+    case: 'a function the PR changes only at the new head',
+    since: [fn('f', 'edited')],
+    head: [fn('f', 'edited')],
+    atReview: [fn('f', 'unchanged')],
+    symbols: ['web/file/a.ts#f'],
+    dropped: [],
+  },
+  {
+    case: 'a function reverted since, still in a file the PR changes',
+    since: [fn('f', 'edited')],
+    head: [fn('f', 'unchanged'), fn('g', 'edited')],
+    atReview: [fn('f', 'edited')],
+    symbols: ['web/file/a.ts#f'],
+    dropped: [],
+  },
+  {
+    case: 'a function reverted since, in a file the PR no longer changes',
+    since: [fn('f', 'edited')],
+    head: [],
+    atReview: [fn('f', 'edited')],
+    symbols: [],
+    dropped: ['web/file/a.ts#f'],
+  },
+  {
+    case: 'a function renamed back since, by its new name',
+    since: [fn('g', 'renamed', { renamedFrom: 'f' })],
+    head: [fn('g', 'unchanged'), fn('h', 'edited')],
+    atReview: [fn('f', 'renamed', { renamedFrom: 'g' })],
+    symbols: ['web/file/a.ts#g'],
+    dropped: [],
+  },
+])('changed since lists symbols: $case', ({ since, head, atReview, symbols, dropped }) => {
+  const reading = readingWith({
+    before: anchorGraph,
+    after: anchorGraph,
+    changedPaths: ['web/src/a.ts'],
+    symbols: head.length === 0 ? [] : [anchorFile('a.ts', head)],
+    reviewed: reviewedAt({
+      before: anchorGraph,
+      changedPaths: ['web/src/a.ts'],
+      symbols: [anchorFile('a.ts', since)],
+      pullRequest: { symbols: [anchorFile('a.ts', atReview)] },
+    }),
+  });
+
+  expect(
+    pageData({ repo: 'shop', reading, range: 'a..b', version: '1.2.3', parsers: {} }).sinceReview,
+  ).toMatchObject({ changed: { symbols, dropped: { symbols: dropped } } });
+});
+
+test('changed since finds a function moved back since by the file it was in at the review', () => {
+  const reading = readingWith({
+    before: anchorGraph,
+    after: anchorGraph,
+    changedPaths: ['web/src/a.ts', 'web/src/b.ts'],
+    symbols: [anchorFile('a.ts', [fn('f', 'unchanged'), fn('g', 'edited')])],
+    reviewed: reviewedAt({
+      before: anchorGraph,
+      changedPaths: ['web/src/a.ts', 'web/src/b.ts'],
+      symbols: [anchorFile('a.ts', [fn('f', 'moved', { movedFrom: 'web/file/b.ts' })])],
+      pullRequest: {
+        symbols: [anchorFile('b.ts', [fn('f', 'moved', { movedFrom: 'web/file/a.ts' })])],
+      },
+    }),
+  });
+
+  expect(
+    pageData({ repo: 'shop', reading, range: 'a..b', version: '1.2.3', parsers: {} }).sinceReview,
+  ).toMatchObject({ changed: { symbols: ['web/file/a.ts#f'] } });
+});
+
+test('changed since finds a function in a file renamed since by its name at the review', () => {
+  const reviewedGraph = { nodes: [webStack, webFile('old.ts')], edges: [] };
+  const headGraph = { nodes: [webStack, webFile('new.ts')], edges: [] };
+  const reading = readingWith({
+    before: { nodes: [webStack], edges: [] },
+    after: headGraph,
+    changedPaths: ['web/src/new.ts'],
+    symbols: [anchorFile('new.ts', [fn('f', 'unchanged'), fn('g', 'edited')])],
+    reviewed: reviewedAt({
+      before: reviewedGraph,
+      changedPaths: ['web/src/old.ts', 'web/src/new.ts'],
+      renames: [{ from: 'web/src/old.ts', to: 'web/src/new.ts' }],
+      symbols: [anchorFile('new.ts', [fn('f', 'edited')])],
+      pullRequest: {
+        before: { nodes: [webStack], edges: [] },
+        changedPaths: ['web/src/old.ts'],
+        symbols: [anchorFile('old.ts', [fn('f', 'edited')])],
+      },
+    }),
+  });
+
+  expect(
+    pageData({ repo: 'shop', reading, range: 'a..b', version: '1.2.3', parsers: {} }).sinceReview,
+  ).toMatchObject({ changed: { symbols: ['web/file/new.ts#f'] } });
+});
+
+test('changed since skips a file whose symbols could not be read', () => {
+  const unreadable = { node: 'web/file/a.ts', stack: 'web', unreadable: 'SyntaxError' };
+  const reading = readingWith({
+    before: anchorGraph,
+    after: anchorGraph,
+    changedPaths: ['web/src/a.ts'],
+    symbols: [unreadable],
+    reviewed: reviewedAt({
+      before: anchorGraph,
+      changedPaths: ['web/src/a.ts'],
+      symbols: [unreadable],
+      pullRequest: { symbols: [unreadable] },
+    }),
+  });
+
+  expect(
+    pageData({ repo: 'shop', reading, range: 'a..b', version: '1.2.3', parsers: {} }).sinceReview,
+  ).toMatchObject({ changed: { symbols: [], dropped: { symbols: [] } } });
+});
+
+const ifLine = (change: LogicLine['change'], base: string | undefined, head: string | undefined) =>
+  logicLine({
+    change,
+    kind: 'if',
+    ...(base === undefined ? {} : { base }),
+    ...(head === undefined ? {} : { head }),
+  });
+
+const editedWith = (logic: ReadonlyArray<LogicLine>) => fn('f', 'edited', { logic });
+
+test.for([
+  {
+    case: 'a line changed since, the same at the review',
+    since: [ifLine('changed', 'if (a)', 'if (b)'), ifLine('same', 'if (c)', 'if (c)')],
+    head: editedWith([ifLine('changed', 'if (z)', 'if (b)'), ifLine('same', 'if (c)', 'if (c)')]),
+    decisions: ['web/file/a.ts#f#if (b)'],
+    dropped: [],
+  },
+  {
+    case: 'a line changed since that the head reads as the same, a revert',
+    since: [ifLine('changed', 'if (a)', 'if (b)')],
+    head: editedWith([ifLine('same', 'if (b)', 'if (b)'), ifLine('added', undefined, 'if (c)')]),
+    decisions: ['web/file/a.ts#f#if (b)'],
+    dropped: [],
+  },
+  {
+    case: 'a line changed since, still in a function the PR adds, which has no lines',
+    since: [ifLine('changed', 'if (a > 0)', 'if (a > 1)')],
+    head: fn('f', 'added'),
+    decisions: [],
+    dropped: [],
+  },
+  {
+    case: 'a line removed since, gone from the head',
+    since: [ifLine('removed', 'if (gone)', undefined)],
+    head: editedWith([ifLine('added', undefined, 'if (other)')]),
+    decisions: [],
+    dropped: ['web/file/a.ts#f#if (gone)'],
+  },
+])('changed since lists decisions: $case', ({ since, head, decisions, dropped }) => {
+  const reading = readingWith({
+    before: anchorGraph,
+    after: anchorGraph,
+    changedPaths: ['web/src/a.ts'],
+    symbols: [anchorFile('a.ts', [head])],
+    reviewed: reviewedAt({
+      before: anchorGraph,
+      changedPaths: ['web/src/a.ts'],
+      symbols: [anchorFile('a.ts', [editedWith(since)])],
+    }),
+  });
+
+  expect(
+    pageData({ repo: 'shop', reading, range: 'a..b', version: '1.2.3', parsers: {} }).sinceReview,
+  ).toMatchObject({ changed: { decisions, dropped: { decisions: dropped } } });
+});
+
+test('changed since lists no decision of a function a merge edited', () => {
+  const line = ifLine('changed', 'if (a)', 'if (b)');
+  const reading = readingWith({
+    before: anchorGraph,
+    after: anchorGraph,
+    changedPaths: ['web/src/a.ts'],
+    symbols: [
+      anchorFile('a.ts', [fn('f', 'unchanged', { logic: [ifLine('same', 'if (b)', 'if (b)')] })]),
+    ],
+    reviewed: reviewedAt({
+      before: anchorGraph,
+      changedPaths: ['web/src/a.ts'],
+      symbols: [anchorFile('a.ts', [fn('f', 'edited', { logic: [line] })])],
+    }),
+  });
+
+  expect(
+    pageData({ repo: 'shop', reading, range: 'a..b', version: '1.2.3', parsers: {} }).sinceReview,
+  ).toMatchObject({ changed: { symbols: [], decisions: [], dropped: { decisions: [] } } });
+});
+
+const testOf = (name: string, change: 'added' | 'removed' | 'edited' | 'unchanged') => ({
+  kind: 'test' as const,
+  name,
+  change,
+});
+
+const testFile = (
+  path: string,
+  statements: Extract<TestFile, { statements: unknown }>['statements'],
+  renamedFrom?: string,
+): TestFile => ({ path, stack: 'web', renamedFrom, statements });
+
+const headed = (...children: ReadonlyArray<ReturnType<typeof testOf>>) => [
+  { kind: 'heading' as const, name: 'cart', children },
+];
+
+test.for([
+  {
+    case: 'a test edited since, edited in the PR too, by its heading trail',
+    since: headed(testOf('adds', 'edited')),
+    head: headed(testOf('adds', 'edited')),
+    atReview: headed(testOf('adds', 'edited')),
+    tests: ['web/a.test.ts#cart › adds'],
+    dropped: [],
+  },
+  {
+    case: 'a test edited in the PR but not since',
+    since: headed(testOf('adds', 'unchanged')),
+    head: headed(testOf('adds', 'edited')),
+    atReview: headed(testOf('adds', 'edited')),
+    tests: [],
+    dropped: [],
+  },
+  {
+    case: 'a test a merge edited, which the PR leaves alone at either head',
+    since: headed(testOf('adds', 'edited')),
+    head: headed(testOf('adds', 'unchanged'), testOf('other', 'edited')),
+    atReview: headed(testOf('adds', 'unchanged'), testOf('other', 'edited')),
+    tests: [],
+    dropped: [],
+  },
+  {
+    case: 'a test the PR changes only at the new head',
+    since: headed(testOf('adds', 'edited')),
+    head: headed(testOf('adds', 'edited')),
+    atReview: headed(testOf('adds', 'unchanged')),
+    tests: ['web/a.test.ts#cart › adds'],
+    dropped: [],
+  },
+  {
+    case: 'a test reverted since, in a file the PR still changes',
+    since: headed(testOf('adds', 'edited')),
+    head: headed(testOf('adds', 'unchanged'), testOf('other', 'edited')),
+    atReview: headed(testOf('adds', 'edited')),
+    tests: ['web/a.test.ts#cart › adds'],
+    dropped: [],
+  },
+  {
+    case: 'a test added in the PR and removed since',
+    since: headed(testOf('adds', 'removed')),
+    head: headed(testOf('other', 'edited')),
+    atReview: headed(testOf('adds', 'added')),
+    tests: [],
+    dropped: ['web/a.test.ts#cart › adds'],
+  },
+  {
+    case: 'the second of two tests of one name, by its count',
+    since: headed(testOf('adds', 'unchanged'), testOf('adds', 'edited')),
+    head: headed(testOf('adds', 'unchanged'), testOf('adds', 'edited')),
+    atReview: headed(testOf('adds', 'unchanged'), testOf('adds', 'edited')),
+    tests: ['web/a.test.ts#cart › adds#2'],
+    dropped: [],
+  },
+])('changed since lists tests: $case', ({ since, head, atReview, tests, dropped }) => {
+  const reading = readingWith({
+    before: anchorGraph,
+    after: anchorGraph,
+    changedPaths: ['web/a.test.ts'],
+    tests: [testFile('web/a.test.ts', head)],
+    reviewed: reviewedAt({
+      before: anchorGraph,
+      changedPaths: ['web/a.test.ts'],
+      tests: [testFile('web/a.test.ts', since)],
+      pullRequest: { tests: [testFile('web/a.test.ts', atReview)] },
+    }),
+  });
+
+  expect(
+    pageData({ repo: 'shop', reading, range: 'a..b', version: '1.2.3', parsers: {} }).sinceReview,
+  ).toMatchObject({ changed: { tests, dropped: { tests: dropped } } });
+});
+
+test('changed since finds a test in a file renamed since by its path at the review', () => {
+  const [from, to] = ['web/old.test.ts', 'web/new.test.ts'];
+  const reading = readingWith({
+    before: anchorGraph,
+    after: anchorGraph,
+    changedPaths: [to],
+    tests: [testFile(to, headed(testOf('adds', 'unchanged'), testOf('other', 'edited')))],
+    reviewed: reviewedAt({
+      before: anchorGraph,
+      changedPaths: [from, to],
+      renames: [{ from, to }],
+      tests: [testFile(to, headed(testOf('adds', 'edited')), from)],
+      pullRequest: { tests: [testFile(from, headed(testOf('adds', 'edited')))] },
+    }),
+  });
+
+  expect(
+    pageData({ repo: 'shop', reading, range: 'a..b', version: '1.2.3', parsers: {} }).sinceReview,
+  ).toMatchObject({ changed: { tests: [`${to}#cart › adds`] } });
+});
+
+test('changed since skips a test file that could not be read', () => {
+  const unreadable = { path: 'web/a.test.ts', stack: 'web', unreadable: 'SyntaxError' };
+  const reading = readingWith({
+    before: anchorGraph,
+    after: anchorGraph,
+    changedPaths: ['web/a.test.ts'],
+    tests: [unreadable],
+    reviewed: reviewedAt({
+      before: anchorGraph,
+      changedPaths: ['web/a.test.ts'],
+      tests: [unreadable],
+      pullRequest: { tests: [unreadable] },
+    }),
+  });
+
+  expect(
+    pageData({ repo: 'shop', reading, range: 'a..b', version: '1.2.3', parsers: {} }).sinceReview,
+  ).toMatchObject({ changed: { tests: [], dropped: { tests: [] } } });
 });

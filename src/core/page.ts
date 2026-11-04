@@ -104,6 +104,9 @@ export const pageData = ({
             after: reading.after,
             diff,
             changedPaths: reading.changedPaths,
+            patches: reading.patches,
+            symbols: reading.symbols,
+            tests: reading.tests,
           }),
         }),
   };
