@@ -27,3 +27,24 @@ test.for([
 ])('$written names its column however it is written', ({ written, title }) => {
   expect(titles(written)).toStrictEqual([title]);
 });
+
+test.for([
+  {
+    written: 'remove_columns :users, :name, :age',
+    expected: ['column users.name removed', 'column users.age removed'],
+  },
+  {
+    written: 'remove_columns :users, :name, :age, type: :string',
+    expected: ['column users.name removed', 'column users.age removed'],
+  },
+  {
+    written: 'remove_columns :users, :name, { type: :string }',
+    expected: ['column users.name removed'],
+  },
+  { written: 'remove_reference :users, :account', expected: ['reference users.account removed'] },
+  { written: 'remove_belongs_to :users, :account', expected: ['reference users.account removed'] },
+  { written: 'remove_timestamps :users', expected: ['timestamps of users removed'] },
+  { written: 'connection.remove_column', expected: [] },
+])('$written reads as what it takes away', ({ written, expected }) => {
+  expect(titles(written)).toStrictEqual(expected);
+});
