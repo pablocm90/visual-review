@@ -52,3 +52,13 @@ test.for([
 ])('$written reads as what it takes away', ({ written, expected }) => {
   expect(titles(written)).toStrictEqual(expected);
 });
+
+test('changing a column type says what it becomes and why that is a risk', () => {
+  expect(railsMigrations.risks(migration('change_column :users, :age, :bigint'))).toStrictEqual([
+    {
+      title: 'column users.age changed to bigint',
+      why: 'A type change can rewrite the table under a lock, and running code expects the old type.',
+      line: 3,
+    },
+  ]);
+});

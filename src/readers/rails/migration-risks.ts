@@ -11,6 +11,9 @@ type Rule = (call: {
   readonly args: ReadonlyArray<Node>;
 }) => ReadonlyArray<Risky>;
 
+const REWRITES =
+  'A type change can rewrite the table under a lock, and running code expects the old type.';
+
 const nameOf = (node: Node | undefined): string => node?.text.replace(/^:?['"]?|['"]$/g, '') ?? '';
 
 const callsIn = (node: Node): ReadonlyArray<Node> => [
@@ -39,6 +42,12 @@ const RULES: ReadonlyMap<string, Rule> = new Map<string, Rule>([
     'rename_column',
     ({ table, args: [from, to] }) => [
       stillRead(`column ${table}.${nameOf(from)} renamed to ${nameOf(to)}`),
+    ],
+  ],
+  [
+    'change_column',
+    ({ table, args: [column, type] }) => [
+      { title: `column ${table}.${nameOf(column)} changed to ${nameOf(type)}`, why: REWRITES },
     ],
   ],
 ]);
