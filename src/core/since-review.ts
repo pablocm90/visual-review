@@ -3,12 +3,20 @@ import { edgeId, type Graph } from './graph.ts';
 import type { ReviewedHead, ReviewedReading, SymbolFile } from './read-range.ts';
 import { isQuiet, qualified } from './symbol-changes.ts';
 import { type AnchoredSymbol, anchoredSymbols, decisionsOf } from './symbol-findings.ts';
+import {
+  type AnchoredStatement,
+  type AnchoredTest,
+  anchoredTests,
+  type TestFile,
+  testAnchorId,
+} from './test-changes.ts';
 
 type Changed = {
   readonly nodes: ReadonlyArray<string>;
   readonly edges: ReadonlyArray<string>;
   readonly symbols: ReadonlyArray<string>;
   readonly decisions: ReadonlyArray<string>;
+  readonly tests: ReadonlyArray<string>;
   readonly files: ReadonlyArray<string>;
 };
 
@@ -26,6 +34,7 @@ type SinceReviewOptions = {
   readonly changedPaths: ReadonlyArray<string>;
   readonly patches: ReadonlyArray<FilePatch>;
   readonly symbols: ReadonlyArray<SymbolFile>;
+  readonly tests: ReadonlyArray<TestFile>;
 };
 
 const changedIn = ({ nodes, edges }: GraphDiff) => ({
@@ -105,6 +114,42 @@ const symbolsSinceOf = ({ since, atHead, atReview, named }: SymbolsSinceOptions)
   };
 };
 
+const testsUnder = (statements: ReadonlyArray<AnchoredStatement>): ReadonlyArray<AnchoredTest> =>
+  statements.flatMap(statement =>
+    statement.kind === 'test' ? [statement] : testsUnder(statement.children),
+  );
+
+const testAnchorsIn = (files: ReadonlyArray<TestFile>) =>
+  files.flatMap(file =>
+    'statements' in file
+      ? testsUnder(anchoredTests(file.statements)).map(({ trail, change }) => ({
+          id: testAnchorId(file.path, trail),
+          former: testAnchorId(file.renamedFrom ?? file.path, trail),
+          change,
+        }))
+      : [],
+  );
+
+type TestsSinceOptions = {
+  readonly since: ReadonlyArray<TestFile>;
+  readonly atHead: ReadonlyArray<TestFile>;
+  readonly atReview: ReadonlyArray<TestFile>;
+};
+
+const testsSinceOf = ({ since, atHead, atReview }: TestsSinceOptions) => {
+  const changed = <T extends { readonly change: string }>(tests: ReadonlyArray<T>) =>
+    tests.filter(({ change }) => change !== 'unchanged');
+  const head = testAnchorsIn(atHead);
+  const now = changed(head).map(({ id }) => id);
+  const then = changed(testAnchorsIn(atReview)).map(({ id }) => id);
+  return inTheHead(
+    changed(testAnchorsIn(since))
+      .filter(({ id, former }) => now.includes(id) || then.includes(former))
+      .map(({ id }) => id),
+    head.map(({ id }) => id),
+  );
+};
+
 export const sinceReviewOf = ({
   reviewed,
   after,
@@ -112,6 +157,7 @@ export const sinceReviewOf = ({
   changedPaths,
   patches,
   symbols,
+  tests,
 }: SinceReviewOptions): SinceReview => {
   if ('gone' in reviewed) return { head: reviewed.head, gone: true };
   if ('unreadable' in reviewed) return { head: reviewed.head, unreadable: reviewed.unreadable };
@@ -145,6 +191,11 @@ export const sinceReviewOf = ({
     atReview: pullRequest.symbols,
     named,
   });
+  const testsSince = testsSinceOf({
+    since: side.tests,
+    atHead: tests,
+    atReview: pullRequest.tests,
+  });
   return {
     head,
     verdict,
@@ -153,12 +204,14 @@ export const sinceReviewOf = ({
       edges: edges.drawn,
       symbols: anchors.symbols.drawn,
       decisions: anchors.decisions.drawn,
+      tests: testsSince.drawn,
       files: files.drawn,
       dropped: {
         nodes: nodes.dropped,
         edges: edges.dropped,
         symbols: anchors.symbols.dropped,
         decisions: anchors.decisions.dropped,
+        tests: testsSince.dropped,
         files: files.dropped,
       },
     },

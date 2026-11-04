@@ -190,6 +190,8 @@ export const anchoredTests = (
   statements: ReadonlyArray<TestStatement>,
 ): ReadonlyArray<AnchoredStatement> => anchoring(statements, [], []).anchored;
 
+export const testAnchorId = (path: string, trail: string): string => `${path}#${trail}`;
+
 export const withMovedTests = (files: ReadonlyArray<TestFile>): ReadonlyArray<TestFile> => {
   const pathsWhere = (name: string, change: TestChange): ReadonlyArray<string> =>
     files.flatMap(file =>

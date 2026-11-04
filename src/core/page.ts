@@ -99,6 +99,7 @@ export const pageData = ({
             changedPaths: reading.changedPaths,
             patches: reading.patches,
             symbols: reading.symbols,
+            tests: reading.tests,
           }),
         }),
   };

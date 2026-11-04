@@ -2145,3 +2145,136 @@ test('changed since lists no decision of a function a merge edited', () => {
     pageData({ repo: 'shop', reading, range: 'a..b', version: '1.2.3', parsers: {} }).sinceReview,
   ).toMatchObject({ changed: { symbols: [], decisions: [], dropped: { decisions: [] } } });
 });
+
+const testOf = (name: string, change: 'added' | 'removed' | 'edited' | 'unchanged') => ({
+  kind: 'test' as const,
+  name,
+  change,
+});
+
+const testFile = (
+  path: string,
+  statements: Extract<TestFile, { statements: unknown }>['statements'],
+  renamedFrom?: string,
+): TestFile => ({ path, stack: 'web', renamedFrom, statements });
+
+const headed = (...children: ReadonlyArray<ReturnType<typeof testOf>>) => [
+  { kind: 'heading' as const, name: 'cart', children },
+];
+
+test.for([
+  {
+    case: 'a test edited since, edited in the PR too, by its heading trail',
+    since: headed(testOf('adds', 'edited')),
+    head: headed(testOf('adds', 'edited')),
+    atReview: headed(testOf('adds', 'edited')),
+    tests: ['web/a.test.ts#cart › adds'],
+    dropped: [],
+  },
+  {
+    case: 'a test edited in the PR but not since',
+    since: headed(testOf('adds', 'unchanged')),
+    head: headed(testOf('adds', 'edited')),
+    atReview: headed(testOf('adds', 'edited')),
+    tests: [],
+    dropped: [],
+  },
+  {
+    case: 'a test a merge edited, which the PR leaves alone at either head',
+    since: headed(testOf('adds', 'edited')),
+    head: headed(testOf('adds', 'unchanged'), testOf('other', 'edited')),
+    atReview: headed(testOf('adds', 'unchanged'), testOf('other', 'edited')),
+    tests: [],
+    dropped: [],
+  },
+  {
+    case: 'a test the PR changes only at the new head',
+    since: headed(testOf('adds', 'edited')),
+    head: headed(testOf('adds', 'edited')),
+    atReview: headed(testOf('adds', 'unchanged')),
+    tests: ['web/a.test.ts#cart › adds'],
+    dropped: [],
+  },
+  {
+    case: 'a test reverted since, in a file the PR still changes',
+    since: headed(testOf('adds', 'edited')),
+    head: headed(testOf('adds', 'unchanged'), testOf('other', 'edited')),
+    atReview: headed(testOf('adds', 'edited')),
+    tests: ['web/a.test.ts#cart › adds'],
+    dropped: [],
+  },
+  {
+    case: 'a test added in the PR and removed since',
+    since: headed(testOf('adds', 'removed')),
+    head: headed(testOf('other', 'edited')),
+    atReview: headed(testOf('adds', 'added')),
+    tests: [],
+    dropped: ['web/a.test.ts#cart › adds'],
+  },
+  {
+    case: 'the second of two tests of one name, by its count',
+    since: headed(testOf('adds', 'unchanged'), testOf('adds', 'edited')),
+    head: headed(testOf('adds', 'unchanged'), testOf('adds', 'edited')),
+    atReview: headed(testOf('adds', 'unchanged'), testOf('adds', 'edited')),
+    tests: ['web/a.test.ts#cart › adds#2'],
+    dropped: [],
+  },
+])('changed since lists tests: $case', ({ since, head, atReview, tests, dropped }) => {
+  const reading = readingWith({
+    before: anchorGraph,
+    after: anchorGraph,
+    changedPaths: ['web/a.test.ts'],
+    tests: [testFile('web/a.test.ts', head)],
+    reviewed: reviewedAt({
+      before: anchorGraph,
+      changedPaths: ['web/a.test.ts'],
+      tests: [testFile('web/a.test.ts', since)],
+      pullRequest: { tests: [testFile('web/a.test.ts', atReview)] },
+    }),
+  });
+
+  expect(
+    pageData({ repo: 'shop', reading, range: 'a..b', version: '1.2.3', parsers: {} }).sinceReview,
+  ).toMatchObject({ changed: { tests, dropped: { tests: dropped } } });
+});
+
+test('changed since finds a test in a file renamed since by its path at the review', () => {
+  const [from, to] = ['web/old.test.ts', 'web/new.test.ts'];
+  const reading = readingWith({
+    before: anchorGraph,
+    after: anchorGraph,
+    changedPaths: [to],
+    tests: [testFile(to, headed(testOf('adds', 'unchanged'), testOf('other', 'edited')))],
+    reviewed: reviewedAt({
+      before: anchorGraph,
+      changedPaths: [from, to],
+      renames: [{ from, to }],
+      tests: [testFile(to, headed(testOf('adds', 'edited')), from)],
+      pullRequest: { tests: [testFile(from, headed(testOf('adds', 'edited')))] },
+    }),
+  });
+
+  expect(
+    pageData({ repo: 'shop', reading, range: 'a..b', version: '1.2.3', parsers: {} }).sinceReview,
+  ).toMatchObject({ changed: { tests: [`${to}#cart › adds`] } });
+});
+
+test('changed since skips a test file that could not be read', () => {
+  const unreadable = { path: 'web/a.test.ts', stack: 'web', unreadable: 'SyntaxError' };
+  const reading = readingWith({
+    before: anchorGraph,
+    after: anchorGraph,
+    changedPaths: ['web/a.test.ts'],
+    tests: [unreadable],
+    reviewed: reviewedAt({
+      before: anchorGraph,
+      changedPaths: ['web/a.test.ts'],
+      tests: [unreadable],
+      pullRequest: { tests: [unreadable] },
+    }),
+  });
+
+  expect(
+    pageData({ repo: 'shop', reading, range: 'a..b', version: '1.2.3', parsers: {} }).sinceReview,
+  ).toMatchObject({ changed: { tests: [], dropped: { tests: [] } } });
+});

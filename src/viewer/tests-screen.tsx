@@ -11,6 +11,7 @@ import {
   type TestChange,
   type TestCounts,
   type TestFile,
+  testAnchorId,
   testCounts,
 } from '../core/test-changes.ts';
 import { testsAlongside } from '../core/tests-alongside.ts';
@@ -64,7 +65,7 @@ const TestLine = ({
       {onComment && (
         <CommentOn
           name={test.trail}
-          anchor={{ kind: 'test', id: `${path}#${test.trail}` }}
+          anchor={{ kind: 'test', id: testAnchorId(path, test.trail) }}
           comments={comments}
           onComment={onComment}
         />
