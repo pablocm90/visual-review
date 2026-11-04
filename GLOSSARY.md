@@ -112,7 +112,7 @@ _In code_: `ChangedSince`, `sinceReviewOf` (`src/core/since-review.ts`); `sinceL
 - **Look first** holds only findings whose **level** is "needs a look".
 - A changed exported **symbol** raises a **finding** in the api dimension, under that symbol's id; a file's **kind of change** raises none of its own.
 - A review holds at most one comment or **finding answer** per **anchor**, and each comment has one **comment kind**; the **suggested verdict** follows the kinds and the answers, and the verdict the reviewer picks overrides it.
-- A **round** after the first compares against the newest review of its pull request at another head; **changed since** is always a subset of what the pull request changes at either head, so a part it has reverted counts.
+- A **round** after the first compares against the newest review of its pull request at another head; **changed since** is always a subset of what the pull request changes at either head, so a part it has reverted counts; a symbol, logic line, test or file is **changed since** by its own anchor id, a diff line by its file.
 - A **flag** is answered like any other **finding**, under the id `notes:<node or edge id>`.
 - A removed guard or catch **logic line** raises a **finding** in the logic dimension that needs a look; a function's other **logic lines** that changed raise one for information; a file with either and no test changed alongside it raises one in the tests dimension.
 

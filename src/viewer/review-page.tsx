@@ -36,6 +36,7 @@ import {
   visibleNodeOf,
 } from '../core/visible-diff.ts';
 import { anchorKey, anchorName, lineAnchor, placeOfLine } from './anchors.ts';
+import { ChangedSinceMarks, ChangedSinceTag, useIsChangedSince } from './changed-since.tsx';
 import { ColourBy, type Colouring, ScaleLegend, type Shade, shadeOf } from './colour-by.tsx';
 import { CommentField, CommentOn, type Comments } from './comment-field.tsx';
 import {
@@ -61,7 +62,7 @@ import { MetricsTable } from './metrics-tab.tsx';
 import { storedReadMarks, storeReadMarks } from './read-marks.ts';
 import { ReadingOrderList } from './reading-order-list.tsx';
 import { ReviewTray } from './review-tray.tsx';
-import { changedSymbolCount, hasSymbolNews, type LineAt, SymbolsOf } from './symbols-tab.tsx';
+import { changedSymbolCount, type LineAt, SymbolsOf, useHasSymbolNews } from './symbols-tab.tsx';
 import { changedCount, TestFiles, TestsScreen } from './tests-screen.tsx';
 import {
   boxOf,
@@ -523,6 +524,7 @@ const Patch = ({
 }: FilePatch &
   LineComments & { readonly open: boolean; readonly landing: LandingIn | undefined }) => {
   const lines = useMemo(() => highlightPatch({ path, patch }), [path, patch]);
+  const marked = useIsChangedSince()('files', path);
   const landed = landing?.path === path ? landing : undefined;
   const top = useRef<HTMLDetailsElement>(null);
   useLayoutEffect(() => {
@@ -537,7 +539,10 @@ const Patch = ({
   );
   return (
     <details aria-label={path} open={open || holdsDraft} ref={top}>
-      <summary>{path}</summary>
+      <summary>
+        {path}
+        <ChangedSinceTag marked={marked} />
+      </summary>
       <pre>
         {lines.map((line, index) => (
           <PatchLine
@@ -654,7 +659,11 @@ type Section = {
 type NodeSectionsOptions = Pick<
   InspectorProps,
   'nodes' | 'metrics' | 'findings' | 'tests' | 'symbols' | 'onGoTo' | 'comments' | 'onComment'
-> & { readonly node: DiffNode; readonly onShowLine: (at: LineAt) => void };
+> & {
+  readonly node: DiffNode;
+  readonly onShowLine: (at: LineAt) => void;
+  readonly hasSymbolNews: (file: SymbolFile) => boolean;
+};
 
 const nodeSections = ({
   nodes,
@@ -667,6 +676,7 @@ const nodeSections = ({
   onShowLine,
   comments,
   onComment,
+  hasSymbolNews,
 }: NodeSectionsOptions): ReadonlyArray<Section> => {
   const measured = metrics[node.id];
   const testsHere = testsAlongside({ nodes, node, tests });
@@ -783,6 +793,7 @@ const Inspector = ({
   onLand,
   ...props
 }: InspectorProps) => {
+  const hasSymbolNews = useHasSymbolNews();
   const showLine = ({ node: at, ...line }: LineAt) => {
     onLand({ ...line, path: props.nodes.find(({ id }) => id === at)?.path });
     onPick('diff');
@@ -811,7 +822,7 @@ const Inspector = ({
           },
         ]
       : []),
-    ...(node ? nodeSections({ ...props, node, onShowLine: showLine }) : []),
+    ...(node ? nodeSections({ ...props, node, onShowLine: showLine, hasSymbolNews }) : []),
   ].toSorted((a, b) => SECTION_ORDER.indexOf(a.tab) - SECTION_ORDER.indexOf(b.tab));
   const shown = sections.find(({ tab }) => tab === picked) ?? sections[0];
   return (
@@ -1301,10 +1312,12 @@ type GraphCaveatProps = {
 };
 
 const GraphCaveat = ({ since, nothingDrawn }: GraphCaveatProps) => {
-  const dropped = since === undefined ? [] : [...since.dropped.nodes, ...since.dropped.edges];
+  const dropped = since === undefined ? [] : Object.values(since.dropped).flat();
   if (dropped.length > 0)
     return (
-      <p className="caveat">Removed since the last review, so not drawn: {dropped.join(', ')}</p>
+      <p className="caveat">
+        Gone from the PR since the last review, so not shown: {dropped.join(', ')}
+      </p>
     );
   if (!nothingDrawn) return null;
   return (
@@ -1602,41 +1615,45 @@ export const ReviewPage = ({ review, notes, send }: ReviewPageProps) => {
                 </div>
               )}
             </div>
-            <SidePanel
-              review={review}
-              selected={selected}
-              node={selectedNode}
-              outside={outside}
-              note={selectedNote}
-              found={selectedFindings}
-              comments={comments}
-              onComment={comment}
-              answers={answers}
-              onAnswer={answer}
-              chosenWidth={chosenWidth}
-              onChooseWidth={setChosenWidth}
-              graphLeft={graphLeft}
-              onCloseOutside={closeOutside}
-              onCloseInspector={closeInspector}
-              onGoTo={goTo}
-              picked={inspectorTab}
-              onPick={setInspectorTab}
-              landing={landing}
-              onLand={line => landOn(selected, line)}
-            />
+            <ChangedSinceMarks value={changedSinceIn(review)}>
+              <SidePanel
+                review={review}
+                selected={selected}
+                node={selectedNode}
+                outside={outside}
+                note={selectedNote}
+                found={selectedFindings}
+                comments={comments}
+                onComment={comment}
+                answers={answers}
+                onAnswer={answer}
+                chosenWidth={chosenWidth}
+                onChooseWidth={setChosenWidth}
+                graphLeft={graphLeft}
+                onCloseOutside={closeOutside}
+                onCloseInspector={closeInspector}
+                onGoTo={goTo}
+                picked={inspectorTab}
+                onPick={setInspectorTab}
+                landing={landing}
+                onLand={line => landOn(selected, line)}
+              />
+            </ChangedSinceMarks>
           </div>
         </>
       )}
       {tab === 'metrics' && <MetricsScreen review={review} onGoTo={goToOnStructure} />}
       {tab === 'tests' && (
-        <TestsScreen
-          review={review}
-          notes={notes}
-          selected={selectedNode}
-          onGoTo={goToOnStructure}
-          comments={comments}
-          onComment={comment}
-        />
+        <ChangedSinceMarks value={changedSinceIn(review)}>
+          <TestsScreen
+            review={review}
+            notes={notes}
+            selected={selectedNode}
+            onGoTo={goToOnStructure}
+            comments={comments}
+            onComment={comment}
+          />
+        </ChangedSinceMarks>
       )}
       {send && (
         <ReviewTray

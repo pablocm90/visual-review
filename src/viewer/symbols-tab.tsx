@@ -4,12 +4,14 @@ import type { SymbolFile } from '../core/read-range.ts';
 import type { Comment } from '../core/review.ts';
 import {
   changesApi,
+  isQuiet,
   qualified,
   type SymbolChange,
   type SymbolStatement,
 } from '../core/symbol-changes.ts';
 import { type AnchoredSymbol, anchoredSymbols, decisionsOf } from '../core/symbol-findings.ts';
 import { anchorKey } from './anchors.ts';
+import { ChangedSinceTag, sinceLabel, useIsChangedSince } from './changed-since.tsx';
 import { CommentOn, type Comments } from './comment-field.tsx';
 
 type Group = readonly [string, (symbol: SymbolStatement) => boolean];
@@ -30,8 +32,6 @@ const GROUPS: ReadonlyArray<Group> = [
 
 const symbolsIn = (files: ReadonlyArray<SymbolFile>): ReadonlyArray<SymbolStatement> =>
   files.flatMap(file => ('symbols' in file ? file.symbols : []));
-
-const isQuiet = (symbol: SymbolStatement): boolean => !GROUPS.some(([, holds]) => holds(symbol));
 
 export const changedSymbolCount = (files: ReadonlyArray<SymbolFile>): number =>
   symbolsIn(files).filter(symbol => !isQuiet(symbol)).length;
@@ -131,44 +131,60 @@ const LogicLines = ({
 }: Pick<Places, 'comments' | 'onComment'> & {
   readonly symbol: AnchoredSymbol;
   readonly onShowLine: ShowLine;
-}) => (
-  <ul className="logic-lines" aria-label={`Logic of ${symbol.item.kind} ${qualified(symbol.item)}`}>
-    {decisionsOf(symbol).map(({ line, id, text }) => (
-      <li
-        key={id}
-        className={`logic-${line.change}`}
-        aria-label={logicLabel(line)}
-        style={{ paddingInlineStart: `${line.depth}em` }}
-      >
-        {line.change === 'same' ? (
-          <LogicText line={line} />
-        ) : (
-          <button
-            type="button"
-            className="logic-line"
-            aria-label={logicLabel(line)}
-            onClick={() =>
-              onShowLine({ side: line.change === 'removed' ? 'base' : 'head', line: line.line })
-            }
+}) => {
+  const isChangedSince = useIsChangedSince();
+  return (
+    <ul
+      className="logic-lines"
+      aria-label={`Logic of ${symbol.item.kind} ${qualified(symbol.item)}`}
+    >
+      {decisionsOf(symbol).map(({ line, id, text }) => {
+        const marked = isChangedSince('decisions', id);
+        const label = sinceLabel(logicLabel(line), marked);
+        return (
+          <li
+            key={id}
+            className={`logic-${line.change}`}
+            aria-label={label}
+            style={{ paddingInlineStart: `${line.depth}em` }}
           >
-            <LogicText line={line} />
-          </button>
-        )}
-        {onComment && (
-          <CommentOn
-            name={logicLabel(line)}
-            anchor={{ kind: 'decision', id, text }}
-            comments={comments}
-            onComment={onComment}
-          />
-        )}
-      </li>
-    ))}
-  </ul>
-);
+            {line.change === 'same' ? (
+              <LogicText line={line} />
+            ) : (
+              <button
+                type="button"
+                className="logic-line"
+                aria-label={label}
+                onClick={() =>
+                  onShowLine({ side: line.change === 'removed' ? 'base' : 'head', line: line.line })
+                }
+              >
+                <LogicText line={line} />
+              </button>
+            )}
+            <ChangedSinceTag marked={marked} />
+            {onComment && (
+              <CommentOn
+                name={logicLabel(line)}
+                anchor={{ kind: 'decision', id, text }}
+                comments={comments}
+                onComment={onComment}
+              />
+            )}
+          </li>
+        );
+      })}
+    </ul>
+  );
+};
 
-export const hasSymbolNews = (file: SymbolFile): boolean =>
-  'unreadable' in file || changedSymbolCount([file]) > 0;
+export const useHasSymbolNews = () => {
+  const isChangedSince = useIsChangedSince();
+  return (file: SymbolFile): boolean =>
+    'unreadable' in file ||
+    changedSymbolCount([file]) > 0 ||
+    anchoredSymbols(file.node, file.symbols).some(({ id }) => isChangedSince('symbols', id));
+};
 
 const SymbolList = ({
   node,
@@ -179,45 +195,56 @@ const SymbolList = ({
   readonly node: string;
   readonly title: string;
   readonly symbols: ReadonlyArray<AnchoredSymbol>;
-}) => (
-  <ul aria-label={title}>
-    {symbols.map(({ item: symbol, id }) => (
-      <li key={id} aria-label={`${nameOf(symbol)}: ${symbol.change}`}>
-        <span className="kind">{symbol.kind}</span> <code>{qualified(symbol)}</code>
-        {exportMarkOf(symbol) !== undefined && (
-          <span className="export-mark"> {exportMarkOf(symbol)}</span>
-        )}
-        <Origin symbol={symbol} {...places} />
-        {symbol.signature && (
-          <span className="signature">
-            <del>{symbol.signature.base}</del>
-            <ins>{symbol.signature.head}</ins>
-          </span>
-        )}
-        {places.onComment && (
-          <CommentOn
-            name={`${symbol.kind} ${qualified(symbol)}`}
-            anchor={{ kind: 'symbol', id }}
-            comments={places.comments}
-            onComment={places.onComment}
-          />
-        )}
-        {symbol.logic !== undefined && (
-          <LogicLines
-            symbol={{ item: symbol, id }}
-            onShowLine={at => places.onShowLine({ node, ...at })}
-            comments={places.comments}
-            onComment={places.onComment}
-          />
-        )}
-      </li>
-    ))}
-  </ul>
-);
+}) => {
+  const isChangedSince = useIsChangedSince();
+  return (
+    <ul aria-label={title}>
+      {symbols.map(({ item: symbol, id }) => (
+        <li
+          key={id}
+          aria-label={sinceLabel(
+            `${nameOf(symbol)}: ${symbol.change}`,
+            isChangedSince('symbols', id),
+          )}
+        >
+          <span className="kind">{symbol.kind}</span> <code>{qualified(symbol)}</code>
+          {exportMarkOf(symbol) !== undefined && (
+            <span className="export-mark"> {exportMarkOf(symbol)}</span>
+          )}
+          <ChangedSinceTag marked={isChangedSince('symbols', id)} />
+          <Origin symbol={symbol} {...places} />
+          {symbol.signature && (
+            <span className="signature">
+              <del>{symbol.signature.base}</del>
+              <ins>{symbol.signature.head}</ins>
+            </span>
+          )}
+          {places.onComment && (
+            <CommentOn
+              name={`${symbol.kind} ${qualified(symbol)}`}
+              anchor={{ kind: 'symbol', id }}
+              comments={places.comments}
+              onComment={places.onComment}
+            />
+          )}
+          {symbol.logic !== undefined && (
+            <LogicLines
+              symbol={{ item: symbol, id }}
+              onShowLine={at => places.onShowLine({ node, ...at })}
+              comments={places.comments}
+              onComment={places.onComment}
+            />
+          )}
+        </li>
+      ))}
+    </ul>
+  );
+};
 
 const SymbolFiles = ({ file, ...places }: Places & { readonly file: SymbolFile }) => {
   const symbols = 'symbols' in file ? anchoredSymbols(file.node, file.symbols) : [];
   const quiet = symbols.filter(({ item }) => isQuiet(item));
+  const isChangedSince = useIsChangedSince();
   return (
     <>
       {'unreadable' in file && (
@@ -238,7 +265,9 @@ const SymbolFiles = ({ file, ...places }: Places & { readonly file: SymbolFile }
         <details
           className="symbol-group"
           open={quiet.some(
-            ({ id }) => places.comments[anchorKey({ kind: 'symbol', id })] !== undefined,
+            ({ id }) =>
+              places.comments[anchorKey({ kind: 'symbol', id })] !== undefined ||
+              isChangedSince('symbols', id),
           )}
         >
           <summary>{quiet.length} unchanged</summary>
@@ -253,8 +282,9 @@ export const SymbolsOf = ({
   node,
   files,
   ...places
-}: Places & { readonly node: DiffedNode; readonly files: ReadonlyArray<SymbolFile> }) =>
-  node.kind === 'file'
+}: Places & { readonly node: DiffedNode; readonly files: ReadonlyArray<SymbolFile> }) => {
+  const hasSymbolNews = useHasSymbolNews();
+  return node.kind === 'file'
     ? files.map(file => <SymbolFiles key={file.node} file={file} {...places} />)
     : files.filter(hasSymbolNews).map(file => (
         <section
@@ -266,3 +296,4 @@ export const SymbolsOf = ({
           <SymbolFiles file={file} {...places} />
         </section>
       ));
+};

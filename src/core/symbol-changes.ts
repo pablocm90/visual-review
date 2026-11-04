@@ -118,6 +118,9 @@ export const changesApi = ({ exported, change, signature }: SymbolStatement): bo
   (exported.base === true || exported.head === true) &&
   (signature !== undefined || change === 'renamed' || exported.base !== exported.head);
 
+export const isQuiet = (symbol: SymbolStatement): boolean =>
+  !changesApi(symbol) && (symbol.change === 'unchanged' || symbol.change === 'formatting');
+
 const kindOf = ({
   before,
   after,

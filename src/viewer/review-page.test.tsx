@@ -8,6 +8,7 @@ import type { ReviewNotes } from '../core/notes.ts';
 import type { PageData } from '../core/page.ts';
 import type { SymbolFile } from '../core/read-range.ts';
 import type { Review } from '../core/review.ts';
+import type { ChangedSince } from '../core/since-review.ts';
 import type { Skipped } from '../core/skipped.ts';
 import type { KindOfChange, SymbolStatement } from '../core/symbol-changes.ts';
 import { symbolFindings } from '../core/symbol-findings.ts';
@@ -5468,14 +5469,23 @@ test("going to a line's draft shows its hidden field, and leaves hidden the one 
   expect(field()).toHaveProperty('value', 'Why 2?');
 });
 
+const nothingChanged = { nodes: [], edges: [], symbols: [], decisions: [], tests: [], files: [] };
+
+const changedSince = ({
+  dropped,
+  ...changed
+}: Partial<Omit<ChangedSince, 'dropped'>> & {
+  readonly dropped?: Partial<ChangedSince['dropped']>;
+}): ChangedSince => ({
+  ...nothingChanged,
+  ...changed,
+  dropped: { ...nothingChanged, ...dropped },
+});
+
 const sinceReview = {
   head: 'h1',
   verdict: 'comment' as const,
-  changed: {
-    nodes: ['rust/crate/application'],
-    edges: [],
-    dropped: { nodes: [], edges: [] },
-  },
+  changed: changedSince({ nodes: ['rust/crate/application'] }),
 };
 
 test("a later round offers 'Since last review' first in Show, Changes only still picked; picked, it draws what changed since, and going to a part it hides widens Show", async () => {
@@ -5508,7 +5518,7 @@ test("a later round offers 'Since last review' first in Show, Changes only still
 
   expect(pressed()).toEqual(['Since last review']);
   await waitFor(() => expect(buttonsIn(rust)).toEqual(['application: modified']));
-  expect(screen.queryByText(/so not drawn/)).toBeNull();
+  expect(screen.queryByText(/so not shown/)).toBeNull();
 
   await user.click(
     within(screen.getByRole('region', { name: 'Summary' })).getByRole('button', {
@@ -5545,7 +5555,7 @@ test("with 'Since last review' shown and nothing drawn changed since, the graph 
         ...review,
         sinceReview: {
           ...sinceReview,
-          changed: { nodes: [], edges: [], dropped: { nodes: [], edges: [] } },
+          changed: changedSince({}),
         },
       })}
     />,
@@ -5575,11 +5585,9 @@ test("'Since last review' draws an edge the PR has put back, though unchanged ed
         },
         sinceReview: {
           ...sinceReview,
-          changed: {
-            ...sinceReview.changed,
-            nodes: [],
+          changed: changedSince({
             edges: ['web/file/orders/cart.ts -> web/file/billing/invoice.ts'],
-          },
+          }),
         },
       })}
     />,
@@ -5608,7 +5616,7 @@ test("'Since last review' with only what it can't draw says that, not that nothi
         ...review,
         sinceReview: {
           ...sinceReview,
-          changed: { nodes: [], edges: [], dropped: { nodes: ['rust/crate/spike'], edges: [] } },
+          changed: changedSince({ dropped: { nodes: ['rust/crate/spike'] } }),
         },
       })}
     />,
@@ -5617,7 +5625,7 @@ test("'Since last review' with only what it can't draw says that, not that nothi
 
   await user.click(shown('Since last review'));
 
-  await screen.findByText(/so not drawn/);
+  await screen.findByText(/so not shown/);
   expect(screen.queryByText(/Nothing in the graph changed/)).toBeNull();
 });
 
@@ -5629,25 +5637,237 @@ test("'Since last review' names what was added then and has since gone, which it
         ...review,
         sinceReview: {
           ...sinceReview,
-          changed: {
-            ...sinceReview.changed,
-            dropped: { nodes: ['rust/crate/spike'], edges: ['rust/crate/spike -> rust/crate/cli'] },
-          },
+          changed: changedSince({
+            nodes: ['rust/crate/application'],
+            dropped: {
+              nodes: ['rust/crate/spike'],
+              edges: ['rust/crate/spike -> rust/crate/cli'],
+              symbols: ['rust/file/gone.rs#gone'],
+              decisions: ['rust/file/gone.rs#gone#if (late)'],
+              tests: ['gone.test.ts#drops totals'],
+              files: ['gone.rs'],
+            },
+          }),
         },
       })}
     />,
   );
   await screen.findByRole('group', { name: 'rust' });
-  expect(screen.queryByText(/so not drawn/)).toBeNull();
+  expect(screen.queryByText(/so not shown/)).toBeNull();
 
   await user.click(shown('Since last review'));
 
-  const line = await screen.findByText(/so not drawn/);
-  expect(line.textContent).toContain('rust/crate/spike, rust/crate/spike -> rust/crate/cli');
+  const line = await screen.findByText(/so not shown/);
+  expect(line.textContent).toContain(
+    'rust/crate/spike, rust/crate/spike -> rust/crate/cli, rust/file/gone.rs#gone, rust/file/gone.rs#gone#if (late), gone.test.ts#drops totals, gone.rs',
+  );
 
   await user.click(shown('Changes only'));
 
-  expect(screen.queryByText(/so not drawn/)).toBeNull();
+  expect(screen.queryByText(/so not shown/)).toBeNull();
+});
+
+const pageWithSymbolsEditedThenAndSince = () =>
+  pageWith({
+    range: review.range,
+    diff: {
+      nodes: [
+        { id: 'web', kind: 'stack', label: 'web', path: '', state: 'unchanged' },
+        topFile('tax.ts', 'modified'),
+      ],
+      edges: [],
+    },
+    symbols: [
+      symbolsOf('web/file/tax.ts', [
+        {
+          name: 'tax',
+          kind: 'function',
+          exported: { base: false, head: false },
+          change: 'edited',
+          logic: [
+            { change: 'added', kind: 'guard', depth: 0, head: 'if (!rate) return', line: 2 },
+            { change: 'added', kind: 'if', depth: 0, head: 'if (rate > 1)', line: 3 },
+          ],
+        },
+        {
+          name: 'round',
+          kind: 'function',
+          exported: { base: false, head: false },
+          change: 'edited',
+        },
+      ]),
+    ],
+    sinceReview: {
+      ...sinceReview,
+      changed: changedSince({
+        symbols: ['web/file/tax.ts#tax'],
+        decisions: ['web/file/tax.ts#tax#if (!rate) return'],
+      }),
+    },
+  });
+
+test('a later round marks the symbol changed since the last review, not the one edited only before it, whatever Show holds', async () => {
+  const user = userEvent.setup();
+  render(<ReviewPage review={pageWithSymbolsEditedThenAndSince()} />);
+
+  await user.click(await screen.findByRole('button', { name: 'tax.ts: modified' }));
+  await user.click(within(inspector()).getByRole('tab', { name: /^Symbols/ }));
+
+  const since = within(symbolsTab()).getByRole('listitem', {
+    name: 'function tax: edited, changed since',
+  });
+  expect(within(since).getAllByText('changed since')).toHaveLength(2);
+  const before = within(symbolsTab()).getByRole('listitem', { name: 'function round: edited' });
+  expect(within(before).queryByText('changed since')).toBeNull();
+
+  const lineSince = within(since).getByRole('listitem', {
+    name: 'added guard: if (!rate) return, changed since',
+  });
+  expect(within(lineSince).getByText('changed since')).toBeTruthy();
+  expect(
+    within(lineSince).getByRole('button', {
+      name: 'added guard: if (!rate) return, changed since',
+    }),
+  ).toBeTruthy();
+  const lineBefore = within(since).getByRole('listitem', { name: 'added if: if (rate > 1)' });
+  expect(within(lineBefore).queryByText('changed since')).toBeNull();
+});
+
+test('the unchanged symbols open by themselves when one is marked changed since, as a symbol put back is', async () => {
+  const user = userEvent.setup();
+  render(
+    <ReviewPage
+      review={{
+        ...pageWithAnUnchangedSymbol(),
+        sinceReview: {
+          ...sinceReview,
+          changed: changedSince({ symbols: ['web/file/tax.ts#round'] }),
+        },
+      }}
+    />,
+  );
+
+  await user.click(await screen.findByRole('button', { name: 'tax.ts: modified' }));
+  await user.click(within(inspector()).getByRole('tab', { name: /^Symbols/ }));
+
+  expect(unchangedSymbols().hasAttribute('open')).toBe(true);
+  expect(
+    within(unchangedSymbols()).getByRole('listitem', {
+      name: 'function round: unchanged, changed since',
+    }),
+  ).toBeTruthy();
+});
+
+test('a box shows a file whose only news is a symbol changed since the last review, not a file with no news at all', async () => {
+  const user = userEvent.setup();
+  const inBilling = (label: string) => ({
+    ...topFile(label, 'modified'),
+    parent: 'web/module/billing',
+    path: `web/src/billing/${label}`,
+  });
+  const unchanged = (name: string): SymbolStatement => ({
+    name,
+    kind: 'function',
+    exported: { base: false, head: false },
+    change: 'unchanged',
+  });
+  render(
+    <ReviewPage
+      review={pageWith({
+        range: review.range,
+        diff: {
+          nodes: [
+            { id: 'web', kind: 'stack', label: 'web', path: '', state: 'unchanged' },
+            {
+              id: 'web/module/billing',
+              kind: 'module',
+              label: 'billing',
+              parent: 'web',
+              path: 'web/src/billing',
+              state: 'modified',
+            },
+            inBilling('restored.ts'),
+            inBilling('quiet.ts'),
+          ],
+          edges: [],
+        },
+        symbols: [
+          symbolsOf('web/file/restored.ts', [unchanged('round')]),
+          symbolsOf('web/file/quiet.ts', [unchanged('floor')]),
+        ],
+        sinceReview: {
+          ...sinceReview,
+          changed: changedSince({ symbols: ['web/file/restored.ts#round'] }),
+        },
+      })}
+    />,
+  );
+
+  await user.click(await screen.findByRole('button', { name: 'billing: modified' }));
+  await user.click(within(inspector()).getByRole('tab', { name: 'Symbols' }));
+
+  expect(
+    within(within(symbolsTab()).getByRole('region', { name: 'restored.ts' })).getByRole(
+      'listitem',
+      { name: 'function round: unchanged, changed since', hidden: true },
+    ),
+  ).toBeTruthy();
+  expect(within(symbolsTab()).queryByRole('region', { name: 'quiet.ts' })).toBeNull();
+});
+
+test('a later round marks the test changed since the last review, not its namesake changed only before it', async () => {
+  const user = userEvent.setup();
+  render(
+    <ReviewPage
+      review={{
+        ...pageWithSameNamedTests(),
+        sinceReview: {
+          ...sinceReview,
+          changed: changedSince({ tests: ['total.test.ts#Cart › adds tax'] }),
+        },
+      }}
+    />,
+  );
+
+  await user.click(await screen.findByRole('button', { name: 'total.ts: modified' }));
+  await user.click(within(inspector()).getByRole('tab', { name: 'Tests 3' }));
+
+  const since = within(testsTab()).getByRole('listitem', {
+    name: 'adds tax: added, changed since',
+  });
+  expect(within(since).getByText('changed since')).toBeTruthy();
+  const before = within(testsTab()).getByRole('listitem', { name: 'adds tax: edited' });
+  expect(within(before).queryByText('changed since')).toBeNull();
+
+  location.hash = '#tests';
+  expect(
+    await within(await screen.findByRole('region', { name: 'Test changes' })).findByRole(
+      'listitem',
+      { name: 'adds tax: added, changed since' },
+    ),
+  ).toBeTruthy();
+});
+
+test('a later round marks a patch whose file changed since the last review, not one changed only before it', async () => {
+  const user = userEvent.setup();
+  render(
+    <ReviewPage
+      review={{
+        ...pageWithFilesDrawnOnlyAsABox(),
+        sinceReview: {
+          ...sinceReview,
+          changed: changedSince({ files: ['web/src/billing/refund.ts'] }),
+        },
+      }}
+    />,
+  );
+  const patch = (name: string) => within(within(diffTab()).getByRole('group', { name }));
+
+  await user.click(await screen.findByRole('button', { name: 'billing: modified' }));
+  await user.click(within(inspector()).getByRole('tab', { name: 'Diff' }));
+
+  expect(patch('web/src/billing/refund.ts').getByText('changed since')).toBeTruthy();
+  expect(patch('web/src/billing/tax.ts').queryByText('changed since')).toBeNull();
 });
 
 test('a review whose reviewed head is gone says so, with that head short, in the header, and shows the full review', async () => {
