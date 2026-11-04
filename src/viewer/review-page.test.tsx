@@ -984,15 +984,17 @@ test("toggling a box keeps the zoom and the box's corner where it was on screen,
     await press('Fit');
     expect(viewOf(web)).toBe(refitted);
   };
-  await user.click(screen.getByRole('checkbox', { name: 'All edges' }));
-  await refitsFrom('200%');
-
   await press('100%');
   await press('Zoom in');
   await press('Collapse utils');
   await waitFor(() => expect(within(web).queryByRole('group', { name: 'utils' })).toBeNull());
-  expect(zoomShown()).toBe('125%');
+  await waitFor(() => expect(zoomShown()).toBe('125%'));
   await showEverything(user);
+  await refitsFrom('125%');
+
+  await press('100%');
+  await press('Zoom in');
+  await user.click(screen.getByRole('checkbox', { name: 'All edges' }));
   await refitsFrom('125%');
 });
 
@@ -1487,7 +1489,7 @@ test('the findings rail hands the keyboard focus to its other toggle as it opens
   const hide = screen.getByRole('button', { name: 'Hide findings' });
   expect(document.activeElement).toBe(hide);
 
-  const domain = screen.getByRole('button', { name: 'domain: unchanged' });
+  const domain = await screen.findByRole('button', { name: 'domain: unchanged' });
   await user.click(domain);
   expect(document.activeElement).toBe(domain);
 
@@ -1703,7 +1705,9 @@ test('the summary lists its items, not the flagged notes, and an item with a tar
   const focus = vi.spyOn(SVGElement.prototype, 'focus');
   onTestFinished(() => focus.mockRestore());
   await user.click(within(summary).getByRole('button', { name: 'The CLI is a new adapter.' }));
-  expect(document.activeElement).toBe(screen.getByRole('button', { name: 'cli-adapter: added' }));
+  await waitFor(() =>
+    expect(document.activeElement).toBe(screen.getByRole('button', { name: 'cli-adapter: added' })),
+  );
   expect(focus).toHaveBeenCalledWith({ preventScroll: true });
   expect(noteShown()).toBe('A second way in.');
 
@@ -1857,10 +1861,12 @@ test("a note's or a metric finding in the rail goes to its node or edge as the s
   await user.click(await screen.findByRole('button', { name: 'Show 2 findings' }));
   const rail = () => within(screen.getByRole('complementary', { name: 'Findings' }));
   await user.click(rail().getByRole('button', { name: /^cli-adapter → application: new/ }));
-  expect(document.activeElement).toBe(
-    screen.getByRole('button', {
-      name: 'cli-adapter → application: added, flagged: new dependency direction',
-    }),
+  await waitFor(() =>
+    expect(document.activeElement).toBe(
+      screen.getByRole('button', {
+        name: 'cli-adapter → application: added, flagged: new dependency direction',
+      }),
+    ),
   );
   expect(noteShown()).toBe('The CLI drives the use case.');
 
@@ -2388,7 +2394,9 @@ test('look first lists the findings to look at in rank order, in the dimension a
   await user.click(toggle());
   expect(items()).toHaveLength(3);
   await user.click(band().getByRole('button', { name: 'domain: second' }));
-  expect(document.activeElement).toBe(screen.getByRole('button', { name: 'domain: unchanged' }));
+  await waitFor(() =>
+    expect(document.activeElement).toBe(screen.getByRole('button', { name: 'domain: unchanged' })),
+  );
 
   rerender(<ReviewPage review={pageWith({ ...review, findings: looks(7) })} />);
   expect(items()).toHaveLength(7);
@@ -2498,7 +2506,7 @@ test("modules open collapsed, joined by their files' imports; a module's toggle 
     'Expand utils',
   ];
   expect(buttonsIn(web)).toEqual(collapsed);
-  expect(buttonsIn(screen.getByRole('group', { name: 'rust' }))).toEqual([
+  expect(buttonsIn(await screen.findByRole('group', { name: 'rust' }))).toEqual([
     'application → domain: unchanged',
     'domain: unchanged',
     'application: unchanged',
@@ -2537,7 +2545,11 @@ test("modules open collapsed, joined by their files' imports; a module's toggle 
   expect(document.activeElement).not.toBe(y);
 
   await user.click(within(web).getByRole('button', { name: 'Collapse modules/AppInfo' }));
+  await waitFor(() =>
+    expect(within(web).queryByRole('group', { name: 'modules/AppInfo' })).toBeNull(),
+  );
   await user.click(within(web).getByRole('button', { name: 'Collapse utils' }));
+  await waitFor(() => expect(within(web).queryByRole('group', { name: 'utils' })).toBeNull());
   await user.click(screen.getByRole('button', { name: /^Show \d+ findings?$/ }));
   await user.click(
     within(screen.getByRole('complementary', { name: 'Findings' })).getByRole('button', {
@@ -3069,7 +3081,7 @@ test("the rail's changed files outside the graph open in the inspector at the ch
   await user.click(within(readme).getByText('README.md'));
   expect(within(readme).getByRole('insertion').textContent).toBe('+new');
 
-  await user.click(screen.getByRole('button', { name: 'domain: unchanged' }));
+  await user.click(await screen.findByRole('button', { name: 'domain: unchanged' }));
   expect(within(inspector()).getByRole('heading', { level: 2 }).textContent).toBe('domain');
 
   const opener = screen.getByRole('button', { name: outside });
