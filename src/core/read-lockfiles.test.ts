@@ -124,3 +124,27 @@ test('a symlink named as a lockfile is not read through to what it points at', a
     { lockfile: 'Cargo.lock', notRead: 'Cargo.lock format not recognised' },
   ]);
 });
+
+test('a lockfile under a vendored or test folder raises nothing, at any depth', async () => {
+  using workspace = gitRepo({ 'README.md': '' });
+  const { repo, root } = workspace;
+  const to = commit(repo, {
+    'node_modules/dep/Cargo.lock': cargoLock('1.0.219'),
+    'vendor/dep/Cargo.lock': cargoLock('1.0.219'),
+    'test/Cargo.lock': cargoLock('1.0.219'),
+    'tests/Cargo.lock': cargoLock('1.0.219'),
+    'spec/Cargo.lock': cargoLock('1.0.219'),
+    'fixtures/Cargo.lock': cargoLock('1.0.219'),
+    '__fixtures__/Cargo.lock': cargoLock('1.0.219'),
+    'crates/app/tests/Cargo.lock': cargoLock('1.0.219'),
+    'latest/Cargo.lock': cargoLock('1.0.219'),
+    'testing/Cargo.lock': cargoLock('1.0.219'),
+  });
+
+  const { dependencyChanges } = await readRange({ repo, from: root, to });
+
+  expect(dependencyChanges.map(({ lockfile }) => lockfile)).toStrictEqual([
+    'latest/Cargo.lock',
+    'testing/Cargo.lock',
+  ]);
+});

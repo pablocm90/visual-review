@@ -12,6 +12,7 @@ export type DependencyChanges =
   | { readonly lockfile: string; readonly notRead: string };
 
 const ABSENT: LockedPackages = { versions: new Map(), direct: new Set() };
+const SKIPPED = /(?:^|\/)(?:node_modules|vendor|tests?|spec|fixtures|__fixtures__)\//;
 
 type LockfileChangeOptions = {
   readonly repo: string;
@@ -57,6 +58,8 @@ export const readLockfiles = ({
   Promise.all(
     changes.flat().flatMap(path => {
       const lockfile = lockfiles.find(({ file }) => file === basename(path));
-      return lockfile === undefined ? [] : [lockfileChange({ ...sides, path, lockfile })];
+      return lockfile === undefined || SKIPPED.test(path)
+        ? []
+        : [lockfileChange({ ...sides, path, lockfile })];
     }),
   );
