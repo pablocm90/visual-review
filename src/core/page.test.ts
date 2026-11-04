@@ -684,6 +684,26 @@ test("an edited function's other decision changes are one logic finding for info
   ]);
 });
 
+test('two accessors of one name each changing their logic are two findings, the later id counting the symbol and each title naming its kind', () => {
+  const accessor = (kind: 'getter' | 'setter'): SymbolStatement => ({
+    name: 'x',
+    scope: 'C',
+    kind,
+    exported: { base: false, head: false },
+    change: 'edited',
+    logic: [logicLine({ change: 'changed', kind: 'if', base: 'if (a)', head: 'if (b)' })],
+  });
+
+  expect(
+    findingsOfSymbols([symbolFile([accessor('getter'), accessor('setter')])])
+      .filter(({ id }) => id.startsWith('logic:changed:'))
+      .map(({ id, title }) => ({ id, title })),
+  ).toStrictEqual([
+    { id: 'logic:changed:web/file/a.ts#C.x', title: 'getter C.x changed its logic' },
+    { id: 'logic:changed:web/file/a.ts#C.x#2', title: 'setter C.x changed its logic' },
+  ]);
+});
+
 test("a file whose logic changed, with no test added, removed or edited alongside it, is a tests finding to look at on it; a test file alongside that wouldn't parse counts as changed", () => {
   const edited = (name: string): SymbolStatement => ({
     name,

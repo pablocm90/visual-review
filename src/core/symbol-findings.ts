@@ -108,21 +108,20 @@ const COUNTED = ['added', 'changed', 'removed'] as const;
 
 const changedFinding = (
   node: string,
-  statement: SymbolStatement,
+  { item: statement, id }: AnchoredSymbol,
   others: ReadonlyArray<LogicLine>,
 ): ReadonlyArray<Finding> => {
   if (others.length === 0) return [];
-  const name = qualified(statement);
   const counts = COUNTED.map(
     change => [change, others.filter(line => line.change === change).length] as const,
   );
   return [
     {
-      id: `logic:changed:${node}#${name}`,
+      id: `logic:changed:${id}`,
       dimension: 'logic',
       level: 'info',
       target: node,
-      title: `${statement.kind} ${name} changed its logic`,
+      title: `${statement.kind} ${qualified(statement)} changed its logic`,
       detail: counts
         .filter(([, count]) => count > 0)
         .map(([change, count]) => `${count} ${change}`)
@@ -180,7 +179,7 @@ const logicFindings = (node: string, symbol: AnchoredSymbol): ReadonlyArray<Find
     ),
     ...changedFinding(
       node,
-      statement,
+      symbol,
       lines.filter(line => line.change !== 'same' && !isLost(line)),
     ),
   ];
