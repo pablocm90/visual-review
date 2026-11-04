@@ -54,9 +54,10 @@ const readingWith = (overrides: Partial<RangeReading>): RangeReading => ({
   ...overrides,
 });
 
-test("a reading's page data holds its diff, the reading order of its changed parts, its dangling calls, test files and symbol changes, the patches of drawn files apart from the rest, its metric thresholds and churn window, and an empty list of skipped stacks", () => {
+test("a reading's page data holds its diff, the reading order of its changed parts, its dangling calls, dependency changes, test files and symbol changes, the patches of drawn files apart from the rest, its metric thresholds and churn window, and an empty list of skipped stacks", () => {
   const tests = [{ path: 'web/a.test.ts', stack: 'web', unreadable: 'SyntaxError' }];
   const symbols = [{ node: 'web/file/a.ts', stack: 'web', unreadable: 'SyntaxError' }];
+  const dependencyChanges = [{ lockfile: 'yarn.lock', notRead: 'Yarn 2+ format' }];
   const thresholds = {
     cyclomatic: 12,
     splitParts: 4,
@@ -68,6 +69,7 @@ test("a reading's page data holds its diff, the reading order of its changed par
     churnDays: 30,
     patches: [patch('web/src/a.ts'), patch('README.md')],
     danglingCalls: [{ from: 'web/file/a.ts', path: '/api/x' }],
+    dependencyChanges,
     tests,
     symbols,
   });
@@ -92,6 +94,7 @@ test("a reading's page data holds its diff, the reading order of its changed par
     dangling: [{ from: 'web/file/a.ts', path: '/api/x' }],
     patches: [patch('web/src/a.ts')],
     undrawn: [patch('README.md')],
+    dependencyChanges,
     tests,
     symbols,
     skipped: [],
