@@ -133,25 +133,34 @@ const changedFinding = (
 
 const decisionText = ({ base, head }: LogicLine): string => head ?? base ?? '';
 
-export const decisionIds = (node: string, statement: SymbolStatement): ReadonlyArray<string> => {
+type LogicDecision = {
+  readonly line: LogicLine;
+  readonly id: string;
+  readonly text: string;
+};
+
+export const decisionsOf = (
+  node: string,
+  statement: SymbolStatement,
+): ReadonlyArray<LogicDecision> => {
   const lines = statement.logic ?? [];
   return lines.map((line, index) => {
     const text = decisionText(line);
     const before = lines.slice(0, index).filter(other => decisionText(other) === text).length;
-    return `${node}#${qualified(statement)}#${text}${before === 0 ? '' : `#${before + 1}`}`;
+    const id = `${node}#${qualified(statement)}#${text}${before === 0 ? '' : `#${before + 1}`}`;
+    return { line, id, text };
   });
 };
 
 const logicFindings = (node: string, statement: SymbolStatement): ReadonlyArray<Finding> => {
   const name = qualified(statement);
   const lines = statement.logic ?? [];
-  const ids = decisionIds(node, statement);
   return [
-    ...lines.flatMap((line, index) =>
+    ...decisionsOf(node, statement).flatMap(({ line, id }) =>
       isLost(line)
         ? [
             {
-              id: `logic:removed:${ids[index]}`,
+              id: `logic:removed:${id}`,
               dimension: 'logic' as const,
               level: 'look' as const,
               target: node,

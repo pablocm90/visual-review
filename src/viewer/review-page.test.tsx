@@ -10,6 +10,7 @@ import type { SymbolFile } from '../core/read-range.ts';
 import type { Review } from '../core/review.ts';
 import type { Skipped } from '../core/skipped.ts';
 import type { KindOfChange, SymbolStatement } from '../core/symbol-changes.ts';
+import { symbolFindings } from '../core/symbol-findings.ts';
 import { findingOn, measured, pageWith } from '../test-support/page-data.ts';
 import { layoutDiff } from './layout.ts';
 import { ReviewPage } from './review-page.tsx';
@@ -4361,5 +4362,99 @@ test("a served page's symbol row takes a comment, on its file and qualified name
         },
       ],
     }),
+  );
+});
+
+test("a served page's logic line takes a comment on its decision, the same id as the line's logic:removed finding, quoting the line", async () => {
+  const user = userEvent.setup();
+  const sent = vi.fn(async () => {});
+  const file = topFile('review-page.tsx', 'modified');
+  const symbols = [
+    symbolsOf(file.id, [
+      {
+        name: 'goTo',
+        scope: 'ReviewPage',
+        kind: 'method',
+        exported: { base: false, head: false },
+        change: 'edited',
+        logic: [
+          { change: 'added', kind: 'guard', depth: 0, head: 'if (!open) return', line: 3 },
+          { change: 'removed', kind: 'guard', depth: 0, base: 'if (!open) return', line: 9 },
+          { change: 'same', kind: 'if', depth: 0, head: 'if (ready)', line: 12 },
+          { change: 'changed', kind: 'if', depth: 0, base: 'if (a)', head: 'if (b)', line: 15 },
+        ],
+      },
+    ]),
+  ];
+  const lost = symbolFindings({ files: symbols, nodes: [file] }).find(finding =>
+    finding.id.startsWith('logic:removed:'),
+  );
+  render(
+    <ReviewPage
+      review={pageWith({
+        range: review.range,
+        diff: {
+          nodes: [{ id: 'web', kind: 'stack', label: 'web', path: '', state: 'unchanged' }, file],
+          edges: [],
+        },
+        symbols,
+      })}
+      send={sent}
+    />,
+  );
+
+  await user.click(await screen.findByRole('button', { name: 'review-page.tsx: modified' }));
+  await user.click(within(inspector()).getByRole('tab', { name: 'Symbols 1' }));
+  expect(
+    within(symbolsTab()).getByRole('button', { name: 'Comment on same if: if (ready)' }),
+  ).toBeTruthy();
+  await user.click(
+    within(symbolsTab()).getByRole('button', {
+      name: 'Comment on removed guard: if (!open) return',
+    }),
+  );
+  await user.type(
+    within(symbolsTab()).getByRole('textbox', { name: 'Your comment' }),
+    'Why did it move?',
+  );
+  await user.click(
+    within(symbolsTab()).getByRole('button', { name: 'Comment on changed if: if (a) → if (b)' }),
+  );
+  await user.type(
+    within(
+      within(symbolsTab()).getByRole('listitem', { name: 'changed if: if (a) → if (b)' }),
+    ).getByRole('textbox', { name: 'Your comment' }),
+    'Why b?',
+  );
+  await openReview(user);
+  await user.click(screen.getByRole('button', { name: 'Send to Claude' }));
+
+  expect(sent).toHaveBeenCalledExactlyOnceWith(
+    sentReview({
+      verdict: 'comment',
+      comments: [
+        {
+          anchor: {
+            kind: 'decision',
+            id: lost?.id.slice('logic:removed:'.length) ?? '',
+            text: 'if (!open) return',
+          },
+          kind: 'question',
+          text: 'Why did it move?',
+        },
+        {
+          anchor: {
+            kind: 'decision',
+            id: 'web/file/review-page.tsx#ReviewPage.goTo#if (b)',
+            text: 'if (b)',
+          },
+          kind: 'question',
+          text: 'Why b?',
+        },
+      ],
+    }),
+  );
+  expect(lost?.id).toBe(
+    'logic:removed:web/file/review-page.tsx#ReviewPage.goTo#if (!open) return#2',
   );
 });

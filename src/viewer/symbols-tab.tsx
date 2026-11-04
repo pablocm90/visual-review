@@ -8,6 +8,7 @@ import {
   type SymbolChange,
   type SymbolStatement,
 } from '../core/symbol-changes.ts';
+import { decisionsOf } from '../core/symbol-findings.ts';
 import { CommentOn, type Comments } from './comment-field.tsx';
 
 type Group = readonly [string, (symbol: SymbolStatement) => boolean];
@@ -106,16 +107,20 @@ const logicLabel = (line: LogicLine): string => `${line.change} ${line.kind}: ${
 type ShowLine = (at: Omit<LineAt, 'node'>) => void;
 
 const LogicLines = ({
+  node,
   symbol,
   onShowLine,
-}: {
+  comments,
+  onComment,
+}: Pick<Places, 'comments' | 'onComment'> & {
+  readonly node: string;
   readonly symbol: SymbolStatement;
   readonly onShowLine: ShowLine;
 }) => (
   <ul className="logic-lines" aria-label={`Logic of ${symbol.kind} ${qualified(symbol)}`}>
-    {(symbol.logic ?? []).map(line => (
+    {decisionsOf(node, symbol).map(({ line, id, text }) => (
       <li
-        key={`${line.change} ${line.line} ${textOf(line)}`}
+        key={id}
         className={`logic-${line.change}`}
         aria-label={logicLabel(line)}
         style={{ paddingInlineStart: `${line.depth}em` }}
@@ -133,6 +138,14 @@ const LogicLines = ({
           >
             <LogicText line={line} />
           </button>
+        )}
+        {onComment && (
+          <CommentOn
+            name={logicLabel(line)}
+            anchor={{ kind: 'decision', id, text }}
+            comments={comments}
+            onComment={onComment}
+          />
         )}
       </li>
     ))}
@@ -188,7 +201,13 @@ const SymbolList = ({
           />
         )}
         {symbol.logic !== undefined && (
-          <LogicLines symbol={symbol} onShowLine={at => places.onShowLine({ node, ...at })} />
+          <LogicLines
+            node={node}
+            symbol={symbol}
+            onShowLine={at => places.onShowLine({ node, ...at })}
+            comments={places.comments}
+            onComment={places.onComment}
+          />
         )}
       </li>
     ))}
