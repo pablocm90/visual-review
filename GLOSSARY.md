@@ -45,7 +45,7 @@ _Avoid_: top findings, priorities
 A note's short label for a concern; on the page it becomes a finding that needs a look, in the note's dimension.
 
 **Symbol**:
-A named function, method, class, type, interface or enum in a file, scoped by what holds it, paired across the sides by scope, name and kind, and marked added, removed, edited, renamed, moved, formatting only or unchanged.
+A named function, method, getter, setter, class, type, interface or enum in a file, scoped by what holds it, paired across the sides by scope, name and kind (a method turned into a getter or setter stays paired), and marked added, removed, edited, renamed, moved, formatting only or unchanged.
 _Avoid_: declaration, member
 _In code_: `ReadSymbol` (one side's reading), `SymbolStatement` (paired across the sides)
 
@@ -65,7 +65,7 @@ _Avoid_: logic diff (for one line), branch change
 _In code_: `LogicLine`
 
 **Anchor**:
-What a reviewer's comment or answer is on, by its kind and id: a part the graph draws (a crate, module, file, class or box) or an edge, by the id notes are keyed by; a **symbol** in a file (`<file>#<scope.name>`); a **logic line** (`<file>#<scope.name>#<text>`, `#<n>` after it for a repeat, carrying its text; a removed guard's or catch's id is its finding's without `logic:removed:`); a test (`<test file>#<heading › … › name>`); a diff line (`<file>@<base|head>:<n>`, carrying its text, since its number drifts); or, for an answer, a finding, by its id. Two anchors of different kinds never share a comment, whatever their ids.
+What a reviewer's comment or answer is on, by its kind and id: a part the graph draws (a crate, module, file, class or box) or an edge, by the id notes are keyed by; a **symbol** in a file (`<file>#<scope.name>`, `#<n>` after it from the second of that name in the file on, as a getter and its setter are); a **logic line** (`<symbol id>#<text>`, `#<n>` after it from the second reading the same on, carrying its text; a removed guard's or catch's id is its finding's without `logic:removed:`); a test (`<test file>#<heading › … › name>`); a diff line (`<file>@<base|head>:<n>`, carrying its text, since its number drifts); or, for an answer, a finding, by its id. Two anchors of different kinds never share a comment, whatever their ids.
 _Avoid_: target (a finding's), key
 _In code_: `Review['comments'][number]['anchor']`, `{ kind: 'part' | 'edge' | 'symbol' | 'decision' | 'test' | 'line' | 'finding', id }`; `anchorKey`, `anchorName`, `anchorTarget` (`anchors.ts`)
 
@@ -95,7 +95,7 @@ _Avoid_: default verdict, auto verdict
 - The **reading order** holds every **part** once; a **finding** whose target is a part marks its row.
 - A **read mark** is on a **part**; the count of parts read counts only the parts in the **reading order**.
 - **Look first** holds only findings whose **level** is "needs a look".
-- A changed exported **symbol** raises a **finding** in the api dimension; a file's **kind of change** raises none of its own.
+- A changed exported **symbol** raises a **finding** in the api dimension, under that symbol's id; a file's **kind of change** raises none of its own.
 - A review holds at most one comment or **finding answer** per **anchor**, and each comment has one **comment kind**; the **suggested verdict** follows the kinds and the answers, and the verdict the reviewer picks overrides it.
 - A **flag** is answered like any other **finding**, under the id `notes:<node or edge id>`.
 - A removed guard or catch **logic line** raises a **finding** in the logic dimension that needs a look; a function's other **logic lines** that changed raise one for information; a file with either and no test changed alongside it raises one in the tests dimension.

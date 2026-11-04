@@ -10,6 +10,7 @@ import type { SymbolFile } from '../core/read-range.ts';
 import type { Review } from '../core/review.ts';
 import type { Skipped } from '../core/skipped.ts';
 import type { KindOfChange, SymbolStatement } from '../core/symbol-changes.ts';
+import { symbolFindings } from '../core/symbol-findings.ts';
 import { findingOn, measured, pageWith } from '../test-support/page-data.ts';
 import { layoutDiff } from './layout.ts';
 import { ReviewPage } from './review-page.tsx';
@@ -101,6 +102,11 @@ const showEverything = (user: ReturnType<typeof userEvent.setup>) =>
 const openReview = (user: ReturnType<typeof userEvent.setup>) =>
   user.click(screen.getByRole('button', { name: 'Review' }));
 
+const write = async (user: ReturnType<typeof userEvent.setup>, box: HTMLElement, text: string) => {
+  await user.click(box);
+  await user.paste(text);
+};
+
 const sentReview = (sent: Partial<Review>): Review => ({
   version: 5,
   verdict: 'comment',
@@ -169,10 +175,10 @@ test("the Note tab's comment field holds a comment per node or edge, kept while 
 
   const rust = await screen.findByRole('group', { name: 'rust' });
   await user.click(within(rust).getByRole('button', { name: 'domain: unchanged' }));
-  await user.type(comment(), 'Keep domain free of IO.');
+  await write(user, comment(), 'Keep domain free of IO.');
   await user.click(within(rust).getByRole('button', { name: 'application → domain: unchanged' }));
   expect(comment()).toHaveProperty('value', '');
-  await user.type(comment(), 'Why this way round?');
+  await write(user, comment(), 'Why this way round?');
   await user.click(within(inspector()).getByRole('button', { name: 'Close inspector' }));
 
   await user.click(within(rust).getByRole('button', { name: 'domain: unchanged' }));
@@ -190,9 +196,9 @@ test("a served page's Review button opens the review, whose Send to Claude sends
 
   const rust = await screen.findByRole('group', { name: 'rust' });
   await user.click(within(rust).getByRole('button', { name: 'domain: unchanged' }));
-  await user.type(comment(), 'Keep domain free of IO.');
+  await write(user, comment(), 'Keep domain free of IO.');
   await user.click(within(rust).getByRole('button', { name: 'application → domain: unchanged' }));
-  await user.type(comment(), 'Why this way round?');
+  await write(user, comment(), 'Why this way round?');
   expect(reviewButton().getAttribute('aria-expanded')).toBe('false');
   expect(screen.queryByRole('button', { name: 'Send to Claude' })).toBeNull();
   await openReview(user);
@@ -232,7 +238,8 @@ test('each comment carries the kind picked beside it, Question until another is 
   await user.click(within(rust).getByRole('button', { name: 'domain: unchanged' }));
   expect(kind('Question')).toHaveProperty('checked', true);
   await user.click(kind('Change this'));
-  await user.type(
+  await write(
+    user,
     within(noteTab()).getByRole('textbox', { name: 'Your comment' }),
     'Move the IO out of domain.',
   );
@@ -277,21 +284,21 @@ test('the verdict follows the drafts, Approve with none or only suggestions, Com
   expect(verdict('Approve')).toHaveProperty('checked', true);
   await user.click(within(rust).getByRole('button', { name: 'cli-adapter: added' }));
   await pickKind(user, 'Suggestion');
-  await user.type(comment(), 'A builder might read better.');
+  await write(user, comment(), 'A builder might read better.');
   expect(verdict('Approve')).toHaveProperty('checked', true);
   await user.click(within(rust).getByRole('button', { name: 'domain: unchanged' }));
-  await user.type(comment(), 'Why here?');
+  await write(user, comment(), 'Why here?');
   expect(verdict('Comment')).toHaveProperty('checked', true);
   await user.click(within(rust).getByRole('button', { name: 'application: modified' }));
   await pickKind(user, 'Change this');
-  await user.type(comment(), 'Split it.');
+  await write(user, comment(), 'Split it.');
   expect(verdict('Request changes')).toHaveProperty('checked', true);
   expect(suggestedVerdict()).toBe(verdict('Request changes'));
 
   await user.click(verdict('Comment'));
   await user.click(within(rust).getByRole('button', { name: 'legacy: removed' }));
   await pickKind(user, 'Change this');
-  await user.type(comment(), 'Keep it a release longer.');
+  await write(user, comment(), 'Keep it a release longer.');
   await openReview(user);
   expect(screen.queryByRole('radiogroup', { name: 'Verdict' })).toBeNull();
   await openReview(user);
@@ -311,7 +318,7 @@ test('picking the verdict already suggested holds it as the drafts change', asyn
   await openReview(user);
   await user.click(verdict('Approve'));
   await user.click(within(rust).getByRole('button', { name: 'domain: unchanged' }));
-  await user.type(within(noteTab()).getByRole('textbox', { name: 'Your comment' }), 'Why here?');
+  await write(user, within(noteTab()).getByRole('textbox', { name: 'Your comment' }), 'Why here?');
   expect(suggestedVerdict()).toBe(verdict('Comment'));
   await user.click(screen.getByRole('button', { name: 'Send to Claude' }));
 
@@ -329,15 +336,15 @@ test('Send to Claude waits for a comment that is more than blanks, and sends no 
   await openReview(user);
   await user.click(verdict('Comment'));
   expect(sendButton()).toHaveProperty('disabled', true);
-  await user.type(screen.getByRole('textbox', { name: 'General comment' }), '  ');
+  await write(user, screen.getByRole('textbox', { name: 'General comment' }), '  ');
   expect(sendButton()).toHaveProperty('disabled', true);
   await user.click(within(rust).getByRole('button', { name: 'domain: unchanged' }));
-  await user.type(comment(), '  ');
+  await write(user, comment(), '  ');
   expect(sendButton()).toHaveProperty('disabled', true);
   await user.click(within(rust).getByRole('button', { name: 'application → domain: unchanged' }));
-  await user.type(comment(), 'Why this way round?');
+  await write(user, comment(), 'Why this way round?');
   await user.click(within(rust).getByRole('button', { name: 'application: modified' }));
-  await user.type(comment(), 'Split the crate.');
+  await write(user, comment(), 'Split the crate.');
   await user.clear(comment());
   await user.click(sendButton());
 
@@ -572,7 +579,8 @@ test('a send that fails says why and leaves Send to Claude to try again', async 
 
   const rust = await screen.findByRole('group', { name: 'rust' });
   await user.click(within(rust).getByRole('button', { name: 'domain: unchanged' }));
-  await user.type(
+  await write(
+    user,
     within(noteTab()).getByRole('textbox', { name: 'Your comment' }),
     'Keep domain free of IO.',
   );
@@ -602,15 +610,15 @@ test("the review tray sits at the page's foot, its line counting the drafts and 
   const rust = await screen.findByRole('group', { name: 'rust' });
   expect(within(tray()).getByText('Nothing drafted')).toBeDefined();
   await user.click(within(rust).getByRole('button', { name: 'domain: unchanged' }));
-  await user.type(comment(), 'Why here?');
+  await write(user, comment(), 'Why here?');
   expect(within(tray()).getByText('1 drafted · 1 question')).toBeDefined();
   await user.click(within(rust).getByRole('button', { name: 'application: modified' }));
   await pickKind(user, 'Change this');
-  await user.type(comment(), 'Split it.');
+  await write(user, comment(), 'Split it.');
   await user.click(within(rust).getByRole('button', { name: 'application → domain: unchanged' }));
-  await user.type(comment(), 'And this?');
+  await write(user, comment(), 'And this?');
   await user.click(within(rust).getByRole('button', { name: 'cli-adapter: added' }));
-  await user.type(comment(), '  ');
+  await write(user, comment(), '  ');
   expect(within(tray()).getByText('3 drafted · 1 change · 2 questions')).toBeDefined();
   expect(within(tray()).getByRole('button', { name: 'Review' })).toBeDefined();
 });
@@ -631,7 +639,7 @@ test('the open tray lists the drafts, those on parts in reading order first, the
     await user.click(
       within(screen.getByRole('group', { name: 'rust' })).getByRole('button', { name }),
     );
-    await user.type(comment(), text);
+    await write(user, comment(), text);
   };
 
   await screen.findByRole('group', { name: 'rust' });
@@ -694,11 +702,12 @@ test("the open tray lists the finding answers after the comments, each named by 
 
   const rust = await screen.findByRole('group', { name: 'rust' });
   await user.click(within(rust).getByRole('button', { name: 'domain: unchanged' }));
-  await user.type(within(noteTab()).getByRole('textbox', { name: 'Your comment' }), 'Why here?');
+  await write(user, within(noteTab()).getByRole('textbox', { name: 'Your comment' }), 'Why here?');
   await user.click(screen.getByRole('button', { name: 'Show 3 findings' }));
   await answer('cyclomatic 30, over 20', 'Explain');
   await answer('lines 900, over 800', "It's fine");
-  await user.type(
+  await write(
+    user,
     inRail('lines 900, over 800').getByRole('textbox', { name: "Why it's fine" }),
     'Generated',
   );
@@ -2102,7 +2111,8 @@ test('the review sends the parts marked read in reading order, none outside it, 
   await user.keyboard('jjja');
   await user.keyboard('kka');
   await user.keyboard('j');
-  await user.type(
+  await write(
+    user,
     within(noteTab()).getByRole('textbox', { name: 'Your comment' }),
     'Is this adapter tested?',
   );
@@ -2166,9 +2176,9 @@ test('the open tray names the parts read with nothing to say, in reading order, 
   const rust = await screen.findByRole('group', { name: 'rust' });
   await user.keyboard('jajaja');
   await user.click(within(rust).getByRole('button', { name: 'cli-adapter: added' }));
-  await user.type(within(noteTab()).getByRole('textbox', { name: 'Your comment' }), 'Why?');
+  await write(user, within(noteTab()).getByRole('textbox', { name: 'Your comment' }), 'Why?');
   await user.click(within(rust).getByRole('button', { name: 'legacy: removed' }));
-  await user.type(within(noteTab()).getByRole('textbox', { name: 'Your comment' }), ' ');
+  await write(user, within(noteTab()).getByRole('textbox', { name: 'Your comment' }), ' ');
   await openReview(user);
 
   const silent = within(tray()).getByRole('list', { name: 'Read, nothing to say' });
@@ -2185,10 +2195,10 @@ test("the open tray previews what Claude gets as lines: the verdict and parts re
   const rust = await screen.findByRole('group', { name: 'rust' });
   await user.keyboard('ja');
   await user.click(within(rust).getByRole('button', { name: 'application → domain: unchanged' }));
-  await user.type(within(noteTab()).getByRole('textbox', { name: 'Your comment' }), 'Why?');
+  await write(user, within(noteTab()).getByRole('textbox', { name: 'Your comment' }), 'Why?');
   await user.click(within(rust).getByRole('button', { name: 'legacy: removed' }));
   await pickKind(user, 'Change this');
-  await user.type(within(noteTab()).getByRole('textbox', { name: 'Your comment' }), 'Keep it.');
+  await write(user, within(noteTab()).getByRole('textbox', { name: 'Your comment' }), 'Keep it.');
   await openReview(user);
 
   const preview = () => within(tray()).getByLabelText('What Claude gets').textContent?.split('\n');
@@ -4297,4 +4307,570 @@ test('a box read as a part keeps its reading number once it is expanded, and an 
       .map(number => number.getAttribute('aria-label'));
   expect(await numbersIn('utils')).toEqual(['Reading order 1']);
   expect(await numbersIn('lib')).toEqual([]);
+});
+
+const symbolsTab = () => screen.getByRole('tabpanel', { name: 'Symbols' });
+
+test("a served page's symbol row takes a comment, on its file and qualified name, held while the inspector goes elsewhere", async () => {
+  const user = userEvent.setup();
+  const sent = vi.fn(async () => {});
+  render(
+    <ReviewPage
+      review={pageWith({
+        range: review.range,
+        diff: {
+          nodes: [
+            { id: 'web', kind: 'stack', label: 'web', path: '', state: 'unchanged' },
+            topFile('review-page.tsx', 'modified'),
+          ],
+          edges: [],
+        },
+        symbols: [
+          symbolsOf('web/file/review-page.tsx', [
+            {
+              name: 'goTo',
+              scope: 'ReviewPage',
+              kind: 'method',
+              exported: { base: false, head: false },
+              change: 'edited',
+            },
+          ]),
+        ],
+      })}
+      send={sent}
+    />,
+  );
+  const symbolComment = () => within(symbolsTab()).getByRole('textbox', { name: 'Your comment' });
+  const commentOn = () =>
+    within(symbolsTab()).getByRole('button', { name: 'Comment on method ReviewPage.goTo' });
+
+  await user.click(await screen.findByRole('button', { name: 'review-page.tsx: modified' }));
+  await user.click(within(inspector()).getByRole('tab', { name: 'Symbols 1' }));
+  await user.click(commentOn());
+  await user.click(commentOn());
+  expect(commentOn().getAttribute('aria-expanded')).toBe('false');
+  expect(within(symbolsTab()).queryByRole('textbox', { name: 'Your comment' })).toBeNull();
+  await user.click(commentOn());
+  expect(commentOn().getAttribute('aria-expanded')).toBe('true');
+  await user.click(within(symbolsTab()).getByRole('radio', { name: 'Change this' }));
+  await user.type(symbolComment(), 'Split it.');
+  await user.click(within(inspector()).getByRole('tab', { name: 'Note' }));
+  await user.click(within(inspector()).getByRole('tab', { name: 'Symbols 1' }));
+  expect(symbolComment()).toHaveProperty('value', 'Split it.');
+  await openReview(user);
+  await user.click(screen.getByRole('button', { name: 'Send to Claude' }));
+
+  expect(sent).toHaveBeenCalledExactlyOnceWith(
+    sentReview({
+      verdict: 'request-changes',
+      comments: [
+        {
+          anchor: { kind: 'symbol', id: 'web/file/review-page.tsx#ReviewPage.goTo' },
+          kind: 'change',
+          text: 'Split it.',
+        },
+      ],
+    }),
+  );
+});
+
+test("a served page's logic line takes a comment on its decision, the same id as the line's logic:removed finding, quoting the line", async () => {
+  const user = userEvent.setup();
+  const sent = vi.fn(async () => {});
+  const file = topFile('review-page.tsx', 'modified');
+  const symbols = [
+    symbolsOf(file.id, [
+      {
+        name: 'goTo',
+        scope: 'ReviewPage',
+        kind: 'method',
+        exported: { base: false, head: false },
+        change: 'edited',
+        logic: [
+          { change: 'added', kind: 'guard', depth: 0, head: 'if (!open) return', line: 3 },
+          { change: 'removed', kind: 'guard', depth: 0, base: 'if (!open) return', line: 9 },
+          { change: 'same', kind: 'if', depth: 0, head: 'if (ready)', line: 12 },
+          { change: 'changed', kind: 'if', depth: 0, base: 'if (a)', head: 'if (b)', line: 15 },
+        ],
+      },
+    ]),
+  ];
+  const lost = symbolFindings({ files: symbols, nodes: [file] }).find(finding =>
+    finding.id.startsWith('logic:removed:'),
+  );
+  render(
+    <ReviewPage
+      review={pageWith({
+        range: review.range,
+        diff: {
+          nodes: [{ id: 'web', kind: 'stack', label: 'web', path: '', state: 'unchanged' }, file],
+          edges: [],
+        },
+        symbols,
+      })}
+      send={sent}
+    />,
+  );
+
+  await user.click(await screen.findByRole('button', { name: 'review-page.tsx: modified' }));
+  await user.click(within(inspector()).getByRole('tab', { name: 'Symbols 1' }));
+  expect(
+    within(symbolsTab()).getByRole('button', { name: 'Comment on same if: if (ready)' }),
+  ).toBeTruthy();
+  await user.click(
+    within(symbolsTab()).getByRole('button', {
+      name: 'Comment on removed guard: if (!open) return',
+    }),
+  );
+  await write(
+    user,
+    within(symbolsTab()).getByRole('textbox', { name: 'Your comment' }),
+    'Why did it move?',
+  );
+  await user.click(
+    within(symbolsTab()).getByRole('button', { name: 'Comment on changed if: if (a) → if (b)' }),
+  );
+  await write(
+    user,
+    within(
+      within(symbolsTab()).getByRole('listitem', { name: 'changed if: if (a) → if (b)' }),
+    ).getByRole('textbox', { name: 'Your comment' }),
+    'Why b?',
+  );
+  await openReview(user);
+  await user.click(screen.getByRole('button', { name: 'Send to Claude' }));
+
+  expect(sent).toHaveBeenCalledExactlyOnceWith(
+    sentReview({
+      verdict: 'comment',
+      comments: [
+        {
+          anchor: {
+            kind: 'decision',
+            id: lost?.id.slice('logic:removed:'.length) ?? '',
+            text: 'if (!open) return',
+          },
+          kind: 'question',
+          text: 'Why did it move?',
+        },
+        {
+          anchor: {
+            kind: 'decision',
+            id: 'web/file/review-page.tsx#ReviewPage.goTo#if (b)',
+            text: 'if (b)',
+          },
+          kind: 'question',
+          text: 'Why b?',
+        },
+      ],
+    }),
+  );
+  expect(lost?.id).toBe(
+    'logic:removed:web/file/review-page.tsx#ReviewPage.goTo#if (!open) return#2',
+  );
+});
+
+test("a logic line of the later of two same-named symbols comments on its own decision, not its twin's", async () => {
+  const user = userEvent.setup();
+  const sent = vi.fn(async () => {});
+  const accessor = {
+    name: 'x',
+    scope: 'C',
+    kind: 'method' as const,
+    exported: { base: false, head: false },
+    change: 'edited' as const,
+    logic: [
+      {
+        change: 'removed' as const,
+        kind: 'guard' as const,
+        depth: 0,
+        base: 'if (a) return',
+        line: 3,
+      },
+    ],
+  };
+  render(
+    <ReviewPage
+      review={pageWith({
+        range: review.range,
+        diff: {
+          nodes: [
+            { id: 'web', kind: 'stack', label: 'web', path: '', state: 'unchanged' },
+            topFile('c.ts', 'modified'),
+          ],
+          edges: [],
+        },
+        symbols: [symbolsOf('web/file/c.ts', [accessor, accessor])],
+      })}
+      send={sent}
+    />,
+  );
+
+  await user.click(await screen.findByRole('button', { name: 'c.ts: modified' }));
+  await user.click(within(inspector()).getByRole('tab', { name: /^Symbols/ }));
+  const [, later] = within(symbolsTab()).getAllByRole('button', {
+    name: 'Comment on removed guard: if (a) return',
+  });
+  await user.click(later ?? symbolsTab());
+  await write(user, within(symbolsTab()).getByRole('textbox', { name: 'Your comment' }), 'Why?');
+  await openReview(user);
+  await user.click(screen.getByRole('button', { name: 'Send to Claude' }));
+
+  expect(sent).toHaveBeenCalledExactlyOnceWith(
+    sentReview({
+      comments: [
+        {
+          anchor: {
+            kind: 'decision',
+            id: 'web/file/c.ts#C.x#2#if (a) return',
+            text: 'if (a) return',
+          },
+          kind: 'question',
+          text: 'Why?',
+        },
+      ],
+    }),
+  );
+});
+
+test('a draft in the open tray goes to the tab it was written on, though the inspector was closed or on another tab', async () => {
+  const user = userEvent.setup();
+  render(
+    <ReviewPage
+      review={pageWith({
+        range: review.range,
+        diff: {
+          nodes: [
+            { id: 'web', kind: 'stack', label: 'web', path: '', state: 'unchanged' },
+            topFile('review-page.tsx', 'modified'),
+          ],
+          edges: [],
+        },
+        symbols: [
+          symbolsOf('web/file/review-page.tsx', [
+            {
+              name: 'goTo',
+              scope: 'ReviewPage',
+              kind: 'method',
+              exported: { base: false, head: false },
+              change: 'edited',
+              logic: [{ change: 'same', kind: 'if', depth: 0, head: 'if (ready)', line: 12 }],
+            },
+          ]),
+        ],
+      })}
+      send={vi.fn(async () => {})}
+    />,
+  );
+  const panelOf = (name: string) => screen.getByRole('tabpanel', { name });
+  const fieldIn = (name: string) =>
+    within(panelOf(name)).getByRole('textbox', { name: 'Your comment' });
+
+  await user.click(await screen.findByRole('button', { name: 'review-page.tsx: modified' }));
+  await write(user, fieldIn('Note'), 'On the file.');
+  await user.click(within(inspector()).getByRole('tab', { name: 'Symbols 1' }));
+  await user.click(
+    within(symbolsTab()).getByRole('button', { name: 'Comment on method ReviewPage.goTo' }),
+  );
+  await write(user, fieldIn('Symbols'), 'On the method.');
+  await user.click(
+    within(symbolsTab()).getByRole('button', { name: 'Comment on same if: if (ready)' }),
+  );
+  await write(
+    user,
+    within(within(symbolsTab()).getByRole('listitem', { name: 'same if: if (ready)' })).getByRole(
+      'textbox',
+      { name: 'Your comment' },
+    ),
+    'On the line.',
+  );
+  await user.click(screen.getByRole('button', { name: 'Close inspector' }));
+  await openReview(user);
+
+  await user.click(screen.getByRole('button', { name: 'ReviewPage.goTo in review-page.tsx' }));
+  expect(
+    within(
+      within(symbolsTab()).getByRole('listitem', { name: 'method ReviewPage.goTo: edited' }),
+    ).getAllByRole('textbox', { name: 'Your comment' })[0],
+  ).toHaveProperty('value', 'On the method.');
+  await user.click(
+    within(screen.getByRole('list', { name: 'Drafts' })).getByRole('button', {
+      name: 'review-page.tsx',
+    }),
+  );
+  expect(fieldIn('Note')).toHaveProperty('value', 'On the file.');
+  await user.click(screen.getByRole('button', { name: 'if (ready)' }));
+  expect(
+    within(within(symbolsTab()).getByRole('listitem', { name: 'same if: if (ready)' })).getByRole(
+      'textbox',
+      { name: 'Your comment' },
+    ),
+  ).toHaveProperty('value', 'On the line.');
+});
+
+test("same-named symbols in one file take a comment each, counted through the file's symbols whatever group shows them, and a draft on a later one still opens the unchanged", async () => {
+  const user = userEvent.setup();
+  const sent = vi.fn(async () => {});
+  const named = (kind: SymbolStatement['kind'], change: SymbolStatement['change']) => ({
+    name: 'F',
+    kind,
+    exported: { base: false, head: false },
+    change,
+  });
+  render(
+    <ReviewPage
+      review={pageWith({
+        range: review.range,
+        diff: {
+          nodes: [
+            { id: 'web', kind: 'stack', label: 'web', path: '', state: 'unchanged' },
+            topFile('tax.ts', 'modified'),
+          ],
+          edges: [],
+        },
+        symbols: [
+          symbolsOf('web/file/tax.ts', [
+            named('type', 'added'),
+            named('function', 'edited'),
+            named('function', 'unchanged'),
+          ]),
+        ],
+      })}
+      send={sent}
+    />,
+  );
+  const commentIn = async (group: string, name: string, text: string) => {
+    const row = within(within(symbolsTab()).getByRole('list', { name: group })).getByRole(
+      'listitem',
+    );
+    await user.click(within(row).getByRole('button', { name: `Comment on ${name}` }));
+    await write(user, within(row).getByRole('textbox', { name: 'Your comment' }), text);
+  };
+
+  await user.click(await screen.findByRole('button', { name: 'tax.ts: modified' }));
+  await user.click(within(inspector()).getByRole('tab', { name: /^Symbols/ }));
+  await commentIn('Edited', 'function F', 'On the edited one.');
+  await commentIn('Added', 'type F', 'On the type.');
+  await user.click(within(symbolsTab()).getByText('1 unchanged'));
+  await commentIn('Unchanged', 'function F', 'On the unchanged one.');
+  await user.click(within(inspector()).getByRole('tab', { name: 'Note' }));
+  await user.click(within(inspector()).getByRole('tab', { name: /^Symbols/ }));
+  expect(within(symbolsTab()).getByRole('group').hasAttribute('open')).toBe(true);
+  await openReview(user);
+  await user.click(screen.getByRole('button', { name: 'Send to Claude' }));
+
+  const on = (id: string, text: string) => ({
+    anchor: { kind: 'symbol' as const, id },
+    kind: 'question' as const,
+    text,
+  });
+  expect(sent).toHaveBeenCalledExactlyOnceWith(
+    sentReview({
+      comments: [
+        on('web/file/tax.ts#F#2', 'On the edited one.'),
+        on('web/file/tax.ts#F', 'On the type.'),
+        on('web/file/tax.ts#F#3', 'On the unchanged one.'),
+      ],
+    }),
+  );
+});
+
+test('the inspector goes back to Note when it closes or Structure is left, and holds its tab between parts', async () => {
+  const user = userEvent.setup();
+  atHash('#structure');
+  const symbol = {
+    name: 'tax',
+    kind: 'function' as const,
+    exported: { base: false, head: false },
+    change: 'edited' as const,
+  };
+  render(
+    <ReviewPage
+      review={pageWith({
+        range: review.range,
+        diff: {
+          nodes: [
+            { id: 'web', kind: 'stack', label: 'web', path: '', state: 'unchanged' },
+            topFile('tax.ts', 'modified'),
+            topFile('vat.ts', 'modified'),
+          ],
+          edges: [],
+        },
+        symbols: [symbolsOf('web/file/tax.ts', [symbol]), symbolsOf('web/file/vat.ts', [symbol])],
+      })}
+    />,
+  );
+  const pickSymbols = () => user.click(within(inspector()).getByRole('tab', { name: /^Symbols/ }));
+  const onTab = () => within(inspector()).getByRole('tab', { selected: true }).textContent;
+
+  await user.click(await screen.findByRole('button', { name: 'tax.ts: modified' }));
+  await pickSymbols();
+  await user.click(screen.getByRole('button', { name: 'vat.ts: modified' }));
+  expect(onTab()).toMatch(/^Symbols/);
+
+  await user.click(within(inspector()).getByRole('button', { name: 'Close inspector' }));
+  await user.click(screen.getByRole('button', { name: 'tax.ts: modified' }));
+  expect(onTab()).toBe('Note');
+
+  await pickSymbols();
+  await user.click(screen.getByRole('link', { name: /^Tests/ }));
+  await screen.findByRole('group', { name: 'Tests shown' });
+  await user.click(screen.getByRole('link', { name: /^Structure/ }));
+  await screen.findByRole('button', { name: 'tax.ts: modified' });
+  expect(onTab()).toBe('Note');
+});
+
+test('the inspector holds its tab through an edge selected between two parts', async () => {
+  const user = userEvent.setup();
+  atHash('#structure');
+  const symbol = {
+    name: 'tax',
+    kind: 'function' as const,
+    exported: { base: false, head: false },
+    change: 'edited' as const,
+  };
+  render(
+    <ReviewPage
+      review={pageWith({
+        range: review.range,
+        diff: {
+          nodes: [
+            { id: 'web', kind: 'stack', label: 'web', path: '', state: 'unchanged' },
+            topFile('tax.ts', 'modified'),
+            topFile('vat.ts', 'modified'),
+          ],
+          edges: [
+            {
+              from: 'web/file/tax.ts',
+              to: 'web/file/vat.ts',
+              state: 'added',
+            },
+          ],
+        },
+        symbols: [symbolsOf('web/file/tax.ts', [symbol]), symbolsOf('web/file/vat.ts', [symbol])],
+      })}
+    />,
+  );
+
+  await user.click(await screen.findByRole('button', { name: 'tax.ts: modified' }));
+  await user.click(within(inspector()).getByRole('tab', { name: /^Symbols/ }));
+  await user.click(screen.getByRole('button', { name: 'tax.ts → vat.ts: added' }));
+  await user.click(screen.getByRole('button', { name: 'vat.ts: modified' }));
+
+  expect(within(inspector()).getByRole('tab', { selected: true }).textContent).toMatch(/^Symbols/);
+});
+
+test('going to a finding answer in the open tray opens Note, where the answer is, whatever tab was up', async () => {
+  const user = userEvent.setup();
+  render(
+    <ReviewPage
+      review={pageWith({
+        range: review.range,
+        diff: {
+          nodes: [
+            { id: 'web', kind: 'stack', label: 'web', path: '', state: 'unchanged' },
+            topFile('tax.ts', 'modified'),
+          ],
+          edges: [],
+        },
+        findings: [findingOn('web/file/tax.ts')],
+        symbols: [
+          symbolsOf('web/file/tax.ts', [
+            {
+              name: 'tax',
+              kind: 'function',
+              exported: { base: false, head: false },
+              change: 'edited',
+            },
+          ]),
+        ],
+      })}
+      send={async () => {}}
+    />,
+  );
+
+  await user.click(await screen.findByRole('button', { name: 'tax.ts: modified' }));
+  await user.click(within(noteTab()).getByRole('button', { name: 'Fix this' }));
+  await user.click(within(inspector()).getByRole('tab', { name: /^Symbols/ }));
+  await openReview(user);
+  await user.click(screen.getByRole('button', { name: 'lines 900, over 800' }));
+
+  expect(within(inspector()).getByRole('tab', { selected: true }).textContent).toBe('Note');
+});
+
+const pageWithAnUnchangedSymbol = () =>
+  pageWith({
+    range: review.range,
+    diff: {
+      nodes: [
+        { id: 'web', kind: 'stack', label: 'web', path: '', state: 'unchanged' },
+        topFile('tax.ts', 'modified'),
+      ],
+      edges: [],
+    },
+    symbols: [
+      symbolsOf('web/file/tax.ts', [
+        {
+          name: 'tax',
+          kind: 'function',
+          exported: { base: false, head: false },
+          change: 'edited',
+          logic: [{ change: 'added', kind: 'guard', depth: 0, head: 'if (!rate) return', line: 2 }],
+        },
+        {
+          name: 'round',
+          kind: 'function',
+          exported: { base: false, head: false },
+          change: 'unchanged',
+        },
+      ]),
+    ],
+  });
+
+const unchangedSymbols = () => within(symbolsTab()).getByRole('group');
+
+const leaveSymbolsAndComeBack = async (user: ReturnType<typeof userEvent.setup>) => {
+  await user.click(within(inspector()).getByRole('tab', { name: 'Note' }));
+  await user.click(within(inspector()).getByRole('tab', { name: /^Symbols/ }));
+};
+
+const draftOnTheUnchangedSymbol = async (user: ReturnType<typeof userEvent.setup>) => {
+  await user.click(within(symbolsTab()).getByText('1 unchanged'));
+  await user.click(within(symbolsTab()).getByRole('button', { name: 'Comment on function round' }));
+  await write(
+    user,
+    within(symbolsTab()).getByRole('textbox', { name: 'Your comment' }),
+    'Why not?',
+  );
+};
+
+test('the unchanged symbols open by themselves when one holds a draft', async () => {
+  const user = userEvent.setup();
+  render(<ReviewPage review={pageWithAnUnchangedSymbol()} send={vi.fn(async () => {})} />);
+
+  await user.click(await screen.findByRole('button', { name: 'tax.ts: modified' }));
+  await user.click(within(inspector()).getByRole('tab', { name: /^Symbols/ }));
+  expect(unchangedSymbols().hasAttribute('open')).toBe(false);
+  await draftOnTheUnchangedSymbol(user);
+  await leaveSymbolsAndComeBack(user);
+
+  expect(unchangedSymbols().hasAttribute('open')).toBe(true);
+});
+
+test('a page that is not served has no Comment toggle on a symbol or a logic line', async () => {
+  const user = userEvent.setup();
+  const page = pageWithAnUnchangedSymbol();
+  const { rerender } = render(<ReviewPage review={page} send={vi.fn(async () => {})} />);
+  const toggles = () =>
+    within(symbolsTab())
+      .queryAllByRole('button', { name: /^Comment on/ })
+      .map(toggle => toggle.getAttribute('aria-label'));
+
+  await user.click(await screen.findByRole('button', { name: 'tax.ts: modified' }));
+  await user.click(within(inspector()).getByRole('tab', { name: /^Symbols/ }));
+  expect(toggles()).toContain('Comment on function tax');
+  expect(toggles()).toContain('Comment on added guard: if (!rate) return');
+
+  rerender(<ReviewPage review={page} />);
+  expect(toggles()).toStrictEqual([]);
 });

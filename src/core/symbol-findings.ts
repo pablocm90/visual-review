@@ -36,23 +36,32 @@ const isAddedExport = ({ exported }: SymbolStatement): boolean =>
 const raisesItsOwn = (statement: SymbolStatement): boolean =>
   removalOf(statement, id => id) !== undefined || isAddedExport(statement);
 
-const unheld = (statements: ReadonlyArray<SymbolStatement>): ReadonlyArray<SymbolStatement> => {
-  const holders = new Set(statements.filter(raisesItsOwn).map(qualified));
-  return statements.filter(({ scope }) => scope === undefined || !holders.has(scope));
+const unheld = (symbols: ReadonlyArray<AnchoredSymbol>): ReadonlyArray<AnchoredSymbol> => {
+  const holders = new Set(
+    symbols
+      .map(({ item }) => item)
+      .filter(raisesItsOwn)
+      .map(qualified),
+  );
+  return symbols.filter(({ item: { scope } }) => scope === undefined || !holders.has(scope));
 };
 
 type Placed = {
   readonly node: string;
-  readonly statement: SymbolStatement;
+  readonly symbol: AnchoredSymbol;
   readonly pathOf: PathOf;
 };
 
-const findingOf = ({ node, statement, pathOf }: Placed): Finding | undefined => {
+const findingOf = ({
+  node,
+  symbol: { item: statement, id },
+  pathOf,
+}: Placed): Finding | undefined => {
   const removal = removalOf(statement, pathOf);
   const on = { dimension: 'api', level: 'look', target: node } as const;
   if (removal !== undefined)
     return {
-      id: `api:removed:${node}#${removal.former}`,
+      id: `api:removed:${id}`,
       ...on,
       title: `${statement.kind} ${removal.former} ${removal.how}`,
       ...(removal.detail === undefined ? {} : { detail: removal.detail }),
@@ -61,14 +70,14 @@ const findingOf = ({ node, statement, pathOf }: Placed): Finding | undefined => 
   const name = qualified(statement);
   if (isAddedExport(statement))
     return {
-      id: `api:added:${node}#${name}`,
+      id: `api:added:${id}`,
       ...on,
       level: 'info',
       title: `${statement.kind} ${name} ${addedHow(statement, pathOf)}`,
     };
   if (signature === undefined || exported.base !== true) return undefined;
   return {
-    id: `api:signature:${node}#${name}`,
+    id: `api:signature:${id}`,
     ...on,
     title: `${statement.kind} ${name}'s signature changed`,
     detail: `${signature.base} → ${signature.head}`,
@@ -108,21 +117,20 @@ const COUNTED = ['added', 'changed', 'removed'] as const;
 
 const changedFinding = (
   node: string,
-  statement: SymbolStatement,
+  { item: statement, id }: AnchoredSymbol,
   others: ReadonlyArray<LogicLine>,
 ): ReadonlyArray<Finding> => {
   if (others.length === 0) return [];
-  const name = qualified(statement);
   const counts = COUNTED.map(
     change => [change, others.filter(line => line.change === change).length] as const,
   );
   return [
     {
-      id: `logic:changed:${node}#${name}`,
+      id: `logic:changed:${id}`,
       dimension: 'logic',
       level: 'info',
       target: node,
-      title: `${statement.kind} ${name} changed its logic`,
+      title: `${statement.kind} ${qualified(statement)} changed its logic`,
       detail: counts
         .filter(([, count]) => count > 0)
         .map(([change, count]) => `${count} ${change}`)
@@ -131,26 +139,56 @@ const changedFinding = (
   ];
 };
 
-const logicFindings = (node: string, statement: SymbolStatement): ReadonlyArray<Finding> => {
+const decisionText = ({ base, head }: LogicLine): string => head ?? base ?? '';
+
+const countingRepeats = <T>(
+  items: ReadonlyArray<T>,
+  idOf: (item: T) => string,
+): ReadonlyArray<{ readonly item: T; readonly id: string }> =>
+  items.map((item, index) => {
+    const id = idOf(item);
+    const before = items.slice(0, index).filter(other => idOf(other) === id).length;
+    return { item, id: before === 0 ? id : `${id}#${before + 1}` };
+  });
+
+export type AnchoredSymbol = {
+  readonly item: SymbolStatement;
+  readonly id: string;
+};
+
+export const anchoredSymbols = (
+  node: string,
+  symbols: ReadonlyArray<SymbolStatement>,
+): ReadonlyArray<AnchoredSymbol> =>
+  countingRepeats(symbols, symbol => `${node}#${qualified(symbol)}`);
+
+export const decisionsOf = ({ item: statement, id: symbolId }: AnchoredSymbol) =>
+  countingRepeats(statement.logic ?? [], line => `${symbolId}#${decisionText(line)}`).map(
+    ({ item, id }) => ({ line: item, id, text: decisionText(item) }),
+  );
+
+const logicFindings = (node: string, symbol: AnchoredSymbol): ReadonlyArray<Finding> => {
+  const statement = symbol.item;
   const name = qualified(statement);
   const lines = statement.logic ?? [];
-  const lost = lines.filter(isLost);
-  const occurrence = (base: string | undefined, index: number): string => {
-    const before = lost.slice(0, index).filter(line => line.base === base).length;
-    return before === 0 ? '' : `#${before + 1}`;
-  };
   return [
-    ...lost.map(({ kind, base = '' }, index) => ({
-      id: `logic:removed:${node}#${name}#${base}${occurrence(base, index)}`,
-      dimension: 'logic' as const,
-      level: 'look' as const,
-      target: node,
-      title: `${statement.kind} ${name} lost a ${kind}`,
-      detail: base,
-    })),
+    ...decisionsOf(symbol).flatMap(({ line, id }) =>
+      isLost(line)
+        ? [
+            {
+              id: `logic:removed:${id}`,
+              dimension: 'logic' as const,
+              level: 'look' as const,
+              target: node,
+              title: `${statement.kind} ${name} lost a ${line.kind}`,
+              detail: line.base ?? '',
+            },
+          ]
+        : [],
+    ),
     ...changedFinding(
       node,
-      statement,
+      symbol,
       lines.filter(line => line.change !== 'same' && !isLost(line)),
     ),
   ];
@@ -176,11 +214,13 @@ export const symbolFindings = ({ files, nodes }: SymbolFindingsOptions): Readonl
           },
         ]
       : [
-          ...unheld(file.symbols).flatMap(
-            statement => findingOf({ node: file.node, statement, pathOf }) ?? [],
+          ...unheld(anchoredSymbols(file.node, file.symbols)).flatMap(
+            symbol => findingOf({ node: file.node, symbol, pathOf }) ?? [],
           ),
           ...exportsFinding(file),
-          ...file.symbols.flatMap(statement => logicFindings(file.node, statement)),
+          ...anchoredSymbols(file.node, file.symbols).flatMap(symbol =>
+            logicFindings(file.node, symbol),
+          ),
         ],
   );
 };

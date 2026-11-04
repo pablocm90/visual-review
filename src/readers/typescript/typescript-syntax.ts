@@ -121,7 +121,13 @@ const METHODS = new Set([
   'ObjectProperty',
 ]);
 
-const kindOf = (node: Node): SymbolKind => (METHODS.has(node.type) ? 'method' : 'function');
+const ACCESSORS: ReadonlyMap<unknown, SymbolKind> = new Map([
+  ['get', 'getter'],
+  ['set', 'setter'],
+]);
+
+const kindOf = (node: Node): SymbolKind =>
+  ('kind' in node && ACCESSORS.get(node.kind)) || (METHODS.has(node.type) ? 'method' : 'function');
 
 const qualified = (scope: string | undefined, name: string): string =>
   scope === undefined ? name : `${scope}.${name}`;
@@ -155,8 +161,11 @@ const objectNameOf = (text: string, node: Node): string | undefined =>
 export const isOverload = (node: Node): boolean =>
   node.type === 'TSDeclareFunction' || node.type === 'TSDeclareMethod';
 
-export const isFunction = ({ kind }: { readonly kind: SymbolKind }): boolean =>
-  kind === 'function' || kind === 'method';
+export const isMethod = ({ kind }: { readonly kind: SymbolKind }): boolean =>
+  kind === 'method' || kind === 'getter' || kind === 'setter';
+
+export const isFunction = (symbol: { readonly kind: SymbolKind }): boolean =>
+  symbol.kind === 'function' || isMethod(symbol);
 
 const symbolOf = (
   { name, kind, node }: OwnSymbol,

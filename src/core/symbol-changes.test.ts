@@ -461,3 +461,133 @@ test.each([
 ])('$kind: a file with $change changed', ({ base, head, kind }) => {
   expect(symbolChanges({ before: read(...base), after: read(...head) }).kind).toBe(kind);
 });
+
+const accessorChanges = (...head: ReadonlyArray<string>) =>
+  symbolChanges({
+    before: read(
+      'export class O {',
+      '  get value() { if (!a) return 1; return 2; }',
+      '  set value(v) { z(v); }',
+      '}',
+    ),
+    after: read('export class O {', ...head, '}'),
+  }).symbols.flatMap(({ kind, name, change, exported, signature, logic }) =>
+    name === 'value' ? [{ kind, change, exported, signature, logic }] : [],
+  );
+
+test("a getter and its setter each read against their own side, so neither takes on the other's signature or logic", () => {
+  expect(
+    accessorChanges('  get value() { if (!a) return 1; return 2; }', '  set value(v) { z(v); }'),
+  ).toStrictEqual([
+    {
+      kind: 'getter',
+      change: 'unchanged',
+      exported: { base: true, head: true },
+      signature: undefined,
+      logic: undefined,
+    },
+    {
+      kind: 'setter',
+      change: 'unchanged',
+      exported: { base: true, head: true },
+      signature: undefined,
+      logic: undefined,
+    },
+  ]);
+});
+
+test("an edited setter's logic lines read against the base's setter, not its getter", () => {
+  const [getter, setter] = accessorChanges(
+    '  get value() { if (!a) return 1; return 2; }',
+    '  set value(v) { if (!v) return; z(v); }',
+  );
+
+  expect(getter?.change).toBe('unchanged');
+  expect(setter?.logic?.map(({ change, head }) => ({ change, head }))).toStrictEqual([
+    { change: 'added', head: 'if (!v) return' },
+  ]);
+});
+
+test('removing a getter reports the getter removed and leaves its setter unchanged', () => {
+  expect(
+    accessorChanges('  set value(v) { z(v); }').map(({ kind, change }) => ({ kind, change })),
+  ).toStrictEqual([
+    { kind: 'setter', change: 'unchanged' },
+    { kind: 'getter', change: 'removed' },
+  ]);
+});
+
+const changesOfFoo = (base: string, head: string) =>
+  symbolChanges({
+    before: read('class A {', base, '}'),
+    after: read('class A {', head, '}'),
+  }).symbols.flatMap(({ kind, name, change, logic }) =>
+    name === 'A' ? [] : [{ kind, name, change, logic: logic?.map(({ change }) => change) }],
+  );
+
+test('a method turned into a getter keeps its pair, so the logic it lost still shows', () => {
+  expect(
+    changesOfFoo(
+      '  foo() { if (!this.v) return 0; return this.v; }',
+      '  get foo() { return this.v; }',
+    ),
+  ).toStrictEqual([{ kind: 'getter', name: 'foo', change: 'edited', logic: ['removed'] }]);
+});
+
+test('an accessor turned into a method keeps its pair, and a second accessor of that name has none left', () => {
+  expect(
+    changesOfFoo(
+      '  get foo() { return 1; }\n  set foo(v) { z(v); }',
+      '  foo() { if (!this.v) return 0; return 1; }',
+    ),
+  ).toStrictEqual([
+    { kind: 'method', name: 'foo', change: 'edited', logic: ['added'] },
+    { kind: 'setter', name: 'foo', change: 'removed', logic: undefined },
+  ]);
+});
+
+test('a method split into a getter and a setter pairs with the first, the other being new', () => {
+  expect(
+    changesOfFoo('  foo() { return 1; }', '  get foo() { return 2; }\n  set foo(v) { z(v); }'),
+  ).toStrictEqual([
+    { kind: 'getter', name: 'foo', change: 'edited', logic: undefined },
+    { kind: 'setter', name: 'foo', change: 'added', logic: undefined },
+  ]);
+});
+
+test('a getter replaced by a setter of that name is no pair: they are different doors', () => {
+  expect(changesOfFoo('  get foo() { return 1; }', '  set foo(v) { z(v); }')).toStrictEqual([
+    { kind: 'setter', name: 'foo', change: 'added', logic: undefined },
+    { kind: 'getter', name: 'foo', change: 'removed', logic: undefined },
+  ]);
+});
+
+test('a method turned into a setter keeps its pair too', () => {
+  expect(
+    changesOfFoo('  foo(v) { if (!v) return; z(v); }', '  set foo(v) { z(v); }'),
+  ).toStrictEqual([{ kind: 'setter', name: 'foo', change: 'edited', logic: ['removed'] }]);
+});
+
+test('a method gone and an unlike getter of another name are no pair', () => {
+  expect(
+    changesOfFoo('  foo() { return one(1); }', '  get bar() { z(2, 3); return four; }'),
+  ).toStrictEqual([
+    { kind: 'getter', name: 'bar', change: 'added', logic: undefined },
+    { kind: 'method', name: 'foo', change: 'removed', logic: undefined },
+  ]);
+});
+
+test('a method renamed and turned into a getter is still a rename', () => {
+  const body = 'return this.items.filter(item => item.open).map(item => item.total);';
+  expect(changesOfFoo(`  foo() { ${body} }`, `  get bar() { ${body} }`)).toStrictEqual([
+    { kind: 'getter', name: 'bar', change: 'renamed', logic: undefined },
+  ]);
+});
+
+test('a getter renamed to an equal-bodied setter is no rename', () => {
+  const body = 'this.items.filter(item => item.open).map(item => item.total);';
+  expect(changesOfFoo(`  get foo() { ${body} }`, `  set bar(v) { ${body} }`)).toStrictEqual([
+    { kind: 'setter', name: 'bar', change: 'added', logic: undefined },
+    { kind: 'getter', name: 'foo', change: 'removed', logic: undefined },
+  ]);
+});

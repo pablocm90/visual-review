@@ -9,6 +9,8 @@ import type {
 import type { FileSymbols } from '../../core/reader.ts';
 import { decisionsIn } from './typescript-decisions.ts';
 import {
+  isFunction,
+  isMethod,
   isOverload,
   isTooBig,
   nameOf,
@@ -59,7 +61,7 @@ const isPrivate = (declaration: Node): boolean =>
 const isExported = (names: ReadonlySet<string>, { symbol, declaration }: WalkedSymbol) =>
   symbol.scope === undefined
     ? names.has(symbol.name)
-    : symbol.kind === 'method' && names.has(symbol.scope) && !isPrivate(declaration);
+    : isMethod(symbol) && names.has(symbol.scope) && !isPrivate(declaration);
 
 const collapsed = (text: string, node: Node | null | undefined): string =>
   node ? sourceOf(text, node).replace(/\s+/g, ' ') : '';
@@ -228,7 +230,7 @@ export const symbolsOfTypeScript = (text: string, path: string): FileSymbols => 
         [...walked.heads, walked.node].map(node => ownText(text, node, declarations)).join(''),
       ),
       bodyTokens: tokensOf(text, walked.node, code, declarations),
-      ...(walked.symbol.kind === 'function' || walked.symbol.kind === 'method'
+      ...(isFunction(walked.symbol)
         ? { decisions: decisionsIn({ code: { text, tokens: code }, node: walked.node, nested }) }
         : {}),
     })),

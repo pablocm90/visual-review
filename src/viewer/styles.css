@@ -2375,3 +2375,26 @@ main:has(> .review-tray) {
   white-space: pre-wrap;
   overflow-wrap: anywhere;
 }
+
+.comment-on {
+  margin-inline-start: 8px;
+  padding: 0 6px;
+  border: 1px solid var(--stack-line);
+  border-radius: 4px;
+  background: transparent;
+  color: var(--muted);
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.comment-on:hover,
+.comment-on[aria-expanded="true"] {
+  background: var(--unchanged-fill);
+  color: var(--ink);
+}
+
+.comment-on:focus-visible {
+  outline: 2px solid var(--ramp-3);
+  outline-offset: 1px;
+}

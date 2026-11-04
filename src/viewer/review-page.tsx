@@ -552,6 +552,8 @@ const InspectorHead = ({
 );
 
 type InspectorProps = {
+  readonly picked: InspectorTab;
+  readonly onPick: (tab: InspectorTab) => void;
   readonly nodes: ReadonlyArray<DiffNode>;
   readonly node: DiffNode | undefined;
   readonly metrics: Readonly<Record<string, NodeMetrics>>;
@@ -574,6 +576,18 @@ type InspectorProps = {
 
 type InspectorTab = 'note' | 'metrics' | 'diff' | 'tests' | 'symbols';
 
+const tabOfDraft = ({ kind }: Comment['anchor']): InspectorTab =>
+  kind === 'symbol' || kind === 'decision' ? 'symbols' : 'note';
+
+const useInspectorTab = (screen: string, selected: string | undefined) => {
+  const [inspectorTab, setInspectorTab] = useState<InspectorTab>('note');
+  const inspecting = screen === 'structure' && selected !== undefined;
+  useEffect(() => {
+    if (!inspecting) setInspectorTab('note');
+  }, [inspecting]);
+  return [inspectorTab, setInspectorTab] as const;
+};
+
 const INSPECTOR_TABS: Readonly<Record<InspectorTab, string>> = {
   note: 'Note',
   metrics: 'Metrics',
@@ -590,7 +604,7 @@ type Section = {
 
 type NodeSectionsOptions = Pick<
   InspectorProps,
-  'nodes' | 'metrics' | 'findings' | 'tests' | 'symbols' | 'onGoTo'
+  'nodes' | 'metrics' | 'findings' | 'tests' | 'symbols' | 'onGoTo' | 'comments' | 'onComment'
 > & { readonly node: DiffNode; readonly onShowLine: (at: LineAt) => void };
 
 const nodeSections = ({
@@ -602,6 +616,8 @@ const nodeSections = ({
   symbols,
   onGoTo,
   onShowLine,
+  comments,
+  onComment,
 }: NodeSectionsOptions): ReadonlyArray<Section> => {
   const measured = metrics[node.id];
   const testsHere = testsAlongside({ nodes, node, tests });
@@ -650,6 +666,8 @@ const nodeSections = ({
                   nodes={nodes}
                   onGoTo={onGoTo}
                   onShowLine={onShowLine}
+                  comments={comments}
+                  onComment={onComment}
                 />
               </div>
             ),
@@ -700,8 +718,7 @@ const NotePanel = ({
 
 const SECTION_ORDER = Object.keys(INSPECTOR_TABS);
 
-const Inspector = ({ node, patches, width, onClose, ...props }: InspectorProps) => {
-  const [picked, setPicked] = useState<InspectorTab>('note');
+const Inspector = ({ node, patches, width, onClose, picked, onPick, ...props }: InspectorProps) => {
   const [landing, setLanding] = useState<LineAt & { readonly path?: string | undefined }>();
   const [landedOn, setLandedOn] = useState(node?.id);
   if (landedOn !== node?.id) {
@@ -710,7 +727,7 @@ const Inspector = ({ node, patches, width, onClose, ...props }: InspectorProps) 
   }
   const showLine = (at: LineAt) => {
     setLanding({ ...at, path: props.nodes.find(({ id }) => id === at.node)?.path });
-    setPicked('diff');
+    onPick('diff');
   };
   const sections: ReadonlyArray<Section> = [
     { tab: 'note' as const, panel: <NotePanel {...props} /> },
@@ -752,7 +769,7 @@ const Inspector = ({ node, patches, width, onClose, ...props }: InspectorProps) 
             type="button"
             role="tab"
             aria-selected={tab === shown?.tab}
-            onClick={() => setPicked(tab)}
+            onClick={() => onPick(tab)}
           >
             {INSPECTOR_TABS[tab]}
             {count !== undefined && ` ${count}`}
@@ -805,6 +822,8 @@ type SidePanelProps = {
   readonly onCloseOutside: () => void;
   readonly onCloseInspector: (id: string) => void;
   readonly onGoTo: (id: string) => void;
+  readonly picked: InspectorTab;
+  readonly onPick: (tab: InspectorTab) => void;
 };
 
 const SidePanel = ({
@@ -824,6 +843,8 @@ const SidePanel = ({
   onCloseOutside,
   onCloseInspector,
   onGoTo,
+  picked,
+  onPick,
 }: SidePanelProps) => {
   const patches = outside
     ? review.undrawn
@@ -892,6 +913,8 @@ const SidePanel = ({
         onAnswer={onAnswer}
         width={width}
         onClose={() => onCloseInspector(selected)}
+        picked={picked}
+        onPick={onPick}
       />
     </>
   );
@@ -1276,6 +1299,11 @@ export const ReviewPage = ({ review, notes, send }: ReviewPageProps) => {
     location.hash = '#structure';
     goTo(id);
   };
+  const [inspectorTab, setInspectorTab] = useInspectorTab(tab, selected);
+  const goToOnTab = (id: string, inspect: InspectorTab) => {
+    setInspectorTab(inspect);
+    goToOnStructure(id);
+  };
   const [read, setRead] = useState(() => storedReadMarks(review.range));
   useEffect(() => storeReadMarks(review.range, read), [review.range, read]);
   const walk = (step: number) => {
@@ -1445,6 +1473,8 @@ export const ReviewPage = ({ review, notes, send }: ReviewPageProps) => {
               onCloseOutside={closeOutside}
               onCloseInspector={closeInspector}
               onGoTo={goTo}
+              picked={inspectorTab}
+              onPick={setInspectorTab}
             />
           </div>
         </>
@@ -1470,7 +1500,8 @@ export const ReviewPage = ({ review, notes, send }: ReviewPageProps) => {
           answers={answers}
           findings={findings}
           nodes={review.diff.nodes}
-          onGoTo={goToOnStructure}
+          onGoTo={id => goToOnTab(id, 'note')}
+          onGoToDraft={(id, anchor) => goToOnTab(id, tabOfDraft(anchor))}
           send={send}
         />
       )}

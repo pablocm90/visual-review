@@ -270,7 +270,7 @@ test('an exported symbol removed, or no longer exported, is an api finding to lo
   ]);
 });
 
-test('an exported symbol renamed or moved away is removed under its former name, the title saying where it went, a file by its path, a probable rename saying how it was found', () => {
+test('an exported symbol renamed or moved away is a removal, the title naming its former name and where it went, a file by its path, a probable rename saying how it was found', () => {
   const symbols = [
     symbolFile([
       {
@@ -301,14 +301,14 @@ test('an exported symbol renamed or moved away is removed under its former name,
 
   expect(findingsOfSymbols(symbols)).toStrictEqual([
     {
-      id: 'api:removed:web/file/a.ts#Orders.charge',
+      id: 'api:removed:web/file/a.ts#Orders.bill',
       dimension: 'api',
       level: 'look',
       target: 'web/file/a.ts',
       title: 'method Orders.charge renamed to Orders.bill',
     },
     {
-      id: 'api:removed:web/file/a.ts#settle',
+      id: 'api:removed:web/file/a.ts#pay',
       dimension: 'api',
       level: 'look',
       target: 'web/file/a.ts',
@@ -324,6 +324,51 @@ test('an exported symbol renamed or moved away is removed under its former name,
     },
   ]);
 });
+
+test.for([
+  {
+    how: 'removed',
+    change: { exported: { base: true }, change: 'removed' },
+    prefix: 'api:removed',
+  },
+  {
+    how: 'renamed from one name',
+    change: { exported: { base: true, head: true }, change: 'renamed', renamedFrom: 'C.old' },
+    prefix: 'api:removed',
+  },
+  {
+    how: 'added',
+    change: { exported: { head: true }, change: 'added' },
+    prefix: 'api:added',
+  },
+  {
+    how: 'changing their signature',
+    change: {
+      exported: { base: true, head: true },
+      change: 'edited',
+      signature: { base: '()', head: '(): number' },
+    },
+    prefix: 'api:signature',
+  },
+] satisfies ReadonlyArray<{
+  how: string;
+  change: Pick<SymbolStatement, 'exported' | 'change' | 'renamedFrom' | 'signature'>;
+  prefix: string;
+}>)(
+  'two exported accessors of one name $how are two findings, the later id counting the symbol',
+  ({ change, prefix }) => {
+    const accessor = (kind: 'getter' | 'setter'): SymbolStatement => ({
+      name: 'x',
+      scope: 'C',
+      kind,
+      ...change,
+    });
+
+    expect(
+      findingsOfSymbols([symbolFile([accessor('getter'), accessor('setter')])]).map(({ id }) => id),
+    ).toStrictEqual([`${prefix}:web/file/a.ts#C.x`, `${prefix}:web/file/a.ts#C.x#2`]);
+  },
+);
 
 test('an exported symbol whose signature changed is an api finding to look at, its detail the signature before and after; one changed on a symbol not exported raises none', () => {
   const signature = { base: '(order: Order)', head: '(order: Order, at: Date)' };
@@ -583,8 +628,9 @@ test('a guard or catch removed from an edited function is a logic finding to loo
   ]);
 });
 
-test('two identical decisions removed from one function are two findings, the second id counting it', () => {
+test("two identical decisions removed from one function are two findings, each id counting the function's lines that read the same up to it, as its decision anchor's does", () => {
   const lost = logicLine({ change: 'removed', kind: 'catch', base: 'catch (error)' });
+  const moved = logicLine({ change: 'added', kind: 'catch', head: 'catch (error)' });
   const symbols = [
     symbolFile([
       {
@@ -592,7 +638,7 @@ test('two identical decisions removed from one function are two findings, the se
         kind: 'function',
         exported: { base: true, head: true },
         change: 'edited',
-        logic: [lost, logicLine({ change: 'same', kind: 'if', head: 'if (a)' }), lost],
+        logic: [moved, lost, logicLine({ change: 'same', kind: 'if', head: 'if (a)' }), lost],
       },
     ]),
   ];
@@ -602,8 +648,28 @@ test('two identical decisions removed from one function are two findings, the se
       .filter(({ id }) => id.startsWith('logic:removed:'))
       .map(({ id }) => id),
   ).toStrictEqual([
-    'logic:removed:web/file/a.ts#charge#catch (error)',
     'logic:removed:web/file/a.ts#charge#catch (error)#2',
+    'logic:removed:web/file/a.ts#charge#catch (error)#3',
+  ]);
+});
+
+test("a guard lost by each of two same-named symbols is two findings, the later one's id counting the symbol", () => {
+  const accessor = {
+    name: 'x',
+    scope: 'C',
+    kind: 'method' as const,
+    exported: { base: false, head: false },
+    change: 'edited' as const,
+    logic: [logicLine({ change: 'removed', kind: 'guard', base: 'if (a) return' })],
+  };
+
+  expect(
+    findingsOfSymbols([symbolFile([accessor, accessor])])
+      .filter(({ id }) => id.startsWith('logic:removed:'))
+      .map(({ id }) => id),
+  ).toStrictEqual([
+    'logic:removed:web/file/a.ts#C.x#if (a) return',
+    'logic:removed:web/file/a.ts#C.x#2#if (a) return',
   ]);
 });
 
@@ -660,6 +726,26 @@ test("an edited function's other decision changes are one logic finding for info
       title: 'function total changed its logic',
       detail: '1 changed',
     },
+  ]);
+});
+
+test('two accessors of one name each changing their logic are two findings, the later id counting the symbol and each title naming its kind', () => {
+  const accessor = (kind: 'getter' | 'setter'): SymbolStatement => ({
+    name: 'x',
+    scope: 'C',
+    kind,
+    exported: { base: false, head: false },
+    change: 'edited',
+    logic: [logicLine({ change: 'changed', kind: 'if', base: 'if (a)', head: 'if (b)' })],
+  });
+
+  expect(
+    findingsOfSymbols([symbolFile([accessor('getter'), accessor('setter')])])
+      .filter(({ id }) => id.startsWith('logic:changed:'))
+      .map(({ id, title }) => ({ id, title })),
+  ).toStrictEqual([
+    { id: 'logic:changed:web/file/a.ts#C.x', title: 'getter C.x changed its logic' },
+    { id: 'logic:changed:web/file/a.ts#C.x#2', title: 'setter C.x changed its logic' },
   ]);
 });
 

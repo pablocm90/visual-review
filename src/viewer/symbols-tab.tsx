@@ -1,12 +1,16 @@
 import type { DiffedNode } from '../core/diff-graphs.ts';
 import type { LogicLine } from '../core/logic-diff.ts';
 import type { SymbolFile } from '../core/read-range.ts';
+import type { Comment } from '../core/review.ts';
 import {
   changesApi,
   qualified,
   type SymbolChange,
   type SymbolStatement,
 } from '../core/symbol-changes.ts';
+import { type AnchoredSymbol, anchoredSymbols, decisionsOf } from '../core/symbol-findings.ts';
+import { anchorKey } from './anchors.ts';
+import { CommentOn, type Comments } from './comment-field.tsx';
 
 type Group = readonly [string, (symbol: SymbolStatement) => boolean];
 
@@ -42,6 +46,8 @@ type Places = {
   readonly nodes: ReadonlyArray<DiffedNode>;
   readonly onGoTo: (id: string) => void;
   readonly onShowLine: (at: LineAt) => void;
+  readonly comments: Comments;
+  readonly onComment: ((comment: Comment) => void) | undefined;
 };
 
 const labelOf = (nodes: ReadonlyArray<DiffedNode>, id: string): string | undefined =>
@@ -60,6 +66,22 @@ const Moved = ({
       {labelOf(nodes, id)}
     </button>
   </span>
+);
+
+const Origin = ({ symbol, ...places }: Places & { readonly symbol: SymbolStatement }) => (
+  <>
+    {symbol.renamedFrom !== undefined && (
+      <span className="origin">
+        {' '}
+        {symbol.probably ? 'probably renamed from' : 'renamed from'}{' '}
+        <code>{symbol.renamedFrom}</code>
+      </span>
+    )}
+    {symbol.movedTo !== undefined && <Moved words="moved to" id={symbol.movedTo} {...places} />}
+    {symbol.movedFrom !== undefined && (
+      <Moved words="moved from" id={symbol.movedFrom} {...places} />
+    )}
+  </>
 );
 
 const exportMarkOf = ({ exported }: SymbolStatement): string | undefined => {
@@ -104,14 +126,16 @@ type ShowLine = (at: Omit<LineAt, 'node'>) => void;
 const LogicLines = ({
   symbol,
   onShowLine,
-}: {
-  readonly symbol: SymbolStatement;
+  comments,
+  onComment,
+}: Pick<Places, 'comments' | 'onComment'> & {
+  readonly symbol: AnchoredSymbol;
   readonly onShowLine: ShowLine;
 }) => (
-  <ul className="logic-lines" aria-label={`Logic of ${symbol.kind} ${qualified(symbol)}`}>
-    {(symbol.logic ?? []).map(line => (
+  <ul className="logic-lines" aria-label={`Logic of ${symbol.item.kind} ${qualified(symbol.item)}`}>
+    {decisionsOf(symbol).map(({ line, id, text }) => (
       <li
-        key={`${line.change} ${line.line} ${textOf(line)}`}
+        key={id}
         className={`logic-${line.change}`}
         aria-label={logicLabel(line)}
         style={{ paddingInlineStart: `${line.depth}em` }}
@@ -130,6 +154,14 @@ const LogicLines = ({
             <LogicText line={line} />
           </button>
         )}
+        {onComment && (
+          <CommentOn
+            name={logicLabel(line)}
+            anchor={{ kind: 'decision', id, text }}
+            comments={comments}
+            onComment={onComment}
+          />
+        )}
       </li>
     ))}
   </ul>
@@ -146,37 +178,37 @@ const SymbolList = ({
 }: Places & {
   readonly node: string;
   readonly title: string;
-  readonly symbols: ReadonlyArray<SymbolStatement>;
+  readonly symbols: ReadonlyArray<AnchoredSymbol>;
 }) => (
   <ul aria-label={title}>
-    {symbols.map(symbol => (
-      <li
-        key={`${symbol.kind} ${qualified(symbol)}`}
-        aria-label={`${nameOf(symbol)}: ${symbol.change}`}
-      >
+    {symbols.map(({ item: symbol, id }) => (
+      <li key={id} aria-label={`${nameOf(symbol)}: ${symbol.change}`}>
         <span className="kind">{symbol.kind}</span> <code>{qualified(symbol)}</code>
         {exportMarkOf(symbol) !== undefined && (
           <span className="export-mark"> {exportMarkOf(symbol)}</span>
         )}
-        {symbol.renamedFrom !== undefined && (
-          <span className="origin">
-            {' '}
-            {symbol.probably ? 'probably renamed from' : 'renamed from'}{' '}
-            <code>{symbol.renamedFrom}</code>
-          </span>
-        )}
-        {symbol.movedTo !== undefined && <Moved words="moved to" id={symbol.movedTo} {...places} />}
-        {symbol.movedFrom !== undefined && (
-          <Moved words="moved from" id={symbol.movedFrom} {...places} />
-        )}
+        <Origin symbol={symbol} {...places} />
         {symbol.signature && (
           <span className="signature">
             <del>{symbol.signature.base}</del>
             <ins>{symbol.signature.head}</ins>
           </span>
         )}
+        {places.onComment && (
+          <CommentOn
+            name={`${symbol.kind} ${qualified(symbol)}`}
+            anchor={{ kind: 'symbol', id }}
+            comments={places.comments}
+            onComment={places.onComment}
+          />
+        )}
         {symbol.logic !== undefined && (
-          <LogicLines symbol={symbol} onShowLine={at => places.onShowLine({ node, ...at })} />
+          <LogicLines
+            symbol={{ item: symbol, id }}
+            onShowLine={at => places.onShowLine({ node, ...at })}
+            comments={places.comments}
+            onComment={places.onComment}
+          />
         )}
       </li>
     ))}
@@ -184,15 +216,15 @@ const SymbolList = ({
 );
 
 const SymbolFiles = ({ file, ...places }: Places & { readonly file: SymbolFile }) => {
-  const files = [file];
-  const quiet = symbolsIn(files).filter(isQuiet);
+  const symbols = 'symbols' in file ? anchoredSymbols(file.node, file.symbols) : [];
+  const quiet = symbols.filter(({ item }) => isQuiet(item));
   return (
     <>
       {'unreadable' in file && (
         <p className="unreadable">Its symbols couldn't be read: {file.unreadable}</p>
       )}
       {GROUPS.flatMap(([title, holds]) => {
-        const grouped = symbolsIn(files).filter(holds);
+        const grouped = symbols.filter(({ item }) => holds(item));
         return grouped.length === 0
           ? []
           : [
@@ -203,7 +235,12 @@ const SymbolFiles = ({ file, ...places }: Places & { readonly file: SymbolFile }
             ];
       })}
       {quiet.length > 0 && (
-        <details className="symbol-group">
+        <details
+          className="symbol-group"
+          open={quiet.some(
+            ({ id }) => places.comments[anchorKey({ kind: 'symbol', id })] !== undefined,
+          )}
+        >
           <summary>{quiet.length} unchanged</summary>
           <SymbolList node={file.node} title="Unchanged" symbols={quiet} {...places} />
         </details>
