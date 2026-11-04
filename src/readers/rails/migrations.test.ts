@@ -345,3 +345,9 @@ test.for([
 ])('$reads', ({ written, expected }) => {
   expect(titles(written)).toStrictEqual(expected);
 });
+
+test('a file that does not parse throws, so it is reported rather than read as safe', () => {
+  expect(() => railsMigrations.risks(migration('remove_column :users,'))).toThrow(
+    'Ruby syntax error',
+  );
+});

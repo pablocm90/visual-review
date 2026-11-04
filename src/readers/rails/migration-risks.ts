@@ -203,7 +203,7 @@ export const railsMigrations: MigrationReader = {
   holds: () => false,
   risks: text => {
     const program = parseRuby(text);
-    if (program === undefined) return [];
+    if (program === undefined || program.hasError) throw new Error('Ruby syntax error');
     const calls = callsIn(program);
     const newTables = new Set(
       calls.filter(call => methodOf(call) === 'create_table').map(call => nameOf(argsOf(call)[0])),
