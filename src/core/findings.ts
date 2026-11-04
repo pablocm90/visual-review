@@ -103,7 +103,7 @@ const withUntestedLogic = (
 ];
 
 const SPLIT_CAVEAT =
-  "Read from the graph's edges, so parts tied through an unchanged file, a dynamic import or Ruby metaprogramming can look independent.";
+  'Read from the edges between parts, so parts tied through an unchanged file, an edge between the boxes holding them, a dynamic import or Ruby metaprogramming can look independent.';
 
 const splitFinding = ({ groups, leftOut }: SplitSuggestion): Finding => ({
   id: 'cohesion:split',

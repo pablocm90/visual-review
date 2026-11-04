@@ -33,7 +33,7 @@ _Avoid_: priority, rank
 _In code_: `PageData.readingOrder`
 
 **Group**:
-Parts joined by edges of the change that run directly between them, or by a chain of such edges; an unchanged node, a shared box or a shared stack joins nothing. Two groups that reach `metrics.splitParts` raise the finding that the change may be independent changes.
+Parts joined by edges of the change that run directly between them, or by a chain of such edges; an unchanged node, a shared box or stack, or an edge between the boxes holding them joins nothing. Two groups that reach `metrics.splitParts` raise the finding that the change may be independent changes.
 _Avoid_: cluster, component
 _In code_: `SplitSuggestion` (`src/core/split-suggestion.ts`), `Finding['groups']`
 
