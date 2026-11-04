@@ -2389,7 +2389,7 @@ main:has(> .review-tray) {
 }
 
 .comment-on:hover,
-.comment-on[aria-expanded='true'] {
+.comment-on[aria-expanded="true"] {
   background: var(--unchanged-fill);
   color: var(--ink);
 }

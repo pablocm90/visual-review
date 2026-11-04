@@ -471,8 +471,7 @@ test("It's fine takes an optional why, which goes with the answer in the tray an
   await user.click(screen.getByRole('button', { name: 'Show 2 findings' }));
   const fine = async (target: string, why: string) => {
     await user.click(within(findingInRail(target)).getByRole('button', { name: "It's fine" }));
-    await write(
-      user,
+    await user.type(
       within(findingInRail(target)).getByRole('textbox', { name: "Why it's fine" }),
       why,
     );
