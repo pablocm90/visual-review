@@ -1,3 +1,4 @@
+import { dependencyFindings } from './dependency-findings.ts';
 import type { FilePatch, GraphDiff } from './diff-graphs.ts';
 import { endsOfId, type GraphNode } from './graph.ts';
 import type { DanglingCall } from './linker.ts';
@@ -5,6 +6,7 @@ import type { MetricFinding } from './metric-findings.ts';
 import { type NodeMetrics, tenths } from './metrics.ts';
 import type { ReviewNotes } from './notes.ts';
 import type { PageData } from './page.ts';
+import type { DependencyChanges } from './read-lockfiles.ts';
 import type { SymbolFile } from './read-range.ts';
 import { notReadLine, type Skipped } from './skipped.ts';
 import type { SplitSuggestion } from './split-suggestion.ts';
@@ -40,6 +42,7 @@ export type Finding = {
   readonly dimension: Dimension;
   readonly level: 'look' | 'info';
   readonly target?: string;
+  readonly file?: string;
   readonly title: string;
   readonly detail?: string;
   readonly groups?: SplitSuggestion['groups'];
@@ -67,6 +70,7 @@ type RaisedOptions = {
   readonly changedPaths: ReadonlyArray<string>;
   readonly undrawn: ReadonlyArray<FilePatch>;
   readonly dangling: ReadonlyArray<DanglingCall>;
+  readonly dependencyChanges: ReadonlyArray<DependencyChanges>;
   readonly metricFindings: ReadonlyArray<MetricFinding>;
   readonly symbols: ReadonlyArray<SymbolFile>;
   readonly symbolsNotRead: ReadonlyArray<string>;
@@ -141,6 +145,7 @@ export const raisedFindings = ({
   changedPaths,
   undrawn,
   dangling,
+  dependencyChanges,
   metricFindings,
   symbols,
   symbolsNotRead,
@@ -198,6 +203,7 @@ export const raisedFindings = ({
     }),
   ),
   ...(split === undefined ? [] : [splitFinding(split)]),
+  ...dependencyFindings(dependencyChanges),
 ];
 
 const NOTE_FLAG = 'notes:';
@@ -229,7 +235,11 @@ export const lookFirst = ({ findings, metrics }: LookFirstOptions): ReadonlyArra
     target === undefined
       ? Number.POSITIVE_INFINITY
       : Math.max(...endsOfId(target).map(end => metrics[end]?.head?.[measure] ?? 0));
+  const isBlindSpot = ({ target, dimension, id }: Finding) =>
+    target === undefined &&
+    (dimension !== 'dependencies' || id.startsWith('dependencies:not-read:'));
   const before = (one: Finding, other: Finding) =>
+    Number(isBlindSpot(other)) - Number(isBlindSpot(one)) ||
     highest(other.target, 'fanIn') - highest(one.target, 'fanIn') ||
     highest(other.target, 'churn') - highest(one.target, 'churn') ||
     (one.id < other.id ? -1 : 1);

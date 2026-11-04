@@ -1505,6 +1505,7 @@ test('a reader skipped for want of its tool is named once, at the top of the fin
           changedPaths: [],
           undrawn: [],
           dangling: [],
+          dependencyChanges: [],
           metricFindings: [],
           symbols: [],
           symbolsNotRead: [],
@@ -5366,6 +5367,106 @@ const openUndrawnFiles = async (user: ReturnType<typeof userEvent.setup>) => {
     screen.getByRole('button', { name: 'README.md: 1 changed file outside the graph' }),
   );
 };
+
+const pageWithLockfile = (place: 'undrawn' | 'patches', path: string) =>
+  pageWith({
+    ...review,
+    [place]: [{ path, patch: `--- a/${path}\n+++ b/${path}\n@@ -1 +1 @@\n-old\n+new` }],
+    findings: [
+      {
+        id: `dependencies:${path}:zod`,
+        dimension: 'dependencies',
+        level: 'look',
+        file: path,
+        title: 'zod 3.25.0 → 4.6.7',
+        detail: path,
+      },
+      {
+        id: `dependencies:not-read:${path}`,
+        dimension: 'dependencies',
+        level: 'look',
+        file: path,
+        title: `${path} not read: Yarn 2+ format`,
+      },
+    ],
+  });
+
+test("a dependencies finding opens its lockfile's patch among the files outside the graph, at its top, and closing them hands the keyboard focus back", async () => {
+  const user = userEvent.setup();
+  render(<ReviewPage review={pageWithLockfile('undrawn', 'pnpm-lock.yaml')} />);
+
+  await user.click(await screen.findByRole('button', { name: 'Show 2 findings' }));
+  const finding = () =>
+    within(screen.getByRole('complementary', { name: 'Findings' })).getByRole('button', {
+      name: 'pnpm-lock.yaml: zod 3.25.0 → 4.6.7',
+    });
+  await user.click(finding());
+
+  expect(within(inspector()).getByRole('heading', { level: 2 }).textContent).toBe(
+    'Changed files outside the graph',
+  );
+  const patch = within(inspector()).getByRole('group', { name: 'pnpm-lock.yaml' });
+  expect(patch.hasAttribute('open')).toBe(true);
+  expect(scrolledIntoView.mock.contexts).toContain(patch);
+
+  await user.click(within(inspector()).getByRole('button', { name: 'Close inspector' }));
+  expect(document.activeElement).toBe(finding());
+
+  await user.click(
+    within(screen.getByRole('complementary', { name: 'Findings' })).getByRole('button', {
+      name: 'pnpm-lock.yaml not read: Yarn 2+ format',
+    }),
+  );
+  expect(within(inspector()).getByRole('group', { name: 'pnpm-lock.yaml' })).toBeDefined();
+});
+
+test("a dependencies finding opens its lockfile's patch on the Diff tab of the node holding it, at its top", async () => {
+  const user = userEvent.setup();
+  const path = 'crates/application/Cargo.lock';
+  render(<ReviewPage review={pageWithLockfile('patches', path)} />);
+
+  await user.click(await screen.findByRole('button', { name: 'Show 2 findings' }));
+  await user.click(
+    within(screen.getByRole('complementary', { name: 'Findings' })).getByRole('button', {
+      name: `${path}: zod 3.25.0 → 4.6.7`,
+    }),
+  );
+
+  expect(within(inspector()).getByRole('heading', { level: 2 }).textContent).toBe('application');
+  expect(within(inspector()).getByRole('tab', { name: 'Diff' }).getAttribute('aria-selected')).toBe(
+    'true',
+  );
+  const patch = within(inspector()).getByRole('group', { name: path });
+  expect(patch.hasAttribute('open')).toBe(true);
+  expect(scrolledIntoView.mock.contexts).toContain(patch);
+});
+
+test("an answer to a dependencies finding goes from the tray to its lockfile's patch, from any screen", async () => {
+  const user = userEvent.setup();
+  render(
+    <ReviewPage
+      review={pageWithLockfile('undrawn', 'pnpm-lock.yaml')}
+      send={vi.fn(async () => {})}
+    />,
+  );
+
+  await user.click(await screen.findByRole('button', { name: 'Show 2 findings' }));
+  const rail = screen.getByRole('complementary', { name: 'Findings' });
+  const finding = within(rail).getByText('zod 3.25.0 → 4.6.7').closest('li') ?? rail;
+  await user.click(within(finding).getByRole('button', { name: 'Fix this' }));
+  await user.click(screen.getByRole('link', { name: 'Tests' }));
+  await openReview(user);
+  await user.click(
+    within(screen.getByRole('list', { name: 'Drafts' })).getByRole('button', {
+      name: 'zod 3.25.0 → 4.6.7',
+    }),
+  );
+
+  expect(within(inspector()).getByRole('group', { name: 'pnpm-lock.yaml' })).toHaveProperty(
+    'open',
+    true,
+  );
+});
 
 test("a served page's line in a file outside the graph takes a comment, named by its path", async () => {
   const user = userEvent.setup();

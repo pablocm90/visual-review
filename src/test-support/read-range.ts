@@ -1,4 +1,4 @@
-import { linkers, readers } from '../adapters.ts';
+import { linkers, lockfiles, readers } from '../adapters.ts';
 import {
   type RangeReading,
   type ReviewedHead,
@@ -15,4 +15,4 @@ type RangeOptions = {
 };
 
 export const readRange = (range: RangeOptions): Promise<RangeReading> =>
-  readRangeWith({ readers, linkers, onPath, ...range });
+  readRangeWith({ readers, linkers, lockfiles, onPath, ...range });

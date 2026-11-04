@@ -2,12 +2,11 @@
 
 What changed in each release of `@pablocm90/visual-review`, newest first. Versions follow [semver](https://semver.org); while it is 0.x, a minor version may change the exported types.
 
-## 0.21.2 — 2026-11-04
+## 0.22.1 — 2026-11-04
 
 ### Fixed
 
 - A page, its data and a review replace what stands at their path, rather than writing through it, and a rewritten file keeps the mode it had. The plugin's skill does the same for the notes.
-- A changed file with a non-ASCII UTF-8 name, or one that reads as a pathspec, is listed and diffed by its name as it is.
 - `serve` keeps its lock in `~/.cache/visual-review/serve/`, keyed by the page's real path, and no longer reads a `.serve` file beside the page. A leftover one from an earlier version does nothing and can be deleted.
 - A changed file whose name isn't valid UTF-8 raises a finding that needs a look, saying its patch can't be shown. Before, it was only a name in the list of files outside the graph.
 - Pruning counts only regular `.html` files as pages, so a dangling link or a folder at such a name no longer stops it or takes a kept place. A folder at the name of an older page's data goes with the page.
@@ -16,6 +15,22 @@ What changed in each release of `@pablocm90/visual-review`, newest first. Versio
 
 - `serve` needs a home that is an absolute path and that it can write its lock under, where before it needed only to write beside the page.
 - A review needs a `.git` entry at the repo's root, and git 2.38 or newer is the supported floor. A repo reached only through `GIT_DIR` and `GIT_WORK_TREE`, or a `core.worktree` elsewhere, with no `.git` at that root, is now refused.
+
+## 0.22.0 — 2026-11-04
+
+### Added
+
+- A changed lockfile raises findings in the dependencies dimension: one that needs a look for each direct package added, removed, major-bumped, newly direct or no longer direct, such as `zod 3.25.0 → 4.6.7`, and one for information per lockfile rolling up its transitive packages. `pnpm-lock.yaml` (lockfile version 9), `package-lock.json` (2 or 3), `yarn.lock` (v1), `Cargo.lock` and `Gemfile.lock` are read. A minor or patch bump raises nothing; `0.2.1` to `0.3.0` is major, as `^` and Cargo read it. A lockfile that won't parse, or in another format, raises a finding that needs a look, and the rest of the review stands.
+- A dependency finding, in the rail, Look first or the tray, opens its lockfile's patch, on the Diff tab of the part holding it or among the files outside the graph.
+- The review data's `dependencyChanges` lists every package changed per lockfile, and a finding gains `file`, the path it opens.
+
+### Changed
+
+- Look first ranks direct dependency changes below what wasn't read and above the findings on parts.
+
+### Fixed
+
+- A changed file whose path holds an accent, a double quote or a tab, or starts with a colon, now reads as itself, and so has its patch.
 
 ## 0.21.1 — 2026-11-04
 

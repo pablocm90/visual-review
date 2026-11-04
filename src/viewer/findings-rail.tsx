@@ -26,6 +26,7 @@ type FindingsRailProps = {
   readonly review: Pick<PageData, 'diff' | 'skipped'>;
   readonly onGoTo: (id: string) => void;
   readonly onShowOutside: (opener: HTMLButtonElement) => void;
+  readonly onShowFile: (path: string, opener: HTMLButtonElement) => void;
   readonly answers: Answers;
   readonly onAnswer: AnswerTo | undefined;
 };
@@ -60,9 +61,10 @@ type LineOptions = {
   readonly review: Pick<PageData, 'diff'>;
   readonly onGoTo: (id: string) => void;
   readonly onShowOutside: (opener: HTMLButtonElement) => void;
+  readonly onShowFile: (path: string, opener: HTMLButtonElement) => void;
 };
 
-const linesOf = ({ review, onGoTo, onShowOutside }: LineOptions) => {
+const linesOf = ({ review, onGoTo, onShowOutside, onShowFile }: LineOptions) => {
   const labelOf = new Map(review.diff.nodes.map(node => [node.id, node.label]));
   const targetOf = (id: string) =>
     endsOfId(id)
@@ -70,7 +72,7 @@ const linesOf = ({ review, onGoTo, onShowOutside }: LineOptions) => {
       .join(' → ');
   const placeOf = new Map(review.diff.nodes.map(node => [node.id, node.path || node.label]));
   const lineOf = (finding: Finding): Line => {
-    const { id, level, target, title, detail, groups } = finding;
+    const { id, level, target, file, title, detail, groups } = finding;
     if (target !== undefined) {
       return {
         id,
@@ -86,6 +88,9 @@ const linesOf = ({ review, onGoTo, onShowOutside }: LineOptions) => {
       sentence: title,
       target: detail ?? '',
       ...(id === 'structure:undrawn' && { act: onShowOutside }),
+      ...(file !== undefined && {
+        act: (opener: HTMLButtonElement) => onShowFile(file, opener),
+      }),
       ...(groups && {
         groups: groups.flatMap(group =>
           group.slice(0, 1).map(first => ({
@@ -133,7 +138,7 @@ const FindingItem = ({ finding, answer, onAnswer }: FindingItemProps) => {
       {finding.act ? (
         <button
           type="button"
-          aria-label={`${finding.target}: ${finding.sentence}`}
+          aria-label={finding.target ? `${finding.target}: ${finding.sentence}` : finding.sentence}
           onClick={event => finding.act?.(event.currentTarget)}
         >
           {said}
