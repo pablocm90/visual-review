@@ -1,4 +1,4 @@
-import { mkdtempSync, rmSync, utimesSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, rmSync, utimesSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { expect, test } from 'vitest';
@@ -103,4 +103,16 @@ test('with no reviews directory there is no last review', async () => {
   const directory = join(reviews.directory, 'missing');
 
   await expect(lastReviewOf({ directory, pullRequest: 7, head: 'h2' })).resolves.toBeUndefined();
+});
+
+test("a review file that can't be read is skipped, not a failed review", async () => {
+  using reviews = reviewsDirectory();
+  const { directory } = reviews;
+  writeReview(directory, { head: 'h1', writtenAt: 1_000 });
+  mkdirSync(join(directory, 'base..h2.review.json'));
+
+  await expect(lastReviewOf({ directory, pullRequest: 7, head: 'h3' })).resolves.toEqual({
+    head: 'h1',
+    verdict: 'comment',
+  });
 });

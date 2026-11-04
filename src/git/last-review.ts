@@ -15,6 +15,24 @@ type PullRequestReview = ReviewedHead & {
   readonly writtenAt: number;
 };
 
+const pullRequestReviewIn = async (
+  directory: string,
+  file: string,
+): Promise<ReadonlyArray<PullRequestReview>> => {
+  const path = join(directory, file);
+  const past = pastReviewOf(await readFile(path, 'utf8'));
+  if (past?.reviewed.pullRequest === undefined) return [];
+  return [
+    {
+      file,
+      head: headOfRange(past.reviewed.range),
+      verdict: past.verdict,
+      pullRequest: past.reviewed.pullRequest,
+      writtenAt: (await stat(path)).mtimeMs,
+    },
+  ];
+};
+
 export const pullRequestReviewsIn = async (
   directory: string,
 ): Promise<ReadonlyArray<PullRequestReview>> => {
@@ -22,20 +40,7 @@ export const pullRequestReviewsIn = async (
   const reviews = await Promise.all(
     files
       .filter(file => file.endsWith(REVIEW))
-      .map(async file => {
-        const path = join(directory, file);
-        const past = pastReviewOf(await readFile(path, 'utf8'));
-        if (past?.reviewed.pullRequest === undefined) return [];
-        return [
-          {
-            file,
-            head: headOfRange(past.reviewed.range),
-            verdict: past.verdict,
-            pullRequest: past.reviewed.pullRequest,
-            writtenAt: (await stat(path)).mtimeMs,
-          },
-        ];
-      }),
+      .map(file => pullRequestReviewIn(directory, file).catch(() => [])),
   );
   return reviews.flat().toSorted((one, other) => other.writtenAt - one.writtenAt);
 };
