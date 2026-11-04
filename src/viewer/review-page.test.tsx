@@ -1462,6 +1462,7 @@ test('a reader skipped for want of its tool is named once, at the top of the fin
           symbolsNotRead: [],
           tests: [],
           nodes: [],
+          split: undefined,
         }),
       })}
     />,

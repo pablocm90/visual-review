@@ -1290,6 +1290,42 @@ const readingOfA = ({
   });
 };
 
+const splitPageOf = (names: ReadonlyArray<string>) =>
+  pageData({
+    repo: 'shop',
+    reading: readingWith({
+      after: {
+        nodes: [webStack, ...names.map(webFile)],
+        edges: [
+          { from: 'web/file/a.ts', to: 'web/file/b.ts' },
+          { from: 'web/file/c.ts', to: 'web/file/d.ts' },
+        ],
+      },
+      thresholds: { cyclomatic: 10, splitParts: 2, hotspot: { churn: 6, cyclomatic: 8 } },
+    }),
+    range: 'main..feature',
+    version,
+    parsers,
+  }).findings.find(finding => finding.dimension === 'cohesion');
+
+test('parts that fall into separate groups raise one cohesion finding for information, with no target, holding the groups and counting the parts left out', () => {
+  expect(splitPageOf(['a.ts', 'b.ts', 'c.ts', 'd.ts', 'e.ts'])).toStrictEqual({
+    id: 'cohesion:split',
+    dimension: 'cohesion',
+    level: 'info',
+    title: 'may be 2 independent changes',
+    detail: expect.stringContaining('1 part in smaller groups'),
+    groups: [
+      ['web/file/b.ts', 'web/file/a.ts'],
+      ['web/file/d.ts', 'web/file/c.ts'],
+    ],
+  });
+});
+
+test('with no part left out, the detail counts none', () => {
+  expect(splitPageOf(['a.ts', 'b.ts', 'c.ts', 'd.ts'])?.detail).not.toContain('smaller groups');
+});
+
 test.for([
   { reason: 'a new file over it is one to look at', base: undefined, head: 5, level: 'look' },
   { reason: 'a file that crosses it is one to look at', base: 4, head: 5, level: 'look' },
