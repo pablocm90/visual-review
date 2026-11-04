@@ -1467,6 +1467,7 @@ const nothingDropped = { nodes: [], edges: [] };
 
 const reviewedAt = (
   overrides: Pick<ReviewedDiff, 'before' | 'changedPaths'> & {
+    readonly renames?: ReviewedDiff['renames'];
     readonly pullRequest?: ReviewedDiff;
   },
 ): ReviewedReading => ({
@@ -1644,6 +1645,115 @@ test('page data lists a part the PR edited at the last review and has since rest
     head: 'h1',
     verdict: 'comment',
     changed: { nodes: ['web/file/a.ts'], edges: [], dropped: nothingDropped },
+  });
+});
+
+test('page data lists a file the PR renamed at the last review and has since renamed back', () => {
+  const [a, b] = ['web/src/a.ts', 'web/src/b.ts'];
+  const graph = { nodes: [webStack, webFile('a.ts')], edges: [] };
+  const atReview = { nodes: [webStack, webFile('b.ts')], edges: [] };
+  const reading = readingWith({
+    before: graph,
+    after: graph,
+    changedPaths: [],
+    reviewed: reviewedAt({
+      before: atReview,
+      changedPaths: [b, a],
+      renames: [{ from: b, to: a }],
+      pullRequest: { before: graph, changedPaths: [a, b], renames: [{ from: a, to: b }] },
+    }),
+  });
+
+  expect(
+    pageData({ repo: 'shop', reading, range: 'a..b', version: '1.2.3', parsers: {} }).sinceReview,
+  ).toEqual({
+    head: 'h1',
+    verdict: 'comment',
+    changed: { nodes: ['web/file/a.ts'], edges: [], dropped: nothingDropped },
+  });
+});
+
+test.for([
+  {
+    end: 'its target',
+    reviewedEdge: { from: 'web/file/use.ts', to: 'web/file/foo.ts' },
+    named: 'web/file/use.ts -> web/file/baz.ts',
+  },
+  {
+    end: 'its source',
+    reviewedEdge: { from: 'web/file/foo.ts', to: 'web/file/use.ts' },
+    named: 'web/file/baz.ts -> web/file/use.ts',
+  },
+])(
+  'page data names by the new name an edge the PR added at the last review and has since removed, having renamed $end',
+  ({ reviewedEdge, named }) => {
+    const before = { nodes: [webStack, webFile('use.ts'), webFile('foo.ts')], edges: [] };
+    const reading = readingWith({
+      before,
+      after: { nodes: [webStack, webFile('use.ts'), webFile('baz.ts')], edges: [] },
+      changedPaths: ['web/src/foo.ts', 'web/src/baz.ts'],
+      renames: [{ from: 'web/src/foo.ts', to: 'web/src/baz.ts' }],
+      reviewed: reviewedAt({
+        before: { ...before, edges: [reviewedEdge] },
+        changedPaths: ['web/src/foo.ts', 'web/src/baz.ts'],
+        renames: [{ from: 'web/src/foo.ts', to: 'web/src/baz.ts' }],
+        pullRequest: { before, changedPaths: ['web/src/use.ts'], renames: [] },
+      }),
+    });
+
+    expect(
+      pageData({ repo: 'shop', reading, range: 'a..b', version: '1.2.3', parsers: {} }).sinceReview,
+    ).toEqual({
+      head: 'h1',
+      verdict: 'comment',
+      changed: {
+        nodes: ['web/file/baz.ts'],
+        edges: [],
+        dropped: { nodes: [], edges: [named] },
+      },
+    });
+  },
+);
+
+test('page data lists each class of a file the PR renamed at the last review and has since renamed back, whose ids never changed', () => {
+  const [kept, moved] = ['web/src/kept.rb', 'web/src/moved.rb'];
+  const classAt = (name: string, path: string): GraphNode => ({
+    id: `web/class/${name}`,
+    kind: 'file',
+    label: name,
+    parent: 'web',
+    path,
+  });
+  const graphAt = (path: string) => ({
+    nodes: [webStack, classAt('One', path), classAt('Two', path)],
+    edges: [],
+  });
+  const reading = readingWith({
+    before: graphAt(kept),
+    after: graphAt(kept),
+    changedPaths: [],
+    reviewed: reviewedAt({
+      before: graphAt(moved),
+      changedPaths: [moved, kept],
+      renames: [{ from: moved, to: kept }],
+      pullRequest: {
+        before: graphAt(kept),
+        changedPaths: [kept, moved],
+        renames: [{ from: kept, to: moved }],
+      },
+    }),
+  });
+
+  expect(
+    pageData({ repo: 'shop', reading, range: 'a..b', version: '1.2.3', parsers: {} }).sinceReview,
+  ).toEqual({
+    head: 'h1',
+    verdict: 'comment',
+    changed: {
+      nodes: ['web/class/One', 'web/class/Two'],
+      edges: [],
+      dropped: nothingDropped,
+    },
   });
 });
 

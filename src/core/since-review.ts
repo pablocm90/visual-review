@@ -33,6 +33,22 @@ const inTheHead = (ids: ReadonlyArray<string>, head: ReadonlyArray<string>) => (
   dropped: ids.filter(id => !head.includes(id)),
 });
 
+type NamedInTheHeadOptions = {
+  readonly reviewed: Graph;
+  readonly after: Graph;
+  readonly diff: GraphDiff;
+};
+
+const namedInTheHead = ({ reviewed, after, diff }: NamedInTheHeadOptions) => {
+  const gone = reviewed.nodes.filter(node => !after.nodes.some(({ id }) => id === node.id));
+  const renamedTo = new Map(
+    diff.nodes.flatMap(({ id, renamedFrom }) =>
+      gone.filter(node => node.path === renamedFrom).map(node => [node.id, id] as const),
+    ),
+  );
+  return (id: string): string => renamedTo.get(id) ?? id;
+};
+
 export const sinceReviewOf = ({
   reviewed,
   after,
@@ -43,15 +59,19 @@ export const sinceReviewOf = ({
   if ('unreadable' in reviewed) return { head: reviewed.head, unreadable: reviewed.unreadable };
   const { head, verdict, pullRequest, ...side } = reviewed;
   const paths = [...changedPaths, ...pullRequest.changedPaths];
-  const since = changedIn(
-    diffGraphs({
-      ...side,
-      after,
-      changedPaths: side.changedPaths.filter(path => paths.includes(path)),
-    }),
-  );
+  const sinceDiff = diffGraphs({
+    ...side,
+    after,
+    changedPaths: side.changedPaths.filter(path => paths.includes(path)),
+  });
+  const since = changedIn(sinceDiff);
   const now = changedIn(diff);
-  const then = changedIn(diffGraphs({ ...pullRequest, after: side.before }));
+  const named = namedInTheHead({ reviewed: side.before, after, diff: sinceDiff });
+  const atReview = diffGraphs({ ...pullRequest, after: side.before });
+  const then = changedIn({
+    nodes: atReview.nodes.map(node => ({ ...node, id: named(node.id) })),
+    edges: atReview.edges.map(edge => ({ ...edge, from: named(edge.from), to: named(edge.to) })),
+  });
   const nodes = inTheHead(
     since.nodes.filter(id => now.nodes.includes(id) || then.nodes.includes(id)),
     diff.nodes.map(node => node.id),
