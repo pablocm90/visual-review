@@ -118,10 +118,19 @@ const LogicText = ({ line }: { readonly line: LogicLine }) => (
     ) : (
       <code>{line.head ?? line.base}</code>
     )}
+    {line.movedTo !== undefined && (
+      <span className="origin">
+        {' '}
+        moved to <code>{line.movedTo}</code>
+      </span>
+    )}
   </>
 );
 
-const logicLabel = (line: LogicLine): string => `${line.change} ${line.kind}: ${textOf(line)}`;
+const logicLabel = (line: LogicLine): string => {
+  const label = `${line.change} ${line.kind}: ${textOf(line)}`;
+  return line.movedTo === undefined ? label : `${label}, moved to ${line.movedTo}`;
+};
 
 type ShowLine = (at: Omit<LineAt, 'node'>) => void;
 
@@ -158,7 +167,7 @@ const LogicLines = ({
                 className="logic-line"
                 aria-label={label}
                 onClick={() =>
-                  onShowLine({ side: line.change === 'removed' ? 'base' : 'head', line: line.line })
+                  onShowLine({ side: line.head === undefined ? 'base' : 'head', line: line.line })
                 }
               >
                 <LogicText line={line} />
