@@ -110,6 +110,19 @@ const fillNotes = async ({ range, page, notesFile }: FillNotesOptions): Promise<
   });
 };
 
+const repoRoot = async (): Promise<string> => {
+  const { stdout } = await promisify(execFile)('git', [
+    '-c',
+    'safe.bareRepository=explicit',
+    'rev-parse',
+    '--show-toplevel',
+  ]);
+  const repo = stdout.trim();
+  const dotGit = await lstat(join(repo, '.git')).catch(() => undefined);
+  if (dotGit === undefined) throw new Error(`${repo} has no .git, so it is not reviewed`);
+  return repo;
+};
+
 const writeReview = async (args: ReadonlyArray<string>): Promise<string> => {
   const { positionals, values } = parseArgs({
     args: [...args],
@@ -117,14 +130,7 @@ const writeReview = async (args: ReadonlyArray<string>): Promise<string> => {
     options: { notes: { type: 'string' } },
   });
   requireOnPath('git', 'https://git-scm.com/downloads');
-  const repo = (
-    await promisify(execFile)('git', [
-      '-c',
-      'safe.bareRepository=explicit',
-      'rev-parse',
-      '--show-toplevel',
-    ])
-  ).stdout.trim();
+  const repo = await repoRoot();
   const {
     range,
     pullRequest,

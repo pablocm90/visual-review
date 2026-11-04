@@ -1,7 +1,8 @@
-import { execFile } from 'node:child_process';
+import { execFile, execFileSync } from 'node:child_process';
 import {
   existsSync,
   mkdirSync,
+  mkdtempSync,
   readdirSync,
   readFileSync,
   rmSync,
@@ -9,6 +10,7 @@ import {
   utimesSync,
   writeFileSync,
 } from 'node:fs';
+import { tmpdir } from 'node:os';
 import { basename, join } from 'node:path';
 import { promisify } from 'node:util';
 import { expect, test } from 'vitest';
@@ -329,6 +331,51 @@ test('run from a folder the branch lays out as a bare repository, a review refus
 
   expect(run.code).not.toBe(0);
   expect(existsSync(ran)).toBe(false);
+}, 60_000);
+
+const gitIgnoringBareRepositorySetting = () => {
+  const bin = mkdtempSync(join(tmpdir(), 'visual-review-bin-'));
+  const real = execFileSync('sh', ['-c', 'command -v git'], { encoding: 'utf8' }).trim();
+  writeFileSync(
+    join(bin, 'git'),
+    `#!/bin/sh\nif [ "$1" = -c ] && [ "$2" = safe.bareRepository=explicit ]; then shift 2; fi\nexec ${real} "$@"\n`,
+    { mode: 0o755 },
+  );
+  return { path: bin, [Symbol.dispose]: () => rmSync(bin, { recursive: true, force: true }) };
+};
+
+test('under a git that ignores the bare repository setting, a folder with no .git is still refused and its config runs nothing', async () => {
+  using workspace = cargoWorkspace();
+  const { repo } = workspace;
+  const planted = join(repo, 'planted');
+  const ran = join(repo, 'ran');
+  layOutBareRepository({ directory: planted, monitorTouches: ran });
+  using oldGit = gitIgnoringBareRepositorySetting();
+
+  const run = await runCliIn({
+    cwd: planted,
+    env: { ...process.env, PATH: `${oldGit.path}:${process.env['PATH']}` },
+  });
+
+  expect(run.code).not.toBe(0);
+  expect(run.stderr).toContain('no .git');
+  expect(existsSync(ran)).toBe(false);
+}, 60_000);
+
+test('a linked worktree, whose .git is a file, is reviewed from a folder inside it', async () => {
+  using workspace = cargoWorkspace();
+  const { repo } = workspace;
+  const linked = `${repo}-linked`;
+  git(repo, 'worktree', 'add', '--quiet', '--detach', linked);
+  const inside = join(linked, 'crates');
+
+  const run = await runCli(inside, 'main..main');
+
+  rmSync(linked, { recursive: true, force: true });
+  expect(run).toMatchObject({
+    code: 0,
+    stdout: `${join(linked, '.reviews', 'main..main.html')}\n`,
+  });
 }, 60_000);
 
 test('writing a page keeps .reviews/ to the 20 most recently written pages', async () => {
