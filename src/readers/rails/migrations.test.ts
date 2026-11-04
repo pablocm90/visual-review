@@ -351,3 +351,21 @@ test('a file that does not parse throws, so it is reported rather than read as s
     'Ruby syntax error',
   );
 });
+
+test.for([
+  { path: 'db/migrate/20260101000000_add_name.rb', holds: true },
+  { path: 'apps/billing/db/migrate/20260101000000_add_name.rb', holds: true },
+  { path: 'db/primary_migrate/20260101000000_add_name.rb', holds: true },
+  { path: 'db/migrate/archive/20260101000000_add_name.rb', holds: true },
+  { path: 'contest/db/migrate/20260101000000_add_name.rb', holds: true },
+  { path: 'db/migrate/add_name.rb', holds: false },
+  { path: 'db/migrate/20260101000000_add_name.sql', holds: false },
+  { path: 'db/seeds/20260101000000_add_name.rb', holds: false },
+  { path: 'mydb/migrate/20260101000000_add_name.rb', holds: false },
+  { path: 'vendor/gem/db/migrate/20260101000000_add_name.rb', holds: false },
+  { path: 'node_modules/gem/db/migrate/20260101000000_add_name.rb', holds: false },
+  { path: 'test/dummy/db/migrate/20260101000000_add_name.rb', holds: false },
+  { path: 'spec/dummy/db/migrate/20260101000000_add_name.rb', holds: false },
+])('holds $path: $holds', ({ path, holds }) => {
+  expect(railsMigrations.holds(path)).toBe(holds);
+});

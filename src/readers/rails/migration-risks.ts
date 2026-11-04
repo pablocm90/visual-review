@@ -1,5 +1,6 @@
 import type { Node } from 'web-tree-sitter';
 import type { MigrationReader, MigrationRisk } from '../../core/migration.ts';
+import { NOT_SEARCHED } from './reader.ts';
 import { parseRuby } from './ruby-syntax.ts';
 
 const STILL_READ = 'Code still running during the deploy may read it.';
@@ -10,6 +11,8 @@ type Rule = (call: {
   readonly table: string;
   readonly args: ReadonlyArray<Node>;
 }) => ReadonlyArray<Risky>;
+
+const MIGRATION_FILE = /(^|\/)db\/(\w+_)?migrate\/(.*\/)?\d+_[^/]*\.rb$/;
 
 const REWRITES =
   'A type change can rewrite the table under a lock, and running code expects the old type.';
@@ -200,7 +203,8 @@ const risksOf =
   };
 
 export const railsMigrations: MigrationReader = {
-  holds: () => false,
+  holds: path =>
+    MIGRATION_FILE.test(path) && !path.split('/').some(folder => NOT_SEARCHED.has(folder)),
   risks: text => {
     const program = parseRuby(text);
     if (program === undefined || program.hasError) throw new Error('Ruby syntax error');
