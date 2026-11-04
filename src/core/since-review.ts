@@ -22,10 +22,10 @@ type Changed = {
 
 export type ChangedSince = Changed & { readonly dropped: Changed };
 
-export type SinceReview =
-  | { readonly head: string; readonly gone: true }
-  | { readonly head: string; readonly unreadable: string }
-  | (Pick<ReviewedHead, 'head' | 'verdict'> & { readonly changed: ChangedSince });
+type Said = Pick<ReviewedHead, 'head' | 'verdict' | 'body' | 'comments' | 'calledFine'>;
+
+export type SinceReview = Said &
+  ({ readonly gone: true } | { readonly unreadable: string } | { readonly changed: ChangedSince });
 
 type SinceReviewOptions = {
   readonly reviewed: ReviewedReading;
@@ -36,6 +36,14 @@ type SinceReviewOptions = {
   readonly symbols: ReadonlyArray<SymbolFile>;
   readonly tests: ReadonlyArray<TestFile>;
 };
+
+const saidIn = ({ head, verdict, body, comments, calledFine }: ReviewedHead): Said => ({
+  head,
+  verdict,
+  ...(body === undefined ? {} : { body }),
+  comments,
+  calledFine,
+});
 
 const changedIn = ({ nodes, edges }: GraphDiff) => ({
   nodes: nodes.filter(node => node.state !== 'unchanged').map(node => node.id),
@@ -161,9 +169,10 @@ export const sinceReviewOf = ({
   symbols,
   tests,
 }: SinceReviewOptions): SinceReview => {
-  if ('gone' in reviewed) return { head: reviewed.head, gone: true };
-  if ('unreadable' in reviewed) return { head: reviewed.head, unreadable: reviewed.unreadable };
-  const { head, verdict, pullRequest, ...side } = reviewed;
+  const said = saidIn(reviewed);
+  if ('gone' in reviewed) return { ...said, gone: true };
+  if ('unreadable' in reviewed) return { ...said, unreadable: reviewed.unreadable };
+  const { pullRequest, ...side } = reviewed;
   const paths = [...changedPaths, ...pullRequest.changedPaths];
   const pathsSince = side.changedPaths.filter(path => paths.includes(path));
   const sinceDiff = diffGraphs({ ...side, after, changedPaths: pathsSince });
@@ -199,8 +208,7 @@ export const sinceReviewOf = ({
     atReview: pullRequest.tests,
   });
   return {
-    head,
-    verdict,
+    ...said,
     changed: {
       nodes: nodes.drawn,
       edges: edges.drawn,

@@ -1885,8 +1885,45 @@ test('page data says the reviewed head is gone when its commit no longer reads, 
   });
   expect(
     data({ reviewed: { ...reviewedHead(), unreadable: 'cargo metadata failed' } }).sinceReview,
-  ).toEqual({ head: 'h1', unreadable: 'cargo metadata failed' });
+  ).toMatchObject({ head: 'h1', unreadable: 'cargo metadata failed' });
   expect(data({})).not.toHaveProperty('sinceReview');
+});
+
+test.for([
+  { side: 'whose commit is gone', reading: { gone: true as const } },
+  { side: 'that no longer reads', reading: { unreadable: 'cargo metadata failed' } },
+  {
+    side: 'still compared',
+    reading: reviewedAt({ before: { nodes: [webStack], edges: [] }, changedPaths: [] }),
+  },
+])('page data keeps what the last review said at a head $side', ({ reading }) => {
+  const said = {
+    verdict: 'request-changes' as const,
+    body: 'Nearly there',
+    comments: [
+      {
+        anchor: { kind: 'part' as const, id: 'web/file/a.ts' },
+        kind: 'change' as const,
+        text: 'Split this',
+      },
+    ],
+    calledFine: ['logic:changed:web/file/a.ts#run'],
+  };
+
+  const { sinceReview } = pageData({
+    repo: 'shop',
+    reading: readingWith({ reviewed: { ...reviewedHead(), ...reading, ...said } }),
+    range: 'a..b',
+    version: '1.2.3',
+    parsers: {},
+  });
+
+  expect(sinceReview).toMatchObject({
+    verdict: 'request-changes',
+    body: 'Nearly there',
+    calledFine: ['logic:changed:web/file/a.ts#run'],
+  });
+  expect(sinceReview).toHaveProperty('comments.0.text', 'Split this');
 });
 
 test.for([

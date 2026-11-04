@@ -5482,9 +5482,10 @@ const changedSince = ({
   dropped: { ...nothingChanged, ...dropped },
 });
 
+const lastReview = { head: 'h1', verdict: 'comment' as const, comments: [], calledFine: [] };
+
 const sinceReview = {
-  head: 'h1',
-  verdict: 'comment' as const,
+  ...lastReview,
   changed: changedSince({ nodes: ['rust/crate/application'] }),
 };
 
@@ -5531,10 +5532,10 @@ test("a later round offers 'Since last review' first in Show, Changes only still
 
 test.for([
   { round: 'with no earlier review', since: {} },
-  { round: 'whose reviewed head is gone', since: { sinceReview: { head: 'h1', gone: true } } },
+  { round: 'whose reviewed head is gone', since: { sinceReview: { ...lastReview, gone: true } } },
   {
     round: "whose reviewed head couldn't be read",
-    since: { sinceReview: { head: 'h1', unreadable: 'cargo metadata failed' } },
+    since: { sinceReview: { ...lastReview, unreadable: 'cargo metadata failed' } },
   },
 ] as const)('a review $round has no Since last review choice', async ({ since }) => {
   render(<ReviewPage review={pageWith({ ...review, ...since })} />);
@@ -5872,7 +5873,11 @@ test('a later round marks a patch whose file changed since the last review, not 
 
 test('a review whose reviewed head is gone says so, with that head short, in the header, and shows the full review', async () => {
   const head = 'a1b2c3d4e5f6a7b8c9d0a1b2c3d4e5f6a7b8c9d0';
-  render(<ReviewPage review={pageWith({ ...review, sinceReview: { head, gone: true } })} />);
+  render(
+    <ReviewPage
+      review={pageWith({ ...review, sinceReview: { ...lastReview, head, gone: true } })}
+    />,
+  );
   await screen.findByRole('group', { name: 'rust' });
 
   expect(within(screen.getByRole('banner')).getByText(/is gone/).textContent).toContain(
@@ -5887,7 +5892,7 @@ test("a review whose reviewed head couldn't be read says so, with that head shor
     <ReviewPage
       review={pageWith({
         ...review,
-        sinceReview: { head, unreadable: 'cargo metadata failed' },
+        sinceReview: { ...lastReview, head, unreadable: 'cargo metadata failed' },
       })}
     />,
   );
