@@ -13,6 +13,14 @@ What changed in each release of `@pablocm90/visual-review`, newest first. Versio
 
 - The line under **Show** names everything in `dropped`, not only parts and edges, and says "Gone from the PR since the last review": a file the PR has restored hasn't been removed.
 
+## 0.20.0 — 2026-11-04
+
+### Added
+
+- A change whose parts fall into two or more separate groups raises one finding for information, in the cohesion dimension: `may be 2 independent changes`. Parts are in one group when edges of the change join them directly; an unchanged file, a shared box, a shared stack or an edge between the boxes holding them doesn't count, so parts tied that way, or through a dynamic import or Ruby metaprogramming, can look independent, as its detail says. The rail draws a button per group, naming its size and going to its first part in reading order.
+- `metrics.splitParts` (4 by default) sets the size a group must reach to count. Smaller groups are left out, and the detail says how many parts they hold.
+- The review data's finding gains `groups`, each group's node ids in reading order.
+
 ## 0.19.0 — 2026-11-04
 
 ### Fixed

@@ -383,29 +383,41 @@ test("the config's metrics.churnDays sets how many days before each side's commi
 
 test.for([
   {
-    reason: 'are 10 per function and a hotspot at churn 6 and cyclomatic 8 with no config',
+    reason:
+      'are 10 per function, a hotspot at churn 6 and cyclomatic 8 and a split at 4 parts with no config',
     files: {},
-    thresholds: { cyclomatic: 10, hotspot: { churn: 6, cyclomatic: 8 } },
+    thresholds: { cyclomatic: 10, splitParts: 4, hotspot: { churn: 6, cyclomatic: 8 } },
   },
   {
     reason: "take the config's metrics.cyclomatic when set",
     files: { 'visual-review.config.json': '{"metrics": {"cyclomatic": 4}}' },
-    thresholds: { cyclomatic: 4, hotspot: { churn: 6, cyclomatic: 8 } },
+    thresholds: { cyclomatic: 4, splitParts: 4, hotspot: { churn: 6, cyclomatic: 8 } },
   },
   {
     reason: "take the config's hotspot churn alone",
     files: { 'visual-review.config.json': '{"metrics": {"hotspot": {"churn": 3}}}' },
-    thresholds: { cyclomatic: 10, hotspot: { churn: 3, cyclomatic: 8 } },
+    thresholds: { cyclomatic: 10, splitParts: 4, hotspot: { churn: 3, cyclomatic: 8 } },
   },
   {
     reason: "take the config's hotspot cyclomatic alone",
     files: { 'visual-review.config.json': '{"metrics": {"hotspot": {"cyclomatic": 5}}}' },
-    thresholds: { cyclomatic: 10, hotspot: { churn: 6, cyclomatic: 5 } },
+    thresholds: { cyclomatic: 10, splitParts: 4, hotspot: { churn: 6, cyclomatic: 5 } },
+  },
+  {
+    reason: "take the config's splitParts when set",
+    files: { 'visual-review.config.json': '{"metrics": {"splitParts": 3}}' },
+    thresholds: { cyclomatic: 10, hotspot: { churn: 6, cyclomatic: 8 }, splitParts: 3 },
   },
   {
     reason: "take the config's lines and abc when set",
     files: { 'visual-review.config.json': '{"metrics": {"lines": 300, "abc": 40.5}}' },
-    thresholds: { cyclomatic: 10, hotspot: { churn: 6, cyclomatic: 8 }, lines: 300, abc: 40.5 },
+    thresholds: {
+      cyclomatic: 10,
+      splitParts: 4,
+      hotspot: { churn: 6, cyclomatic: 8 },
+      lines: 300,
+      abc: 40.5,
+    },
   },
 ])("the reading's thresholds $reason", async ({ files, thresholds }) => {
   using repository = gitRepo({ 'package.json': '{}\n', 'src/a.ts': '' });

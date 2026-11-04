@@ -2454,3 +2454,31 @@ main:has(> .review-tray) {
   font-size: 11px;
   white-space: nowrap;
 }
+
+.finding:has(.finding-groups) {
+  flex-wrap: wrap;
+}
+
+.finding:has(.finding-groups) > .finding-said {
+  flex: 1 1 0;
+}
+
+.finding .finding-groups {
+  display: flex;
+  flex-wrap: wrap;
+  flex-basis: 100%;
+  gap: 4px;
+  margin: 0;
+  padding: 0 0 0 27px;
+  list-style: none;
+}
+
+.finding .finding-group {
+  display: inline-block;
+  padding: 2px 8px;
+  border: 1px solid var(--stack-line);
+  border-radius: 6px;
+  color: var(--muted);
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}

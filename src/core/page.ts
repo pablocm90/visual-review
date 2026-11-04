@@ -9,6 +9,7 @@ import { type ReadingOrder, readingOrder } from './reading-order.ts';
 import type { Review } from './review.ts';
 import { type SinceReview, sinceReviewOf } from './since-review.ts';
 import type { Skipped } from './skipped.ts';
+import { splitSuggestion } from './split-suggestion.ts';
 import type { TestFile } from './test-changes.ts';
 
 export type PullRequest = {
@@ -62,6 +63,7 @@ export const pageData = ({
     diff.nodes.some(node => isAtOrUnder(path, node));
   const metrics = nodeMetrics({ diff, ...reading });
   const undrawn = reading.patches.filter(patch => !isDrawn(patch));
+  const order = readingOrder(diff);
   return {
     repo,
     range,
@@ -69,7 +71,7 @@ export const pageData = ({
     parsers,
     ...(pullRequest === undefined ? {} : { pullRequest }),
     diff,
-    readingOrder: readingOrder(diff),
+    readingOrder: order,
     metrics,
     findings: raisedFindings({
       skipped: reading.skipped,
@@ -80,6 +82,11 @@ export const pageData = ({
       symbolsNotRead: reading.symbolsNotRead,
       nodes: diff.nodes,
       tests: reading.tests,
+      split: splitSuggestion({
+        parts: order.parts,
+        edges: diff.edges,
+        splitParts: reading.thresholds.splitParts,
+      }),
     }),
     dangling: reading.danglingCalls,
     patches: reading.patches.filter(isDrawn),

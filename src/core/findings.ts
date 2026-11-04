@@ -7,6 +7,7 @@ import type { ReviewNotes } from './notes.ts';
 import type { PageData } from './page.ts';
 import type { SymbolFile } from './read-range.ts';
 import { notReadLine, type Skipped } from './skipped.ts';
+import type { SplitSuggestion } from './split-suggestion.ts';
 import { symbolFindings } from './symbol-findings.ts';
 import { anyChanged, type TestFile } from './test-changes.ts';
 import { testsAlongside } from './tests-alongside.ts';
@@ -41,6 +42,7 @@ export type Finding = {
   readonly target?: string;
   readonly title: string;
   readonly detail?: string;
+  readonly groups?: SplitSuggestion['groups'];
 };
 
 const METRIC_NAMES = { cyclomatic: 'cyclomatic', lines: 'lines', abc: 'ABC size' } as const;
@@ -57,7 +59,7 @@ const metricTitle = (finding: MetricFinding) => {
   return `hotspot, churn ${move(base?.churn, head.churn)} and cyclomatic ${move(base?.cyclomatic, head.cyclomatic)}, over ${threshold.churn} and ${threshold.cyclomatic}`;
 };
 
-const counted = (count: number, one: string, many: string) =>
+export const counted = (count: number, one: string, many: string) =>
   `${count} ${count === 1 ? one : many}`;
 
 type RaisedOptions = {
@@ -69,6 +71,7 @@ type RaisedOptions = {
   readonly symbolsNotRead: ReadonlyArray<string>;
   readonly nodes: ReadonlyArray<GraphNode>;
   readonly tests: ReadonlyArray<TestFile>;
+  readonly split: SplitSuggestion | undefined;
 };
 
 type UntestedOptions = Pick<RaisedOptions, 'nodes' | 'tests'>;
@@ -99,6 +102,21 @@ const withUntestedLogic = (
     ),
 ];
 
+const SPLIT_CAVEAT =
+  'Read from the edges between parts, so parts tied through an unchanged file, an edge between the boxes holding them, a dynamic import or Ruby metaprogramming can look independent.';
+
+const splitFinding = ({ groups, leftOut }: SplitSuggestion): Finding => ({
+  id: 'cohesion:split',
+  dimension: 'cohesion',
+  level: 'info',
+  title: `may be ${groups.length} independent changes`,
+  detail:
+    leftOut === 0
+      ? SPLIT_CAVEAT
+      : `${counted(leftOut, 'part', 'parts')} in smaller groups left out. ${SPLIT_CAVEAT}`,
+  groups,
+});
+
 export const skippedFindingId = (skip: Skipped) => `structure:skipped:${skip.reader}`;
 
 export const raisedFindings = ({
@@ -110,6 +128,7 @@ export const raisedFindings = ({
   symbolsNotRead,
   nodes,
   tests,
+  split,
 }: RaisedOptions): ReadonlyArray<Finding> => [
   ...skipped.map(
     (skip): Finding => ({
@@ -159,6 +178,7 @@ export const raisedFindings = ({
       title: `symbols not read for ${stack}`,
     }),
   ),
+  ...(split === undefined ? [] : [splitFinding(split)]),
 ];
 
 type FindingsOfOptions = {
