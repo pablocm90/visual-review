@@ -5005,7 +5005,7 @@ test("a served page's Tests screen takes a comment on a test row, one draft with
   expect(within(testChanges()).queryAllByRole('button', { name: /^Comment on/ })).toStrictEqual([]);
 });
 
-test("a test's draft in the tray opens the Tests tab of the box holding its file, showing the draft", async () => {
+test("a test's draft in the tray opens the Tests tab of the file it's named after, though no box holds it, showing the draft", async () => {
   const user = userEvent.setup();
   render(
     <ReviewPage
@@ -5014,20 +5014,13 @@ test("a test's draft in the tray opens the Tests tab of the box holding its file
         diff: {
           nodes: [
             { id: 'web', kind: 'stack', label: 'web', path: '', state: 'unchanged' },
-            {
-              id: 'web/module/src/cart',
-              kind: 'module',
-              label: 'cart',
-              parent: 'web',
-              path: 'web/src/cart',
-              state: 'modified',
-            },
+            topFile('total.ts', 'modified'),
           ],
           edges: [],
         },
         tests: [
           {
-            path: 'web/src/cart/total.test.ts',
+            path: 'test/total.test.ts',
             stack: 'web',
             statements: [{ kind: 'test', name: 'adds tax', change: 'added' }],
           },
@@ -5042,7 +5035,7 @@ test("a test's draft in the tray opens the Tests tab of the box holding its file
       { name: 'Your comment' },
     );
 
-  await user.click(await screen.findByRole('button', { name: 'cart: modified' }));
+  await user.click(await screen.findByRole('button', { name: 'total.ts: modified' }));
   await user.click(within(inspector()).getByRole('tab', { name: 'Tests 1' }));
   await user.click(within(testsTab()).getByRole('button', { name: 'Comment on adds tax' }));
   await write(user, rowField(), 'Which rate?');

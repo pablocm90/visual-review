@@ -1514,6 +1514,7 @@ export const ReviewPage = ({ review, notes, send }: ReviewPageProps) => {
           answers={answers}
           findings={findings}
           nodes={review.diff.nodes}
+          tests={review.tests}
           onGoTo={id => goToOnTab(id, 'note')}
           onGoToDraft={(id, anchor) => goToOnTab(id, tabOfDraft(anchor))}
           send={send}

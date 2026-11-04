@@ -1,10 +1,12 @@
-import { isAtOrUnder } from '../core/diff-graphs.ts';
+import { deepestHolding } from '../core/diff-graphs.ts';
 import { endsOfId, type GraphNode } from '../core/graph.ts';
 import type { Comment } from '../core/review.ts';
+import type { TestFile } from '../core/test-changes.ts';
+import { nodeOfTests } from '../core/tests-alongside.ts';
 
 type Anchor = Comment['anchor'];
 
-type Nodes = ReadonlyArray<Pick<GraphNode, 'id' | 'label' | 'path'>>;
+type Nodes = ReadonlyArray<Pick<GraphNode, 'id' | 'label' | 'parent' | 'path'>>;
 
 export const anchorKey = ({ kind, id }: Pick<Anchor, 'kind' | 'id'>): string => `${kind} ${id}`;
 
@@ -17,21 +19,17 @@ const fileOfLine = (id: string): string => id.slice(0, id.lastIndexOf('@'));
 
 const lineNumber = (id: string): string => id.slice(id.lastIndexOf(':') + 1);
 
-const deepestHolding = (path: string, nodes: Nodes) =>
-  nodes
-    .filter(node => isAtOrUnder(path, node))
-    .toSorted((one, other) => other.path.length - one.path.length)[0];
-
-const pathOf = (anchor: Anchor): string | undefined => {
-  if (anchor.kind === 'test') return split(anchor.id, '#')[0];
-  if (anchor.kind === 'line') return fileOfLine(anchor.id);
-  return undefined;
+export type TargetsOf = {
+  readonly nodes: Nodes;
+  readonly tests: ReadonlyArray<Pick<TestFile, 'path' | 'stack'>>;
 };
 
-export const anchorTarget = (anchor: Anchor, nodes: Nodes): string | undefined => {
+export const anchorTarget = (anchor: Anchor, { nodes, tests }: TargetsOf): string | undefined => {
   if (anchor.kind === 'symbol' || anchor.kind === 'decision') return split(anchor.id, '#')[0];
-  const path = pathOf(anchor);
-  return path === undefined ? anchor.id : deepestHolding(path, nodes)?.id;
+  if (anchor.kind === 'line') return deepestHolding(fileOfLine(anchor.id), nodes)?.id;
+  if (anchor.kind !== 'test') return anchor.id;
+  const file = tests.find(({ path }) => path === split(anchor.id, '#')[0]);
+  return file && nodeOfTests({ nodes, file });
 };
 
 export const anchorName = (anchor: Anchor, nodes: Nodes): string => {

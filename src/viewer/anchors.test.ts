@@ -4,11 +4,18 @@ import { anchorKey, anchorName, anchorTarget } from './anchors.ts';
 
 const nodes = [
   { id: 'web', label: 'Web app', path: '' },
-  { id: 'web/module/src', label: 'src', path: 'web/src' },
-  { id: 'web/module/src/cart', label: 'cart', path: 'web/src/cart' },
-  { id: 'web/file/src/cart/total.ts', label: 'total.ts', path: 'web/src/cart/total.ts' },
-  { id: 'web/file/src/pay.ts', label: 'pay.ts', path: 'web/src/pay.ts' },
+  { id: 'web/module/src', label: 'src', parent: 'web', path: 'web/src' },
+  { id: 'web/module/src/cart', label: 'cart', parent: 'web/module/src', path: 'web/src/cart' },
+  {
+    id: 'web/file/src/cart/total.ts',
+    label: 'total.ts',
+    parent: 'web/module/src/cart',
+    path: 'web/src/cart/total.ts',
+  },
+  { id: 'web/file/src/pay.ts', label: 'pay.ts', parent: 'web/module/src', path: 'web/src/pay.ts' },
 ];
+
+const tests = [{ path: 'web/src/cart/total.test.ts', stack: 'web' }];
 
 test('anchors of two kinds with one id string are kept apart', () => {
   expect(anchorKey({ kind: 'test', id: 'web/src/a.ts#x' })).not.toBe(
@@ -67,13 +74,14 @@ test.for<{ anchor: Comment['anchor']; target: string | undefined }>([
   },
   {
     anchor: { kind: 'test', id: 'web/src/cart/total.test.ts#Cart › totals' },
-    target: 'web/module/src/cart',
+    target: 'web/file/src/cart/total.ts',
   },
+  { anchor: { kind: 'test', id: 'web/src/gone.test.ts#Cart' }, target: undefined },
   {
     anchor: { kind: 'line', id: 'web/src/cart/total.ts@head:4', text: 'return sum' },
     target: 'web/file/src/cart/total.ts',
   },
   { anchor: { kind: 'line', id: 'README.md@head:1', text: '# Shop' }, target: undefined },
 ])('a $anchor.kind anchor $anchor.id goes to $target', ({ anchor, target }) => {
-  expect(anchorTarget(anchor, nodes)).toBe(target);
+  expect(anchorTarget(anchor, { nodes, tests })).toBe(target);
 });

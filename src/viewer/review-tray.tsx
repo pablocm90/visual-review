@@ -2,7 +2,7 @@ import { useState } from 'react';
 import type { Finding } from '../core/findings.ts';
 import type { GraphNode } from '../core/graph.ts';
 import type { Answer, Comment, Review } from '../core/review.ts';
-import { anchorKey, anchorName, anchorTarget } from './anchors.ts';
+import { anchorKey, anchorName, anchorTarget, type TargetsOf } from './anchors.ts';
 import { COMMENT_KINDS, type Comments } from './comment-field.tsx';
 import { ANSWER_KINDS, type Answers } from './finding-display.tsx';
 import { partsRead } from './reading-order-list.tsx';
@@ -19,6 +19,7 @@ type ReviewTrayProps = {
   readonly answers: Answers;
   readonly findings: ReadonlyArray<Finding>;
   readonly nodes: Nodes;
+  readonly tests: TargetsOf['tests'];
   readonly onGoTo: (id: string) => void;
   readonly onGoToDraft: (id: string, anchor: Comment['anchor']) => void;
   readonly send: (review: Review) => Promise<void>;
@@ -53,15 +54,17 @@ const suggestedFor = (written: ReadonlyArray<Drafted>): Review['verdict'] => {
   return 'approve';
 };
 
+type TargetOf = (anchor: Comment['anchor']) => string | undefined;
+
 type InReadingOrder = {
   readonly written: ReadonlyArray<Comment>;
   readonly parts: ReadonlyArray<string>;
-  readonly nodes: Nodes;
+  readonly targetOf: TargetOf;
 };
 
-const inReadingOrder = ({ written, parts, nodes }: InReadingOrder) => {
+const inReadingOrder = ({ written, parts, targetOf }: InReadingOrder) => {
   const rank = ({ anchor }: Comment) => {
-    const at = parts.indexOf(anchorTarget(anchor, nodes) ?? '');
+    const at = parts.indexOf(targetOf(anchor) ?? '');
     return at === -1 ? parts.length : at;
   };
   return written.toSorted(
@@ -120,14 +123,23 @@ type DraftListProps = {
   readonly answered: ReadonlyArray<Answer>;
   readonly findings: ReadonlyArray<Finding>;
   readonly nodes: Nodes;
+  readonly targetOf: TargetOf;
   readonly onGoTo: (id: string) => void;
   readonly onGoToDraft: (id: string, anchor: Comment['anchor']) => void;
 };
 
-const DraftList = ({ drafted, answered, findings, nodes, onGoTo, onGoToDraft }: DraftListProps) => (
+const DraftList = ({
+  drafted,
+  answered,
+  findings,
+  nodes,
+  targetOf,
+  onGoTo,
+  onGoToDraft,
+}: DraftListProps) => (
   <ul aria-label="Drafts" className="tray-list">
     {drafted.map(({ anchor, kind, text }) => {
-      const target = anchorTarget(anchor, nodes);
+      const target = targetOf(anchor);
       return (
         <Draft
           key={anchorKey(anchor)}
@@ -162,6 +174,7 @@ export const ReviewTray = ({
   answers,
   findings,
   nodes,
+  tests,
   onGoTo,
   onGoToDraft,
   send,
@@ -174,13 +187,13 @@ export const ReviewTray = ({
   const drafted = Object.values(comments).filter(({ text }) => text.trim() !== '');
   const answered = Object.values(answers).map(withWhy);
   const written = [...drafted, ...answered];
-  const ordered = inReadingOrder({ written: drafted, parts, nodes });
+  const targetOf: TargetOf = anchor => anchorTarget(anchor, { nodes, tests });
+  const ordered = inReadingOrder({ written: drafted, parts, targetOf });
   const hasBody = body.trim() !== '';
   const suggested = suggestedFor(written);
   const verdict = picked ?? suggested;
-  const silent = read.filter(
-    part => !drafted.some(({ anchor }) => anchorTarget(anchor, nodes) === part),
-  );
+  const commentedOn = new Set(drafted.map(({ anchor }) => targetOf(anchor)));
+  const silent = read.filter(part => !commentedOn.has(part));
   const preview = previewOf({ verdict, read, parts, ordered, answered, silent, nodes });
   const sendComments = () =>
     send({
@@ -225,6 +238,7 @@ export const ReviewTray = ({
                   answered={answered}
                   findings={findings}
                   nodes={nodes}
+                  targetOf={targetOf}
                   onGoTo={onGoTo}
                   onGoToDraft={onGoToDraft}
                 />
