@@ -28,8 +28,10 @@ export const readLockfiles = ({
     changes.flat().flatMap(path => {
       const lockfile = lockfiles.find(({ file }) => file === basename(path));
       if (lockfile === undefined) return [];
-      const readAt = async (revision: string) =>
-        lockfile.read({ text: await git(repo, 'show', `${revision}:${path}`), manifests: [] });
+      const readAt = async (revision: string) => {
+        const text = await git(repo, 'show', `${revision}:${path}`);
+        return lockfile.read({ text: text.replaceAll('\r\n', '\n'), manifests: [] });
+      };
       return [
         (async () => ({
           lockfile: path,

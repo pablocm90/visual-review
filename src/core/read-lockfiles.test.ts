@@ -34,3 +34,33 @@ test('a changed lockfile reads as the changes of its packages between the two si
     },
   ]);
 });
+
+const gemfileLock = (rack: string) => `GEM
+  remote: https://rubygems.org/
+  specs:
+    rack (${rack})
+
+PLATFORMS
+  ruby
+
+DEPENDENCIES
+  rack
+`;
+
+test('a lockfile with some or all of its lines ending in \\r\\n reads as it does with \\n', async () => {
+  const headerOnly = (text: string) => text.replace('GEM\n', 'GEM\r\n');
+  const everyLine = (text: string) => text.replaceAll('\n', '\r\n');
+  using workspace = gitRepo({ 'Gemfile.lock': headerOnly(gemfileLock('2.2.0')) });
+  const { repo, root } = workspace;
+  const to = commit(repo, { 'Gemfile.lock': everyLine(gemfileLock('3.1.0')) });
+
+  const { dependencyChanges } = await readRange({ repo, from: root, to });
+
+  expect(dependencyChanges).toStrictEqual([
+    {
+      lockfile: 'Gemfile.lock',
+      ecosystem: 'bundler',
+      packages: [{ name: 'rack', change: 'major', direct: true, from: ['2.2.0'], to: ['3.1.0'] }],
+    },
+  ]);
+});
