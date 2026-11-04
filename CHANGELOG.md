@@ -6,14 +6,15 @@ What changed in each release of `@pablocm90/visual-review`, newest first. Versio
 
 ### Fixed
 
-- A page, its data and a review replace what stands at their path, rather than writing through it. The plugin's skill does the same for the notes.
-- A changed file with a non-ASCII name, or one that reads as a pathspec, is listed and diffed by its name as it is.
-- `serve` takes a `.serve` lock as live only if it is a regular file of mode 600 holding a token of the shape it writes. Any other is replaced.
+- A page, its data and a review replace what stands at their path, rather than writing through it, and a rewritten file keeps the mode it had. The plugin's skill does the same for the notes.
+- A changed file with a non-ASCII UTF-8 name, or one that reads as a pathspec, is listed and diffed by its name as it is.
+- `serve` keeps its lock in `~/.cache/visual-review/serve/`, keyed by the page's real path, and no longer reads a `.serve` file beside the page. A leftover one from an earlier version does nothing and can be deleted.
+- A changed file whose name isn't valid UTF-8 raises a finding that needs a look, saying its patch can't be shown. Before, it was only a name in the list of files outside the graph.
 - Pruning counts only regular `.html` files as pages, so a dangling link or a folder at such a name no longer stops it or takes a kept place. A folder at the name of an older page's data goes with the page.
 
 ### Changed
 
-- A review needs a `.git` entry at the repo's root, and git 2.38 or newer is the supported floor. A repo reached only through `GIT_DIR` and `GIT_WORK_TREE`, with no `.git` there, is now refused.
+- A review needs a `.git` entry at the repo's root, and git 2.38 or newer is the supported floor. A repo reached only through `GIT_DIR` and `GIT_WORK_TREE`, or a `core.worktree` elsewhere, with no `.git` at that root, is now refused.
 
 ## 0.21.1 — 2026-11-04
 
