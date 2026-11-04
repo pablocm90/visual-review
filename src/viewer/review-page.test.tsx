@@ -6478,3 +6478,20 @@ test('a last answer to a finding shows under it in the rail, not in the Look fir
   expect(within(screen.getByRole('region', { name: 'Look first' })).queryByRole('note')).toBeNull();
   expect(screen.getAllByRole('note', { name: /^Last review/ })).toHaveLength(1);
 });
+
+test('a finding called fine at the last review stays out of Look first and reads so in its group', async () => {
+  const user = userEvent.setup();
+  render(<ReviewPage review={pageWithAnAnsweredFinding({ calledFine: ['logic:a'] })} />);
+
+  const band = within(await screen.findByRole('region', { name: 'Look first' }));
+  expect(band.getByRole('button', { name: /^application: changed a branch/ })).toBeTruthy();
+  expect(band.queryByRole('button', { name: /lost a guard/ })).toBeNull();
+
+  await user.click(screen.getByRole('button', { name: 'Show 2 findings' }));
+  const group = within(screen.getByRole('region', { name: 'Logic' }));
+  expect(
+    group.getByRole('button', { name: /^application: lost a guard.*, called fine$/ }),
+  ).toBeTruthy();
+  expect(group.getByRole('button', { name: /^application: changed a branch.*[^e]$/ })).toBeTruthy();
+  expect(group.getAllByText('called fine')).toHaveLength(1);
+});

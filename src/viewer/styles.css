@@ -2549,3 +2549,10 @@ main:has(> .review-tray) {
   overflow-wrap: anywhere;
   white-space: normal;
 }
+
+.called-fine {
+  margin-inline-start: 6px;
+  color: var(--muted);
+  font-size: 11px;
+  white-space: nowrap;
+}
