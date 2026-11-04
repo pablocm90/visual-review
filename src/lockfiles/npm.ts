@@ -69,7 +69,10 @@ export const npmLockfile: Lockfile = {
     );
     if (entries.some(({ link, resolved }) => link && !locals.has(resolved)))
       throw new Error(NOT_RECOGNISED);
-    const linked = new Set(entries.filter(({ link }) => link).map(({ folder }) => folder));
+    const byPath = new Map(entries.map(entry => [entry.path, entry]));
+    const installedFor = (declarer: string, name: string) =>
+      byPath.get(`${declarer && `${declarer}/`}node_modules/${name}`) ??
+      byPath.get(`node_modules/${name}`);
     const declarations = entries.flatMap(declarationsOf);
     const nameOf = (folder: string, name: string | undefined): string =>
       name !== undefined &&
@@ -89,9 +92,12 @@ export const npmLockfile: Lockfile = {
       direct: new Set(
         entries
           .filter(({ folder }) => folder === undefined)
-          .flatMap(declarationsOf)
-          .filter(([name]) => !linked.has(name))
-          .map(([name, spec]) => spec.match(ALIAS)?.[1] ?? name),
+          .flatMap(declarer =>
+            declarationsOf(declarer).flatMap(([name]) => {
+              const installed = installedFor(declarer.path, name);
+              return installed?.link ? [] : [nameOf(name, installed?.name)];
+            }),
+          ),
       ),
     };
   },

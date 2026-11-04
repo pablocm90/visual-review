@@ -585,6 +585,71 @@ describe('package-lock.json', () => {
     ).toEqual({ cliui: ['8.0.0'], 'string-width': ['4.2.3'] });
   });
 
+  test.for([
+    {
+      what: 'a declared package linked only deep inside another stays direct',
+      packages: {
+        '': { dependencies: { zod: '*' } },
+        'packages/web': { version: '1.0.0' },
+        'node_modules/zod': { version: '4.0.0' },
+        'node_modules/other/node_modules/zod': { resolved: 'packages/web', link: true },
+      },
+      direct: ['zod'],
+    },
+    {
+      what: 'a declared package linked where its declarer finds it is not direct',
+      packages: {
+        'packages/web': { dependencies: { zod: '*' } },
+        'packages/web/node_modules/zod': { resolved: 'packages/web', link: true },
+        'node_modules/zod': { version: '4.0.0' },
+      },
+      direct: [],
+    },
+    {
+      what: 'a sibling a workspace finds linked at the root is not direct',
+      packages: {
+        'packages/web': { dependencies: { '@shop/api': '*' } },
+        'packages/api': { version: '1.0.0' },
+        'node_modules/@shop/api': { resolved: 'packages/api', link: true },
+      },
+      direct: [],
+    },
+    {
+      what: 'a package a declarer installs itself is direct over a link at the root',
+      packages: {
+        'packages/web': { dependencies: { zod: '*' } },
+        'packages/web/node_modules/zod': { version: '4.0.0' },
+        'node_modules/zod': { resolved: 'packages/web', link: true },
+      },
+      direct: ['zod'],
+    },
+    {
+      what: 'a root declaration finds only the top node_modules',
+      packages: {
+        '': { dependencies: { zod: '*' } },
+        'packages/web': { version: '1.0.0' },
+        '/node_modules/zod': { resolved: 'packages/web', link: true },
+        'node_modules/zod': { version: '4.0.0' },
+      },
+      direct: ['zod'],
+    },
+    {
+      what: 'a spec naming a package goes by what was installed, not the spec',
+      packages: {
+        '': { dependencies: { hidden: 'npm:react@^19.0.0' } },
+        'node_modules/hidden': { version: '1.0.0' },
+      },
+      direct: ['hidden'],
+    },
+    {
+      what: 'a declaration with nothing installed goes by its own name, not the spec',
+      packages: { '': { dependencies: { hidden: 'npm:react@^19.0.0' } } },
+      direct: ['hidden'],
+    },
+  ])('$what', ({ packages, direct }) => {
+    expect(read(lock(3, packages)).direct).toEqual(direct);
+  });
+
   test('a folder only named like node_modules is local', () => {
     expect(
       read(lock(3, { 'not_node_modules/web': { version: '1.0.0', dependencies: { zod: '*' } } })),
