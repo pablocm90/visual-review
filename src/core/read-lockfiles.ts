@@ -35,12 +35,12 @@ const readAt = async (
   revision: string,
   { path, lockfile }: LockfileAt,
 ): Promise<LockedPackages | undefined> => {
-  if ((await git(repo, 'ls-tree', '--name-only', revision, '--', path)) === '') return undefined;
+  const listed = (...args: ReadonlyArray<string>) =>
+    git(repo, '--literal-pathspecs', 'ls-tree', '-z', '--name-only', revision, ...args);
+  if ((await listed('--', path)) === '') return undefined;
   const show = (file: string) => git(repo, 'show', `${revision}:${file}`);
-  const manifests = (
-    await git(repo, 'ls-tree', '-r', '--name-only', revision, '--', `${dirname(path)}/`)
-  )
-    .split('\n')
+  const manifests = (await listed('-r', '--', `${dirname(path)}/`))
+    .split('\0')
     .filter(file => basename(file) === lockfile.manifest && !SKIPPED.test(file));
   return lockfile.read({
     text: (await show(path)).replaceAll('\r\n', '\n'),

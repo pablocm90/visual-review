@@ -305,10 +305,11 @@ const changesBetween = async (
   from: string,
   to: string,
 ): Promise<ReadonlyArray<ReadonlyArray<string>>> =>
-  (await git(repo, 'diff', '--find-renames', '--name-status', from, to))
-    .split('\n')
-    .filter(line => line !== '')
-    .map(line => line.split('\t').slice(1));
+  [
+    ...(await git(repo, 'diff', '--find-renames', '--name-status', '-z', from, to)).matchAll(
+      /(?:[RC]\d*\0([^\0]+)\0([^\0]+)|[A-Z]\0([^\0]+))\0/g,
+    ),
+  ].map(([, ...paths]) => paths.filter(path => path !== undefined));
 
 const pathsIn = (changes: ReadonlyArray<ReadonlyArray<string>>) => ({
   changedPaths: changes.flat(),
@@ -519,7 +520,16 @@ export const readRange = async ({
       patches: await Promise.all(
         changes.map(async paths => ({
           path: paths.at(-1) ?? '',
-          patch: await git(repo, 'diff', '--find-renames', base, toCommit, '--', ...paths),
+          patch: await git(
+            repo,
+            '--literal-pathspecs',
+            'diff',
+            '--find-renames',
+            base,
+            toCommit,
+            '--',
+            ...paths,
+          ),
         })),
       ),
       ...(reviewed === undefined

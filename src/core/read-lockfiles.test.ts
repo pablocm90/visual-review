@@ -345,3 +345,38 @@ test('two lockfiles of a folder both changing read as one, their versions and di
     },
   ]);
 });
+
+test.for([
+  { what: 'an accent', folder: 'dépôt' },
+  { what: 'a double quote', folder: 'a"b' },
+  { what: 'a tab', folder: 'a\tb' },
+  { what: 'a leading colon', folder: ':(top)web' },
+])('a lockfile and its manifests in a folder named with $what still read', async ({ folder }) => {
+  using workspace = gitRepo({ 'README.md': '' });
+  const { repo, root } = workspace;
+  const to = commit(repo, {
+    [`${folder}/yarn.lock`]: yarnLock({ zod: '1.0.0' }),
+    [`${folder}/package.json`]: manifest('zod'),
+  });
+
+  const { dependencyChanges, patches } = await readRange({ repo, from: root, to });
+
+  expect(dependencyChanges).toMatchObject([
+    {
+      lockfile: `${folder}/yarn.lock`,
+      packages: [{ name: 'zod', change: 'added', direct: true }],
+    },
+  ]);
+  expect(patches.find(({ path }) => path === `${folder}/yarn.lock`)?.patch).toContain('zod');
+});
+
+test('a rename out of a folder with an accent still compares across the rename', async () => {
+  using workspace = gitRepo({ 'dépôt/Cargo.lock': cargoLock('1.0.219') });
+  const { repo, root } = workspace;
+  git(repo, 'mv', 'dépôt', 'server');
+  const to = commit(repo, { 'README.md': 'moved' });
+
+  const { dependencyChanges } = await readRange({ repo, from: root, to });
+
+  expect(dependencyChanges).toMatchObject([{ lockfile: 'server/Cargo.lock', packages: [] }]);
+});
