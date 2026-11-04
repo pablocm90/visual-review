@@ -6092,3 +6092,65 @@ test('a later round with nothing said and nothing changed without a comment has 
 
   expect(screen.queryByRole('region', { name: 'Last review' })).toBeNull();
 });
+
+test("a last comment on a part renamed since goes by the part's name at the head", async () => {
+  render(
+    <ReviewPage
+      review={pageWith({
+        ...review,
+        sinceReview: {
+          ...sinceReview,
+          comments: [
+            {
+              anchor: { kind: 'part', id: 'rust/crate/old-name' },
+              kind: 'question',
+              text: 'Why?',
+              target: 'rust/crate/application',
+              changedSince: [],
+            },
+            {
+              anchor: { kind: 'edge', id: 'rust/crate/old-name -> rust/crate/domain' },
+              kind: 'question',
+              text: 'Why?',
+              target: 'rust/crate/application -> rust/crate/domain',
+            },
+            {
+              anchor: { kind: 'symbol', id: 'rust/crate/application#run' },
+              kind: 'question',
+              text: 'Why?',
+              target: 'rust/crate/application',
+            },
+          ],
+        },
+      })}
+    />,
+  );
+  await screen.findByRole('group', { name: 'rust' });
+
+  const last = within(lastReviewSection());
+  expect(last.getByRole('button', { name: 'application' })).toBeTruthy();
+  expect(last.getByRole('button', { name: 'application → domain' })).toBeTruthy();
+  expect(last.getByRole('button', { name: 'run in application' })).toBeTruthy();
+});
+
+test('the last review lists the parts changed since with no comment on them, going to each; with only those it still shows', async () => {
+  const user = userEvent.setup();
+  render(
+    <ReviewPage
+      review={pageWith({
+        ...review,
+        sinceReview: { ...sinceReview, changedWithoutComment: ['rust/crate/application'] },
+      })}
+    />,
+  );
+  await screen.findByRole('group', { name: 'rust' });
+
+  const quiet = within(
+    within(lastReviewSection()).getByRole('list', { name: 'Changed since, no comment' }),
+  );
+  await user.click(quiet.getByRole('button', { name: 'application' }));
+
+  expect(document.activeElement).toBe(
+    screen.getByRole('button', { name: 'application: modified' }),
+  );
+});

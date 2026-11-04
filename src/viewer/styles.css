@@ -2535,3 +2535,8 @@ main:has(> .review-tray) {
   color: var(--muted);
   font-size: 12px;
 }
+
+.last-review-subtitle {
+  margin: 12px 0 4px;
+  font-size: 13px;
+}

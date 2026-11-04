@@ -10,6 +10,8 @@ import { Ref } from './ref.tsx';
 
 const kindLabels = new Map<string, string>([...COMMENT_KINDS, ...ANSWER_KINDS]);
 
+const QUIET_TITLE = 'Changed since, no comment';
+
 type Mark = 'Changed since' | 'As it was' | undefined;
 
 const markOf = ({ changedSince }: PreviousComment, compared: boolean): Mark => {
@@ -36,8 +38,12 @@ const whereOf = (
     };
   const place = placeOfLine(anchor);
   const goOutside = place && ((opener: HTMLButtonElement) => onGoToOutside(place, opener));
+  const onTheGraph = anchor.kind === 'part' || anchor.kind === 'edge';
   return {
-    name: anchorName(anchor, nodes),
+    name: anchorName(
+      onTheGraph && target !== undefined ? { ...anchor, id: target } : anchor,
+      nodes,
+    ),
     onGo: target === undefined ? goOutside : () => onGoToDraft(target, anchor),
   };
 };
@@ -45,7 +51,8 @@ const whereOf = (
 type LastReviewProps = Going & { readonly since: SinceReview };
 
 export const LastReview = ({ since, ...going }: LastReviewProps) => {
-  if (since.body === undefined && since.comments.length === 0) return null;
+  const quiet = 'changedWithoutComment' in since ? since.changedWithoutComment : [];
+  if (since.body === undefined && since.comments.length === 0 && quiet.length === 0) return null;
   const compared = 'changed' in since;
   return (
     <section className="last-review" aria-label="Last review">
@@ -91,6 +98,20 @@ export const LastReview = ({ since, ...going }: LastReviewProps) => {
             );
           })}
         </ul>
+        {quiet.length > 0 && (
+          <>
+            <h3 className="last-review-subtitle">{QUIET_TITLE}</h3>
+            <ul aria-label={QUIET_TITLE} className="last-review-list">
+              {quiet.map(id => (
+                <li key={id} className="last-comment">
+                  <button type="button" className="draft-target" onClick={() => going.onGoTo(id)}>
+                    {anchorName({ kind: 'part', id }, going.nodes)}
+                  </button>
+                </li>
+              ))}
+            </ul>
+          </>
+        )}
       </details>
     </section>
   );
