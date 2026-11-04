@@ -5116,7 +5116,7 @@ test("a served page's diff line takes a comment on its side and number, quoting 
   expect(toggles()).toStrictEqual([]);
 });
 
-test("the tray goes to a diff line's draft on the Diff tab", async () => {
+test("the tray goes to a diff line's draft on the Diff tab, landing on its row on its side, each time", async () => {
   const user = userEvent.setup();
   render(
     <ReviewPage
@@ -5124,22 +5124,28 @@ test("the tray goes to a diff line's draft on the Diff tab", async () => {
       send={vi.fn(async () => {})}
     />,
   );
-  const name = 'x.ts:1 "const x = 2;"';
+  const name = 'x.ts:1 "const x = 1;"';
+  const goToDraft = () =>
+    user.click(within(screen.getByRole('list', { name: 'Drafts' })).getByRole('button', { name }));
 
   await user.click(await screen.findByRole('button', { name: 'x.ts: modified' }));
   await user.click(within(inspector()).getByRole('tab', { name: 'Diff' }));
   await user.click(within(diffTab()).getByRole('button', { name: `Comment on ${name}` }));
-  await write(user, within(diffTab()).getByRole('textbox', { name: 'Your comment' }), 'Why 2?');
+  await write(user, within(diffTab()).getByRole('textbox', { name: 'Your comment' }), 'Why 1?');
   await user.click(screen.getByRole('button', { name: 'Close inspector' }));
   await openReview(user);
 
-  await user.click(
-    within(screen.getByRole('list', { name: 'Drafts' })).getByRole('button', { name }),
-  );
-  expect(within(diffTab()).getByRole('textbox', { name: 'Your comment' })).toHaveProperty(
+  await goToDraft();
+  const row = within(diffTab()).getByRole('deletion', { current: true });
+  expect(within(row).getByRole('textbox', { name: 'Your comment' })).toHaveProperty(
     'value',
-    'Why 2?',
+    'Why 1?',
   );
+  expect(scrolledIntoView.mock.contexts).toContain(row);
+
+  scrolledIntoView.mockClear();
+  await goToDraft();
+  expect(scrolledIntoView.mock.contexts).toContain(row);
 });
 
 const patchOf = (path: string, ...hunkLines: ReadonlyArray<string>) => ({

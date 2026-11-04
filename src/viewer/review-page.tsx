@@ -33,7 +33,7 @@ import {
   visibleDiff,
   visibleNodeOf,
 } from '../core/visible-diff.ts';
-import { anchorKey, anchorName, fileOfLine, lineAnchor } from './anchors.ts';
+import { anchorKey, anchorName, fileOfLine, lineAnchor, placeOfLine } from './anchors.ts';
 import { ColourBy, type Colouring, ScaleLegend, type Shade, shadeOf } from './colour-by.tsx';
 import { CommentField, CommentOn, type Comments } from './comment-field.tsx';
 import {
@@ -477,24 +477,24 @@ type LineComments = {
 const PatchLine = ({
   path,
   line,
-  current,
+  landing,
   nodes,
   comments,
   onComment,
 }: LineComments & {
   readonly path: string;
   readonly line: Line;
-  readonly current: boolean;
+  readonly landing: Landing | undefined;
 }) => {
   const { kind, prefix, pieces } = line;
   const anchor = lineAnchor({ path, line });
   const landOn = useCallback(
     (row: HTMLElement | null) => {
-      if (current && row) scrollInPanel(row, 'center');
+      if (row && isLandedOn(line, landing)) scrollInPanel(row, 'center');
     },
-    [current],
+    [line, landing],
   );
-  const marks = { ref: landOn, 'aria-current': current || undefined };
+  const marks = { ref: landOn, 'aria-current': isLandedOn(line, landing) || undefined };
   const code = (
     <>
       {prefix}
@@ -546,7 +546,7 @@ const Patch = ({
             key={index}
             path={path}
             line={line}
-            current={isLandedOn(line, landing)}
+            landing={landing}
             {...commenting}
           />
         ))}
@@ -1585,7 +1585,11 @@ export const ReviewPage = ({ review, notes, send }: ReviewPageProps) => {
           nodes={review.diff.nodes}
           tests={review.tests}
           onGoTo={id => goToOnTab(id, 'note')}
-          onGoToDraft={(id, anchor) => goToOnTab(id, tabOfDraft(anchor))}
+          onGoToDraft={(id, anchor) => {
+            const place = placeOfLine(anchor);
+            if (place) landOn(id, place);
+            goToOnTab(id, tabOfDraft(anchor));
+          }}
           send={send}
         />
       )}

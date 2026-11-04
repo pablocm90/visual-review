@@ -37,6 +37,13 @@ export const fileOfLine = (id: string): string => id.slice(0, id.lastIndexOf('@'
 
 const lineNumber = (id: string): string => id.slice(id.lastIndexOf(':') + 1);
 
+export const placeOfLine = (anchor: Anchor) => {
+  if (anchor.kind !== 'line') return undefined;
+  const path = fileOfLine(anchor.id);
+  const side: 'base' | 'head' = anchor.id.startsWith('@base:', path.length) ? 'base' : 'head';
+  return { path, side, line: Number(lineNumber(anchor.id)) };
+};
+
 export type TargetsOf = {
   readonly nodes: Nodes;
   readonly tests: ReadonlyArray<Pick<TestFile, 'path' | 'stack'>>;
