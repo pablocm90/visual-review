@@ -3,8 +3,8 @@ import type { FilePatch, GraphDiff } from './diff-graphs.ts';
 import { endsOfId, type GraphNode } from './graph.ts';
 import type { DanglingCall } from './linker.ts';
 import type { MetricFinding } from './metric-findings.ts';
-import { migrationFindings } from './migration-findings.ts';
 import { type NodeMetrics, tenths } from './metrics.ts';
+import { migrationFindings } from './migration-findings.ts';
 import type { ReviewNotes } from './notes.ts';
 import type { PageData } from './page.ts';
 import type { DependencyChanges } from './read-lockfiles.ts';
@@ -242,7 +242,8 @@ export const lookFirst = ({ findings, metrics }: LookFirstOptions): ReadonlyArra
       : Math.max(...endsOfId(target).map(end => metrics[end]?.head?.[measure] ?? 0));
   const isBlindSpot = ({ target, dimension, id }: Finding) =>
     target === undefined &&
-    (dimension !== 'dependencies' || id.startsWith('dependencies:not-read:'));
+    (!(dimension === 'dependencies' || dimension === 'schema') ||
+      id.startsWith(`${dimension}:not-read:`));
   const before = (one: Finding, other: Finding) =>
     Number(isBlindSpot(other)) - Number(isBlindSpot(one)) ||
     highest(other.target, 'fanIn') - highest(one.target, 'fanIn') ||

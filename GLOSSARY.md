@@ -43,7 +43,7 @@ _Avoid_: seen, viewed, done
 _In code_: `storedReadMarks` (`src/viewer/read-marks.ts`)
 
 **Look first**:
-The few findings that need a look, ranked so the blind spots come first, then direct dependency changes, then what most depends on, then what changes most.
+The few findings that need a look, ranked so the blind spots come first, then direct dependency changes and risky migrations, then what most depends on, then what changes most.
 _Avoid_: top findings, priorities
 
 **Dependency change**:

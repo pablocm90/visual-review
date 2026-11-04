@@ -118,6 +118,28 @@ test('a lockfile not read is a blind spot, ahead of the direct dependencies', ()
   ).toStrictEqual(['dependencies:not-read:yarn.lock', 'dependencies:Cargo.lock:anyhow']);
 });
 
+test('a migration not read is a blind spot, ahead of the risks of those that were', () => {
+  const migration = (id: string): Finding => ({
+    id,
+    dimension: 'schema',
+    level: 'look',
+    title: id,
+  });
+
+  expect(
+    lookFirst({
+      findings: [
+        migration('schema:db/migrate/1_a.rb:column users.name removed'),
+        migration('schema:not-read:db/migrate/2_b.rb'),
+      ],
+      metrics: {},
+    }).map(finding => finding.id),
+  ).toStrictEqual([
+    'schema:not-read:db/migrate/2_b.rb',
+    'schema:db/migrate/1_a.rb:column users.name removed',
+  ]);
+});
+
 const boxed = (id: string, parent: string) => ({
   id,
   kind: 'module' as const,
