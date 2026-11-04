@@ -506,6 +506,17 @@ describe('package-lock.json', () => {
     },
   );
 
+  test('a peer dependency the project declares is direct', () => {
+    expect(
+      read(
+        lock(3, {
+          '': { name: 'shop', version: '1.0.0', peerDependencies: { react: '^19.0.0' } },
+          'node_modules/react': { version: '19.3.0', peer: true },
+        }),
+      ).direct,
+    ).toEqual(['react']);
+  });
+
   test('an alias reads by its real name, and a link is no package and not direct', () => {
     expect(
       read(
