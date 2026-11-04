@@ -13,7 +13,7 @@ import { type AnchoredSymbol, anchoredSymbols, decisionsOf } from '../core/symbo
 import { anchorKey } from './anchors.ts';
 import { ChangedSinceTag, sinceLabel, useIsChangedSince } from './changed-since.tsx';
 import { CommentOn, type Comments } from './comment-field.tsx';
-import { SaidBefore } from './said-before.tsx';
+import { SaidBefore, useHasSaid } from './said-before.tsx';
 
 type Group = readonly [string, (symbol: SymbolStatement) => boolean];
 
@@ -182,10 +182,13 @@ const LogicLines = ({
 
 export const useHasSymbolNews = () => {
   const isChangedSince = useIsChangedSince();
+  const hasSaid = useHasSaid();
   return (file: SymbolFile): boolean =>
     'unreadable' in file ||
     changedSymbolCount([file]) > 0 ||
-    anchoredSymbols(file.node, file.symbols).some(({ id }) => isChangedSince('symbols', id));
+    anchoredSymbols(file.node, file.symbols).some(
+      ({ id }) => isChangedSince('symbols', id) || hasSaid({ kind: 'symbol', id }),
+    );
 };
 
 const SymbolList = ({
@@ -248,6 +251,7 @@ const SymbolFiles = ({ file, ...places }: Places & { readonly file: SymbolFile }
   const symbols = 'symbols' in file ? anchoredSymbols(file.node, file.symbols) : [];
   const quiet = symbols.filter(({ item }) => isQuiet(item));
   const isChangedSince = useIsChangedSince();
+  const hasSaid = useHasSaid();
   return (
     <>
       {'unreadable' in file && (
@@ -270,7 +274,8 @@ const SymbolFiles = ({ file, ...places }: Places & { readonly file: SymbolFile }
           open={quiet.some(
             ({ id }) =>
               places.comments[anchorKey({ kind: 'symbol', id })] !== undefined ||
-              isChangedSince('symbols', id),
+              isChangedSince('symbols', id) ||
+              hasSaid({ kind: 'symbol', id }),
           )}
         >
           <summary>{quiet.length} unchanged</summary>

@@ -71,6 +71,11 @@ export const LastSaidOnPage = ({ since, children }: LastSaidOnPageProps) => {
   return <SaidOnThisPage.Provider value={said}>{children}</SaidOnThisPage.Provider>;
 };
 
+export const useHasSaid = () => {
+  const { byAnchor } = useContext(SaidOnThisPage);
+  return (on: Pick<Comment['anchor'], 'kind' | 'id'>): boolean => byAnchor.has(anchorKey(on));
+};
+
 export const SaidBefore = ({ on }: { readonly on: Pick<Comment['anchor'], 'kind' | 'id'> }) => {
   const { byAnchor, compared } = useContext(SaidOnThisPage);
   const comment = byAnchor.get(anchorKey(on));

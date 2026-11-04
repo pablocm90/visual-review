@@ -6251,3 +6251,41 @@ test('a last comment on a symbol or a logic line shows under it on the Symbols t
   ).toBeTruthy();
   expect(within(decision).queryByText('Rename this.')).toBeNull();
 });
+
+test('a last comment on an unchanged symbol brings up the Symbols tab and opens the unchanged ones', async () => {
+  const user = userEvent.setup();
+  const page = pageWithAnUnchangedSymbol();
+  render(
+    <ReviewPage
+      review={{
+        ...page,
+        symbols: [
+          symbolsOf('web/file/tax.ts', [
+            {
+              name: 'round',
+              kind: 'function',
+              exported: { base: false, head: false },
+              change: 'unchanged',
+            },
+          ]),
+        ],
+        sinceReview: {
+          ...sinceReview,
+          comments: [
+            {
+              anchor: { kind: 'symbol', id: 'web/file/tax.ts#round' },
+              kind: 'question',
+              text: 'Why not?',
+            },
+          ],
+        },
+      }}
+    />,
+  );
+
+  await user.click(await screen.findByRole('button', { name: 'tax.ts: modified' }));
+  await user.click(within(inspector()).getByRole('tab', { name: /^Symbols/ }));
+
+  expect(unchangedSymbols().hasAttribute('open')).toBe(true);
+  expect(within(unchangedSymbols()).getByText('Why not?')).toBeTruthy();
+});
