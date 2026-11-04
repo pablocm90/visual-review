@@ -5466,6 +5466,27 @@ test("'Since last review' draws an edge the PR has put back, though unchanged ed
   expect(buttonsIn(web)).not.toContain('cart.ts → invoice.ts: unchanged');
 });
 
+test("'Since last review' with only what it can't draw says that, not that nothing changed", async () => {
+  const user = userEvent.setup();
+  render(
+    <ReviewPage
+      review={pageWith({
+        ...review,
+        sinceReview: {
+          ...sinceReview,
+          changed: { nodes: [], edges: [], dropped: { nodes: ['rust/crate/spike'], edges: [] } },
+        },
+      })}
+    />,
+  );
+  await screen.findByRole('group', { name: 'rust' });
+
+  await user.click(shown('Since last review'));
+
+  await screen.findByText(/so not drawn/);
+  expect(screen.queryByText(/Nothing in the graph changed/)).toBeNull();
+});
+
 test("'Since last review' names what was added then and has since gone, which it can't draw", async () => {
   const user = userEvent.setup();
   render(

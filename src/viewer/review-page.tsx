@@ -1530,12 +1530,13 @@ export const ReviewPage = ({ review, notes, send }: ReviewPageProps) => {
               <div className="graph-key">
                 {colouring === 'change' ? <Legend /> : <ScaleLegend colouring={colouring} />}
               </div>
-              {dropped.length > 0 && (
+              {dropped.length > 0 ? (
                 <p className="caveat">
                   Removed since the last review, so not drawn: {dropped.join(', ')}
                 </p>
+              ) : (
+                drawn.nodes.length === 0 && <NothingDrawn scope={scope} />
               )}
-              {drawn.nodes.length === 0 && <NothingDrawn scope={scope} />}
               {layout && (
                 <div
                   className="frame"
