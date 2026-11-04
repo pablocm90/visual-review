@@ -688,6 +688,8 @@ describe('yarn.lock', () => {
 
 remeda@^1.0.0:
   version "1.61.0"
+  uid abc
+  registry yarn
 
 remeda@^2.0.0, remeda@^2.1.0:
   version "2.51.0"
@@ -720,5 +722,23 @@ remeda@^2.0.0, remeda@^2.1.0:
     },
   ])('$what is not read, naming its format', ({ text, format }) => {
     expect(() => read(text)).toThrow(new Error(`yarn.lock ${format}`));
+  });
+
+  test.for([
+    { what: 'a field before the version', blocks: 'zod@^4:\n  resolved "x"\n  version "4.0.0"' },
+    { what: 'a blank line before the version', blocks: 'zod@^4:\n\n  version "4.0.0"' },
+    { what: 'a comment before the version', blocks: 'zod@^4:\n# note\n  version "4.0.0"' },
+    { what: 'a block with no version', blocks: 'hidden@^1:\n  resolved "x"' },
+    { what: 'a second version', blocks: 'zod@^4:\n  version "4.0.0"\n  version "5.0.0"' },
+    { what: 'a key with no space after its comma', blocks: 'a@1,b@1:\n  version "1.0.0"' },
+    { what: 'a key with no range', blocks: 'hidden:\n  version "1.0.0"' },
+    { what: 'a scoped key with no range', blocks: '"@a/hidden":\n  version "1.0.0"' },
+    { what: 'a name field', blocks: 'zod@^4:\n  version "4.0.0"\n  name hidden' },
+    { what: 'an unknown field', blocks: 'zod@^4:\n  version "4.0.0"\n  extra "x"' },
+    { what: 'a block at another indent', blocks: 'zod@^4:\n\tversion "4.0.0"' },
+    { what: 'a space-only line', blocks: 'zod@^4:\n  version "4.0.0"\n  ' },
+    { what: 'a scalar at the top level', blocks: 'zod@^4 "4.0.0"' },
+  ])('$what, which yarn might read but this reader would misread, is not read', ({ blocks }) => {
+    expect(() => read(v1(blocks))).toThrow(new Error('yarn.lock format not recognised'));
   });
 });
