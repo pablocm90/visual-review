@@ -2,6 +2,13 @@
 
 What changed in each release of `@pablocm90/visual-review`, newest first. Versions follow [semver](https://semver.org); while it is 0.x, a minor version may change the exported types.
 
+## Unreleased
+
+### Added
+
+- On a PR's later round, Claude's answers show under what you said: Done with its commit, Answered or Declined, each with its text, in the Last review section and under the anchor. The section also lists what Claude changed that nothing asked for, going to each part or edge. The plugin's skill writes both on the round after it acts on a review.
+- Notes take `answers`, keyed `<kind> <id>` by the last review's anchors, and `unasked`, keyed as `notes` are. `--notes` refuses an answer whose anchor the last review doesn't hold (`unknown comment <kind> <id>`), an `unasked` id the graph doesn't have, and `unasked` on a page with no last review. The notes version stays 1.
+
 ## 0.23.0 — 2026-11-05
 
 ### Added
