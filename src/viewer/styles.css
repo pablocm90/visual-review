@@ -2416,7 +2416,6 @@ main:has(> .review-tray) {
 }
 
 .tests .test .comment-kind,
-.tests .test .said-before,
 .tests .test .comment {
   text-indent: 0;
 }
@@ -2570,4 +2569,8 @@ main:has(> .review-tray) {
   color: var(--muted);
   font-size: 12px;
   overflow-wrap: anywhere;
+}
+
+.tests .test .said-before {
+  text-indent: 0;
 }
