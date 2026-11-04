@@ -188,6 +188,21 @@ const testsSinceOf = ({ since, atHead, atReview }: TestsSinceOptions) => {
   };
 };
 
+type WithoutCommentOptions = {
+  readonly nodes: ReadonlyArray<string>;
+  readonly tree: Compared['tree'];
+  readonly comments: ReadonlyArray<PreviousComment>;
+};
+
+const withoutComment = ({ nodes, tree, comments }: WithoutCommentOptions) => {
+  const commentedOn = comments.flatMap(({ target }) => target ?? []);
+  return nodes
+    .filter(id => !nodes.some(other => other !== id && isInside(tree, other, id)))
+    .filter(
+      id => !commentedOn.some(target => isInside(tree, id, target) || isInside(tree, target, id)),
+    );
+};
+
 export const sinceReviewOf = ({
   reviewed,
   after,
@@ -263,15 +278,10 @@ export const sinceReviewOf = ({
     named,
   };
   const comments = previousComments({ comments: reviewed.comments, targets, findings, compared });
-  const commentedOn = comments.flatMap(({ target }) => target ?? []);
   return {
     ...saidIn(reviewed, comments),
     changed,
-    changedWithoutComment: changed.nodes
-      .filter(id => !changed.nodes.some(other => other !== id && isInside(tree, other, id)))
-      .filter(
-        id => !commentedOn.some(target => isInside(tree, id, target) || isInside(tree, target, id)),
-      ),
+    changedWithoutComment: withoutComment({ nodes: changed.nodes, tree, comments }),
     stillRead: reviewed.read.filter(id => !partChanged(compared, targets, id)),
   };
 };
