@@ -79,23 +79,39 @@ const comparedPair = (old: ReadTest | undefined, test: ReadTest): ReadonlyArray<
   ];
 };
 
+type Twinned = { readonly test: ReadTest; readonly twin: number };
+
+const twinned = (tests: ReadonlyArray<ReadTest>): ReadonlyArray<Twinned> =>
+  tests.map((test, index) => ({
+    test,
+    twin: tests.slice(0, index).filter(other => sameTest(other, test)).length,
+  }));
+
+const sameTwin = (one: Twinned, other: Twinned): boolean =>
+  sameTest(one.test, other.test) && one.twin === other.twin;
+
 const compared = (
-  before: ReadonlyArray<ReadTest>,
-  after: ReadonlyArray<ReadTest>,
+  beforeTests: ReadonlyArray<ReadTest>,
+  afterTests: ReadonlyArray<ReadTest>,
 ): ReadonlyArray<TestStatement> => {
-  const kept = (test: ReadTest): boolean => after.some(candidate => sameTest(candidate, test));
-  const removedAfter = (anchor: ReadTest | undefined): ReadonlyArray<TestStatement> =>
+  const before = twinned(beforeTests);
+  const after = twinned(afterTests);
+  const kept = (test: Twinned): boolean => after.some(candidate => sameTwin(candidate, test));
+  const removedAfter = (anchor: Twinned | undefined): ReadonlyArray<TestStatement> =>
     allMarked(
-      before.filter(
-        (test, index) => !kept(test) && before.slice(0, index).findLast(kept) === anchor,
-      ),
+      before
+        .filter((test, index) => !kept(test) && before.slice(0, index).findLast(kept) === anchor)
+        .map(({ test }) => test),
       'removed',
     );
   return [
     ...removedAfter(undefined),
     ...after.flatMap(test => {
-      const old = before.find(candidate => sameTest(candidate, test));
-      return [...comparedPair(old, test), ...(old === undefined ? [] : removedAfter(old))];
+      const old = before.find(candidate => sameTwin(candidate, test));
+      return [
+        ...comparedPair(old?.test, test.test),
+        ...(old === undefined ? [] : removedAfter(old)),
+      ];
     }),
   ];
 };
