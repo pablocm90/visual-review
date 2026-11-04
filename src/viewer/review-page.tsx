@@ -609,6 +609,7 @@ const DRAFT_TABS: Partial<Record<Comment['anchor']['kind'], InspectorTab>> = {
   symbol: 'symbols',
   decision: 'symbols',
   test: 'tests',
+  line: 'diff',
 };
 
 const tabOfDraft = ({ kind }: Comment['anchor']): InspectorTab => DRAFT_TABS[kind] ?? 'note';

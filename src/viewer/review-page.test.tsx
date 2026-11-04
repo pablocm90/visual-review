@@ -5116,6 +5116,32 @@ test("a served page's diff line takes a comment on its side and number, quoting 
   expect(toggles()).toStrictEqual([]);
 });
 
+test("the tray goes to a diff line's draft on the Diff tab", async () => {
+  const user = userEvent.setup();
+  render(
+    <ReviewPage
+      review={pageWithPatch('@@ -1 +1 @@', '-const x = 1;', '+const x = 2;')}
+      send={vi.fn(async () => {})}
+    />,
+  );
+  const name = 'x.ts:1 "const x = 2;"';
+
+  await user.click(await screen.findByRole('button', { name: 'x.ts: modified' }));
+  await user.click(within(inspector()).getByRole('tab', { name: 'Diff' }));
+  await user.click(within(diffTab()).getByRole('button', { name: `Comment on ${name}` }));
+  await write(user, within(diffTab()).getByRole('textbox', { name: 'Your comment' }), 'Why 2?');
+  await user.click(screen.getByRole('button', { name: 'Close inspector' }));
+  await openReview(user);
+
+  await user.click(
+    within(screen.getByRole('list', { name: 'Drafts' })).getByRole('button', { name }),
+  );
+  expect(within(diffTab()).getByRole('textbox', { name: 'Your comment' })).toHaveProperty(
+    'value',
+    'Why 2?',
+  );
+});
+
 const pageWithUndrawnFile = () =>
   pageWith({
     ...review,
