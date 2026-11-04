@@ -36,13 +36,7 @@ import {
   visibleDiff,
   visibleNodeOf,
 } from '../core/visible-diff.ts';
-import {
-  anchorKey,
-  anchorName,
-  lineAnchor,
-  placeOfLine,
-  rowOfLine,
-} from './anchors.ts';
+import { anchorKey, anchorName, lineAnchor, placeOfLine, rowOfLine } from './anchors.ts';
 import { ChangedSinceMarks, ChangedSinceTag, useIsChangedSince } from './changed-since.tsx';
 import { ColourBy, type Colouring, ScaleLegend, type Shade, shadeOf } from './colour-by.tsx';
 import { CommentField, CommentOn, type Comments } from './comment-field.tsx';
