@@ -1,4 +1,14 @@
-import { mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync } from 'node:fs';
+import {
+  chmodSync,
+  mkdirSync,
+  mkdtempSync,
+  readdirSync,
+  readFileSync,
+  rmSync,
+  statSync,
+  symlinkSync,
+  writeFileSync,
+} from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { expect, test } from 'vitest';
@@ -28,4 +38,28 @@ test('a write that fails leaves nothing of its own beside the path', async () =>
   await expect(writeAnew({ path, content: 'x' })).rejects.toThrow('EISDIR');
 
   expect(readdirSync(directory.path)).toEqual(['taken']);
+});
+
+test('rewriting a file keeps the mode someone gave it', async () => {
+  using directory = folder();
+  const path = join(directory.path, 'page.html');
+  writeFileSync(path, 'before');
+  chmodSync(path, 0o600);
+
+  await writeAnew({ path, content: 'after' });
+
+  expect(statSync(path).mode & 0o777).toBe(0o600);
+});
+
+test('replacing a link takes the mode of neither the link nor what it points at', async () => {
+  using directory = folder();
+  const path = join(directory.path, 'page.html');
+  const elsewhere = join(directory.path, 'elsewhere');
+  writeFileSync(elsewhere, '');
+  chmodSync(elsewhere, 0o755);
+  symlinkSync(elsewhere, path);
+
+  await writeAnew({ path, content: 'after' });
+
+  expect(statSync(path).mode & 0o111).toBe(0);
 });
