@@ -36,23 +36,32 @@ const isAddedExport = ({ exported }: SymbolStatement): boolean =>
 const raisesItsOwn = (statement: SymbolStatement): boolean =>
   removalOf(statement, id => id) !== undefined || isAddedExport(statement);
 
-const unheld = (statements: ReadonlyArray<SymbolStatement>): ReadonlyArray<SymbolStatement> => {
-  const holders = new Set(statements.filter(raisesItsOwn).map(qualified));
-  return statements.filter(({ scope }) => scope === undefined || !holders.has(scope));
+const unheld = (symbols: ReadonlyArray<AnchoredSymbol>): ReadonlyArray<AnchoredSymbol> => {
+  const holders = new Set(
+    symbols
+      .map(({ item }) => item)
+      .filter(raisesItsOwn)
+      .map(qualified),
+  );
+  return symbols.filter(({ item: { scope } }) => scope === undefined || !holders.has(scope));
 };
 
 type Placed = {
   readonly node: string;
-  readonly statement: SymbolStatement;
+  readonly symbol: AnchoredSymbol;
   readonly pathOf: PathOf;
 };
 
-const findingOf = ({ node, statement, pathOf }: Placed): Finding | undefined => {
+const findingOf = ({
+  node,
+  symbol: { item: statement, id },
+  pathOf,
+}: Placed): Finding | undefined => {
   const removal = removalOf(statement, pathOf);
   const on = { dimension: 'api', level: 'look', target: node } as const;
   if (removal !== undefined)
     return {
-      id: `api:removed:${node}#${removal.former}`,
+      id: `api:removed:${id}`,
       ...on,
       title: `${statement.kind} ${removal.former} ${removal.how}`,
       ...(removal.detail === undefined ? {} : { detail: removal.detail }),
@@ -61,14 +70,14 @@ const findingOf = ({ node, statement, pathOf }: Placed): Finding | undefined => 
   const name = qualified(statement);
   if (isAddedExport(statement))
     return {
-      id: `api:added:${node}#${name}`,
+      id: `api:added:${id}`,
       ...on,
       level: 'info',
       title: `${statement.kind} ${name} ${addedHow(statement, pathOf)}`,
     };
   if (signature === undefined || exported.base !== true) return undefined;
   return {
-    id: `api:signature:${node}#${name}`,
+    id: `api:signature:${id}`,
     ...on,
     title: `${statement.kind} ${name}'s signature changed`,
     detail: `${signature.base} → ${signature.head}`,
@@ -205,8 +214,8 @@ export const symbolFindings = ({ files, nodes }: SymbolFindingsOptions): Readonl
           },
         ]
       : [
-          ...unheld(file.symbols).flatMap(
-            statement => findingOf({ node: file.node, statement, pathOf }) ?? [],
+          ...unheld(anchoredSymbols(file.node, file.symbols)).flatMap(
+            symbol => findingOf({ node: file.node, symbol, pathOf }) ?? [],
           ),
           ...exportsFinding(file),
           ...anchoredSymbols(file.node, file.symbols).flatMap(symbol =>
