@@ -5733,6 +5733,14 @@ test('a later round marks the test changed since the last review, not its namesa
   expect(within(since).getByText('changed since')).toBeTruthy();
   const before = within(testsTab()).getByRole('listitem', { name: 'adds tax: edited' });
   expect(within(before).queryByText('changed since')).toBeNull();
+
+  location.hash = '#tests';
+  expect(
+    await within(await screen.findByRole('region', { name: 'Test changes' })).findByRole(
+      'listitem',
+      { name: 'adds tax: added, changed since' },
+    ),
+  ).toBeTruthy();
 });
 
 test('a later round marks a patch whose file changed since the last review, not one changed only before it', async () => {

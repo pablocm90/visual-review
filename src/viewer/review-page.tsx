@@ -541,7 +541,7 @@ const Patch = ({
     <details aria-label={path} open={open || holdsDraft} ref={top}>
       <summary>
         {path}
-        {marked && <ChangedSinceTag />}
+        <ChangedSinceTag marked={marked} />
       </summary>
       <pre>
         {lines.map((line, index) => (
@@ -1323,7 +1323,7 @@ const GraphCaveat = ({ since, nothingDrawn }: GraphCaveatProps) => {
   );
 };
 
-const Page = ({ review, notes, send }: ReviewPageProps) => {
+export const ReviewPage = ({ review, notes, send }: ReviewPageProps) => {
   const tab = useTab();
   const [layout, setLayout] = useState<Layout>();
   const { frameElement, placed, frameProps, zoomAtCentre, fitToFrame, centre, pin } =
@@ -1609,41 +1609,45 @@ const Page = ({ review, notes, send }: ReviewPageProps) => {
                 </div>
               )}
             </div>
-            <SidePanel
-              review={review}
-              selected={selected}
-              node={selectedNode}
-              outside={outside}
-              note={selectedNote}
-              found={selectedFindings}
-              comments={comments}
-              onComment={comment}
-              answers={answers}
-              onAnswer={answer}
-              chosenWidth={chosenWidth}
-              onChooseWidth={setChosenWidth}
-              graphLeft={graphLeft}
-              onCloseOutside={closeOutside}
-              onCloseInspector={closeInspector}
-              onGoTo={goTo}
-              picked={inspectorTab}
-              onPick={setInspectorTab}
-              landing={landing}
-              onLand={line => landOn(selected, line)}
-            />
+            <ChangedSinceMarks value={changedSinceIn(review)}>
+              <SidePanel
+                review={review}
+                selected={selected}
+                node={selectedNode}
+                outside={outside}
+                note={selectedNote}
+                found={selectedFindings}
+                comments={comments}
+                onComment={comment}
+                answers={answers}
+                onAnswer={answer}
+                chosenWidth={chosenWidth}
+                onChooseWidth={setChosenWidth}
+                graphLeft={graphLeft}
+                onCloseOutside={closeOutside}
+                onCloseInspector={closeInspector}
+                onGoTo={goTo}
+                picked={inspectorTab}
+                onPick={setInspectorTab}
+                landing={landing}
+                onLand={line => landOn(selected, line)}
+              />
+            </ChangedSinceMarks>
           </div>
         </>
       )}
       {tab === 'metrics' && <MetricsScreen review={review} onGoTo={goToOnStructure} />}
       {tab === 'tests' && (
-        <TestsScreen
-          review={review}
-          notes={notes}
-          selected={selectedNode}
-          onGoTo={goToOnStructure}
-          comments={comments}
-          onComment={comment}
-        />
+        <ChangedSinceMarks value={changedSinceIn(review)}>
+          <TestsScreen
+            review={review}
+            notes={notes}
+            selected={selectedNode}
+            onGoTo={goToOnStructure}
+            comments={comments}
+            onComment={comment}
+          />
+        </ChangedSinceMarks>
       )}
       {send && (
         <ReviewTray
@@ -1675,9 +1679,3 @@ const Page = ({ review, notes, send }: ReviewPageProps) => {
     </main>
   );
 };
-
-export const ReviewPage = (props: ReviewPageProps) => (
-  <ChangedSinceMarks value={changedSinceIn(props.review)}>
-    <Page {...props} />
-  </ChangedSinceMarks>
-);

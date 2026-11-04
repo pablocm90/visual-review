@@ -68,7 +68,7 @@ const TestLine = ({
       <span className="test-name">{test.name}</span>
       {test.label && <span className="label">{test.label}</span>}
       {moved && <span className="moved">{moved.text}</span>}
-      {marked && <ChangedSinceTag />}
+      <ChangedSinceTag marked={marked} />
       {onComment && (
         <CommentOn
           name={test.trail}

@@ -12,4 +12,5 @@ export const useIsChangedSince = () => {
 export const sinceLabel = (label: string, marked: boolean): string =>
   marked ? `${label}, changed since` : label;
 
-export const ChangedSinceTag = () => <span className="changed-since">changed since</span>;
+export const ChangedSinceTag = ({ marked }: { readonly marked: boolean }) =>
+  marked ? <span className="changed-since">changed since</span> : null;

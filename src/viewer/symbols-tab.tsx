@@ -162,7 +162,7 @@ const LogicLines = ({
                 <LogicText line={line} />
               </button>
             )}
-            {marked && <ChangedSinceTag />}
+            <ChangedSinceTag marked={marked} />
             {onComment && (
               <CommentOn
                 name={logicLabel(line)}
@@ -206,7 +206,7 @@ const SymbolList = ({
           {exportMarkOf(symbol) !== undefined && (
             <span className="export-mark"> {exportMarkOf(symbol)}</span>
           )}
-          {isChangedSince('symbols', id) && <ChangedSinceTag />}
+          <ChangedSinceTag marked={isChangedSince('symbols', id)} />
           <Origin symbol={symbol} {...places} />
           {symbol.signature && (
             <span className="signature">
