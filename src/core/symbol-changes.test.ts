@@ -461,3 +461,58 @@ test.each([
 ])('$kind: a file with $change changed', ({ base, head, kind }) => {
   expect(symbolChanges({ before: read(...base), after: read(...head) }).kind).toBe(kind);
 });
+
+const accessorChanges = (...head: ReadonlyArray<string>) =>
+  symbolChanges({
+    before: read(
+      'export class O {',
+      '  get value() { if (!a) return 1; return 2; }',
+      '  set value(v) { z(v); }',
+      '}',
+    ),
+    after: read('export class O {', ...head, '}'),
+  }).symbols.flatMap(({ kind, name, change, exported, signature, logic }) =>
+    name === 'value' ? [{ kind, change, exported, signature, logic }] : [],
+  );
+
+test("a getter and its setter each read against their own side, so neither takes on the other's signature or logic", () => {
+  expect(
+    accessorChanges('  get value() { if (!a) return 1; return 2; }', '  set value(v) { z(v); }'),
+  ).toStrictEqual([
+    {
+      kind: 'getter',
+      change: 'unchanged',
+      exported: { base: true, head: true },
+      signature: undefined,
+      logic: undefined,
+    },
+    {
+      kind: 'setter',
+      change: 'unchanged',
+      exported: { base: true, head: true },
+      signature: undefined,
+      logic: undefined,
+    },
+  ]);
+});
+
+test("an edited setter's logic lines read against the base's setter, not its getter", () => {
+  const [getter, setter] = accessorChanges(
+    '  get value() { if (!a) return 1; return 2; }',
+    '  set value(v) { if (!v) return; z(v); }',
+  );
+
+  expect(getter?.change).toBe('unchanged');
+  expect(setter?.logic?.map(({ change, head }) => ({ change, head }))).toStrictEqual([
+    { change: 'added', head: 'if (!v) return' },
+  ]);
+});
+
+test('removing a getter reports the getter removed and leaves its setter unchanged', () => {
+  expect(
+    accessorChanges('  set value(v) { z(v); }').map(({ kind, change }) => ({ kind, change })),
+  ).toStrictEqual([
+    { kind: 'setter', change: 'unchanged' },
+    { kind: 'getter', change: 'removed' },
+  ]);
+});
