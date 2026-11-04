@@ -5423,6 +5423,49 @@ test("with 'Since last review' shown and nothing drawn changed since, the graph 
   expect(await screen.findByText(/changed since the last review/)).toBeTruthy();
 });
 
+test("'Since last review' draws an edge the PR has put back, though unchanged edges otherwise merge", async () => {
+  const user = userEvent.setup();
+  render(
+    <ReviewPage
+      review={pageWith({
+        range: review.range,
+        diff: {
+          nodes: [
+            { id: 'web', kind: 'stack', label: 'web', path: '', state: 'unchanged' },
+            webModule('orders'),
+            webModule('billing'),
+            webFile('orders', 'cart.ts'),
+            webFile('billing', 'invoice.ts'),
+          ],
+          edges: [webImport('orders/cart.ts', 'billing/invoice.ts', 'unchanged')],
+        },
+        sinceReview: {
+          ...sinceReview,
+          changed: {
+            ...sinceReview.changed,
+            nodes: [],
+            edges: ['web/file/orders/cart.ts -> web/file/billing/invoice.ts'],
+          },
+        },
+      })}
+    />,
+  );
+  await screen.findByRole('group', { name: 'Show' });
+
+  await user.click(shown('Since last review'));
+
+  const web = await screen.findByRole('group', { name: 'web' });
+  await user.click(within(web).getByRole('button', { name: 'Expand orders' }));
+  await user.click(await within(web).findByRole('button', { name: 'Expand billing' }));
+
+  await waitFor(() => expect(buttonsIn(web)).toContain('cart.ts → invoice.ts: unchanged'));
+
+  await showEverything(user);
+
+  await waitFor(() => expect(buttonsIn(web)).toContain('orders → billing: unchanged'));
+  expect(buttonsIn(web)).not.toContain('cart.ts → invoice.ts: unchanged');
+});
+
 test("'Since last review' names what was added then and has since gone, which it can't draw", async () => {
   const user = userEvent.setup();
   render(

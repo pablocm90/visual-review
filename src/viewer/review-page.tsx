@@ -21,7 +21,7 @@ import { type Note, type ReviewNotes, visibleNotes } from '../core/notes.ts';
 import { type PageData, UNCOMMITTED } from '../core/page.ts';
 import type { SymbolFile } from '../core/read-range.ts';
 import type { Answer, Comment, Review } from '../core/review.ts';
-import type { SinceReview } from '../core/since-review.ts';
+import type { ChangedSince, SinceReview } from '../core/since-review.ts';
 import type { TestFile } from '../core/test-changes.ts';
 import { testsAlongside } from '../core/tests-alongside.ts';
 import {
@@ -1023,16 +1023,15 @@ const WIDER_SCOPES: ReadonlyArray<Scope> = [
   EVERYTHING,
 ];
 
-const scopesOf = ({ sinceReview }: PageData): ReadonlyArray<Scope> =>
-  sinceReview === undefined || !('changed' in sinceReview)
+const changedSinceIn = ({ sinceReview }: PageData): ChangedSince | undefined =>
+  sinceReview !== undefined && 'changed' in sinceReview ? sinceReview.changed : undefined;
+
+const scopesOf = (review: PageData): ReadonlyArray<Scope> => {
+  const changed = changedSinceIn(review);
+  return changed === undefined
     ? WIDER_SCOPES
-    : [
-        [
-          SINCE_LAST_REVIEW,
-          keeping => sinceLastReview({ ...keeping, changed: sinceReview.changed }),
-        ],
-        ...WIDER_SCOPES,
-      ];
+    : [[SINCE_LAST_REVIEW, keeping => sinceLastReview({ ...keeping, changed })], ...WIDER_SCOPES];
+};
 
 type ShowProps = {
   readonly scopes: ReadonlyArray<Scope>;
@@ -1298,14 +1297,6 @@ const NothingDrawn = ({ scope }: { readonly scope: Scope }) => (
   </p>
 );
 
-const DroppedSince = ({ since }: { readonly since: SinceReview | undefined }) => {
-  const { nodes = [], edges = [] } = since && 'changed' in since ? since.changed.dropped : {};
-  const dropped = [...nodes, ...edges];
-  return dropped.length === 0 ? null : (
-    <p className="caveat">Removed since the last review, so not drawn: {dropped.join(', ')}</p>
-  );
-};
-
 export const ReviewPage = ({ review, notes, send }: ReviewPageProps) => {
   const tab = useTab();
   const [layout, setLayout] = useState<Layout>();
@@ -1342,11 +1333,18 @@ export const ReviewPage = ({ review, notes, send }: ReviewPageProps) => {
   const [railOpen, setRailOpen] = useState(false);
   const findings = findingsOf({ data: review, notes });
   const triaged = findings.filter(finding => picked === undefined || finding.dimension === picked);
+  const since = scope[0] === SINCE_LAST_REVIEW ? changedSinceIn(review) : undefined;
+  const dropped = since === undefined ? [] : [...since.dropped.nodes, ...since.dropped.edges];
   const drawn = useMemo(() => {
     const [, keep] = scope;
-    const atExpansion = drawnAt({ diff: review.diff, expanded, noted, allEdges });
+    const atExpansion = drawnAt({
+      diff: review.diff,
+      expanded,
+      noted: new Set([...noted, ...(since?.edges ?? [])]),
+      allEdges,
+    });
     return keep({ diff: review.diff, expanded, drawn: atExpansion });
-  }, [review, expanded, noted, allEdges, scope]);
+  }, [review, expanded, noted, allEdges, scope, since]);
   const shown = useMemo(
     () => visibleNotes({ diff: review.diff, expanded, notes: notes?.notes ?? {} }),
     [review, notes, expanded],
@@ -1532,7 +1530,11 @@ export const ReviewPage = ({ review, notes, send }: ReviewPageProps) => {
               <div className="graph-key">
                 {colouring === 'change' ? <Legend /> : <ScaleLegend colouring={colouring} />}
               </div>
-              {scope[0] === SINCE_LAST_REVIEW && <DroppedSince since={review.sinceReview} />}
+              {dropped.length > 0 && (
+                <p className="caveat">
+                  Removed since the last review, so not drawn: {dropped.join(', ')}
+                </p>
+              )}
               {drawn.nodes.length === 0 && <NothingDrawn scope={scope} />}
               {layout && (
                 <div
