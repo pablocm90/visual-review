@@ -98,6 +98,7 @@ const symbolsSinceOf = ({ since, atHead, atReview, named }: SymbolsSinceOptions)
   const kept = anchorsIn(since)
     .filter(({ item }) => !isQuiet(item))
     .filter(symbol => now.includes(symbol.id) || then.includes(formerId(symbol)));
+  const headDecisions = head.flatMap(symbol => decisionsOf(symbol).map(({ id }) => id));
   return {
     symbols: inTheHead(
       kept.map(({ id }) => id),
@@ -107,9 +108,10 @@ const symbolsSinceOf = ({ since, atHead, atReview, named }: SymbolsSinceOptions)
       kept.flatMap(symbol =>
         decisionsOf(symbol)
           .filter(({ line }) => line.change !== 'same')
+          .filter(({ line, id }) => line.head === undefined || headDecisions.includes(id))
           .map(({ id }) => id),
       ),
-      head.flatMap(symbol => decisionsOf(symbol).map(({ id }) => id)),
+      headDecisions,
     ),
   };
 };

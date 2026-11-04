@@ -2084,39 +2084,47 @@ const ifLine = (change: LogicLine['change'], base: string | undefined, head: str
     ...(head === undefined ? {} : { head }),
   });
 
+const editedWith = (logic: ReadonlyArray<LogicLine>) => fn('f', 'edited', { logic });
+
 test.for([
   {
     case: 'a line changed since, the same at the review',
     since: [ifLine('changed', 'if (a)', 'if (b)'), ifLine('same', 'if (c)', 'if (c)')],
-    head: [ifLine('changed', 'if (z)', 'if (b)'), ifLine('same', 'if (c)', 'if (c)')],
+    head: editedWith([ifLine('changed', 'if (z)', 'if (b)'), ifLine('same', 'if (c)', 'if (c)')]),
     decisions: ['web/file/a.ts#f#if (b)'],
     dropped: [],
   },
   {
     case: 'a line changed since that the head reads as the same, a revert',
     since: [ifLine('changed', 'if (a)', 'if (b)')],
-    head: [ifLine('same', 'if (b)', 'if (b)')],
+    head: editedWith([ifLine('same', 'if (b)', 'if (b)'), ifLine('added', undefined, 'if (c)')]),
     decisions: ['web/file/a.ts#f#if (b)'],
+    dropped: [],
+  },
+  {
+    case: 'a line changed since, still in a function the PR adds, which has no lines',
+    since: [ifLine('changed', 'if (a > 0)', 'if (a > 1)')],
+    head: fn('f', 'added'),
+    decisions: [],
     dropped: [],
   },
   {
     case: 'a line removed since, gone from the head',
     since: [ifLine('removed', 'if (gone)', undefined)],
-    head: [ifLine('added', undefined, 'if (other)')],
+    head: editedWith([ifLine('added', undefined, 'if (other)')]),
     decisions: [],
     dropped: ['web/file/a.ts#f#if (gone)'],
   },
 ])('changed since lists decisions: $case', ({ since, head, decisions, dropped }) => {
-  const edited = (logic: ReadonlyArray<LogicLine>) => [fn('f', 'edited', { logic })];
   const reading = readingWith({
     before: anchorGraph,
     after: anchorGraph,
     changedPaths: ['web/src/a.ts'],
-    symbols: [anchorFile('a.ts', edited(head))],
+    symbols: [anchorFile('a.ts', [head])],
     reviewed: reviewedAt({
       before: anchorGraph,
       changedPaths: ['web/src/a.ts'],
-      symbols: [anchorFile('a.ts', edited(since))],
+      symbols: [anchorFile('a.ts', [editedWith(since)])],
     }),
   });
 
