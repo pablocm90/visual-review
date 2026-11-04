@@ -113,10 +113,12 @@ const symbolsSinceOf = ({ since, atHead, atReview, named }: SymbolsSinceOptions)
     .filter(({ item }) => !isQuiet(item))
     .filter(symbol => now.includes(symbol.id) || then.includes(formerId(symbol)));
   const headDecisions = head.flatMap(symbol => decisionsOf(symbol).map(({ id }) => id));
+  const headSymbols = head.map(({ id }) => id);
   return {
+    held: { symbols: headSymbols, decisions: headDecisions },
     symbols: inTheHead(
       kept.map(({ id }) => id),
-      head.map(({ id }) => id),
+      headSymbols,
     ),
     decisions: inTheHead(
       kept.flatMap(symbol =>
@@ -238,6 +240,7 @@ export const sinceReviewOf = ({
         targets,
         compared: {
           changed,
+          held: anchors.held,
           commits: reviewed.commits,
           tree: [...side.before.nodes, ...after.nodes],
           named,

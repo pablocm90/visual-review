@@ -13,6 +13,7 @@ export type PreviousComment = Said & {
 
 type Compared = {
   readonly changed: ChangedSince;
+  readonly held: Pick<ChangedSince, 'symbols' | 'decisions'>;
   readonly commits: ReadonlyArray<Commit>;
   readonly tree: ReadonlyArray<Pick<GraphNode, 'id' | 'parent' | 'path'>>;
   readonly named: (id: string) => string;
@@ -59,19 +60,33 @@ const edgeChanged = (compared: Compared, targets: TargetsOf, id: string): boolea
   );
 };
 
-const markOf = (compared: Compared, targets: TargetsOf, { kind, id }: Said['anchor']) => {
-  const ends = endsOfId(id);
-  const changed =
-    kind === 'part'
-      ? partChanged(compared, targets, compared.named(id))
-      : edgeChanged(compared, targets, id);
-  return changed
-    ? { changedSince: commitsOn(compared, [...ends, ...ends.map(compared.named)]) }
+const nodesOf = ({ kind, id }: Said['anchor']): ReadonlyArray<string> =>
+  kind === 'part' || kind === 'edge' ? endsOfId(id) : [split(id, '#')[0]];
+
+const anchoredChanged = (compared: Compared, kind: 'symbols' | 'decisions', id: string): boolean =>
+  !compared.held[kind].includes(id) || compared.changed[kind].includes(id);
+
+const isChanged = (compared: Compared, targets: TargetsOf, { kind, id }: Said['anchor']) => {
+  if (kind === 'part') return partChanged(compared, targets, compared.named(id));
+  if (kind === 'edge') return edgeChanged(compared, targets, id);
+  return anchoredChanged(compared, kind === 'symbol' ? 'symbols' : 'decisions', id);
+};
+
+const markOf = (compared: Compared, targets: TargetsOf, anchor: Said['anchor']) => {
+  const nodes = nodesOf(anchor);
+  return isChanged(compared, targets, anchor)
+    ? { changedSince: commitsOn(compared, [...nodes, ...nodes.map(compared.named)]) }
     : {};
 };
 
 const targetIn = (targets: TargetsOf, id: string) =>
   endsOfId(id).every(end => isHeld(targets, end)) ? { target: id } : {};
+
+const headId = ({ kind, id }: Said['anchor'], named: (id: string) => string): string => {
+  if (kind === 'part' || kind === 'edge') return endsOfId(id).map(named).join(' -> ');
+  const [node, rest] = split(id, '#');
+  return `${named(node)}#${rest}`;
+};
 
 export const previousComments = ({
   comments,
@@ -80,10 +95,9 @@ export const previousComments = ({
 }: PreviousCommentsOptions): ReadonlyArray<PreviousComment> =>
   comments.map(comment => {
     const { anchor } = comment;
-    if (anchor.kind !== 'part' && anchor.kind !== 'edge') return comment;
-    const id = endsOfId(anchor.id)
-      .map(end => compared?.named(end) ?? end)
-      .join(' -> ');
+    if (anchor.kind === 'test' || anchor.kind === 'line' || anchor.kind === 'finding')
+      return comment;
+    const id = headId(anchor, compared?.named ?? (end => end));
     const target = anchorTarget({ ...anchor, id }, targets);
     return {
       ...comment,

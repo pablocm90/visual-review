@@ -2440,6 +2440,114 @@ const ifLine = (change: LogicLine['change'], base: string | undefined, head: str
 
 const editedWith = (logic: ReadonlyArray<LogicLine>) => fn('f', 'edited', { logic });
 
+const onSymbol = (id: string): Review['comments'][number] => ({
+  anchor: { kind: 'symbol', id },
+  kind: 'change',
+  text: 'Look at this',
+});
+
+const onDecision = (id: string, text: string): Review['comments'][number] => ({
+  anchor: { kind: 'decision', id, text },
+  kind: 'question',
+  text: 'Why this?',
+});
+
+test.for([
+  {
+    on: 'a symbol changed since',
+    comment: onSymbol('web/file/a.ts#f'),
+    since: [fn('f', 'edited')],
+    head: [fn('f', 'edited')],
+    changed: true,
+  },
+  {
+    on: 'a symbol as it was',
+    comment: onSymbol('web/file/a.ts#f'),
+    since: [fn('f', 'unchanged')],
+    head: [fn('f', 'edited')],
+    changed: false,
+  },
+  {
+    on: 'a symbol the head no longer holds',
+    comment: onSymbol('web/file/a.ts#f'),
+    since: [],
+    head: [fn('g', 'edited')],
+    changed: true,
+  },
+  {
+    on: 'a decision changed since',
+    comment: onDecision('web/file/a.ts#f#if (b)', 'if (b)'),
+    since: [editedWith([ifLine('changed', 'if (a)', 'if (b)')])],
+    head: [editedWith([ifLine('changed', 'if (z)', 'if (b)')])],
+    changed: true,
+  },
+  {
+    on: 'a decision as it was',
+    comment: onDecision('web/file/a.ts#f#if (b)', 'if (b)'),
+    since: [editedWith([ifLine('same', 'if (b)', 'if (b)')])],
+    head: [editedWith([ifLine('changed', 'if (z)', 'if (b)')])],
+    changed: false,
+  },
+  {
+    on: 'a decision the head no longer holds',
+    comment: onDecision('web/file/a.ts#f#if (b)', 'if (b)'),
+    since: [],
+    head: [editedWith([ifLine('changed', 'if (z)', 'if (c)')])],
+    changed: true,
+  },
+])('a previous comment on $on', ({ comment, since, head, changed }) => {
+  const commits = [commitOn('c1', 'web/src/a.ts'), commitOn('c2', 'web/src/b.ts')];
+  const previous = firstPrevious(
+    readingWith({
+      before: anchorGraph,
+      after: anchorGraph,
+      changedPaths: ['web/src/a.ts'],
+      symbols: [anchorFile('a.ts', head)],
+      reviewed: {
+        ...reviewedAt({
+          before: anchorGraph,
+          changedPaths: ['web/src/a.ts'],
+          symbols: [anchorFile('a.ts', since)],
+          pullRequest: { symbols: [anchorFile('a.ts', head)] },
+        }),
+        comments: [comment],
+        commits,
+      },
+    }),
+  );
+
+  expect(previous).toEqual({
+    ...comment,
+    target: 'web/file/a.ts',
+    ...(changed && { changedSince: [commitOn('c1', 'web/src/a.ts')] }),
+  });
+});
+
+test('a previous comment on a symbol in a file renamed since goes by the new file, with the commits on both', () => {
+  const previous = firstPrevious(
+    readingWith({
+      before: { nodes: [webStack], edges: [] },
+      after: { nodes: [webStack, webFile('new.ts')], edges: [] },
+      changedPaths: ['web/src/new.ts'],
+      symbols: [anchorFile('new.ts', [fn('f', 'edited')])],
+      reviewed: {
+        ...reviewedAt({
+          before: { nodes: [webStack, webFile('old.ts')], edges: [] },
+          changedPaths: ['web/src/old.ts', 'web/src/new.ts'],
+          renames: [{ from: 'web/src/old.ts', to: 'web/src/new.ts' }],
+        }),
+        comments: [onSymbol('web/file/old.ts#f')],
+        commits: [commitOn('c1', 'web/src/old.ts'), commitOn('c2', 'web/src/new.ts')],
+      },
+    }),
+  );
+
+  expect(previous).toMatchObject({
+    target: 'web/file/new.ts',
+    changedSince: [commitOn('c1', 'web/src/old.ts'), commitOn('c2', 'web/src/new.ts')],
+  });
+});
+
 test.for([
   {
     case: 'a line changed since, the same at the review',
