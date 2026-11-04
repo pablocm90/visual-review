@@ -43,6 +43,7 @@ const readingWith = (overrides: Partial<RangeReading>): RangeReading => ({
   changedPaths: ['web/src/a.ts'],
   renames: [],
   patches: [],
+  dependencyChanges: [],
   tests: [],
   symbols: [],
   symbolsNotRead: [],
