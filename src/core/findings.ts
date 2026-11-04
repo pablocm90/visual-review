@@ -59,7 +59,7 @@ const metricTitle = (finding: MetricFinding) => {
   return `hotspot, churn ${move(base?.churn, head.churn)} and cyclomatic ${move(base?.cyclomatic, head.cyclomatic)}, over ${threshold.churn} and ${threshold.cyclomatic}`;
 };
 
-const counted = (count: number, one: string, many: string) =>
+export const counted = (count: number, one: string, many: string) =>
   `${count} ${count === 1 ? one : many}`;
 
 type RaisedOptions = {

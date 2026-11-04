@@ -453,6 +453,47 @@ test("a finding in the rail is answered Fix this, It's fine or Explain, only the
   );
 });
 
+test('a split finding has a button per group in the rail, naming its size and going to its first part, and it takes an answer', async () => {
+  const user = userEvent.setup();
+  const sent = vi.fn(async () => {});
+  render(
+    <ReviewPage
+      review={pageWith({
+        ...review,
+        findings: [
+          {
+            id: 'cohesion:split',
+            dimension: 'cohesion',
+            level: 'info',
+            title: 'may be 2 independent changes',
+            detail: 'Read from the graph.',
+            groups: [['rust/crate/application', 'rust/crate/domain', 'web'], ['rust/crate/domain']],
+          },
+        ],
+      })}
+      send={sent}
+    />,
+  );
+  await screen.findByRole('group', { name: 'rust' });
+  await user.click(screen.getByRole('button', { name: 'Show 1 finding' }));
+  const cohesion = within(screen.getByRole('region', { name: 'Cohesion' }));
+
+  await user.click(cohesion.getByRole('button', { name: '3 parts, from application' }));
+  expect(within(inspector()).getByRole('heading', { name: 'application' })).not.toBeNull();
+  await user.click(cohesion.getByRole('button', { name: '1 part, from domain' }));
+  expect(within(inspector()).getByRole('heading', { name: 'domain' })).not.toBeNull();
+
+  await user.click(cohesion.getByRole('button', { name: 'Fix this' }));
+  await openReview(user);
+  await user.click(screen.getByRole('button', { name: 'Send to Claude' }));
+  expect(sent).toHaveBeenCalledExactlyOnceWith(
+    sentReview({
+      verdict: 'request-changes',
+      comments: [{ anchor: { kind: 'finding', id: 'cohesion:split' }, kind: 'fix' }],
+    }),
+  );
+});
+
 test("It's fine takes an optional why, which goes with the answer in the tray and to Claude unless blank", async () => {
   const user = userEvent.setup();
   const sent = vi.fn(async () => {});

@@ -1,5 +1,6 @@
 import { useRef, useState } from 'react';
 import {
+  counted,
   DIMENSIONS,
   type Dimension,
   type Finding,
@@ -37,6 +38,11 @@ type Line = {
   readonly sentence: string;
   readonly target: string;
   readonly act?: (opener: HTMLButtonElement) => void;
+  readonly groups?: ReadonlyArray<{
+    readonly first: string;
+    readonly name: string;
+    readonly go: () => void;
+  }>;
 };
 
 type Group = {
@@ -63,7 +69,7 @@ const linesOf = ({ review, onGoTo, onShowOutside }: LineOptions) => {
       .map(end => labelOf.get(end) ?? end)
       .join(' → ');
   const lineOf = (finding: Finding): Line => {
-    const { id, level, target, title, detail } = finding;
+    const { id, level, target, title, detail, groups } = finding;
     if (target !== undefined) {
       return {
         id,
@@ -79,6 +85,15 @@ const linesOf = ({ review, onGoTo, onShowOutside }: LineOptions) => {
       sentence: title,
       target: detail ?? '',
       ...(id === 'structure:undrawn' && { act: onShowOutside }),
+      ...(groups && {
+        groups: groups.flatMap(group =>
+          group.slice(0, 1).map(first => ({
+            first,
+            name: `${counted(group.length, 'part', 'parts')}, from ${targetOf(first)}`,
+            go: () => onGoTo(first),
+          })),
+        ),
+      }),
     };
   };
   return lineOf;
@@ -120,6 +135,17 @@ const FindingItem = ({ finding, answer, onAnswer }: FindingItemProps) => {
         </button>
       ) : (
         <span className="finding-said">{said}</span>
+      )}
+      {finding.groups && (
+        <ul className="finding-groups">
+          {finding.groups.map(({ first, name, go }) => (
+            <li key={first}>
+              <button type="button" className="finding-group" onClick={go}>
+                {name}
+              </button>
+            </li>
+          ))}
+        </ul>
       )}
       {onAnswer && <AnswerButtons id={finding.id} answer={answer} onAnswer={onAnswer} />}
     </li>
