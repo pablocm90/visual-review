@@ -2,7 +2,7 @@ import { execFile } from 'node:child_process';
 import { readFile, stat } from 'node:fs/promises';
 import { join } from 'node:path';
 import { promisify } from 'node:util';
-import type { ReviewedHead } from '../core/read-range.ts';
+import { type ReviewedHead, resolve } from '../core/read-range.ts';
 import { pastReviewOf } from '../core/review.ts';
 
 const run = promisify(execFile);
@@ -71,8 +71,12 @@ export const lastReviewOf = async ({
   pullRequest,
   head,
 }: LastReviewOptions): Promise<ReviewedHead | undefined> => {
-  const last = (await pullRequestReviewsIn(directory)).find(
-    review => review.pullRequest === pullRequest && review.head !== head,
+  const reviews = (await pullRequestReviewsIn(directory)).filter(
+    review => review.pullRequest === pullRequest,
   );
+  const commits = await Promise.all(
+    reviews.map(review => resolve(directory, review.head).catch(() => review.head)),
+  );
+  const last = reviews.find((_, index) => commits[index] !== head);
   return last && { head: last.head, verdict: last.verdict };
 };

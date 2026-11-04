@@ -1,8 +1,8 @@
-import { mkdtempSync, rmSync, symlinkSync, utimesSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, rmSync, symlinkSync, utimesSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { expect, test } from 'vitest';
-import { git } from '../test-support/repos.ts';
+import { git, gitRepo } from '../test-support/repos.ts';
 import { lastReviewOf } from './last-review.ts';
 
 const H0 = '0'.repeat(40);
@@ -116,6 +116,19 @@ test('a review in an older format still counts, whatever else it holds', async (
     head: H1,
     verdict: 'approve',
   });
+});
+
+test("a tag object of the new head names the new head, so it's left out as its own review", async () => {
+  using repository = gitRepo({ a: '' });
+  const directory = join(repository.repo, '.reviews');
+  mkdirSync(directory);
+  git(repository.repo, 'tag', '--annotate', '--message', 'tag', 'tag');
+  const tag = git(repository.repo, 'rev-parse', 'tag');
+  writeReview(directory, { head: tag, writtenAt: 1_000 });
+
+  await expect(
+    lastReviewOf({ directory, pullRequest: 7, head: repository.root }),
+  ).resolves.toBeUndefined();
 });
 
 test.for([
