@@ -4720,6 +4720,46 @@ test('the inspector goes back to Note when it closes or Structure is left, and h
   expect(onTab()).toBe('Note');
 });
 
+test('the inspector holds its tab through an edge selected between two parts', async () => {
+  const user = userEvent.setup();
+  atHash('#structure');
+  const symbol = {
+    name: 'tax',
+    kind: 'function' as const,
+    exported: { base: false, head: false },
+    change: 'edited' as const,
+  };
+  render(
+    <ReviewPage
+      review={pageWith({
+        range: review.range,
+        diff: {
+          nodes: [
+            { id: 'web', kind: 'stack', label: 'web', path: '', state: 'unchanged' },
+            topFile('tax.ts', 'modified'),
+            topFile('vat.ts', 'modified'),
+          ],
+          edges: [
+            {
+              from: 'web/file/tax.ts',
+              to: 'web/file/vat.ts',
+              state: 'added',
+            },
+          ],
+        },
+        symbols: [symbolsOf('web/file/tax.ts', [symbol]), symbolsOf('web/file/vat.ts', [symbol])],
+      })}
+    />,
+  );
+
+  await user.click(await screen.findByRole('button', { name: 'tax.ts: modified' }));
+  await user.click(within(inspector()).getByRole('tab', { name: /^Symbols/ }));
+  await user.click(screen.getByRole('button', { name: 'tax.ts → vat.ts: added' }));
+  await user.click(screen.getByRole('button', { name: 'vat.ts: modified' }));
+
+  expect(within(inspector()).getByRole('tab', { selected: true }).textContent).toMatch(/^Symbols/);
+});
+
 test('going to a finding answer in the open tray opens Note, where the answer is, whatever tab was up', async () => {
   const user = userEvent.setup();
   render(

@@ -579,9 +579,9 @@ type InspectorTab = 'note' | 'metrics' | 'diff' | 'tests' | 'symbols';
 const tabOfDraft = ({ kind }: Comment['anchor']): InspectorTab =>
   kind === 'symbol' || kind === 'decision' ? 'symbols' : 'note';
 
-const useInspectorTab = (screen: string, node: DiffedNode | undefined) => {
+const useInspectorTab = (screen: string, selected: string | undefined) => {
   const [inspectorTab, setInspectorTab] = useState<InspectorTab>('note');
-  const inspecting = screen === 'structure' && node !== undefined;
+  const inspecting = screen === 'structure' && selected !== undefined;
   useEffect(() => {
     if (!inspecting) setInspectorTab('note');
   }, [inspecting]);
@@ -1299,7 +1299,7 @@ export const ReviewPage = ({ review, notes, send }: ReviewPageProps) => {
     location.hash = '#structure';
     goTo(id);
   };
-  const [inspectorTab, setInspectorTab] = useInspectorTab(tab, selectedNode);
+  const [inspectorTab, setInspectorTab] = useInspectorTab(tab, selected);
   const goToOnTab = (id: string, inspect: InspectorTab) => {
     setInspectorTab(inspect);
     goToOnStructure(id);
