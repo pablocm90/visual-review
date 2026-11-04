@@ -19,7 +19,7 @@ export const reviewsDirectoryOf = (repo: string): string => join(repo, REVIEWS);
 
 export const pageNameOf = (reviewFile: string): string => reviewFile.slice(0, -REVIEW.length);
 
-type PullRequestReview = ReviewedHead & {
+type PullRequestReview = Omit<ReviewedHead, 'calledFine'> & {
   readonly file: string;
   readonly pullRequest: number;
   readonly writtenAt: number;
@@ -39,6 +39,9 @@ const pullRequestReviewIn = async (
       file,
       head,
       verdict: past.verdict,
+      ...(past.body !== undefined && { body: past.body }),
+      read: past.read,
+      comments: past.comments,
       pullRequest: past.reviewed.pullRequest,
       writtenAt: (await stat(path)).mtimeMs,
     },
@@ -63,6 +66,16 @@ export const pullRequestReviewsIn = async (
   return reviews.flat().toSorted((one, other) => other.writtenAt - one.writtenAt);
 };
 
+const calledFineIn = (newestFirst: ReadonlyArray<PullRequestReview>): ReadonlyArray<string> => {
+  const newestAnswer = new Map(
+    newestFirst
+      .toReversed()
+      .flatMap(({ comments }) => comments)
+      .flatMap(({ anchor, kind }) => (anchor.kind === 'finding' ? [[anchor.id, kind]] : [])),
+  );
+  return [...newestAnswer.keys()].filter(id => newestAnswer.get(id) === 'fine');
+};
+
 type LastReviewOptions = {
   readonly repo: string;
   readonly pullRequest: number;
@@ -81,5 +94,7 @@ export const lastReviewOf = async ({
     reviews.map(review => resolve(repo, review.head).catch(() => review.head)),
   );
   const last = reviews.find((_, index) => commits[index] !== head);
-  return last && { head: last.head, verdict: last.verdict };
+  if (last === undefined) return undefined;
+  const { file: _file, pullRequest: _pullRequest, writtenAt: _writtenAt, ...said } = last;
+  return { ...said, calledFine: calledFineIn(reviews) };
 };

@@ -36,6 +36,10 @@ export type SymbolFile = { readonly stack: string } & (
 export type ReviewedHead = {
   readonly head: string;
   readonly verdict: Review['verdict'];
+  readonly body?: string;
+  readonly read: ReadonlyArray<string>;
+  readonly comments: Review['comments'];
+  readonly calledFine: ReadonlyArray<string>;
 };
 
 export type ReviewedDiff = {
@@ -46,11 +50,20 @@ export type ReviewedDiff = {
   readonly tests: ReadonlyArray<TestFile>;
 };
 
+export type Commit = {
+  readonly sha: string;
+  readonly subject: string;
+  readonly files: ReadonlyArray<string>;
+};
+
 export type ReviewedReading = ReviewedHead &
   (
     | { readonly gone: true }
     | { readonly unreadable: string }
-    | (ReviewedDiff & { readonly pullRequest: ReviewedDiff })
+    | (ReviewedDiff & {
+        readonly pullRequest: ReviewedDiff;
+        readonly commits: ReadonlyArray<Commit>;
+      })
   );
 
 export type RangeReading = {
@@ -312,6 +325,32 @@ const changesBetween = async (
     .filter(line => line !== '')
     .map(line => line.split('\t').slice(1));
 
+const commitOf = (record: string): Commit => {
+  const [header = '', ...files] = record.replace('\0\n', '\0').split('\0');
+  return {
+    sha: header.slice(0, header.indexOf(' ')),
+    subject: header.slice(header.indexOf(' ') + 1),
+    files: files.filter(file => file !== ''),
+  };
+};
+
+const commitsBetween = async (
+  repo: string,
+  from: string,
+  to: string,
+): Promise<ReadonlyArray<Commit>> => {
+  const log = await git(
+    repo,
+    'log',
+    '-z',
+    '--no-renames',
+    '--name-only',
+    '--format=%x00%H %s',
+    `${from}..${to}`,
+  );
+  return log === '' ? [] : log.slice(1).split('\0\0').map(commitOf);
+};
+
 const pathsIn = (changes: ReadonlyArray<ReadonlyArray<string>>) => ({
   changedPaths: changes.flat(),
   renames: changes.flatMap(([from = '', to]) => (to === undefined ? [] : [{ from, to }])),
@@ -426,6 +465,7 @@ const reviewedSide = async ({
       })),
       ...pathsIn(changes),
       pullRequest,
+      commits: await commitsBetween(side.repo, revision, to),
     };
   } catch (error) {
     return { ...reviewed, unreadable: String(error) };
