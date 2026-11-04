@@ -20,6 +20,7 @@ type ReviewTrayProps = {
   readonly findings: ReadonlyArray<Finding>;
   readonly nodes: Nodes;
   readonly onGoTo: (id: string) => void;
+  readonly onGoToDraft: (id: string, anchor: Comment['anchor']) => void;
   readonly send: (review: Review) => Promise<void>;
 };
 
@@ -120,9 +121,10 @@ type DraftListProps = {
   readonly findings: ReadonlyArray<Finding>;
   readonly nodes: Nodes;
   readonly onGoTo: (id: string) => void;
+  readonly onGoToDraft: (id: string, anchor: Comment['anchor']) => void;
 };
 
-const DraftList = ({ drafted, answered, findings, nodes, onGoTo }: DraftListProps) => (
+const DraftList = ({ drafted, answered, findings, nodes, onGoTo, onGoToDraft }: DraftListProps) => (
   <ul aria-label="Drafts" className="tray-list">
     {drafted.map(({ anchor, kind, text }) => {
       const target = anchorTarget(anchor, nodes);
@@ -130,7 +132,7 @@ const DraftList = ({ drafted, answered, findings, nodes, onGoTo }: DraftListProp
         <Draft
           key={anchorKey(anchor)}
           name={anchorName(anchor, nodes)}
-          onGo={target === undefined ? undefined : () => onGoTo(target)}
+          onGo={target === undefined ? undefined : () => onGoToDraft(target, anchor)}
           label={kindLabels.get(kind)}
           text={text}
         />
@@ -161,6 +163,7 @@ export const ReviewTray = ({
   findings,
   nodes,
   onGoTo,
+  onGoToDraft,
   send,
 }: ReviewTrayProps) => {
   const [picked, setPicked] = useState<Review['verdict']>();
@@ -223,6 +226,7 @@ export const ReviewTray = ({
                   findings={findings}
                   nodes={nodes}
                   onGoTo={onGoTo}
+                  onGoToDraft={onGoToDraft}
                 />
                 {parts.length > 0 && (
                   <p className="tray-read">

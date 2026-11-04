@@ -4458,3 +4458,77 @@ test("a served page's logic line takes a comment on its decision, the same id as
     'logic:removed:web/file/review-page.tsx#ReviewPage.goTo#if (!open) return#2',
   );
 });
+
+test('a draft in the open tray goes to the tab it was written on, though the inspector was closed or on another tab', async () => {
+  const user = userEvent.setup();
+  render(
+    <ReviewPage
+      review={pageWith({
+        range: review.range,
+        diff: {
+          nodes: [
+            { id: 'web', kind: 'stack', label: 'web', path: '', state: 'unchanged' },
+            topFile('review-page.tsx', 'modified'),
+          ],
+          edges: [],
+        },
+        symbols: [
+          symbolsOf('web/file/review-page.tsx', [
+            {
+              name: 'goTo',
+              scope: 'ReviewPage',
+              kind: 'method',
+              exported: { base: false, head: false },
+              change: 'edited',
+              logic: [{ change: 'same', kind: 'if', depth: 0, head: 'if (ready)', line: 12 }],
+            },
+          ]),
+        ],
+      })}
+      send={vi.fn(async () => {})}
+    />,
+  );
+  const panelOf = (name: string) => screen.getByRole('tabpanel', { name });
+  const fieldIn = (name: string) =>
+    within(panelOf(name)).getByRole('textbox', { name: 'Your comment' });
+
+  await user.click(await screen.findByRole('button', { name: 'review-page.tsx: modified' }));
+  await user.type(fieldIn('Note'), 'On the file.');
+  await user.click(within(inspector()).getByRole('tab', { name: 'Symbols 1' }));
+  await user.click(
+    within(symbolsTab()).getByRole('button', { name: 'Comment on method ReviewPage.goTo' }),
+  );
+  await user.type(fieldIn('Symbols'), 'On the method.');
+  await user.click(
+    within(symbolsTab()).getByRole('button', { name: 'Comment on same if: if (ready)' }),
+  );
+  await user.type(
+    within(within(symbolsTab()).getByRole('listitem', { name: 'same if: if (ready)' })).getByRole(
+      'textbox',
+      { name: 'Your comment' },
+    ),
+    'On the line.',
+  );
+  await user.click(screen.getByRole('button', { name: 'Close inspector' }));
+  await openReview(user);
+
+  await user.click(screen.getByRole('button', { name: 'ReviewPage.goTo in review-page.tsx' }));
+  expect(
+    within(
+      within(symbolsTab()).getByRole('listitem', { name: 'method ReviewPage.goTo: edited' }),
+    ).getAllByRole('textbox', { name: 'Your comment' })[0],
+  ).toHaveProperty('value', 'On the method.');
+  await user.click(
+    within(screen.getByRole('list', { name: 'Drafts' })).getByRole('button', {
+      name: 'review-page.tsx',
+    }),
+  );
+  expect(fieldIn('Note')).toHaveProperty('value', 'On the file.');
+  await user.click(screen.getByRole('button', { name: 'if (ready)' }));
+  expect(
+    within(within(symbolsTab()).getByRole('listitem', { name: 'same if: if (ready)' })).getByRole(
+      'textbox',
+      { name: 'Your comment' },
+    ),
+  ).toHaveProperty('value', 'On the line.');
+});

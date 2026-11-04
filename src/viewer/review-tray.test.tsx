@@ -20,7 +20,13 @@ const drafted = (anchor: Comment['anchor']): Comment => ({
 
 const renderTray = (
   comments: ReadonlyArray<Comment>,
-  { onGoTo = vi.fn(), read = [] }: { onGoTo?: () => void; read?: ReadonlyArray<string> } = {},
+  {
+    onGoToDraft = vi.fn(),
+    read = [],
+  }: {
+    onGoToDraft?: () => void;
+    read?: ReadonlyArray<string>;
+  } = {},
 ) => {
   render(
     <ReviewTray
@@ -31,16 +37,17 @@ const renderTray = (
       answers={{}}
       findings={[]}
       nodes={nodes}
-      onGoTo={onGoTo}
+      onGoTo={vi.fn()}
+      onGoToDraft={onGoToDraft}
       send={async () => {}}
     />,
   );
-  return onGoTo;
+  return onGoToDraft;
 };
 
 test("the open tray names each draft by its anchor, sorts it with its file's part in reading order, and goes to that part", async () => {
   const user = userEvent.setup();
-  const onGoTo = renderTray([
+  const onGoToDraft = renderTray([
     drafted({ kind: 'test', id: 'web/src/cart/total.test.ts#Cart › adds tax' }),
     drafted({ kind: 'symbol', id: 'web/file/src/cart/total.ts#Cart.total' }),
     drafted({ kind: 'line', id: 'README.md@head:1', text: '# Shop' }),
@@ -60,7 +67,10 @@ test("the open tray names each draft by its anchor, sorts it with its file's par
   ).toContain('question  README.md:1 "# Shop"');
   expect(drafts.queryByRole('button', { name: /README/ })).toBeNull();
   await user.click(drafts.getByRole('button', { name: 'Cart.total in total.ts' }));
-  expect(onGoTo).toHaveBeenCalledWith('web/file/src/cart/total.ts');
+  expect(onGoToDraft).toHaveBeenCalledWith('web/file/src/cart/total.ts', {
+    kind: 'symbol',
+    id: 'web/file/src/cart/total.ts#Cart.total',
+  });
 });
 
 test('a part read with a comment on something inside it is not listed as read with nothing to say', async () => {
