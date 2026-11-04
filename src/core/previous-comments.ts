@@ -1,6 +1,6 @@
-import { anchorTarget, type TargetsOf } from './anchors.ts';
+import { anchorTarget, split, type TargetsOf } from './anchors.ts';
 import { isAtOrUnder } from './diff-graphs.ts';
-import type { GraphNode } from './graph.ts';
+import { endsOfId, type GraphNode } from './graph.ts';
 import type { Commit, ReviewedHead } from './read-range.ts';
 import type { ChangedSince } from './since-review.ts';
 
@@ -38,21 +38,40 @@ const commitsOn = (compared: Compared, parts: ReadonlyArray<string>): ReadonlyAr
   );
 };
 
+const isHeld = (targets: TargetsOf, id: string): boolean =>
+  targets.nodes.some(node => node.id === id);
+
 const partChanged = (compared: Compared, targets: TargetsOf, id: string): boolean =>
-  !targets.nodes.some(node => node.id === id) ||
+  !isHeld(targets, id) ||
   [...compared.changed.nodes, ...compared.changed.dropped.nodes].some(changed =>
     isInside(compared.tree, changed, id),
   );
 
-const partMark = (compared: Compared, targets: TargetsOf, id: string) => {
-  const head = compared.named(id);
-  return partChanged(compared, targets, head)
-    ? { changedSince: commitsOn(compared, [id, head]) }
+const edgeChanged = (compared: Compared, targets: TargetsOf, id: string): boolean => {
+  const [from, to] = split(id, ' -> ');
+  return (
+    !isHeld(targets, from) ||
+    !isHeld(targets, to) ||
+    [...compared.changed.edges, ...compared.changed.dropped.edges].some(edge => {
+      const [edgeFrom, edgeTo] = split(edge, ' -> ');
+      return isInside(compared.tree, edgeFrom, from) && isInside(compared.tree, edgeTo, to);
+    })
+  );
+};
+
+const markOf = (compared: Compared, targets: TargetsOf, { kind, id }: Said['anchor']) => {
+  const ends = endsOfId(id);
+  const changed =
+    kind === 'part'
+      ? partChanged(compared, targets, compared.named(id))
+      : edgeChanged(compared, targets, id);
+  return changed
+    ? { changedSince: commitsOn(compared, [...ends, ...ends.map(compared.named)]) }
     : {};
 };
 
 const targetIn = (targets: TargetsOf, id: string) =>
-  targets.nodes.some(node => node.id === id) ? { target: id } : {};
+  endsOfId(id).every(end => isHeld(targets, end)) ? { target: id } : {};
 
 export const previousComments = ({
   comments,
@@ -60,12 +79,15 @@ export const previousComments = ({
   compared,
 }: PreviousCommentsOptions): ReadonlyArray<PreviousComment> =>
   comments.map(comment => {
-    if (comment.anchor.kind !== 'part') return comment;
-    const { id } = comment.anchor;
-    const target = anchorTarget({ ...comment.anchor, id: compared?.named(id) ?? id }, targets);
+    const { anchor } = comment;
+    if (anchor.kind !== 'part' && anchor.kind !== 'edge') return comment;
+    const id = endsOfId(anchor.id)
+      .map(end => compared?.named(end) ?? end)
+      .join(' -> ');
+    const target = anchorTarget({ ...anchor, id }, targets);
     return {
       ...comment,
       ...(target === undefined ? {} : targetIn(targets, target)),
-      ...(compared === undefined ? {} : partMark(compared, targets, id)),
+      ...(compared === undefined ? {} : markOf(compared, targets, anchor)),
     };
   });

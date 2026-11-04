@@ -2128,6 +2128,141 @@ test.for([
   });
 });
 
+const [fileA, fileB, fileC] = [webFile('a.ts'), webFile('b.ts'), webFile('c.ts')];
+const apiStack: GraphNode = { id: 'api', kind: 'stack', label: 'api', path: '' };
+const apiFile: GraphNode = {
+  id: 'api/file/x.ts',
+  kind: 'file',
+  label: 'x.ts',
+  parent: 'api',
+  path: 'api/src/x.ts',
+};
+const edgeNodes = [webStack, fileA, fileB, fileC, apiStack, apiFile];
+const edgeBetween = (from: GraphNode, to: GraphNode) => ({ from: from.id, to: to.id });
+const onAnEdge = (from: GraphNode, to: GraphNode): Review['comments'][number] => ({
+  anchor: { kind: 'edge', id: `${from.id} -> ${to.id}` },
+  kind: 'question',
+  text: 'Why this way?',
+});
+const commitsOnEveryFile = [
+  commitOn('c1', fileA.path),
+  commitOn('c2', fileB.path),
+  commitOn('c3', fileC.path),
+  commitOn('c4', apiFile.path),
+];
+
+test.for([
+  {
+    on: 'an edge added since, with the commits on both its ends',
+    comment: onAnEdge(fileA, fileB),
+    atReview: [],
+    atHead: [edgeBetween(fileA, fileB)],
+    changedSince: ['c1', 'c2'],
+  },
+  {
+    on: 'an edge removed since, which the head has no edge of',
+    comment: onAnEdge(fileA, fileB),
+    atReview: [edgeBetween(fileA, fileB)],
+    atHead: [],
+    changedSince: ['c1', 'c2'],
+  },
+  {
+    on: 'a merged edge between boxes, with an edge running inside it changed',
+    comment: onAnEdge(webStack, apiStack),
+    atReview: [],
+    atHead: [edgeBetween(fileA, apiFile)],
+    changedSince: ['c1', 'c2', 'c3', 'c4'],
+  },
+  {
+    on: 'an edge with changed edges sharing only its from or only its to, as it was',
+    comment: onAnEdge(fileA, fileB),
+    atReview: [edgeBetween(fileA, fileB)],
+    atHead: [edgeBetween(fileA, fileB), edgeBetween(fileA, fileC), edgeBetween(fileC, fileB)],
+  },
+  {
+    on: 'an edge between boxes with a changed edge the other way, as it was',
+    comment: onAnEdge(webStack, apiStack),
+    atReview: [],
+    atHead: [edgeBetween(apiFile, fileA)],
+  },
+])('a previous comment on $on', ({ comment, atReview, atHead, changedSince }) => {
+  const previous = firstPrevious(
+    readingWith({
+      before: { nodes: edgeNodes, edges: [] },
+      after: { nodes: edgeNodes, edges: atHead },
+      changedPaths: [fileA.path, fileB.path, fileC.path, apiFile.path],
+      reviewed: {
+        ...reviewedAt({
+          before: { nodes: edgeNodes, edges: atReview },
+          changedPaths: [fileA.path, fileB.path, fileC.path, apiFile.path],
+          pullRequest: { before: { nodes: edgeNodes, edges: [] } },
+        }),
+        comments: [comment],
+        commits: commitsOnEveryFile,
+      },
+    }),
+  );
+
+  expect(previous).toEqual({
+    ...comment,
+    target: comment.anchor.id,
+    ...(changedSince && {
+      changedSince: commitsOnEveryFile.filter(({ sha }) => changedSince.includes(sha)),
+    }),
+  });
+});
+
+test.for([
+  { end: 'from', comment: onAnEdge(fileA, fileB) },
+  { end: 'to', comment: onAnEdge(fileB, fileA) },
+])(
+  'a previous comment on an edge with its $end gone since holds no target and reads as changed',
+  ({ comment }) => {
+    const previous = firstPrevious(
+      readingWith({
+        before: { nodes: [webStack, fileB], edges: [] },
+        after: { nodes: [webStack, fileB], edges: [] },
+        changedPaths: [fileB.path],
+        reviewed: {
+          ...reviewedAt({
+            before: { nodes: [webStack, fileA, fileB], edges: [] },
+            changedPaths: [fileA.path],
+          }),
+          comments: [comment],
+          commits: [commitOn('c1', fileA.path)],
+        },
+      }),
+    );
+
+    expect(previous).toEqual({ ...comment, changedSince: [commitOn('c1', fileA.path)] });
+  },
+);
+
+test('a previous comment on an edge with an end renamed since goes by its new name, with the commits on both', () => {
+  const comment = onAnEdge(fileA, fileB);
+  const previous = firstPrevious(
+    readingWith({
+      before: { nodes: [webStack, fileB], edges: [] },
+      after: { nodes: [webStack, fileC, fileB], edges: [edgeBetween(fileC, fileB)] },
+      changedPaths: [fileC.path, fileB.path],
+      reviewed: {
+        ...reviewedAt({
+          before: { nodes: [webStack, fileA, fileB], edges: [edgeBetween(fileA, fileB)] },
+          changedPaths: [fileA.path, fileC.path],
+          renames: [{ from: fileA.path, to: fileC.path }],
+        }),
+        comments: [comment],
+        commits: [commitOn('c1', fileA.path), commitOn('c2', fileC.path)],
+      },
+    }),
+  );
+
+  expect(previous).toMatchObject({
+    target: `${fileC.id} -> ${fileB.id}`,
+    changedSince: [commitOn('c1', fileA.path), commitOn('c2', fileC.path)],
+  });
+});
+
 const anchorGraph = {
   nodes: [webStack, webFile('a.ts'), webFile('b.ts')],
   edges: [],
