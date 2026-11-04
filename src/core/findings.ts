@@ -3,10 +3,12 @@ import type { FilePatch, GraphDiff } from './diff-graphs.ts';
 import { endsOfId, type GraphNode } from './graph.ts';
 import type { DanglingCall } from './linker.ts';
 import type { MetricFinding } from './metric-findings.ts';
+import { migrationFindings } from './migration-findings.ts';
 import { type NodeMetrics, tenths } from './metrics.ts';
 import type { ReviewNotes } from './notes.ts';
 import type { PageData } from './page.ts';
 import type { DependencyChanges } from './read-lockfiles.ts';
+import type { MigrationReading } from './read-migrations.ts';
 import type { SymbolFile } from './read-range.ts';
 import { notReadLine, type Skipped } from './skipped.ts';
 import type { SplitSuggestion } from './split-suggestion.ts';
@@ -71,6 +73,7 @@ type RaisedOptions = {
   readonly undrawn: ReadonlyArray<FilePatch>;
   readonly dangling: ReadonlyArray<DanglingCall>;
   readonly dependencyChanges: ReadonlyArray<DependencyChanges>;
+  readonly migrations: ReadonlyArray<MigrationReading>;
   readonly metricFindings: ReadonlyArray<MetricFinding>;
   readonly symbols: ReadonlyArray<SymbolFile>;
   readonly symbolsNotRead: ReadonlyArray<string>;
@@ -146,6 +149,7 @@ export const raisedFindings = ({
   undrawn,
   dangling,
   dependencyChanges,
+  migrations,
   metricFindings,
   symbols,
   symbolsNotRead,
@@ -204,6 +208,7 @@ export const raisedFindings = ({
   ),
   ...(split === undefined ? [] : [splitFinding(split)]),
   ...dependencyFindings(dependencyChanges),
+  ...migrationFindings(migrations),
 ];
 
 const NOTE_FLAG = 'notes:';
