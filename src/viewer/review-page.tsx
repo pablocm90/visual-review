@@ -61,7 +61,7 @@ import { MetricsScreen } from './metrics-screen.tsx';
 import { MetricsTable } from './metrics-tab.tsx';
 import { storedReadMarks, storeReadMarks } from './read-marks.ts';
 import { ReadingOrderList } from './reading-order-list.tsx';
-import { ReviewTray } from './review-tray.tsx';
+import { ReviewTray, verdictLabels } from './review-tray.tsx';
 import { changedSymbolCount, type LineAt, SymbolsOf, useHasSymbolNews } from './symbols-tab.tsx';
 import { changedCount, TestFiles, TestsScreen } from './tests-screen.tsx';
 import {
@@ -1230,6 +1230,12 @@ type HeaderProps = {
   readonly tab: Tab;
 };
 
+const LastVerdict = ({ since }: { readonly since: SinceReview }) => (
+  <p className="where">
+    Last review at <Ref name={since.head} />: {verdictLabels.get(since.verdict)}
+  </p>
+);
+
 const UncomparedReview = ({ since }: { readonly since: SinceReview }) => {
   if ('gone' in since)
     return (
@@ -1269,7 +1275,12 @@ const Header = ({ review, tab }: HeaderProps) => {
             <ShortRange range={review.range} />
           )}
         </h1>
-        {review.sinceReview !== undefined && <UncomparedReview since={review.sinceReview} />}
+        {review.sinceReview !== undefined && (
+          <>
+            <LastVerdict since={review.sinceReview} />
+            <UncomparedReview since={review.sinceReview} />
+          </>
+        )}
       </div>
       <nav aria-label="Review">
         {TAB_ORDER.map(shown => (

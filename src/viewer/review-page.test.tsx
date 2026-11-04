@@ -5905,3 +5905,30 @@ test("a review whose reviewed head couldn't be read says so, with that head shor
   expect(line.getAttribute('title')).toBe('cargo metadata failed');
   expect(screen.getByRole('button', { name: 'cli-adapter: added' })).toBeDefined();
 });
+
+test.for([
+  {
+    round: 'compared',
+    since: { changed: sinceReview.changed, changedWithoutComment: [], stillRead: [] },
+  },
+  { round: 'whose head is gone', since: { gone: true } },
+  { round: "whose head couldn't be read", since: { unreadable: 'cargo metadata failed' } },
+] as const)(
+  'a later round $round says in the header what the last review concluded, and at which head',
+  async ({ since }) => {
+    const head = 'a1b2c3d4e5f6a7b8c9d0a1b2c3d4e5f6a7b8c9d0';
+    render(
+      <ReviewPage
+        review={pageWith({
+          ...review,
+          sinceReview: { ...lastReview, head, verdict: 'request-changes', ...since },
+        })}
+      />,
+    );
+    await screen.findByRole('group', { name: 'rust' });
+
+    expect(within(screen.getByRole('banner')).getByText(/Last review/).textContent).toBe(
+      'Last review at a1b2c3d: Request changes',
+    );
+  },
+);

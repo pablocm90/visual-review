@@ -33,6 +33,8 @@ const VERDICTS: ReadonlyArray<readonly [Review['verdict'], string]> = [
   ['request-changes', 'Request changes'],
 ];
 
+export const verdictLabels = new Map(VERDICTS);
+
 const kindLabels = new Map(COMMENT_KINDS);
 
 const answerLabels = new Map(ANSWER_KINDS);
