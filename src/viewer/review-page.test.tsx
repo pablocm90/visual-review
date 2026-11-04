@@ -5146,6 +5146,14 @@ test("the tray goes to a diff line's draft on the Diff tab, landing on its row o
   scrolledIntoView.mockClear();
   await goToDraft();
   expect(scrolledIntoView.mock.contexts).toContain(row);
+
+  const patch = within(diffTab()).getByRole('group', { name: 'web/src/x.ts' });
+  await user.click(within(patch).getByText('web/src/x.ts'));
+  expect(patch.hasAttribute('open')).toBe(false);
+  const shownWhenScrolled = vi.fn();
+  scrolledIntoView.mockImplementationOnce(() => shownWhenScrolled(patch.hasAttribute('open')));
+  await goToDraft();
+  expect(shownWhenScrolled.mock.calls).toStrictEqual([[true]]);
 });
 
 const patchOf = (path: string, ...hunkLines: ReadonlyArray<string>) => ({

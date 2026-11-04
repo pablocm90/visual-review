@@ -3,10 +3,10 @@ import {
   type MouseEvent,
   type PointerEvent,
   type ReactNode,
-  useCallback,
   useEffect,
   useEffectEvent,
   useId,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
@@ -488,13 +488,7 @@ const PatchLine = ({
 }) => {
   const { kind, prefix, pieces } = line;
   const anchor = lineAnchor({ path, line });
-  const landOn = useCallback(
-    (row: HTMLElement | null) => {
-      if (row && isLandedOn(line, landing)) scrollInPanel(row, 'center');
-    },
-    [line, landing],
-  );
-  const marks = { ref: landOn, 'aria-current': isLandedOn(line, landing) || undefined };
+  const marks = { 'aria-current': isLandedOn(line, landing) || undefined };
   const code = (
     <>
       {prefix}
@@ -527,18 +521,19 @@ const Patch = ({
   LineComments & { readonly open: boolean; readonly landing: LandingIn | undefined }) => {
   const lines = useMemo(() => highlightPatch({ path, patch }), [path, patch]);
   const landed = landing?.path === path ? landing : undefined;
-  const landOnTop = useCallback(
-    (top: HTMLElement | null) => {
-      if (top && landed !== undefined && !lines.some(line => isLandedOn(line, landed)))
-        scrollInPanel(top, 'start');
-    },
-    [landed, lines],
-  );
+  const top = useRef<HTMLDetailsElement>(null);
+  useLayoutEffect(() => {
+    if (!top.current || landed === undefined) return;
+    top.current.open = true;
+    const row = top.current.querySelector<HTMLElement>('[aria-current]');
+    if (row) scrollInPanel(row, 'center');
+    else scrollInPanel(top.current, 'start');
+  }, [landed]);
   const holdsDraft = Object.values(commenting.comments).some(
     ({ anchor }) => fileOfLine(anchor.id) === path,
   );
   return (
-    <details aria-label={path} open={open || holdsDraft || landed !== undefined} ref={landOnTop}>
+    <details aria-label={path} open={open || holdsDraft} ref={top}>
       <summary>{path}</summary>
       <pre>
         {lines.map((line, index) => (
