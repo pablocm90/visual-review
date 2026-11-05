@@ -3782,6 +3782,7 @@ test("Tested by lists the test files at or under the selected node, counting the
   await user.click(await screen.findByRole('button', { name: 'application: modified' }));
   expect(inspectorTabs()).toEqual(['Note']);
   expect(within(testedBy()).getByRole('heading', { name: 'Tested by 3' })).toBeTruthy();
+  expect(within(testedBy()).queryByRole('list', { name: 'Findings' })).toBeNull();
   expect(
     within(testedBy())
       .getAllByRole('region')
@@ -3793,6 +3794,62 @@ test("Tested by lists the test files at or under the selected node, counting the
   expect(screen.queryByRole('region', { name: 'Tested by' })).toBeNull();
   await user.click(screen.getByRole('button', { name: 'cli-adapter: added' }));
   expect(within(testedBy()).getByRole('heading', { name: 'Tested by' })).toBeTruthy();
+});
+
+test("logic changed with no test alongside shows its finding under Tested by, with its answers, and Why look doesn't repeat it, nor draws for it alone; going to it lands on its row there", async () => {
+  const user = userEvent.setup();
+  const untestedOn = (target: string) =>
+    findingOn(target, {
+      id: `tests:untested-logic:${target}`,
+      check: 'tests:untested-logic',
+      dimension: 'tests',
+      level: 'look',
+      title: 'logic changed with no test changed alongside',
+    });
+  render(
+    <ReviewPage
+      review={pageWith({
+        range: review.range,
+        diff: {
+          nodes: [
+            { id: 'web', kind: 'stack', label: 'web', path: '', state: 'unchanged' },
+            topFile('tax.ts', 'modified'),
+            topFile('refund.ts', 'modified'),
+          ],
+          edges: [],
+        },
+        findings: [
+          untestedOn('web/file/tax.ts'),
+          untestedOn('web/file/refund.ts'),
+          findingOn('web/file/refund.ts'),
+        ],
+      })}
+      send={async () => {}}
+    />,
+  );
+  const whyLook = () => within(noteTab()).queryByRole('region', { name: 'Why look' });
+  const untestedRow = () =>
+    within(within(testedBy()).getByRole('list', { name: 'Findings' })).getByRole('listitem');
+
+  await user.click(await screen.findByRole('button', { name: 'tax.ts: modified' }));
+  expect(whyLook()).toBeNull();
+  await user.click(within(untestedRow()).getByRole('button', { name: 'Fix this' }));
+  expect(
+    within(untestedRow()).getByRole('button', { name: 'Fix this' }).getAttribute('aria-pressed'),
+  ).toBe('true');
+
+  await user.click(screen.getByRole('button', { name: 'refund.ts: modified' }));
+  expect(within(whyLook() ?? noteTab()).getAllByRole('listitem')).toHaveLength(1);
+  expect(within(whyLook() ?? noteTab()).getByText('lines 900, over 800')).toBeDefined();
+
+  await user.click(screen.getByRole('button', { name: 'Show 3 findings' }));
+  await user.click(
+    within(screen.getByRole('complementary', { name: 'Findings' })).getByRole('button', {
+      name: /^tax.ts: logic changed/,
+    }),
+  );
+  expect(untestedRow().getAttribute('aria-current')).toBe('true');
+  expect(scrolledIntoView.mock.contexts).toContain(untestedRow());
 });
 
 test("a node's Tested by also lists the test files named after a file inside it, wherever they sit in its stack", async () => {

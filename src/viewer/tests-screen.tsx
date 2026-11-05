@@ -18,6 +18,7 @@ import { testsAlongside } from '../core/tests-alongside.ts';
 import { ChangedSinceTag, sinceLabel, useIsChangedSince } from './changed-since.tsx';
 import type { Comments } from './comment-field.tsx';
 import { LevelMark } from './finding-display.tsx';
+import { FindingRows, type FindingRowsProps } from './finding-rows.tsx';
 import { CommentOn, SaidBefore } from './said-before.tsx';
 
 const TEST_MARKS: Readonly<Record<TestChange, string>> = {
@@ -130,11 +131,18 @@ export const TestFiles = ({ files, nodes, ...commenting }: TestFilesProps) =>
     </section>
   ));
 
-export const TestedBy = ({ files, ...shown }: TestFilesProps) => {
+export const TestedBy = ({
+  files,
+  found,
+  answers,
+  onAnswer,
+  ...shown
+}: TestFilesProps & FindingRowsProps) => {
   const count = changedCount(files);
   return (
     <section className="column-section tests" aria-label="Tested by">
       <h3>Tested by{count > 0 && ` ${count}`}</h3>
+      {found.length > 0 && <FindingRows found={found} answers={answers} onAnswer={onAnswer} />}
       <TestFiles files={files} {...shown} />
     </section>
   );

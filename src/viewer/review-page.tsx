@@ -41,15 +41,8 @@ import { anchorName, lineAnchor, placeOfLine, rowOfLine } from './anchors.ts';
 import { ChangedSinceMarks, ChangedSinceTag, useIsChangedSince } from './changed-since.tsx';
 import { ColourBy, type Colouring, ScaleLegend, type Shade, shadeOf } from './colour-by.tsx';
 import type { Comments } from './comment-field.tsx';
-import {
-  AnswerButtons,
-  type Answers,
-  type AnswerTo,
-  findingLine,
-  LEVELS,
-  LevelMark,
-  worstOf,
-} from './finding-display.tsx';
+import { type Answers, type AnswerTo, findingLine, LEVELS, worstOf } from './finding-display.tsx';
+import { FindingRows, type FindingRowsProps } from './finding-rows.tsx';
 import { FindingsRail, LensChips, LensRow, StartHere } from './findings-rail.tsx';
 import { highlightPatch, type PatchLine as Line, type Piece } from './highlight-patch.ts';
 import { LastReview } from './last-review.tsx';
@@ -99,7 +92,6 @@ import {
   type LineAt,
   type RowLanding,
   useFilesWithNews,
-  useRowMarks,
   WhatChanged,
 } from './what-changed.tsx';
 
@@ -734,29 +726,14 @@ type NotePanelProps = Pick<
   readonly onShowLine: (at: LineAt) => void;
 };
 
-const WhyLook = ({
-  found,
-  answers,
-  onAnswer,
-}: Pick<NotePanelProps, 'found' | 'answers' | 'onAnswer'>) => {
-  const marksOf = useRowMarks();
-  return (
-    <section className="column-section" aria-label="Why look">
-      <h3>Why look</h3>
-      <ul className="note-findings" aria-label="Findings">
-        {found.map(finding => (
-          <li key={finding.id} {...marksOf({ kind: 'finding', id: finding.id })}>
-            <LevelMark level={finding.level} />
-            {findingLine(finding)}
-            {onAnswer && (
-              <AnswerButtons id={finding.id} answer={answers[finding.id]} onAnswer={onAnswer} />
-            )}
-          </li>
-        ))}
-      </ul>
-    </section>
-  );
-};
+const WhyLook = (rows: FindingRowsProps) => (
+  <section className="column-section" aria-label="Why look">
+    <h3>Why look</h3>
+    <FindingRows {...rows} />
+  </section>
+);
+
+const isUntestedLogic = ({ check }: Finding) => check === 'tests:untested-logic';
 
 const NotePanel = ({
   nodes,
@@ -779,6 +756,8 @@ const NotePanel = ({
   const filesWithNews = useFilesWithNews(node, symbols, nodes);
   const hasSaid = useHasSaid();
   const testsHere = node ? testsAlongside({ nodes, node, tests }) : [];
+  const untested = found.filter(isUntestedLogic);
+  const toLookAt = found.filter(finding => !isUntestedLogic(finding));
   const isBare =
     filesWithNews.length === 0 &&
     found.length === 0 &&
@@ -812,9 +791,17 @@ const NotePanel = ({
           onComment={onComment}
         />
       )}
-      {found.length > 0 && <WhyLook found={found} answers={answers} onAnswer={onAnswer} />}
-      {testsHere.length > 0 && (
-        <TestedBy files={testsHere} nodes={nodes} comments={comments} onComment={onComment} />
+      {toLookAt.length > 0 && <WhyLook found={toLookAt} answers={answers} onAnswer={onAnswer} />}
+      {(testsHere.length > 0 || untested.length > 0) && (
+        <TestedBy
+          files={testsHere}
+          nodes={nodes}
+          comments={comments}
+          onComment={onComment}
+          found={untested}
+          answers={answers}
+          onAnswer={onAnswer}
+        />
       )}
     </LandedRows>
   );
