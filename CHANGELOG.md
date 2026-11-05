@@ -2,6 +2,14 @@
 
 What changed in each release of `@pablocm90/visual-review`, newest first. Versions follow [semver](https://semver.org); while it is 0.x, a minor version may change the exported types.
 
+## Unreleased
+
+### Changed
+
+- **Tested by** joins the inspector's Note tab, after **Why look**: the test files alongside the part, its changed tests counted in the heading. The inspector's Tests tab is gone; the Tests screen stays.
+- Logic changed with no test changed alongside now shows under **Tested by**, with its answers, rather than under **Why look**.
+- Going to a draft on a test, from the review tray or the last review's list, lands on its row in the column.
+
 ## 0.44.0 — 2026-11-05
 
 ### Changed

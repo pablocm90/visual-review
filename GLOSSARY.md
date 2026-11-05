@@ -63,7 +63,7 @@ _Avoid_: Look first, top findings, priorities
 _In code_: `startHere` (`src/core/start-here.ts`)
 
 **Reading column**:
-What the inspector reads for one part, top to bottom: its note, What changed (its symbols and logic lines), then Why look (the findings on it). An arrow's holds its note and findings only.
+What the inspector reads for one part, top to bottom: its note, What changed (its symbols and logic lines), Why look (the findings on it), then Tested by (its tests, and the finding when logic changed with no test alongside). An arrow's holds its note and findings only.
 _Avoid_: note panel, sidebar
 _In code_: `NotePanel` (`src/viewer/review-page.tsx`)
 
