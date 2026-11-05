@@ -67,3 +67,20 @@ test('a condition reads without its comments, line breaks and spacing, strings a
     decisionsIn('if a', '  .b( /* why */ "x  y",', '  c, )', '{ go(); }')?.map(({ text }) => text),
   ).toEqual(['if a.b("x  y", c)']);
 });
+
+test('an else if reads as an if at the depth of the if it follows, and is never a guard', () => {
+  expect(
+    decisionsIn('if c {', 'go();', '} else if d {', 'return 1;', '} else {', 'if e { go(); }', '}'),
+  ).toEqual([
+    { kind: 'if', text: 'if c', depth: 0, line: 2 },
+    { kind: 'if', text: 'else if d', depth: 0, line: 4 },
+    { kind: 'if', text: 'if e', depth: 1, line: 7 },
+  ]);
+});
+
+test('a last else if that returns first is no guard', () => {
+  expect(decisionsIn('if c { go(); } else if d { return 1; }')?.map(({ kind }) => kind)).toEqual([
+    'if',
+    'if',
+  ]);
+});

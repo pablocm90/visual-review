@@ -32,10 +32,13 @@ const exitOf = (expr: Node | undefined): Exit | undefined => {
 const firstStatementOf = (block: Node | undefined): Node | undefined =>
   block?.namedChildren.find(node => !isComment(node));
 
+const isElseIf = (node: Node): boolean => node.parent?.type === 'else_clause';
+
 const ifOf = (node: Node): Read => {
-  const condition = `if ${codeOf(fieldOf(node, 'condition'))}`;
+  const code = codeOf(fieldOf(node, 'condition'));
+  const condition = isElseIf(node) ? `else if ${code}` : `if ${code}`;
   const first =
-    fieldOf(node, 'alternative') === undefined
+    fieldOf(node, 'alternative') === undefined && !isElseIf(node)
       ? exprOf(firstStatementOf(fieldOf(node, 'consequence')))
       : undefined;
   const exit = exitOf(first);
@@ -51,9 +54,10 @@ const decisionsUnder = (walk: Walk, nodes: ReadonlyArray<Node>): ReadonlyArray<D
     const read = READS.get(node.type)?.(node);
     if (read === undefined) return decisionsUnder(walk, node.namedChildren);
     const { deeper, ...head } = read;
+    const depth = isElseIf(node) ? walk.depth - 1 : walk.depth;
     return [
-      { ...head, depth: walk.depth, line: node.startPosition.row + 1 },
-      ...decisionsUnder({ depth: walk.depth + 1 }, deeper),
+      { ...head, depth, line: node.startPosition.row + 1 },
+      ...decisionsUnder({ depth: depth + 1 }, deeper),
     ];
   });
 
