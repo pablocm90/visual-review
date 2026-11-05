@@ -710,6 +710,24 @@ test('a guard or catch removed from an edited function is a logic finding to loo
   ]);
 });
 
+test('names that hide logic at the head are one finding for information on their file, and no logic change for its tests', () => {
+  const file = { ...symbolFile([]), blindSpots: ['define_method', 'send'] };
+
+  expect(findingsOfSymbols([file])).toStrictEqual([
+    {
+      id: 'logic:blind-spot:web/file/a.ts',
+      dimension: 'logic',
+      level: 'info',
+      target: 'web/file/a.ts',
+      title: 'logic not read through: define_method, send',
+    },
+  ]);
+});
+
+test('a file with no names that hide logic has no blind spot finding', () => {
+  expect(findingsOfSymbols([{ ...symbolFile([]), blindSpots: [] }])).toStrictEqual([]);
+});
+
 test("a lost decision's detail says when it was found by name", () => {
   const [lost] = findingsOfSymbols([
     symbolFile([

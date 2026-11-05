@@ -794,3 +794,12 @@ test('a whole function moved between files gained nothing, so what another lost 
   );
   expect(logicOfIn(files, 'charge')?.map(({ change }) => change)).toEqual(['removed']);
 });
+
+test("a file's blind spots are its head's", () => {
+  expect(
+    symbolChanges({
+      before: { ...read(), blindSpots: ['send'] },
+      after: { ...read(), blindSpots: ['define_method'] },
+    }).blindSpots,
+  ).toEqual(['define_method']);
+});

@@ -35,6 +35,7 @@ export type SymbolChanges = {
   readonly symbols: ReadonlyArray<SymbolStatement>;
   readonly exports: ExportChanges;
   readonly kind: KindOfChange;
+  readonly blindSpots?: ReadonlyArray<string>;
 };
 
 const PROBABLY_RENAMED = 0.8;
@@ -218,7 +219,12 @@ export const symbolChanges = ({ before, after }: SymbolChangesOptions): SymbolCh
         }),
       ),
   ];
-  return { symbols, exports, kind: kindOf({ before, after, exports, symbols }) };
+  return {
+    symbols,
+    exports,
+    kind: kindOf({ before, after, exports, symbols }),
+    ...(after.blindSpots ? { blindSpots: after.blindSpots } : {}),
+  };
 };
 
 type SidedFile = SymbolChangesOptions & { readonly node: string };
