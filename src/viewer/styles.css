@@ -2921,6 +2921,13 @@ main:has(> .review-tray) {
 .columns.reading > .content {
   position: sticky;
   top: 24px;
+  display: flex;
+  flex-direction: column;
+  max-height: calc(100vh - 48px - var(--foot, 0px));
+}
+
+:where(.columns.reading > .content) > .frame {
+  flex: none;
 }
 
 @media (width < 1100px) {
@@ -2931,10 +2938,6 @@ main:has(> .review-tray) {
   .columns.reading > .content {
     position: static;
     grid-column: 2;
-  }
-
-  .columns.reading > .note {
-    position: static;
     max-height: none;
   }
 }
@@ -3024,6 +3027,11 @@ main:has(> .review-tray) {
   visibility: hidden;
 }
 
+.next-to-it {
+  min-height: 0;
+  overflow: auto;
+}
+
 .next-to-it h3 {
   margin: 12px 0 4px;
   color: var(--muted);
@@ -3057,6 +3065,8 @@ main:has(> .review-tray) {
 }
 
 .all-findings {
+  flex: none;
+  align-self: flex-start;
   margin-top: 12px;
   padding: 2px 8px;
   border: 1px solid var(--stack-line);
