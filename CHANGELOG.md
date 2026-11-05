@@ -2,13 +2,21 @@
 
 What changed in each release of `@pablocm90/visual-review`, newest first. Versions follow [semver](https://semver.org); while it is 0.x, a minor version may change the exported types.
 
-## 0.38.0 — 2026-11-05
+## Unreleased
 
 ### Added
 
 - Each dimension a check raises now says what it read. A picked lens lists its dimensions under the chips, each with what it found, `checked, none`, or why it wasn't read, such as `Rails only`, `no axum crate`, `no stack drawn` or `not read for crates`, and both when it was read in part. A lens with nothing found and nothing unread names what it checked on its chip, as in `Risk · dependencies checked, nothing found`, in place of Start here's "nothing to show".
 - The review `.json` carries this as `coverage`, and the skill is told not to claim what a dimension didn't read. It speaks for the stacks drawn: a changed file outside the graph keeps its own finding, and nothing in it was read.
 - A `Linker`'s `Links` can name why it read nothing, in an optional `notRead`.
+
+## 0.38.0 — 2026-11-05
+
+### Added
+
+- A change to a Rails app's routes reads as route changes: `config/routes.rb` and the files it joins with `load` and `draw` are expanded on both sides, with no Ruby run, and compared by app, verb and path. So `only: [:index]` to `only: [:index, :destroy]` is a new endpoint, not an edited line.
+- A removed route, and a new target at the same path, each raise a `routes` finding to look at. Added routes raise one finding per file, for information, with their count. Each opens the patch of the file behind it.
+- What the reader can't read (`if`, loops, `concern`, `devise_for` and anything under them) is listed by its text and never guessed at. It raises a finding only when that text is added or removed, and a route file that can't be read at all says so, as a blind spot in Start here.
 
 ## 0.37.0 — 2026-11-05
 
