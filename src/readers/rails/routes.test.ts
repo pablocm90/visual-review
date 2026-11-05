@@ -781,9 +781,9 @@ const gets = (count: number): string =>
     '\n',
   );
 
-const GET_COST = 18;
+const GET_COST = 26;
 
-test('a reading takes statements up to its limit, each costing the characters it writes', () => {
+test('a reading takes statements up to its limit, each costing what it writes and draws', () => {
   expect(upTo(1 + 99 * GET_COST, gets(99)).routes).toHaveLength(99);
 });
 
@@ -795,6 +795,16 @@ test('a statement not read also costs its text', () => {
   const { unread } = upTo(17, 'devise_for :a');
   expect(unread).toHaveLength(1);
   expect(() => upTo(16, 'devise_for :a')).toThrow('Too many routes to read');
+});
+
+test.for([
+  { statement: 'get "a", to: "b#c"', cost: 21 },
+  { statement: 'root "a#b"', cost: 10 },
+  { statement: 'mount Rack => "/a"', cost: 20 },
+  { statement: 'resource :a, only: :show', cost: 26 },
+])('a route drawn by $statement costs its path and target too', ({ statement, cost }) => {
+  expect(upTo(cost, statement).routes).toHaveLength(1);
+  expect(() => upTo(cost - 1, statement)).toThrow('Too many routes to read');
 });
 
 test('every root of a reading spends from one limit', () => {

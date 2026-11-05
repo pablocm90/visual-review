@@ -42,7 +42,7 @@ const RESOURCE_ACTIONS: ReadonlyArray<Action> = [
   ['DELETE', '', 'destroy'],
 ];
 
-const MOST_WRITTEN = 200_000;
+const MOST_SPENT = 500_000;
 
 const MOST_IN_A_CALL = 1000;
 
@@ -69,6 +69,15 @@ const placeOf = (statement: Node, { root, file }: Scope) => ({
   file,
   line: statement.startPosition.row + 1,
 });
+
+const drawnAt = (
+  statement: Node,
+  scope: Scope,
+  { verb, path, target }: Pick<Route, 'verb' | 'path' | 'target'>,
+): Route => {
+  scope.spend(path.length + target.length);
+  return { verb, path, target, ...placeOf(statement, scope) };
+};
 
 const unread = (statement: Node, scope: Scope): UnreadRoute => {
   const text = statement.text.replace(/\s+/g, ' ');
@@ -140,12 +149,13 @@ const resourcesOf =
       const path = under(scope.path, nameOf(writtenPath ?? arg));
       const controller = writtenController ? nameOf(writtenController) : controllerOf(name);
       return [
-        ...drawn.map(([verb, suffix, action]) => ({
-          verb,
-          path: `${path}${suffix.replace(':id', `:${param}`)}`,
-          target: inModuleOf(module, to ? nameOf(to) : `${controller}#${action}`),
-          ...placeOf(call, scope),
-        })),
+        ...drawn.map(([verb, suffix, action]) =>
+          drawnAt(call, scope, {
+            verb,
+            path: `${path}${suffix.replace(':id', `:${param}`)}`,
+            target: inModuleOf(module, to ? nameOf(to) : `${controller}#${action}`),
+          }),
+        ),
         ...within(call, {
           ...scope,
           module,
@@ -165,12 +175,11 @@ const rooted: Handler = (call, scope) => {
   const to = toOf(args) ?? args[0];
   if (to === undefined) return [unread(call, scope)];
   return [
-    {
+    drawnAt(call, scope, {
       verb: 'GET',
       path: scope.path,
       target: to.type === 'string' ? inModuleOf(scope.module, nameOf(to)) : to.text,
-      ...placeOf(call, scope),
-    },
+    }),
   ];
 };
 
@@ -239,12 +248,7 @@ const drawnBy =
       const target = targetOf(nameOf(arg), targeting, scope.module);
       return target === undefined
         ? unread(call, scope)
-        : {
-            verb,
-            path: under(base, nameOf(written ?? arg)),
-            target,
-            ...placeOf(call, scope),
-          };
+        : drawnAt(call, scope, { verb, path: under(base, nameOf(written ?? arg)), target });
     });
   };
 
@@ -270,12 +274,11 @@ const mounted: Handler = (call, scope) => {
   const app = pair?.childForFieldName('key') ?? args[0];
   if (app === undefined || !isFixedMount(args, path)) return [unread(call, scope)];
   return [
-    {
+    drawnAt(call, scope, {
       verb: 'ANY',
       path: under(scope.path, nameOf(path)),
       target: app.text,
-      ...placeOf(call, scope),
-    },
+    }),
   ];
 };
 
@@ -498,4 +501,4 @@ export const railsRoutesUpTo = (most: number): RouteReader => ({
   },
 });
 
-export const railsRoutes = railsRoutesUpTo(MOST_WRITTEN);
+export const railsRoutes = railsRoutesUpTo(MOST_SPENT);
