@@ -142,8 +142,11 @@ const methodSymbol = (method: Node, within: string | undefined, walk: Walk): Rea
   };
 };
 
+const argumentsOf = (call: Node): ReadonlyArray<Node> =>
+  call.childForFieldName('arguments')?.namedChildren ?? [];
+
 const symbolsNamedIn = (call: Node): ReadonlyArray<string> =>
-  (call.childForFieldName('arguments')?.namedChildren ?? [])
+  argumentsOf(call)
     .filter(({ type }) => type === 'simple_symbol')
     .map(({ text }) => text.slice(1));
 
@@ -160,7 +163,7 @@ const DELEGATE_ARGUMENTS = new Set([...ATTR_ARGUMENTS, 'pair']);
 const readsWhole = (call: Node, read: ReadonlySet<string>): boolean =>
   call.childForFieldName('receiver') === null &&
   call.childForFieldName('block') === null &&
-  (call.childForFieldName('arguments')?.namedChildren ?? []).every(({ type }) => read.has(type));
+  argumentsOf(call).every(({ type }) => read.has(type));
 
 const memberOf = (
   name: string,
@@ -196,11 +199,8 @@ const attrSymbols = (
   );
 
 const optionOf = (call: Node, option: string): Node | undefined =>
-  call
-    .childForFieldName('arguments')
-    ?.namedChildren.find(child =>
-      [option, `:${option}`].includes(child.childForFieldName('key')?.text ?? ''),
-    )
+  argumentsOf(call)
+    .find(child => [option, `:${option}`].includes(child.childForFieldName('key')?.text ?? ''))
     ?.childForFieldName('value') ?? undefined;
 
 const writtenName = (value: Node | undefined): string => {
@@ -220,9 +220,7 @@ const delegateSymbols = (
   walk: Walk,
 ): ReadonlyArray<ReadSymbol> => {
   const to = optionOf(call, 'to');
-  const pairs = (call.childForFieldName('arguments')?.namedChildren ?? []).filter(
-    ({ type }) => type === 'pair',
-  );
+  const pairs = argumentsOf(call).filter(({ type }) => type === 'pair');
   const hashes = hashesOf({
     signed: to === undefined ? [] : [to],
     body: pairs,
@@ -244,7 +242,7 @@ const delegateSymbols = (
 };
 
 const scopeSymbols = (call: Node, within: string | undefined): ReadonlyArray<ReadSymbol> => {
-  const [named, ...callable] = call.childForFieldName('arguments')?.namedChildren ?? [];
+  const [named, ...callable] = argumentsOf(call);
   if (callable[0] === undefined || callable[0].type === 'pair') return [];
   return [
     memberOf(
@@ -376,6 +374,9 @@ const MACROS = new Map<string, Macro>([
   ['private_constant', privateConstantMacro],
 ]);
 
+const macroOf = (node: Node): Macro | undefined =>
+  MACROS.get(node.childForFieldName('method')?.text ?? '');
+
 const METHODS = new Set(['method', 'singleton_method']);
 
 const isSingletonBlock = (node: Node): boolean =>
@@ -424,7 +425,7 @@ const walked = (walk: Walk, node: Node, within: string | undefined): Walk => {
   if (BODIES.has(node.type)) return walkedBody(walk, node, within);
   if (isSingletonBlock(node)) return walkedSingleton(walk, node, within);
   if (DEFINITIONS.has(node.type)) return walkedDefinition(walk, node, within);
-  const macro = MACROS.get(node.childForFieldName('method')?.text ?? '');
+  const macro = macroOf(node);
   return macro ? macro(walk, node, within) : walkedChildren(walk, node, within);
 };
 
