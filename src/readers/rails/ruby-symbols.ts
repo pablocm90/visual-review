@@ -310,6 +310,16 @@ const settledByName = (inner: Walk, within: string | undefined): ReadonlyArray<R
   });
 };
 
+const added = (
+  walk: Walk,
+  symbols: ReadonlyArray<ReadSymbol>,
+  holes: ReadonlyArray<number>,
+): Walk => ({
+  ...walk,
+  symbols: [...walk.symbols, ...symbols],
+  holes: [...walk.holes, ...holes],
+});
+
 const METHODS = new Set(['method', 'singleton_method']);
 
 const isSingletonBlock = (node: Node): boolean =>
@@ -317,19 +327,10 @@ const isSingletonBlock = (node: Node): boolean =>
   (node.type === 'call' && node.childForFieldName('method')?.text === 'class_methods');
 
 const walked = (walk: Walk, node: Node, within: string | undefined): Walk => {
-  const joined = (inner: Walk): Walk => ({
-    ...walk,
-    symbols: [...walk.symbols, ...inner.symbols],
-    holes: [...walk.holes, ...inner.holes],
-  });
+  const joined = (inner: Walk): Walk => added(walk, inner.symbols, inner.holes);
   if (node.type === 'identifier' && BODIES.has(node.parent?.type ?? ''))
     return { ...walk, ...BARE_WORDS.get(node.text) };
-  if (METHODS.has(node.type))
-    return {
-      ...walk,
-      symbols: [...walk.symbols, methodSymbol(node, within, walk)],
-      holes: [...walk.holes, node.id],
-    };
+  if (METHODS.has(node.type)) return added(walk, [methodSymbol(node, within, walk)], [node.id]);
   if (BODIES.has(node.type)) {
     const inner = walkedChildren({ ...STARTING, singleton: walk.singleton }, node, within);
     return joined({
