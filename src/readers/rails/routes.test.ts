@@ -780,6 +780,9 @@ const gets = (count: number): string =>
 
 const GET_COST = 14;
 
+const namesOf = (count: number): string =>
+  Array.from({ length: count }, (_, at) => `:a${at}`).join(', ');
+
 test('a reading takes statements up to its limit, each costing what its arguments hold', () => {
   expect(upTo(1 + 99 * GET_COST, gets(99)).routes).toHaveLength(99);
 });
@@ -789,8 +792,7 @@ test('a statement past the limit throws', () => {
 });
 
 test('one call naming more than the limit throws', () => {
-  const names = Array.from({ length: 60 }, (_, at) => `:a${at}`).join(', ');
-  expect(() => upTo(100, `resources ${names}, only: []`)).toThrow('Too many routes to read');
+  expect(() => upTo(100, `resources ${namesOf(60)}, only: []`)).toThrow('Too many routes to read');
 });
 
 test('every root of a reading spends from one limit', () => {
@@ -803,6 +805,16 @@ test('every root of a reading spends from one limit', () => {
   expect(() => roots(['apps/a/config/routes.rb', 'apps/b/config/routes.rb'])).toThrow(
     'Too many routes to read',
   );
+});
+
+test('a call writing up to 300 nodes is read', () => {
+  expect(read(`resources ${namesOf(150)}`).routes).toHaveLength(150 * 8);
+});
+
+test('a call writing over 300 nodes is not read, rather than slow every name after it', () => {
+  const { routes, unread } = read(`resources ${namesOf(151)}`);
+  expect(routes).toEqual([]);
+  expect(unread).toHaveLength(1);
 });
 
 test('names multiplying under names throw, rather than read without end', () => {

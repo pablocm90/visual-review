@@ -43,6 +43,8 @@ const RESOURCE_ACTIONS: ReadonlyArray<Action> = [
 
 const MOST_WRITTEN = 50_000;
 
+const MOST_IN_A_CALL = 300;
+
 type Scope = {
   readonly spend: (cost: number) => void;
   readonly files: ReadonlyMap<string, string>;
@@ -325,10 +327,15 @@ const namesWhatItDraws = (args: ReadonlyArray<Node>): boolean => {
   );
 };
 
+const writesTooMuch = (call: Node): boolean =>
+  (call.childForFieldName('arguments')?.descendantCount ?? 0) > MOST_IN_A_CALL;
+
 const checked =
   (handler: Handler): Handler =>
   (call, scope) =>
-    namesWhatItDraws(argsOf(call)) ? handler(call, scope) : [unread(call, scope)];
+    !writesTooMuch(call) && namesWhatItDraws(argsOf(call))
+      ? handler(call, scope)
+      : [unread(call, scope)];
 
 const CARRIED_TO_ROUTES = ['only', 'except', 'action', 'to'];
 
