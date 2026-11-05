@@ -77,7 +77,7 @@ import {
   withResolveToggled,
 } from './said-before.tsx';
 import { type SchemaLanding, SchemaScreen } from './schema-screen.tsx';
-import { changedSymbolCount, type LineAt, SymbolsOf, useHasSymbolNews } from './symbols-tab.tsx';
+import { type LineAt, WhatChanged } from './symbols-tab.tsx';
 import { changedCount, TestFiles, TestsScreen } from './tests-screen.tsx';
 import {
   boxOf,
@@ -646,11 +646,9 @@ type InspectorProps = {
   readonly onClose: () => void;
 };
 
-type InspectorTab = 'note' | 'metrics' | 'diff' | 'tests' | 'symbols';
+type InspectorTab = 'note' | 'metrics' | 'diff' | 'tests';
 
 const DRAFT_TABS: Partial<Record<Comment['anchor']['kind'], InspectorTab>> = {
-  symbol: 'symbols',
-  decision: 'symbols',
   test: 'tests',
   line: 'diff',
 };
@@ -679,7 +677,6 @@ const INSPECTOR_TABS: Readonly<Record<InspectorTab, string>> = {
   metrics: 'Metrics',
   diff: 'Diff',
   tests: 'Tests',
-  symbols: 'Symbols',
 };
 
 type Section = {
@@ -690,11 +687,9 @@ type Section = {
 
 type NodeSectionsOptions = Pick<
   InspectorProps,
-  'nodes' | 'metrics' | 'findings' | 'tests' | 'symbols' | 'onGoTo' | 'comments' | 'onComment'
+  'nodes' | 'metrics' | 'findings' | 'tests' | 'comments' | 'onComment'
 > & {
   readonly node: DiffNode;
-  readonly onShowLine: (at: LineAt) => void;
-  readonly hasSymbolNews: (file: SymbolFile) => boolean;
 };
 
 const nodeSections = ({
@@ -703,20 +698,11 @@ const nodeSections = ({
   metrics,
   findings,
   tests,
-  symbols,
-  onGoTo,
-  onShowLine,
   comments,
   onComment,
-  hasSymbolNews,
 }: NodeSectionsOptions): ReadonlyArray<Section> => {
   const measured = metrics[node.id];
   const testsHere = testsAlongside({ nodes, node, tests });
-  const boxesAbove = boxesAboveIn(nodes);
-  const symbolsHere = symbols.filter(
-    file => file.node === node.id || boxesAbove(file.node).includes(node.id),
-  );
-  const symbolCount = changedSymbolCount(symbolsHere);
   return [
     ...(measured
       ? [
@@ -749,33 +735,15 @@ const nodeSections = ({
           },
         ]
       : []),
-    ...(symbolsHere.some(hasSymbolNews)
-      ? [
-          {
-            tab: 'symbols' as const,
-            ...(symbolCount > 0 && { count: symbolCount }),
-            panel: (
-              <div className="symbols">
-                <SymbolsOf
-                  node={node}
-                  files={symbolsHere}
-                  nodes={nodes}
-                  onGoTo={onGoTo}
-                  onShowLine={onShowLine}
-                  comments={comments}
-                  onComment={onComment}
-                />
-              </div>
-            ),
-          },
-        ]
-      : []),
   ];
 };
 
 type NotePanelProps = Pick<
   InspectorProps,
   | 'nodes'
+  | 'node'
+  | 'symbols'
+  | 'onGoTo'
   | 'note'
   | 'found'
   | 'anchor'
@@ -785,10 +753,16 @@ type NotePanelProps = Pick<
   | 'saidInPlace'
   | 'answers'
   | 'onAnswer'
->;
+> & {
+  readonly onShowLine: (at: LineAt) => void;
+};
 
 const NotePanel = ({
   nodes,
+  node,
+  symbols,
+  onGoTo,
+  onShowLine,
   note,
   found,
   anchor,
@@ -814,6 +788,17 @@ const NotePanel = ({
       ) : (
         <p>Drawn for several edges: open its ends to comment on one of them.</p>
       ))}
+    {node && (
+      <WhatChanged
+        node={node}
+        files={symbols}
+        nodes={nodes}
+        onGoTo={onGoTo}
+        onShowLine={onShowLine}
+        comments={comments}
+        onComment={onComment}
+      />
+    )}
     {found.length > 0 && (
       <section className="column-section" aria-label="Why look">
         <h3>Why look</h3>
@@ -846,13 +831,12 @@ const Inspector = ({
   onLand,
   ...props
 }: InspectorProps) => {
-  const hasSymbolNews = useHasSymbolNews();
   const showLine = ({ node: at, ...line }: LineAt) => {
     onLand({ ...line, path: props.nodes.find(({ id }) => id === at)?.path });
     onPick('diff');
   };
   const sections: ReadonlyArray<Section> = [
-    { tab: 'note' as const, panel: <NotePanel {...props} /> },
+    { tab: 'note' as const, panel: <NotePanel {...props} node={node} onShowLine={showLine} /> },
     ...(patches.length > 0
       ? [
           {
@@ -875,7 +859,7 @@ const Inspector = ({
           },
         ]
       : []),
-    ...(node ? nodeSections({ ...props, node, onShowLine: showLine, hasSymbolNews }) : []),
+    ...(node ? nodeSections({ ...props, node }) : []),
   ].toSorted((a, b) => SECTION_ORDER.indexOf(a.tab) - SECTION_ORDER.indexOf(b.tab));
   const shown = sections.find(({ tab }) => tab === picked) ?? sections[0];
   return (

@@ -11,6 +11,7 @@ import {
   type SymbolStatement,
 } from '../core/symbol-changes.ts';
 import { type AnchoredSymbol, anchoredSymbols, decisionsOf } from '../core/symbol-findings.ts';
+import { boxesAboveIn } from '../core/visible-diff.ts';
 import { ChangedSinceTag, sinceLabel, useIsChangedSince } from './changed-since.tsx';
 import type { Comments } from './comment-field.tsx';
 import { CommentOn, SaidBefore, useHasSaid } from './said-before.tsx';
@@ -35,7 +36,7 @@ const GROUPS: ReadonlyArray<Group> = [
 const symbolsIn = (files: ReadonlyArray<SymbolFile>): ReadonlyArray<SymbolStatement> =>
   files.flatMap(file => ('symbols' in file ? file.symbols : []));
 
-export const changedSymbolCount = (files: ReadonlyArray<SymbolFile>): number =>
+const changedSymbolCount = (files: ReadonlyArray<SymbolFile>): number =>
   symbolsIn(files).filter(symbol => !isQuiet(symbol)).length;
 
 export type LineAt = {
@@ -204,7 +205,7 @@ const LogicLines = ({
   );
 };
 
-export const useHasSymbolNews = () => {
+const useHasSymbolNews = () => {
   const isChangedSince = useIsChangedSince();
   const hasSaid = useHasSaid();
   return (file: SymbolFile): boolean =>
@@ -308,7 +309,7 @@ const SymbolFiles = ({ file, ...places }: Places & { readonly file: SymbolFile }
   );
 };
 
-export const SymbolsOf = ({
+const SymbolsOf = ({
   node,
   files,
   ...places
@@ -322,8 +323,28 @@ export const SymbolsOf = ({
           className="symbol-file"
           aria-label={labelOf(places.nodes, file.node)}
         >
-          <h3>{labelOf(places.nodes, file.node)}</h3>
+          <h4>{labelOf(places.nodes, file.node)}</h4>
           <SymbolFiles file={file} {...places} />
         </section>
       ));
+};
+
+export const WhatChanged = ({
+  node,
+  files,
+  ...places
+}: Places & { readonly node: DiffedNode; readonly files: ReadonlyArray<SymbolFile> }) => {
+  const hasSymbolNews = useHasSymbolNews();
+  const boxesAbove = boxesAboveIn(places.nodes);
+  const here = files.filter(
+    file => file.node === node.id || boxesAbove(file.node).includes(node.id),
+  );
+  if (!here.some(hasSymbolNews)) return null;
+  const count = changedSymbolCount(here);
+  return (
+    <section className="column-section symbols" aria-label="What changed">
+      <h3>What changed{count > 0 && ` ${count}`}</h3>
+      <SymbolsOf node={node} files={here} {...places} />
+    </section>
+  );
 };
