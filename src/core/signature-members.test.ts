@@ -235,6 +235,52 @@ test('a line comment inside a string still splits', () => {
   expect(splitSignature("{ a: 'http://x'; b: 1 }")?.members).toHaveLength(2);
 });
 
+test('a union a formatter reflowed under a leading bar keeps its opener', () => {
+  const diff = {
+    base: 'type Kind = "a" | "b";',
+    head: 'type Kind = | "a" | "b" | "c";',
+  };
+  expect(signatureDiff(diff)?.opener).toEqual([{ change: 'same', text: 'type Kind =' }]);
+  expect(signatureSummary(diff)).toBe('1 member added');
+});
+
+test('a union reflowed back from a leading bar keeps its opener', () => {
+  const diff = { base: 'type Kind = | "a" | "b" | "c";', head: 'type Kind = "a" | "b";' };
+  expect(signatureDiff(diff)?.opener).toEqual([{ change: 'same', text: 'type Kind =' }]);
+  expect(signatureSummary(diff)).toBe('1 member removed');
+});
+
+test.for([
+  {
+    what: 'a semicolon before a closing brace',
+    base: '(opts: { a: A; b: B }, x: X)',
+    head: '(opts: { a: A; b: B; }, x: X, y: Y)',
+  },
+  {
+    what: 'a comma and spaces inside angle brackets',
+    base: '(opts: Map<A, B>, x: X)',
+    head: '(opts: Map< A, B, >, x: X, y: Y)',
+  },
+  {
+    what: 'spaces inside parentheses and square brackets',
+    base: '(opts: [(a: A) => B], x: X)',
+    head: '(opts: [ ( a: A ) => B ], x: X, y: Y)',
+  },
+  {
+    what: 'a comment first inside a bracket',
+    base: '(opts: { a: A }, x: X)',
+    head: '(opts: { /** one */ a: A }, x: X, y: Y)',
+  },
+])('$what is a reflow, not a change', ({ base, head }) => {
+  expect(signatureSummary({ base, head })).toBe('1 member added');
+});
+
+test.for(["'", '"', '`'])('what looks like a reflow inside a %s string is the string', quote => {
+  expect(
+    signatureSummary({ base: `(a: ${quote}{ b; }${quote})`, head: `(a: ${quote}{ b }${quote})` }),
+  ).toBe('1 member changed');
+});
+
 test('a pairing far along leaves every member before it unpaired', () => {
   expect(signatureDiff({ base: '(a: 1, b: 2, c: 3)', head: '(c: 4, b: 5)' })?.members).toEqual([
     { change: 'removed', text: 'a: 1' },

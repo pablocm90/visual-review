@@ -142,6 +142,8 @@ const comparable = (member: string): string =>
 const lineOf = (change: 'same' | 'added' | 'removed', text: string) =>
   text === '' ? [] : [{ change, text }];
 
+const withoutLeadingBar = (opener: string): string => opener.replace(/\|$/, '');
+
 const edge = (base: string, head: string): ReadonlyArray<EdgeLine> => {
   const [from, to] = [base.trim(), head.trim()];
   return from === to ? lineOf('same', to) : [...lineOf('removed', from), ...lineOf('added', to)];
@@ -153,14 +155,17 @@ type Member = {
   readonly name: string | undefined;
 };
 
-const COMMENT_OUTSIDE_STRINGS = new RegExp(`${STRINGS}|${BLOCK_COMMENT}`, 'g');
+const NOISE = new RegExp(
+  `${STRINGS}|${BLOCK_COMMENT}\\s*|[,;](?=\\s*[)\\]}>])|\\s+(?=[)\\]}>])|(?<=[(\\[{<])\\s+`,
+  'g',
+);
 
-const uncommented = (text: string): string =>
-  text.replace(COMMENT_OUTSIDE_STRINGS, found => (found.startsWith('/*') ? '' : found)).trim();
+const withoutNoise = (text: string): string =>
+  text.replace(NOISE, found => ('\'"`'.includes(found.charAt(0)) ? found : ''));
 
 const memberOf = (member: string): Member => {
   const text = comparable(member);
-  const compared = uncommented(text);
+  const compared = withoutNoise(text);
   return { text, compared, name: nameOf(compared) };
 };
 
@@ -212,7 +217,7 @@ export const signatureDiff = ({
   const [from, to] = [splitSignature(base), splitSignature(head)];
   if (from === undefined || to === undefined || from.by !== to.by) return undefined;
   const diff = {
-    opener: edge(from.opener, to.opener),
+    opener: edge(withoutLeadingBar(from.opener), withoutLeadingBar(to.opener)),
     members: aligned({
       base: from.members.map(memberOf),
       head: to.members.map(memberOf),
