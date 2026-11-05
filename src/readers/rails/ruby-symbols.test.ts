@@ -364,3 +364,27 @@ test('delegate reads as a method per name, its prefix applied, signed by its tar
     'self.count',
   ]);
 });
+
+test('a scope with a callable reads as the public method self.x, a routes scope as nothing', () => {
+  const lines = [
+    'class Shop',
+    '  private',
+    '  scope :open, -> { where(open: true) }',
+    '  scope :near, lambda { |place| where(place:) }',
+    '  scope :hidden, -> { all }',
+    '  private_class_method :hidden',
+    '  scope :admin do',
+    '  end',
+    "  scope :api, module: 'api' do",
+    '  end',
+    'end',
+  ];
+
+  expect(symbolsIn(...lines)).toEqual([
+    'class Shop',
+    'method Shop.self.open',
+    'method Shop.self.near',
+    'method Shop.self.hidden',
+  ]);
+  expect(exportedIn(...lines)).toEqual(['self.open', 'self.near']);
+});

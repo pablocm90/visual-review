@@ -135,6 +135,17 @@ const delegateSymbols = (
     ),
   );
 
+const scopeSymbols = (call: Node, within: string | undefined): ReadonlyArray<ReadSymbol> => {
+  const [named, callable] = call.childForFieldName('arguments')?.namedChildren ?? [];
+  if (callable === undefined || callable.type === 'pair') return [];
+  return [
+    memberOf(writtenName(named), { kind: 'method', exported: true, signature: '' }, within, {
+      ...STARTING,
+      singleton: true,
+    }),
+  ];
+};
+
 const BARE_WORDS = new Map([
   ['private', { exported: false, moduleFunction: false }],
   ['protected', { exported: false, moduleFunction: false }],
@@ -215,6 +226,8 @@ const walked = (walk: Walk, node: Node, within: string | undefined): Walk => {
   const attrs = ATTRS.get(called ?? '');
   if (attrs)
     return { ...walk, symbols: [...walk.symbols, ...attrSymbols(node, attrs, within, walk)] };
+  if (called === 'scope')
+    return { ...walk, symbols: [...walk.symbols, ...scopeSymbols(node, within)] };
   if (called === 'delegate')
     return { ...walk, symbols: [...walk.symbols, ...delegateSymbols(node, within, walk)] };
   const held = VISIBILITY_CALLS.get(called ?? '');
