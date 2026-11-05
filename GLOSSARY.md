@@ -73,8 +73,18 @@ A point in a function's own code where its path can fork or end early: a guard, 
 _Avoid_: branch, condition
 _In code_: `Decision`, `DecisionKind`
 
+**Found by name**:
+A decision known only from what a call is named, such as `render`, `before_action` or `each`: the reader can't see what the call does, so a lost one's finding says so.
+_Avoid_: heuristic, guessed
+_In code_: `Decision['foundByName']`
+
+**Logic not read through**:
+A changed file calls something that hides logic from its reading, such as `send` or `define_method`, which one finding for information names. It isn't one of Look first's blind spots, which are what the review couldn't read at all, though its id says `blind-spot`.
+_Avoid_: unread logic
+_In code_: `FileSymbols['blindSpots']`, `logic:blind-spot:<node>`
+
 **Logic line**:
-One decision of an edited or renamed function, diffed across the sides: the same, added, removed, changed (a base and a head decision of one kind paired in place), or moved (one it lost whose kind and text another symbol gained at the head, found by text alone).
+One decision of an edited or renamed symbol, diffed across the sides: the same, added, removed, changed (a base and a head decision of one kind paired in place), or moved (one it lost whose kind and text another symbol gained at the head, found by text alone).
 _Avoid_: logic diff (for one line), branch change
 _In code_: `LogicLine`
 

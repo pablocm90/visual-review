@@ -92,7 +92,9 @@ export type StackOptions = HoldsOptions & {
  * measures as `undefined` is left unmeasured. `symbols`, if it has one, reads the symbols of one of
  * its files (functions, methods, classes and types, with their signatures and body hashes) and the
  * names the file exports; it throws on a file it can't parse. A file it reads as `undefined` has no
- * symbols, as every file of a reader without one.
+ * symbols, as every file of a reader without one. A symbol's `decisions` are its logic, each marked
+ * `foundByName` when only a call's name says it is one; `blindSpots` names what the file calls that
+ * hides logic from this reading.
  */
 export interface Reader {
   readonly name: ReaderName;
