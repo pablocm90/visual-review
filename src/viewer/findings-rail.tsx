@@ -27,6 +27,7 @@ type FindingsRailProps = {
   readonly onOpen: (open: boolean) => void;
   readonly review: Pick<PageData, 'diff' | 'skipped' | 'sinceReview'>;
   readonly onGoTo: (id: string) => void;
+  readonly onGoToFinding: (id: string, finding: string) => void;
   readonly onShowOutside: (opener: HTMLButtonElement) => void;
   readonly onShowFile: (path: string, opener: HTMLButtonElement, place?: string) => void;
   readonly answers: Answers;
@@ -62,11 +63,12 @@ const nameOf = (dimension: Dimension) => {
 type LineOptions = {
   readonly review: Pick<PageData, 'diff'>;
   readonly onGoTo: (id: string) => void;
+  readonly onGoToFinding: (id: string, finding: string) => void;
   readonly onShowOutside: (opener: HTMLButtonElement) => void;
   readonly onShowFile: (path: string, opener: HTMLButtonElement, place?: string) => void;
 };
 
-const linesOf = ({ review, onGoTo, onShowOutside, onShowFile }: LineOptions) => {
+const linesOf = ({ review, onGoTo, onGoToFinding, onShowOutside, onShowFile }: LineOptions) => {
   const labelOf = new Map(review.diff.nodes.map(node => [node.id, node.label]));
   const targetOf = (id: string) =>
     endsOfId(id)
@@ -81,7 +83,7 @@ const linesOf = ({ review, onGoTo, onShowOutside, onShowFile }: LineOptions) => 
         level,
         sentence: findingLine(finding),
         target: targetOf(target),
-        act: () => onGoTo(target),
+        act: () => onGoToFinding(target, id),
       };
     }
     return {

@@ -2055,7 +2055,7 @@ test("a picked lens lists its dimensions under the chips, each with its counts, 
   expect(screen.queryByRole('list', { name: /dimensions/ })).toBeNull();
 });
 
-test("a note's or a metric finding in the rail goes to its node or edge as the summary's links do", async () => {
+test("a note's or a metric finding in the rail goes to its node or edge as the summary's links do, its row in view under Why look, the graph keeping the focus", async () => {
   const user = userEvent.setup();
   render(
     <ReviewPage
@@ -2091,6 +2091,11 @@ test("a note's or a metric finding in the rail goes to its node or edge as the s
 
   await user.click(rail().getByRole('button', { name: 'domain: lines 900, over 800' }));
   expect(document.activeElement).toBe(screen.getByRole('button', { name: 'domain: unchanged' }));
+  const row = within(within(noteTab()).getByRole('region', { name: 'Why look' })).getByRole(
+    'listitem',
+    { current: true },
+  );
+  expect(scrolledIntoView.mock.contexts).toContain(row);
 });
 
 test("the reading order numbers the changed parts in its order, on the graph too, each marked with its findings' worst level and count, a cycle's first part saying it is one, and going to its part as the summary's links do", async () => {
@@ -2645,6 +2650,11 @@ test('Start here lists its lines in rank order, in the lens a chip picks, foldin
   await waitFor(() =>
     expect(document.activeElement).toBe(screen.getByRole('button', { name: 'domain: unchanged' })),
   );
+  expect(
+    within(within(noteTab()).getByRole('region', { name: 'Why look' })).getByRole('listitem', {
+      current: true,
+    }).textContent,
+  ).toContain('second');
 
   const flags = Array.from({ length: 6 }, (_, index) =>
     flagged('rust/crate/domain', { id: `look ${index}`, title: `${index}` }),

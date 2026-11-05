@@ -1596,6 +1596,10 @@ const Page = ({ review, notes, send }: ReviewPageProps) => {
     goToOnTab(id, tabOfDraft(anchor));
     if (onRow) setFocusTarget({ id, inGraph: false });
   };
+  const goToFinding = (id: string, finding: string) => {
+    landOn(id, { path: undefined, row: anchorKey({ kind: 'finding', id: finding }) });
+    goTo(id);
+  };
   const showOutsideAt = (place: LandingIn, opener: HTMLButtonElement) => {
     landOn(null, place);
     location.hash = '#structure';
@@ -1693,6 +1697,7 @@ const Page = ({ review, notes, send }: ReviewPageProps) => {
                 onOpen={setRailOpen}
                 review={review}
                 onGoTo={goTo}
+                onGoToFinding={goToFinding}
                 onShowOutside={showOutside}
                 onShowFile={showFile}
                 answers={answers}
@@ -1713,6 +1718,7 @@ const Page = ({ review, notes, send }: ReviewPageProps) => {
                 onShowAll={() => setRailOpen(true)}
                 review={review}
                 onGoTo={goTo}
+                onGoToFinding={goToFinding}
                 onShowOutside={showOutside}
                 onShowFile={showFile}
               />
