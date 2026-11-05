@@ -2847,7 +2847,7 @@ main:has(> .review-tray) {
   margin-top: 8px;
 }
 
-.part-actions > button {
+.part-actions > :where(button) {
   margin: 0;
   padding: 2px 8px;
   border: 1px solid var(--stack-line);
@@ -2859,9 +2859,9 @@ main:has(> .review-tray) {
   cursor: pointer;
 }
 
-.part-actions > button:hover,
-.part-actions > button[aria-pressed="true"],
-.part-actions > button[aria-expanded="true"] {
+.part-actions > :where(button):hover,
+.part-actions > :where(button)[aria-pressed="true"],
+.part-actions > :where(button)[aria-expanded="true"] {
   background: var(--unchanged-fill);
 }
 
@@ -2871,8 +2871,7 @@ main:has(> .review-tray) {
   font-size: 11px;
 }
 
-.part-actions > .comment-kind,
-.part-actions > .comment {
+.part-actions > :where(.comment-kind, .comment) {
   order: 1;
   flex-basis: 100%;
 }
