@@ -291,3 +291,35 @@ test("a route's finding lands on its row, among rows of one line from two apps",
   ).getAllByRole('row', { name: /GET \/gone/ });
   await waitFor(() => expect(document.activeElement).toBe(second));
 });
+
+test("an answer to a route's finding goes from the tray to its row", async () => {
+  atHash('#structure');
+  const user = userEvent.setup();
+  const routes: PageData['routes'] = [
+    {
+      routes: [{ state: 'removed', patch: 'config/routes.rb', base: route({ path: '/gone' }) }],
+      unread: [],
+    },
+  ];
+  render(
+    <ReviewPage
+      review={pageWith({ ...reviewOf(routes), findings: routeFindings(routes) })}
+      send={vi.fn(async () => {})}
+    />,
+  );
+
+  await user.click(await screen.findByRole('button', { name: 'Show 1 finding' }));
+  const rail = screen.getByRole('complementary', { name: 'Findings' });
+  const finding = within(rail).getByText('GET /gone removed').closest('li') ?? rail;
+  await user.click(within(finding).getByRole('button', { name: 'Fix this' }));
+  await user.click(screen.getByRole('button', { name: 'Review' }));
+  await user.click(
+    within(screen.getByRole('list', { name: 'Drafts' })).getByRole('button', {
+      name: 'GET /gone removed',
+    }),
+  );
+
+  await waitFor(() =>
+    expect(document.activeElement).toBe(screen.getByRole('row', { name: /GET \/gone/ })),
+  );
+});
