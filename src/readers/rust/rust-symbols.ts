@@ -87,9 +87,11 @@ const underlyingType = (type: Node | null): string => {
   return inner === null ? textOf(type) : underlyingType(inner);
 };
 
+const TYPES: ReadonlySet<string> = new Set(['struct_item', 'enum_item', 'union_item', 'type_item']);
+
 const isPubBeside = (item: Node, name: string): boolean =>
   (item.parent?.namedChildren ?? []).some(
-    sibling => nameOf(sibling) === name && isExactlyPub(sibling),
+    sibling => TYPES.has(sibling.type) && nameOf(sibling) === name && isExactlyPub(sibling),
   );
 
 const methodsOfImpl = (item: Node): ReadonlyArray<ReadSymbol> => {

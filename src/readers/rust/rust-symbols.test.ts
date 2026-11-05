@@ -233,6 +233,11 @@ test.for([
   { type: 'struct Foo;', exported: false },
   { type: 'pub(crate) struct Foo;', exported: false },
   { type: 'pub struct Bar;', exported: false },
+  { type: 'pub const Foo: u8 = 1;\nstruct Foo;', exported: false },
+  { type: 'pub fn Foo() {}\nstruct Foo;', exported: false },
+  { type: 'pub union Foo { a: u8 }', exported: true },
+  { type: 'pub enum Foo {}', exported: true },
+  { type: 'pub type Foo = u8;', exported: true },
 ])('a trait method on Foo beside $type has exported: $exported', ({ type, exported }) => {
   expect(methodsIn(read(type, 'impl Tr for Foo<u8> {\n  fn open() {}\n}'))).toMatchObject([
     { name: 'open', exported },
