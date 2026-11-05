@@ -170,6 +170,71 @@ test('a parameter moved and edited still reads removed and added, its order neve
   ]);
 });
 
+test('a block comment is no place to cut a member, whatever it holds', () => {
+  expect(
+    signatureDiff({
+      base: 'interface I { a: A; }',
+      head: "interface I { a: A; /** The id, as sent; it's never (empty. */ c: C; }",
+    })?.members,
+  ).toEqual([
+    { change: 'same', text: 'a: A' },
+    { change: 'added', text: "/** The id, as sent; it's never (empty. */ c: C" },
+  ]);
+});
+
+test('a member goes by its name past a comment holding a colon', () => {
+  expect(
+    signatureDiff({
+      base: 'interface I { /** Note: one */ a: A; }',
+      head: 'interface I { /** Note: one */ b: A; }',
+    })?.members,
+  ).toEqual([
+    { change: 'removed', text: '/** Note: one */ a: A' },
+    { change: 'added', text: '/** Note: one */ b: A' },
+  ]);
+});
+
+test('a reworded comment leaves its member as it was, read as the head has it', () => {
+  expect(
+    signatureDiff({
+      base: 'interface I { /** old */ a: A; b: B; }',
+      head: 'interface I { /** new */ a: A; b: C; }',
+    })?.members,
+  ).toEqual([
+    { change: 'same', text: '/** new */ a: A' },
+    { change: 'changed', base: 'b: B', head: 'b: C' },
+  ]);
+});
+
+test('a comment put on a member leaves it as it was', () => {
+  expect(
+    signatureDiff({ base: '{ a: A; b: B }', head: '{ /** new */ a: A; b: C }' })?.members,
+  ).toEqual([
+    { change: 'same', text: '/** new */ a: A' },
+    { change: 'changed', base: 'b: B', head: 'b: C' },
+  ]);
+});
+
+test('what looks like a comment inside a string is the string', () => {
+  expect(
+    signatureDiff({ base: "{ a: '/* x */'; b: 1 }", head: "{ a: '/* y */'; b: 1 }" })?.members,
+  ).toEqual([
+    { change: 'changed', base: "a: '/* x */'", head: "a: '/* y */'" },
+    { change: 'same', text: 'b: 1' },
+  ]);
+});
+
+test.for([
+  { what: 'a line comment, with no visible end', text: 'interface I { // one, two\n a: A; }' },
+  { what: 'a comment never closed', text: 'interface I { /* one a: A; }' },
+])('$what does not split', ({ text }) => {
+  expect(splitSignature(text)).toBeUndefined();
+});
+
+test('a line comment inside a string still splits', () => {
+  expect(splitSignature("{ a: 'http://x'; b: 1 }")?.members).toHaveLength(2);
+});
+
 test('a pairing far along leaves every member before it unpaired', () => {
   expect(signatureDiff({ base: '(a: 1, b: 2, c: 3)', head: '(c: 4, b: 5)' })?.members).toEqual([
     { change: 'removed', text: 'a: 1' },

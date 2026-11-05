@@ -11,7 +11,13 @@ type Mark = { readonly token: string; readonly at: number; readonly depth: numbe
 
 type Scan = { readonly open: string; readonly marks: ReadonlyArray<Mark> };
 
-const STRUCTURE = /'(?:[^'\\]|\\.)*'|"(?:[^"\\]|\\.)*"|`(?:[^`\\]|\\.)*`|=>|[()[\]{}<>,;=|'"`]/g;
+const STRINGS = /'(?:[^'\\]|\\.)*'|"(?:[^"\\]|\\.)*"|`(?:[^`\\]|\\.)*`/.source;
+
+const BLOCK_COMMENT = /\/\*[\s\S]*?\*\//.source;
+
+const STRUCTURE = new RegExp(`${STRINGS}|${BLOCK_COMMENT}|//|/\\*|=>|[()[\\]{}<>,;=|'"\`]`, 'g');
+
+const UNSPLITTABLE: ReadonlyArray<string> = ["'", '"', '`', '//', '/*'];
 
 const OPENER_OF: Readonly<Record<string, string>> = { ')': '(', ']': '[', '}': '{' };
 
@@ -22,7 +28,7 @@ const scanned = (scan: Scan, open: string, mark: Mark): Scan => ({
 
 const step = (scan: Scan, token: string, at: number): Scan | undefined => {
   const depth = scan.open.length;
-  if ('\'"`'.includes(token)) return undefined;
+  if (UNSPLITTABLE.includes(token)) return undefined;
   if ('([{<'.includes(token)) return scanned(scan, scan.open + token, { token, at, depth });
   if (token === '>')
     return scan.open.endsWith('<') ? { ...scan, open: scan.open.slice(0, -1) } : scan;
@@ -141,11 +147,21 @@ const edge = (base: string, head: string): ReadonlyArray<EdgeLine> => {
   return from === to ? lineOf('same', to) : [...lineOf('removed', from), ...lineOf('added', to)];
 };
 
-type Member = { readonly text: string; readonly name: string | undefined };
+type Member = {
+  readonly text: string;
+  readonly compared: string;
+  readonly name: string | undefined;
+};
+
+const COMMENT_OUTSIDE_STRINGS = new RegExp(`${STRINGS}|${BLOCK_COMMENT}`, 'g');
+
+const uncommented = (text: string): string =>
+  text.replace(COMMENT_OUTSIDE_STRINGS, found => (found.startsWith('/*') ? '' : found)).trim();
 
 const memberOf = (member: string): Member => {
   const text = comparable(member);
-  return { text, name: nameOf(text) };
+  const compared = uncommented(text);
+  return { text, compared, name: nameOf(compared) };
 };
 
 type Pairing = {
@@ -200,7 +216,7 @@ export const signatureDiff = ({
     members: aligned({
       base: from.members.map(memberOf),
       head: to.members.map(memberOf),
-      same: (one, other) => one.text === other.text,
+      same: (one, other) => one.compared === other.compared,
     }).flatMap(
       (run): ReadonlyArray<SignatureLine> =>
         'kept' in run ? [{ change: 'same', text: run.kept.text }] : linesOfGap(run.base, run.head),
