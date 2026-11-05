@@ -50,6 +50,27 @@ test('a test file reads no symbols', () => {
   expect(railsReader.symbols?.('class ShopSpec; end', 'spec/models/shop_spec.rb')).toBeUndefined();
 });
 
+test('a def is a method scoped by its constant, a setter by the name it sets, a top-level one a function', () => {
+  expect(
+    symbolsIn(
+      'def helper; end',
+      'class Shop',
+      '  def open; end',
+      '  def price=(value); end',
+      '  def nested',
+      '    def inner; end',
+      '  end',
+      'end',
+    ),
+  ).toEqual([
+    'function helper',
+    'class Shop',
+    'method Shop.open',
+    'setter Shop.price',
+    'method Shop.nested',
+  ]);
+});
+
 test('a file that does not parse throws, and so does one too big to read', () => {
   expect(() => read('class Shop', '  def open(', 'end')).toThrow('parse');
   expect(() => read(`# ${'x'.repeat(1001)}`)).toThrow('too big');
