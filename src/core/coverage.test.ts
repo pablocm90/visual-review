@@ -7,6 +7,9 @@ const facts = (overrides: Partial<CoverageFacts> = {}): CoverageFacts => ({
   symbolsNotRead: [],
   symbols: [],
   tests: [],
+  dependencyChanges: [],
+  schemas: [],
+  migrations: [],
   ...overrides,
 });
 
@@ -19,6 +22,8 @@ test('with nothing unread, each dimension a check raises is listed as checked, a
     { dimension: 'logic', notRead: [] },
     { dimension: 'api', notRead: [] },
     { dimension: 'tests', notRead: [] },
+    { dimension: 'dependencies', notRead: [] },
+    { dimension: 'schema', notRead: [] },
     { dimension: 'cohesion', notRead: [] },
   ]);
 });
@@ -60,4 +65,29 @@ test('only tests names a test file it could not read', () => {
   expect(notReadIn('tests', { tests })).toEqual(['not read for web/src/broken.test.ts']);
   expect(notReadIn('logic', { tests })).toEqual([]);
   expect(notReadIn('api', { tests })).toEqual([]);
+});
+
+test('dependencies names a lockfile it could not read, and not one it could', () => {
+  const dependencyChanges = [
+    { lockfile: 'pnpm-lock.yaml', notRead: 'unknown format' },
+    { lockfile: 'Cargo.lock', ecosystem: 'cargo', packages: [] },
+  ];
+
+  expect(notReadIn('dependencies', { dependencyChanges })).toEqual(['not read: pnpm-lock.yaml']);
+});
+
+test('schema names the dump and the migration it could not read, and not those it could', () => {
+  const schemas = [
+    { file: 'db/schema.rb', notRead: 'parse error' },
+    { file: 'db/queue_schema.rb', tables: [] },
+  ];
+  const migrations = [
+    { file: 'db/migrate/1_add.rb', notRead: 'parse error' },
+    { file: 'db/migrate/2_add.rb', risks: [] },
+  ];
+
+  expect(notReadIn('schema', { schemas, migrations })).toEqual([
+    'not read: db/schema.rb',
+    'not read: db/migrate/1_add.rb',
+  ]);
 });
