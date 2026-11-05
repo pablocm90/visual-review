@@ -2460,9 +2460,11 @@ test('walking brings the current stop into view in its list, and marking it read
   expect(scrolledIntoView.mock.contexts).toContain(currentStop());
 
   const first = currentStop();
+  scrolledIntoView.mockClear();
   await user.keyboard('j');
   expect(currentStop()).not.toBe(first);
   expect(scrolledIntoView.mock.contexts).toContain(currentStop());
+  expect(scrolledIntoView.mock.contexts).not.toContain(first);
 
   const second = currentStop();
   scrolledIntoView.mockClear();

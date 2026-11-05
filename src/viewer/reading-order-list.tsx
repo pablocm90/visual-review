@@ -45,25 +45,32 @@ type StopProps = {
   readonly onClick: (opener: HTMLButtonElement) => void;
 };
 
-const Stop = ({ number, label, read, current, onClick }: StopProps) => (
-  <li className="reading-stop">
-    <button
-      type="button"
-      className="reading-stop-button"
-      title={label}
-      aria-current={current ? 'step' : undefined}
-      onClick={event => onClick(event.currentTarget)}
-    >
-      <span className="reading-number">{number}</span>{' '}
-      <span className="visually-hidden">{label}</span>
-    </button>
-    {read && (
-      <span className="reading-read" role="img" aria-label="read">
-        ✓
-      </span>
-    )}
-  </li>
-);
+const Stop = ({ number, label, read, current, onClick }: StopProps) => {
+  const button = useRef<HTMLButtonElement>(null);
+  useLayoutEffect(() => {
+    if (current && button.current) scrollInPanel(button.current, 'nearest');
+  }, [current]);
+  return (
+    <li className="reading-stop">
+      <button
+        type="button"
+        className="reading-stop-button"
+        title={label}
+        aria-current={current ? 'step' : undefined}
+        ref={button}
+        onClick={event => onClick(event.currentTarget)}
+      >
+        <span className="reading-number">{number}</span>{' '}
+        <span className="visually-hidden">{label}</span>
+      </button>
+      {read && (
+        <span className="reading-read" role="img" aria-label="read">
+          ✓
+        </span>
+      )}
+    </li>
+  );
+};
 
 export const ReadingStops = ({
   review,
@@ -74,13 +81,8 @@ export const ReadingStops = ({
 }: ReadingStopsProps) => {
   const labelOf = new Map(review.diff.nodes.map(node => [node.id, node.label]));
   const { parts } = review.readingOrder;
-  const stops = useRef<HTMLElement>(null);
-  useLayoutEffect(() => {
-    const stop = stops.current?.querySelector<HTMLElement>('[aria-current]');
-    if (stop) scrollInPanel(stop, 'nearest');
-  }, [current]);
   return (
-    <nav className="reading-stops" aria-label="Reading order" ref={stops}>
+    <nav className="reading-stops" aria-label="Reading order">
       <ol>
         {parts.map((part, index) => (
           <Stop
