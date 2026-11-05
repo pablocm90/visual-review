@@ -2697,6 +2697,20 @@ test('reading holds across Metrics and Tests: the map, the part and the column a
   expect(rowsOf(readingOrder())).toHaveLength(3);
 });
 
+test("going to a part from another tab while reading lands focus on the part's heading", async () => {
+  const user = userEvent.setup();
+  render(<ReviewPage review={walkedReview()} />);
+  await screen.findByRole('group', { name: 'rust' });
+  await user.keyboard('j');
+
+  await user.click(screen.getByRole('link', { name: 'Tests' }));
+  await user.click(await screen.findByRole('button', { name: 'cli-adapter' }));
+
+  expect(await screen.findByRole('group', { name: 'Map' })).toBeDefined();
+  expect(selectedPart()).toBe('cli-adapter');
+  await waitFor(() => expect(document.activeElement).toBe(headingOfPart()));
+});
+
 test('going from Next to it to a neighbour Show hides widens Show, and the map rings it', async () => {
   const user = userEvent.setup();
   render(
