@@ -124,10 +124,14 @@ const addsIndex: Rule = ({ table, args }) =>
     ? []
     : [indexAdded(table, namesOf(args[0]))];
 
-const addsReference: Rule = call => [
-  ...addsEach('reference')(call),
-  ...positional(call.args).map(name => indexAdded(call.table, `${nameOf(name)}_id`)),
-];
+const OFF: ReadonlySet<string | undefined> = new Set(['false', 'nil']);
+
+const indexesReference: Rule = ({ table, args }) =>
+  OFF.has(optionOf(args, 'index')?.type)
+    ? []
+    : positional(args).map(name => indexAdded(table, `${nameOf(name)}_id`));
+
+const addsReference: Rule = call => [...addsEach('reference')(call), ...indexesReference(call)];
 
 const RULES: ReadonlyMap<string, Rule> = new Map<string, Rule>([
   ['remove_column', ({ table, args }) => [removed('column', table, args[0])]],

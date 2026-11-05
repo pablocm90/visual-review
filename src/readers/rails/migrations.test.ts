@@ -114,18 +114,12 @@ test.for([
   { written: 'add_column :users, :email, :string, null: true', expected: [] },
   { written: "add_column :users, :email, :string, null: false, default: ''", expected: [] },
   {
-    written: 'add_reference :users, :account, null: false',
-    expected: [
-      'reference users.account added as null: false with no default',
-      'index on users (account_id) added, not concurrently',
-    ],
+    written: 'add_reference :users, :account, null: false, index: false',
+    expected: ['reference users.account added as null: false with no default'],
   },
   {
-    written: 'add_belongs_to :users, :account, null: false',
-    expected: [
-      'reference users.account added as null: false with no default',
-      'index on users (account_id) added, not concurrently',
-    ],
+    written: 'add_belongs_to :users, :account, null: false, index: false',
+    expected: ['reference users.account added as null: false with no default'],
   },
   {
     written: 'add_timestamps :users',
@@ -190,6 +184,26 @@ test.for([{ method: 'add_reference' }, { method: 'add_belongs_to' }])(
     ]);
   },
 );
+
+test.for([
+  { written: 'add_reference :orders, :user, index: false', expected: [] },
+  { written: 'add_reference :orders, :user, :index => false', expected: [] },
+  { written: 'add_reference :orders, :user, index: nil', expected: [] },
+  {
+    written: 'add_reference :orders, :user, index: true',
+    expected: ['index on orders (user_id) added, not concurrently'],
+  },
+  {
+    written: 'add_reference :orders, :user, index: { unique: true }',
+    expected: ['index on orders (user_id) added, not concurrently'],
+  },
+  {
+    written: 'add_reference :orders, :user, index: wanted',
+    expected: ['index on orders (user_id) added, not concurrently'],
+  },
+])('$written is flagged unless its index is plainly off', ({ written, expected }) => {
+  expect(titles(written)).toStrictEqual(expected);
+});
 
 test.for([
   { written: 'create_table :orders\n    add_index :orders, :user_id', expected: [] },
