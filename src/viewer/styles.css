@@ -502,31 +502,6 @@ h1 {
   word-break: break-all;
 }
 
-.inspector-tabs {
-  display: flex;
-  gap: 4px;
-  margin-bottom: 12px;
-  border-bottom: 1px solid var(--stack-line);
-}
-
-.inspector-tabs button {
-  min-height: 32px;
-  margin-bottom: -1px;
-  padding: 0 8px;
-  border: none;
-  border-bottom: 2px solid transparent;
-  background: none;
-  color: var(--muted);
-  font: inherit;
-  cursor: pointer;
-}
-
-.inspector-tabs button[aria-selected="true"] {
-  border-bottom-color: var(--ink);
-  color: var(--ink);
-  font-weight: 600;
-}
-
 .changes details {
   margin-top: 12px;
 }
@@ -715,13 +690,6 @@ pre .hljs-emphasis {
 .tests {
   max-width: 96ch;
   margin-top: 20px;
-}
-
-.note [role="tabpanel"] h2 {
-  margin: 0 0 8px;
-  color: var(--removed);
-  font-size: 14px;
-  font-weight: 600;
 }
 
 .tests h3 {
