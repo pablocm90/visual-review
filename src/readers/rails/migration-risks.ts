@@ -125,10 +125,13 @@ const concurrent = (args: ReadonlyArray<Node>): boolean =>
 const addsIndex: Rule = ({ table, args }) =>
   concurrent(args) ? [] : [indexAdded(table, namesOf(args[0]))];
 
-const OFF: ReadonlySet<string | undefined> = new Set(['false', 'nil']);
+const OFF: ReadonlySet<string> = new Set(['false', 'nil']);
 
-const blocksWrites = (index: Node | undefined): boolean =>
-  !OFF.has(index?.type) && !concurrent(index === undefined ? [] : [index]);
+const indexBlocksWrites = (args: ReadonlyArray<Node>, byDefault: boolean): boolean => {
+  const index = optionOf(args, 'index');
+  if (index === undefined) return byDefault;
+  return !OFF.has(index.type) && !concurrent([index]);
+};
 
 const referenceColumns = (name: Node, args: ReadonlyArray<Node>): string => {
   const polymorphic = optionOf(args, 'polymorphic');
@@ -139,11 +142,26 @@ const referenceColumns = (name: Node, args: ReadonlyArray<Node>): string => {
 };
 
 const indexesReference: Rule = ({ table, args }) =>
-  blocksWrites(optionOf(args, 'index'))
+  indexBlocksWrites(args, true)
     ? positional(args).map(name => indexAdded(table, referenceColumns(name, args)))
     : [];
 
 const addsReference: Rule = call => [...addsEach('reference')(call), ...indexesReference(call)];
+
+const indexesColumns =
+  (names: ReadonlyArray<Node>): Rule =>
+  ({ table, args }) =>
+    indexBlocksWrites(args, false) ? names.map(name => indexAdded(table, nameOf(name))) : [];
+
+const addsColumnOfType: Rule = call => [
+  ...addsEach('column')(call),
+  ...indexesColumns(positional(call.args))(call),
+];
+
+const addsNamedColumn: Rule = call => [
+  ...addsColumn(call),
+  ...indexesColumns(call.args.slice(0, 1))(call),
+];
 
 const RULES: ReadonlyMap<string, Rule> = new Map<string, Rule>([
   ['remove_column', ({ table, args }) => [removed('column', table, args[0])]],
@@ -175,7 +193,7 @@ const CHANGE_TABLE_RULES: ReadonlyMap<string, Rule> = new Map<string, Rule>([
 
 const CHANGE_TABLE_RULES_NEEDING_ROWS: ReadonlyMap<string, Rule> = new Map<string, Rule>([
   ['change_null', changesNull],
-  ['column', addsColumn],
+  ['column', addsNamedColumn],
   ['references', addsReference],
   ['belongs_to', addsReference],
   ['timestamps', addsTimestamps],
@@ -199,7 +217,7 @@ const ruleOutsideBlock = (method: string, hasRows: boolean): Rule | undefined =>
 
 const ruleInChangeTable = (method: string, hasRows: boolean): Rule | undefined =>
   CHANGE_TABLE_RULES.get(method) ??
-  (hasRows ? (CHANGE_TABLE_RULES_NEEDING_ROWS.get(method) ?? addsEach('column')) : undefined);
+  (hasRows ? (CHANGE_TABLE_RULES_NEEDING_ROWS.get(method) ?? addsColumnOfType) : undefined);
 
 const placeOf = (call: Node) => {
   const block = changeTableOf(call);

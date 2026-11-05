@@ -111,6 +111,7 @@ test.for([
     expected: ['column users.email added as null: false with no default'],
   },
   { written: 'add_column :users, :email, :string', expected: [] },
+  { written: 'add_column :users, :email, :string, index: true', expected: [] },
   { written: 'add_column :users, :email, :string, null: true', expected: [] },
   { written: "add_column :users, :email, :string, null: false, default: ''", expected: [] },
   {
@@ -397,6 +398,35 @@ test.for([
   },
   { written: 't.references :account, index: false', expected: [] },
   {
+    written: 't.string :email, index: true',
+    expected: ['index on users (email) added, not concurrently'],
+  },
+  {
+    written: 't.string :email, index: { unique: true }',
+    expected: ['index on users (email) added, not concurrently'],
+  },
+  {
+    written: 't.text :bio, :motto, index: true',
+    expected: [
+      'index on users (bio) added, not concurrently',
+      'index on users (motto) added, not concurrently',
+    ],
+  },
+  {
+    written: 't.string :email, null: false, index: true',
+    expected: [
+      'column users.email added as null: false with no default',
+      'index on users (email) added, not concurrently',
+    ],
+  },
+  { written: 't.string :email, index: false', expected: [] },
+  { written: 't.string :email, index: { algorithm: :concurrently }', expected: [] },
+  {
+    written: 't.column :email, :string, index: true',
+    expected: ['index on users (email) added, not concurrently'],
+  },
+  { written: 't.column :email, :string', expected: [] },
+  {
     written: 't.timestamps',
     expected: ['timestamps of users added as null: false with no default'],
   },
@@ -415,6 +445,7 @@ test.for([
   { written: 't.index :email', expected: [] },
   { written: 't.string :email, null: false', expected: [] },
   { written: 't.references :account', expected: [] },
+  { written: 't.string :email, index: true', expected: [] },
   { written: 't.remove :name', expected: ['column users.name removed'] },
 ])('change_table on a table created alongside: $written', ({ written, expected }) => {
   expect(
