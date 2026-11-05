@@ -109,18 +109,44 @@ test('what was not read ranks ahead of what has no target but was read, which ra
   const findings = [
     flagOn('a', 'on a'),
     noTarget('dependencies:direct', 'a direct dependency'),
-    noTarget('schema:migration-risk', 'a migration risk'),
     noTarget('dependencies:not-read', 'x lockfile not read'),
-    noTarget('schema:not-read', 'x migration not read'),
     noTarget('structure:skipped', 'x reader skipped'),
   ];
 
   expect(keysOf({ findings, metrics: {}, nodes: [] })).toStrictEqual([
     'dependencies:not-read look',
-    'schema:not-read look',
     'structure:skipped look',
     'dependencies:direct look',
-    'schema:migration-risk look',
     'on a',
   ]);
+  expect(
+    keysOf({
+      findings: [
+        noTarget('schema:migration-risk', 'a migration risk'),
+        noTarget('schema:not-read', 'x migration not read'),
+      ],
+      metrics: {},
+      nodes: [],
+    }),
+  ).toStrictEqual(['schema:not-read look', 'schema:migration-risk look']);
+});
+
+test('at most five lines show, the counts still taking in every finding', () => {
+  const kinds: ReadonlyArray<Check> = [
+    'api:removed',
+    'api:signature',
+    'logic:removed',
+    'tests:untested-logic',
+    'metrics:lines',
+    'metrics:abc',
+  ];
+  const findings = [
+    ...kinds.flatMap(check => raisedOver(check, 'look', 2, 1)),
+    ...raisedOver('api:added', 'info', 3, 1),
+  ];
+
+  const { lines, look, total } = startHere({ findings, metrics: {}, nodes });
+
+  expect(lines).toHaveLength(5);
+  expect({ look, total }).toStrictEqual({ look: 12, total: 15 });
 });

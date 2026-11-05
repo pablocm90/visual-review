@@ -18,6 +18,8 @@ export type StartHereLine = {
   readonly files: number;
 };
 
+const SHOWN = 5;
+
 const distinct = (values: ReadonlyArray<string>) => [...new Set(values)];
 
 export const startHere = ({ findings, metrics, nodes }: StartHereOptions) => {
@@ -53,5 +55,9 @@ export const startHere = ({ findings, metrics, nodes }: StartHereOptions) => {
       }),
     ),
   );
-  return { lines };
+  return {
+    lines: lines.slice(0, SHOWN),
+    look: findings.filter(({ level }) => level === 'look').length,
+    total: findings.length,
+  };
 };
