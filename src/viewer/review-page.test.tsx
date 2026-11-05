@@ -2484,13 +2484,23 @@ test('Start here lists its lines in rank order, in the dimension a triage chip p
 });
 
 test('with nothing to look at, Start here says so and still shows what is for information', async () => {
-  render(
+  const { rerender } = render(
     <ReviewPage review={pageWith({ ...review, findings: [findingOn('rust/crate/domain')] })} />,
   );
 
   const band = within(await screen.findByRole('region', { name: 'Start here' }));
   expect(band.getByText('nothing needs a look · 1 finding')).toBeDefined();
   expect(band.getByRole('button', { name: 'domain: lines 900, over 800' })).toBeDefined();
+
+  rerender(
+    <ReviewPage
+      review={pageWith({
+        ...review,
+        findings: [findingOn('rust/crate/domain', { level: 'look' })],
+      })}
+    />,
+  );
+  expect(band.getByText('1 finding needs a look')).toBeDefined();
 });
 
 const webModule = (label: string, state: Diffed = 'unchanged') => ({
@@ -2565,6 +2575,7 @@ test("a check's findings read as one line, which opens in place to list them, un
   const signatures = () =>
     band.getByRole('button', { name: '7 exported signatures changed · 4 files' });
   expect(band.getByRole('button', { name: '30 exported symbols added · 9 files' })).toBeDefined();
+  expect(band.getByText('0.ts, 1.ts, 2.ts, 3.ts')).toBeDefined();
   expect(signatures().getAttribute('aria-expanded')).toBe('false');
   expect(band.queryByRole('button', { name: '1.ts: said 1' })).toBeNull();
 
@@ -2580,6 +2591,36 @@ test("a check's findings read as one line, which opens in place to list them, un
 
   await user.click(signatures());
   expect(band.queryByRole('button', { name: '1.ts: said 1' })).toBeNull();
+});
+
+test('signatures called fine at the last review leave the Start here line counted without them, and the rail lists them all, tagged', async () => {
+  const user = userEvent.setup();
+  const findings = findingsOnFiles(
+    { count: 7, files: 4 },
+    { check: 'api:signature', dimension: 'api', level: 'look' },
+  );
+  render(
+    <ReviewPage
+      review={pageWith({
+        ...webFilesReview(4),
+        findings,
+        sinceReview: {
+          ...sinceReview,
+          calledFine: ['api:signature:0', 'api:signature:1', 'api:signature:2'],
+        },
+      })}
+    />,
+  );
+
+  const band = within(await screen.findByRole('region', { name: 'Start here' }));
+  expect(
+    band.getByRole('button', { name: '4 exported signatures changed · 4 files' }),
+  ).toBeDefined();
+  await user.click(screen.getByRole('button', { name: 'Show 7 findings' }));
+  const rail = within(screen.getByRole('region', { name: 'API' }));
+  expect(rail.getAllByRole('button', { name: /said \d$/ })).toHaveLength(4);
+  expect(rail.getAllByRole('button', { name: /said \d, called fine$/ })).toHaveLength(3);
+  expect(rail.getAllByText('called fine')).toHaveLength(3);
 });
 
 test("modules open collapsed, joined by their files' imports; a module's toggle expands it into its files and back; a note on a hidden import shows on the edge it merges into; a summary item on a hidden file or a rail finding on a hidden import expands what hides it and focuses it, without pulling focus back later", async () => {
@@ -7397,21 +7438,4 @@ test('a last answer to a finding shows under it in the rail, not in Start here',
   ).toBeTruthy();
   expect(within(screen.getByRole('region', { name: 'Start here' })).queryByRole('note')).toBeNull();
   expect(screen.getAllByRole('note', { name: /^Last review/ })).toHaveLength(1);
-});
-
-test('a finding called fine at the last review stays out of Start here and reads so in its group', async () => {
-  const user = userEvent.setup();
-  render(<ReviewPage review={pageWithAnAnsweredFinding({ calledFine: ['logic:a'] })} />);
-
-  const band = within(await screen.findByRole('region', { name: 'Start here' }));
-  expect(band.getByRole('button', { name: /^application: changed a branch/ })).toBeTruthy();
-  expect(band.queryByRole('button', { name: /lost a guard/ })).toBeNull();
-
-  await user.click(screen.getByRole('button', { name: 'Show 2 findings' }));
-  const group = within(screen.getByRole('region', { name: 'Logic' }));
-  expect(
-    group.getByRole('button', { name: /^application: lost a guard.*, called fine$/ }),
-  ).toBeTruthy();
-  expect(group.getByRole('button', { name: /^application: changed a branch.*[^e]$/ })).toBeTruthy();
-  expect(group.getAllByText('called fine')).toHaveLength(1);
 });
