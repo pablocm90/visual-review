@@ -104,3 +104,16 @@ test('an if let on Err that returns first stays a guard', () => {
     { kind: 'guard', text: 'if let Err(e) = x return', depth: 0, line: 2 },
   ]);
 });
+
+test('a let else reads as a guard, and its block one deeper', () => {
+  expect(decisionsIn('let Some(a) = b else {', 'if d { go(); }', 'return;', '};')).toEqual([
+    { kind: 'guard', text: 'let Some(a) = b else', depth: 0, line: 2 },
+    { kind: 'if', text: 'if d', depth: 1, line: 3 },
+  ]);
+});
+
+test('a plain let reads what its value holds', () => {
+  expect(decisionsIn('let a = if d { 1 } else { 2 };')).toEqual([
+    { kind: 'if', text: 'if d', depth: 0, line: 2 },
+  ]);
+});

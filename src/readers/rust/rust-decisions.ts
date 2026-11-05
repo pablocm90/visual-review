@@ -4,7 +4,7 @@ import { codeReaderOf, isComment } from '../tree-sitter.ts';
 
 type Head = Pick<Decision, 'kind' | 'text' | 'foundByName'>;
 
-const { codeOf } = codeReaderOf(new Set(['.']));
+const { codeOf, codeUpTo } = codeReaderOf(new Set(['.']));
 
 type Read = Head & { readonly deeper: ReadonlyArray<Node> };
 
@@ -22,15 +22,13 @@ const exprOf = (statement: Node | undefined): Node | undefined =>
 const macroNameOf = (node: Node | undefined): string | undefined =>
   node?.childForFieldName('macro')?.text.split('::').at(-1);
 
-type Exit = Pick<Decision, 'foundByName'>;
+type Exit = Pick<Read, 'foundByName' | 'deeper'>;
 
-const exitOf = (expr: Node | undefined): Exit | undefined => {
-  if (expr?.type === 'return_expression') return {};
-  return macroNameOf(expr) === 'bail' ? { foundByName: true } : undefined;
+const leadingExitOf = (block: Node | undefined): Exit | undefined => {
+  const first = exprOf(block?.namedChildren.find(node => !isComment(node)));
+  if (first?.type === 'return_expression') return { deeper: first.namedChildren };
+  return macroNameOf(first) === 'bail' ? { foundByName: true, deeper: [] } : undefined;
 };
-
-const firstStatementOf = (block: Node | undefined): Node | undefined =>
-  block?.namedChildren.find(node => !isComment(node));
 
 const isElseIf = (node: Node): boolean => node.parent?.type === 'else_clause';
 
@@ -43,21 +41,33 @@ const isErrCondition = (condition: Node | undefined): boolean =>
 const ifOf = (node: Node): Read => {
   const code = codeOf(fieldOf(node, 'condition'));
   const condition = isElseIf(node) ? `else if ${code}` : `if ${code}`;
-  const first =
+  const exit =
     fieldOf(node, 'alternative') === undefined && !isElseIf(node)
-      ? exprOf(firstStatementOf(fieldOf(node, 'consequence')))
+      ? leadingExitOf(fieldOf(node, 'consequence'))
       : undefined;
-  const exit = exitOf(first);
   return exit === undefined
     ? {
         kind: isErrCondition(fieldOf(node, 'condition')) ? 'catch' : 'if',
         text: condition,
         deeper: fieldsOf(node, 'consequence', 'alternative'),
       }
-    : { ...exit, kind: 'guard', text: `${condition} return`, deeper: first?.namedChildren ?? [] };
+    : { ...exit, kind: 'guard', text: `${condition} return` };
 };
 
-const READS = new Map<string, (node: Node) => Read>([['if_expression', ifOf]]);
+const letElseOf = (node: Node): Read | undefined => {
+  const alternative = fieldOf(node, 'alternative');
+  if (alternative === undefined) return undefined;
+  return {
+    kind: 'guard',
+    text: codeUpTo(node, alternative),
+    deeper: [alternative],
+  };
+};
+
+const READS = new Map<string, (node: Node) => Read | undefined>([
+  ['if_expression', ifOf],
+  ['let_declaration', letElseOf],
+]);
 
 const decisionsUnder = (walk: Walk, nodes: ReadonlyArray<Node>): ReadonlyArray<Decision> =>
   nodes.flatMap(node => {
