@@ -12,6 +12,7 @@ const facts = (overrides: Partial<CoverageFacts> = {}): CoverageFacts => ({
   schemas: [],
   migrations: [],
   readers: ['rails'],
+  linksNotRead: [],
   ...overrides,
 });
 
@@ -27,6 +28,7 @@ test('with nothing unread, each dimension a check raises is listed as checked, a
     { dimension: 'metrics', notRead: [] },
     { dimension: 'dependencies', notRead: [] },
     { dimension: 'schema', notRead: [] },
+    { dimension: 'routes', notRead: [] },
     { dimension: 'cohesion', notRead: [] },
   ]);
 });
@@ -119,4 +121,8 @@ test.for([
   },
 ])('with $reason and no Rails reader, schema reads $notRead', ({ overrides, notRead }) => {
   expect(notReadIn('schema', { readers: ['typescript'], ...overrides })).toEqual(notRead);
+});
+
+test("routes gives the linker's reason", () => {
+  expect(notReadIn('routes', { linksNotRead: ['no axum crate'] })).toEqual(['no axum crate']);
 });

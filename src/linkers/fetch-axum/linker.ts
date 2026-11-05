@@ -31,7 +31,7 @@ export const fetchAxumLinker: Linker = {
     const packages = to.flatMap(({ nodes }) => nodes.filter(({ kind }) => kind === 'package'));
     const axum = await Promise.all(packages.map(crate => dependsOnAxum(directory, crate)));
     const crates = packages.filter((_, index) => axum[index]);
-    if (crates.length === 0) return { edges: [], dangling: [] };
+    if (crates.length === 0) return { edges: [], dangling: [], notRead: 'no axum crate' };
     const calls = webCalls(
       await Promise.all(
         files.map(async ({ id, path }) => ({

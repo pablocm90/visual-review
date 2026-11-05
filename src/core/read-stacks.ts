@@ -1,6 +1,6 @@
 import { CONFIG_FILE, type Config, folderOf, stackSettings } from './config.ts';
 import { type Graph, stackOfIn } from './graph.ts';
-import type { DanglingCall, Linker } from './linker.ts';
+import type { DanglingCall, Linker, Links } from './linker.ts';
 import type { Reader } from './reader.ts';
 import type { Skipped } from './skipped.ts';
 
@@ -22,6 +22,7 @@ export type DrawnStack = ReaderRoot & {
 export type StacksReading = {
   readonly graph: Graph;
   readonly danglingCalls: ReadonlyArray<DanglingCall>;
+  readonly linksNotRead: ReadonlyArray<string>;
   readonly roots: ReadonlyArray<DrawnStack>;
   readonly stacks: ReadonlyArray<DrawnStack>;
   readonly skipped: ReadonlyArray<Skipped>;
@@ -211,17 +212,18 @@ export const readStacks = async (options: ReadStacksOptions): Promise<StacksRead
     kept
       .filter(drawn => drawn.reader.name === reader && (only?.includes(drawn.stack) ?? true))
       .map(({ stack }) => ({ stack, nodes: nodes.filter(({ id }) => stackOf(id) === stack) }));
+  const skippedStacks = skipped.flatMap(({ stacks: names }) => names);
   const links = await Promise.all(
-    linkers.flatMap(linker => {
+    linkers.map(async (linker): Promise<Links> => {
       const settings = config.linkers[linker.name] ?? {};
-      if (settings === false) return [];
-      return [
-        linker.link({
-          directory,
-          from: linkedBy(linker.from, settings.from),
-          to: linkedBy(linker.to, settings.to),
-        }),
-      ];
+      if (settings === false) return { edges: [], dangling: [], notRead: 'turned off' };
+      const from = linkedBy(linker.from, settings.from);
+      const to = linkedBy(linker.to, settings.to);
+      const read = await linker.link({ directory, from, to });
+      const empty = [...from, ...to]
+        .map(({ stack }) => stack)
+        .filter(stack => skippedStacks.includes(stack));
+      return empty.length === 0 ? read : { ...read, notRead: `not read for ${empty.join(', ')}` };
     }),
   );
   const ids = new Set(nodes.map(({ id }) => id));
@@ -229,6 +231,7 @@ export const readStacks = async (options: ReadStacksOptions): Promise<StacksRead
   return {
     graph: { nodes, edges: edges.filter(edge => ids.has(edge.from) && ids.has(edge.to)) },
     danglingCalls: links.flatMap(({ dangling }) => dangling),
+    linksNotRead: links.flatMap(({ notRead }) => (notRead === undefined ? [] : [notRead])),
     roots: kept,
     stacks,
     skipped,

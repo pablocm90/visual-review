@@ -85,6 +85,7 @@ export type RangeReading = {
   readonly migrations: ReadonlyArray<MigrationReading>;
   readonly schemas: ReadonlyArray<SchemaReading>;
   readonly danglingCalls: ReadonlyArray<DanglingCall>;
+  readonly linksNotRead: ReadonlyArray<string>;
   readonly skipped: ReadonlyArray<Skipped>;
   readonly readers: ReadonlyArray<ReaderName>;
   readonly thresholds: Omit<Config['metrics'], 'churnDays'>;
@@ -572,6 +573,7 @@ export const readRange = async ({
       migrations: await readMigrations({ repo, base, head: toCommit, changes, migrations }),
       schemas: await readSchemas({ repo, base, head: toCommit, changes, schemas }),
       danglingCalls: after.danglingCalls,
+      linksNotRead: after.linksNotRead,
       skipped: skippedAcross([...before.skipped, ...after.skipped]),
       readers: [...new Set([...before.stacks, ...after.stacks].map(({ reader }) => reader.name))],
       thresholds,

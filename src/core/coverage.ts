@@ -18,6 +18,7 @@ export type CoverageFacts = Pick<
   | 'schemas'
   | 'migrations'
   | 'readers'
+  | 'linksNotRead'
 >;
 
 const notReadFor = (name: string): string => `not read for ${name}`;
@@ -32,6 +33,7 @@ export const coverageOf = ({
   schemas,
   migrations,
   readers,
+  linksNotRead,
 }: CoverageFacts): ReadonlyArray<Coverage> => {
   const skippedStacks = skipped.flatMap(({ stacks }) => stacks);
   const symbolsMissing = [
@@ -67,6 +69,7 @@ export const coverageOf = ({
       ),
     },
     { dimension: 'schema', notRead: schemaNotRead },
+    { dimension: 'routes', notRead: linksNotRead },
     { dimension: 'cohesion', notRead: [] },
   ];
 };

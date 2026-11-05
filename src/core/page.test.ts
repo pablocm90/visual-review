@@ -59,6 +59,7 @@ const readingWith = (overrides: Partial<RangeReading>): RangeReading => ({
   symbols: [],
   symbolsNotRead: [],
   danglingCalls: [],
+  linksNotRead: [],
   skipped: [],
   readers: ['typescript'],
   thresholds: { cyclomatic: 10, splitParts: 4, hotspot: { churn: 6, cyclomatic: 8 } },
