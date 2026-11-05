@@ -6,7 +6,7 @@ What changed in each release of `@pablocm90/visual-review`, newest first. Versio
 
 ### Added
 
-- A changed Rails file reads its symbols as a TS/JS file does: a Symbols tab, Kind of change and the `api` findings. Classes and modules go by their full constant; methods, setters, `attr_*`, `delegate` and `scope` go under them, public or not as `private`, `protected`, `module_function`, `private_class_method` and `private_constant` say. A method's signature is its parameters. A file that doesn't parse reads `unreadable`. Test files read none, and Rails logic lines come next.
+- A changed Rails file reads its symbols as a TS/JS file does: a Symbols tab, Kind of change and the `api` findings. Classes and modules go by their full constant; methods, setters, `attr_*`, `delegate` and `scope` go under them, public or not as `private`, `protected`, `module_function`, `private_class_method` and `private_constant` say. A module holding only classes and modules is a namespace and isn't public, so deleting a file under it doesn't raise the module's removal. A method's signature is its parameters. A file that doesn't parse reads `unreadable`. Test files read none, and Rails logic lines come next.
 
 ## 0.25.0 — 2026-11-05
 
