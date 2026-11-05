@@ -2,6 +2,7 @@ import type { Node } from 'web-tree-sitter';
 import type { FileSymbols, ReadSymbol } from '../../core/reader.ts';
 import { isTooBig, TOO_BIG } from '../too-big.ts';
 import { hashesOf, hashOf, isComment, ownText, shapeOf } from '../tree-sitter.ts';
+import { decisionsOfFunction } from './rust-decisions.ts';
 import { attributesOf, isDocText, isTestItem, parseRust, pathOf } from './rust-syntax.ts';
 
 const textOf = (node: Node | null | undefined): string => node?.text ?? '';
@@ -65,6 +66,7 @@ const functionSymbol = (item: Node): ReadSymbol => ({
     ],
     text: writtenWhole(item),
   }),
+  decisions: decisionsOfFunction(item),
 });
 
 const FUNCTIONS: ReadonlySet<string> = new Set(['function_item', 'function_signature_item']);
