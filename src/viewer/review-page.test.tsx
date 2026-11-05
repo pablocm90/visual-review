@@ -5878,6 +5878,46 @@ test("a served page's test row in Tested by takes a comment, a removed test too,
   expect(within(testedBy()).queryAllByRole('button', { name: /^Comment on/ })).toStrictEqual([]);
 });
 
+test("going to a test's draft lands on its row in Tested by, the row taking the focus; a last comment on a test the page no longer holds focuses the graph node", async () => {
+  const user = userEvent.setup();
+  render(
+    <ReviewPage
+      review={{
+        ...pageWithSameNamedTests(),
+        sinceReview: {
+          ...sinceReview,
+          comments: [
+            {
+              anchor: { kind: 'test', id: 'total.test.ts#gone' },
+              kind: 'question',
+              text: 'Still needed?',
+              target: 'web/file/total.ts',
+            },
+          ],
+        },
+      }}
+      send={async () => {}}
+    />,
+  );
+  const tillRow = () => within(testedBy()).getByRole('listitem', { name: 'adds tax: edited' });
+
+  await user.click(await screen.findByRole('button', { name: 'total.ts: modified' }));
+  await user.click(
+    within(tillRow()).getByRole('button', { name: 'Comment on Till › at noon › adds tax' }),
+  );
+  await write(user, within(tillRow()).getByRole('textbox', { name: 'Your comment' }), 'Why noon?');
+  await user.click(screen.getByRole('button', { name: 'Close inspector' }));
+  await openReview(user);
+  await user.click(screen.getByRole('button', { name: 'adds tax' }));
+
+  expect(tillRow().getAttribute('aria-current')).toBe('true');
+  expect(document.activeElement).toBe(tillRow());
+  expect(scrolledIntoView.mock.contexts).toContain(tillRow());
+
+  await user.click(within(lastReviewSection()).getByRole('button', { name: /gone/ }));
+  expect(document.activeElement).toBe(screen.getByRole('button', { name: 'total.ts: modified' }));
+});
+
 test("a served page's Tests screen takes a comment on a test row, one draft with the column's Tested by; a page not served has no toggle", async () => {
   const user = userEvent.setup();
   const page = pageWithSameNamedTests();
@@ -7829,7 +7869,7 @@ test('a last comment on an unchanged symbol brings up What changed and opens the
   expect(within(unchangedSymbols()).getByText('Why not?')).toBeTruthy();
 });
 
-test("a last comment on a test shows under it on the Tests screen and the inspector's Tests tab, with no send too", async () => {
+test('a last comment on a test shows under it on the Tests screen and under Tested by, with no send too', async () => {
   const user = userEvent.setup();
   render(
     <ReviewPage

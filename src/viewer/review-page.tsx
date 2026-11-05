@@ -1556,7 +1556,7 @@ const Page = ({ review, notes, send }: ReviewPageProps) => {
     const onRow =
       anchor.kind === 'finding'
         ? findings.some(finding => finding.id === anchor.id)
-        : holdsRow(review.symbols, anchor);
+        : holdsRow(review, anchor);
     const place = onRow ? { path: undefined, row: anchorKey(anchor) } : placeOfLine(anchor);
     landOn(id, place ?? { path: undefined });
     goToOnTab(id, tabOfDraft(anchor));

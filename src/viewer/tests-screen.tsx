@@ -20,6 +20,7 @@ import type { Comments } from './comment-field.tsx';
 import { LevelMark } from './finding-display.tsx';
 import { FindingRows, type FindingRowsProps } from './finding-rows.tsx';
 import { CommentOn, SaidBefore } from './said-before.tsx';
+import { useRowMarks } from './what-changed.tsx';
 
 const TEST_MARKS: Readonly<Record<TestChange, string>> = {
   added: '+',
@@ -55,9 +56,11 @@ const TestLine = ({
   const moved = movement(test);
   const id = testAnchorId(path, test.trail);
   const marked = useIsChangedSince()('tests', id);
+  const marksOf = useRowMarks();
   return (
     <li
       className="test"
+      {...marksOf({ kind: 'test', id })}
       data-state={moved || test.change === 'edited' ? 'modified' : test.change}
       aria-label={sinceLabel(
         accessibleName([`${test.name}: ${moved?.text ?? test.change}`, test.label]),
