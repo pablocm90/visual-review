@@ -43,7 +43,8 @@ export const startHere = ({ findings, metrics, nodes }: StartHereOptions) => {
       : Math.max(...endsOfId(target).map(end => metrics[end]?.head?.[measure] ?? 0));
   const isBlindSpot = ({ target, dimension, check }: Finding) =>
     target === undefined &&
-    (!(dimension === 'dependencies' || dimension === 'schema') || check.endsWith(':not-read'));
+    (!(dimension === 'dependencies' || dimension === 'schema' || dimension === 'routes') ||
+      check.endsWith(':not-read'));
   const ranked = findings.toSorted(
     (one, other) =>
       Number(other.level === 'look') - Number(one.level === 'look') ||
