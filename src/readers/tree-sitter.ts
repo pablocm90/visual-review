@@ -91,10 +91,12 @@ type Leaf = Pick<Node, 'text' | 'startIndex' | 'endIndex'>;
 
 type IsElided = (node: Node) => boolean;
 
-const leavesOf = (node: Node, isElided: IsElided): ReadonlyArray<Leaf> => {
-  if (isComment(node)) return [];
+const leavesOf = (node: Node, isElided: IsElided, end?: Node): ReadonlyArray<Leaf> => {
+  if (isComment(node) || (end !== undefined && node.startIndex >= end.startIndex)) return [];
   if (isElided(node)) return [{ text: '…', startIndex: node.startIndex, endIndex: node.endIndex }];
-  return node.childCount === 0 ? [node] : node.children.flatMap(child => leavesOf(child, isElided));
+  return node.childCount === 0
+    ? [node]
+    : node.children.flatMap(child => leavesOf(child, isElided, end));
 };
 
 const OPENERS: ReadonlySet<string> = new Set(['(', '[', '{']);
@@ -122,11 +124,7 @@ export const codeReaderOf = (sends: ReadonlySet<string>, isElided: IsElided = ()
     codeOf: (node: Node | undefined): string =>
       codeFrom(node === undefined ? [] : leavesOf(node, isElided)),
     codeUpTo: (node: Node, end: Node | undefined): string =>
-      codeFrom(
-        leavesOf(node, isElided).filter(
-          ({ endIndex }) => end === undefined || endIndex <= end.startIndex,
-        ),
-      ),
+      codeFrom(leavesOf(node, isElided, end)),
   };
 };
 
