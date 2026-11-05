@@ -492,6 +492,29 @@ test.for([
   expect(changesOf([before], [after])).toEqual([`${change} open`]);
 });
 
+test.for([
+  {
+    edit: 'an edit elsewhere',
+    before: ['attr_writer :x', 'def x=(v); v; end', 'def y; 1; end'],
+    after: ['attr_writer :x', 'def x=(v); v; end', 'def y; 2; end'],
+    changes: ['unchanged x', 'unchanged x', 'edited y'],
+  },
+  {
+    edit: 'its second written edited',
+    before: ['def x(a); 1; end', 'def x(a, b); 1; end'],
+    after: ['def x(a); 1; end', 'def x(a, b); 2; end'],
+    changes: ['unchanged x', 'edited x'],
+  },
+  {
+    edit: 'its second written gone',
+    before: ['def x(a); 1; end', 'def x(a, b); 1; end'],
+    after: ['def x(a); 1; end'],
+    changes: ['unchanged x', 'removed x'],
+  },
+])('a symbol written twice pairs in order, given $edit', ({ before, after, changes }) => {
+  expect(changesOf(before, after)).toEqual(changes);
+});
+
 test("a method's signature change is told apart from its body's, whichever way it is written", () => {
   const signatureOf = (before: string, after: string) =>
     changesBetween([before], [after]).symbols[0]?.signature;
