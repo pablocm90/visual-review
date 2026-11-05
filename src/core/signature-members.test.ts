@@ -40,3 +40,12 @@ test.for([
   expect(splitSignature(text)).toEqual(parts);
   expect(rejoined(text)).toBe(text);
 });
+
+test.for([
+  { what: 'a closer of another bracket', text: 'type A = { a: [1 } ];' },
+  { what: 'a closer that opens nothing', text: ') (a: 1)' },
+  { what: 'a bracket left open after the members', text: '(a: 1): { b: 2' },
+  { what: 'a lone quote', text: "type A = { a: ' };" },
+])('leaves $what unsplit', ({ text }) => {
+  expect(splitSignature(text)).toBeUndefined();
+});
