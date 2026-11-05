@@ -125,6 +125,8 @@ const inspector = () => screen.getByRole('complementary', { name: 'Inspector' })
 
 const noteTab = () => screen.getByRole('tabpanel', { name: 'Note' });
 
+const testedBy = () => screen.getByRole('region', { name: 'Tested by' });
+
 const noteShown = () => within(noteTab()).getAllByRole('paragraph')[0]?.textContent;
 
 const inspectorTabs = () =>
@@ -3742,7 +3744,7 @@ test('the Tests tab lists each changed test file with its tests as a tree, each 
   expect(within(tests).queryByText('No test changed.')).toBeNull();
 });
 
-test("the inspector's Tests tab lists the test files at or under the selected node, counting their changed tests, and is left out where none changed", async () => {
+test("Tested by lists the test files at or under the selected node, counting their changed tests in its heading, and isn't drawn where none changed", async () => {
   const user = userEvent.setup();
   const testFile = (path: string, stack: string) => ({
     path,
@@ -3771,26 +3773,29 @@ test("the inspector's Tests tab lists the test files at or under the selected no
             ],
           },
           testFile('tools/visual-review/src/notes.test.ts', 'tools/visual-review'),
+          { path: 'crates/cli-adapter/tests/cli.rs', stack: 'rust', unreadable: 'Too big' },
         ],
       })}
     />,
   );
 
   await user.click(await screen.findByRole('button', { name: 'application: modified' }));
-  expect(inspectorTabs()).toEqual(['Note', 'Tests 3']);
-  await user.click(within(inspector()).getByRole('tab', { name: 'Tests 3' }));
+  expect(inspectorTabs()).toEqual(['Note']);
+  expect(within(testedBy()).getByRole('heading', { name: 'Tested by 3' })).toBeTruthy();
   expect(
-    within(screen.getByRole('tabpanel', { name: 'Tests' }))
+    within(testedBy())
       .getAllByRole('region')
       .map(file => file.getAttribute('aria-label')),
   ).toEqual(['crates/application/src/lib.rs', 'crates/application/tests/export.rs']);
   await user.click(screen.getByRole('button', { name: 'application → domain: unchanged' }));
-  expect(inspectorTabs()).toEqual(['Note']);
+  expect(screen.queryByRole('region', { name: 'Tested by' })).toBeNull();
   await user.click(screen.getByRole('button', { name: 'domain: unchanged' }));
-  expect(inspectorTabs()).toEqual(['Note']);
+  expect(screen.queryByRole('region', { name: 'Tested by' })).toBeNull();
+  await user.click(screen.getByRole('button', { name: 'cli-adapter: added' }));
+  expect(within(testedBy()).getByRole('heading', { name: 'Tested by' })).toBeTruthy();
 });
 
-test("a node's Tests tab also lists the test files named after a file inside it, wherever they sit in its stack", async () => {
+test("a node's Tested by also lists the test files named after a file inside it, wherever they sit in its stack", async () => {
   const user = userEvent.setup();
   render(
     <ReviewPage
@@ -3816,15 +3821,14 @@ test("a node's Tests tab also lists the test files named after a file inside it,
   );
 
   await user.click(await screen.findByRole('button', { name: 'orders: modified' }));
-  await user.click(within(inspector()).getByRole('tab', { name: 'Tests 1' }));
   expect(
-    within(screen.getByRole('tabpanel', { name: 'Tests' }))
+    within(testedBy())
       .getAllByRole('region')
       .map(file => file.getAttribute('aria-label')),
   ).toEqual(['web/tests/refund.test.ts']);
 });
 
-test("a node's Tests tab counts a test moved between two of its files once", async () => {
+test("a node's Tested by counts a test moved between two of its files once", async () => {
   const user = userEvent.setup();
   render(
     <ReviewPage
@@ -3862,7 +3866,7 @@ test("a node's Tests tab counts a test moved between two of its files once", asy
   );
 
   await user.click(await screen.findByRole('button', { name: 'application: modified' }));
-  expect(inspectorTabs()).toEqual(['Note', 'Tests 2']);
+  expect(within(testedBy()).getByRole('heading', { name: 'Tested by 2' })).toBeTruthy();
 });
 
 test("'Changes only' is shown first, hiding a neighbour joined by an unchanged edge; going to a drawn node keeps it, going to a neighbour widens to 'Changed + 1 hop', and going further to 'Everything'", async () => {
@@ -5402,6 +5406,13 @@ test("the column reads a part's note, then What changed, then Why look; an edge'
             },
           ]),
         ],
+        tests: [
+          {
+            path: 'tax.test.ts',
+            stack: 'web',
+            statements: [{ kind: 'test', name: 'rounds', change: 'added' }],
+          },
+        ],
       })}
       notes={{
         version: 1,
@@ -5423,6 +5434,7 @@ test("the column reads a part's note, then What changed, then Why look; an edge'
   await user.click(await screen.findByRole('button', { name: 'tax.ts: modified' }));
   expect(follows(within(noteTab()).getByText('Rounds now.'), region('What changed'))).toBe(true);
   expect(follows(region('What changed'), region('Why look'))).toBe(true);
+  expect(follows(region('Why look'), region('Tested by'))).toBe(true);
 
   await user.click(screen.getByRole('button', { name: 'tax.ts → vat.ts: added' }));
   expect(noteShown()).toBe('A new way in.');
@@ -5442,10 +5454,18 @@ test('a part with no note starts at what else its column holds, and says "No not
             topFile('tax.ts', 'modified'),
             topFile('vat.ts', 'modified'),
             topFile('bare.ts', 'modified'),
+            topFile('rate.ts', 'modified'),
           ],
           edges: [],
         },
         findings: [findingOn('web/file/vat.ts')],
+        tests: [
+          {
+            path: 'rate.test.ts',
+            stack: 'web',
+            statements: [{ kind: 'test', name: 'rounds', change: 'added' }],
+          },
+        ],
         symbols: [
           symbolsOf('web/file/tax.ts', [
             {
@@ -5479,6 +5499,10 @@ test('a part with no note starts at what else its column holds, and says "No not
 
   await user.click(screen.getByRole('button', { name: /^vat\.ts: modified/ }));
   expect(within(noteTab()).getByRole('region', { name: 'Why look' })).toBeTruthy();
+  expect(saysNoNote()).toBe(false);
+
+  await user.click(screen.getByRole('button', { name: 'rate.ts: modified' }));
+  expect(within(noteTab()).getByRole('region', { name: 'Tested by' })).toBeTruthy();
   expect(saysNoNote()).toBe(false);
 });
 
@@ -5715,8 +5739,6 @@ test('a page that is not served has no Comment toggle on a symbol or a logic lin
   expect(toggles()).toStrictEqual([]);
 });
 
-const testsTab = () => screen.getByRole('tabpanel', { name: 'Tests' });
-
 const pageWithSameNamedTests = () =>
   pageWith({
     range: review.range,
@@ -5754,19 +5776,18 @@ const pageWithSameNamedTests = () =>
     ],
   });
 
-test("a served page's test row in the inspector takes a comment, a removed test too, its id the test's file and headings, so tests of one name keep apart; a page not served has no toggle", async () => {
+test("a served page's test row in Tested by takes a comment, a removed test too, its id the test's file and headings, so tests of one name keep apart; a page not served has no toggle", async () => {
   const user = userEvent.setup();
   const sent = vi.fn(async () => {});
   const page = pageWithSameNamedTests();
   const { rerender } = render(<ReviewPage review={page} send={sent} />);
   const commentOn = async (name: string, rowName: string, text: string) => {
-    const row = within(within(testsTab()).getByRole('listitem', { name: rowName }));
+    const row = within(within(testedBy()).getByRole('listitem', { name: rowName }));
     await user.click(row.getByRole('button', { name: `Comment on ${name}` }));
     await write(user, row.getByRole('textbox', { name: 'Your comment' }), text);
   };
 
   await user.click(await screen.findByRole('button', { name: 'total.ts: modified' }));
-  await user.click(within(inspector()).getByRole('tab', { name: 'Tests 3' }));
   await commentOn('Cart › adds tax', 'adds tax: added', 'On the cart.');
   await commentOn('Till › at noon › adds tax', 'adds tax: edited', 'On the till.');
   await commentOn('drops totals', 'drops totals: removed', 'Why gone?');
@@ -5797,10 +5818,10 @@ test("a served page's test row in the inspector takes a comment, a removed test 
   );
 
   rerender(<ReviewPage review={page} />);
-  expect(within(testsTab()).queryAllByRole('button', { name: /^Comment on/ })).toStrictEqual([]);
+  expect(within(testedBy()).queryAllByRole('button', { name: /^Comment on/ })).toStrictEqual([]);
 });
 
-test("a served page's Tests screen takes a comment on a test row, one draft with the inspector's Tests tab; a page not served has no toggle", async () => {
+test("a served page's Tests screen takes a comment on a test row, one draft with the column's Tested by; a page not served has no toggle", async () => {
   const user = userEvent.setup();
   const page = pageWithSameNamedTests();
   const { rerender } = render(<ReviewPage review={page} send={vi.fn(async () => {})} />);
@@ -5809,20 +5830,19 @@ test("a served page's Tests screen takes a comment on a test row, one draft with
   const testChanges = () => screen.getByRole('region', { name: 'Test changes' });
 
   await user.click(await screen.findByRole('button', { name: 'total.ts: modified' }));
-  await user.click(within(inspector()).getByRole('tab', { name: 'Tests 3' }));
   await user.click(
-    row(testsTab(), 'adds tax: added').getByRole('button', { name: 'Comment on Cart › adds tax' }),
+    row(testedBy(), 'adds tax: added').getByRole('button', { name: 'Comment on Cart › adds tax' }),
   );
   await write(
     user,
-    row(testsTab(), 'adds tax: added').getByRole('textbox', { name: 'Your comment' }),
-    'From the inspector.',
+    row(testedBy(), 'adds tax: added').getByRole('textbox', { name: 'Your comment' }),
+    'From the column.',
   );
 
   await user.click(screen.getByRole('link', { name: 'Tests 3' }));
   expect(
     row(testChanges(), 'adds tax: added').getByRole('textbox', { name: 'Your comment' }),
-  ).toHaveProperty('value', 'From the inspector.');
+  ).toHaveProperty('value', 'From the column.');
   await user.click(
     row(testChanges(), 'drops totals: removed').getByRole('button', {
       name: 'Comment on drops totals',
@@ -5835,9 +5855,8 @@ test("a served page's Tests screen takes a comment on a test row, one draft with
   );
 
   await user.click(screen.getByRole('link', { name: 'Structure' }));
-  await user.click(within(inspector()).getByRole('tab', { name: 'Tests 3' }));
   expect(
-    row(testsTab(), 'drops totals: removed').getByRole('textbox', { name: 'Your comment' }),
+    row(testedBy(), 'drops totals: removed').getByRole('textbox', { name: 'Your comment' }),
   ).toHaveProperty('value', 'From the screen.');
 
   await user.click(screen.getByRole('link', { name: 'Tests 3' }));
@@ -5845,7 +5864,7 @@ test("a served page's Tests screen takes a comment on a test row, one draft with
   expect(within(testChanges()).queryAllByRole('button', { name: /^Comment on/ })).toStrictEqual([]);
 });
 
-test('two tests of one name under one heading keep a draft each, in the inspector and on the Tests screen, and the review sends each on its own id', async () => {
+test('two tests of one name under one heading keep a draft each, in Tested by and on the Tests screen, and the review sends each on its own id', async () => {
   const user = userEvent.setup();
   atHash('#structure');
   const sent = vi.fn(async () => {});
@@ -5881,13 +5900,12 @@ test('two tests of one name under one heading keep a draft each, in the inspecto
     twin(place, index).getByRole('textbox', { name: 'Your comment' });
 
   await user.click(await screen.findByRole('button', { name: 'total.ts: modified' }));
-  await user.click(within(inspector()).getByRole('tab', { name: 'Tests 2' }));
-  await user.click(twin(testsTab(), 0).getByRole('button', { name: 'Comment on Cart › adds tax' }));
-  await write(user, field(testsTab(), 0), 'The first.');
+  await user.click(twin(testedBy(), 0).getByRole('button', { name: 'Comment on Cart › adds tax' }));
+  await write(user, field(testedBy(), 0), 'The first.');
   await user.click(
-    twin(testsTab(), 1).getByRole('button', { name: 'Comment on Cart › adds tax#2' }),
+    twin(testedBy(), 1).getByRole('button', { name: 'Comment on Cart › adds tax#2' }),
   );
-  expect(field(testsTab(), 1)).toHaveProperty('value', '');
+  expect(field(testedBy(), 1)).toHaveProperty('value', '');
 
   await user.click(screen.getByRole('link', { name: 'Tests 2' }));
   const testChanges = screen.getByRole('region', { name: 'Test changes' });
@@ -5924,7 +5942,7 @@ test('two tests of one name under one heading keep a draft each, in the inspecto
   );
 });
 
-test("a test's draft in the tray opens the Tests tab of the file it's named after, though no box holds it, showing the draft", async () => {
+test("a test's draft in the tray opens Tested by on the file it's named after, though no box holds it, showing the draft", async () => {
   const user = userEvent.setup();
   render(
     <ReviewPage
@@ -5949,14 +5967,13 @@ test("a test's draft in the tray opens the Tests tab of the file it's named afte
     />,
   );
   const rowField = () =>
-    within(within(testsTab()).getByRole('listitem', { name: 'adds tax: added' })).getByRole(
+    within(within(testedBy()).getByRole('listitem', { name: 'adds tax: added' })).getByRole(
       'textbox',
       { name: 'Your comment' },
     );
 
   await user.click(await screen.findByRole('button', { name: 'total.ts: modified' }));
-  await user.click(within(inspector()).getByRole('tab', { name: 'Tests 1' }));
-  await user.click(within(testsTab()).getByRole('button', { name: 'Comment on adds tax' }));
+  await user.click(within(testedBy()).getByRole('button', { name: 'Comment on adds tax' }));
   await write(user, rowField(), 'Which rate?');
   await user.click(screen.getByRole('button', { name: 'Close inspector' }));
   await openReview(user);
@@ -6724,13 +6741,12 @@ test('a later round marks the test changed since the last review, not its namesa
   );
 
   await user.click(await screen.findByRole('button', { name: 'total.ts: modified' }));
-  await user.click(within(inspector()).getByRole('tab', { name: 'Tests 3' }));
 
-  const since = within(testsTab()).getByRole('listitem', {
+  const since = within(testedBy()).getByRole('listitem', {
     name: 'adds tax: added, changed since',
   });
   expect(within(since).getByText('changed since')).toBeTruthy();
-  const before = within(testsTab()).getByRole('listitem', { name: 'adds tax: edited' });
+  const before = within(testedBy()).getByRole('listitem', { name: 'adds tax: edited' });
   expect(within(before).queryByText('changed since')).toBeNull();
 
   location.hash = '#tests';
@@ -7782,8 +7798,7 @@ test("a last comment on a test shows under it on the Tests screen and the inspec
     );
 
   await user.click(await screen.findByRole('button', { name: 'total.ts: modified' }));
-  await user.click(within(inspector()).getByRole('tab', { name: 'Tests 3' }));
-  expect(within(said(testsTab())).getByText('Why gone?')).toBeTruthy();
+  expect(within(said(testedBy())).getByText('Why gone?')).toBeTruthy();
 
   await user.click(screen.getByRole('link', { name: 'Tests 3' }));
   expect(

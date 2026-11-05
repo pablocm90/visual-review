@@ -130,6 +130,16 @@ export const TestFiles = ({ files, nodes, ...commenting }: TestFilesProps) =>
     </section>
   ));
 
+export const TestedBy = ({ files, ...shown }: TestFilesProps) => {
+  const count = changedCount(files);
+  return (
+    <section className="column-section tests" aria-label="Tested by">
+      <h3>Tested by{count > 0 && ` ${count}`}</h3>
+      <TestFiles files={files} {...shown} />
+    </section>
+  );
+};
+
 const COUNT_MARKS: ReadonlyArray<readonly [keyof TestCounts, string]> = [
   ['added', TEST_MARKS.added],
   ['edited', TEST_MARKS.edited],

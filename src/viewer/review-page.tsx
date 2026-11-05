@@ -80,7 +80,7 @@ import {
 } from './said-before.tsx';
 import { type SchemaLanding, SchemaScreen } from './schema-screen.tsx';
 import { scrollInPanel } from './scroll-in-panel.ts';
-import { changedCount, TestFiles, TestsScreen } from './tests-screen.tsx';
+import { changedCount, TestedBy, TestsScreen } from './tests-screen.tsx';
 import {
   boxOf,
   centred,
@@ -651,10 +651,9 @@ type InspectorProps = {
   readonly onClose: () => void;
 };
 
-type InspectorTab = 'note' | 'metrics' | 'diff' | 'tests';
+type InspectorTab = 'note' | 'metrics' | 'diff';
 
 const DRAFT_TABS: Partial<Record<PreviousComment['anchor']['kind'], InspectorTab>> = {
-  test: 'tests',
   line: 'diff',
 };
 
@@ -682,66 +681,36 @@ const INSPECTOR_TABS: Readonly<Record<InspectorTab, string>> = {
   note: 'Note',
   metrics: 'Metrics',
   diff: 'Diff',
-  tests: 'Tests',
 };
 
 type Section = {
   readonly tab: InspectorTab;
-  readonly count?: number;
   readonly panel: ReactNode;
 };
 
-type NodeSectionsOptions = Pick<
-  InspectorProps,
-  'nodes' | 'metrics' | 'findings' | 'tests' | 'comments' | 'onComment'
-> & {
+type MetricsSectionOptions = Pick<InspectorProps, 'metrics' | 'findings'> & {
   readonly node: DiffNode;
 };
 
-const nodeSections = ({
-  nodes,
+const metricsSection = ({
   node,
   metrics,
   findings,
-  tests,
-  comments,
-  onComment,
-}: NodeSectionsOptions): ReadonlyArray<Section> => {
+}: MetricsSectionOptions): ReadonlyArray<Section> => {
   const measured = metrics[node.id];
-  const testsHere = testsAlongside({ nodes, node, tests });
-  return [
-    ...(measured
-      ? [
-          {
-            tab: 'metrics' as const,
-            panel: (
-              <MetricsTable
-                metrics={measured}
-                findings={findings.filter(finding => finding.node === node.id)}
-              />
-            ),
-          },
-        ]
-      : []),
-    ...(testsHere.length > 0
-      ? [
-          {
-            tab: 'tests' as const,
-            count: changedCount(testsHere),
-            panel: (
-              <div className="tests">
-                <TestFiles
-                  files={testsHere}
-                  nodes={nodes}
-                  comments={comments}
-                  onComment={onComment}
-                />
-              </div>
-            ),
-          },
-        ]
-      : []),
-  ];
+  return measured
+    ? [
+        {
+          tab: 'metrics',
+          panel: (
+            <MetricsTable
+              metrics={measured}
+              findings={findings.filter(finding => finding.node === node.id)}
+            />
+          ),
+        },
+      ]
+    : [];
 };
 
 type NotePanelProps = Pick<
@@ -749,6 +718,7 @@ type NotePanelProps = Pick<
   | 'nodes'
   | 'node'
   | 'symbols'
+  | 'tests'
   | 'onGoTo'
   | 'note'
   | 'found'
@@ -792,6 +762,7 @@ const NotePanel = ({
   nodes,
   node,
   symbols,
+  tests,
   onGoTo,
   onShowLine,
   landing,
@@ -807,9 +778,11 @@ const NotePanel = ({
 }: NotePanelProps) => {
   const filesWithNews = useFilesWithNews(node, symbols, nodes);
   const hasSaid = useHasSaid();
+  const testsHere = node ? testsAlongside({ nodes, node, tests }) : [];
   const isBare =
     filesWithNews.length === 0 &&
     found.length === 0 &&
+    testsHere.length === 0 &&
     !hasSaid(anchor) &&
     saidInPlace.length === 0;
   return (
@@ -840,6 +813,9 @@ const NotePanel = ({
         />
       )}
       {found.length > 0 && <WhyLook found={found} answers={answers} onAnswer={onAnswer} />}
+      {testsHere.length > 0 && (
+        <TestedBy files={testsHere} nodes={nodes} comments={comments} onComment={onComment} />
+      )}
     </LandedRows>
   );
 };
@@ -888,7 +864,7 @@ const Inspector = ({
           },
         ]
       : []),
-    ...(node ? nodeSections({ ...props, node }) : []),
+    ...(node ? metricsSection({ ...props, node }) : []),
   ].toSorted((a, b) => SECTION_ORDER.indexOf(a.tab) - SECTION_ORDER.indexOf(b.tab));
   const shown = sections.find(({ tab }) => tab === picked) ?? sections[0];
   const column = useRef<HTMLElement>(null);
@@ -905,7 +881,7 @@ const Inspector = ({
       </button>
       {node && <InspectorHead nodes={props.nodes} node={node} />}
       <div className="inspector-tabs" role="tablist" aria-label="Inspector sections">
-        {sections.map(({ tab, count }) => (
+        {sections.map(({ tab }) => (
           <button
             key={tab}
             type="button"
@@ -914,7 +890,6 @@ const Inspector = ({
             onClick={() => onPick(tab)}
           >
             {INSPECTOR_TABS[tab]}
-            {count !== undefined && ` ${count}`}
           </button>
         ))}
       </div>
