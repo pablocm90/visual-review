@@ -1,4 +1,5 @@
 import { expect, test } from 'vitest';
+import type { Route } from '../../core/routes.ts';
 import { railsRoutes } from './route-reader.ts';
 
 const drawing = (body: string) => `Rails.application.routes.draw do
@@ -432,4 +433,118 @@ test('a brace block reads as a do block', () => {
   expect(lines('namespace(:api) { resources :users, only: :index }')).toStrictEqual([
     'GET /api/users api/users#index',
   ]);
+});
+
+const readFiles = (entries: ReadonlyArray<readonly [string, string]>) =>
+  railsRoutes.routes(new Map(entries));
+
+const linesOf = (table: { readonly routes: ReadonlyArray<Route> }) =>
+  table.routes.map(({ verb, path, target }) => `${verb} ${path} ${target}`);
+
+test.for([
+  {
+    reads: 'load of Rails.root.join with a draw of its own',
+    root: 'load Rails.root.join("config/routes/admin.rb")',
+    other: 'config/routes/admin.rb',
+    text: drawing('resources :users, only: :index'),
+  },
+  {
+    reads: 'load joining several parts',
+    root: 'load Rails.root.join("config", "routes", "admin.rb")',
+    other: 'config/routes/admin.rb',
+    text: drawing('resources :users, only: :index'),
+  },
+  {
+    reads: 'draw with a symbol, of a file with no draw of its own',
+    root: 'draw :admin',
+    other: 'config/routes/admin.rb',
+    text: 'resources :users, only: :index\n',
+  },
+  {
+    reads: 'draw with a string, in a folder',
+    root: 'draw("back/admin")',
+    other: 'config/routes/back/admin.rb',
+    text: 'resources :users, only: :index\n',
+  },
+  {
+    reads: 'a require beside the draw, left alone',
+    root: 'load Rails.root.join("config/routes/admin.rb")',
+    other: 'config/routes/admin.rb',
+    text: `require "sidekiq/web"\n${drawing('resources :users, only: :index')}`,
+  },
+])('$reads joins the file in', ({ root, other, text }) => {
+  const table = readFiles([
+    ['config/routes.rb', drawing(root)],
+    [other, text],
+  ]);
+  expect(linesOf(table)).toStrictEqual(['GET /users users#index']);
+  expect(table.unread).toStrictEqual([]);
+});
+
+test('a followed file takes the prefix it was drawn under, and names its own lines', () => {
+  const { routes } = readFiles([
+    ['config/routes.rb', drawing('namespace :api do\n draw :admin\n end')],
+    ['config/routes/admin.rb', '\nresources :users, only: :index\n'],
+  ]);
+  expect(routes).toMatchObject([
+    { path: '/api/users', target: 'api/users#index', file: 'config/routes/admin.rb', line: 2 },
+  ]);
+});
+
+test('a file nothing draws is not routes', () => {
+  expect(
+    readFiles([
+      ['config/routes.rb', drawing('resources :users, only: :index')],
+      ['config/routes/old.rb', drawing('resources :old, only: :index')],
+    ]).routes,
+  ).toHaveLength(1);
+});
+
+test('each config/routes.rb is its own root, drawing its own files', () => {
+  expect(
+    linesOf(
+      readFiles([
+        ['apps/a/config/routes.rb', drawing('draw :admin')],
+        ['apps/a/config/routes/admin.rb', 'resources :users, only: :index\n'],
+      ]),
+    ),
+  ).toStrictEqual(['GET /users users#index']);
+});
+
+test.for([
+  { reads: 'a file that is not there', entries: [] },
+  {
+    reads: 'a file drawing itself',
+    entries: [['config/routes/admin.rb', 'draw :admin\n']],
+  },
+] as const)('$reads is not read', ({ entries }) => {
+  const { routes, unread } = readFiles([['config/routes.rb', drawing('draw :admin')], ...entries]);
+  expect(routes).toStrictEqual([]);
+  expect(unread.map(({ text }) => text)).toStrictEqual(['draw :admin']);
+});
+
+test.for([
+  { reads: 'a path it cannot read', written: 'load path' },
+  { reads: 'a load of something else', written: 'load File.join("a", "b.rb")' },
+  { reads: 'a draw it cannot name', written: 'draw name' },
+])('$reads is not read', ({ written }) => {
+  expect(read(written).unread).toHaveLength(1);
+});
+
+test('a file that does not parse throws, so it is reported rather than read as no routes', () => {
+  expect(() => read('resources :users,')).toThrow('Ruby syntax error');
+});
+
+test.for([
+  { path: 'config/routes.rb', holds: true },
+  { path: 'apps/a/config/routes.rb', holds: true },
+  { path: 'config/routes/admin.rb', holds: true },
+  { path: 'config/routes/back/admin.rb', holds: true },
+  { path: 'config/routes/admin.txt', holds: false },
+  { path: 'config/routes.txt', holds: false },
+  { path: 'myconfig/routes.rb', holds: false },
+  { path: 'vendor/gem/config/routes.rb', holds: false },
+  { path: 'test/dummy/config/routes.rb', holds: false },
+])('holds $path: $holds', ({ path, holds }) => {
+  expect(railsRoutes.holds(path)).toBe(holds);
 });

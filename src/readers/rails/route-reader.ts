@@ -1,6 +1,7 @@
 import type { Node } from 'web-tree-sitter';
 import type { Route, RouteReader, UnreadRoute } from '../../core/routes.ts';
 import { plural, singular } from './inflection.ts';
+import { NOT_SEARCHED } from './reader.ts';
 import {
   argsOf,
   isNameList,
@@ -13,7 +14,9 @@ import {
   writtenIn,
 } from './ruby-syntax.ts';
 
-const ROUTES_FILE = /(?:^|\/)config\/routes\.rb$/;
+const ROOT_FILE = /(^|.*\/)config\/routes\.rb$/;
+
+const ROUTES_FILE = /(?:^|\/)config\/routes(?:\/.*)?(?:\.rb)$/;
 
 type Action = readonly [verb: string, suffix: string, action: string];
 
@@ -39,6 +42,9 @@ const RESOURCE_ACTIONS: ReadonlyArray<Action> = [
 ];
 
 type Scope = {
+  readonly files: ReadonlyMap<string, string>;
+  readonly root: string;
+  readonly loading: ReadonlyArray<string>;
   readonly file: string;
   readonly path: string;
   readonly module: string;
@@ -297,8 +303,48 @@ const checked =
   (call, scope) =>
     namesWhatItDraws(argsOf(call)) ? handler(call, scope) : [unread(call, scope)];
 
+const isDraw = (statement: Node): boolean =>
+  methodOf(statement) === 'draw' && statement.childForFieldName('block') !== null;
+
+const programOf = (text: string): Node => {
+  const program = parseRuby(text);
+  if (program === undefined || program.hasError) throw new Error('Ruby syntax error');
+  return program;
+};
+
+const drawnFrom = (file: string, scope: Scope): ReadonlyArray<Drawn> => {
+  const statements = writtenIn(programOf(scope.files.get(file) ?? ''));
+  const draws = statements.filter(isDraw);
+  return (draws.length === 0 ? statements : draws).flatMap(statement =>
+    routesIn(statement, { ...scope, file, loading: [...scope.loading, file] }),
+  );
+};
+
+const follows =
+  (pathOf: (args: ReadonlyArray<Node>) => string | undefined): Handler =>
+  (call, scope) => {
+    const path = pathOf(argsOf(call));
+    const file = `${scope.root}${path}`;
+    return path === undefined || !scope.files.has(file) || scope.loading.includes(file)
+      ? [unread(call, scope)]
+      : drawnFrom(file, scope);
+  };
+
+const drawnFile = ([name]: ReadonlyArray<Node>): string | undefined =>
+  name !== undefined && isName(name) ? `config/routes/${nameOf(name)}.rb` : undefined;
+
+const loadedFile = ([path]: ReadonlyArray<Node>): string | undefined => {
+  if (path?.type !== 'call' || !path.text.startsWith('Rails.root.join')) return undefined;
+  const parts = argsOf(path);
+  return parts.every(isName) ? parts.map(nameOf).join('/') : undefined;
+};
+
+const drawOrFollow: Handler = (call, scope) =>
+  isDraw(call) ? within(call, scope) : follows(drawnFile)(call, scope);
+
 const HANDLERS: ReadonlyMap<string, Handler> = new Map<string, Handler>([
-  ['draw', within],
+  ['draw', drawOrFollow],
+  ['load', follows(loadedFile)],
   [
     'resources',
     checked(
@@ -345,13 +391,15 @@ const isRoute = (drawn: Drawn): drawn is Route => 'verb' in drawn;
 const START = { path: '', module: '', controller: '', member: '', collection: '' };
 
 export const railsRoutes: RouteReader = {
-  holds: path => ROUTES_FILE.test(path),
+  holds: path =>
+    ROUTES_FILE.test(path) && !path.split('/').some(folder => NOT_SEARCHED.has(folder)),
   routes: files => {
-    const drawn = [...files].flatMap(([file, text]) =>
-      (parseRuby(text)?.namedChildren ?? []).flatMap(statement =>
-        routesIn(statement, { ...START, file }),
-      ),
-    );
+    const drawn = [...files.keys()].flatMap(file => {
+      const root = ROOT_FILE.exec(file)?.[1];
+      return root === undefined
+        ? []
+        : drawnFrom(file, { ...START, files, root, loading: [], file });
+    });
     return {
       routes: drawn
         .filter(isRoute)
