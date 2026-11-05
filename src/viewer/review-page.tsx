@@ -1711,6 +1711,7 @@ const Page = ({ review, notes, send }: ReviewPageProps) => {
               <ReadingOrderList
                 review={review}
                 read={read}
+                commentable={send !== undefined}
                 findings={findings}
                 onGoTo={goTo}
                 onShowOutside={showOutside}

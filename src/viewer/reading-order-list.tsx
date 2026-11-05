@@ -6,6 +6,7 @@ type ReadingOrderListProps = {
   readonly review: Pick<PageData, 'diff' | 'readingOrder' | 'undrawn'>;
   readonly findings: ReadonlyArray<Finding>;
   readonly read: ReadonlySet<string>;
+  readonly commentable: boolean;
   readonly onGoTo: (id: string) => void;
   readonly onShowOutside: (opener: HTMLButtonElement) => void;
 };
@@ -29,6 +30,7 @@ export const ReadingOrderList = ({
   review,
   findings,
   read,
+  commentable,
   onGoTo,
   onShowOutside,
 }: ReadingOrderListProps) => {
@@ -48,7 +50,12 @@ export const ReadingOrderList = ({
             })}
           </p>
           <p className="reading-keys">
-            <kbd>J</kbd> / <kbd>K</kbd> next or previous, <kbd>A</kbd> mark read, <kbd>C</kbd> comment
+            <kbd>J</kbd> / <kbd>K</kbd> next or previous, <kbd>A</kbd> mark read
+            {commentable && (
+              <>
+                , <kbd>C</kbd> comment
+              </>
+            )}
           </p>
         </>
       )}

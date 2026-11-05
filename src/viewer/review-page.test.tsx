@@ -2279,6 +2279,7 @@ test("a part's head marks it read and goes to the next part, as A and J do, even
   const user = userEvent.setup();
   render(<ReviewPage review={walkedReview()} />);
   const rust = await screen.findByRole('group', { name: 'rust' });
+  expect(screen.getByText(/next or previous/).textContent).not.toContain('comment');
   const head = () => within(inspector());
   const markRead = () => head().getByRole('button', { name: 'Mark read' });
   const goNext = (part: string) =>
@@ -2661,6 +2662,7 @@ test("C opens and focuses the selected part's comment, or refocuses it, not in a
   const field = () => within(inspector()).queryByRole('textbox', { name: 'Your comment' });
   const opener = (part: string) =>
     within(inspector()).getByRole('button', { name: `Comment on ${part}` });
+  expect(screen.getByText(/next or previous/).textContent).toContain('C comment');
 
   await user.click(within(rust).getByRole('button', { name: 'domain: unchanged' }));
   await user.click(opener('domain'));
