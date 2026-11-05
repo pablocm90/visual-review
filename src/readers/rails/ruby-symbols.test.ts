@@ -75,3 +75,36 @@ test('a file that does not parse throws, and so does one too big to read', () =>
   expect(() => read('class Shop', '  def open(', 'end')).toThrow('parse');
   expect(() => read(`# ${'x'.repeat(1001)}`)).toThrow('too big');
 });
+
+const exportedIn = (...lines: ReadonlyArray<string>) =>
+  read(...lines)
+    .symbols.filter(({ exported, kind }) => exported && kind !== 'class')
+    .map(({ name }) => name);
+
+test('a bare private or protected holds until public, in its own body only, and initialize stays public', () => {
+  expect(
+    exportedIn(
+      'class Shop',
+      '  def first; end',
+      '  log(private)',
+      '  def second; end',
+      '  private',
+      '  reload',
+      '  def hidden; end',
+      '  def initialize; end',
+      '  included do',
+      '    def block; end',
+      '    private',
+      '  end',
+      '  def still_hidden; end',
+      '  class Inner',
+      '    def inner; end',
+      '  end',
+      '  protected',
+      '  def guarded; end',
+      '  public',
+      '  def last; end',
+      'end',
+    ),
+  ).toEqual(['first', 'second', 'initialize', 'block', 'inner', 'last']);
+});
