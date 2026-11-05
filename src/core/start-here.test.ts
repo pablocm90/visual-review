@@ -93,3 +93,34 @@ test('lines to look at rank untargeted first, then by the fan-in of their target
     'info on a',
   ]);
 });
+
+test('what was not read ranks ahead of what has no target but was read, which ranks ahead of a target', () => {
+  const noTarget = (check: Check, id: string): Finding => ({
+    id,
+    check,
+    dimension: check.startsWith('schema')
+      ? 'schema'
+      : check.startsWith('dep')
+        ? 'dependencies'
+        : 'structure',
+    level: 'look',
+    title: id,
+  });
+  const findings = [
+    flagOn('a', 'on a'),
+    noTarget('dependencies:direct', 'a direct dependency'),
+    noTarget('schema:migration-risk', 'a migration risk'),
+    noTarget('dependencies:not-read', 'x lockfile not read'),
+    noTarget('schema:not-read', 'x migration not read'),
+    noTarget('structure:skipped', 'x reader skipped'),
+  ];
+
+  expect(keysOf({ findings, metrics: {}, nodes: [] })).toStrictEqual([
+    'dependencies:not-read look',
+    'schema:not-read look',
+    'structure:skipped look',
+    'dependencies:direct look',
+    'schema:migration-risk look',
+    'on a',
+  ]);
+});

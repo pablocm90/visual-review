@@ -28,9 +28,13 @@ export const startHere = ({ findings, metrics, nodes }: StartHereOptions) => {
     target === undefined
       ? Number.POSITIVE_INFINITY
       : Math.max(...endsOfId(target).map(end => metrics[end]?.head?.[measure] ?? 0));
+  const isBlindSpot = ({ target, dimension, check }: Finding) =>
+    target === undefined &&
+    (!(dimension === 'dependencies' || dimension === 'schema') || check.endsWith(':not-read'));
   const ranked = findings.toSorted(
     (one, other) =>
       Number(other.level === 'look') - Number(one.level === 'look') ||
+      Number(isBlindSpot(other)) - Number(isBlindSpot(one)) ||
       highest(other.target, 'fanIn') - highest(one.target, 'fanIn') ||
       highest(other.target, 'churn') - highest(one.target, 'churn') ||
       (one.id < other.id ? -1 : 1),
