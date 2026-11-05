@@ -34,12 +34,12 @@ const Line = ({ line }: { readonly line: SignatureLine }) => {
         ~ <del>{line.base}</del> → <ins>{line.head}</ins>
       </>
     );
-  return <code>{line.text}</code>;
+  return <code className="signature-line">{line.text}</code>;
 };
 
 const AsTheyWere = ({ folded }: Fold) => (
   <details>
-    <summary>
+    <summary className="signature-fold-summary">
       … {folded.length} {folded.length === 1 ? 'member as it was' : 'members as they were'}
     </summary>
     {folded.map((line, index) => (
