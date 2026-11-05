@@ -1632,7 +1632,7 @@ const Page = ({ review, notes, send }: ReviewPageProps) => {
   };
   const closeOutside = () => {
     const opener = outsideOpener.current;
-    (opener?.isConnected ? opener : frameElement)?.focus();
+    (!reading && opener?.isConnected ? opener : frameElement)?.focus();
     setOutside(false);
     setReading(false);
   };
@@ -1726,7 +1726,8 @@ const Page = ({ review, notes, send }: ReviewPageProps) => {
   };
   const openMap = () => {
     setReading(false);
-    if (selected !== undefined) setFocusTarget({ id: selected, inGraph: true });
+    if (selected === undefined) frameElement?.focus();
+    else setFocusTarget({ id: selected, inGraph: true });
   };
   const showAllFindings = () => {
     openMap();

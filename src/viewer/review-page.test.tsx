@@ -8843,3 +8843,31 @@ test('a last answer to a finding shows under it in the rail, not in Start here',
   expect(within(screen.getByRole('region', { name: 'Start here' })).queryByRole('note')).toBeNull();
   expect(screen.getAllByRole('note', { name: /^Last review/ })).toHaveLength(1);
 });
+
+test("closing a stop's outside files returns to the landing with focus on the graph, the stop that opened them having gone", async () => {
+  const user = userEvent.setup();
+  render(
+    <ReviewPage review={{ ...walkedReview(), undrawn: [{ path: 'README.md', patch: '' }] }} />,
+  );
+  await screen.findByRole('group', { name: 'rust' });
+
+  await user.keyboard('j');
+  await user.click(within(readingOrder()).getByRole('button', { name: '4 README.md' }));
+  await user.click(screen.getByRole('button', { name: 'Close inspector' }));
+
+  expect(document.activeElement).toBe(screen.getByRole('group', { name: 'Graph' }));
+});
+
+test('Escape from a stop with no part, the outside files, leaves focus on the graph', async () => {
+  const user = userEvent.setup();
+  render(
+    <ReviewPage review={{ ...walkedReview(), undrawn: [{ path: 'README.md', patch: '' }] }} />,
+  );
+  await screen.findByRole('group', { name: 'rust' });
+
+  await user.keyboard('j');
+  await user.click(within(readingOrder()).getByRole('button', { name: '4 README.md' }));
+  await user.keyboard('{Escape}');
+
+  expect(document.activeElement).toBe(screen.getByRole('group', { name: 'Graph' }));
+});
