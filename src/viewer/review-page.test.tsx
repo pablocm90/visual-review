@@ -5214,6 +5214,7 @@ test('a draft in the open tray goes to where it was written, though the inspecto
     }),
   );
   expect(partField()).toHaveProperty('value', 'On the file.');
+  expect(methodRow().hasAttribute('aria-current')).toBe(false);
   await user.click(screen.getByRole('button', { name: 'if (ready)' }));
   const lineRow = within(whatChanged()).getByRole('listitem', { name: 'same if: if (ready)' });
   expect(within(lineRow).getByRole('textbox', { name: 'Your comment' })).toHaveProperty(

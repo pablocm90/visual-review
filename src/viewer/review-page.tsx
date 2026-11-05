@@ -1575,7 +1575,7 @@ const Page = ({ review, notes, send }: ReviewPageProps) => {
   const goToDraft = (id: string, anchor: Comment['anchor']) => {
     const onRow = holdsRow(review.symbols, anchor);
     const place = onRow ? { path: undefined, row: anchorKey(anchor) } : placeOfLine(anchor);
-    if (place) landOn(id, place);
+    landOn(id, place ?? { path: undefined });
     goToOnTab(id, tabOfDraft(anchor));
     if (onRow) setFocusTarget({ id, inGraph: false });
   };
