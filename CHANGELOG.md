@@ -2,6 +2,13 @@
 
 What changed in each release of `@pablocm90/visual-review`, newest first. Versions follow [semver](https://semver.org); while it is 0.x, a minor version may change the exported types.
 
+## 0.46.0 — 2026-11-05
+
+### Changed
+
+- The inspector no longer has tabs. It reads top to bottom, with **Metrics** and **Full diff** as closed folds at its foot. Full diff opens by itself when you land on a line or one of its patches holds a draft.
+- A part's head holds **Comment**, **Mark read** and **Next**. `C` opens the selected part's comment, or a selected edge's field, and focuses it. An opened comment field now takes focus.
+
 ## 0.45.0 — 2026-11-05
 
 ### Changed
