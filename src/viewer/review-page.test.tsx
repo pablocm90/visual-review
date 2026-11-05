@@ -3814,10 +3814,12 @@ test('on Kind of change a closed box is named with the strongest kind among the 
 const symbolGroups = () =>
   within(screen.getByRole('tabpanel', { name: 'Symbols' }))
     .getAllByRole('list')
+    .filter(list => !list.getAttribute('aria-label')?.startsWith('Signature of'))
     .map(list => [
       list.getAttribute('aria-label'),
       within(list)
         .getAllByRole('listitem')
+        .filter(item => item.parentElement === list)
         .map(item => item.getAttribute('aria-label')),
     ]);
 
@@ -3912,7 +3914,7 @@ test("a file's Symbols tab lists its API changes first: exported symbols added, 
               kind: 'function',
               exported: exported(true, true),
               change: 'edited',
-              signature: { base: '()', head: '(at: Date)' },
+              signature: { base: 'class Charge extends Base', head: 'class Charge extends Money' },
             },
             { name: 'total', kind: 'function', exported: exported(true, true), change: 'edited' },
             { name: 'old', kind: 'function', exported: exported(true), change: 'removed' },
@@ -3961,8 +3963,8 @@ test("a file's Symbols tab lists its API changes first: exported symbols added, 
     ['Added', ['function helper: added']],
   ]);
   const charge = screen.getByRole('listitem', { name: 'function charge, exported: edited' });
-  expect(within(charge).getByRole('deletion').textContent).toBe('()');
-  expect(within(charge).getByRole('insertion').textContent).toBe('(at: Date)');
+  expect(within(charge).getByRole('deletion').textContent).toBe('class Charge extends Base');
+  expect(within(charge).getByRole('insertion').textContent).toBe('class Charge extends Money');
   const total = screen.getByRole('listitem', { name: 'function total, exported: edited' });
   expect(total.textContent).toBe('function total exported');
   expect(
@@ -3973,6 +3975,55 @@ test("a file's Symbols tab lists its API changes first: exported symbols added, 
     'function helper',
   );
   expect(within(total).queryByRole('deletion')).toBeNull();
+});
+
+const signatureLinesOf = async (signature: { readonly base: string; readonly head: string }) => {
+  const user = userEvent.setup();
+  render(
+    <ReviewPage
+      review={pageWith({
+        range: 'abc123..def456',
+        diff: {
+          nodes: [
+            { id: 'web', kind: 'stack', label: 'web', path: '', state: 'unchanged' },
+            topFile('reader.ts', 'modified'),
+          ],
+          edges: [],
+        },
+        symbols: [
+          symbolsOf('web/file/reader.ts', [
+            {
+              name: 'Reader',
+              kind: 'interface',
+              exported: { base: true, head: true },
+              change: 'edited',
+              signature,
+            },
+          ]),
+        ],
+      })}
+    />,
+  );
+  await user.click(await screen.findByRole('button', { name: 'reader.ts: modified' }));
+  await user.click(within(inspector()).getByRole('tab', { name: 'Symbols 1' }));
+  return within(screen.getByRole('list', { name: 'Signature of interface Reader' }))
+    .getAllByRole('listitem')
+    .map(line => line.textContent);
+};
+
+test('a changed signature reads as its opener, its members, each gained or lost one marked, and its closer', async () => {
+  expect(
+    await signatureLinesOf({
+      base: 'interface Reader { name: string; holds(root: string): boolean; }',
+      head: 'interface Reader { name: string; symbols?: Read; }',
+    }),
+  ).toEqual([
+    'interface Reader {',
+    'name: string',
+    '− holds(root: string): boolean',
+    '+ symbols?: Read',
+    '}',
+  ]);
 });
 
 test('a renamed symbol says what it was renamed from, probably when its body changed too', async () => {
