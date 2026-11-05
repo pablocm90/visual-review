@@ -2691,9 +2691,13 @@ test('C focuses the field of a selected edge', async () => {
   const rust = await screen.findByRole('group', { name: 'rust' });
   await user.click(within(rust).getByRole('button', { name: 'application → domain: unchanged' }));
   await user.keyboard('c');
-  expect(document.activeElement).toBe(
-    within(inspector()).getByRole('textbox', { name: 'Your comment' }),
-  );
+  const field = () => within(inspector()).getByRole('textbox', { name: 'Your comment' });
+  expect(document.activeElement).toBe(field());
+
+  await user.click(screen.getByRole('link', { name: 'Metrics' }));
+  await user.click(screen.getByRole('link', { name: 'Structure' }));
+  expect(field()).toBeTruthy();
+  expect(document.activeElement).not.toBe(field());
 });
 
 test('J, K and A typed in a comment are text, neither walking nor marking', async () => {

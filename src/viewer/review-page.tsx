@@ -1474,7 +1474,8 @@ const Page = ({ review, notes, send }: ReviewPageProps) => {
     useGraphView(layout);
   const [selected, setSelected] = useState<string>();
   const [commentAsked, setCommentAsked] = useState<{ readonly on: string }>();
-  if (commentAsked !== undefined && commentAsked.on !== selected) setCommentAsked(undefined);
+  if (commentAsked !== undefined && (commentAsked.on !== selected || tab !== 'structure'))
+    setCommentAsked(undefined);
   const [outside, setOutside] = useState(false);
   const outsideOpener = useRef<HTMLButtonElement>(null);
   const select = (id: string | undefined) => {
