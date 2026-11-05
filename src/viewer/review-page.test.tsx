@@ -56,6 +56,8 @@ const scrolledIntoView = vi.fn();
 Object.defineProperty(HTMLElement.prototype, 'scrollIntoView', { value: scrolledIntoView });
 
 vi.stubGlobal('scrollTo', vi.fn());
+const scrolledBy = vi.fn();
+vi.stubGlobal('scrollBy', scrolledBy);
 
 type Diffed = GraphDiff['nodes'][number]['state'];
 
@@ -7148,7 +7150,7 @@ test("a dependencies finding opens its lockfile's patch in Full diff on the node
   expect(scrolledIntoView.mock.contexts).toContain(patch);
 });
 
-test("an answer to a dependencies finding goes from the tray to its lockfile's patch, from any screen", async () => {
+test("an answer to a dependencies finding goes from the tray to its lockfile's patch, from any screen, and the patch's top, taller than the tray leaves, doesn't lift the page", async () => {
   const user = userEvent.setup();
   render(
     <ReviewPage
@@ -7163,11 +7165,20 @@ test("an answer to a dependencies finding goes from the tray to its lockfile's p
   await user.click(within(finding).getByRole('button', { name: 'Fix this' }));
   await user.click(screen.getByRole('link', { name: 'Tests' }));
   await openReview(user);
+  const everything = vi.spyOn(Element.prototype, 'getBoundingClientRect');
+  onTestFinished(() => everything.mockRestore());
+  everything.mockReturnValue(at(100, 2000));
+  vi.spyOn(
+    screen.getByRole('region', { name: 'Review tray' }),
+    'getBoundingClientRect',
+  ).mockReturnValue(at(464, 800));
+  scrolledBy.mockClear();
   await user.click(
     within(screen.getByRole('list', { name: 'Drafts' })).getByRole('button', {
       name: 'zod 3.25.0 → 4.6.7',
     }),
   );
+  expect(scrolledBy).not.toHaveBeenCalled();
 
   expect(within(inspector()).getByRole('group', { name: 'pnpm-lock.yaml' })).toHaveProperty(
     'open',
@@ -7244,6 +7255,48 @@ test('the tray goes to a draft on a line outside the graph from any screen, open
   );
   expect(within(inspector()).getByRole('insertion', { current: false })).toBeDefined();
   expect(scrolledIntoView).not.toHaveBeenCalled();
+});
+
+const at = (top: number, bottom: number): DOMRect => ({
+  x: 0,
+  y: top,
+  top,
+  bottom,
+  left: 0,
+  right: 0,
+  width: 0,
+  height: bottom - top,
+  toJSON: () => ({}),
+});
+
+test('landing on a row the review tray covers lifts the page just clear of it, and one it leaves clear moves nothing', async () => {
+  const user = userEvent.setup();
+  render(<ReviewPage review={pageWithUndrawnFile()} send={vi.fn(async () => {})} />);
+  const name = 'README.md:1 "new"';
+  await openUndrawnFiles(user);
+  await user.click(within(inspector()).getByText('README.md'));
+  await user.click(within(inspector()).getByRole('button', { name: `Comment on ${name}` }));
+  await write(user, await partComment(user), 'Why new?');
+  await openReview(user);
+  const landOnDraft = () =>
+    user.click(within(screen.getByRole('list', { name: 'Drafts' })).getByRole('button', { name }));
+  await landOnDraft();
+  const row = within(inspector()).getByRole('insertion', { current: true });
+  const rowAt = vi.spyOn(row, 'getBoundingClientRect');
+  vi.spyOn(
+    screen.getByRole('region', { name: 'Review tray' }),
+    'getBoundingClientRect',
+  ).mockReturnValue(at(464, 800));
+
+  scrolledBy.mockClear();
+  rowAt.mockReturnValue(at(490, 600));
+  await landOnDraft();
+  expect(scrolledBy.mock.calls).toEqual([[0, 136]]);
+
+  scrolledBy.mockClear();
+  rowAt.mockReturnValue(at(300, 464));
+  await landOnDraft();
+  expect(scrolledBy).not.toHaveBeenCalled();
 });
 
 test("going to a line's draft shows its hidden field, and leaves hidden the one on the row it left", async () => {
