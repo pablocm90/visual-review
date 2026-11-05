@@ -84,3 +84,23 @@ test('a last else if that returns first is no guard', () => {
     'if',
   ]);
 });
+
+test.for(['Err(e)', 'std::result::Result::Err(e)'])('an if let on %s reads as a catch', pattern => {
+  expect(decisionsIn(`if let ${pattern} = x {`, 'if d { go(); }', '}')).toEqual([
+    { kind: 'catch', text: `if let ${pattern} = x`, depth: 0, line: 2 },
+    { kind: 'if', text: 'if d', depth: 1, line: 3 },
+  ]);
+});
+
+test.for(['let Err(e) = x && y', 'let Err(e) | Ok(e) = x', 'let Error(e) = x'])(
+  'an if on %s is no catch',
+  condition => {
+    expect(decisionsIn(`if ${condition} { go(); }`)?.map(({ kind }) => kind)).toEqual(['if']);
+  },
+);
+
+test('an if let on Err that returns first stays a guard', () => {
+  expect(decisionsIn('if let Err(e) = x { return 1; }')).toEqual([
+    { kind: 'guard', text: 'if let Err(e) = x return', depth: 0, line: 2 },
+  ]);
+});

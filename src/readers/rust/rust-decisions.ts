@@ -34,6 +34,12 @@ const firstStatementOf = (block: Node | undefined): Node | undefined =>
 
 const isElseIf = (node: Node): boolean => node.parent?.type === 'else_clause';
 
+const isErrPattern = (pattern: Node | undefined): boolean =>
+  pattern !== undefined && fieldOf(pattern, 'type')?.text.split('::').at(-1) === 'Err';
+
+const isErrCondition = (condition: Node | undefined): boolean =>
+  condition?.type === 'let_condition' && isErrPattern(fieldOf(condition, 'pattern'));
+
 const ifOf = (node: Node): Read => {
   const code = codeOf(fieldOf(node, 'condition'));
   const condition = isElseIf(node) ? `else if ${code}` : `if ${code}`;
@@ -43,7 +49,11 @@ const ifOf = (node: Node): Read => {
       : undefined;
   const exit = exitOf(first);
   return exit === undefined
-    ? { kind: 'if', text: condition, deeper: fieldsOf(node, 'consequence', 'alternative') }
+    ? {
+        kind: isErrCondition(fieldOf(node, 'condition')) ? 'catch' : 'if',
+        text: condition,
+        deeper: fieldsOf(node, 'consequence', 'alternative'),
+      }
     : { ...exit, kind: 'guard', text: `${condition} return`, deeper: first?.namedChildren ?? [] };
 };
 
