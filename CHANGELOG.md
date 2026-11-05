@@ -2,6 +2,14 @@
 
 What changed in each release of `@pablocm90/visual-review`, newest first. Versions follow [semver](https://semver.org); while it is 0.x, a minor version may change the exported types.
 
+## Unreleased
+
+### Added
+
+- A change to a Rails `db/schema.rb` or `db/<name>_schema.rb` gets a Schema tab, with a card per changed table showing its columns, indexes and table options before and after. A dump added or removed whole says so with its table count, and one that doesn't parse says it wasn't read.
+- Each changed table raises a Schema finding for information, summing up what changed in it, and a removed table one that needs a look. A dump that doesn't parse raises one saying it wasn't read, ranked first. They open the Schema tab, at the table's card.
+- The review data carries `schemas`.
+
 ## 0.28.0 — 2026-11-05
 
 ### Added
