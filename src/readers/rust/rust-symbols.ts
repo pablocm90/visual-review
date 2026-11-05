@@ -239,15 +239,28 @@ const wholeTypeSymbol = (item: Node): ReadSymbol => {
 
 const WHOLE_TYPES: ReadonlySet<string> = new Set(['enum_item', 'type_item']);
 
+const joined = (path: string, part: string): string => (path === '' ? part : `${path}::${part}`);
+
+const insideMod =
+  (mod: string) =>
+  (symbol: ReadSymbol): ReadSymbol =>
+    symbol.scope === undefined
+      ? { ...symbol, name: joined(mod, symbol.name) }
+      : { ...symbol, scope: joined(mod, symbol.scope) };
+
+const symbolsOfMod = (item: Node): ReadonlyArray<ReadSymbol> =>
+  (item.childForFieldName('body')?.namedChildren ?? [])
+    .flatMap(symbolsOfItem)
+    .map(insideMod(item.childForFieldName('name')?.text ?? ''));
+
 const symbolsOfItem = (item: Node): ReadonlyArray<ReadSymbol> => {
+  if (item.type === 'mod_item') return symbolsOfMod(item);
   if (item.type === 'function_item') return [functionSymbol(item)];
   if (item.type === 'struct_item' || item.type === 'union_item') return [structSymbol(item)];
   if (WHOLE_TYPES.has(item.type)) return [wholeTypeSymbol(item)];
   if (item.type === 'trait_item') return [traitSymbol(item), ...methodsOfTrait(item)];
   return item.type === 'impl_item' ? methodsOfImpl(item) : [];
 };
-
-const joined = (path: string, part: string): string => (path === '' ? part : `${path}::${part}`);
 
 const namesUsedIn = (node: Node, path: string): ReadonlyArray<string> => {
   if (isComment(node)) return [];

@@ -29,10 +29,24 @@ test('a const, a static, a mod and a use read no symbol', () => {
       'pub const A: u8 = 1;',
       'pub static B: u8 = 1;',
       'pub mod c;',
-      'mod d {\n  fn e() {}\n}',
       'pub use f::g;',
     ).symbols,
   ).toEqual([]);
+});
+
+test.for([
+  { written: 'mod inner {\n  fn z() {}\n}', name: 'inner::z', scope: undefined },
+  { written: 'mod a {\n  mod b {\n    fn z() {}\n  }\n}', name: 'a::b::z', scope: undefined },
+  { written: 'mod inner {\n  struct Foo;\n}', name: 'inner::Foo', scope: undefined },
+  { written: 'mod inner {\n  impl Foo {\n    fn z() {}\n  }\n}', name: 'z', scope: 'inner::Foo' },
+  {
+    written: 'mod inner {\n  impl T for Foo {\n    fn z() {}\n  }\n}',
+    name: 'z',
+    scope: 'inner::Foo as T',
+  },
+])('$written reads as $name in scope $scope', ({ written, name, scope }) => {
+  const [symbol] = read(written).symbols;
+  expect({ name: symbol?.name, scope: symbol?.scope }).toEqual({ name, scope });
 });
 
 test("an impl's const and type read no symbol", () => {
