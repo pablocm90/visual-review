@@ -23,8 +23,18 @@ test.for([
 
 test('a const, a static, a mod and a use read no symbol', () => {
   expect(
-    read('pub const A: u8 = 1;', 'pub static B: u8 = 1;', 'pub mod c;', 'pub use d::e;').symbols,
+    read(
+      'pub const A: u8 = 1;',
+      'pub static B: u8 = 1;',
+      'pub mod c;',
+      'mod d {\n  fn e() {}\n}',
+      'pub use f::g;',
+    ).symbols,
   ).toEqual([]);
+});
+
+test("an impl's const and type read no symbol", () => {
+  expect(read('impl Foo {\n  const A: u8 = 1;\n  type B = u8;\n}').symbols).toEqual([]);
 });
 
 test('a file that does not parse throws, and so does one too big to read', () => {
@@ -139,4 +149,37 @@ test('a function under another name reads as renamed', () => {
   expect(
     symbolChanges({ before: read('fn a() { b(); }'), after: read('fn c() { b(); }') }).symbols,
   ).toMatchObject([{ name: 'c', change: 'renamed', renamedFrom: 'a' }]);
+});
+
+test.for([
+  { written: 'pub fn open(&self) {}', exported: true },
+  { written: 'fn open(&self) {}', exported: false },
+  { written: 'pub(crate) fn open(&self) {}', exported: false },
+])('$written in an impl is a method of the type, exported: $exported', ({ written, exported }) => {
+  expect(read(`pub struct Foo;\nimpl Foo {\n  ${written}\n}`).symbols).toContainEqual(
+    expect.objectContaining({
+      kind: 'method',
+      scope: 'Foo',
+      name: 'open',
+      exported,
+      signature: '(&self)',
+    }),
+  );
+});
+
+test.for([
+  { impl: 'impl<T> Foo<T>', scope: 'Foo' },
+  { impl: 'impl a::Foo', scope: 'a::Foo' },
+  { impl: 'impl<T> a::Foo<T>', scope: 'a::Foo' },
+])('$impl scopes its methods to $scope, with no generics', ({ impl, scope }) => {
+  expect(read(`${impl} {\n  fn open() {}\n}`).symbols).toMatchObject([{ scope, name: 'open' }]);
+});
+
+test('a method changed in an impl reads as edited, its scope kept', () => {
+  expect(
+    symbolChanges({
+      before: read('impl Foo {\n  fn a() { b(); }\n}'),
+      after: read('impl Foo {\n  fn a() { c(); }\n}'),
+    }).symbols,
+  ).toMatchObject([{ scope: 'Foo', name: 'a', kind: 'method', change: 'edited' }]);
 });

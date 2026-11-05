@@ -60,12 +60,29 @@ const functionSymbol = (item: Node): ReadSymbol => {
   };
 };
 
+const scopeOfImpl = (item: Node): string => {
+  const type = item.childForFieldName('type');
+  return (type?.childForFieldName('type') ?? type)?.text ?? '';
+};
+
+const methodsOfImpl = (item: Node): ReadonlyArray<ReadSymbol> => {
+  const scope = scopeOfImpl(item);
+  return (item.childForFieldName('body')?.namedChildren ?? [])
+    .filter(({ type }) => type === 'function_item')
+    .map(method => ({ ...functionSymbol(method), kind: 'method', scope }));
+};
+
+const symbolsOfItem = (item: Node): ReadonlyArray<ReadSymbol> => {
+  if (item.type === 'function_item') return [functionSymbol(item)];
+  return item.type === 'impl_item' ? methodsOfImpl(item) : [];
+};
+
 export const symbolsOfRust = (text: string): FileSymbols => {
   if (isTooBig(text)) throw new Error(TOO_BIG);
   const root = parseRust(text);
   if (root === undefined || root.hasError) throw new Error('Rust that does not parse');
   return {
-    symbols: root.namedChildren.filter(({ type }) => type === 'function_item').map(functionSymbol),
+    symbols: root.namedChildren.flatMap(symbolsOfItem),
     exports: [],
     astHash: hashOf(shapeOf(root)),
   };
