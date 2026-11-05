@@ -296,11 +296,9 @@ export const LensChips = ({ findings, coverage, picked, onPick }: LensChipsProps
   <div className="lenses" role="group" aria-label="Lenses">
     {LENSES.map(lens => {
       const found = findings.filter(finding => LENS_OF[finding.dimension] === lens);
-      const checked =
-        found.length === 0 &&
-        coverage.every(
-          ({ dimension, notRead }) => LENS_OF[dimension] !== lens || notRead.length === 0,
-        );
+      const covered = coverage.filter(({ dimension }) => LENS_OF[dimension] === lens);
+      const checked = found.length === 0 && covered.every(({ notRead }) => notRead.length === 0);
+      const names = covered.map(({ dimension }) => nameOf(dimension).toLowerCase()).join(', ');
       return (
         <button
           key={lens}
@@ -309,7 +307,7 @@ export const LensChips = ({ findings, coverage, picked, onPick }: LensChipsProps
           aria-pressed={lens === picked}
           onClick={() => onPick(lens === picked ? undefined : lens)}
         >
-          {checked ? `${lens} · checked, nothing found` : lens}
+          {checked ? `${lens} · ${names} checked, nothing found` : lens}
           <LensCount findings={found} level="info" />
           <LensCount findings={found} level="look" />
         </button>

@@ -1863,9 +1863,9 @@ test("the findings rail starts collapsed to their total and how many need a look
   expect(lines('Routes')).toEqual(['cli-adapter: 2 calls with no route: /api/info, /api/users']);
 
   expect(lensChips()).toEqual([
-    'Behaviour · checked, nothing found false',
+    'Behaviour · logic, tests checked, nothing found false',
     'Contract ○1 false',
-    'Risk · checked, nothing found false',
+    'Risk · dependencies checked, nothing found false',
     'Shape ○1 ▲2 false',
     'Context ○1 ▲1 false',
   ]);
@@ -1899,11 +1899,11 @@ test("the findings rail starts collapsed to their total and how many need a look
   rerender(<ReviewPage review={pageWith({ ...review, findings: [] })} />);
   expect(within(rail()).getByRole('button', { name: 'Show 0 findings' })).toBeDefined();
   expect(lensChips()).toEqual([
-    'Behaviour · checked, nothing found false',
-    'Contract · checked, nothing found false',
-    'Risk · checked, nothing found false',
-    'Shape · checked, nothing found false',
-    'Context · checked, nothing found false',
+    'Behaviour · logic, tests checked, nothing found false',
+    'Contract · api, schema, routes checked, nothing found false',
+    'Risk · dependencies checked, nothing found false',
+    'Shape · structure, cohesion checked, nothing found false',
+    'Context · metrics checked, nothing found false',
   ]);
 });
 
@@ -1949,9 +1949,9 @@ test("a lens counts each of its dimensions' findings, a note's flag among them, 
   expect(startHereLines.getByRole('button', { name: /reads a token/ })).toBeDefined();
   expect(lensChips()).toEqual([
     'Behaviour ○2 ▲1 false',
-    'Contract · checked, nothing found false',
+    'Contract · api, schema, routes checked, nothing found false',
     'Risk ▲1 false',
-    'Shape · checked, nothing found false',
+    'Shape · structure, cohesion checked, nothing found false',
     'Context ○1 false',
   ]);
 
@@ -2027,7 +2027,7 @@ test("a picked lens lists its dimensions under the chips, each with its counts, 
     'Contract ○1 false',
     'Risk ▲1 false',
     'Shape false',
-    'Context · checked, nothing found false',
+    'Context · metrics checked, nothing found false',
   ]);
   expect(screen.queryByRole('list', { name: /dimensions/ })).toBeNull();
 
