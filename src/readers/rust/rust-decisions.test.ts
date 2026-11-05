@@ -252,6 +252,37 @@ test('a chain of ? reads one line each, the inner first, at one depth', () => {
   ]);
 });
 
+test.for([
+  { line: 'a.b(|e| e.d())?;', text: 'a.b(|e| …)?' },
+  { line: 'a.b(|e|e.d())?;', text: 'a.b(|e|…)?' },
+  { line: 'a.b(|e| e.d(), f)?;', text: 'a.b(|e| …, f)?' },
+  { line: 'a.b(move |e: E| -> u8 { e.d() })?;', text: 'a.b(move |e: E| -> u8 …)?' },
+])('$line reads with its closure body left out', ({ line, text }) => {
+  expect(decisionsIn(line)).toEqual([{ kind: 'try', text, depth: 0, line: 2 }]);
+});
+
+test("a closure's logic left out of a try's text still reads as its own lines", () => {
+  expect(decisionsIn('a.b(|e| match e { X => y, _ => c.d(|f| f.g())? })?;')).toEqual([
+    { kind: 'case', text: 'X =>', depth: 0, line: 2 },
+    { kind: 'case', text: '_ =>', depth: 0, line: 2 },
+    { kind: 'try', text: 'c.d(|f| …)?', depth: 1, line: 2 },
+    { kind: 'try', text: 'a.b(|e| …)?', depth: 0, line: 2 },
+  ]);
+});
+
+test("a try keeps a loop's body, as only a closure's is left out", () => {
+  expect(decisionsIn('(loop { break a; })?;')).toEqual([
+    { kind: 'loop', text: 'loop', depth: 0, line: 2 },
+    { kind: 'try', text: '(loop {break a;})?', depth: 0, line: 2 },
+  ]);
+});
+
+test("a condition keeps its closure's body, as nothing else reads it", () => {
+  expect(decisionsIn('if a.b(|e| e.d()) { go(); }')).toEqual([
+    { kind: 'if', text: 'if a.b(|e| e.d())', depth: 0, line: 2 },
+  ]);
+});
+
 const findingsOfChange = (before: string, after: string) => {
   const read = (body: string) => rustReader.symbols?.(`fn charge() {\n${body}\n}`, 'src/shop.rs');
   const [baseFile, headFile] = [read(before), read(after)];

@@ -87,16 +87,21 @@ export const ownText = (
 const tokensOf = (shape: Shape): ReadonlyArray<string> =>
   typeof shape === 'string' ? [shape] : shape.flatMap(tokensOf);
 
-const leavesOf = (node: Node): ReadonlyArray<Node> => {
+type Leaf = Pick<Node, 'text' | 'startIndex' | 'endIndex'>;
+
+type IsElided = (node: Node) => boolean;
+
+const leavesOf = (node: Node, isElided: IsElided): ReadonlyArray<Leaf> => {
   if (isComment(node)) return [];
-  return node.childCount === 0 ? [node] : node.children.flatMap(leavesOf);
+  if (isElided(node)) return [{ text: '…', startIndex: node.startIndex, endIndex: node.endIndex }];
+  return node.childCount === 0 ? [node] : node.children.flatMap(child => leavesOf(child, isElided));
 };
 
 const OPENERS: ReadonlySet<string> = new Set(['(', '[', '{']);
 const BRACKET_CLOSERS: ReadonlySet<string> = new Set([')', ']', '}']);
 
-export const codeReaderOf = (sends: ReadonlySet<string>) => {
-  const isGapped = (leaf: Node, before: Node | undefined): boolean =>
+export const codeReaderOf = (sends: ReadonlySet<string>, isElided: IsElided = () => false) => {
+  const isGapped = (leaf: Leaf, before: Leaf | undefined): boolean =>
     before !== undefined &&
     leaf.startIndex > before.endIndex &&
     !OPENERS.has(before.text) &&
@@ -104,7 +109,7 @@ export const codeReaderOf = (sends: ReadonlySet<string>) => {
     !sends.has(leaf.text) &&
     !sends.has(before.text);
 
-  const codeFrom = (leaves: ReadonlyArray<Node>): string => {
+  const codeFrom = (leaves: ReadonlyArray<Leaf>): string => {
     const kept = leaves.filter(
       ({ text }, index) => !(text === ',' && BRACKET_CLOSERS.has(leaves[index + 1]?.text ?? '')),
     );
@@ -114,10 +119,13 @@ export const codeReaderOf = (sends: ReadonlySet<string>) => {
   };
 
   return {
-    codeOf: (node: Node | undefined): string => codeFrom(node === undefined ? [] : leavesOf(node)),
+    codeOf: (node: Node | undefined): string =>
+      codeFrom(node === undefined ? [] : leavesOf(node, isElided)),
     codeUpTo: (node: Node, end: Node | undefined): string =>
       codeFrom(
-        leavesOf(node).filter(({ endIndex }) => end === undefined || endIndex <= end.startIndex),
+        leavesOf(node, isElided).filter(
+          ({ endIndex }) => end === undefined || endIndex <= end.startIndex,
+        ),
       ),
   };
 };

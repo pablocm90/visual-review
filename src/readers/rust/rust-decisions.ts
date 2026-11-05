@@ -5,7 +5,15 @@ import { isTestCode } from './rust-syntax.ts';
 
 type Head = Pick<Decision, 'kind' | 'text' | 'foundByName'>;
 
-const { codeOf, codeUpTo } = codeReaderOf(new Set(['.']));
+const SENDS: ReadonlySet<string> = new Set(['.']);
+
+const { codeOf, codeUpTo } = codeReaderOf(SENDS);
+
+const isClosureBody = (node: Node): boolean =>
+  node.parent?.type === 'closure_expression' &&
+  node.parent.childForFieldName('body')?.id === node.id;
+
+const { codeOf: codeWithoutClosures } = codeReaderOf(SENDS, isClosureBody);
 
 type Read = Head & {
   readonly deeper: ReadonlyArray<Node>;
@@ -104,7 +112,7 @@ const returnOf = (node: Node, walk: Walk): Read | undefined =>
 
 const tryOf = (node: Node): Read => ({
   kind: 'try',
-  text: codeOf(node),
+  text: codeWithoutClosures(node),
   deeper: [],
   beside: node.namedChildren,
 });
