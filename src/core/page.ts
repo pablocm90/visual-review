@@ -1,3 +1,4 @@
+import { type Coverage, coverageOf } from './coverage.ts';
 import { diffGraphs, type FilePatch, type GraphDiff, isAtOrUnder } from './diff-graphs.ts';
 import { type Finding, raisedFindings } from './findings.ts';
 import type { DanglingCall } from './linker.ts';
@@ -31,6 +32,7 @@ export type PageData = {
   readonly readingOrder: ReadingOrder;
   readonly metrics: Readonly<Record<string, NodeMetrics>>;
   readonly findings: ReadonlyArray<Finding>;
+  readonly coverage: ReadonlyArray<Coverage>;
   readonly dangling: ReadonlyArray<DanglingCall>;
   readonly patches: ReadonlyArray<FilePatch>;
   readonly undrawn: ReadonlyArray<FilePatch>;
@@ -99,6 +101,7 @@ export const pageData = ({
     readingOrder: order,
     metrics,
     findings,
+    coverage: coverageOf(reading),
     dangling: reading.danglingCalls,
     patches: reading.patches.filter(isDrawn),
     undrawn,
