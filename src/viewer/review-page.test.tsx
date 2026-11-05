@@ -2575,6 +2575,11 @@ test("a check's findings read as one line, which opens in place to list them, un
   const signatures = () =>
     band.getByRole('button', { name: '7 exported signatures changed · 4 files' });
   expect(band.getByRole('button', { name: '30 exported symbols added · 9 files' })).toBeDefined();
+  expect(
+    band
+      .getAllByRole('listitem')
+      .map(line => within(line).getByRole('img').getAttribute('aria-label')),
+  ).toEqual(['needs a look', 'for information']);
   expect(band.getByText('0.ts, 1.ts, 2.ts, 3.ts')).toBeDefined();
   expect(signatures().getAttribute('aria-expanded')).toBe('false');
   expect(band.queryByRole('button', { name: '1.ts: said 1' })).toBeNull();
@@ -2591,6 +2596,32 @@ test("a check's findings read as one line, which opens in place to list them, un
 
   await user.click(signatures());
   expect(band.queryByRole('button', { name: '1.ts: said 1' })).toBeNull();
+});
+
+test("an opened Start here line's finding on a file opens that file's patch", async () => {
+  const user = userEvent.setup();
+  const page = pageWithLockfile('undrawn', 'pnpm-lock.yaml');
+  const direct = (name: string) => ({
+    id: `dependencies:pnpm-lock.yaml:${name}`,
+    check: 'dependencies:direct' as const,
+    dimension: 'dependencies' as const,
+    level: 'look' as const,
+    file: 'pnpm-lock.yaml',
+    title: `${name} 1.0.0 → 2.0.0`,
+    detail: 'pnpm-lock.yaml',
+  });
+  render(<ReviewPage review={{ ...page, findings: [direct('vite'), direct('zod')] }} />);
+
+  const band = within(await screen.findByRole('region', { name: 'Start here' }));
+  await user.click(band.getByRole('button', { name: '2 direct dependencies changed · 1 file' }));
+  await user.click(band.getByRole('button', { name: 'pnpm-lock.yaml: zod 1.0.0 → 2.0.0' }));
+
+  expect(within(inspector()).getByRole('heading', { level: 2 }).textContent).toBe(
+    'Changed files outside the graph',
+  );
+  expect(
+    within(inspector()).getByRole('group', { name: 'pnpm-lock.yaml' }).hasAttribute('open'),
+  ).toBe(true);
 });
 
 test('signatures called fine at the last review leave the Start here line counted without them, and the rail lists them all, tagged', async () => {
