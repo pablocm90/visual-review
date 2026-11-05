@@ -1609,6 +1609,99 @@ const GraphFrame = ({
   </div>
 );
 
+type LeftColumnProps = {
+  readonly review: PageData;
+  readonly notes: ReviewPageProps['notes'];
+  readonly reading: boolean;
+  readonly read: ReadonlySet<string>;
+  readonly selected: string | undefined;
+  readonly commentable: boolean;
+  readonly findings: ReadonlyArray<Finding>;
+  readonly inLens: ReadonlyArray<Finding>;
+  readonly railOpen: boolean;
+  readonly onRailOpen: (open: boolean) => void;
+  readonly answers: Answers;
+  readonly onAnswer: AnswerTo | undefined;
+  readonly onGoTo: (id: string) => void;
+  readonly onWalkTo: (id: string) => void;
+  readonly onStart: () => void;
+  readonly onGoToDraft: (id: string, anchor: PreviousComment['anchor']) => void;
+  readonly onGoToFinding: (id: string, finding: string) => void;
+  readonly onGoToOutside: (place: LandingIn, opener: HTMLButtonElement) => void;
+  readonly onShowOutside: (opener: HTMLButtonElement) => void;
+  readonly onShowFile: (path: string, opener: HTMLButtonElement, place?: string) => void;
+};
+
+const LeftColumn = ({
+  review,
+  notes,
+  reading,
+  read,
+  selected,
+  commentable,
+  findings,
+  inLens,
+  railOpen,
+  onRailOpen,
+  answers,
+  onAnswer,
+  onGoTo,
+  onWalkTo,
+  onStart,
+  onGoToDraft,
+  onGoToFinding,
+  onGoToOutside,
+  onShowOutside,
+  onShowFile,
+}: LeftColumnProps) => (
+  <div className="left-column">
+    {!reading && review.sinceReview !== undefined && (
+      <LastReview
+        since={review.sinceReview}
+        unasked={notes?.unasked}
+        nodes={review.diff.nodes}
+        findings={findings}
+        onGoTo={onGoTo}
+        onGoToDraft={onGoToDraft}
+        onGoToOutside={onGoToOutside}
+      />
+    )}
+    {reading ? (
+      <ReadingStops
+        review={review}
+        read={read}
+        current={selected}
+        onGoTo={onGoTo}
+        onShowOutside={onShowOutside}
+      />
+    ) : (
+      <ReadingOrderList
+        review={review}
+        read={read}
+        commentable={commentable}
+        findings={findings}
+        onGoTo={onWalkTo}
+        onStart={onStart}
+        onShowOutside={onShowOutside}
+      />
+    )}
+    {!reading && (
+      <FindingsRail
+        findings={inLens}
+        open={railOpen}
+        onOpen={onRailOpen}
+        review={review}
+        onGoTo={onGoTo}
+        onGoToFinding={onGoToFinding}
+        onShowOutside={onShowOutside}
+        onShowFile={onShowFile}
+        answers={answers}
+        onAnswer={onAnswer}
+      />
+    )}
+  </div>
+);
+
 const Page = ({ review, notes, send }: ReviewPageProps) => {
   const tab = useTab(review);
   const [layout, setLayout] = useState<Layout>();
@@ -1991,52 +2084,28 @@ const Page = ({ review, notes, send }: ReviewPageProps) => {
             </div>
           )}
           <div className={reading ? 'columns reading' : 'columns'}>
-            <div className="left-column">
-              {!reading && review.sinceReview !== undefined && (
-                <LastReview
-                  since={review.sinceReview}
-                  unasked={notes?.unasked}
-                  nodes={review.diff.nodes}
-                  findings={findings}
-                  onGoTo={goTo}
-                  onGoToDraft={goToDraft}
-                  onGoToOutside={showOutsideAt}
-                />
-              )}
-              {reading ? (
-                <ReadingStops
-                  review={review}
-                  read={read}
-                  current={selected}
-                  onGoTo={goTo}
-                  onShowOutside={showOutside}
-                />
-              ) : (
-                <ReadingOrderList
-                  review={review}
-                  read={read}
-                  commentable={send !== undefined}
-                  findings={findings}
-                  onGoTo={walkTo}
-                  onStart={() => walk(1)}
-                  onShowOutside={showOutside}
-                />
-              )}
-              {!reading && (
-                <FindingsRail
-                  findings={inLens}
-                  open={railOpen}
-                  onOpen={setRailOpen}
-                  review={review}
-                  onGoTo={goTo}
-                  onGoToFinding={goToFinding}
-                  onShowOutside={showOutside}
-                  onShowFile={showFile}
-                  answers={answers}
-                  onAnswer={answer}
-                />
-              )}
-            </div>
+            <LeftColumn
+              review={review}
+              notes={notes}
+              reading={reading}
+              read={read}
+              selected={selected}
+              commentable={send !== undefined}
+              findings={findings}
+              inLens={inLens}
+              railOpen={railOpen}
+              onRailOpen={setRailOpen}
+              answers={answers}
+              onAnswer={answer}
+              onGoTo={goTo}
+              onWalkTo={walkTo}
+              onStart={() => walk(1)}
+              onGoToDraft={goToDraft}
+              onGoToFinding={goToFinding}
+              onGoToOutside={showOutsideAt}
+              onShowOutside={showOutside}
+              onShowFile={showFile}
+            />
             {reading ? [side, content] : [content, side]}
           </div>
         </>
