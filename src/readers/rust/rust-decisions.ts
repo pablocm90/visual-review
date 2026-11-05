@@ -64,6 +64,19 @@ const letElseOf = (node: Node): Read | undefined => {
   };
 };
 
+const firstAlternativeOf = (pattern: Node | undefined): Node | undefined =>
+  pattern?.type === 'or_pattern' ? firstAlternativeOf(pattern.namedChildren[0]) : pattern;
+
+const armOf = (node: Node): Read => {
+  const value = fieldOf(node, 'value');
+  const pattern = firstAlternativeOf(fieldOf(node, 'pattern')?.namedChildren[0]);
+  return {
+    kind: isErrPattern(pattern) ? 'catch' : 'case',
+    text: codeUpTo(node, value),
+    deeper: value === undefined ? [] : [value],
+  };
+};
+
 const COMMAS_KEPT = new Map([
   ['ensure', 0],
   ['assert', 0],
@@ -90,6 +103,7 @@ const READS = new Map<string, (node: Node) => Read | undefined>([
   ['if_expression', ifOf],
   ['let_declaration', letElseOf],
   ['macro_invocation', macroOf],
+  ['match_arm', armOf],
 ]);
 
 const decisionsUnder = (walk: Walk, nodes: ReadonlyArray<Node>): ReadonlyArray<Decision> =>

@@ -134,3 +134,32 @@ test.for([
 test('debug_assert! is no guard', () => {
   expect(decisionsIn('debug_assert!(a);')).toEqual([]);
 });
+
+test('a match arm reads as a case with its guard, what its value holds one deeper', () => {
+  expect(
+    decisionsIn(
+      'match if a { b } else { c } {',
+      'Some(x) if y => if d { 1 } else { 2 },',
+      '_ => 3,',
+      '}',
+    ),
+  ).toEqual([
+    { kind: 'if', text: 'if a', depth: 0, line: 2 },
+    { kind: 'case', text: 'Some(x) if y =>', depth: 0, line: 3 },
+    { kind: 'if', text: 'if d', depth: 1, line: 3 },
+    { kind: 'case', text: '_ =>', depth: 0, line: 4 },
+  ]);
+});
+
+test.for(['Err(e)', 'Err(e) if y', 'Result::Err(e)', 'Err(a) | Err(b) | Ok(c)'])(
+  'an arm on %s reads as a catch',
+  pattern => {
+    expect(decisionsIn('match x {', `${pattern} => 1,`, '}')).toEqual([
+      { kind: 'catch', text: `${pattern} =>`, depth: 0, line: 3 },
+    ]);
+  },
+);
+
+test('an arm whose first pattern is another reads as a case', () => {
+  expect(decisionsIn('match x { Ok(a) | Err(a) => 1 }')?.map(({ kind }) => kind)).toEqual(['case']);
+});
