@@ -284,3 +284,35 @@ test('private_constant hides the class, what it scopes and the constants below i
 
   expect(exported).toEqual(['Shop', 'Shop::Innermost', 'shown', 'own', 'Inner']);
 });
+
+test('attr_reader, attr_writer and attr_accessor read as a getter and a setter per name, by visibility', () => {
+  const lines = [
+    'class Shop',
+    '  attr_reader :open, :close',
+    '  attr_writer :price',
+    '  attr_accessor :rent',
+    '  private attr_reader :hidden',
+    '  attr_reader :renamed',
+    '  private :renamed',
+    '  class << self',
+    '    attr_reader :count',
+    '  end',
+    '  private',
+    '  attr_writer :secret',
+    'end',
+  ];
+
+  expect(symbolsIn(...lines)).toEqual([
+    'class Shop',
+    'getter Shop.open',
+    'getter Shop.close',
+    'setter Shop.price',
+    'getter Shop.rent',
+    'setter Shop.rent',
+    'getter Shop.hidden',
+    'getter Shop.renamed',
+    'getter Shop.self.count',
+    'setter Shop.secret',
+  ]);
+  expect(exportedIn(...lines)).toEqual(['open', 'close', 'price', 'rent', 'rent', 'self.count']);
+});

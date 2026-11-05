@@ -63,6 +63,34 @@ const methodSymbol = (method: Node, within: string | undefined, walk: Walk): Rea
   };
 };
 
+const symbolsNamedIn = (call: Node): ReadonlyArray<string> =>
+  (call.childForFieldName('arguments')?.namedChildren ?? [])
+    .filter(({ type }) => type === 'simple_symbol')
+    .map(({ text }) => text.slice(1));
+
+const ATTRS = new Map<string, ReadonlyArray<'getter' | 'setter'>>([
+  ['attr_reader', ['getter']],
+  ['attr_writer', ['setter']],
+  ['attr_accessor', ['getter', 'setter']],
+]);
+
+const attrSymbols = (
+  call: Node,
+  kinds: ReadonlyArray<'getter' | 'setter'>,
+  within: string | undefined,
+  walk: Walk,
+): ReadonlyArray<ReadSymbol> =>
+  symbolsNamedIn(call).flatMap(name =>
+    kinds.map(kind => ({
+      name: walk.singleton || walk.moduleFunction ? `self.${name}` : name,
+      ...(within === undefined ? {} : { scope: within }),
+      kind,
+      exported: walk.exported,
+      signature: '',
+      ...NOT_YET_HASHED,
+    })),
+  );
+
 const BARE_WORDS = new Map([
   ['private', { exported: false, moduleFunction: false }],
   ['protected', { exported: false, moduleFunction: false }],
@@ -74,11 +102,6 @@ const VISIBILITY_CALLS = new Map<string, Partial<Walk> & Pick<Walk, 'exported'>>
   ...BARE_WORDS,
   ['private_class_method', { exported: false, hiddenClassMethod: true }],
 ]);
-
-const symbolsNamedIn = (call: Node): ReadonlyArray<string> =>
-  (call.childForFieldName('arguments')?.namedChildren ?? [])
-    .filter(({ type }) => type === 'simple_symbol')
-    .map(({ text }) => text.slice(1));
 
 const namedIn = (
   call: Node,
@@ -145,6 +168,9 @@ const walked = (walk: Walk, node: Node, within: string | undefined): Walk => {
   const called = node.childForFieldName('method')?.text;
   if (called === 'private_constant')
     return { ...walk, privateConstants: [...walk.privateConstants, ...symbolsNamedIn(node)] };
+  const attrs = ATTRS.get(called ?? '');
+  if (attrs)
+    return { ...walk, symbols: [...walk.symbols, ...attrSymbols(node, attrs, within, walk)] };
   const held = VISIBILITY_CALLS.get(called ?? '');
   if (held)
     return {
