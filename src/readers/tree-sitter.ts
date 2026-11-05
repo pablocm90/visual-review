@@ -89,20 +89,24 @@ const tokensOf = (shape: Shape): ReadonlyArray<string> =>
 
 type Leaf = Pick<Node, 'text' | 'startIndex' | 'endIndex'>;
 
-type IsElided = (node: Node) => boolean;
+type ElisionOf = (node: Node) => string | undefined;
 
-const leavesOf = (node: Node, isElided: IsElided, end?: Node): ReadonlyArray<Leaf> => {
+const leavesOf = (node: Node, elisionOf: ElisionOf, end?: Node): ReadonlyArray<Leaf> => {
   if (isComment(node) || (end !== undefined && node.startIndex >= end.startIndex)) return [];
-  if (isElided(node)) return [{ text: '…', startIndex: node.startIndex, endIndex: node.endIndex }];
+  const text = elisionOf(node);
+  if (text !== undefined) return [{ text, startIndex: node.startIndex, endIndex: node.endIndex }];
   return node.childCount === 0
     ? [node]
-    : node.children.flatMap(child => leavesOf(child, isElided, end));
+    : node.children.flatMap(child => leavesOf(child, elisionOf, end));
 };
 
 const OPENERS: ReadonlySet<string> = new Set(['(', '[', '{']);
 const BRACKET_CLOSERS: ReadonlySet<string> = new Set([')', ']', '}']);
 
-export const codeReaderOf = (sends: ReadonlySet<string>, isElided: IsElided = () => false) => {
+export const codeReaderOf = (
+  sends: ReadonlySet<string>,
+  elisionOf: ElisionOf = () => undefined,
+) => {
   const isGapped = (leaf: Leaf, before: Leaf | undefined): boolean =>
     before !== undefined &&
     leaf.startIndex > before.endIndex &&
@@ -122,9 +126,9 @@ export const codeReaderOf = (sends: ReadonlySet<string>, isElided: IsElided = ()
 
   return {
     codeOf: (node: Node | undefined): string =>
-      codeFrom(node === undefined ? [] : leavesOf(node, isElided)),
+      codeFrom(node === undefined ? [] : leavesOf(node, elisionOf)),
     codeUpTo: (node: Node, end: Node | undefined): string =>
-      codeFrom(leavesOf(node, isElided, end)),
+      codeFrom(leavesOf(node, elisionOf, end)),
   };
 };
 

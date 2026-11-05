@@ -9,14 +9,18 @@ const SENDS: ReadonlySet<string> = new Set(['.']);
 
 const { codeOf, codeUpTo } = codeReaderOf(SENDS);
 
-const READ_ON_THEIR_OWN: ReadonlySet<string> = new Set(['block', 'match_block', 'try_expression']);
+const BLOCKS: ReadonlySet<string> = new Set(['block', 'match_block']);
 
-const isReadOnItsOwn = (node: Node): boolean =>
-  READ_ON_THEIR_OWN.has(node.type) ||
-  (node.parent?.type === 'closure_expression' &&
-    node.parent.childForFieldName('body')?.id === node.id);
+const isClosureBody = (node: Node): boolean =>
+  node.parent?.type === 'closure_expression' &&
+  node.parent.childForFieldName('body')?.id === node.id;
 
-const { codeOf: codeLeavingThemOut } = codeReaderOf(SENDS, isReadOnItsOwn);
+const elisionOf = (node: Node): string | undefined => {
+  if (node.type === 'try_expression' || isClosureBody(node)) return '…';
+  return BLOCKS.has(node.type) ? '{…}' : undefined;
+};
+
+const { codeOf: codeLeavingThemOut } = codeReaderOf(SENDS, elisionOf);
 
 type Read = Head & {
   readonly deeper: ReadonlyArray<Node>;

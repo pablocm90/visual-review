@@ -284,8 +284,10 @@ test("a closure's logic left out of a try's text still reads as its own lines", 
 });
 
 test.for([
-  { line: '(loop { break a; })?;', text: '(loop …)?' },
-  { line: 'let z = match y { X => a, _ => b }?;', text: 'match y …?' },
+  { line: '(loop { break a; })?;', text: '(loop {…})?' },
+  { line: 'let z = match y { X => a, _ => b }?;', text: 'match y {…}?' },
+  { line: 'g({ x?; y })?;', text: 'g({…})?' },
+  { line: '{ x?; y }.b()?;', text: '{…}.b()?' },
 ])(
   "$line reads with its block left out, each of the block's decisions on its own line",
   ({ line, text }) => {
