@@ -49,3 +49,8 @@ test('a test file reads no symbols', () => {
   expect(railsReader.symbols?.('class ShopTest; end', 'test/models/shop_test.rb')).toBeUndefined();
   expect(railsReader.symbols?.('class ShopSpec; end', 'spec/models/shop_spec.rb')).toBeUndefined();
 });
+
+test('a file that does not parse throws, and so does one too big to read', () => {
+  expect(() => read('class Shop', '  def open(', 'end')).toThrow('parse');
+  expect(() => read(`# ${'x'.repeat(1001)}`)).toThrow('too big');
+});

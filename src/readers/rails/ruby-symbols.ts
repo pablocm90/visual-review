@@ -1,5 +1,6 @@
 import type { Node } from 'web-tree-sitter';
 import type { FileSymbols, ReadSymbol } from '../../core/reader.ts';
+import { isTooBig, TOO_BIG } from '../too-big.ts';
 import { parseRuby } from './ruby-syntax.ts';
 
 const DEFINITIONS = new Set(['class', 'module']);
@@ -33,6 +34,8 @@ const symbolsWithin = (node: Node, within?: string): ReadonlyArray<ReadSymbol> =
 };
 
 export const symbolsOfRuby = (text: string): FileSymbols => {
+  if (isTooBig(text)) throw new Error(TOO_BIG);
   const program = parseRuby(text);
-  return { symbols: program === undefined ? [] : symbolsWithin(program), exports: [], astHash: '' };
+  if (program === undefined || program.hasError) throw new Error('Ruby that does not parse');
+  return { symbols: symbolsWithin(program), exports: [], astHash: '' };
 };
