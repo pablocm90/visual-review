@@ -2293,6 +2293,44 @@ test('while reading, the landing gives way: no lenses, Start here or findings ra
   expect(inspector().compareDocumentPosition(map)).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
 });
 
+test("Open map and Escape outside a field return to the landing with the part still selected and focused in the graph; the column's close returns with nothing selected", async () => {
+  const user = userEvent.setup();
+  render(<ReviewPage review={walkedReview()} send={vi.fn()} />);
+  await screen.findByRole('group', { name: 'rust' });
+  const nodeOfPart = () => screen.getByRole('button', { name: 'application: modified' });
+
+  await user.keyboard('j');
+  await user.click(screen.getByRole('button', { name: 'Open map' }));
+  expect(screen.getByRole('group', { name: 'Graph' })).toBeDefined();
+  expect(screen.queryByRole('button', { name: 'Open map' })).toBeNull();
+  expect(selectedPart()).toBe('application');
+  await waitFor(() => expect(document.activeElement).toBe(nodeOfPart()));
+
+  await user.keyboard('j');
+  expect(selectedPart()).toBe('cli-adapter');
+  const box = await partComment(user);
+  await user.click(box);
+  await user.keyboard('{Escape}');
+  expect(screen.getByRole('group', { name: 'Map' })).toBeDefined();
+  await user.click(headingOfPart());
+  await user.keyboard('{Control>}{Escape}{/Control}');
+  expect(screen.getByRole('group', { name: 'Map' })).toBeDefined();
+  await user.keyboard('{Escape}');
+  expect(screen.getByRole('group', { name: 'Graph' })).toBeDefined();
+  expect(selectedPart()).toBe('cli-adapter');
+  await waitFor(() =>
+    expect(document.activeElement).toBe(screen.getByRole('button', { name: 'cli-adapter: added' })),
+  );
+  await user.click(headingOfPart());
+  await user.keyboard('{Escape}');
+  expect(document.activeElement).toBe(headingOfPart());
+
+  await user.keyboard('j');
+  await user.click(screen.getByRole('button', { name: 'Close inspector' }));
+  expect(screen.getByRole('group', { name: 'Graph' })).toBeDefined();
+  expect(screen.queryByRole('complementary', { name: 'Inspector' })).toBeNull();
+});
+
 test('J and K walk the reading order from the selected part, starting at its first part, going to each as its row does, and stay put at either end', async () => {
   const user = userEvent.setup();
   render(<ReviewPage review={walkedReview()} />);

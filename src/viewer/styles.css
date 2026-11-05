@@ -2938,3 +2938,20 @@ main:has(> .review-tray) {
     max-height: none;
   }
 }
+
+.open-map {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  padding: 2px 8px;
+  border: 1px solid var(--stack-line);
+  border-radius: 6px;
+  background: var(--stack);
+  color: var(--ink);
+  font: inherit;
+  cursor: pointer;
+}
+
+.open-map:hover {
+  background: var(--unchanged-fill);
+}

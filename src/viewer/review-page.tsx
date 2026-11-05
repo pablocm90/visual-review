@@ -1591,10 +1591,12 @@ const Page = ({ review, notes, send }: ReviewPageProps) => {
     const opener = outsideOpener.current;
     (opener?.isConnected ? opener : frameElement)?.focus();
     setOutside(false);
+    setReading(false);
   };
   const closeInspector = (id: string) => {
     elements.current.get(id)?.focus({ preventScroll: true });
     select(undefined);
+    setReading(false);
   };
 
   const [focusTarget, setFocusTarget] = useState<{
@@ -1677,12 +1679,17 @@ const Page = ({ review, notes, send }: ReviewPageProps) => {
     setReading(true);
     goTo(next);
   };
+  const openMap = () => {
+    setReading(false);
+    if (selected !== undefined) setFocusTarget({ id: selected, inGraph: true });
+  };
   useEffect(() => {
     if (tab !== 'structure') return;
     const keyed = (event: globalThis.KeyboardEvent) => {
       if (typesText(event.target)) return;
       if (event.ctrlKey || event.metaKey || event.altKey) return;
       const key = event.key.toLowerCase();
+      if (key === 'escape' && reading) openMap();
       if (key === 'j') walk(1);
       if (key === 'k') walk(-1);
       if (key === 'c' && selected !== undefined) {
@@ -1776,7 +1783,13 @@ const Page = ({ review, notes, send }: ReviewPageProps) => {
         >
           {placed && (
             <>
-              <Zoom scale={placed.view.scale} onZoom={zoomAtCentre} onFit={fitToFrame} />
+              {reading ? (
+                <button type="button" className="open-map" onClick={openMap}>
+                  Open map
+                </button>
+              ) : (
+                <Zoom scale={placed.view.scale} onZoom={zoomAtCentre} onFit={fitToFrame} />
+              )}
               <svg className="graph" data-colouring={colouring}>
                 <title>{`Structure ${shortRange(review.range)}`}</title>
                 <defs>
