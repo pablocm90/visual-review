@@ -6485,6 +6485,7 @@ test('Full diff opens by itself on a part holding a line draft, and stays closed
           nodes: [...onePatch.diff.nodes, topFile('y.ts', 'modified')],
         },
         patches: [...onePatch.patches, patchOf('web/src/y.ts', '@@ -1 +1 @@', '-1', '+2')],
+        findings: [findingOn(topFile('x.ts', 'modified').id)],
       }}
       send={vi.fn(async () => {})}
     />,
@@ -6524,6 +6525,23 @@ test('Full diff opens by itself on a part holding a line draft, and stays closed
   expect(fullDiffOpen()).toBe(false);
   await user.click(part);
   expect(fullDiffOpen()).toBe(true);
+
+  await toggleFullDiff();
+  await user.click(screen.getByRole('button', { name: 'Show 1 finding' }));
+  const finding = within(screen.getByRole('complementary', { name: 'Findings' })).getByRole(
+    'button',
+    { name: 'x.ts: lines 900, over 800' },
+  );
+  await user.click(finding);
+  expect(within(inspector()).getByRole('listitem', { current: true })).toBeTruthy();
+  expect(fullDiffOpen()).toBe(false);
+  await user.click(
+    within(screen.getByRole('list', { name: 'Drafts' })).getByRole('button', { name }),
+  );
+  expect(fullDiffOpen()).toBe(true);
+  await toggleFullDiff();
+  await user.click(finding);
+  expect(fullDiffOpen()).toBe(false);
 });
 
 const pageWithFilesDrawnOnlyAsABox = () =>

@@ -737,17 +737,19 @@ const FullDiff = ({
   ...commenting
 }: FullDiffProps) => {
   const [closedAt, setClosedAt] = useState<{ readonly landing: LandingIn | undefined }>();
+  const onAPatch = landing?.path === undefined ? undefined : landing;
   const wanted =
-    landing?.path !== undefined ||
-    patches.some(({ path }) => holdsLineDraft(commenting.comments, path));
-  const open = (held || wanted) && (closedAt === undefined || closedAt.landing !== landing);
+    onAPatch !== undefined || patches.some(({ path }) => holdsLineDraft(commenting.comments, path));
+  const closed =
+    closedAt !== undefined && (onAPatch === undefined || closedAt.landing === onAPatch);
+  const open = (held || wanted) && !closed;
   return (
     <Fold
       title="Full diff"
       open={open}
       onToggle={() => {
         onHold(!open);
-        setClosedAt(open ? { landing } : undefined);
+        setClosedAt(open ? { landing: onAPatch } : undefined);
       }}
     >
       <section className="changes" aria-label="Changes">
