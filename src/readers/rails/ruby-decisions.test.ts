@@ -97,3 +97,11 @@ test('an elsif reads level with its if, and its branch one deeper', () => {
     { kind: 'if', text: 'elsif w', depth: 0, line: 6 },
   ]);
 });
+
+test('a ternary reads its condition, and each branch one deeper', () => {
+  expect(decisionsIn('y = a ? (b ? 1 : 2) : (c ? 3 : 4)')).toEqual([
+    { kind: 'ternary', text: 'a ?', depth: 0, line: 2 },
+    { kind: 'ternary', text: 'b ?', depth: 1, line: 2 },
+    { kind: 'ternary', text: 'c ?', depth: 1, line: 2 },
+  ]);
+});

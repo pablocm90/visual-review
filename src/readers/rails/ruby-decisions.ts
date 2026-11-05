@@ -102,12 +102,19 @@ const modifierIf = (node: Node): Read =>
     fieldsOf(node, 'body'),
   );
 
+const ternaryOf = (node: Node): Read => ({
+  kind: 'ternary',
+  text: `${codeOf(fieldOf(node, 'condition'))} ?`,
+  deeper: fieldsOf(node, 'consequence', 'alternative'),
+});
+
 const READS = new Map<string, (node: Node) => Read>([
   ['if', blockIf],
   ['unless', blockIf],
   ['if_modifier', modifierIf],
   ['unless_modifier', modifierIf],
   ['elsif', branchedIf],
+  ['conditional', ternaryOf],
 ]);
 
 type Walk = { readonly depth: number };
