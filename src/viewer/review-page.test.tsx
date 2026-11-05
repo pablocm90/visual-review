@@ -2700,6 +2700,36 @@ test('C focuses the field of a selected edge', async () => {
   expect(document.activeElement).not.toBe(field());
 });
 
+test("C pressed before going to a part has finished drawing keeps the focus in the part's field", async () => {
+  const user = userEvent.setup({ delay: null });
+  render(
+    <ReviewPage
+      review={pageWith({
+        range: `late-${crypto.randomUUID()}`,
+        diff: {
+          nodes: [
+            { id: 'web', kind: 'stack', label: 'web', path: '', state: 'unchanged' },
+            webModule('utils', 'modified'),
+            webFile('utils', 'x.ts', 'modified'),
+            webFile('utils', 'y.ts'),
+          ],
+          edges: [],
+        },
+        readingOrder: { parts: ['web/file/utils/y.ts'], cycles: [] },
+      })}
+      send={async () => {}}
+    />,
+  );
+  await screen.findByRole('group', { name: 'web' });
+
+  await user.keyboard('jc');
+  await screen.findByRole('button', { name: 'y.ts: unchanged' });
+  await waitFor(() => expect(scrolledIntoView).toHaveBeenCalled());
+  expect(document.activeElement).toBe(
+    within(inspector()).getByRole('textbox', { name: 'Your comment' }),
+  );
+});
+
 test('J, K and A typed in a comment are text, neither walking nor marking', async () => {
   const user = userEvent.setup();
   render(<ReviewPage review={walkedReview()} send={async () => {}} />);

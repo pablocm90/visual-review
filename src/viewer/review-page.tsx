@@ -1681,7 +1681,8 @@ const Page = ({ review, notes, send }: ReviewPageProps) => {
     if (layout === undefined || focusTarget === undefined) return;
     const element = elements.current.get(focusTarget.id);
     if (element) {
-      if (focusTarget.inGraph) element.focus({ preventScroll: true });
+      if (focusTarget.inGraph && !typesText(document.activeElement))
+        element.focus({ preventScroll: true });
       frameElement?.scrollIntoView({ block: 'nearest' });
       setFocusTarget(undefined);
     }
