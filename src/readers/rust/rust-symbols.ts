@@ -60,6 +60,13 @@ const functionSymbol = (item: Node): ReadSymbol => {
   };
 };
 
+const FUNCTIONS: ReadonlySet<string> = new Set(['function_item', 'function_signature_item']);
+
+const functionsIn = (item: Node): ReadonlyArray<ReadSymbol> =>
+  (item.childForFieldName('body')?.namedChildren ?? [])
+    .filter(({ type }) => FUNCTIONS.has(type))
+    .map(functionSymbol);
+
 const typeOfImpl = (item: Node): string => {
   const type = item.childForFieldName('type');
   return (type?.childForFieldName('type') ?? type)?.text ?? '';
@@ -77,13 +84,20 @@ const methodsOfImpl = (item: Node): ReadonlyArray<ReadSymbol> => {
     trait === null
       ? { scope: type }
       : { scope: collapsed(`${type} as ${trait.text}`), exported: isPubBeside(item, type) };
-  return (item.childForFieldName('body')?.namedChildren ?? [])
-    .filter(child => child.type === 'function_item')
-    .map(method => ({ ...functionSymbol(method), kind: 'method', ...place }));
+  return functionsIn(item).map(method => ({ ...method, kind: 'method', ...place }));
 };
+
+const methodsOfTrait = (item: Node): ReadonlyArray<ReadSymbol> =>
+  functionsIn(item).map(method => ({
+    ...method,
+    kind: 'method',
+    scope: item.childForFieldName('name')?.text ?? '',
+    exported: isExactlyPub(item),
+  }));
 
 const symbolsOfItem = (item: Node): ReadonlyArray<ReadSymbol> => {
   if (item.type === 'function_item') return [functionSymbol(item)];
+  if (item.type === 'trait_item') return methodsOfTrait(item);
   return item.type === 'impl_item' ? methodsOfImpl(item) : [];
 };
 

@@ -218,3 +218,19 @@ test('a type with both Display and Debug has each fmt read, and changed, apart',
     { scope: 'Foo as fmt::Debug', name: 'fmt', change: 'edited' },
   ]);
 });
+
+const methodsIn = ({ symbols }: FileSymbols) => symbols.filter(({ kind }) => kind === 'method');
+
+test.for([
+  { trait: 'pub trait Tr', exported: true },
+  { trait: 'trait Tr', exported: false },
+  { trait: 'pub(crate) trait Tr', exported: false },
+  { trait: 'pub trait Tr<T>: Send', exported: true },
+])('$trait has its methods scoped to its name, exported: $exported', ({ trait, exported }) => {
+  expect(
+    methodsIn(read(`${trait} {\n  fn a(&self) -> u8;\n  fn b(&self) { c(); }\n  type D;\n}`)),
+  ).toMatchObject([
+    { name: 'a', scope: 'Tr', exported, signature: '(&self) -> u8' },
+    { name: 'b', scope: 'Tr', exported, signature: '(&self)' },
+  ]);
+});
