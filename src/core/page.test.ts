@@ -108,6 +108,7 @@ test("a reading's page data holds its diff, the reading order of its changed par
     dependencyChanges,
     migrations: [],
     schemas: [],
+    routes: [],
     tests,
     symbols,
     skipped: [],
@@ -273,6 +274,21 @@ test("a changed schema's reading stays on the page and raises its findings", () 
 
   expect(data.schemas).toStrictEqual(schemas);
   expect(data.findings.map(({ id }) => id)).toContain('schema:not-read:db/schema.rb');
+});
+
+test("a route change's reading stays on the page and raises its findings", () => {
+  const routes = [{ file: 'config/routes.rb', notRead: 'Ruby syntax error' }];
+
+  const data = pageData({
+    repo: 'shop',
+    reading: readingWith({ routes }),
+    range: 'a..b',
+    version,
+    parsers,
+  });
+
+  expect(data.routes).toStrictEqual(routes);
+  expect(data.findings.map(({ id }) => id)).toContain('routes:not-read:config/routes.rb');
 });
 
 test('stacks a missing tool kept from being read are a structure finding to look at, on no node', () => {

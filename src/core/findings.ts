@@ -11,7 +11,9 @@ import type { PageData } from './page.ts';
 import type { DependencyChanges } from './read-lockfiles.ts';
 import type { MigrationReading } from './read-migrations.ts';
 import type { SymbolFile } from './read-range.ts';
+import type { RoutesReading } from './read-routes.ts';
 import type { SchemaReading } from './read-schemas.ts';
+import { routeFindings } from './route-findings.ts';
 import { schemaFindings } from './schema-findings.ts';
 import { notReadLine, type Skipped } from './skipped.ts';
 import type { SplitSuggestion } from './split-suggestion.ts';
@@ -80,6 +82,7 @@ type RaisedOptions = {
   readonly dependencyChanges: ReadonlyArray<DependencyChanges>;
   readonly migrations: ReadonlyArray<MigrationReading>;
   readonly schemas: ReadonlyArray<SchemaReading>;
+  readonly routes: ReadonlyArray<RoutesReading>;
   readonly metricFindings: ReadonlyArray<MetricFinding>;
   readonly symbols: ReadonlyArray<SymbolFile>;
   readonly symbolsNotRead: ReadonlyArray<string>;
@@ -163,6 +166,7 @@ export const raisedFindings = ({
   dependencyChanges,
   migrations,
   schemas,
+  routes,
   metricFindings,
   symbols,
   symbolsNotRead,
@@ -228,6 +232,7 @@ export const raisedFindings = ({
   ...dependencyFindings(dependencyChanges),
   ...migrationFindings(migrations),
   ...schemaFindings(schemas),
+  ...routeFindings(routes),
 ];
 
 const NOTE_FLAG = 'notes:';
