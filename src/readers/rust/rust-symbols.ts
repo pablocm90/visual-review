@@ -95,6 +95,11 @@ const methodsOfTrait = (item: Node): ReadonlyArray<ReadSymbol> =>
     exported: isExactlyPub(item),
   }));
 
+const signedPartsOfMember = (member: Node): ReadonlyArray<Node> =>
+  FUNCTIONS.has(member.type)
+    ? present([member.childForFieldName('name'), ...Object.values(signedPartsOf(member))])
+    : [member];
+
 const idsOf = (nodes: ReadonlyArray<Node | null>): ReadonlySet<number> =>
   new Set(present(nodes).map(({ id }) => id));
 
@@ -118,7 +123,21 @@ const traitSymbol = (item: Node): ReadSymbol => {
     signature: collapsed(
       [...written.map(({ text }) => text), own.trim()].join(' ').replace(/\s+;/g, ';'),
     ),
-    ...hashesOf({ signed: [], body: [item], text: item.text }),
+    ...hashesOf({
+      signed: [
+        ...written,
+        ...present([
+          item.childForFieldName('type_parameters'),
+          item.childForFieldName('bounds'),
+          childOfType(item, 'where_clause'),
+        ]),
+        ...members
+          .filter(member => !isComment(member) && !isDocText(member))
+          .flatMap(signedPartsOfMember),
+      ],
+      body: present([childOfType(item, 'visibility_modifier')]),
+      text: [...attributes.map(({ text }) => text), ownText(item, defaults)].join('\n'),
+    }),
   };
 };
 

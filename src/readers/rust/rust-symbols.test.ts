@@ -270,3 +270,96 @@ test('a trait reads as its text with no visibility, comments, doc or default bod
     },
   ]);
 });
+
+const traitChange = (before: string, after: string) =>
+  symbolChanges({ before: read(before), after: read(after) }).symbols.find(
+    ({ kind }) => kind === 'type',
+  );
+
+test.for([
+  { edit: 'its generics', before: 'trait Tr<T> {}', after: 'trait Tr<U> {}' },
+  { edit: 'its bounds', before: 'trait Tr: A {}', after: 'trait Tr: B {}' },
+  { edit: 'its where', before: 'trait Tr where A: B {}', after: 'trait Tr where A: C {}' },
+  { edit: 'an attribute', before: 'trait Tr {}', after: '#[async_trait]\ntrait Tr {}' },
+  {
+    edit: "a method's return",
+    before: 'trait Tr { fn a() -> u8; }',
+    after: 'trait Tr { fn a() -> u16; }',
+  },
+  { edit: "a method's name", before: 'trait Tr { fn a(); }', after: 'trait Tr { fn b(); }' },
+  {
+    edit: "a default body's signature",
+    before: 'trait Tr { fn a() {} }',
+    after: 'trait Tr { fn a(x: u8) {} }',
+  },
+  { edit: 'a member type', before: 'trait Tr { type A; }', after: 'trait Tr { type B; }' },
+  {
+    edit: "a method's attribute",
+    before: 'trait Tr { fn a(); }',
+    after: 'trait Tr { #[inline] fn a(); }',
+  },
+])('a change to $edit reads as a changed signature on the trait', ({ before, after }) => {
+  expect(traitChange(before, after)).toMatchObject({
+    change: 'edited',
+    signature: expect.anything(),
+  });
+});
+
+test('a method changed in a trait reads changed on the method too', () => {
+  expect(
+    symbolChanges({
+      before: read('trait Tr { fn a() -> u8; }'),
+      after: read('trait Tr { fn a() -> u16; }'),
+    }).symbols,
+  ).toMatchObject([
+    { name: 'Tr', change: 'edited', signature: expect.anything() },
+    { name: 'a', scope: 'Tr', change: 'edited', signature: expect.anything() },
+  ]);
+});
+
+test('an edit inside a default body leaves the trait unchanged and edits the method', () => {
+  expect(
+    symbolChanges({
+      before: read('trait Tr { fn a() { b(); } }'),
+      after: read('trait Tr { fn a() { c(); } }'),
+    }).symbols,
+  ).toMatchObject([
+    { name: 'Tr', change: 'unchanged' },
+    { name: 'a', scope: 'Tr', change: 'edited' },
+  ]);
+});
+
+test.for([
+  {
+    edit: 'a comment',
+    before: 'trait Tr { fn a(); }',
+    after: 'trait Tr {\n  // why\n  fn a();\n}',
+  },
+  {
+    edit: "a method's doc",
+    before: 'trait Tr { fn a(); }',
+    after: 'trait Tr { #[doc = "why"] fn a(); }',
+  },
+  { edit: 'its doc', before: 'trait Tr {}', after: '#[doc = "why"]\ntrait Tr {}' },
+  {
+    edit: 'a comment beside an edit in a default body',
+    before: 'trait Tr { fn a() { b(); } }',
+    after: 'trait Tr {\n  // why\n  fn a() { c(); }\n}',
+  },
+])('$edit on a trait reads as formatting', ({ before, after }) => {
+  expect(traitChange(before, after)).toMatchObject({ change: 'formatting' });
+});
+
+test('a change of visibility reads as edited, with the signature as it was', () => {
+  const change = traitChange('pub(crate) trait Tr {}', 'pub(super) trait Tr {}');
+  expect(change).toMatchObject({ change: 'edited' });
+  expect(change).not.toHaveProperty('signature');
+});
+
+test('a trait under another name reads as renamed', () => {
+  expect(traitChange('trait Tr { type A; }', 'trait Ur { type A; }')).toMatchObject({
+    name: 'Ur',
+    change: 'renamed',
+    renamedFrom: 'Tr',
+  });
+});
