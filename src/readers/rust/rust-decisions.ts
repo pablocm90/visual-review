@@ -83,6 +83,18 @@ const loopOf = (node: Node): Read => ({
   deeper: fieldsOf(node, 'body'),
 });
 
+const LOGICALS: ReadonlySet<string> = new Set(['&&', '||']);
+
+const logicalOf = (node: Node): Read | undefined => {
+  const operator = fieldOf(node, 'operator')?.text ?? '';
+  if (!LOGICALS.has(operator)) return undefined;
+  return {
+    kind: 'logical',
+    text: `${codeOf(fieldOf(node, 'left'))} ${operator}`,
+    deeper: fieldsOf(node, 'right'),
+  };
+};
+
 const COMMAS_KEPT = new Map([
   ['ensure', 0],
   ['assert', 0],
@@ -113,6 +125,7 @@ const READS = new Map<string, (node: Node) => Read | undefined>([
   ['for_expression', loopOf],
   ['while_expression', loopOf],
   ['loop_expression', loopOf],
+  ['binary_expression', logicalOf],
 ]);
 
 const decisionsUnder = (walk: Walk, nodes: ReadonlyArray<Node>): ReadonlyArray<Decision> =>

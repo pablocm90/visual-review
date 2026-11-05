@@ -176,3 +176,20 @@ test.for([
     { kind: 'if', text: 'if d', depth: 1, line: 3 },
   ]);
 });
+
+test.for(['&&', '||'])('an outermost %s reads by its left, its right one deeper', operator => {
+  expect(decisionsIn(`let v = a == b ${operator} if d { e } else { f };`)).toEqual([
+    { kind: 'logical', text: `a == b ${operator}`, depth: 0, line: 2 },
+    { kind: 'if', text: 'if d', depth: 1, line: 2 },
+  ]);
+});
+
+test('a chain of logicals reads once, and another operator not at all', () => {
+  expect(decisionsIn('let v = a && b && c;', 'let w = a + b;')).toEqual([
+    { kind: 'logical', text: 'a && b &&', depth: 0, line: 2 },
+  ]);
+});
+
+test('a condition reads no logical of its own', () => {
+  expect(decisionsIn('if a && b { go(); }')?.map(({ kind }) => kind)).toEqual(['if']);
+});
