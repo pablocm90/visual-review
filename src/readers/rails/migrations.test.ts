@@ -201,9 +201,17 @@ test.for([
     written: 'add_reference :orders, :user, index: wanted',
     expected: ['index on orders (user_id) added, not concurrently'],
   },
-])('$written is flagged unless its index is plainly off', ({ written, expected }) => {
-  expect(titles(written)).toStrictEqual(expected);
-});
+  { written: 'add_reference :orders, :user, index: { algorithm: :concurrently }', expected: [] },
+  {
+    written: 'add_reference :orders, :user, index: { algorithm: :inplace }',
+    expected: ['index on orders (user_id) added, not concurrently'],
+  },
+])(
+  '$written is flagged unless its index is plainly off or built concurrently',
+  ({ written, expected }) => {
+    expect(titles(written)).toStrictEqual(expected);
+  },
+);
 
 test.for([
   { written: 'create_table :orders\n    add_index :orders, :user_id', expected: [] },

@@ -119,17 +119,21 @@ const indexAdded = (table: string, columns: string): Risky => ({
   why: BLOCKS_WRITES,
 });
 
+const concurrent = (args: ReadonlyArray<Node>): boolean =>
+  optionOf(args, 'algorithm')?.text === ':concurrently';
+
 const addsIndex: Rule = ({ table, args }) =>
-  optionOf(args, 'algorithm')?.text === ':concurrently'
-    ? []
-    : [indexAdded(table, namesOf(args[0]))];
+  concurrent(args) ? [] : [indexAdded(table, namesOf(args[0]))];
 
 const OFF: ReadonlySet<string | undefined> = new Set(['false', 'nil']);
 
+const blocksWrites = (index: Node | undefined): boolean =>
+  !OFF.has(index?.type) && !concurrent(index === undefined ? [] : [index]);
+
 const indexesReference: Rule = ({ table, args }) =>
-  OFF.has(optionOf(args, 'index')?.type)
-    ? []
-    : positional(args).map(name => indexAdded(table, `${nameOf(name)}_id`));
+  blocksWrites(optionOf(args, 'index'))
+    ? positional(args).map(name => indexAdded(table, `${nameOf(name)}_id`))
+    : [];
 
 const addsReference: Rule = call => [...addsEach('reference')(call), ...indexesReference(call)];
 
