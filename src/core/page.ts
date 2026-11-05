@@ -7,6 +7,7 @@ import { notesProblems, type ReviewNotes } from './notes.ts';
 import type { DependencyChanges } from './read-lockfiles.ts';
 import type { MigrationReading } from './read-migrations.ts';
 import type { RangeReading, SymbolFile } from './read-range.ts';
+import type { SchemaReading } from './read-schemas.ts';
 import { type ReadingOrder, readingOrder } from './reading-order.ts';
 import type { Review } from './review.ts';
 import { type SinceReview, sinceReviewOf } from './since-review.ts';
@@ -35,6 +36,7 @@ export type PageData = {
   readonly undrawn: ReadonlyArray<FilePatch>;
   readonly dependencyChanges: ReadonlyArray<DependencyChanges>;
   readonly migrations: ReadonlyArray<MigrationReading>;
+  readonly schemas: ReadonlyArray<SchemaReading>;
   readonly tests: ReadonlyArray<TestFile>;
   readonly symbols: ReadonlyArray<SymbolFile>;
   readonly skipped: ReadonlyArray<Skipped>;
@@ -75,6 +77,7 @@ export const pageData = ({
     dangling: reading.danglingCalls,
     dependencyChanges: reading.dependencyChanges,
     migrations: reading.migrations,
+    schemas: reading.schemas,
     metricFindings: metricFindings({ metrics, thresholds: reading.thresholds }),
     symbols: reading.symbols,
     symbolsNotRead: reading.symbolsNotRead,
@@ -101,6 +104,7 @@ export const pageData = ({
     undrawn,
     dependencyChanges: reading.dependencyChanges,
     migrations: reading.migrations,
+    schemas: reading.schemas,
     tests: reading.tests,
     symbols: reading.symbols,
     skipped: reading.skipped,

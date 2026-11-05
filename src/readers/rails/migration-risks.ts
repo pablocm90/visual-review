@@ -1,7 +1,15 @@
 import type { Node } from 'web-tree-sitter';
 import type { MigrationReader, MigrationRisk } from '../../core/migration.ts';
 import { NOT_SEARCHED } from './reader.ts';
-import { parseRuby } from './ruby-syntax.ts';
+import {
+  argsOf,
+  blockParameterOf,
+  methodOf,
+  nameOf,
+  parseRuby,
+  positional,
+  writtenIn,
+} from './ruby-syntax.ts';
 
 const STILL_READ = 'Code still running during the deploy may read it.';
 
@@ -22,11 +30,6 @@ const SCANS = 'Fails if a row holds NULL, and scans the table under a lock.';
 const NO_VALUE = 'Fails on a table with rows.';
 
 const BLOCKS_WRITES = 'Blocks writes to the table while the index builds.';
-
-const nameOf = (node: Node | undefined): string => node?.text.replace(/^:?['"]?|['"]$/g, '') ?? '';
-
-const writtenIn = ({ namedChildren }: Node): ReadonlyArray<Node> =>
-  namedChildren.filter(({ type }) => type !== 'comment');
 
 const LISTS: ReadonlySet<string> = new Set(['array', 'symbol_array', 'string_array']);
 
@@ -50,8 +53,6 @@ const callsIn = (node: Node): ReadonlyArray<Node> =>
   runsBackwards(node)
     ? []
     : [...(node.type === 'call' ? [node] : []), ...node.namedChildren.flatMap(callsIn)];
-
-const isOption = ({ type }: Node): boolean => type === 'pair' || type === 'hash';
 
 const pairsOf = (arg: Node): ReadonlyArray<Node> => {
   if (arg.type === 'pair') return [arg];
@@ -79,9 +80,6 @@ const stillRead = (title: string): Risky => ({ title, why: STILL_READ });
 
 const removed = (word: string, table: string, name: Node | undefined): Risky =>
   stillRead(`${word} ${table}.${nameOf(name)} removed`);
-
-const positional = (args: ReadonlyArray<Node>): ReadonlyArray<Node> =>
-  args.filter(arg => !isOption(arg));
 
 const removesEach =
   (word: string): Rule =>
@@ -163,18 +161,8 @@ const CHANGE_TABLE_RULES_NEEDING_ROWS: ReadonlyMap<string, Rule> = new Map<strin
   ['index', addsIndex],
 ]);
 
-const methodOf = (call: Node): string => call.childForFieldName('method')?.text ?? '';
-
-const argsOf = (call: Node): ReadonlyArray<Node> => {
-  const args = call.childForFieldName('arguments');
-  return args === null ? [] : writtenIn(args);
-};
-
 const enclosing = ({ parent }: Node): ReadonlyArray<Node> =>
   parent === null ? [] : [parent, ...enclosing(parent)];
-
-const blockParameterOf = (call: Node): string | undefined =>
-  call.childForFieldName('block')?.childForFieldName('parameters')?.namedChildren[0]?.text;
 
 const changeTableOf = (call: Node): Node | undefined => {
   const receiver = call.childForFieldName('receiver')?.text;

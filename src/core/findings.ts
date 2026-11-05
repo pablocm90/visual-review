@@ -10,6 +10,8 @@ import type { PageData } from './page.ts';
 import type { DependencyChanges } from './read-lockfiles.ts';
 import type { MigrationReading } from './read-migrations.ts';
 import type { SymbolFile } from './read-range.ts';
+import type { SchemaReading } from './read-schemas.ts';
+import { schemaFindings } from './schema-findings.ts';
 import { notReadLine, type Skipped } from './skipped.ts';
 import type { SplitSuggestion } from './split-suggestion.ts';
 import { symbolFindings } from './symbol-findings.ts';
@@ -45,6 +47,7 @@ export type Finding = {
   readonly level: 'look' | 'info';
   readonly target?: string;
   readonly file?: string;
+  readonly table?: string;
   readonly title: string;
   readonly detail?: string;
   readonly groups?: SplitSuggestion['groups'];
@@ -74,6 +77,7 @@ type RaisedOptions = {
   readonly dangling: ReadonlyArray<DanglingCall>;
   readonly dependencyChanges: ReadonlyArray<DependencyChanges>;
   readonly migrations: ReadonlyArray<MigrationReading>;
+  readonly schemas: ReadonlyArray<SchemaReading>;
   readonly metricFindings: ReadonlyArray<MetricFinding>;
   readonly symbols: ReadonlyArray<SymbolFile>;
   readonly symbolsNotRead: ReadonlyArray<string>;
@@ -150,6 +154,7 @@ export const raisedFindings = ({
   dangling,
   dependencyChanges,
   migrations,
+  schemas,
   metricFindings,
   symbols,
   symbolsNotRead,
@@ -209,6 +214,7 @@ export const raisedFindings = ({
   ...(split === undefined ? [] : [splitFinding(split)]),
   ...dependencyFindings(dependencyChanges),
   ...migrationFindings(migrations),
+  ...schemaFindings(schemas),
 ];
 
 const NOTE_FLAG = 'notes:';

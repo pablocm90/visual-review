@@ -28,7 +28,7 @@ type ReviewTrayProps = {
   readonly onGoTo: (id: string) => void;
   readonly onGoToDraft: (id: string, anchor: Comment['anchor']) => void;
   readonly onGoToOutside: (place: PlaceOfLine, opener: HTMLButtonElement) => void;
-  readonly onGoToFile: (path: string, opener: HTMLButtonElement) => void;
+  readonly onGoToFile: (path: string, opener: HTMLButtonElement, table?: string) => void;
   readonly send: (review: Review) => Promise<void>;
 };
 
@@ -150,7 +150,7 @@ type DraftListProps = {
   readonly onGoTo: (id: string) => void;
   readonly onGoToDraft: (id: string, anchor: Comment['anchor']) => void;
   readonly onGoToOutside: (place: PlaceOfLine, opener: HTMLButtonElement) => void;
-  readonly onGoToFile: (path: string, opener: HTMLButtonElement) => void;
+  readonly onGoToFile: (path: string, opener: HTMLButtonElement, table?: string) => void;
 };
 
 const DraftList = ({
@@ -182,7 +182,7 @@ const DraftList = ({
     {answered.flatMap(({ anchor, kind, text }) =>
       findings
         .filter(finding => finding.id === anchor.id)
-        .map(({ id, title, target, file }) => (
+        .map(({ id, title, target, file, table }) => (
           <Draft
             key={id}
             name={title}
@@ -190,7 +190,7 @@ const DraftList = ({
               target !== undefined
                 ? () => onGoTo(target)
                 : file !== undefined
-                  ? opener => onGoToFile(file, opener)
+                  ? opener => onGoToFile(file, opener, table)
                   : undefined
             }
             label={answerLabels.get(kind)}

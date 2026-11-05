@@ -27,7 +27,7 @@ type FindingsRailProps = {
   readonly review: Pick<PageData, 'diff' | 'skipped' | 'sinceReview'>;
   readonly onGoTo: (id: string) => void;
   readonly onShowOutside: (opener: HTMLButtonElement) => void;
-  readonly onShowFile: (path: string, opener: HTMLButtonElement) => void;
+  readonly onShowFile: (path: string, opener: HTMLButtonElement, table?: string) => void;
   readonly answers: Answers;
   readonly onAnswer: AnswerTo | undefined;
 };
@@ -62,7 +62,7 @@ type LineOptions = {
   readonly review: Pick<PageData, 'diff'>;
   readonly onGoTo: (id: string) => void;
   readonly onShowOutside: (opener: HTMLButtonElement) => void;
-  readonly onShowFile: (path: string, opener: HTMLButtonElement) => void;
+  readonly onShowFile: (path: string, opener: HTMLButtonElement, table?: string) => void;
 };
 
 const linesOf = ({ review, onGoTo, onShowOutside, onShowFile }: LineOptions) => {
@@ -73,7 +73,7 @@ const linesOf = ({ review, onGoTo, onShowOutside, onShowFile }: LineOptions) => 
       .join(' → ');
   const placeOf = new Map(review.diff.nodes.map(node => [node.id, node.path || node.label]));
   const lineOf = (finding: Finding): Line => {
-    const { id, level, target, file, title, detail, groups } = finding;
+    const { id, level, target, file, table, title, detail, groups } = finding;
     if (target !== undefined) {
       return {
         id,
@@ -90,7 +90,7 @@ const linesOf = ({ review, onGoTo, onShowOutside, onShowFile }: LineOptions) => 
       target: detail ?? '',
       ...(id === 'structure:undrawn' && { act: onShowOutside }),
       ...(file !== undefined && {
-        act: (opener: HTMLButtonElement) => onShowFile(file, opener),
+        act: (opener: HTMLButtonElement) => onShowFile(file, opener, table),
       }),
       ...(groups && {
         groups: groups.flatMap(group =>
