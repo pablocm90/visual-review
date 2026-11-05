@@ -7,7 +7,7 @@ import {
 type Fold = { readonly folded: ReadonlyArray<SignatureLine> };
 
 const foldedRuns = (members: ReadonlyArray<SignatureLine>): ReadonlyArray<SignatureLine | Fold> =>
-  members.flatMap((line, index) => {
+  members.flatMap((line, index): ReadonlyArray<SignatureLine | Fold> => {
     if (line.change !== 'same') return [line];
     if (members[index - 1]?.change === 'same') return [];
     const after = members.slice(index);

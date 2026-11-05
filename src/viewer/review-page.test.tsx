@@ -3994,7 +3994,7 @@ const signatureLinesOf = async (signature: { readonly base: string; readonly hea
           symbolsOf('web/file/reader.ts', [
             {
               name: 'Reader',
-              kind: 'interface',
+              kind: 'type',
               exported: { base: true, head: true },
               change: 'edited',
               signature,
@@ -4006,7 +4006,7 @@ const signatureLinesOf = async (signature: { readonly base: string; readonly hea
   );
   await user.click(await screen.findByRole('button', { name: 'reader.ts: modified' }));
   await user.click(within(inspector()).getByRole('tab', { name: 'Symbols 1' }));
-  return within(screen.getByRole('list', { name: 'Signature of interface Reader' }))
+  return within(screen.getByRole('list', { name: 'Signature of type Reader' }))
     .getAllByRole('listitem')
     .map(line => line.textContent);
 };
@@ -4032,7 +4032,7 @@ test('members as they were fold under a count, one run per gap, a lone one worde
     base: 'interface Reader { a: 1; b: 2; c: 3; d: 4; e: 5; }',
     head: 'interface Reader { a: 1; b: 2; x: 9; c: 3; e: 5; }',
   });
-  const signature = within(screen.getByRole('list', { name: 'Signature of interface Reader' }));
+  const signature = within(screen.getByRole('list', { name: 'Signature of type Reader' }));
   const [two, one, last] = signature.getAllByRole('group');
   expect(two?.textContent).toBe('… 2 members as they werea: 1b: 2');
   expect(one?.textContent).toBe('… 1 member as it wasc: 3');

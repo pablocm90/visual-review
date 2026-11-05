@@ -103,10 +103,12 @@ export type SignatureLine =
   | { readonly change: 'same' | 'added' | 'removed'; readonly text: string }
   | { readonly change: 'changed'; readonly base: string; readonly head: string };
 
+type EdgeLine = Extract<SignatureLine, { readonly text: string }>;
+
 export type SignatureDiff = {
-  readonly opener: ReadonlyArray<SignatureLine>;
+  readonly opener: ReadonlyArray<EdgeLine>;
   readonly members: ReadonlyArray<SignatureLine>;
-  readonly closer: ReadonlyArray<SignatureLine>;
+  readonly closer: ReadonlyArray<EdgeLine>;
 };
 
 const nameOf = (text: string): string | undefined => {
@@ -128,7 +130,7 @@ const comparable = (member: string): string =>
 const lineOf = (change: 'same' | 'added' | 'removed', text: string) =>
   text === '' ? [] : [{ change, text }];
 
-const edge = (base: string, head: string): ReadonlyArray<SignatureLine> => {
+const edge = (base: string, head: string): ReadonlyArray<EdgeLine> => {
   const [from, to] = [base.trim(), head.trim()];
   return from === to ? lineOf('same', to) : [...lineOf('removed', from), ...lineOf('added', to)];
 };
@@ -193,4 +195,30 @@ export const signatureDiff = ({
     ({ change }) => change !== 'same',
   );
   return marked ? diff : undefined;
+};
+
+const memberCounts = (members: SignatureDiff['members']): ReadonlyArray<string> =>
+  (['added', 'changed', 'removed'] as const)
+    .map(change => ({ change, count: members.filter(line => line.change === change).length }))
+    .filter(({ count }) => count > 0)
+    .map(({ change, count }, index) => {
+      if (index > 0) return `${count} ${change}`;
+      return `${count} ${count === 1 ? 'member' : 'members'} ${change}`;
+    });
+
+const edgeMove = (lines: SignatureDiff['opener']): string =>
+  lines
+    .filter(({ change }) => change !== 'same')
+    .map(({ text }) => text)
+    .join(' → ');
+
+export const signatureSummary = (signature: {
+  readonly base: string;
+  readonly head: string;
+}): string => {
+  const diff = signatureDiff(signature);
+  if (diff === undefined) return `${signature.base} → ${signature.head}`;
+  return [...memberCounts(diff.members), edgeMove(diff.opener), edgeMove(diff.closer)]
+    .filter(part => part !== '')
+    .join(', ');
 };

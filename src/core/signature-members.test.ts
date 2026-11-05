@@ -1,5 +1,10 @@
 import { expect, test } from 'vitest';
-import { LONGEST_SIGNATURE, signatureDiff, splitSignature } from './signature-members.ts';
+import {
+  LONGEST_SIGNATURE,
+  signatureDiff,
+  signatureSummary,
+  splitSignature,
+} from './signature-members.ts';
 
 const rejoined = (text: string): string | undefined => {
   const split = splitSignature(text);
@@ -248,4 +253,37 @@ test.for([
   const sized = (length: number) => `(${'b'.repeat(length - 2)})`;
   expect(signatureDiff(sides(sized(LONGEST_SIGNATURE)))).toBeDefined();
   expect(signatureDiff(sides(sized(LONGEST_SIGNATURE + 1)))).toBeUndefined();
+});
+
+test.for([
+  { what: 'a member gained', base: '(a)', head: '(a, b)', summary: '1 member added' },
+  { what: 'members lost', base: '(a, b, c)', head: '(a)', summary: '2 members removed' },
+  {
+    what: 'each kind, the word on the first alone',
+    base: '(a: 1, b, c: 1, d: 1)',
+    head: '(a: 2, c: 2, d: 2, e, f)',
+    summary: '2 members added, 3 changed, 1 removed',
+  },
+  {
+    what: 'a changed opener',
+    base: 'type A = { a: 1 }',
+    head: 'type B = { a: 1 }',
+    summary: 'type A = { → type B = {',
+  },
+  { what: 'a return type alone', base: '(a): X', head: '(a): Y', summary: '): X → ): Y' },
+  {
+    what: 'members and both edges',
+    base: 'type A = { a: 1 };',
+    head: 'type B = { a: 1; b: 2 }',
+    summary: '1 member added, type A = { → type B = {, }; → }',
+  },
+  { what: 'an edge with one side', base: 'type A = X | Y;', head: 'type A = X | Y', summary: ';' },
+  {
+    what: 'a signature that does not split, whole',
+    base: 'extends Y',
+    head: 'extends Z',
+    summary: 'extends Y → extends Z',
+  },
+])('$what sums up as $summary', ({ base, head, summary }) => {
+  expect(signatureSummary({ base, head })).toBe(summary);
 });
