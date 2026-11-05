@@ -2904,3 +2904,37 @@ main:has(> .review-tray) {
 .fold-toggle[aria-expanded="true"]::before {
   content: "▾ ";
 }
+
+.columns.reading {
+  display: grid;
+  grid-template-columns: 64px minmax(0, 1fr) 320px;
+  gap: 16px;
+}
+
+.columns.reading > .left-column {
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.columns.reading > .content {
+  position: sticky;
+  top: 24px;
+}
+
+@media (width < 1100px) {
+  .columns.reading {
+    grid-template-columns: 64px minmax(0, 1fr);
+  }
+
+  .columns.reading > .content {
+    position: static;
+    grid-column: 2;
+  }
+
+  .columns.reading > .note {
+    position: static;
+    max-height: none;
+  }
+}

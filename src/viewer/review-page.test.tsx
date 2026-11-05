@@ -2269,6 +2269,30 @@ test("from the landing, J goes to the first part unread, the graph becomes the m
   await waitFor(() => expect(document.activeElement).toBe(headingOfPart()));
 });
 
+test('while reading, the landing gives way: no lenses, Start here or findings rail, and the column comes before the map', async () => {
+  const user = userEvent.setup();
+  render(<ReviewPage review={{ ...walkedReview(), findings: [findingOn('rust/crate/domain')] }} />);
+  await screen.findByRole('group', { name: 'rust' });
+  const landing = () => [
+    screen.queryByRole('group', { name: 'Lenses' }),
+    screen.queryByRole('region', { name: 'Start here' }),
+    screen.queryByRole('navigation', { name: 'Findings' }),
+  ];
+  await user.click(screen.getByRole('button', { name: 'domain: unchanged' }));
+  expect(screen.getByRole('group', { name: 'Graph' })).toBeDefined();
+  expect(landing().every(piece => piece !== null)).toBe(true);
+  expect(screen.getByRole('separator', { name: 'Panel width' })).toBeDefined();
+  expect(inspector().style.width).toBe('360px');
+
+  await user.keyboard('j');
+
+  expect(landing()).toEqual([null, null, null]);
+  expect(screen.queryByRole('separator', { name: 'Panel width' })).toBeNull();
+  expect(inspector().style.width).toBe('');
+  const map = screen.getByRole('group', { name: 'Map' });
+  expect(inspector().compareDocumentPosition(map)).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
+});
+
 test('J and K walk the reading order from the selected part, starting at its first part, going to each as its row does, and stay put at either end', async () => {
   const user = userEvent.setup();
   render(<ReviewPage review={walkedReview()} />);
