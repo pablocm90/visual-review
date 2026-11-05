@@ -97,6 +97,7 @@ test('an elsif reads level with its if, and its branch one deeper', () => {
     { kind: 'if', text: 'elsif y', depth: 0, line: 4 },
     { kind: 'if', text: 'if z', depth: 1, line: 5 },
     { kind: 'if', text: 'elsif w', depth: 0, line: 6 },
+    { kind: 'return', text: 'return', depth: 1, line: 7 },
   ]);
 });
 
@@ -238,5 +239,37 @@ test('a rescue modifier reads what it falls to, its body level and its handler o
     ['if', 'if y', 0],
     ['catch', 'rescue (go if z)', 0],
     ['if', 'if z', 1],
+  ]);
+});
+
+test.for([
+  { reason: 'an if', lines: ['if x', '  go', '  return', 'end'], kind: 'if', text: 'if x' },
+  { reason: 'a loop', lines: ['while w', '  return', 'end'], kind: 'loop', text: 'while w' },
+  {
+    reason: 'a render guard',
+    lines: ['if x', '  render :a', '  return', 'end'],
+    kind: 'guard',
+    text: 'render if x',
+  },
+])('a return in $reason reads one deeper', ({ lines, kind, text }) => {
+  expect(decisionsIn(...lines)?.map(({ kind, text, depth }) => [kind, text, depth])).toEqual([
+    [kind, text, 0],
+    ['return', 'return', 1],
+  ]);
+});
+
+test('a return at the top of a method is no decision, what it returns still reads', () => {
+  expect(decisionsIn('return a ? 1 : 2')).toEqual([
+    { kind: 'ternary', text: 'a ?', depth: 0, line: 2 },
+  ]);
+});
+
+test('what a return in a branch returns reads one deeper than it', () => {
+  expect(
+    decisionsIn('while w', '  return a ? 1 : 2', 'end')?.map(({ kind, depth }) => [kind, depth]),
+  ).toEqual([
+    ['loop', 0],
+    ['return', 1],
+    ['ternary', 2],
   ]);
 });

@@ -49,6 +49,8 @@ const codeUpTo = (node: Node, end: Node | undefined): string =>
     leavesOf(node).filter(({ endIndex }) => end === undefined || endIndex <= end.startIndex),
   );
 
+type Walk = { readonly depth: number };
+
 const THROWS = new Set(['raise', 'fail']);
 
 const wordOf = (node: Node): string | undefined => {
@@ -190,7 +192,10 @@ const modifierRescue = (node: Node): Read => ({
   beside: fieldsOf(node, 'body'),
 });
 
-const READS = new Map<string, (node: Node) => Read | undefined>([
+const returnOf = (node: Node, walk: Walk): Read | undefined =>
+  walk.depth > 0 ? { kind: 'return', text: 'return', deeper: node.namedChildren } : undefined;
+
+const READS = new Map<string, (node: Node, walk: Walk) => Read | undefined>([
   ['if', blockIf],
   ['unless', blockIf],
   ['if_modifier', modifierIf],
@@ -207,16 +212,15 @@ const READS = new Map<string, (node: Node) => Read | undefined>([
   ['in_clause', clauseOf('case')],
   ['rescue', clauseOf('catch')],
   ['rescue_modifier', modifierRescue],
+  ['return', returnOf],
   ['else', caseElse],
   ['binary', logicalOf],
   ['operator_assignment', logicalOf],
 ]);
 
-type Walk = { readonly depth: number };
-
 const decisionsUnder = (walk: Walk, nodes: ReadonlyArray<Node>): ReadonlyArray<Decision> =>
   nodes.flatMap(node => {
-    const read = READS.get(node.type)?.(node);
+    const read = READS.get(node.type)?.(node, walk);
     if (read === undefined) return decisionsUnder(walk, node.namedChildren);
     const { deeper, beside = [], ...head } = read;
     const depth = node.type === 'elsif' ? walk.depth - 1 : walk.depth;
