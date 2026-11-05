@@ -102,13 +102,15 @@ const changed = (old: Decision, decision: Decision): LogicLine => ({
   line: decision.line,
 });
 
-const sameKindBefore = (decisions: ReadonlyArray<Decision>, index: number): number =>
-  decisions.slice(0, index).filter(({ kind }) => kind === decisions[index]?.kind).length;
+const canPair = (one: Decision, other: Decision): boolean =>
+  one.kind === other.kind && one.subject === other.subject;
 
 const linesOfGap = ({ base, head }: Sides): ReadonlyArray<LogicLine> => {
   const partners = head.map(
     (decision, index) =>
-      base.filter(({ kind }) => kind === decision.kind)[sameKindBefore(head, index)],
+      base.filter(one => canPair(one, decision))[
+        head.slice(0, index).filter(one => canPair(one, decision)).length
+      ],
   );
   return [
     ...base.filter(decision => !partners.includes(decision)).map(removed),

@@ -238,3 +238,27 @@ test('a removed line keeps that its decision was found by name', () => {
     { change: 'removed', kind: 'guard', depth: 0, base: 'render if a', line: 1, foundByName: true },
   ]);
 });
+
+test('decisions of one kind pair only with the same subject', () => {
+  const before = decision({ kind: 'guard', text: 'before_action :a', subject: 'before_action :a' });
+  const widened = decision({
+    kind: 'guard',
+    text: 'before_action :a, only: :b',
+    subject: 'before_action :a',
+  });
+  const other = decision({ kind: 'guard', text: 'before_action :c', subject: 'before_action :c' });
+
+  expect(logicDiff({ base: [before], head: [widened] }).map(({ change }) => change)).toEqual([
+    'changed',
+  ]);
+  expect(logicDiff({ base: [before], head: [other] }).map(({ change }) => change)).toEqual([
+    'removed',
+    'added',
+  ]);
+  expect(
+    logicDiff({ base: [before], head: [other, widened] }).map(({ change, head }) => [change, head]),
+  ).toEqual([
+    ['added', 'before_action :c'],
+    ['changed', 'before_action :a, only: :b'],
+  ]);
+});
