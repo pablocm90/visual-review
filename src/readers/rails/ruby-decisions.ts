@@ -1,7 +1,7 @@
 import type { Node } from 'web-tree-sitter';
 import type { Decision } from '../../core/reader.ts';
 
-type Head = Pick<Decision, 'kind' | 'text' | 'foundByName'>;
+type Head = Pick<Decision, 'kind' | 'text' | 'foundByName' | 'subject'>;
 
 type Read = Head & {
   readonly deeper: ReadonlyArray<Node>;
@@ -259,12 +259,23 @@ export const decisionsOfBody = (nodes: ReadonlyArray<Node>): ReadonlyArray<Decis
 const CALLBACKS = /^((prepend|append|skip)_)?(before_\w+|around_action)$/;
 const VALIDATIONS = /^validates?$|^validates_\w+$/;
 
+const OPTIONS = new Set(['pair', 'hash', 'hash_splat_argument', 'block_argument']);
+
+const subjectOf = (word: string, call: Node): string =>
+  [
+    word,
+    ...statementsOf(fieldOf(call, 'arguments'))
+      .filter(({ type }) => !OPTIONS.has(type))
+      .map(codeOf),
+  ].join(' ');
+
 const macroOf = (call: Node): Head | undefined => {
   const word = fieldOf(call, 'receiver') === undefined ? fieldOf(call, 'method')?.text : undefined;
   if (word === undefined) return undefined;
-  if (word === 'rescue_from') return { kind: 'catch', text: codeOf(call) };
+  if (word === 'rescue_from')
+    return { kind: 'catch', text: codeOf(call), subject: subjectOf(word, call) };
   return CALLBACKS.test(word) || VALIDATIONS.test(word)
-    ? { kind: 'guard', text: codeOf(call), foundByName: true }
+    ? { kind: 'guard', text: codeOf(call), foundByName: true, subject: subjectOf(word, call) }
     : undefined;
 };
 

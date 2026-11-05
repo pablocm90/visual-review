@@ -333,13 +333,26 @@ test.for([
   'validates_presence_of :a',
 ])('%s in a class body reads as a guard on the class, found by name', line => {
   expect(shopDecisions(line)).toEqual([
-    { kind: 'guard', text: line, depth: 0, line: 2, foundByName: true },
+    {
+      kind: 'guard',
+      text: line,
+      depth: 0,
+      line: 2,
+      foundByName: true,
+      subject: expect.any(String),
+    },
   ]);
 });
 
 test('rescue_from in a class body reads as a catch on the class, not found by name', () => {
   expect(shopDecisions('rescue_from Foo, with: :a')).toEqual([
-    { kind: 'catch', text: 'rescue_from Foo, with: :a', depth: 0, line: 2 },
+    {
+      kind: 'catch',
+      text: 'rescue_from Foo, with: :a',
+      depth: 0,
+      line: 2,
+      subject: expect.any(String),
+    },
   ]);
 });
 
@@ -384,7 +397,14 @@ test('a macro in a nested class reads on that class', () => {
     'app/models/shop.rb',
   )?.symbols;
   expect(symbols?.find(({ name }) => name === 'Shop::Other')?.decisions).toEqual([
-    { kind: 'guard', text: 'validates :a', depth: 0, line: 3, foundByName: true },
+    {
+      kind: 'guard',
+      text: 'validates :a',
+      depth: 0,
+      line: 3,
+      foundByName: true,
+      subject: expect.any(String),
+    },
   ]);
 });
 
@@ -437,6 +457,16 @@ test.for([
   expect(blindSpotsIn(line)).toEqual([]);
 });
 
+const classFindings = (before: ReadonlyArray<string>, after: ReadonlyArray<string>) => {
+  const sideOf = (lines: ReadonlyArray<string>) => {
+    const file = railsReader.symbols?.(['class Shop', ...lines, 'end'].join('\n'), 'shop.rb');
+    if (file === undefined) throw new Error('read no symbols');
+    return file;
+  };
+  const changes = symbolChanges({ before: sideOf(before), after: sideOf(after) });
+  return symbolFindings({ files: [{ stack: 'shop', node: 'shop', ...changes }], nodes: [] });
+};
+
 test.for([
   {
     reason: 'a callback lost',
@@ -472,13 +502,85 @@ test.for([
     },
   },
 ])('$reason on a class raises one finding at $finding.level', ({ before, after, finding }) => {
-  const sideOf = (lines: ReadonlyArray<string>) => {
-    const file = railsReader.symbols?.(['class Shop', ...lines, 'end'].join('\n'), 'shop.rb');
-    if (file === undefined) throw new Error('read no symbols');
-    return file;
-  };
-  const changes = symbolChanges({ before: sideOf(before), after: sideOf(after) });
+  expect(classFindings(before, after)).toEqual([
+    { dimension: 'logic', target: 'shop', ...finding },
+  ]);
+});
+
+test.for([
+  { reason: 'another callback', before: 'before_action :a', after: 'before_action :c' },
+  { reason: 'one callback of two', before: 'before_action :a, :b', after: 'before_action :a' },
+  { reason: 'another word', before: 'before_action :a', after: 'around_action :a' },
+  {
+    reason: 'another field',
+    before: 'validates :a, presence: true',
+    after: 'validates :b, presence: true',
+  },
+])('$reason in its place reads as a guard lost', ({ before, after }) => {
   expect(
-    symbolFindings({ files: [{ stack: 'shop', node: 'shop', ...changes }], nodes: [] }),
-  ).toEqual([{ dimension: 'logic', target: 'shop', ...finding }]);
+    classFindings([before], [after]).map(({ level, title, detail }) => [level, title, detail]),
+  ).toEqual([
+    ['look', 'class Shop lost a guard', `${before} (found by name)`],
+    ['info', 'class Shop changed its logic', '1 added'],
+  ]);
+});
+
+test('another error rescued in its place reads as a catch lost', () => {
+  expect(
+    classFindings(['rescue_from Foo, with: :a'], ['rescue_from Bar, with: :a']).map(
+      ({ level, title }) => [level, title],
+    ),
+  ).toEqual([
+    ['look', 'class Shop lost a catch'],
+    ['info', 'class Shop changed its logic'],
+  ]);
+});
+
+test.for([
+  { reason: 'options added', before: ['before_action :a'], after: ['before_action :a, only: :b'] },
+  {
+    reason: 'an option edited',
+    before: ['before_action :a, only: :b'],
+    after: ['before_action :a, only: :c'],
+  },
+  {
+    reason: 'a braced option edited',
+    before: ['before_action :a, { only: :b }'],
+    after: ['before_action :a, { only: :c }'],
+  },
+  {
+    reason: 'a splat of options edited',
+    before: ['validates :a, **b'],
+    after: ['validates :a, **c'],
+  },
+  {
+    reason: 'a block argument edited',
+    before: ['before_action :a, &b'],
+    after: ['before_action :a, &c'],
+  },
+  { reason: 'a block edited', before: ['before_create { a }'], after: ['before_create { b }'] },
+  {
+    reason: 'parentheses added',
+    before: ['before_action :a'],
+    after: ['before_action(:a, only: :b)'],
+  },
+  {
+    reason: 'a comment among its options',
+    before: ['before_action :a,', '  # why', '  only: :b'],
+    after: ['before_action :a, only: :c'],
+  },
+  {
+    reason: 'its argument laid out over lines',
+    before: ['before_action foo(', '  :a', ')'],
+    after: ['before_action foo(:a), only: :b'],
+  },
+  {
+    reason: 'its rescue edited',
+    before: ['rescue_from Foo, with: :a'],
+    after: ['rescue_from Foo, with: :b'],
+  },
+])('$reason on the same macro stays changed', ({ before, after }) => {
+  expect(classFindings(before, after).map(({ level, detail }) => [level, detail])).toEqual([
+    ['info', '1 changed'],
+  ]);
 });
