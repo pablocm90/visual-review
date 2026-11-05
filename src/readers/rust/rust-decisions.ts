@@ -168,3 +168,16 @@ const decisionsUnder = (walk: Walk, nodes: ReadonlyArray<Node>): ReadonlyArray<D
 
 export const decisionsOfFunction = (item: Node): ReadonlyArray<Decision> =>
   decisionsUnder({ depth: 0 }, fieldsOf(item, 'body'));
+
+const LOGIC_TOKENS = ['?', 'return', 'if'];
+
+const holdsLogicTokens = (node: Node): boolean => node.descendantsOfType(LOGIC_TOKENS).length > 0;
+
+const hidingNameOf = (node: Node): ReadonlyArray<string> => {
+  const name = macroNameOf(node) ?? '';
+  return THROWS.has(name) || COMMAS_KEPT.has(name) || !holdsLogicTokens(node) ? [] : [`${name}!`];
+};
+
+export const blindSpotsIn = (root: Node): ReadonlyArray<string> => [
+  ...new Set(root.descendantsOfType(['macro_invocation']).flatMap(hidingNameOf)),
+];

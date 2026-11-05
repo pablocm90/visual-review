@@ -2,7 +2,7 @@ import type { Node } from 'web-tree-sitter';
 import type { FileSymbols, ReadSymbol } from '../../core/reader.ts';
 import { isTooBig, TOO_BIG } from '../too-big.ts';
 import { hashesOf, hashOf, isComment, ownText, shapeOf } from '../tree-sitter.ts';
-import { decisionsOfFunction } from './rust-decisions.ts';
+import { blindSpotsIn, decisionsOfFunction } from './rust-decisions.ts';
 import { attributesOf, isDocText, isTestItem, parseRust, pathOf } from './rust-syntax.ts';
 
 const textOf = (node: Node | null | undefined): string => node?.text ?? '';
@@ -323,5 +323,6 @@ export const symbolsOfRust = (text: string): FileSymbols => {
     symbols: symbolsIn(items),
     exports: items.flatMap(namesExportedBy),
     astHash: hashOf(shapeOf(root)),
+    blindSpots: blindSpotsIn(root),
   };
 };

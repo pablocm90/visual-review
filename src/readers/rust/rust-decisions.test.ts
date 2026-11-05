@@ -278,3 +278,30 @@ test('a closure is walked', () => {
     { kind: 'if', text: 'if a', depth: 0, line: 2 },
   ]);
 });
+
+const blindSpotsIn = (...lines: ReadonlyArray<string>) =>
+  rustReader.symbols?.(lines.join('\n'), 'src/shop.rs')?.blindSpots;
+
+test.for([
+  { line: 'fn a() { println!("{}", b()?); }', name: 'println!' },
+  { line: 'fn a() { let v = vec![if c { 1 } else { 2 }]; }', name: 'vec!' },
+  { line: 'fn a() { foo::bar!(x, (y, { return 1 })); }', name: 'bar!' },
+])('$line is a blind spot, $name', ({ line, name }) => {
+  expect(blindSpotsIn(line)).toEqual([name]);
+});
+
+test('each macro that hides logic is listed once, in the order the file first uses it', () => {
+  expect(
+    blindSpotsIn('fn a() { vec![b()?]; }', 'impl A { fn c() { log!(d?); vec![e?]; } }'),
+  ).toEqual(['vec!', 'log!']);
+});
+
+test.for([
+  { reason: 'those words in a string', line: 'fn a() { println!("if return ?"); }' },
+  { reason: 'names that only start like them', line: 'fn a() { log!(iff, returning); }' },
+  { reason: 'an if outside any macro', line: 'fn a() { if b { c!(); } }' },
+  { reason: 'a guard macro', line: 'fn a() { ensure!(b()?, "no"); }' },
+  { reason: 'a throw macro', line: 'fn a() { panic!("{}", b()?); }' },
+])('$reason is no blind spot', ({ line }) => {
+  expect(blindSpotsIn(line)).toEqual([]);
+});
