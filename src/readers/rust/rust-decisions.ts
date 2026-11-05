@@ -77,6 +77,12 @@ const armOf = (node: Node): Read => {
   };
 };
 
+const loopOf = (node: Node): Read => ({
+  kind: 'loop',
+  text: codeUpTo(node, fieldOf(node, 'body')),
+  deeper: fieldsOf(node, 'body'),
+});
+
 const COMMAS_KEPT = new Map([
   ['ensure', 0],
   ['assert', 0],
@@ -104,6 +110,9 @@ const READS = new Map<string, (node: Node) => Read | undefined>([
   ['let_declaration', letElseOf],
   ['macro_invocation', macroOf],
   ['match_arm', armOf],
+  ['for_expression', loopOf],
+  ['while_expression', loopOf],
+  ['loop_expression', loopOf],
 ]);
 
 const decisionsUnder = (walk: Walk, nodes: ReadonlyArray<Node>): ReadonlyArray<Decision> =>

@@ -163,3 +163,16 @@ test.for(['Err(e)', 'Err(e) if y', 'Result::Err(e)', 'Err(a) | Err(b) | Ok(c)'])
 test('an arm whose first pattern is another reads as a case', () => {
   expect(decisionsIn('match x { Ok(a) | Err(a) => 1 }')?.map(({ kind }) => kind)).toEqual(['case']);
 });
+
+test.for([
+  { head: 'for x in y', text: 'for x in y' },
+  { head: "'a: for  x  in y", text: "'a: for x in y" },
+  { head: 'while c', text: 'while c' },
+  { head: 'while let Some(x) = y', text: 'while let Some(x) = y' },
+  { head: 'loop', text: 'loop' },
+])('$head reads as a loop, what it holds one deeper', ({ head, text }) => {
+  expect(decisionsIn(`${head} {`, 'if d { go(); }', '}')).toEqual([
+    { kind: 'loop', text, depth: 0, line: 2 },
+    { kind: 'if', text: 'if d', depth: 1, line: 3 },
+  ]);
+});
