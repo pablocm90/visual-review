@@ -2,6 +2,14 @@
 
 What changed in each release of `@pablocm90/visual-review`, newest first. Versions follow [semver](https://semver.org); while it is 0.x, a minor version may change the exported types.
 
+## 0.38.0 — 2026-11-05
+
+### Added
+
+- A change to a Rails app's routes reads as route changes: `config/routes.rb` and the files it joins with `load` and `draw` are expanded on both sides, with no Ruby run, and compared by app, verb and path. So `only: [:index]` to `only: [:index, :destroy]` is a new endpoint, not an edited line.
+- A removed route, and a new target at the same path, each raise a `routes` finding to look at. Added routes raise one finding per file, for information, with their count. Each opens the patch of the file behind it.
+- What the reader can't read (`if`, loops, `concern`, `devise_for` and anything under them) is listed by its text and never guessed at. It raises a finding only when that text is added or removed, and a route file that can't be read at all says so, as a blind spot in Start here.
+
 ## 0.37.0 — 2026-11-05
 
 ### Changed
