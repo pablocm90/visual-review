@@ -61,3 +61,9 @@ test('what the exit itself holds reads one deeper, and what follows it is dead',
     { kind: 'if', text: 'if d', depth: 1, line: 3 },
   ]);
 });
+
+test('a condition reads without its comments, line breaks and spacing, strings as written', () => {
+  expect(
+    decisionsIn('if a', '  .b( /* why */ "x  y",', '  c, )', '{ go(); }')?.map(({ text }) => text),
+  ).toEqual(['if a.b("x  y", c)']);
+});

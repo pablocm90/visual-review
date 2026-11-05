@@ -1,8 +1,10 @@
 import type { Node } from 'web-tree-sitter';
 import type { Decision } from '../../core/reader.ts';
-import { isComment } from '../tree-sitter.ts';
+import { codeReaderOf, isComment } from '../tree-sitter.ts';
 
 type Head = Pick<Decision, 'kind' | 'text' | 'foundByName'>;
+
+const { codeOf } = codeReaderOf(new Set(['.']));
 
 type Read = Head & { readonly deeper: ReadonlyArray<Node> };
 
@@ -31,7 +33,7 @@ const firstStatementOf = (block: Node | undefined): Node | undefined =>
   block?.namedChildren.find(node => !isComment(node));
 
 const ifOf = (node: Node): Read => {
-  const condition = `if ${fieldOf(node, 'condition')?.text}`;
+  const condition = `if ${codeOf(fieldOf(node, 'condition'))}`;
   const first =
     fieldOf(node, 'alternative') === undefined
       ? exprOf(firstStatementOf(fieldOf(node, 'consequence')))
