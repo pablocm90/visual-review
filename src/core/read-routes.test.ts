@@ -1,5 +1,6 @@
 import { expect, test } from 'vitest';
 import { railsRoutes } from '../readers/rails/route-reader.ts';
+import { readRange } from '../test-support/read-range.ts';
 import { commit, git, gitRepo } from '../test-support/repos.ts';
 import { readRoutes } from './read-routes.ts';
 
@@ -41,6 +42,16 @@ test('a changed route file reads as what changed between its sides, each row wit
       unread: [],
     },
   ]);
+});
+
+test("a range's reading holds its route changes", async () => {
+  using workspace = gitRepo({ [ROUTES]: drawing(USERS) });
+  const { repo, root } = workspace;
+  const to = commit(repo, { [ROUTES]: drawing(`${USERS}\nget "ping", to: "a#b"`) });
+
+  const { routes } = await readRange({ repo, from: root, to });
+
+  expect(routes).toHaveLength(1);
 });
 
 test('what cannot be read carries its patch too, and a removed route its own', async () => {
