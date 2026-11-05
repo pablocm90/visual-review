@@ -287,16 +287,36 @@ type StartHereProps = LineOptions & {
   readonly review: Pick<PageData, 'diff' | 'metrics' | 'sinceReview'>;
 };
 
-const SeveralFindings = ({ line }: { readonly line: StartHereLine }) => (
-  <li className="finding start-here-several">
-    <LevelMark level={line.level} />
-    <span>
-      {line.title}
-      {line.files > 0 && ` · ${counted(line.files, 'file', 'files')}`}
-    </span>
-    <span className="start-here-names">{line.names.join(', ')}</span>
-  </li>
-);
+type SeveralFindingsProps = {
+  readonly line: StartHereLine;
+  readonly lineOf: (finding: Finding) => Line;
+};
+
+const SeveralFindings = ({ line, lineOf }: SeveralFindingsProps) => {
+  const [open, setOpen] = useState(false);
+  const heading = `${line.title}${line.files > 0 ? ` · ${counted(line.files, 'file', 'files')}` : ''}`;
+  return (
+    <li className="finding start-here-several">
+      <LevelMark level={line.level} />
+      <button
+        type="button"
+        aria-label={heading}
+        aria-expanded={open}
+        onClick={() => setOpen(!open)}
+      >
+        <span>{heading}</span>
+        <span className="start-here-names">{line.names.join(', ')}</span>
+      </button>
+      {open && (
+        <ul className="start-here-opened">
+          {line.findings.map(finding => (
+            <FindingItem key={finding.id} finding={lineOf(finding)} />
+          ))}
+        </ul>
+      )}
+    </li>
+  );
+};
 
 export const StartHere = (props: StartHereProps) => {
   const [open, setOpen] = useState(true);
@@ -336,7 +356,7 @@ export const StartHere = (props: StartHereProps) => {
             line.findings.length === 1 ? (
               line.findings.map(finding => <FindingItem key={line.key} finding={lineOf(finding)} />)
             ) : (
-              <SeveralFindings key={line.key} line={line} />
+              <SeveralFindings key={line.key} line={line} lineOf={lineOf} />
             ),
           )}
         </ul>

@@ -2522,6 +2522,66 @@ const buttonsIn = (element: HTMLElement) =>
     .getAllByRole('button')
     .map(drawn => drawn.getAttribute('aria-label'));
 
+const webFilesReview = (count: number) => ({
+  range: 'abc123..def456',
+  diff: {
+    nodes: [
+      { id: 'web', kind: 'stack' as const, label: 'web', path: '', state: 'unchanged' as const },
+      webModule('utils', 'modified'),
+      ...Array.from({ length: count }, (_, at) => webFile('utils', `${at}.ts`, 'modified')),
+    ],
+    edges: [],
+  },
+});
+
+const findingsOnFiles = (
+  { count, files }: { readonly count: number; readonly files: number },
+  overrides: Partial<Finding>,
+) =>
+  Array.from({ length: count }, (_, at) =>
+    findingOn(`web/file/utils/${at % files}.ts`, {
+      id: `${overrides.check}:${at}`,
+      title: `said ${at}`,
+      ...overrides,
+    }),
+  );
+
+test("a check's findings read as one line, which opens in place to list them, unanswered, each going to its target", async () => {
+  const user = userEvent.setup();
+  render(
+    <ReviewPage
+      review={pageWith({
+        ...webFilesReview(9),
+        findings: [
+          ...findingsOnFiles({ count: 7, files: 4 }, { check: 'api:signature', level: 'look' }),
+          ...findingsOnFiles({ count: 30, files: 9 }, { check: 'api:added', level: 'info' }),
+        ],
+      })}
+      send={vi.fn()}
+    />,
+  );
+
+  const band = within(await screen.findByRole('region', { name: 'Start here' }));
+  const signatures = () =>
+    band.getByRole('button', { name: '7 exported signatures changed · 4 files' });
+  expect(band.getByRole('button', { name: '30 exported symbols added · 9 files' })).toBeDefined();
+  expect(signatures().getAttribute('aria-expanded')).toBe('false');
+  expect(band.queryByRole('button', { name: '1.ts: said 1' })).toBeNull();
+
+  await user.click(signatures());
+
+  expect(signatures().getAttribute('aria-expanded')).toBe('true');
+  expect(band.getAllByRole('button', { name: /: said \d$/ })).toHaveLength(7);
+  expect(band.queryByRole('group', { name: 'Answer' })).toBeNull();
+  await user.click(band.getByRole('button', { name: '1.ts: said 1' }));
+  await waitFor(() =>
+    expect(document.activeElement).toBe(screen.getByRole('button', { name: '1.ts: modified' })),
+  );
+
+  await user.click(signatures());
+  expect(band.queryByRole('button', { name: '1.ts: said 1' })).toBeNull();
+});
+
 test("modules open collapsed, joined by their files' imports; a module's toggle expands it into its files and back; a note on a hidden import shows on the edge it merges into; a summary item on a hidden file or a rail finding on a hidden import expands what hides it and focuses it, without pulling focus back later", async () => {
   const user = userEvent.setup();
   render(
