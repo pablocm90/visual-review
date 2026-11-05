@@ -124,21 +124,26 @@ const resourcesOf =
     const args = argsOf(call);
     const param = writtenOr(args, 'param', 'id');
     const module = inModule(args, scope.module);
+    const writtenPath = optionOf(args, 'path');
+    const writtenController = optionOf(args, 'controller');
+    const writtenAs = optionOf(args, 'as');
+    const to = optionOf(args, 'to');
+    const drawn = kept(actions, args);
     return positional(args).flatMap(arg => {
       const name = nameOf(arg);
-      const path = under(scope.path, writtenOr(args, 'path', name));
-      const controller = writtenOr(args, 'controller', controllerOf(name));
+      const path = under(scope.path, nameOf(writtenPath ?? arg));
+      const controller = writtenController ? nameOf(writtenController) : controllerOf(name);
       return [
-        ...kept(actions, args).map(([verb, suffix, action]) => ({
+        ...drawn.map(([verb, suffix, action]) => ({
           verb,
           path: `${path}${suffix.replace(':id', `:${param}`)}`,
-          target: inModuleOf(module, writtenOr(args, 'to', `${controller}#${action}`)),
+          target: inModuleOf(module, to ? nameOf(to) : `${controller}#${action}`),
           ...placeOf(call, scope),
         })),
         ...within(call, {
           ...scope,
           module,
-          path: nestedOf(path, writtenOr(args, 'as', name), param),
+          path: nestedOf(path, nameOf(writtenAs ?? arg), param),
           controller,
           member: memberOf(path, param),
           collection: path,
