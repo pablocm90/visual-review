@@ -105,3 +105,18 @@ test('a ternary reads its condition, and each branch one deeper', () => {
     { kind: 'ternary', text: 'c ?', depth: 1, line: 2 },
   ]);
 });
+
+test.for([
+  { lines: ['while w', '  go if y', 'end'], text: 'while w' },
+  { lines: ['while w do', '  go if y', 'end'], text: 'while w' },
+  { lines: ['until u', '  go if y', 'end'], text: 'until u' },
+  { lines: ['for i in xs', '  go if y', 'end'], text: 'for i in xs' },
+  { lines: ['for i, j in xs do', '  go if y', 'end'], text: 'for i, j in xs' },
+  { lines: ['(go if y) while w'], text: 'while w' },
+  { lines: ['(go if y) until u'], text: 'until u' },
+])('$lines reads as the loop $text, its body one deeper', ({ lines, text }) => {
+  expect(decisionsIn(...lines)?.map(({ kind, text, depth }) => [kind, text, depth])).toEqual([
+    ['loop', text, 0],
+    ['if', 'if y', 1],
+  ]);
+});

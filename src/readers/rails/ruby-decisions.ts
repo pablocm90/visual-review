@@ -25,8 +25,7 @@ const isGapped = (leaf: Node, before: Node | undefined): boolean =>
   !OPENERS.has(before.text) &&
   !CLOSERS.has(leaf.text);
 
-const codeOf = (node: Node | undefined): string => {
-  const leaves = node === undefined ? [] : leavesOf(node);
+const codeFrom = (leaves: ReadonlyArray<Node>): string => {
   const kept = leaves.filter(
     ({ text }, index) => !(text === ',' && CLOSERS.has(leaves[index + 1]?.text ?? '')),
   );
@@ -34,6 +33,14 @@ const codeOf = (node: Node | undefined): string => {
     .map((leaf, index) => (isGapped(leaf, kept[index - 1]) ? ` ${leaf.text}` : leaf.text))
     .join('');
 };
+
+const codeOf = (node: Node | undefined): string =>
+  codeFrom(node === undefined ? [] : leavesOf(node));
+
+const codeUpTo = (node: Node, end: Node | undefined): string =>
+  codeFrom(
+    leavesOf(node).filter(({ endIndex }) => end === undefined || endIndex <= end.startIndex),
+  );
 
 const THROWS = new Set(['raise', 'fail']);
 
@@ -108,6 +115,18 @@ const ternaryOf = (node: Node): Read => ({
   deeper: fieldsOf(node, 'consequence', 'alternative'),
 });
 
+const blockLoop = (node: Node): Read => ({
+  kind: 'loop',
+  text: codeUpTo(node, fieldOf(node, 'body')),
+  deeper: fieldsOf(node, 'body'),
+});
+
+const modifierLoop = (node: Node): Read => ({
+  kind: 'loop',
+  text: conditionOf(node, node.type.replace('_modifier', '')),
+  deeper: fieldsOf(node, 'body'),
+});
+
 const READS = new Map<string, (node: Node) => Read>([
   ['if', blockIf],
   ['unless', blockIf],
@@ -115,6 +134,11 @@ const READS = new Map<string, (node: Node) => Read>([
   ['unless_modifier', modifierIf],
   ['elsif', branchedIf],
   ['conditional', ternaryOf],
+  ['while', blockLoop],
+  ['until', blockLoop],
+  ['for', blockLoop],
+  ['while_modifier', modifierLoop],
+  ['until_modifier', modifierLoop],
 ]);
 
 type Walk = { readonly depth: number };
