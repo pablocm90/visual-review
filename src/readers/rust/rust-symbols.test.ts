@@ -248,10 +248,24 @@ test.for([
   { type: 'pub union Foo { a: u8 }', exported: true },
   { type: 'pub enum Foo {}', exported: true },
   { type: 'pub type Foo = u8;', exported: true },
+  { type: '#[cfg(test)]\npub struct Foo;', exported: false },
 ])('a trait method on Foo beside $type has exported: $exported', ({ type, exported }) => {
   expect(methodsIn(read(type, 'impl Tr for Foo<u8> {\n  fn open() {}\n}'))).toMatchObject([
     { name: 'open', exported },
   ]);
+});
+
+test.for([
+  {
+    written: 'pub mod inner {\n  pub struct Foo;\n  impl Tr for Foo {\n    fn z() {}\n  }\n}',
+    exported: true,
+  },
+  {
+    written: 'pub struct Foo;\npub mod inner {\n  impl Tr for Foo {\n    fn z() {}\n  }\n}',
+    exported: false,
+  },
+])('a trait method goes by the types of its own list: $written', ({ written, exported }) => {
+  expect(methodsIn(read(written))).toMatchObject([{ name: 'z', exported }]);
 });
 
 test('a type with both Display and Debug has each fmt read, and changed, apart', () => {

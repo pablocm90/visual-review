@@ -89,12 +89,10 @@ const underlyingType = (type: Node | null): string => {
 
 const TYPES: ReadonlySet<string> = new Set(['struct_item', 'enum_item', 'union_item', 'type_item']);
 
-const isPubBeside = (item: Node, name: string): boolean =>
-  (item.parent?.namedChildren ?? []).some(
-    sibling => TYPES.has(sibling.type) && nameOf(sibling) === name && isExactlyPub(sibling),
-  );
+const pubTypesIn = (items: ReadonlyArray<Node>): ReadonlySet<string> =>
+  new Set(items.filter(item => TYPES.has(item.type) && isExactlyPub(item)).map(nameOf));
 
-const methodsOfImpl = (item: Node): ReadonlyArray<ReadSymbol> => {
+const methodsOfImpl = (item: Node, pubTypes: ReadonlySet<string>): ReadonlyArray<ReadSymbol> => {
   const type = typeOfImpl(item);
   const trait = item.childForFieldName('trait');
   const place =
@@ -102,7 +100,7 @@ const methodsOfImpl = (item: Node): ReadonlyArray<ReadSymbol> => {
       ? { scope: type }
       : {
           scope: collapsed(`${type} as ${trait.text}`),
-          exported: isPubBeside(item, underlyingType(item.childForFieldName('type'))),
+          exported: pubTypes.has(underlyingType(item.childForFieldName('type'))),
         };
   return functionsIn(item).map(method => ({ ...method, kind: 'method', ...place }));
 };
@@ -266,16 +264,18 @@ const insideMod =
       : { ...symbol, exported, scope: joined(name, symbol.scope) };
   };
 
-const symbolsOfMod = (item: Node): ReadonlyArray<ReadSymbol> =>
-  codeIn(item).flatMap(symbolsOfItem).map(insideMod(item));
+const symbolsIn = (items: ReadonlyArray<Node>): ReadonlyArray<ReadSymbol> => {
+  const pubTypes = pubTypesIn(items);
+  return items.flatMap(item => symbolsOfItem(item, pubTypes));
+};
 
-const symbolsOfItem = (item: Node): ReadonlyArray<ReadSymbol> => {
-  if (item.type === 'mod_item') return symbolsOfMod(item);
+const symbolsOfItem = (item: Node, pubTypes: ReadonlySet<string>): ReadonlyArray<ReadSymbol> => {
+  if (item.type === 'mod_item') return symbolsIn(codeIn(item)).map(insideMod(item));
   if (item.type === 'function_item') return [functionSymbol(item)];
   if (item.type === 'struct_item' || item.type === 'union_item') return [structSymbol(item)];
   if (WHOLE_TYPES.has(item.type)) return [wholeTypeSymbol(item)];
   if (item.type === 'trait_item') return [traitSymbol(item), ...methodsOfTrait(item)];
-  return item.type === 'impl_item' ? methodsOfImpl(item) : [];
+  return item.type === 'impl_item' ? methodsOfImpl(item, pubTypes) : [];
 };
 
 const lastSegmentOf = (path: string): string => path.split('::').at(-1) ?? '';
@@ -318,7 +318,7 @@ export const symbolsOfRust = (text: string): FileSymbols => {
   if (root === undefined || root.hasError) throw new Error('Rust that does not parse');
   const items = root.namedChildren.filter(item => !isTestItem(item));
   return {
-    symbols: items.flatMap(symbolsOfItem),
+    symbols: symbolsIn(items),
     exports: items.flatMap(namesExportedBy),
     astHash: hashOf(shapeOf(root)),
   };
