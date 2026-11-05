@@ -134,6 +134,7 @@ const indexBlocksWrites = (args: ReadonlyArray<Node>, byDefault: boolean): boole
 };
 
 const referenceColumns = (name: Node, args: ReadonlyArray<Node>): string => {
+  if (name.type === 'splat_argument') return name.text;
   const polymorphic = optionOf(args, 'polymorphic');
   const id = `${nameOf(name)}_id`;
   return polymorphic === undefined || OFF.has(polymorphic.type)

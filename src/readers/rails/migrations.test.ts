@@ -400,6 +400,7 @@ test.for([
       'index on users (plan_id) added, not concurrently',
     ],
   },
+  { written: 't.references *REFS', expected: ['index on users (*REFS) added, not concurrently'] },
   { written: 't.references :account, index: false', expected: [] },
   {
     written: 't.string :email, index: true',
