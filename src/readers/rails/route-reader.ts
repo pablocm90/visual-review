@@ -276,7 +276,7 @@ const scoped: Handler = (call, scope) => {
   const written = named.length === 0 ? writtenOr(args, 'path', '') : named.map(nameOf).join('/');
   return within(call, {
     ...scope,
-    path: written === '' ? scope.path : under(scope.path, written),
+    path: under(scope.path, written),
     module: inModule(args, scope.module),
     controller: writtenOr(args, 'controller', scope.controller),
   });

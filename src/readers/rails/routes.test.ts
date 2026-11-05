@@ -245,6 +245,13 @@ test.for([
     expected: 'POST /users/:id/generate-draft users#generate_draft',
   },
   {
+    reads: 'a two-part path with a leading slash, keeping the module',
+    written: `namespace :api do
+      get "/reports/monthly"
+    end`,
+    expected: 'GET /api/reports/monthly api/reports#monthly',
+  },
+  {
     reads: 'a leading slash joined once',
     written: `namespace :api do
       get "/names", to: "views#names"
@@ -310,6 +317,14 @@ test.for([
     expected: 'GET /users staff/users#index',
   },
   {
+    written: 'namespace :api do\n resources :users, only: :index, module: :staff\n end',
+    expected: 'GET /api/users api/staff/users#index',
+  },
+  {
+    written: 'scope "a", "b" do\n resources :users, only: :index\n end',
+    expected: 'GET /a/b/users users#index',
+  },
+  {
     written: 'resources :views, only: :show, param: :view_type',
     expected: 'GET /views/:view_type views#show',
   },
@@ -362,6 +377,10 @@ test.for([
   { written: 'root to: "home#index"', expected: ['GET / home#index'] },
   { written: 'root to: redirect("/join")', expected: ['GET / redirect("/join")'] },
   {
+    written: 'namespace :api do\n root to: redirect("/join")\n end',
+    expected: ['GET /api redirect("/join")'],
+  },
+  {
     written: 'namespace :api do\n root "home#index"\n end',
     expected: ['GET /api api/home#index'],
   },
@@ -404,6 +423,10 @@ test.for([
   { reads: 'an interpolated name', written: 'get "#{prefix}/a", to: "b#c"' },
   { reads: 'an only it cannot read', written: 'resources :users, only: ACTIONS' },
   { reads: 'an except it cannot read', written: 'resources :users, except: ACTIONS' },
+  {
+    reads: 'an only with a name it cannot read',
+    written: 'resources :users, only: [:show, ACTION]',
+  },
   { reads: 'a splatted option', written: 'resources :users, **options' },
   { reads: 'shallow', written: 'resources :users, shallow: true' },
   { reads: 'concerns', written: 'resources :users, concerns: :commentable' },
@@ -421,8 +444,10 @@ test.for([
     reads: 'a dynamic path with no action',
     written: 'scope controller: :b do\n get "a/:id"\n end',
   },
+  { reads: 'a two-part path gone dynamic', written: 'get "reports/a/:id"' },
   { reads: 'match with no via', written: 'match "a", to: "b#c"' },
   { reads: 'root with no target', written: 'root' },
+  { reads: 'root called with no target', written: 'root()' },
   { reads: 'a mount at a path it cannot read', written: 'mount Blog::Engine, at: PATH' },
   { reads: 'a mount by a rocket to a path it cannot read', written: 'mount Blog::Engine => PATH' },
   { reads: 'a mount at an interpolated path', written: 'mount Blog::Engine, at: "#{prefix}/blog"' },
@@ -457,6 +482,16 @@ test('what is not read says the app, path and module it sits under', () => {
     ]),
   ).unread;
   expect(item).toMatchObject({ root: 'apps/shop/', path: '/api', module: 'api/' });
+});
+
+test('a comment between statements of a block is no statement', () => {
+  expect(
+    read(`namespace :api do
+      resources :users, only: :index
+      # and the posts
+      resources :posts, only: :index
+    end`).unread,
+  ).toStrictEqual([]);
 });
 
 test('a brace block reads as a do block', () => {
@@ -555,10 +590,19 @@ test.for([
 
 test.for([
   { reads: 'a path it cannot read', written: 'load path' },
-  { reads: 'a load of something else', written: 'load File.join("a", "b.rb")' },
-  { reads: 'a draw it cannot name', written: 'draw name' },
-])('$reads is not read', ({ written }) => {
-  expect(read(written).unread).toHaveLength(1);
+  { reads: 'a load of something else', written: 'load File.join("config/routes/admin.rb")' },
+  {
+    reads: 'a joined part it cannot read',
+    written: 'load Rails.root.join(config, "routes/admin.rb")',
+  },
+  { reads: 'a draw it cannot name', written: 'draw admin' },
+])('$reads is not read, though a file of that name is there', ({ written }) => {
+  const { routes, unread } = readFiles([
+    ['config/routes.rb', drawing(written)],
+    ['config/routes/admin.rb', 'resources :users, only: :index\n'],
+  ]);
+  expect(routes).toStrictEqual([]);
+  expect(unread).toHaveLength(1);
 });
 
 test('a file that does not parse throws, so it is reported rather than read as no routes', () => {
@@ -571,6 +615,7 @@ test.for([
   { path: 'config/routes/admin.rb', holds: true },
   { path: 'config/routes/back/admin.rb', holds: true },
   { path: 'config/routes/admin.txt', holds: false },
+  { path: 'config/routes/admin.rb.bak', holds: false },
   { path: 'config/routes.txt', holds: false },
   { path: 'myconfig/routes.rb', holds: false },
   { path: 'vendor/gem/config/routes.rb', holds: false },
@@ -625,6 +670,17 @@ test('a reading takes as many statements as its limit, the draw among them', () 
 
 test('a statement past the limit throws', () => {
   expect(() => upTo(100, gets(100))).toThrow('Too many routes to read');
+});
+
+test('every root of a reading spends from one limit', () => {
+  expect(() =>
+    railsRoutesUpTo(100).routes(
+      new Map([
+        ['apps/a/config/routes.rb', drawing(gets(60))],
+        ['apps/b/config/routes.rb', drawing(gets(60))],
+      ]),
+    ),
+  ).toThrow('Too many routes to read');
 });
 
 test('names multiplying under names throw, rather than read without end', () => {
