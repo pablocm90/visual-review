@@ -42,6 +42,9 @@ const signatureOf = (item: Node): string => {
   ].join(' ');
 };
 
+const writtenWhole = (item: Node): string =>
+  [...attributesOf(item), item].map(({ text }) => text).join('\n');
+
 const present = (nodes: ReadonlyArray<Node | null>): ReadonlyArray<Node> =>
   nodes.filter(node => node !== null);
 
@@ -56,7 +59,7 @@ const functionSymbol = (item: Node): ReadSymbol => ({
       ...writtenAttributesOf(item),
       ...present([childOfType(item, 'visibility_modifier'), item.childForFieldName('body')]),
     ],
-    text: [...attributesOf(item), item].map(({ text }) => text).join('\n'),
+    text: writtenWhole(item),
   }),
 });
 
@@ -95,6 +98,12 @@ const methodsOfTrait = (item: Node): ReadonlyArray<ReadSymbol> =>
     exported: isExactlyPub(item),
   }));
 
+const typeNamed = (item: Node): Pick<ReadSymbol, 'name' | 'kind' | 'exported'> => ({
+  name: item.childForFieldName('name')?.text ?? '',
+  kind: 'type',
+  exported: isExactlyPub(item),
+});
+
 const signedPartsOfMember = (member: Node): ReadonlyArray<Node> =>
   FUNCTIONS.has(member.type)
     ? present([member.childForFieldName('name'), ...Object.values(signedPartsOf(member))])
@@ -117,9 +126,7 @@ const traitSymbol = (item: Node): ReadSymbol => {
   ]);
   const own = ownText(item, unsaid, ({ id }) => (defaults.has(id) ? ';' : ''));
   return {
-    name: item.childForFieldName('name')?.text ?? '',
-    kind: 'type',
-    exported: isExactlyPub(item),
+    ...typeNamed(item),
     signature: collapsed(
       [...written.map(({ text }) => text), own.trim()].join(' ').replace(/\s+;/g, ';'),
     ),
@@ -176,9 +183,7 @@ const structSignature = (item: Node): string => {
 const structSymbol = (item: Node): ReadSymbol => {
   const fields = item.childForFieldName('body');
   return {
-    name: item.childForFieldName('name')?.text ?? '',
-    kind: 'type',
-    exported: isExactlyPub(item),
+    ...typeNamed(item),
     signature: structSignature(item),
     ...hashesOf({
       signed: [
@@ -194,7 +199,7 @@ const structSymbol = (item: Node): ReadSymbol => {
         ...present([childOfType(item, 'visibility_modifier'), fields?.firstChild ?? null]),
         ...(fields?.namedChildren ?? []).filter(field => !isComment(field) && !isDocText(field)),
       ],
-      text: [...attributesOf(item), item].map(({ text }) => text).join('\n'),
+      text: writtenWhole(item),
     }),
   };
 };
@@ -214,9 +219,7 @@ const wholeTypeSymbol = (item: Node): ReadSymbol => {
     ]),
   );
   return {
-    name: item.childForFieldName('name')?.text ?? '',
-    kind: 'type',
-    exported: isExactlyPub(item),
+    ...typeNamed(item),
     signature: collapsed([...written.map(({ text }) => text), said.trim()].join(' ')).replace(
       /\s+;/g,
       ';',
@@ -228,7 +231,7 @@ const wholeTypeSymbol = (item: Node): ReadSymbol => {
         ...members.filter(member => !isComment(member) && !isDocText(member)),
       ],
       body: visibility,
-      text: [...attributesOf(item), item].map(({ text }) => text).join('\n'),
+      text: writtenWhole(item),
     }),
   };
 };
