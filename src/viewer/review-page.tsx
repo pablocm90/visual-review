@@ -1558,6 +1558,10 @@ const Page = ({ review, notes, send }: ReviewPageProps) => {
     showOutside(opener);
   };
   const showFile = (path: string, opener: HTMLButtonElement) => {
+    if (review.schemas.some(({ file }) => file === path)) {
+      location.hash = '#schema';
+      return;
+    }
     const holder = deepestHolding(path, review.diff.nodes);
     if (holder === undefined) {
       showOutsideAt({ path }, opener);

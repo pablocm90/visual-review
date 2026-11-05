@@ -1,5 +1,6 @@
 // @vitest-environment jsdom
-import { render, screen, within } from '@testing-library/react';
+import { render, screen, waitFor, within } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { expect, onTestFinished, test, vi } from 'vitest';
 import type { PageData } from '../core/page.ts';
 import type { TableChange } from '../core/schema-diff.ts';
@@ -14,6 +15,8 @@ vi.stubGlobal(
     disconnect() {}
   },
 );
+
+Object.defineProperty(HTMLElement.prototype, 'scrollIntoView', { value: () => {} });
 
 const atHash = (hash: string) => {
   history.replaceState(null, '', hash);
@@ -154,4 +157,91 @@ test("an unchanged table's options take no row, and an added or removed table sa
   const carts = screen.getByRole('article', { name: 'carts, added' });
   expect(cellsOf(carts, 'Table options')).toStrictEqual(['+', '', 'id: :uuid']);
   expect(screen.getByRole('article', { name: 'orders, removed' })).toBeTruthy();
+});
+
+const reviewWithFindings = (): PageData =>
+  pageWith({
+    ...reviewOf([
+      {
+        file: 'db/schema.rb',
+        tables: [table({ columns: [{ state: 'added', head: column('age', 'integer') }] })],
+      },
+      {
+        file: 'db/queue_schema.rb',
+        tables: [
+          table({ name: 'jobs', columns: [{ state: 'added', head: column('run', 'boolean') }] }),
+          table({ columns: [{ state: 'added', head: column('queue', 'string') }] }),
+        ],
+      },
+      { file: 'db/cache_schema.rb', notRead: 'Ruby syntax error' },
+    ]),
+    findings: [
+      {
+        id: 'schema:db/queue_schema.rb:users',
+        dimension: 'schema',
+        level: 'info',
+        file: 'db/queue_schema.rb',
+        table: 'users',
+        title: 'users: 1 column added',
+        detail: 'db/queue_schema.rb',
+      },
+      {
+        id: 'schema:not-read:db/cache_schema.rb',
+        dimension: 'schema',
+        level: 'look',
+        file: 'db/cache_schema.rb',
+        title: 'db/cache_schema.rb not read: Ruby syntax error',
+      },
+    ],
+  });
+
+test('a schema finding in the rail opens the Schema tab', async () => {
+  atHash('#structure');
+  const user = userEvent.setup();
+  render(<ReviewPage review={reviewWithFindings()} />);
+
+  await user.click(await screen.findByRole('button', { name: 'Show 2 findings' }));
+  await user.click(
+    within(screen.getByRole('complementary', { name: 'Findings' })).getByRole('button', {
+      name: 'db/queue_schema.rb: users: 1 column added',
+    }),
+  );
+
+  await waitFor(() =>
+    expect(tabs().getByRole('link', { name: 'Schema' }).getAttribute('aria-current')).toBe('page'),
+  );
+});
+
+test("a migration's finding, of the same dimension, still opens its own patch on a review with a schema change", async () => {
+  atHash('#structure');
+  const user = userEvent.setup();
+  const path = 'db/migrate/1_add_age.rb';
+  render(
+    <ReviewPage
+      review={pageWith({
+        ...reviewWithFindings(),
+        undrawn: [{ path, patch: `--- a/${path}\n+++ b/${path}\n@@ -1 +1 @@\n-old\n+new` }],
+        findings: [
+          {
+            id: `schema:${path}:1`,
+            dimension: 'schema',
+            level: 'look',
+            file: path,
+            title: 'Adding a column with a default',
+            detail: path,
+          },
+        ],
+      })}
+    />,
+  );
+
+  await user.click(await screen.findByRole('button', { name: 'Show 1 finding' }));
+  await user.click(
+    within(screen.getByRole('complementary', { name: 'Findings' })).getByRole('button', {
+      name: `${path}: Adding a column with a default`,
+    }),
+  );
+
+  expect(await screen.findByRole('group', { name: path })).toHaveProperty('open', true);
+  expect(tabs().getByRole('link', { name: 'Structure' }).getAttribute('aria-current')).toBe('page');
 });
