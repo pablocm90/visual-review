@@ -214,6 +214,23 @@ test.for([
 );
 
 test.for([
+  {
+    written: 'add_reference :orders, :owner, polymorphic: true',
+    expected: ['index on orders (owner_type, owner_id) added, not concurrently'],
+  },
+  {
+    written: "add_reference :orders, :owner, polymorphic: { default: 'User' }",
+    expected: ['index on orders (owner_type, owner_id) added, not concurrently'],
+  },
+  {
+    written: 'add_reference :orders, :owner, polymorphic: false',
+    expected: ['index on orders (owner_id) added, not concurrently'],
+  },
+])('$written names the columns its index covers', ({ written, expected }) => {
+  expect(titles(written)).toStrictEqual(expected);
+});
+
+test.for([
   { written: 'create_table :orders\n    add_index :orders, :user_id', expected: [] },
   {
     written: 'add_column :orders, :state, :string, null: false\n    create_table "orders"',

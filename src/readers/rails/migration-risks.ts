@@ -130,9 +130,17 @@ const OFF: ReadonlySet<string | undefined> = new Set(['false', 'nil']);
 const blocksWrites = (index: Node | undefined): boolean =>
   !OFF.has(index?.type) && !concurrent(index === undefined ? [] : [index]);
 
+const referenceColumns = (name: Node, args: ReadonlyArray<Node>): string => {
+  const polymorphic = optionOf(args, 'polymorphic');
+  const id = `${nameOf(name)}_id`;
+  return polymorphic === undefined || OFF.has(polymorphic.type)
+    ? id
+    : `${nameOf(name)}_type, ${id}`;
+};
+
 const indexesReference: Rule = ({ table, args }) =>
   blocksWrites(optionOf(args, 'index'))
-    ? positional(args).map(name => indexAdded(table, `${nameOf(name)}_id`))
+    ? positional(args).map(name => indexAdded(table, referenceColumns(name, args)))
     : [];
 
 const addsReference: Rule = call => [...addsEach('reference')(call), ...indexesReference(call)];
