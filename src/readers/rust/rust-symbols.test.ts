@@ -49,6 +49,19 @@ test.for([
   expect({ name: symbol?.name, scope: symbol?.scope }).toEqual({ name, scope });
 });
 
+test.for([
+  { written: 'pub mod inner {\n  pub fn z() {}\n}', exported: true },
+  { written: 'pub mod inner {\n  fn z() {}\n}', exported: false },
+  { written: 'mod inner {\n  pub fn z() {}\n}', exported: false },
+  { written: 'mod inner {\n  impl Foo {\n    pub fn z() {}\n  }\n}', exported: false },
+  { written: 'pub(crate) mod inner {\n  pub fn z() {}\n}', exported: false },
+  { written: 'pub mod a {\n  mod b {\n    pub fn z() {}\n  }\n}', exported: false },
+  { written: 'mod a {\n  pub mod b {\n    pub fn z() {}\n  }\n}', exported: false },
+  { written: 'pub mod a {\n  pub mod b {\n    pub fn z() {}\n  }\n}', exported: true },
+])('$written reads exported: $exported', ({ written, exported }) => {
+  expect(read(written).symbols).toMatchObject([{ exported }]);
+});
+
 test("an impl's const and type read no symbol", () => {
   expect(read('impl Foo {\n  const A: u8 = 1;\n  type B = u8;\n}').symbols).toEqual([]);
 });

@@ -242,16 +242,19 @@ const WHOLE_TYPES: ReadonlySet<string> = new Set(['enum_item', 'type_item']);
 const joined = (path: string, part: string): string => (path === '' ? part : `${path}::${part}`);
 
 const insideMod =
-  (mod: string) =>
-  (symbol: ReadSymbol): ReadSymbol =>
-    symbol.scope === undefined
-      ? { ...symbol, name: joined(mod, symbol.name) }
-      : { ...symbol, scope: joined(mod, symbol.scope) };
+  (mod: Node) =>
+  (symbol: ReadSymbol): ReadSymbol => {
+    const name = mod.childForFieldName('name')?.text ?? '';
+    const exported = symbol.exported && isExactlyPub(mod);
+    return symbol.scope === undefined
+      ? { ...symbol, exported, name: joined(name, symbol.name) }
+      : { ...symbol, exported, scope: joined(name, symbol.scope) };
+  };
 
 const symbolsOfMod = (item: Node): ReadonlyArray<ReadSymbol> =>
   (item.childForFieldName('body')?.namedChildren ?? [])
     .flatMap(symbolsOfItem)
-    .map(insideMod(item.childForFieldName('name')?.text ?? ''));
+    .map(insideMod(item));
 
 const symbolsOfItem = (item: Node): ReadonlyArray<ReadSymbol> => {
   if (item.type === 'mod_item') return symbolsOfMod(item);
