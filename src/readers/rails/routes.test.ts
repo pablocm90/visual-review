@@ -417,6 +417,8 @@ test.for([
   { reads: 'a condition', written: 'if Rails.env.test?\n get "a", to: "b#c"\n end' },
   { reads: 'a loop', written: '%w[a b].each do |name|\n get name, to: "b#c"\n end' },
   { reads: 'a call it does not know', written: 'devise_for :users' },
+  { reads: 'a verb sent to something else', written: 'Foo.get "a", to: "b#c"' },
+  { reads: 'a resources sent to something else', written: 'router.resources :users' },
   { reads: 'a concern', written: 'concern :commentable do\n resources :comments\n end' },
   { reads: 'a name it cannot read', written: 'resources NAME' },
   { reads: 'a splatted name', written: 'resources(*NAMES)' },
@@ -552,6 +554,7 @@ test.for([
   { reads: 'a draw under a modifier', beside: 'Rails.application.routes.draw { } if flag' },
   { reads: 'another way to add routes', beside: 'Rails.application.routes.append do\nend' },
   { reads: 'a call beside it', beside: 'draw_more' },
+  { reads: 'a require sent to something else', beside: 'Foo.require "x"' },
 ])('$reads beside a draw is not read, rather than dropped', ({ beside }) => {
   const { routes, unread } = railsRoutes.routes(
     new Map([['config/routes.rb', `${drawing('get "a", to: "b#c"')}${beside}\n`]]),
@@ -625,6 +628,7 @@ test.for([
 
 test.for([
   { reads: 'a path it cannot read', written: 'load path' },
+  { reads: 'a draw sent to something else', written: 'router.draw :admin' },
   { reads: 'a load of something else', written: 'load File.join("config/routes/admin.rb")' },
   {
     reads: 'a joined part it cannot read',

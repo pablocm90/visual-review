@@ -325,7 +325,10 @@ const isDraw = (statement: Node): boolean =>
 
 const REQUIRES: ReadonlySet<string> = new Set(['require', 'require_relative']);
 
-const isRequire = (statement: Node): boolean => REQUIRES.has(methodOf(statement));
+const isBare = (statement: Node): boolean => statement.childForFieldName('receiver') === null;
+
+const isRequire = (statement: Node): boolean =>
+  isBare(statement) && REQUIRES.has(methodOf(statement));
 
 const programOf = (text: string): Node => {
   const program = parseRuby(text);
@@ -408,7 +411,9 @@ const HANDLERS: ReadonlyMap<string, Handler> = new Map<string, Handler>([
 const routesIn = (statement: Node, scope: Scope): ReadonlyArray<Drawn> => {
   scope.budget.left -= 1;
   if (scope.budget.left < 0) throw new Error('Too many routes to read');
-  return HANDLERS.get(methodOf(statement))?.(statement, scope) ?? [unread(statement, scope)];
+  const handler =
+    isBare(statement) || isDraw(statement) ? HANDLERS.get(methodOf(statement)) : undefined;
+  return handler?.(statement, scope) ?? [unread(statement, scope)];
 };
 
 const isRoute = (drawn: Drawn): drawn is Route => 'verb' in drawn;
