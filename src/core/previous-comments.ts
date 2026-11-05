@@ -1,4 +1,4 @@
-import { anchorTarget, fileOfLine, split, type TargetsOf } from './anchors.ts';
+import { anchorTarget, fileOfLine, isHeld, split, type TargetsOf } from './anchors.ts';
 import type { Rename } from './diff-graphs.ts';
 import { isAtOrUnder } from './diff-graphs.ts';
 import { type Finding, targetOfNoteFlag } from './findings.ts';
@@ -48,9 +48,6 @@ const commitsOn = (compared: Compared, parts: ReadonlyArray<string>): ReadonlyAr
     ),
   );
 };
-
-const isHeld = (targets: TargetsOf, id: string): boolean =>
-  targets.nodes.some(node => node.id === id);
 
 export const partChanged = (compared: Compared, targets: TargetsOf, id: string): boolean =>
   !isHeld(targets, id) ||
@@ -109,9 +106,6 @@ const isChanged = (compared: Compared, targets: TargetsOf, { kind, id }: Said['a
 const markOf = (compared: Compared, targets: TargetsOf, anchor: Said['anchor']) =>
   isChanged(compared, targets, anchor) ? { changedSince: commitsOf(compared, anchor) } : {};
 
-const targetIn = (targets: TargetsOf, id: string) =>
-  endsOfId(id).every(end => isHeld(targets, end)) ? { target: id } : {};
-
 const headId = (compared: Compared, anchor: Said['anchor']): string => {
   const { kind, id } = anchor;
   if (isInAFile(anchor)) {
@@ -139,7 +133,7 @@ export const previousComments = ({
     const target = anchorTarget({ ...anchor, id }, targets);
     return {
       ...comment,
-      ...(target === undefined ? {} : targetIn(targets, target)),
+      ...(target === undefined ? {} : { target }),
       ...(compared === undefined ? {} : markOf(compared, targets, anchor)),
     };
   };

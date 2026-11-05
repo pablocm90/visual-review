@@ -101,3 +101,17 @@ test.for<Comment['anchor']>([
     expect(silent.getAllByRole('listitem').map(item => item.textContent)).toEqual(['pay.ts']);
   },
 );
+
+test.for<Comment['anchor']>([
+  { kind: 'symbol', id: 'web/file/src/gone.ts#tax' },
+  { kind: 'part', id: 'web/file/src/gone.ts' },
+  { kind: 'edge', id: 'web/file/src/pay.ts -> web/file/src/gone.ts' },
+])('a draft on a $kind the head no longer holds is listed, with nowhere to go', async anchor => {
+  const user = userEvent.setup();
+  renderTray([drafted(anchor)]);
+  await user.click(screen.getByRole('button', { name: 'Review' }));
+
+  const listed = within(screen.getByRole('list', { name: 'Drafts' }));
+  expect(listed.getByRole('listitem')).toBeTruthy();
+  expect(listed.queryByRole('button')).toBeNull();
+});
