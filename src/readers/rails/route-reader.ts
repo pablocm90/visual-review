@@ -1,5 +1,10 @@
 import type { Node } from 'web-tree-sitter';
-import type { Route, RouteReader, UnreadRoute } from '../../core/routes.ts';
+import {
+  type Route,
+  RouteFileNotRead,
+  type RouteReader,
+  type UnreadRoute,
+} from '../../core/routes.ts';
 import { isTooBig, TOO_BIG } from '../too-big.ts';
 import { plural, singular } from './inflection.ts';
 import { NOT_SEARCHED } from './reader.ts';
@@ -383,9 +388,10 @@ const isDraw = (statement: Node): boolean =>
 const isBare = (statement: Node): boolean => statement.childForFieldName('receiver') === null;
 
 const programOf = (file: string, text: string): Node => {
-  if (isTooBig(text)) throw new Error(`${file} ${TOO_BIG}`);
+  if (isTooBig(text)) throw new RouteFileNotRead(file, `${file} ${TOO_BIG}`);
   const program = parseRuby(text);
-  if (program === undefined || program.hasError) throw new Error(`Ruby syntax error in ${file}`);
+  if (program === undefined || program.hasError)
+    throw new RouteFileNotRead(file, `Ruby syntax error in ${file}`);
   return program;
 };
 

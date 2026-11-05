@@ -2785,6 +2785,54 @@ main:has(> .review-tray) {
   stroke: currentColor;
 }
 
+.routes-unread {
+  margin: 8px 0 12px;
+  padding: 0;
+  list-style: none;
+  font-size: 12.5px;
+}
+
+.routes-statement {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 10px;
+  padding: 3px 0;
+  overflow-wrap: anywhere;
+}
+
+.routes-where {
+  color: var(--muted);
+}
+
+.routes-file {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 12px;
+  margin: 0 0 12px;
+}
+
+.routes-file .schema-file {
+  margin: 0;
+}
+
+.routes-patch {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--ramp-3);
+  font: inherit;
+  font-size: 12.5px;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.schema-rows tr:focus,
+.routes-statement:focus {
+  outline: 2px solid var(--ramp-3);
+  outline-offset: 2px;
+}
+
 .lens-row {
   display: flex;
   flex-wrap: wrap;

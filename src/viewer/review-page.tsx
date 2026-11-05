@@ -67,6 +67,7 @@ import { storedReadMarks, storeReadMarks } from './read-marks.ts';
 import { ReadingOrderList } from './reading-order-list.tsx';
 import { Ref, shortRef } from './ref.tsx';
 import { ReviewTray, verdictLabels } from './review-tray.tsx';
+import { type RoutesLanding, RoutesScreen, routesHold } from './routes-screen.tsx';
 import {
   CommentFieldUnlessSaid,
   CommentOn,
@@ -1183,6 +1184,7 @@ const TABS = {
   metrics: 'Metrics',
   tests: 'Tests',
   schema: 'Schema',
+  routes: 'Routes',
 } as const;
 
 type Tab = keyof typeof TABS;
@@ -1287,11 +1289,12 @@ const useGraphView = (layout: Layout | undefined) => {
   };
 };
 
-const tabsOf = ({ schemas }: Pick<PageData, 'schemas'>): ReadonlyArray<Tab> => [
+const tabsOf = ({ schemas, routes }: Pick<PageData, 'schemas' | 'routes'>): ReadonlyArray<Tab> => [
   'structure',
   'metrics',
   'tests',
   ...(schemas.length === 0 ? [] : (['schema'] as const)),
+  ...(routes.length === 0 ? [] : (['routes'] as const)),
 ];
 
 const tabAt = (review: PageData, hash: string): Tab =>
@@ -1524,7 +1527,8 @@ const Page = ({ review, notes, send }: ReviewPageProps) => {
     setOutside(true);
   };
   const closeOutside = () => {
-    outsideOpener.current?.focus();
+    const opener = outsideOpener.current;
+    (opener?.isConnected ? opener : frameElement)?.focus();
     setOutside(false);
   };
   const closeInspector = (id: string) => {
@@ -1575,12 +1579,8 @@ const Page = ({ review, notes, send }: ReviewPageProps) => {
     showOutside(opener);
   };
   const [schemaLanding, setSchemaLanding] = useState<SchemaLanding>();
-  const showFile = (path: string, opener: HTMLButtonElement, table?: string) => {
-    if (review.schemas.some(({ file }) => file === path)) {
-      setSchemaLanding({ file: path, table });
-      location.hash = '#schema';
-      return;
-    }
+  const [routesLanding, setRoutesLanding] = useState<RoutesLanding>();
+  const showPatch = (path: string, opener: HTMLButtonElement) => {
     const holder = deepestHolding(path, review.diff.nodes);
     if (holder === undefined) {
       showOutsideAt({ path }, opener);
@@ -1588,6 +1588,19 @@ const Page = ({ review, notes, send }: ReviewPageProps) => {
     }
     landOn(holder.id, { path });
     goToOnTab(holder.id, 'diff');
+  };
+  const showFile = (path: string, opener: HTMLButtonElement, place?: string) => {
+    if (review.schemas.some(({ file }) => file === path)) {
+      setSchemaLanding({ file: path, table: place });
+      location.hash = '#schema';
+      return;
+    }
+    if (routesHold(review.routes, path)) {
+      setRoutesLanding({ file: path, route: place });
+      location.hash = '#routes';
+      return;
+    }
+    showPatch(path, opener);
   };
   const [read, setRead] = useState(() => storedReadMarks(review.range, stillReadIn(review)));
   useEffect(() => storeReadMarks(review.range, read), [review.range, read]);
@@ -1814,6 +1827,14 @@ const Page = ({ review, notes, send }: ReviewPageProps) => {
           review={review}
           landing={schemaLanding}
           onLanded={() => setSchemaLanding(undefined)}
+        />
+      )}
+      {tab === 'routes' && (
+        <RoutesScreen
+          review={review}
+          landing={routesLanding}
+          onLanded={() => setRoutesLanding(undefined)}
+          onShowPatch={showPatch}
         />
       )}
       {send && (

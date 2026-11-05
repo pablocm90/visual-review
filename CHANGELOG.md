@@ -2,6 +2,27 @@
 
 What changed in each release of `@pablocm90/visual-review`, newest first. Versions follow [semver](https://semver.org); while it is 0.x, a minor version may change the exported types.
 
+## 0.43.0 — 2026-11-05
+
+### Added
+
+- **Show patch** beside each file's name on the Routes tab opens its patch, so a route file that couldn't be read, or a statement not read, leads to what's left to read.
+
+### Fixed
+
+- A changed route file that doesn't parse or is too big to read is the one its finding and section name. With several route files changed, they named the first that changed, whichever had stopped the reading. A file that stops it unchanged has no patch, so those stay at the first that changed, and the message names it.
+
+## 0.42.0 — 2026-11-05
+
+### Added
+
+- A Routes tab, shown when a change holds a route change: added, removed and changed routes under each route file's name, what's removed first, each with its verb and path, its target before and after, and where it's written. `PATCH` and `PUT` of one path and target read as one line.
+- The statements not read that were added or removed are listed above a file's routes, with what they sit under, and a route file that couldn't be read says so.
+
+### Changed
+
+- A route's finding opens the Routes tab, where it opened the file's patch, from the rail, Start here and the review tray: a removed route or a new target at its row, a statement not read at its line, and a file's added routes at its section. The review `.json`'s findings carry `route`, naming the row.
+
 ## 0.41.0 — 2026-11-05
 
 ### Added

@@ -4,18 +4,7 @@ import type { PageData } from '../core/page.ts';
 import type { SchemaReading } from '../core/read-schemas.ts';
 import type { SchemaColumn, SchemaIndex } from '../core/schema.ts';
 import type { SchemaChange, TableChange } from '../core/schema-diff.ts';
-
-const MARKS: Readonly<Record<SchemaChange<unknown>['state'], string>> = {
-  added: '+',
-  removed: '−',
-  changed: '~',
-};
-
-const STATE_NAMES: Readonly<Record<SchemaChange<unknown>['state'], string>> = {
-  added: 'added',
-  removed: 'removed',
-  changed: 'modified',
-};
+import { ChangeRow, STATE_NAMES } from './change-row.tsx';
 
 const textOf = (parts: ReadonlyArray<string>) => parts.filter(Boolean).join(' ');
 
@@ -23,30 +12,12 @@ const columnText = ({ type, options }: SchemaColumn) => textOf([type, options]);
 
 const indexText = ({ columns, options }: SchemaIndex) => textOf([columns.join(', '), options]);
 
-type RowProps = {
-  readonly name: string;
-  readonly state: SchemaChange<unknown>['state'];
-  readonly base: string;
-  readonly head: string;
-};
-
-const Row = ({ name, state, base, head }: RowProps) => (
-  <tr data-state={STATE_NAMES[state]}>
-    <td className="schema-mark">{MARKS[state]}</td>
-    <th scope="row" className="schema-name">
-      {name}
-    </th>
-    <td className="schema-side">{base}</td>
-    <td className="schema-side">{head}</td>
-  </tr>
-);
-
 const rowOf =
   <T extends { readonly name: string }>(text: (item: T) => string) =>
   (change: SchemaChange<T>) => {
     const item = change.state === 'removed' ? change.base : change.head;
     return (
-      <Row
+      <ChangeRow
         key={item.name}
         name={item.name}
         state={change.state}
@@ -85,7 +56,7 @@ const TableCard = ({ file, table }: { readonly file: string; readonly table: Tab
       </thead>
       <tbody>
         {table.options.base !== table.options.head && (
-          <Row name="Table options" state={table.state} {...table.options} />
+          <ChangeRow name="Table options" state={table.state} {...table.options} />
         )}
         {table.columns.map(rowOf(columnText))}
         {table.indexes.map(rowOf(indexText))}

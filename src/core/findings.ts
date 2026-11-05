@@ -52,6 +52,7 @@ export type Finding = {
   readonly target?: string;
   readonly file?: string;
   readonly table?: string;
+  readonly route?: string;
   readonly title: string;
   readonly detail?: string;
   readonly groups?: SplitSuggestion['groups'];

@@ -25,3 +25,12 @@ export type RouteReader = {
   readonly holds: (path: string) => boolean;
   readonly routes: (files: ReadonlyMap<string, string>) => RouteTable;
 };
+
+export class RouteFileNotRead extends Error {
+  readonly file: string;
+
+  constructor(file: string, reason: string) {
+    super(reason);
+    this.file = file;
+  }
+}
