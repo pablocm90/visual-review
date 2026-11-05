@@ -178,7 +178,7 @@ const decisionsUnder = (walk: Walk, nodes: ReadonlyArray<Node>): ReadonlyArray<D
 export const decisionsOfFunction = (item: Node): ReadonlyArray<Decision> =>
   decisionsUnder({ depth: 0 }, fieldsOf(item, 'body'));
 
-const BEFORE_NO_TRY: ReadonlySet<string> = new Set(['(', ',', '=', ')']);
+const BEFORE_NO_TRY: ReadonlySet<string> = new Set(['(', ',', '=', ':', '+', ')']);
 
 const isTryMark = (mark: Node): boolean => !BEFORE_NO_TRY.has(mark.previousSibling?.type ?? '');
 

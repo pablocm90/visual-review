@@ -339,6 +339,8 @@ test.for([
   { reason: 'a ? sigil opening a macro', line: 'fn a() { error!(?b, "no"); }' },
   { reason: 'a ? sigil after a comma', line: 'fn a() { error!(c, ?b); }' },
   { reason: 'a ? sigil after a field name', line: 'fn a() { error!(c = ?b); }' },
+  { reason: 'a ?Sized bound', line: 'fn a() { m!(fn f<T: ?Sized>() {}); }' },
+  { reason: 'a later ?Sized bound', line: "fn a() { m!(fn f<T: 'a + ?Sized>() {}); }" },
   {
     reason: 'a macro matcher repeated at most once',
     line: 'macro_rules! m { ($($x:expr),* $(,)?) => { 1 } }',
