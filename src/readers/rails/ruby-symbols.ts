@@ -28,6 +28,9 @@ const hashOf = (shape: Shape): string =>
 
 const shapesOf = (nodes: ReadonlyArray<Node>): Shape => nodes.map(shapeOf);
 
+const tokensOf = (shape: Shape): ReadonlyArray<string> =>
+  typeof shape === 'string' ? [shape] : shape.flatMap(tokensOf);
+
 const NOT_YET_HASHED = { signatureHash: '', bodyHash: '', textHash: '', bodyTokens: [] };
 
 type ByName = {
@@ -83,7 +86,7 @@ const hashesOf = ({ signed, body, text }: Hashed) => {
     signatureHash: hashOf(shapesOf(signed)),
     bodyHash: hashOf(shapes),
     textHash: hashOf(text),
-    bodyTokens: [],
+    bodyTokens: tokensOf(shapes),
   };
 };
 

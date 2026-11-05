@@ -488,3 +488,14 @@ test("a method's signature change is told apart from its body's, whichever way i
   expect(signatureOf('def open(a); 1; end', 'def open a; 2; end')).toBeUndefined();
   expect(signatureOf('def open(); 1; end', 'def open; 1; end')).toBeUndefined();
 });
+
+test('a method with the same body under another name reads renamed, a similar one probably', () => {
+  const body = 'first = a + 1; second = first * 2; third = second - 3; third / 4';
+
+  expect(
+    changesBetween([`def open(a); ${body}; end`], [`def shut(a); ${body}; end`]).symbols,
+  ).toMatchObject([{ name: 'shut', change: 'renamed', renamedFrom: 'open' }]);
+  expect(
+    changesBetween([`def open(a); ${body}; end`], [`def shut(a); ${body} + 5; end`]).symbols,
+  ).toMatchObject([{ name: 'shut', change: 'renamed', renamedFrom: 'open', probably: true }]);
+});
