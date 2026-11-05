@@ -2241,6 +2241,20 @@ const readRows = () =>
     .filter(row => within(row).queryByRole('img', { name: 'read' }) !== null)
     .map(row => within(row).getByRole('button').textContent);
 
+test('the next part opens at the top of the column, which holds its scroll while the part stays', async () => {
+  const user = userEvent.setup();
+  render(<ReviewPage review={walkedReview()} />);
+  await screen.findByRole('group', { name: 'rust' });
+
+  await user.keyboard('k');
+  inspector().scrollTop = 300;
+  await user.keyboard('a');
+  expect(inspector().scrollTop).toBe(300);
+  await user.keyboard('j');
+  expect(selectedPart()).toBe('cli-adapter');
+  expect(inspector().scrollTop).toBe(0);
+});
+
 test('A marks the selected part read, ticking its row and counting it at the head of the reading order, and A again leaves it unread', async () => {
   const user = userEvent.setup();
   render(<ReviewPage review={walkedReview()} />);
@@ -5223,6 +5237,23 @@ test('a draft in the open tray goes to where it was written, though the inspecto
   );
   expect(document.activeElement).toBe(lineRow);
   expect(scrolledIntoView.mock.contexts).toContain(lineRow);
+  await user.click(
+    within(screen.getByRole('list', { name: 'Drafts' })).getByRole('button', {
+      name: 'review-page.tsx',
+    }),
+  );
+  expect(inspector().scrollTop).toBe(0);
+  scrolledIntoView.mockImplementationOnce(() => {
+    inspector().scrollTop = 300;
+  });
+  await goToMethod();
+  expect(inspector().scrollTop).toBe(300);
+  await user.click(
+    within(screen.getByRole('list', { name: 'Drafts' })).getByRole('button', {
+      name: 'review-page.tsx',
+    }),
+  );
+  expect(inspector().scrollTop).toBe(0);
 });
 
 test("same-named symbols in one file take a comment each, counted through the file's symbols whatever group shows them, and a draft on a later one still opens the unchanged", async () => {
@@ -5969,8 +6000,12 @@ test("the tray goes to a diff line's draft on the Diff tab, landing on its row o
   expect(scrolledIntoView.mock.contexts).toContain(row);
 
   scrolledIntoView.mockClear();
+  scrolledIntoView.mockImplementationOnce(() => {
+    inspector().scrollTop = 300;
+  });
   await goToDraft();
   expect(scrolledIntoView.mock.contexts).toContain(row);
+  expect(inspector().scrollTop).toBe(300);
 
   const patch = within(diffTab()).getByRole('group', { name: 'web/src/x.ts' });
   await user.click(within(patch).getByText('web/src/x.ts'));

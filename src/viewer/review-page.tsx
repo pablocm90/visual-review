@@ -880,8 +880,14 @@ const Inspector = ({
     ...(node ? nodeSections({ ...props, node }) : []),
   ].toSorted((a, b) => SECTION_ORDER.indexOf(a.tab) - SECTION_ORDER.indexOf(b.tab));
   const shown = sections.find(({ tab }) => tab === picked) ?? sections[0];
+  const column = useRef<HTMLElement>(null);
+  // biome-ignore lint/correctness/useExhaustiveDependencies: a new part opens at the column's top
+  useLayoutEffect(() => {
+    if (!column.current || landing?.row !== undefined || landing?.path !== undefined) return;
+    column.current.scrollTop = 0;
+  }, [node?.id, landing]);
   return (
-    <aside className="note" aria-label="Inspector" style={{ width }}>
+    <aside ref={column} className="note" aria-label="Inspector" style={{ width }}>
       <button type="button" className="close" aria-label="Close inspector" onClick={onClose}>
         ×
       </button>
