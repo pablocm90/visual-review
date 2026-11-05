@@ -1576,14 +1576,14 @@ const Page = ({ review, notes, send }: ReviewPageProps) => {
   };
   const [schemaLanding, setSchemaLanding] = useState<SchemaLanding>();
   const [routesLanding, setRoutesLanding] = useState<RoutesLanding>();
-  const showFile = (path: string, opener: HTMLButtonElement, table?: string) => {
+  const showFile = (path: string, opener: HTMLButtonElement, place?: string) => {
     if (review.schemas.some(({ file }) => file === path)) {
-      setSchemaLanding({ file: path, table });
+      setSchemaLanding({ file: path, table: place });
       location.hash = '#schema';
       return;
     }
     if (routesHold(review.routes, path)) {
-      setRoutesLanding({ file: path });
+      setRoutesLanding({ file: path, route: place });
       location.hash = '#routes';
       return;
     }

@@ -3,6 +3,7 @@ import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { expect, onTestFinished, test, vi } from 'vitest';
 import type { PageData } from '../core/page.ts';
+import { routeFindings } from '../core/route-findings.ts';
 import type { Route } from '../core/routes.ts';
 import { pageWith } from '../test-support/page-data.ts';
 import { ReviewPage } from './review-page.tsx';
@@ -252,4 +253,41 @@ test("a route file's finding opens the Routes tab at its file, from the rail", a
     ),
   );
   expect(tabs().getByRole('link', { name: 'Routes' }).getAttribute('aria-current')).toBe('page');
+});
+
+test("a route's finding lands on its row, among rows of one line from two apps", async () => {
+  atHash('#structure');
+  const user = userEvent.setup();
+  const routes: PageData['routes'] = [
+    {
+      routes: [
+        {
+          state: 'removed',
+          patch: 'config/routes.rb',
+          base: route({ path: '/gone', root: 'apps/a/', line: 2 }),
+        },
+        {
+          state: 'removed',
+          patch: 'config/routes.rb',
+          base: route({ path: '/gone', root: 'apps/b/', line: 9 }),
+        },
+      ],
+      unread: [],
+    },
+  ];
+  render(
+    <ReviewPage review={pageWith({ ...reviewOf(routes), findings: routeFindings(routes) })} />,
+  );
+
+  await user.click(await screen.findByRole('button', { name: 'Show 2 findings' }));
+  await user.click(
+    within(screen.getByRole('complementary', { name: 'Findings' })).getByRole('button', {
+      name: /:9.*GET \/gone removed/,
+    }),
+  );
+
+  const [, second] = within(
+    await screen.findByRole('region', { name: 'config/routes.rb' }),
+  ).getAllByRole('row', { name: /GET \/gone/ });
+  await waitFor(() => expect(document.activeElement).toBe(second));
 });

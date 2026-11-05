@@ -1,15 +1,21 @@
 import { type ReactNode, useEffect } from 'react';
 import type { PageData } from '../core/page.ts';
 import type { RoutesReading, UnreadRow } from '../core/read-routes.ts';
-import { type RouteLine, routeLines, routeOf } from '../core/route-lines.ts';
+import { lineKey, type RouteLine, routeLines, routeOf } from '../core/route-lines.ts';
 import type { UnreadRoute } from '../core/routes.ts';
 import { CHANGE_MARKS, ChangeRow, type ChangeState, STATE_NAMES } from './change-row.tsx';
 
-const RouteRow = ({ verbs, row }: RouteLine) => {
+export type RoutesLanding = { readonly file: string; readonly route: string | undefined };
+
+const placeId = ({ file, route }: RoutesLanding) => `routes:${file}:${route ?? ''}`;
+
+const RouteRow = (routeLine: RouteLine) => {
+  const { verbs, row } = routeLine;
   const { path, file, line } = routeOf(row);
   return (
     <ChangeRow
       name={`${verbs} ${path}`}
+      place={placeId({ file: row.patch, route: lineKey(routeLine) })}
       state={row.state}
       base={row.state === 'added' ? '' : row.base.target}
       head={row.state === 'removed' ? '' : row.head.target}
@@ -21,15 +27,8 @@ const RouteRow = ({ verbs, row }: RouteLine) => {
   );
 };
 
-const lineKey = ({ verbs, row }: RouteLine) => {
-  const { root, path } = routeOf(row);
-  return `${root} ${verbs} ${path}`;
-};
-
-const fileId = (file: string) => `routes:${file}`;
-
 const RouteFile = ({ file, children }: { readonly file: string; readonly children: ReactNode }) => (
-  <section id={fileId(file)} tabIndex={-1} aria-label={file}>
+  <section id={placeId({ file, route: undefined })} tabIndex={-1} aria-label={file}>
     <h2 className="schema-file">
       <code>{file}</code>
     </h2>
@@ -120,8 +119,6 @@ export const routesHold = (routes: PageData['routes'], path: string): boolean =>
       : [...reading.routes, ...reading.unread].some(({ patch }) => patch === path),
   );
 
-export type RoutesLanding = { readonly file: string };
-
 type RoutesScreenProps = {
   readonly review: Pick<PageData, 'routes'>;
   readonly landing: RoutesLanding | undefined;
@@ -131,7 +128,7 @@ type RoutesScreenProps = {
 export const RoutesScreen = ({ review, landing, onLanded }: RoutesScreenProps) => {
   useEffect(() => {
     if (landing === undefined) return;
-    document.getElementById(fileId(landing.file))?.focus();
+    document.getElementById(placeId(landing))?.focus();
     onLanded();
   });
   return <div className="schema-screen">{review.routes.map(filesOf)}</div>;

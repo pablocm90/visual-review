@@ -5,6 +5,11 @@ export type RouteLine = { readonly verbs: string; readonly row: RouteRow };
 
 export const routeOf = (row: RouteRow): Route => (row.state === 'removed' ? row.base : row.head);
 
+export const lineKey = ({ verbs, row }: RouteLine): string => {
+  const { root, path } = routeOf(row);
+  return `${root} ${verbs} ${path}`;
+};
+
 const targetsOf = (row: RouteRow): string =>
   JSON.stringify(
     row.state === 'changed' ? [row.base.target, row.head.target] : [routeOf(row).target],

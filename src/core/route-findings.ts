@@ -1,9 +1,10 @@
 import { countedId } from './counted-id.ts';
 import { counted, type Finding } from './findings.ts';
 import type { RoutesReading, UnreadRow } from './read-routes.ts';
-import { type RouteLine, routeLines } from './route-lines.ts';
+import { lineKey, type RouteLine, routeLines } from './route-lines.ts';
 
-const removalOrNewTarget = ({ verbs, row }: RouteLine): ReadonlyArray<Finding> => {
+const removalOrNewTarget = (routeLine: RouteLine): ReadonlyArray<Finding> => {
+  const { verbs, row } = routeLine;
   if (row.state === 'added') return [];
   const { base, patch } = row;
   const line = `${verbs} ${base.path}`;
@@ -14,6 +15,7 @@ const removalOrNewTarget = ({ verbs, row }: RouteLine): ReadonlyArray<Finding> =
       dimension: 'routes',
       level: 'look',
       file: patch,
+      route: lineKey(routeLine),
       title: row.state === 'removed' ? `${line} removed` : `${line} now goes to ${row.head.target}`,
       detail: `Was ${base.target}, at ${base.file}:${base.line}.`,
     },

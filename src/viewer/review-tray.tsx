@@ -28,7 +28,7 @@ type ReviewTrayProps = {
   readonly onGoTo: (id: string) => void;
   readonly onGoToDraft: (id: string, anchor: Comment['anchor']) => void;
   readonly onGoToOutside: (place: PlaceOfLine, opener: HTMLButtonElement) => void;
-  readonly onGoToFile: (path: string, opener: HTMLButtonElement, table?: string) => void;
+  readonly onGoToFile: (path: string, opener: HTMLButtonElement, place?: string) => void;
   readonly send: (review: Review) => Promise<void>;
 };
 
@@ -150,7 +150,7 @@ type DraftListProps = {
   readonly onGoTo: (id: string) => void;
   readonly onGoToDraft: (id: string, anchor: Comment['anchor']) => void;
   readonly onGoToOutside: (place: PlaceOfLine, opener: HTMLButtonElement) => void;
-  readonly onGoToFile: (path: string, opener: HTMLButtonElement, table?: string) => void;
+  readonly onGoToFile: (path: string, opener: HTMLButtonElement, place?: string) => void;
 };
 
 const DraftList = ({
