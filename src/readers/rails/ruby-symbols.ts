@@ -343,10 +343,29 @@ const scopeMacro: Macro = (walk, call, within) => {
   return added(walk, scopes, scopes.length === 0 ? [] : [call.id]);
 };
 
+const privateConstantMacro: Macro = (walk, call) => ({
+  ...walk,
+  privateConstants: [...walk.privateConstants, ...symbolsNamedIn(call)],
+});
+
+const visibilityMacro =
+  (held: Partial<Walk> & Pick<Walk, 'exported'>): Macro =>
+  (walk, call, within) => {
+    const inner = walkedChildren({ ...walk, ...held }, call, within);
+    return {
+      ...walk,
+      byName: [...walk.byName, ...namedIn(call, held, walk)],
+      symbols: inner.symbols,
+      holes: inner.holes,
+    };
+  };
+
 const MACROS = new Map<string, Macro>([
   ...[...ATTRS].map(([word, kinds]): [string, Macro] => [word, attrMacro(kinds)]),
+  ...[...VISIBILITY_CALLS].map(([word, held]): [string, Macro] => [word, visibilityMacro(held)]),
   ['delegate', delegateMacro],
   ['scope', scopeMacro],
+  ['private_constant', privateConstantMacro],
 ]);
 
 const METHODS = new Set(['method', 'singleton_method']);
@@ -369,21 +388,8 @@ const walked = (walk: Walk, node: Node, within: string | undefined): Walk => {
   }
   if (isSingletonBlock(node))
     return joined(walkedChildren({ ...STARTING, singleton: true }, node, within));
-  const called = node.childForFieldName('method')?.text;
-  if (called === 'private_constant')
-    return { ...walk, privateConstants: [...walk.privateConstants, ...symbolsNamedIn(node)] };
-  const macro = MACROS.get(called ?? '');
+  const macro = MACROS.get(node.childForFieldName('method')?.text ?? '');
   if (macro) return macro(walk, node, within);
-  const held = VISIBILITY_CALLS.get(called ?? '');
-  if (held) {
-    const inner = walkedChildren({ ...walk, ...held }, node, within);
-    return {
-      ...walk,
-      byName: [...walk.byName, ...namedIn(node, held, walk)],
-      symbols: inner.symbols,
-      holes: inner.holes,
-    };
-  }
   if (!DEFINITIONS.has(node.type)) return walkedChildren(walk, node, within);
   const constant = constantWithin(node.childForFieldName('name')?.text ?? '', within);
   const inner = walkedChildren(STARTING, node, constant);
