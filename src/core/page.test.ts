@@ -1018,6 +1018,32 @@ test("a file whose logic changed, with no test added, removed or edited alongsid
   ]);
 });
 
+test('a file whose only changed logic lines are tries raises no tests finding, yet any other line alongside one does', () => {
+  const withLogic = (node: string, logic: ReadonlyArray<LogicLine>) => ({
+    ...symbolFile([
+      {
+        name: 'charge',
+        kind: 'function',
+        exported: { base: false, head: false },
+        change: 'edited',
+        logic,
+      },
+    ]),
+    node,
+  });
+  const lostTry = logicLine({ change: 'removed', kind: 'try', base: 'pay()?' });
+  const symbols = [
+    withLogic('web/file/a.ts', [logicLine({ change: 'same', kind: 'if', head: 'if b' }), lostTry]),
+    withLogic('web/file/b.ts', [lostTry, logicLine({ change: 'added', kind: 'if', head: 'if c' })]),
+  ];
+
+  expect(findingsOfSymbols(symbols).map(({ id, level }) => ({ id, level }))).toEqual([
+    { id: 'logic:changed:web/file/a.ts#charge', level: 'info' },
+    { id: 'logic:changed:web/file/b.ts#charge', level: 'info' },
+    { id: 'tests:untested-logic:web/file/b.ts', level: 'look' },
+  ]);
+});
+
 const notesFile = 'x.notes.json';
 
 const notesWith = (notes: ReviewNotes['notes']): ReviewNotes => ({

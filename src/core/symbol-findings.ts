@@ -210,16 +210,12 @@ const logicFindings = (node: string, symbol: AnchoredSymbol): ReadonlyArray<Find
   ];
 };
 
-const BLIND_SPOT = 'logic:blind-spot:';
-
-export const isLogicBlindSpot = ({ id }: Pick<Finding, 'id'>): boolean => id.startsWith(BLIND_SPOT);
-
 const blindSpotFinding = ({ node, blindSpots = [] }: FileSymbolChanges): ReadonlyArray<Finding> =>
   blindSpots.length === 0
     ? []
     : [
         {
-          id: `${BLIND_SPOT}${node}`,
+          id: `logic:blind-spot:${node}`,
           check: 'logic:blind-spot',
           dimension: 'logic',
           level: 'info',
@@ -227,6 +223,19 @@ const blindSpotFinding = ({ node, blindSpots = [] }: FileSymbolChanges): Readonl
           title: `logic not read through: ${blindSpots.join(', ')}`,
         },
       ];
+
+const asksForATest = ({ change, kind }: LogicLine): boolean => change !== 'same' && kind !== 'try';
+
+export const partsWithLogicToTest = (files: ReadonlyArray<SymbolFile>): ReadonlySet<string> =>
+  new Set(
+    files
+      .filter(
+        file =>
+          !('unreadable' in file) &&
+          file.symbols.some(({ logic = [] }) => logic.some(asksForATest)),
+      )
+      .map(({ node }) => node),
+  );
 
 type SymbolFindingsOptions = {
   readonly files: ReadonlyArray<SymbolFile>;

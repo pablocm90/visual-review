@@ -87,6 +87,51 @@ export const ownText = (
 const tokensOf = (shape: Shape): ReadonlyArray<string> =>
   typeof shape === 'string' ? [shape] : shape.flatMap(tokensOf);
 
+type Leaf = Pick<Node, 'text' | 'startIndex' | 'endIndex'>;
+
+type ElisionOf = (node: Node) => string | undefined;
+
+const leavesOf = (node: Node, elisionOf: ElisionOf, end?: Node): ReadonlyArray<Leaf> => {
+  if (isComment(node) || (end !== undefined && node.startIndex >= end.startIndex)) return [];
+  const text = elisionOf(node);
+  if (text !== undefined) return [{ text, startIndex: node.startIndex, endIndex: node.endIndex }];
+  return node.childCount === 0
+    ? [node]
+    : node.children.flatMap(child => leavesOf(child, elisionOf, end));
+};
+
+const OPENERS: ReadonlySet<string> = new Set(['(', '[', '{']);
+const BRACKET_CLOSERS: ReadonlySet<string> = new Set([')', ']', '}']);
+
+export const codeReaderOf = (
+  sends: ReadonlySet<string>,
+  elisionOf: ElisionOf = () => undefined,
+) => {
+  const isGapped = (leaf: Leaf, before: Leaf | undefined): boolean =>
+    before !== undefined &&
+    leaf.startIndex > before.endIndex &&
+    !OPENERS.has(before.text) &&
+    !BRACKET_CLOSERS.has(leaf.text) &&
+    !sends.has(leaf.text) &&
+    !sends.has(before.text);
+
+  const codeFrom = (leaves: ReadonlyArray<Leaf>): string => {
+    const kept = leaves.filter(
+      ({ text }, index) => !(text === ',' && BRACKET_CLOSERS.has(leaves[index + 1]?.text ?? '')),
+    );
+    return kept
+      .map((leaf, index) => (isGapped(leaf, kept[index - 1]) ? ` ${leaf.text}` : leaf.text))
+      .join('');
+  };
+
+  return {
+    codeOf: (node: Node | undefined): string =>
+      codeFrom(node === undefined ? [] : leavesOf(node, elisionOf)),
+    codeUpTo: (node: Node, end: Node | undefined): string =>
+      codeFrom(leavesOf(node, elisionOf, end)),
+  };
+};
+
 type Hashed = {
   readonly signed: ReadonlyArray<Node>;
   readonly body: ReadonlyArray<Node>;
