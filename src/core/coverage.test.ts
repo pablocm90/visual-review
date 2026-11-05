@@ -123,6 +123,13 @@ test.for([
   expect(notReadIn('schema', { readers: ['typescript'], ...overrides })).toEqual(notRead);
 });
 
+test.for(['logic', 'api', 'tests', 'metrics'] as const)(
+  'with no stack drawn, %s says so rather than reading as checked',
+  dimension => {
+    expect(notReadIn(dimension, { readers: [] })).toEqual(['no stack drawn']);
+  },
+);
+
 test("routes gives the linker's reason", () => {
   expect(notReadIn('routes', { linksNotRead: ['no axum crate'] })).toEqual(['no axum crate']);
 });

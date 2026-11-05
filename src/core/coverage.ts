@@ -40,6 +40,8 @@ export const coverageOf = ({
     ...[...new Set([...skippedStacks, ...symbolsNotRead])].map(notReadFor),
     ...symbols.flatMap(file => ('unreadable' in file ? [notReadFor(file.node)] : [])),
   ];
+  const ifDrawn = (notRead: ReadonlyArray<string>): ReadonlyArray<string> =>
+    readers.length === 0 ? ['no stack drawn'] : notRead;
   const schemaReadings = [...schemas, ...migrations];
   const schemaNotRead =
     schemaReadings.length === 0 && !readers.includes('rails')
@@ -49,18 +51,18 @@ export const coverageOf = ({
         );
   return [
     { dimension: 'structure', notRead: skipped.map(notReadLine) },
-    { dimension: 'logic', notRead: symbolsMissing },
-    { dimension: 'api', notRead: symbolsMissing },
+    { dimension: 'logic', notRead: ifDrawn(symbolsMissing) },
+    { dimension: 'api', notRead: ifDrawn(symbolsMissing) },
     {
       dimension: 'tests',
-      notRead: [
+      notRead: ifDrawn([
         ...symbolsMissing,
         ...tests.flatMap(file => ('unreadable' in file ? [notReadFor(file.path)] : [])),
-      ],
+      ]),
     },
     {
       dimension: 'metrics',
-      notRead: [...new Set([...skippedStacks, ...measuresNotRead])].map(notReadFor),
+      notRead: ifDrawn([...new Set([...skippedStacks, ...measuresNotRead])].map(notReadFor)),
     },
     {
       dimension: 'dependencies',
