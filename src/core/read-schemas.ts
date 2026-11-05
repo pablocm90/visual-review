@@ -15,6 +15,34 @@ type ReadSchemasOptions = {
   readonly schemas: ReadonlyArray<SchemaReader>;
 };
 
+const wholeFile = (
+  file: string,
+  whole: 'added' | 'removed',
+  tables: ReadonlyArray<unknown>,
+): ReadonlyArray<SchemaReading> =>
+  tables.length === 0 ? [] : [{ file, whole, tableCount: tables.length }];
+
+type Sides = {
+  readonly first: string;
+  readonly last: string;
+  readonly baseText: string | undefined;
+  readonly headText: string | undefined;
+  readonly reader: SchemaReader;
+};
+
+const comparison = ({
+  first,
+  last,
+  baseText,
+  headText,
+  reader,
+}: Sides): ReadonlyArray<SchemaReading> => {
+  if (headText === undefined) return wholeFile(first, 'removed', reader.tables(baseText ?? ''));
+  if (baseText === undefined) return wholeFile(last, 'added', reader.tables(headText));
+  const tables = diffTables({ base: reader.tables(baseText), head: reader.tables(headText) });
+  return tables.length === 0 ? [] : [{ file: last, tables }];
+};
+
 export const readSchemas = async ({
   repo,
   base,
@@ -29,20 +57,14 @@ export const readSchemas = async ({
   const compare = async (
     [first = '', last = first]: ReadonlyArray<string>,
     reader: SchemaReader,
-  ): Promise<ReadonlyArray<SchemaReading>> => {
-    const baseText = reader.holds(first) ? await textAt(base, first) : undefined;
-    const headText = reader.holds(last) ? await textAt(head, last) : undefined;
-    if (headText === undefined) {
-      const tableCount = reader.tables(baseText ?? '').length;
-      return tableCount === 0 ? [] : [{ file: first, whole: 'removed', tableCount }];
-    }
-    if (baseText === undefined) {
-      const tableCount = reader.tables(headText).length;
-      return tableCount === 0 ? [] : [{ file: last, whole: 'added', tableCount }];
-    }
-    const tables = diffTables({ base: reader.tables(baseText), head: reader.tables(headText) });
-    return tables.length === 0 ? [] : [{ file: last, tables }];
-  };
+  ): Promise<ReadonlyArray<SchemaReading>> =>
+    comparison({
+      first,
+      last,
+      baseText: reader.holds(first) ? await textAt(base, first) : undefined,
+      headText: reader.holds(last) ? await textAt(head, last) : undefined,
+      reader,
+    });
   const readings = await Promise.all(
     changes.map(async paths => {
       const reader = schemas.find(({ holds }) => paths.some(holds));
