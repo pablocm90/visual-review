@@ -357,6 +357,19 @@ const SymbolsOf = ({
       ));
 };
 
+export const useFilesWithNews = (
+  node: DiffedNode | undefined,
+  files: ReadonlyArray<SymbolFile>,
+  nodes: ReadonlyArray<DiffedNode>,
+): ReadonlyArray<SymbolFile> => {
+  const hasSymbolNews = useHasSymbolNews();
+  const boxesAbove = boxesAboveIn(nodes);
+  const here = node
+    ? files.filter(file => file.node === node.id || boxesAbove(file.node).includes(node.id))
+    : [];
+  return here.some(hasSymbolNews) ? here : [];
+};
+
 export const WhatChanged = ({
   node,
   files,
@@ -367,7 +380,6 @@ export const WhatChanged = ({
   readonly files: ReadonlyArray<SymbolFile>;
   readonly landing: RowLanding | undefined;
 }) => {
-  const hasSymbolNews = useHasSymbolNews();
   const section = useRef<HTMLElement>(null);
   useLayoutEffect(() => {
     if (landing?.row === undefined) return;
@@ -378,17 +390,12 @@ export const WhatChanged = ({
     scrollInPanel(row, 'center');
     row.focus({ preventScroll: true });
   }, [landing]);
-  const boxesAbove = boxesAboveIn(places.nodes);
-  const here = files.filter(
-    file => file.node === node.id || boxesAbove(file.node).includes(node.id),
-  );
-  if (!here.some(hasSymbolNews)) return null;
-  const count = changedSymbolCount(here);
+  const count = changedSymbolCount(files);
   return (
     <section ref={section} className="column-section symbols" aria-label="What changed">
       <h3>What changed{count > 0 && ` ${count}`}</h3>
       <RowLanded.Provider value={landing?.row}>
-        <SymbolsOf node={node} files={here} {...places} />
+        <SymbolsOf node={node} files={files} {...places} />
       </RowLanded.Provider>
     </section>
   );

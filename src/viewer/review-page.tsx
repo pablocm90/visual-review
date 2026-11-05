@@ -78,7 +78,13 @@ import {
 } from './said-before.tsx';
 import { type SchemaLanding, SchemaScreen } from './schema-screen.tsx';
 import { scrollInPanel } from './scroll-in-panel.ts';
-import { holdsRow, type LineAt, type RowLanding, WhatChanged } from './symbols-tab.tsx';
+import {
+  holdsRow,
+  type LineAt,
+  type RowLanding,
+  useFilesWithNews,
+  WhatChanged,
+} from './symbols-tab.tsx';
 import { changedCount, TestFiles, TestsScreen } from './tests-screen.tsx';
 import {
   boxOf,
@@ -769,52 +775,56 @@ const NotePanel = ({
   saidInPlace,
   answers,
   onAnswer,
-}: NotePanelProps) => (
-  <>
-    <p>{note?.text ?? 'No note'}</p>
-    <SaidBefore key={anchorKey(anchor)} on={anchor} />
-    {saidInPlace.map(id => (
-      <div key={id}>
-        <p className="said-edge">{anchorName({ kind: 'edge', id }, nodes)}</p>
-        <SaidBefore on={{ kind: 'edge', id }} />
-      </div>
-    ))}
-    {onComment &&
-      (commentable ? (
-        <CommentFieldUnlessSaid anchor={anchor} comments={comments} onComment={onComment} />
-      ) : (
-        <p>Drawn for several edges: open its ends to comment on one of them.</p>
+}: NotePanelProps) => {
+  const filesWithNews = useFilesWithNews(node, symbols, nodes);
+  const isBare = filesWithNews.length === 0 && found.length === 0;
+  return (
+    <>
+      {note ? <p>{note.text}</p> : isBare && <p>No note</p>}
+      <SaidBefore key={anchorKey(anchor)} on={anchor} />
+      {saidInPlace.map(id => (
+        <div key={id}>
+          <p className="said-edge">{anchorName({ kind: 'edge', id }, nodes)}</p>
+          <SaidBefore on={{ kind: 'edge', id }} />
+        </div>
       ))}
-    {node && (
-      <WhatChanged
-        node={node}
-        files={symbols}
-        nodes={nodes}
-        onGoTo={onGoTo}
-        onShowLine={onShowLine}
-        landing={landing}
-        comments={comments}
-        onComment={onComment}
-      />
-    )}
-    {found.length > 0 && (
-      <section className="column-section" aria-label="Why look">
-        <h3>Why look</h3>
-        <ul className="note-findings" aria-label="Findings">
-          {found.map(finding => (
-            <li key={finding.id}>
-              <LevelMark level={finding.level} />
-              {findingLine(finding)}
-              {onAnswer && (
-                <AnswerButtons id={finding.id} answer={answers[finding.id]} onAnswer={onAnswer} />
-              )}
-            </li>
-          ))}
-        </ul>
-      </section>
-    )}
-  </>
-);
+      {onComment &&
+        (commentable ? (
+          <CommentFieldUnlessSaid anchor={anchor} comments={comments} onComment={onComment} />
+        ) : (
+          <p>Drawn for several edges: open its ends to comment on one of them.</p>
+        ))}
+      {node && filesWithNews.length > 0 && (
+        <WhatChanged
+          node={node}
+          files={filesWithNews}
+          nodes={nodes}
+          onGoTo={onGoTo}
+          onShowLine={onShowLine}
+          landing={landing}
+          comments={comments}
+          onComment={onComment}
+        />
+      )}
+      {found.length > 0 && (
+        <section className="column-section" aria-label="Why look">
+          <h3>Why look</h3>
+          <ul className="note-findings" aria-label="Findings">
+            {found.map(finding => (
+              <li key={finding.id}>
+                <LevelMark level={finding.level} />
+                {findingLine(finding)}
+                {onAnswer && (
+                  <AnswerButtons id={finding.id} answer={answers[finding.id]} onAnswer={onAnswer} />
+                )}
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
+    </>
+  );
+};
 
 const SECTION_ORDER = Object.keys(INSPECTOR_TABS);
 

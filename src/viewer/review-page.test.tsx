@@ -5343,6 +5343,58 @@ test("the column reads a part's note, then What changed, then Why look; an edge'
   expect(region('What changed')).toBeNull();
 });
 
+test('a part with no note starts at what else its column holds, and says "No note" only when it holds nothing', async () => {
+  const user = userEvent.setup();
+  render(
+    <ReviewPage
+      review={pageWith({
+        range: review.range,
+        diff: {
+          nodes: [
+            { id: 'web', kind: 'stack', label: 'web', path: '', state: 'unchanged' },
+            topFile('tax.ts', 'modified'),
+            topFile('vat.ts', 'modified'),
+            topFile('bare.ts', 'modified'),
+          ],
+          edges: [],
+        },
+        findings: [findingOn('web/file/vat.ts')],
+        symbols: [
+          symbolsOf('web/file/tax.ts', [
+            {
+              name: 'tax',
+              kind: 'function',
+              exported: { base: false, head: false },
+              change: 'edited',
+            },
+          ]),
+          symbolsOf('web/file/bare.ts', [
+            {
+              name: 'bare',
+              kind: 'function',
+              exported: { base: false, head: false },
+              change: 'unchanged',
+            },
+          ]),
+        ],
+      })}
+    />,
+  );
+  const saysNoNote = () => within(noteTab()).queryByText('No note') !== null;
+
+  await user.click(await screen.findByRole('button', { name: 'bare.ts: modified' }));
+  expect(saysNoNote()).toBe(true);
+  expect(within(noteTab()).queryByRole('region', { name: 'What changed' })).toBeNull();
+
+  await user.click(screen.getByRole('button', { name: 'tax.ts: modified' }));
+  expect(within(noteTab()).getByRole('region', { name: 'What changed' })).toBeTruthy();
+  expect(saysNoNote()).toBe(false);
+
+  await user.click(screen.getByRole('button', { name: /^vat\.ts: modified/ }));
+  expect(within(noteTab()).getByRole('region', { name: 'Why look' })).toBeTruthy();
+  expect(saysNoNote()).toBe(false);
+});
+
 test('the inspector goes back to Note when it closes or Structure is left, and holds its tab between parts', async () => {
   const user = userEvent.setup();
   render(
