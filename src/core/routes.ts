@@ -6,8 +6,15 @@ export type Route = {
   readonly line: number;
 };
 
+export type UnreadRoute = {
+  readonly text: string;
+  readonly file: string;
+  readonly line: number;
+};
+
 export type RouteTable = {
   readonly routes: ReadonlyArray<Route>;
+  readonly unread: ReadonlyArray<UnreadRoute>;
 };
 
 export type RouteReader = {

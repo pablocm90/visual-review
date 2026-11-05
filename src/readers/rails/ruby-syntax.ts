@@ -18,6 +18,8 @@ export const positional = (args: ReadonlyArray<Node>): ReadonlyArray<Node> =>
 
 const LISTS: ReadonlySet<string> = new Set(['array', 'symbol_array', 'string_array']);
 
+export const isNameList = ({ type }: Node): boolean => LISTS.has(type);
+
 export const namesIn = (node: Node | undefined): ReadonlyArray<string> =>
   node !== undefined && LISTS.has(node.type) ? writtenIn(node).map(nameOf) : [nameOf(node)];
 

@@ -386,3 +386,50 @@ test.for([
 ])('$written draws what it says', ({ written, expected }) => {
   expect(lines(written)).toStrictEqual(expected);
 });
+
+test.for([
+  { reads: 'a condition', written: 'if Rails.env.test?\n get "a", to: "b#c"\n end' },
+  { reads: 'a loop', written: '%w[a b].each do |name|\n get name, to: "b#c"\n end' },
+  { reads: 'a call it does not know', written: 'devise_for :users' },
+  { reads: 'a concern', written: 'concern :commentable do\n resources :comments\n end' },
+  { reads: 'a name it cannot read', written: 'resources NAME' },
+  { reads: 'a splatted name', written: 'resources(*NAMES)' },
+  { reads: 'an interpolated name', written: 'get "#{prefix}/a", to: "b#c"' },
+  { reads: 'an only it cannot read', written: 'resources :users, only: ACTIONS' },
+  { reads: 'an except it cannot read', written: 'resources :users, except: ACTIONS' },
+  { reads: 'a splatted option', written: 'resources :users, **options' },
+  { reads: 'shallow', written: 'resources :users, shallow: true' },
+  { reads: 'concerns', written: 'resources :users, concerns: :commentable' },
+  { reads: 'path_names', written: 'resources :users, path_names: { new: "make" }' },
+  { reads: 'a path it cannot read', written: 'resources :users, path: PATH' },
+  { reads: 'a controller it cannot read', written: 'resources :users, controller: NAME' },
+  { reads: 'a namespace it cannot read', written: 'namespace NAME do\n get "a", to: "b#c"\n end' },
+  { reads: 'a scope it cannot read', written: 'scope PATH do\n get "a", to: "b#c"\n end' },
+  { reads: 'an interpolated to:', written: 'get "a", to: "#{name}#c"' },
+  { reads: 'an interpolated rocket', written: 'get "a" => "#{name}#c"' },
+  { reads: 'a new block', written: 'resources :users, only: [] do\n new do\n get "a"\n end\n end' },
+  { reads: 'on: :new', written: 'resources :users, only: [] do\n get "a", on: :new\n end' },
+  { reads: 'a verb with no controller', written: 'get "a"' },
+  {
+    reads: 'a dynamic path with no action',
+    written: 'scope controller: :b do\n get "a/:id"\n end',
+  },
+  { reads: 'match with no via', written: 'match "a", to: "b#c"' },
+  { reads: 'root with no target', written: 'root' },
+])('$reads is not read, and not guessed at', ({ written }) => {
+  const { routes, unread } = read(written);
+  expect(routes).toStrictEqual([]);
+  expect(unread).toHaveLength(1);
+});
+
+test('what is not read keeps its source on one line, its file and its line', () => {
+  expect(
+    read('resources :users, only: :index\n  if flag\n    get "a"\n  end').unread,
+  ).toStrictEqual([{ text: 'if flag get "a" end', file: 'config/routes.rb', line: 3 }]);
+});
+
+test('a brace block reads as a do block', () => {
+  expect(lines('namespace(:api) { resources :users, only: :index }')).toStrictEqual([
+    'GET /api/users api/users#index',
+  ]);
+});
