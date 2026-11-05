@@ -347,7 +347,6 @@ export const LensRow = ({ lens, findings, coverage }: LensRowProps) => (
 type StartHereProps = LineOptions & {
   readonly findings: ReadonlyArray<Finding>;
   readonly onShowAll: () => void;
-  readonly picked: Lens | undefined;
   readonly review: Pick<PageData, 'diff' | 'metrics' | 'sinceReview'>;
 };
 
@@ -396,7 +395,7 @@ export const StartHere = (props: StartHereProps) => {
     metrics: props.review.metrics,
     nodes: props.review.diff.nodes,
   });
-  if (lines.length === 0 && props.picked === undefined) return null;
+  if (lines.length === 0) return null;
   const lineOf = linesOf(props);
   const lineOfOne = (finding: Finding): Line => {
     const { groups, ...line } = lineOf(finding);
@@ -415,9 +414,7 @@ export const StartHere = (props: StartHereProps) => {
             Start here
           </button>
         </h2>
-        <span className="start-here-count">
-          {lines.length === 0 ? `nothing to show in ${props.picked}` : startHereCount(look, total)}
-        </span>
+        <span className="start-here-count">{startHereCount(look, total)}</span>
         <button type="button" className="show-all" onClick={props.onShowAll}>
           All findings
         </button>

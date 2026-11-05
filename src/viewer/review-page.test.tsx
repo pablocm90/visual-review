@@ -1998,7 +1998,7 @@ test("a picked lens lists its dimensions under the chips, each with its counts, 
             dimension: 'logic',
             level: 'look',
           }),
-          findingOn('rust/crate/domain', { id: 'c', check: 'api:changed', dimension: 'api' }),
+          findingOn('rust/crate/domain', { id: 'c', check: 'api:signature', dimension: 'api' }),
           findingOn('rust/crate/domain', {
             id: 'd',
             check: 'flag',
@@ -2045,33 +2045,6 @@ test("a picked lens lists its dimensions under the chips, each with its counts, 
 
   await user.click(lenses.getByRole('button', { name: /Risk/ }));
   expect(screen.queryByRole('list', { name: /dimensions/ })).toBeNull();
-});
-
-test("a picked lens with nothing to show keeps Start here's band, saying so, with All findings, until it's unpicked", async () => {
-  const user = userEvent.setup();
-  render(
-    <ReviewPage
-      review={pageWith({
-        ...review,
-        findings: [findingOn('rust/crate/domain', { check: 'logic:changed', dimension: 'logic' })],
-      })}
-    />,
-  );
-
-  const band = await screen.findByRole('region', { name: 'Start here' });
-  const risk = within(screen.getByRole('group', { name: 'Lenses' })).getByRole('button', {
-    name: /Risk/,
-  });
-
-  await user.click(risk);
-  const picked = within(screen.getByRole('region', { name: 'Start here' }));
-  expect(picked.getByText('nothing to show in Risk')).toBeDefined();
-  expect(picked.getByRole('button', { name: 'All findings' })).toBeDefined();
-  expect(picked.queryByRole('listitem')).toBeNull();
-
-  await user.click(risk);
-  expect(within(band).queryByText(/nothing to show/)).toBeNull();
-  expect(within(band).getAllByRole('listitem')).toHaveLength(1);
 });
 
 test("a note's or a metric finding in the rail goes to its node or edge as the summary's links do", async () => {
