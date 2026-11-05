@@ -6576,8 +6576,19 @@ test('Full diff opens by itself on a part holding a line draft, and stays closed
   );
   expect(fullDiffOpen()).toBe(true);
   await toggleFullDiff();
+  expect(fullDiffOpen()).toBe(false);
   await user.click(finding);
   expect(fullDiffOpen()).toBe(false);
+
+  const partOpener = () => within(inspector()).getByRole('button', { name: 'Comment on x.ts' });
+  await user.click(partOpener());
+  await write(user, within(inspector()).getByRole('textbox', { name: 'Your comment' }), 'Why?');
+  await user.click(partOpener());
+  await user.click(
+    within(screen.getByRole('list', { name: 'Drafts' })).getByRole('button', { name }),
+  );
+  expect(fullDiffOpen()).toBe(true);
+  expect(partOpener().getAttribute('aria-expanded')).toBe('false');
 });
 
 const pageWithFilesDrawnOnlyAsABox = () =>
