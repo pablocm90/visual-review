@@ -579,3 +579,29 @@ test.for([
 ])('a route reads $reads', ({ written, expected }) => {
   expect(lines(written)).toStrictEqual([expected]);
 });
+
+const twice = (depth: number): string =>
+  depth === 0 ? 'get "a"' : `resources :a, :b, only: [] do\n${twice(depth - 1)}\nend`;
+
+test('names multiplying under names throw, rather than read without end', () => {
+  expect(() => read(twice(20))).toThrow('Too many routes to read');
+});
+
+test('files drawing each other twice over throw, rather than read without end', () => {
+  const files = Array.from(
+    { length: 20 },
+    (_, at) => [`config/routes/f${at}.rb`, `draw :f${at + 1}\ndraw :f${at + 1}\n`] as const,
+  );
+  expect(() =>
+    readFiles([
+      ['config/routes.rb', drawing('draw :f0')],
+      ...files,
+      ['config/routes/f20.rb', 'get "a"\n'],
+    ]),
+  ).toThrow('Too many routes to read');
+});
+
+test('an app far larger than a real one still reads', () => {
+  const many = Array.from({ length: 5000 }, (_, at) => `get "p${at}", to: "a#b"`).join('\n');
+  expect(read(many).routes).toHaveLength(5000);
+});

@@ -41,7 +41,10 @@ const RESOURCE_ACTIONS: ReadonlyArray<Action> = [
   ['DELETE', '', 'destroy'],
 ];
 
+const MOST_STATEMENTS = 100_000;
+
 type Scope = {
+  readonly visits: { count: number };
   readonly files: ReadonlyMap<string, string>;
   readonly root: string;
   readonly loading: ReadonlyArray<string>;
@@ -386,8 +389,11 @@ const HANDLERS: ReadonlyMap<string, Handler> = new Map<string, Handler>([
   ['delete', checked(drawnBy('DELETE'))],
 ]);
 
-const routesIn = (statement: Node, scope: Scope): ReadonlyArray<Drawn> =>
-  HANDLERS.get(methodOf(statement))?.(statement, scope) ?? [unread(statement, scope)];
+const routesIn = (statement: Node, scope: Scope): ReadonlyArray<Drawn> => {
+  scope.visits.count += 1;
+  if (scope.visits.count > MOST_STATEMENTS) throw new Error('Too many routes to read');
+  return HANDLERS.get(methodOf(statement))?.(statement, scope) ?? [unread(statement, scope)];
+};
 
 const isRoute = (drawn: Drawn): drawn is Route => 'verb' in drawn;
 
@@ -397,11 +403,12 @@ export const railsRoutes: RouteReader = {
   holds: path =>
     ROUTES_FILE.test(path) && !path.split('/').some(folder => NOT_SEARCHED.has(folder)),
   routes: files => {
+    const visits = { count: 0 };
     const drawn = [...files.keys()].flatMap(file => {
       const root = ROOT_FILE.exec(file)?.[1];
       return root === undefined
         ? []
-        : drawnFrom(file, { ...START, files, root, loading: [], file });
+        : drawnFrom(file, { ...START, visits, files, root, loading: [], file });
     });
     return {
       routes: drawn
