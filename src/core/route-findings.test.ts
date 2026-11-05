@@ -1,7 +1,7 @@
 import { expect, test } from 'vitest';
-import type { RouteRow, RoutesReading } from './read-routes.ts';
+import type { RouteRow, RoutesReading, UnreadRow } from './read-routes.ts';
 import { routeFindings } from './route-findings.ts';
-import type { Route } from './routes.ts';
+import type { Route, UnreadRoute } from './routes.ts';
 
 const FILE = 'config/routes.rb';
 
@@ -125,7 +125,142 @@ test('a PATCH and a PUT moved from different targets to one stay two lines', () 
 });
 
 test('a PUT removed as its PATCH is added still reads as removed', () => {
-  const added: RouteRow = { state: 'added', head: route({ verb: 'PATCH' }), patch: FILE };
+  const patch: RouteRow = { state: 'added', head: route({ verb: 'PATCH' }), patch: FILE };
 
-  expect(titles(added, removed({ verb: 'PUT' }))).toStrictEqual(['PUT /users removed']);
+  expect(titles(patch, removed({ verb: 'PUT' }))).toStrictEqual([
+    'PUT /users removed',
+    `1 route added in ${FILE}`,
+  ]);
+});
+
+const added = (overrides: Partial<Route> = {}, patch = FILE): RouteRow => ({
+  state: 'added',
+  head: route(overrides),
+  patch,
+});
+
+test('added routes are one finding for information per file, with the count', () => {
+  const admin = 'config/routes/admin.rb';
+
+  expect(
+    routeFindings(
+      reading(added({ path: '/a' }), added({ path: '/b' }, admin), added({ path: '/c' })),
+    ),
+  ).toStrictEqual([
+    {
+      id: `routes:added:${FILE}`,
+      dimension: 'routes',
+      level: 'info',
+      file: FILE,
+      title: `2 routes added in ${FILE}`,
+    },
+    {
+      id: `routes:added:${admin}`,
+      dimension: 'routes',
+      level: 'info',
+      file: admin,
+      title: `1 route added in ${admin}`,
+    },
+  ]);
+});
+
+test('an added PATCH and PUT count as one route', () => {
+  expect(titles(added({ verb: 'PATCH' }), added({ verb: 'PUT' }))).toStrictEqual([
+    `1 route added in ${FILE}`,
+  ]);
+});
+
+const item = (overrides: Partial<UnreadRoute> = {}): UnreadRoute => ({
+  text: 'devise_for :users',
+  path: '',
+  module: '',
+  root: '',
+  file: FILE,
+  line: 5,
+  ...overrides,
+});
+
+const unreadReading = (...unread: ReadonlyArray<UnreadRow>): ReadonlyArray<RoutesReading> => [
+  { routes: [], unread },
+];
+
+test('what cannot be read needs a look, saying whether it came or went', () => {
+  const unreadFile = 'config/routes/admin.rb';
+
+  expect(
+    routeFindings(
+      unreadReading(
+        { state: 'added', item: item({ file: unreadFile }), patch: FILE },
+        { state: 'removed', item: item({ text: 'concern :a' }), patch: FILE },
+      ),
+    ),
+  ).toStrictEqual([
+    {
+      id: `routes:not-read:${unreadFile}:devise_for :users`,
+      dimension: 'routes',
+      level: 'look',
+      file: FILE,
+      title: 'Added, not read: devise_for :users',
+      detail: `devise_for :users, at ${unreadFile}:5. Routes it draws aren't compared.`,
+    },
+    {
+      id: `routes:not-read:${FILE}:concern :a`,
+      dimension: 'routes',
+      level: 'look',
+      file: FILE,
+      title: 'Removed, not read: concern :a',
+      detail: `concern :a, at ${FILE}:5. Routes it draws aren't compared.`,
+    },
+  ]);
+});
+
+test('a long text is shortened in the title and whole in the detail', () => {
+  const text = `if ${'a'.repeat(100)}`;
+
+  const [finding] = routeFindings(
+    unreadReading({ state: 'added', item: item({ text }), patch: FILE }),
+  );
+
+  expect(finding?.title).toBe(`Added, not read: ${text.slice(0, 60)}…`);
+  expect(finding?.detail).toContain(text);
+});
+
+test('a text of the longest shown length is not shortened', () => {
+  const text = 'a'.repeat(60);
+
+  const [finding] = routeFindings(
+    unreadReading({ state: 'added', item: item({ text }), patch: FILE }),
+  );
+
+  expect(finding?.title).toBe(`Added, not read: ${text}`);
+});
+
+test('the same text twice in a file keeps two ids', () => {
+  const ids = routeFindings(
+    unreadReading(
+      { state: 'added', item: item(), patch: FILE },
+      { state: 'added', item: item(), patch: FILE },
+      { state: 'added', item: item({ file: 'config/routes/admin.rb' }), patch: FILE },
+      { state: 'added', item: item({ text: 'concern :a' }), patch: FILE },
+    ),
+  ).map(({ id }) => id);
+
+  expect(ids).toStrictEqual([
+    `routes:not-read:${FILE}:devise_for :users`,
+    `routes:not-read:${FILE}:devise_for :users#2`,
+    'routes:not-read:config/routes/admin.rb:devise_for :users',
+    `routes:not-read:${FILE}:concern :a`,
+  ]);
+});
+
+test('route files that could not be read are one finding that needs a look', () => {
+  expect(routeFindings([{ file: FILE, notRead: 'Ruby syntax error' }])).toStrictEqual([
+    {
+      id: `routes:not-read:${FILE}`,
+      dimension: 'routes',
+      level: 'look',
+      file: FILE,
+      title: `${FILE} not read: Ruby syntax error`,
+    },
+  ]);
 });

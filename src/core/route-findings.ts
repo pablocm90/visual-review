@@ -1,5 +1,6 @@
-import type { Finding } from './findings.ts';
-import type { RouteRow, RoutesReading } from './read-routes.ts';
+import { countedId } from './counted-id.ts';
+import { counted, type Finding } from './findings.ts';
+import type { RoutesReading, UnreadRow } from './read-routes.ts';
 import { type RouteLine, routeLines } from './route-lines.ts';
 
 const removalOrNewTarget = ({ verbs, row }: RouteLine): ReadonlyArray<Finding> => {
@@ -18,8 +19,58 @@ const removalOrNewTarget = ({ verbs, row }: RouteLine): ReadonlyArray<Finding> =
   ];
 };
 
-const rowsOf = (readings: ReadonlyArray<RoutesReading>): ReadonlyArray<RouteRow> =>
-  readings.flatMap(reading => ('notRead' in reading ? [] : reading.routes));
+const addedPerFile = (lines: ReadonlyArray<RouteLine>): ReadonlyArray<Finding> =>
+  [
+    ...Map.groupBy(
+      lines.filter(({ row }) => row.state === 'added'),
+      ({ row }) => row.patch,
+    ),
+  ].map(([file, added]) => ({
+    id: `routes:added:${file}`,
+    dimension: 'routes',
+    level: 'info',
+    file,
+    title: `${counted(added.length, 'route', 'routes')} added in ${file}`,
+  }));
+
+const LONGEST_SHOWN = 60;
+
+const shortened = (text: string): string =>
+  text.length > LONGEST_SHOWN ? `${text.slice(0, LONGEST_SHOWN)}…` : text;
+
+const STATE_WORDS = { added: 'Added', removed: 'Removed' } as const;
+
+const unreadFindings = (rows: ReadonlyArray<UnreadRow>): ReadonlyArray<Finding> =>
+  rows.map(({ state, item: { text, file, line }, patch }, at) => ({
+    id: countedId(
+      `routes:not-read:${file}:${text}`,
+      rows.slice(0, at).filter(({ item }) => item.file === file && item.text === text).length,
+    ),
+    dimension: 'routes',
+    level: 'look',
+    file: patch,
+    title: `${STATE_WORDS[state]}, not read: ${shortened(text)}`,
+    detail: `${text}, at ${file}:${line}. Routes it draws aren't compared.`,
+  }));
+
+const findingsOfReading = (reading: RoutesReading): ReadonlyArray<Finding> => {
+  if ('notRead' in reading)
+    return [
+      {
+        id: `routes:not-read:${reading.file}`,
+        dimension: 'routes',
+        level: 'look',
+        file: reading.file,
+        title: `${reading.file} not read: ${reading.notRead}`,
+      },
+    ];
+  const lines = routeLines(reading.routes);
+  return [
+    ...lines.flatMap(removalOrNewTarget),
+    ...addedPerFile(lines),
+    ...unreadFindings(reading.unread),
+  ];
+};
 
 export const routeFindings = (readings: ReadonlyArray<RoutesReading>): ReadonlyArray<Finding> =>
-  routeLines(rowsOf(readings)).flatMap(removalOrNewTarget);
+  readings.flatMap(findingsOfReading);
