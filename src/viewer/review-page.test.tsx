@@ -6624,6 +6624,51 @@ test('a diff line with a last comment takes Reply and no Comment, while a row a 
   ).toEqual(['Comment on x.ts:21 "const x = 2;"']);
 });
 
+test.for([
+  { where: 'at its row', said: 'const y = 0;' },
+  { where: 'atop the patch, no row reading the same', said: 'vanished();' },
+])('going from the tray to a reply on a diff line opens it $where', async ({ said }) => {
+  const user = userEvent.setup();
+  render(
+    <ReviewPage
+      review={{
+        ...pageWithPatch('@@ -12,1 +20,2 @@', ' const y = 0;', '+const x = 2;'),
+        sinceReview: {
+          ...sinceReview,
+          comments: [
+            {
+              anchor: { kind: 'line', id: 'web/src/x.ts@head:20', text: said },
+              kind: 'question',
+              text: 'Why?',
+            },
+          ],
+        },
+      }}
+      send={async () => {}}
+    />,
+  );
+
+  await user.click(await screen.findByRole('button', { name: 'x.ts: modified' }));
+  await user.click(within(inspector()).getByRole('tab', { name: 'Diff' }));
+  const reply = within(diffTab()).getByRole('button', { name: 'Reply' });
+  await user.click(reply);
+  await write(user, within(diffTab()).getByRole('textbox', { name: 'Your comment' }), 'Because.');
+  await user.click(reply);
+  expect(within(diffTab()).queryByRole('textbox', { name: 'Your comment' })).toBeNull();
+
+  await openReview(user);
+  await user.click(
+    within(screen.getByRole('list', { name: 'Drafts' })).getByRole('button', {
+      name: `x.ts:20 "${said}"`,
+    }),
+  );
+
+  expect(within(diffTab()).getByRole('textbox', { name: 'Your comment' })).toHaveProperty(
+    'value',
+    'Because.',
+  );
+});
+
 test('a comment that asks for something offers Resolve, a comment and not a finding answer offers Reply, and only on a served page', async () => {
   const comments: ReadonlyArray<PreviousComment> = [
     saidOnPart('rust/crate/application'),

@@ -99,13 +99,16 @@ const Resolve = ({ comment }: { readonly comment: PreviousComment }) => {
   );
 };
 
-const Reply = ({ comment }: { readonly comment: PreviousComment }) => {
+type Landed = { readonly landing?: object | undefined };
+
+const Reply = ({ comment, landing }: Landed & { readonly comment: PreviousComment }) => {
   const responding = useContext(RespondingToLastSaid);
   const anchor = anchorAtHead(comment);
   if (responding === undefined || anchor.kind === 'finding') return null;
   return (
     <CommentOpener
       word="Reply"
+      landing={landing}
       anchor={anchor}
       comments={responding.comments}
       onComment={responding.onComment}
@@ -113,7 +116,7 @@ const Reply = ({ comment }: { readonly comment: PreviousComment }) => {
   );
 };
 
-export const Said = (said: Marked) => {
+export const Said = ({ landing, ...said }: Marked & Landed) => {
   const { kind, text, changedSince = [], anchor } = said.comment;
   const mark = markOf(said);
   const answer = useContext(SaidOnThisPage).answers[anchorKey(anchor)];
@@ -133,7 +136,7 @@ export const Said = (said: Marked) => {
       )}
       {answer !== undefined && <ClaudesAnswer answer={answer} />}
       <Resolve comment={said.comment} />
-      <Reply comment={said.comment} />
+      <Reply comment={said.comment} landing={landing} />
     </>
   );
 };
@@ -163,10 +166,7 @@ export const useHasSaid = () => {
   return (on: Pick<Comment['anchor'], 'kind' | 'id'>): boolean => byAnchor.has(anchorKey(on));
 };
 
-type CommentOnProps = CommentFieldProps & {
-  readonly name: string;
-  readonly landing?: object | undefined;
-};
+type CommentOnProps = CommentFieldProps & Landed & { readonly name: string };
 
 export const CommentOn = ({ name, ...opener }: CommentOnProps) =>
   useHasSaid()(opener.anchor) ? null : (
@@ -188,7 +188,8 @@ export const useSaidLinesOf = (
 
 export const SaidBefore = ({
   on,
-}: {
+  landing,
+}: Landed & {
   readonly on: Pick<PreviousComment['anchor'], 'kind' | 'id'>;
 }) => {
   const { byAnchor, compared } = useContext(SaidOnThisPage);
@@ -200,7 +201,7 @@ export const SaidBefore = ({
       className="said-before"
       aria-label={`Last review: ${saidLabel({ comment, compared })}`}
     >
-      <Said comment={comment} compared={compared} />
+      <Said comment={comment} compared={compared} landing={landing} />
     </div>
   );
 };

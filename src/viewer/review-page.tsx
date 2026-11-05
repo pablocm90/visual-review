@@ -516,7 +516,7 @@ const PatchLine = ({
         <Scoped key={index} {...piece} />
       ))}
       {said.map(on => (
-        <SaidBefore key={on.id} on={on} />
+        <SaidBefore key={on.id} on={on} landing={landing} />
       ))}
       {onComment && anchor && (
         <CommentOn
@@ -568,7 +568,7 @@ const Patch = ({
         <ChangedSinceTag marked={marked} />
       </summary>
       {saidAt(undefined).map(on => (
-        <SaidBefore key={on.id} on={on} />
+        <SaidBefore key={on.id} on={on} landing={landed} />
       ))}
       <pre>
         {lines.map((line, index) => (
