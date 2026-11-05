@@ -1884,7 +1884,6 @@ const Page = ({ review, notes, send }: ReviewPageProps) => {
           findings={findings}
           nodes={review.diff.nodes}
           tests={review.tests}
-          onGoTo={id => goToOnTab(id, 'note')}
           onGoToDraft={goToDraft}
           onGoToOutside={showOutsideAt}
           onGoToFile={showFile}

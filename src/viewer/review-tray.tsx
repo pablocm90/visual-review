@@ -25,7 +25,6 @@ type ReviewTrayProps = {
   readonly findings: ReadonlyArray<Finding>;
   readonly nodes: Nodes;
   readonly tests: TargetsOf['tests'];
-  readonly onGoTo: (id: string) => void;
   readonly onGoToDraft: (id: string, anchor: PreviousComment['anchor']) => void;
   readonly onGoToOutside: (place: PlaceOfLine, opener: HTMLButtonElement) => void;
   readonly onGoToFile: (path: string, opener: HTMLButtonElement, place?: string) => void;
@@ -209,7 +208,6 @@ export const ReviewTray = ({
   findings,
   nodes,
   tests,
-  onGoTo,
   onGoToDraft,
   onGoToOutside,
   onGoToFile,
@@ -232,7 +230,7 @@ export const ReviewTray = ({
   const verdict = picked ?? suggested;
   const commentedOn = new Set(drafted.map(({ anchor }) => targetOf(anchor)));
   const silent = read.filter(part => !commentedOn.has(part));
-  const going = { nodes, findings, onGoTo, onGoToDraft, onGoToOutside };
+  const going = { nodes, findings, onGoToDraft, onGoToOutside };
   const closed = resolved.map(comment => ({ comment, ...whereOf(comment, going) }));
   const preview = previewOf({
     verdict,

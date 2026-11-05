@@ -19,7 +19,7 @@ type Going = {
 
 export const whereOf = (
   { anchor, target }: PreviousComment,
-  { nodes, findings, onGoToDraft, onGoToOutside }: Going,
+  { nodes, findings, onGoToDraft, onGoToOutside }: Omit<Going, 'onGoTo'>,
 ) => {
   if (anchor.kind === 'finding')
     return {
