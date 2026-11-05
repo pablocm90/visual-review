@@ -1,6 +1,14 @@
 import type { Node } from 'web-tree-sitter';
 import type { Route, RouteReader } from '../../core/routes.ts';
-import { argsOf, methodOf, nameOf, parseRuby } from './ruby-syntax.ts';
+import {
+  argsOf,
+  methodOf,
+  nameOf,
+  namesIn,
+  optionOf,
+  parseRuby,
+  positional,
+} from './ruby-syntax.ts';
 
 const ROUTES_FILE = /(?:^|\/)config\/routes\.rb$/;
 
@@ -20,12 +28,23 @@ const statementsOf = (call: Node): ReadonlyArray<Node> =>
     ({ type }) => type !== 'comment',
   );
 
+const kept = (args: ReadonlyArray<Node>) => {
+  const only = optionOf(args, 'only');
+  const except = optionOf(args, 'except');
+  return ACTIONS.filter(([, , action]) =>
+    only === undefined
+      ? !(except !== undefined && namesIn(except).includes(action))
+      : namesIn(only).includes(action),
+  );
+};
+
 const routesIn = (file: string, statement: Node): ReadonlyArray<Route> => {
   const method = methodOf(statement);
   if (method === 'draw') return statementsOf(statement).flatMap(inner => routesIn(file, inner));
   if (method !== 'resources') return [];
-  return argsOf(statement).flatMap(arg =>
-    ACTIONS.map(([verb, suffix, action]) => ({
+  const args = argsOf(statement);
+  return positional(args).flatMap(arg =>
+    kept(args).map(([verb, suffix, action]) => ({
       verb,
       path: `/${nameOf(arg)}${suffix}`,
       target: `${nameOf(arg)}#${action}`,
