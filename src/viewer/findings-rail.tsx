@@ -18,6 +18,7 @@ import {
   findingLine,
   LevelMark,
 } from './finding-display.tsx';
+import { LENS_OF, LENSES, type Lens } from './lenses.ts';
 import { SaidBefore } from './said-before.tsx';
 
 type FindingsRailProps = {
@@ -52,7 +53,7 @@ type Group = {
   readonly findings: ReadonlyArray<Line>;
 };
 
-export const nameOf = (dimension: Dimension) => {
+const nameOf = (dimension: Dimension) => {
   if (dimension === 'api') return 'API';
   const words = dimension.replace('-', ' ');
   return `${words.charAt(0).toUpperCase()}${words.slice(1)}`;
@@ -116,8 +117,15 @@ const groupsOf = (props: FindingsRailProps): ReadonlyArray<Group> => {
   }));
 };
 
+const LensOf = ({ dimension }: { readonly dimension: Dimension }) => (
+  <span className="start-here-lens">
+    {LENS_OF[dimension]} · {nameOf(dimension).toLowerCase()}
+  </span>
+);
+
 type FindingItemProps = {
   readonly finding: Line;
+  readonly lens?: Dimension;
   readonly calledFine?: boolean | undefined;
   readonly answer?: Answer | undefined;
   readonly onAnswer?: AnswerTo | undefined;
@@ -136,11 +144,19 @@ const FindingSaid = ({ finding, calledFine }: Pick<FindingItemProps, 'finding' |
   </>
 );
 
-const FindingItem = ({ finding, calledFine, answer, onAnswer, children }: FindingItemProps) => {
+const FindingItem = ({
+  finding,
+  lens,
+  calledFine,
+  answer,
+  onAnswer,
+  children,
+}: FindingItemProps) => {
   const said = <FindingSaid finding={finding} calledFine={calledFine} />;
   return (
     <li className="finding">
       <LevelMark level={finding.level} />
+      {lens && <LensOf dimension={lens} />}
       {finding.act ? (
         <button
           type="button"
@@ -251,39 +267,48 @@ export const FindingsRail = (props: FindingsRailProps) => {
   );
 };
 
-type TriageStripProps = {
+type LensChipsProps = {
   readonly findings: ReadonlyArray<Finding>;
-  readonly picked: Dimension | undefined;
-  readonly onPick: (dimension: Dimension | undefined) => void;
+  readonly picked: Lens | undefined;
+  readonly onPick: (lens: Lens | undefined) => void;
 };
 
-export const TriageStrip = ({ findings, picked, onPick }: TriageStripProps) => {
-  const chips = DIMENSIONS.map(dimension => ({
-    dimension,
-    found: findings.filter(finding => finding.dimension === dimension),
-  })).filter(({ found }) => found.length > 0);
-  if (chips.length === 0) return null;
-  return (
-    <div className="triage" role="group" aria-label="Triage">
-      {chips.map(({ dimension, found }) => (
+export const LensChips = ({ findings, picked, onPick }: LensChipsProps) => (
+  <div className="lenses" role="group" aria-label="Lenses">
+    {LENSES.map(lens => {
+      const found = findings.filter(finding => LENS_OF[finding.dimension] === lens);
+      const count = (level: Level) => {
+        const shown = found.filter(finding => finding.level === level).length;
+        return (
+          shown > 0 && (
+            <span className="lens-count">
+              <LevelMark level={level} />
+              {shown}
+            </span>
+          )
+        );
+      };
+      return (
         <button
-          key={dimension}
-          className="chip"
+          key={lens}
+          className={found.length > 0 ? 'chip' : 'chip chip-quiet'}
           type="button"
-          aria-pressed={dimension === picked}
-          onClick={() => onPick(dimension === picked ? undefined : dimension)}
+          aria-pressed={lens === picked}
+          onClick={() => onPick(lens === picked ? undefined : lens)}
         >
-          {found.some(finding => finding.level === 'look') && <LevelMark level="look" />}
-          {`${nameOf(dimension)} ${found.length}`}
+          {lens}
+          {count('info')}
+          {count('look')}
         </button>
-      ))}
-    </div>
-  );
-};
+      );
+    })}
+  </div>
+);
 
 type StartHereProps = LineOptions & {
   readonly findings: ReadonlyArray<Finding>;
   readonly onShowAll: () => void;
+  readonly picked: Lens | undefined;
   readonly review: Pick<PageData, 'diff' | 'metrics' | 'sinceReview'>;
 };
 
@@ -298,6 +323,7 @@ const SeveralFindings = ({ line, lineOf }: SeveralFindingsProps) => {
   return (
     <li className="finding start-here-several">
       <LevelMark level={line.level} />
+      <LensOf dimension={line.dimension} />
       <button
         type="button"
         aria-label={heading}
@@ -318,6 +344,11 @@ const SeveralFindings = ({ line, lineOf }: SeveralFindingsProps) => {
   );
 };
 
+const startHereCount = (look: number, total: number) =>
+  look > 0
+    ? counted(look, 'finding needs a look', 'findings need a look')
+    : `nothing needs a look · ${counted(total, 'finding', 'findings')}`;
+
 export const StartHere = (props: StartHereProps) => {
   const [open, setOpen] = useState(true);
   const calledFine = props.review.sinceReview?.calledFine ?? [];
@@ -326,7 +357,7 @@ export const StartHere = (props: StartHereProps) => {
     metrics: props.review.metrics,
     nodes: props.review.diff.nodes,
   });
-  if (lines.length === 0) return null;
+  if (lines.length === 0 && props.picked === undefined) return null;
   const lineOf = linesOf(props);
   const lineOfOne = (finding: Finding): Line => {
     const { groups, ...line } = lineOf(finding);
@@ -346,9 +377,7 @@ export const StartHere = (props: StartHereProps) => {
           </button>
         </h2>
         <span className="start-here-count">
-          {look > 0
-            ? counted(look, 'finding needs a look', 'findings need a look')
-            : `nothing needs a look · ${counted(total, 'finding', 'findings')}`}
+          {lines.length === 0 ? `nothing to show in ${props.picked}` : startHereCount(look, total)}
         </span>
         <button type="button" className="show-all" onClick={props.onShowAll}>
           All findings
@@ -359,7 +388,7 @@ export const StartHere = (props: StartHereProps) => {
           {lines.map(line =>
             line.findings.length === 1 ? (
               line.findings.map(finding => (
-                <FindingItem key={line.key} finding={lineOfOne(finding)} />
+                <FindingItem key={line.key} finding={lineOfOne(finding)} lens={line.dimension} />
               ))
             ) : (
               <SeveralFindings key={line.key} line={line} lineOf={lineOf} />
