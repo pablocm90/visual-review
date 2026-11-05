@@ -2,6 +2,12 @@
 
 What changed in each release of `@pablocm90/visual-review`, newest first. Versions follow [semver](https://semver.org); while it is 0.x, a minor version may change the exported types.
 
+## Unreleased
+
+### Added
+
+- A changed Rails file reads its symbols as a TS/JS file does: a Symbols tab, Kind of change and the `api` findings. Classes and modules go by their full constant; methods, setters, `attr_*`, `delegate` and `scope` go under them, public or not as `private`, `protected`, `module_function`, `private_class_method` and `private_constant` say. A method's signature is its parameters. A file that doesn't parse reads `unreadable`. Test files read none, and Rails logic lines come next.
+
 ## 0.25.0 — 2026-11-05
 
 ### Changed
