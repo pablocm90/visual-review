@@ -1,0 +1,54 @@
+export type SplitSignature = {
+  readonly opener: string;
+  readonly members: ReadonlyArray<string>;
+  readonly closer: string;
+};
+
+type Mark = { readonly token: string; readonly at: number; readonly depth: number };
+
+type Scan = { readonly open: string; readonly marks: ReadonlyArray<Mark> };
+
+const STRUCTURE = /'(?:[^'\\]|\\.)*'|"(?:[^"\\]|\\.)*"|`(?:[^`\\]|\\.)*`|=>|[()[\]{}<>,;]/g;
+
+const scanned = (scan: Scan, open: string, mark: Mark): Scan => ({
+  open,
+  marks: [...scan.marks, mark],
+});
+
+const step = (scan: Scan, token: string, at: number): Scan => {
+  const depth = scan.open.length;
+  if ('([{<'.includes(token)) return scanned(scan, scan.open + token, { token, at, depth });
+  if (token === '>')
+    return scan.open.endsWith('<') ? { ...scan, open: scan.open.slice(0, -1) } : scan;
+  if (!')]}'.includes(token)) return scanned(scan, scan.open, { token, at, depth });
+  return scanned(scan, scan.open.slice(0, -1), { token, at, depth: depth - 1 });
+};
+
+const marksOf = (text: string): ReadonlyArray<Mark> =>
+  [...text.matchAll(STRUCTURE)].reduce<Scan>((scan, match) => step(scan, match[0], match.index), {
+    open: '',
+    marks: [],
+  }).marks;
+
+export const splitSignature = (text: string): SplitSignature | undefined => {
+  const marks = marksOf(text);
+  const top = marks.filter(({ depth }) => depth === 0);
+  const open = top.find(({ token }) => token === '(' || token === '{');
+  const close = open && top[top.indexOf(open) + 1];
+  if (open === undefined || close === undefined) return undefined;
+  const start = open.at + 1;
+  const end = start + text.slice(start, close.at).trimEnd().length;
+  const cuts = marks
+    .filter(
+      ({ token, at, depth }) =>
+        depth === 1 && at > open.at && at < close.at && ',;'.includes(token),
+    )
+    .map(({ at }) => at + 1);
+  return {
+    opener: text.slice(0, start),
+    members: [start, ...cuts]
+      .map((from, index) => text.slice(from, cuts[index] ?? end))
+      .filter(member => member !== ''),
+    closer: text.slice(end),
+  };
+};
