@@ -14,6 +14,7 @@ import { type AnchoredSymbol, anchoredSymbols, decisionsOf } from '../core/symbo
 import { ChangedSinceTag, sinceLabel, useIsChangedSince } from './changed-since.tsx';
 import type { Comments } from './comment-field.tsx';
 import { CommentOn, SaidBefore, useHasSaid } from './said-before.tsx';
+import { Signature } from './signature-lines.tsx';
 
 type Group = readonly [string, (symbol: SymbolStatement) => boolean];
 
@@ -242,10 +243,7 @@ const SymbolList = ({
           <ChangedSinceTag marked={isChangedSince('symbols', id)} />
           <Origin symbol={symbol} {...places} />
           {symbol.signature && (
-            <span className="signature">
-              <del>{symbol.signature.base}</del>
-              <ins>{symbol.signature.head}</ins>
-            </span>
+            <Signature name={`${symbol.kind} ${qualified(symbol)}`} signature={symbol.signature} />
           )}
           <SaidBefore on={{ kind: 'symbol', id }} />
           {places.onComment && (

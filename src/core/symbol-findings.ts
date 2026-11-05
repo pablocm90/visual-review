@@ -3,6 +3,7 @@ import type { Finding } from './findings.ts';
 import type { GraphNode } from './graph.ts';
 import { decisionText, type LogicLine } from './logic-diff.ts';
 import type { SymbolFile } from './read-range.ts';
+import { signatureSummary } from './signature-members.ts';
 import { type FileSymbolChanges, qualified, type SymbolStatement } from './symbol-changes.ts';
 
 type Removal = { readonly former: string; readonly how: string; readonly detail?: string };
@@ -81,7 +82,7 @@ const findingOf = ({
     id: `api:signature:${id}`,
     ...on,
     title: `${statement.kind} ${name}'s signature changed`,
-    detail: `${signature.base} → ${signature.head}`,
+    detail: signatureSummary(signature),
   };
 };
 

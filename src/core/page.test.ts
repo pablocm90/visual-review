@@ -469,7 +469,7 @@ test.for([
   },
 );
 
-test('an exported symbol whose signature changed is an api finding to look at, its detail the signature before and after; one changed on a symbol not exported raises none', () => {
+test('an exported symbol whose signature changed is an api finding to look at, its detail summing up what moved; one changed on a symbol not exported raises none', () => {
   const signature = { base: '(order: Order)', head: '(order: Order, at: Date)' };
   const symbols = [
     symbolFile([
@@ -499,7 +499,7 @@ test('an exported symbol whose signature changed is an api finding to look at, i
       level: 'look',
       target: 'web/file/a.ts',
       title: "method Orders.charge's signature changed",
-      detail: '(order: Order) → (order: Order, at: Date)',
+      detail: '1 member added',
     },
   ]);
 });
