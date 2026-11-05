@@ -894,7 +894,8 @@ const Inspector = ({
   const column = useRef<HTMLElement>(null);
   // biome-ignore lint/correctness/useExhaustiveDependencies: a new part opens at the column's top
   useLayoutEffect(() => {
-    if (!column.current || landing?.row !== undefined || landing?.path !== undefined) return;
+    const onItsRow = landing?.row !== undefined && shown?.tab === 'note';
+    if (!column.current || onItsRow || landing?.path !== undefined) return;
     column.current.scrollTop = 0;
   }, [props.anchor.id, landing]);
   return (

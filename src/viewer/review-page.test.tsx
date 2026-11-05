@@ -2266,6 +2266,45 @@ test('the next part opens at the top of the column, which holds its scroll while
   expect(inspector().scrollTop).toBe(0);
 });
 
+test('a finding opens its part at the top of the column unless Note is there to show its row', async () => {
+  const user = userEvent.setup();
+  render(
+    <ReviewPage
+      review={pageWith({
+        ...review,
+        findings: [findingOn('rust/crate/domain')],
+        metrics: {
+          'rust/crate/application': { base: measured(), head: measured() },
+          'rust/crate/domain': { base: measured(), head: measured() },
+        },
+      })}
+    />,
+  );
+  const rust = await screen.findByRole('group', { name: 'rust' });
+  const goToFinding = () =>
+    user.click(
+      within(screen.getByRole('complementary', { name: 'Findings' })).getByRole('button', {
+        name: 'domain: lines 900, over 800',
+      }),
+    );
+  await user.click(await screen.findByRole('button', { name: 'Show 1 finding' }));
+
+  await user.click(within(rust).getByRole('button', { name: 'application: modified' }));
+  await user.click(within(inspector()).getByRole('tab', { name: 'Metrics' }));
+  inspector().scrollTop = 300;
+  await goToFinding();
+  expect(selectedPart()).toBe('domain');
+  expect(within(inspector()).getByRole('tab', { selected: true }).textContent).toBe('Metrics');
+  expect(inspector().scrollTop).toBe(0);
+
+  await user.click(within(rust).getByRole('button', { name: 'application: modified' }));
+  await user.click(within(inspector()).getByRole('tab', { name: /^Note/ }));
+  inspector().scrollTop = 300;
+  await goToFinding();
+  expect(selectedPart()).toBe('domain');
+  expect(inspector().scrollTop).toBe(300);
+});
+
 test('A marks the selected part read, ticking its row and counting it at the head of the reading order, and A again leaves it unread', async () => {
   const user = userEvent.setup();
   render(<ReviewPage review={walkedReview()} />);
