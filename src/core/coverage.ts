@@ -7,9 +7,17 @@ export type Coverage = {
   readonly notRead: ReadonlyArray<string>;
 };
 
-export type CoverageFacts = Pick<RangeReading, 'skipped'>;
+export type CoverageFacts = Pick<RangeReading, 'skipped' | 'symbolsNotRead'>;
 
-export const coverageOf = ({ skipped }: CoverageFacts): ReadonlyArray<Coverage> => [
-  { dimension: 'structure', notRead: skipped.map(notReadLine) },
-  { dimension: 'cohesion', notRead: [] },
-];
+export const coverageOf = ({ skipped, symbolsNotRead }: CoverageFacts): ReadonlyArray<Coverage> => {
+  const symbolsMissing = [
+    ...new Set([...skipped.flatMap(({ stacks }) => stacks), ...symbolsNotRead]),
+  ].map(stack => `not read for ${stack}`);
+  return [
+    { dimension: 'structure', notRead: skipped.map(notReadLine) },
+    { dimension: 'logic', notRead: symbolsMissing },
+    { dimension: 'api', notRead: symbolsMissing },
+    { dimension: 'tests', notRead: symbolsMissing },
+    { dimension: 'cohesion', notRead: [] },
+  ];
+};
