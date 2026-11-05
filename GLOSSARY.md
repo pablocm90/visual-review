@@ -48,7 +48,7 @@ _Avoid_: rule, kind
 _In code_: `Finding['check']`, `Check` (`src/core/checks.ts`)
 
 **Start here**:
-The few lines to begin with above the graph, at most five, each the findings of one check and level, or one flag. Those that need a look come first; within each level, a line ranks by its best finding: the blind spots, then direct dependency changes, risky migrations and removed tables, then what most depends on, then what changes most.
+The few lines to begin with above the graph, at most five, each the findings of one check and level, or one flag. Those that need a look come first; within each level, a line ranks by its best finding: the blind spots, then direct dependency changes, risky migrations, removed tables, removed routes and new targets, then what most depends on, then what changes most.
 _Avoid_: Look first, top findings, priorities
 _In code_: `startHere` (`src/core/start-here.ts`)
 
@@ -61,6 +61,11 @@ _In code_: `PackageChange` (`src/core/dependency-changes.ts`)
 A table added to, removed from or changed in a schema dump, with its table options, columns and indexes before and after; a column or index pairs by name, so a rename is one removed and one added.
 _Avoid_: migration, schema diff
 _In code_: `TableChange` (`src/core/schema-diff.ts`)
+
+**Route change**:
+A route added to or removed from a Rails app's routes, or a verb and path that now goes to another target. Routes are compared as they expand, keyed by app, verb and path, so `only: [:index]` to `only: [:index, :destroy]` is one route added, and moving a line changes nothing.
+_Avoid_: routes diff, endpoint change
+_In code_: `RouteChange` (`src/core/route-diff.ts`)
 
 **Direct**:
 Declared by the project itself on either side of the change, as a lockfile says or, for `yarn.lock`, as the `package.json` files at or under its folder say. Any other package in a lockfile is transitive.
@@ -176,6 +181,7 @@ _In code_: `SinceReview['calledFine']`
 - A **round** after the first compares against the newest review of its pull request at another head; **changed since** is always a subset of what the pull request changes at either head, so a part it has reverted counts; a symbol, logic line, test or file is **changed since** by its own anchor id, a diff line by its file.
 - A **direct** package's **dependency change** raises its own **finding** that needs a look; a lockfile's transitive ones roll up into one **finding** for information.
 - A **table change** raises a **finding** in the schema dimension, for information, or needing a look when the table is removed; a dump added or removed whole raises one for the file, and none per table.
+- A removed route or a new target at one verb and path raises its own **finding** in the routes dimension that needs a look; a file's added routes raise one for information, with the count. PATCH and PUT of one path and target count as one. A statement not read raises a **finding** that needs a look only when its text is added or removed, so one that stays raises none.
 - A **flag** is answered like any other **finding**, under the id `notes:<node or edge id>`.
 - A removed guard or catch **logic line** raises a **finding** in the logic dimension that needs a look; a function's other **logic lines** that changed, a moved one among them, raise one for information; a file with either and no test changed alongside it raises one in the tests dimension.
 
