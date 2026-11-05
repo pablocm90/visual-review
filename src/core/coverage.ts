@@ -1,4 +1,5 @@
 import type { Dimension } from './findings.ts';
+import { NO_AXUM_CRATE } from './linker.ts';
 import type { RangeReading } from './read-range.ts';
 import { notReadLine } from './skipped.ts';
 
@@ -19,6 +20,7 @@ export type CoverageFacts = Pick<
   | 'migrations'
   | 'readers'
   | 'linksNotRead'
+  | 'routes'
 >;
 
 const notReadFor = (name: string): string => `not read for ${name}`;
@@ -34,6 +36,7 @@ export const coverageOf = ({
   migrations,
   readers,
   linksNotRead,
+  routes,
 }: CoverageFacts): ReadonlyArray<Coverage> => {
   const skippedStacks = skipped.flatMap(({ stacks }) => stacks);
   const symbolsMissing = [
@@ -49,6 +52,11 @@ export const coverageOf = ({
       : schemaReadings.flatMap(reading =>
           'notRead' in reading ? [`not read: ${reading.file}`] : [],
         );
+  const railsRoutes = routes.length > 0 || readers.includes('rails');
+  const routesNotRead = [
+    ...linksNotRead.filter(reason => !railsRoutes || reason !== NO_AXUM_CRATE),
+    ...routes.flatMap(reading => ('notRead' in reading ? [`not read: ${reading.file}`] : [])),
+  ];
   return [
     { dimension: 'structure', notRead: skipped.map(notReadLine) },
     { dimension: 'logic', notRead: ifDrawn(symbolsMissing) },
@@ -71,7 +79,7 @@ export const coverageOf = ({
       ),
     },
     { dimension: 'schema', notRead: schemaNotRead },
-    { dimension: 'routes', notRead: linksNotRead },
+    { dimension: 'routes', notRead: routesNotRead },
     { dimension: 'cohesion', notRead: [] },
   ];
 };

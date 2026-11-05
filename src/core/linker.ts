@@ -11,6 +11,8 @@ export type LinkedStack = {
   readonly nodes: ReadonlyArray<GraphNode>;
 };
 
+export const NO_AXUM_CRATE = 'no axum crate';
+
 export type Links = {
   readonly edges: ReadonlyArray<GraphEdge>;
   readonly dangling: ReadonlyArray<DanglingCall>;

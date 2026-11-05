@@ -13,6 +13,7 @@ const facts = (overrides: Partial<CoverageFacts> = {}): CoverageFacts => ({
   migrations: [],
   readers: ['rails'],
   linksNotRead: [],
+  routes: [],
   ...overrides,
 });
 
@@ -130,6 +131,32 @@ test.for(['logic', 'api', 'tests', 'metrics'] as const)(
   },
 );
 
-test("routes gives the linker's reason", () => {
-  expect(notReadIn('routes', { linksNotRead: ['no axum crate'] })).toEqual(['no axum crate']);
+test("routes gives the linker's reason where nothing else reads routes", () => {
+  expect(notReadIn('routes', { readers: ['typescript'], linksNotRead: ['no axum crate'] })).toEqual(
+    ['no axum crate'],
+  );
+});
+
+test.for([
+  { readers: ['rails'], routes: [] },
+  { readers: ['typescript'], routes: [{ routes: [], unread: [] }] },
+] satisfies ReadonlyArray<Pick<CoverageFacts, 'readers' | 'routes'>>)(
+  'routes read from Rails need no axum crate, and keep the reasons a linker that could have run gives: %j',
+  overrides => {
+    expect(notReadIn('routes', { ...overrides, linksNotRead: ['no axum crate'] })).toEqual([]);
+    expect(notReadIn('routes', { ...overrides, linksNotRead: ['turned off'] })).toEqual([
+      'turned off',
+    ]);
+  },
+);
+
+test('routes names a route file it could not read, and not one it could', () => {
+  expect(
+    notReadIn('routes', {
+      routes: [
+        { file: 'config/routes.rb', notRead: 'parse error' },
+        { routes: [], unread: [] },
+      ],
+    }),
+  ).toEqual(['not read: config/routes.rb']);
 });
