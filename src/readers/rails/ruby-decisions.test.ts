@@ -35,3 +35,34 @@ test.for([
 ])('$reason is no guard', ({ lines }) => {
   expect(decisionsIn(...lines)?.filter(({ kind }) => kind === 'guard')).toEqual([]);
 });
+
+test.for([
+  { lines: ['if x', '  go', 'end'], text: 'if x' },
+  { lines: ['unless x', '  go', 'end'], text: 'unless x' },
+  { lines: ['go if x'], text: 'if x' },
+  { lines: ['go unless x'], text: 'unless x' },
+  { lines: ['if x', '  go', '  return', 'end'], text: 'if x' },
+])('$lines reads as the if $text', ({ lines, text }) => {
+  expect(decisionsIn(...lines)?.[0]).toEqual({ kind: 'if', text, depth: 0, line: 2 });
+});
+
+test.for([
+  { reason: 'a then branch', lines: ['if x', '  go if y', 'end'] },
+  { reason: 'an else branch', lines: ['if x', '  go', 'else', '  go if y', 'end'] },
+  { reason: 'a modifier body', lines: ['(go if y) if x'] },
+])('an if in $reason reads one deeper', ({ lines }) => {
+  expect(decisionsIn(...lines)?.map(({ text, depth }) => [text, depth])).toEqual([
+    ['if x', 0],
+    ['if y', 1],
+  ]);
+});
+
+test('an elsif reads level with its if, and its branch one deeper', () => {
+  const lines = ['if x', '  go', 'elsif y', '  go if z', 'elsif w', '  return', 'end'];
+  expect(decisionsIn(...lines)).toEqual([
+    { kind: 'if', text: 'if x', depth: 0, line: 2 },
+    { kind: 'if', text: 'elsif y', depth: 0, line: 4 },
+    { kind: 'if', text: 'if z', depth: 1, line: 5 },
+    { kind: 'if', text: 'elsif w', depth: 0, line: 6 },
+  ]);
+});

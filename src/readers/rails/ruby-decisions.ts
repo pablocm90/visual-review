@@ -57,26 +57,41 @@ const exitOf = (statement: Node | undefined): string | undefined => {
   return `${word}${thrownName(statementsOf(fieldOf(statement, 'arguments'))[0])}`;
 };
 
-const guardOf = (node: Node, word: string, opening: Node | undefined): Read | undefined => {
+const fieldsOf = (node: Node, ...fields: ReadonlyArray<string>): ReadonlyArray<Node> =>
+  fields.flatMap(field => fieldOf(node, field) ?? []);
+
+const conditionOf = (node: Node, word: string): string =>
+  `${word} ${codeOf(fieldOf(node, 'condition'))}`;
+
+const ifOf = (text: string, deeper: ReadonlyArray<Node>): Read => ({ kind: 'if', text, deeper });
+
+const guardOr = (branch: Read, opening: Node | undefined): Read => {
   const exit = exitOf(opening);
   return exit === undefined
-    ? undefined
-    : { kind: 'guard', text: `${exit} ${word} ${codeOf(fieldOf(node, 'condition'))}`, deeper: [] };
+    ? branch
+    : { kind: 'guard', text: `${exit} ${branch.text}`, deeper: [] };
 };
 
-const blockIf = (node: Node): Read | undefined =>
+const branchedIf = (node: Node): Read =>
+  ifOf(conditionOf(node, node.type), fieldsOf(node, 'consequence', 'alternative'));
+
+const blockIf = (node: Node): Read =>
   fieldOf(node, 'alternative') === undefined
-    ? guardOf(node, node.type, statementsOf(fieldOf(node, 'consequence'))[0])
-    : undefined;
+    ? guardOr(branchedIf(node), statementsOf(fieldOf(node, 'consequence'))[0])
+    : branchedIf(node);
 
-const modifierIf = (node: Node): Read | undefined =>
-  guardOf(node, node.type.replace('_modifier', ''), fieldOf(node, 'body'));
+const modifierIf = (node: Node): Read =>
+  guardOr(
+    ifOf(conditionOf(node, node.type.replace('_modifier', '')), fieldsOf(node, 'body')),
+    fieldOf(node, 'body'),
+  );
 
-const READS = new Map<string, (node: Node) => Read | undefined>([
+const READS = new Map<string, (node: Node) => Read>([
   ['if', blockIf],
   ['unless', blockIf],
   ['if_modifier', modifierIf],
   ['unless_modifier', modifierIf],
+  ['elsif', branchedIf],
 ]);
 
 type Walk = { readonly depth: number };
@@ -85,14 +100,10 @@ const decisionsUnder = (walk: Walk, nodes: ReadonlyArray<Node>): ReadonlyArray<D
   nodes.flatMap(node => {
     const read = READS.get(node.type)?.(node);
     if (read === undefined) return decisionsUnder(walk, node.namedChildren);
+    const depth = node.type === 'elsif' ? walk.depth - 1 : walk.depth;
     return [
-      {
-        kind: read.kind,
-        text: read.text,
-        depth: walk.depth,
-        line: node.startPosition.row + 1,
-      },
-      ...decisionsUnder({ depth: walk.depth + 1 }, read.deeper),
+      { kind: read.kind, text: read.text, depth, line: node.startPosition.row + 1 },
+      ...decisionsUnder({ depth: depth + 1 }, read.deeper),
     ];
   });
 
