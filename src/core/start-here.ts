@@ -1,6 +1,6 @@
 import { CHECK_TITLES } from './checks.ts';
 import type { Finding } from './findings.ts';
-import type { GraphNode } from './graph.ts';
+import { endsOfId, type GraphNode } from './graph.ts';
 import type { NodeMetrics } from './metrics.ts';
 
 type StartHereOptions = {
@@ -20,12 +20,20 @@ export type StartHereLine = {
 
 const distinct = (values: ReadonlyArray<string>) => [...new Set(values)];
 
-export const startHere = ({ findings, nodes }: StartHereOptions) => {
+export const startHere = ({ findings, metrics, nodes }: StartHereOptions) => {
   const nodeOf = new Map(nodes.map(node => [node.id, node]));
   const nodesOf = (group: ReadonlyArray<Finding>) =>
     group.flatMap(({ target }) => [nodeOf.get(target ?? '')].filter(node => node !== undefined));
+  const highest = (target: string | undefined, measure: 'fanIn' | 'churn') =>
+    target === undefined
+      ? Number.POSITIVE_INFINITY
+      : Math.max(...endsOfId(target).map(end => metrics[end]?.head?.[measure] ?? 0));
   const ranked = findings.toSorted(
-    (one, other) => Number(other.level === 'look') - Number(one.level === 'look'),
+    (one, other) =>
+      Number(other.level === 'look') - Number(one.level === 'look') ||
+      highest(other.target, 'fanIn') - highest(one.target, 'fanIn') ||
+      highest(other.target, 'churn') - highest(one.target, 'churn') ||
+      (one.id < other.id ? -1 : 1),
   );
   const keyOf = ({ id, check, level }: Finding) => (check === 'flag' ? id : `${check} ${level}`);
   const lines = [...Map.groupBy(ranked, keyOf)].flatMap(([key, group]) =>

@@ -47,5 +47,49 @@ test('a line of one finding reads its own title, and a note flag is always a lin
 
   const { lines } = startHere({ findings, metrics: {}, nodes });
 
-  expect(lines.map(line => line.title)).toStrictEqual(['said notes:a', 'said notes:b', '0']);
+  expect(lines.map(line => line.title)).toStrictEqual(['0', 'said notes:a', 'said notes:b']);
+});
+
+const flagOn = (target: string | undefined, id: string): Finding => ({
+  id,
+  check: 'flag',
+  dimension: 'structure',
+  level: 'look',
+  ...(target !== undefined && { target }),
+  title: id,
+});
+
+const measured = (fanIn: number, churn: number) => ({ head: { fanIn, fanOut: 0, churn } });
+
+const keysOf = (options: Parameters<typeof startHere>[0]) =>
+  startHere(options).lines.map(line => line.key);
+
+test('lines to look at rank untargeted first, then by the fan-in of their target, or of the busier end of an edge, then by its churn, then by id; one with no metrics last; information comes after them all', () => {
+  const findings = [
+    findingOn('a', { id: 'info on a', check: 'flag' }),
+    flagOn('d', 'on d, unmeasured'),
+    flagOn('a', 'on a'),
+    flagOn('c', 'on c'),
+    flagOn('b', 'on b'),
+    flagOn('d -> b', 'on d -> b'),
+    flagOn('b -> d', 'on b -> d'),
+    flagOn(undefined, 'untargeted z'),
+    flagOn(undefined, 'untargeted y'),
+  ];
+  const metrics = { a: measured(3, 1), b: measured(5, 0), c: measured(3, 4) };
+
+  expect(keysOf({ findings, metrics, nodes: [] }).slice(0, 5)).toStrictEqual([
+    'untargeted y',
+    'untargeted z',
+    'on b',
+    'on b -> d',
+    'on d -> b',
+  ]);
+  expect(keysOf({ findings: findings.slice(0, 5), metrics, nodes: [] })).toStrictEqual([
+    'on b',
+    'on c',
+    'on a',
+    'on d, unmeasured',
+    'info on a',
+  ]);
 });
