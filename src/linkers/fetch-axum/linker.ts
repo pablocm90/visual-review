@@ -1,7 +1,7 @@
 import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import type { GraphNode } from '../../core/graph.ts';
-import type { Linker } from '../../core/linker.ts';
+import { type Linker, NO_AXUM_CRATE } from '../../core/linker.ts';
 import { apiRoutes, callGraph, webCalls } from './api-paths.ts';
 
 const TABLE_HEADER = /^\[([^\]]*)\]/;
@@ -31,7 +31,7 @@ export const fetchAxumLinker: Linker = {
     const packages = to.flatMap(({ nodes }) => nodes.filter(({ kind }) => kind === 'package'));
     const axum = await Promise.all(packages.map(crate => dependsOnAxum(directory, crate)));
     const crates = packages.filter((_, index) => axum[index]);
-    if (crates.length === 0) return { edges: [], dangling: [] };
+    if (crates.length === 0) return { edges: [], dangling: [], notRead: NO_AXUM_CRATE };
     const calls = webCalls(
       await Promise.all(
         files.map(async ({ id, path }) => ({

@@ -1,6 +1,6 @@
 import { CONFIG_FILE, type Config, folderOf, stackSettings } from './config.ts';
 import { type Graph, stackOfIn } from './graph.ts';
-import type { DanglingCall, Linker } from './linker.ts';
+import type { DanglingCall, Linker, Links } from './linker.ts';
 import type { Reader } from './reader.ts';
 import type { Skipped } from './skipped.ts';
 
@@ -22,6 +22,7 @@ export type DrawnStack = ReaderRoot & {
 export type StacksReading = {
   readonly graph: Graph;
   readonly danglingCalls: ReadonlyArray<DanglingCall>;
+  readonly linksNotRead: ReadonlyArray<string>;
   readonly roots: ReadonlyArray<DrawnStack>;
   readonly stacks: ReadonlyArray<DrawnStack>;
   readonly skipped: ReadonlyArray<Skipped>;
@@ -177,8 +178,44 @@ const drawnIn = ({
     return [...drawn, ...detected, ...added];
   }, []);
 
+const linksOf = ({
+  options: { directory, config, linkers },
+  stacks,
+  nodes,
+  skipped,
+}: {
+  readonly options: ReadStacksOptions;
+  readonly stacks: ReadonlyArray<DrawnStack>;
+  readonly nodes: Graph['nodes'];
+  readonly skipped: ReadonlyArray<Skipped>;
+}): Promise<ReadonlyArray<Links>> => {
+  const stackOf = stackOfIn(nodes);
+  const atEnd = (reader: Reader['name'], only: ReadonlyArray<string> | undefined) =>
+    stacks
+      .filter(drawn => drawn.reader.name === reader && (only?.includes(drawn.stack) ?? true))
+      .map(({ stack }) => stack);
+  const linked = (ends: ReadonlyArray<string>) =>
+    ends
+      .filter(stack => config.stacks[stack] !== false)
+      .map(stack => ({ stack, nodes: nodes.filter(({ id }) => stackOf(id) === stack) }));
+  const skippedStacks = skipped.flatMap(({ stacks: names }) => names);
+  return Promise.all(
+    linkers.map(async (linker): Promise<Links> => {
+      const settings = config.linkers[linker.name] ?? {};
+      if (settings === false) return { edges: [], dangling: [], notRead: 'turned off' };
+      const fromEnd = atEnd(linker.from, settings.from);
+      const toEnd = atEnd(linker.to, settings.to);
+      const read = await linker.link({ directory, from: linked(fromEnd), to: linked(toEnd) });
+      const empty = [...fromEnd, ...toEnd].filter(
+        stack => skippedStacks.includes(stack) || config.stacks[stack] === false,
+      );
+      return empty.length === 0 ? read : { ...read, notRead: `not read for ${empty.join(', ')}` };
+    }),
+  );
+};
+
 export const readStacks = async (options: ReadStacksOptions): Promise<StacksReading> => {
-  const { directory, config, readers, linkers, onPath } = options;
+  const { directory, config, readers, onPath } = options;
   const stacks = drawnIn(options);
   const kept = stacks.filter(({ stack }) => config.stacks[stack] !== false);
   const skipped = readers.flatMap(reader => {
@@ -206,29 +243,13 @@ export const readStacks = async (options: ReadStacksOptions): Promise<StacksRead
   const nodes = graphs
     .flatMap(graph => graph.nodes)
     .map(node => ({ ...node, label: stackSettings(config, node.id).label ?? node.label }));
-  const stackOf = stackOfIn(nodes);
-  const linkedBy = (reader: Reader['name'], only: ReadonlyArray<string> | undefined) =>
-    kept
-      .filter(drawn => drawn.reader.name === reader && (only?.includes(drawn.stack) ?? true))
-      .map(({ stack }) => ({ stack, nodes: nodes.filter(({ id }) => stackOf(id) === stack) }));
-  const links = await Promise.all(
-    linkers.flatMap(linker => {
-      const settings = config.linkers[linker.name] ?? {};
-      if (settings === false) return [];
-      return [
-        linker.link({
-          directory,
-          from: linkedBy(linker.from, settings.from),
-          to: linkedBy(linker.to, settings.to),
-        }),
-      ];
-    }),
-  );
+  const links = await linksOf({ options, stacks, nodes, skipped });
   const ids = new Set(nodes.map(({ id }) => id));
   const edges = [...graphs.flatMap(graph => graph.edges), ...links.flatMap(({ edges }) => edges)];
   return {
     graph: { nodes, edges: edges.filter(edge => ids.has(edge.from) && ids.has(edge.to)) },
     danglingCalls: links.flatMap(({ dangling }) => dangling),
+    linksNotRead: links.flatMap(({ notRead }) => (notRead === undefined ? [] : [notRead])),
     roots: kept,
     stacks,
     skipped,

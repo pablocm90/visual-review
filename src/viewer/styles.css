@@ -2784,3 +2784,25 @@ main:has(> .review-tray) {
 .chip[aria-pressed="true"] .level-mark {
   stroke: currentColor;
 }
+
+.lens-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 16px;
+  margin: 6px 0 0;
+  padding: 0;
+  color: var(--muted);
+  font-size: 12.5px;
+  list-style: none;
+}
+
+.lens-row-item {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+}
+
+.lens-row-name {
+  color: var(--ink);
+}

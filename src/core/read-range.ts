@@ -2,7 +2,7 @@ import { existsSync } from 'node:fs';
 import { mkdtemp, readFile, realpath, rm, stat } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { basename, join, relative } from 'node:path';
-import { CONFIG_FILE, type Config, parseConfig } from './config.ts';
+import { CONFIG_FILE, type Config, parseConfig, type ReaderName } from './config.ts';
 import { diffGraphs, type FilePatch, type GraphDiff, type Rename } from './diff-graphs.ts';
 import { git } from './git.ts';
 import { type Graph, stackOfIn } from './graph.ts';
@@ -76,6 +76,7 @@ export type RangeReading = {
   readonly after: Graph;
   readonly churn: { readonly before: Churn; readonly after: Churn };
   readonly measures: { readonly before: Measures; readonly after: Measures };
+  readonly measuresNotRead: ReadonlyArray<string>;
   readonly changedPaths: ReadonlyArray<string>;
   readonly renames: ReadonlyArray<Rename>;
   readonly patches: ReadonlyArray<FilePatch>;
@@ -87,7 +88,9 @@ export type RangeReading = {
   readonly schemas: ReadonlyArray<SchemaReading>;
   readonly routes: ReadonlyArray<RoutesReading>;
   readonly danglingCalls: ReadonlyArray<DanglingCall>;
+  readonly linksNotRead: ReadonlyArray<string>;
   readonly skipped: ReadonlyArray<Skipped>;
+  readonly readers: ReadonlyArray<ReaderName>;
   readonly thresholds: Omit<Config['metrics'], 'churnDays'>;
   readonly churnDays: number;
   readonly reviewed?: ReviewedReading;
@@ -535,6 +538,9 @@ export const readRange = async ({
         files: measured.map(({ id, headPath }) => ({ stack: stackOf(id), path: headPath })),
       }),
     };
+    const unmeasured = (stack: string): boolean =>
+      ![...before.stacks, ...after.stacks].find(each => each.stack === stack)?.reader.measure;
+    const measuresNotRead = [...new Set(measured.map(({ id }) => stackOf(id)))].filter(unmeasured);
     const baseSide = { directory: sides.before, reading: before };
     const headSide = { directory: sides.after, reading: after };
     const anchors = await anchorsAcross({
@@ -566,13 +572,16 @@ export const readRange = async ({
       after: after.graph,
       churn,
       measures,
+      measuresNotRead,
       ...anchors,
       dependencyChanges: await readLockfiles({ repo, base, head: toCommit, changes, lockfiles }),
       migrations: await readMigrations({ repo, base, head: toCommit, changes, migrations }),
       schemas: await readSchemas({ repo, base, head: toCommit, changes, schemas }),
       routes: await readRoutes({ repo, base, head: toCommit, changes, routes }),
       danglingCalls: after.danglingCalls,
+      linksNotRead: after.linksNotRead,
       skipped: skippedAcross([...before.skipped, ...after.skipped]),
+      readers: [...new Set([...before.stacks, ...after.stacks].map(({ reader }) => reader.name))],
       thresholds,
       churnDays,
       changedPaths,

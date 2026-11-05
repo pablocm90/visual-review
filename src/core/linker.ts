@@ -11,9 +11,12 @@ export type LinkedStack = {
   readonly nodes: ReadonlyArray<GraphNode>;
 };
 
+export const NO_AXUM_CRATE = 'no axum crate';
+
 export type Links = {
   readonly edges: ReadonlyArray<GraphEdge>;
   readonly dangling: ReadonlyArray<DanglingCall>;
+  readonly notRead?: string;
 };
 
 export type LinkOptions = {
@@ -27,7 +30,7 @@ export type LinkOptions = {
  * keeps of the `from` reader and of the `to` reader, or those the config's `linkers` entry names,
  * each with its nodes, whose paths are relative to the checkout; a skipped reader's stacks come
  * with none. It returns edges between those nodes' ids, and the calls from a `from` node that
- * reach nothing in the `to` stacks.
+ * reach nothing in the `to` stacks, and `notRead`, why, when it had nothing to read.
  */
 export interface Linker {
   readonly name: LinkerName;

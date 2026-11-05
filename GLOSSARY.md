@@ -14,9 +14,14 @@ What a finding is about, one of a fixed list (structure, logic, api, tests, metr
 _Avoid_: category, kind
 
 **Lens**:
-One of five groups of dimensions the reader narrows findings to: Behaviour (logic, tests, failure, performance), Contract (api, blast radius, routes, schema), Risk (security, tenancy, deploy, dependencies), Shape (structure, rules, cohesion) and Context (metrics, ownership). Picking one narrows Start here and the rail to it, and dims the other badges; with nothing in it to show, Start here says so. The graph is never filtered.
+One of five groups of dimensions the reader narrows findings to: Behaviour (logic, tests, failure, performance), Contract (api, blast radius, routes, schema), Risk (security, tenancy, deploy, dependencies), Shape (structure, rules, cohesion) and Context (metrics, ownership). Picking one narrows Start here and the rail to it, and dims the other badges. The graph is never filtered.
 _Avoid_: category, group, triage
 _In code_: `Lens`, `LENS_OF` (`src/viewer/lenses.ts`)
+
+**Coverage**:
+What the review could say about a dimension a check raises, across the drawn stacks: it was checked, or it wasn't read, or was read only in part, and why. A changed file outside the graph is read by none of them, and has its own finding.
+_Avoid_: support, status
+_In code_: `Coverage`, `PageData.coverage` (`src/core/coverage.ts`)
 
 **Level**:
 How urgent a finding is: it needs a look, or it is for information.
@@ -178,6 +183,7 @@ _In code_: `SinceReview['calledFine']`
 - A **fact** may raise **findings**; a **finding** is never the only record of a fact.
 - Each **finding** has one **dimension** and one **level**; a **flag** is the only way a note raises one.
 - Each **dimension** belongs to one **lens**, so a **flag** counts under its dimension's lens whether or not a check raises that dimension.
+- A **dimension** has **coverage** when a check raises it. One with none is listed under its **lens** only for the **findings** a **flag** gave it, and is never called checked.
 - The **reading order** holds every **part** once; a **finding** whose target is a part marks its row.
 - A **read mark** is on a **part**; the count of parts read counts only the parts in the **reading order**.
 - **Start here** leaves out any finding **called fine**, so its line's count drops by one; the rail still lists it, tagged.
