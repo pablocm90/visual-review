@@ -36,6 +36,34 @@ test.for([
     closer: ' };',
   },
   { what: 'no parameters', text: '()', opener: '(', members: [], closer: ')' },
+  {
+    what: "a return type's union, which isn't the signature's",
+    text: '(a = 1): X | Y',
+    opener: '(',
+    members: ['a = 1'],
+    closer: '): X | Y',
+  },
+  {
+    what: 'a bar in a generic default, before the real equals',
+    text: 'type A<T = 1 | 2> = { a: T };',
+    opener: 'type A<T = 1 | 2> = {',
+    members: [' a: T'],
+    closer: ' };',
+  },
+  {
+    what: "a union's alternatives",
+    text: "type Kind = | 'a' | { b: 1 | 2 } | 'c';",
+    opener: 'type Kind = |',
+    members: [" 'a' |", ' { b: 1 | 2 } |', " 'c'"],
+    closer: ';',
+  },
+  {
+    what: 'a union with no leading bar',
+    text: 'export type Id = string | (() => number)',
+    opener: 'export type Id =',
+    members: [' string |', ' (() => number)'],
+    closer: '',
+  },
 ])('splits $what', ({ what: _what, text, ...parts }) => {
   expect(splitSignature(text)).toEqual(parts);
   expect(rejoined(text)).toBe(text);
@@ -47,6 +75,11 @@ test.for([
   { what: 'a bracket left open after the members', text: '(a: 1): { b: 2' },
   { what: 'a lone quote', text: "type A = { a: ' };" },
   { what: 'overloads', text: '(a: 1): X; (b: 2): Y' },
+  { what: 'a class heritage', text: 'extends Y<T>' },
+  { what: 'a tuple', text: 'type A = [a: 1, b: 2];' },
+  { what: 'a superclass', text: '< Base' },
+  { what: 'a one-word type', text: 'type Id = string;' },
+  { what: 'a bar only before the equals', text: 'const a: 1 | 2 = 3' },
 ])('leaves $what unsplit', ({ text }) => {
   expect(splitSignature(text)).toBeUndefined();
 });
