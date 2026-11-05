@@ -102,7 +102,9 @@ test('what was not read ranks ahead of what has no target but was read, which ra
       ? 'schema'
       : check.startsWith('dep')
         ? 'dependencies'
-        : 'structure',
+        : check.startsWith('routes')
+          ? 'routes'
+          : 'structure',
     level: 'look',
     title: id,
   });
@@ -129,6 +131,16 @@ test('what was not read ranks ahead of what has no target but was read, which ra
       nodes: [],
     }),
   ).toStrictEqual(['schema:not-read look', 'schema:migration-risk look']);
+  expect(
+    keysOf({
+      findings: [
+        noTarget('routes:removed', 'a route removed'),
+        noTarget('routes:not-read', 'x route file not read'),
+      ],
+      metrics: {},
+      nodes: [],
+    }),
+  ).toStrictEqual(['routes:not-read look', 'routes:removed look']);
 });
 
 test('at most five lines show, the counts still taking in every finding', () => {

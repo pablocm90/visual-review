@@ -7,6 +7,7 @@ import { notesProblems, type ReviewNotes } from './notes.ts';
 import type { DependencyChanges } from './read-lockfiles.ts';
 import type { MigrationReading } from './read-migrations.ts';
 import type { RangeReading, SymbolFile } from './read-range.ts';
+import type { RoutesReading } from './read-routes.ts';
 import type { SchemaReading } from './read-schemas.ts';
 import { type ReadingOrder, readingOrder } from './reading-order.ts';
 import type { Review } from './review.ts';
@@ -37,6 +38,7 @@ export type PageData = {
   readonly dependencyChanges: ReadonlyArray<DependencyChanges>;
   readonly migrations: ReadonlyArray<MigrationReading>;
   readonly schemas: ReadonlyArray<SchemaReading>;
+  readonly routes: ReadonlyArray<RoutesReading>;
   readonly tests: ReadonlyArray<TestFile>;
   readonly symbols: ReadonlyArray<SymbolFile>;
   readonly skipped: ReadonlyArray<Skipped>;
@@ -78,6 +80,7 @@ export const pageData = ({
     dependencyChanges: reading.dependencyChanges,
     migrations: reading.migrations,
     schemas: reading.schemas,
+    routes: reading.routes,
     metricFindings: metricFindings({ metrics, thresholds: reading.thresholds }),
     symbols: reading.symbols,
     symbolsNotRead: reading.symbolsNotRead,
@@ -105,6 +108,7 @@ export const pageData = ({
     dependencyChanges: reading.dependencyChanges,
     migrations: reading.migrations,
     schemas: reading.schemas,
+    routes: reading.routes,
     tests: reading.tests,
     symbols: reading.symbols,
     skipped: reading.skipped,

@@ -10,6 +10,14 @@ What changed in each release of `@pablocm90/visual-review`, newest first. Versio
 - A removed guard or catch in a Rust function needs a look, and a Rust file with logic changes and no changed test alongside raises `tests:untested-logic`, as in TS and Rails, unless all it changed is `?`s.
 - A Rust macro or `macro_rules!` holding a real `?`, `return` or `if` is named as hiding logic, for information. A tracing `?field` or a macro's `$(,)?` isn't. Logic in a function nested in another reads no line.
 
+## 0.38.0 — 2026-11-05
+
+### Added
+
+- A change to a Rails app's routes reads as route changes: `config/routes.rb` and the files it joins with `load` and `draw` are expanded on both sides, with no Ruby run, and compared by app, verb and path. So `only: [:index]` to `only: [:index, :destroy]` is a new endpoint, not an edited line.
+- A removed route, and a new target at the same path, each raise a `routes` finding to look at. Added routes raise one finding per file, for information, with their count. Each opens the patch of the file behind it.
+- What the reader can't read (`if`, loops, `concern`, `devise_for` and anything under them) is listed by its text and never guessed at. It raises a finding only when that text is added or removed, and a route file that can't be read at all says so, as a blind spot in Start here.
+
 ## 0.37.0 — 2026-11-05
 
 ### Changed

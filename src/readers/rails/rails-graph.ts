@@ -2,6 +2,7 @@ import { join, matchesGlob } from 'node:path';
 import type { Node } from 'web-tree-sitter';
 import type { Graph, GraphNode } from '../../core/graph.ts';
 import type { SourceFile } from '../sources-in.ts';
+import { singular } from './inflection.ts';
 import { parseRuby } from './ruby-syntax.ts';
 
 const namesOf = (file: string): ReadonlyArray<string> => {
@@ -93,18 +94,6 @@ const resolved = (node: Node, { exactly }: Classes): string | undefined => {
   return fromTop
     ? lookedUp(node.text.slice(2), [], exactly)
     : lookedUp(node.text, scopesOf(node), exactly);
-};
-
-const SINGULAR_ENDINGS: ReadonlyArray<readonly [RegExp, string]> = [
-  [/people$/, 'person'],
-  [/ies$/, 'y'],
-  [/(ss|x|ch|sh)es$/, '$1'],
-  [/s$/, ''],
-];
-
-const singular = (plural: string): string => {
-  const ending = SINGULAR_ENDINGS.find(([pattern]) => pattern.test(plural));
-  return ending === undefined ? plural : plural.replace(...ending);
 };
 
 const asWritten = (name: string): string => name;
