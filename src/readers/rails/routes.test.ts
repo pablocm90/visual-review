@@ -167,3 +167,83 @@ test.for([
     end`),
   ).toStrictEqual(['GET /profile/logs profiles#logs']);
 });
+
+test.for([
+  { written: 'get "names", to: "views#names"', expected: 'GET /names views#names' },
+  { written: 'get "names", :to => "views#names"', expected: 'GET /names views#names' },
+  {
+    written: 'get "/auth/failure" => "auth0#failure"',
+    expected: 'GET /auth/failure auth0#failure',
+  },
+  {
+    written: 'get "/auth/callback" => "auth0#callback", :as => "auth_callback"',
+    expected: 'GET /auth/callback auth0#callback',
+  },
+  { written: 'get "/signup", to: redirect("/join")', expected: 'GET /signup redirect("/join")' },
+  { written: 'get "reports/monthly"', expected: 'GET /reports/monthly reports#monthly' },
+  {
+    written: 'get "sync-health/all-of-it"',
+    expected: 'GET /sync-health/all-of-it sync_health#all_of_it',
+  },
+  { written: 'get "names", controller: :views, action: :list', expected: 'GET /names views#list' },
+  {
+    written: 'get :public_show, path: "demo", controller: :pages',
+    expected: 'GET /demo pages#public_show',
+  },
+])('$written targets as written', ({ written, expected }) => {
+  expect(lines(written)).toStrictEqual([expected]);
+});
+
+test.for([
+  {
+    reads: 'a module on to:',
+    written: `namespace :api do
+      get "names", to: "views#names"
+    end`,
+    expected: 'GET /api/names api/views#names',
+  },
+  {
+    reads: 'a module on a rocket',
+    written: `namespace :api do
+      get "names" => "views#names"
+    end`,
+    expected: 'GET /api/names api/views#names',
+  },
+  {
+    reads: 'an action named to: in a resource',
+    written: `resources :users, only: [] do
+      get "names", to: "list", on: :collection
+    end`,
+    expected: 'GET /users/names users#list',
+  },
+  {
+    reads: 'a controller path to: in a resource',
+    written: `resources :users, only: [] do
+      post "hooks", to: "users/hooks#create", on: :collection
+    end`,
+    expected: 'POST /users/hooks users/hooks#create',
+  },
+  {
+    reads: 'a dashed name, as its action with underscores',
+    written: `resources :users, only: [] do
+      get "all-names", on: :collection
+    end`,
+    expected: 'GET /users/all-names users#all_names',
+  },
+  {
+    reads: 'path: over the name',
+    written: `resources :users, only: [] do
+      post :generate_draft, path: "generate-draft", on: :member
+    end`,
+    expected: 'POST /users/:id/generate-draft users#generate_draft',
+  },
+  {
+    reads: 'a leading slash joined once',
+    written: `namespace :api do
+      get "/names", to: "views#names"
+    end`,
+    expected: 'GET /api/names api/views#names',
+  },
+])('a verb reads $reads', ({ written, expected }) => {
+  expect(lines(written)).toStrictEqual([expected]);
+});
