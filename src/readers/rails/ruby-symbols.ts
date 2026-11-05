@@ -320,6 +320,35 @@ const added = (
   holes: [...walk.holes, ...holes],
 });
 
+type Macro = (walk: Walk, call: Node, within: string | undefined) => Walk;
+
+const attrMacro =
+  (kinds: ReadonlyArray<'getter' | 'setter'>): Macro =>
+  (walk, call, within) =>
+    added(
+      walk,
+      attrSymbols(call, kinds, within, walk),
+      readsWhole(call, ATTR_ARGUMENTS) ? [call.id] : [],
+    );
+
+const delegateMacro: Macro = (walk, call, within) =>
+  added(
+    walk,
+    delegateSymbols(call, within, walk),
+    readsWhole(call, DELEGATE_ARGUMENTS) ? [call.id] : [],
+  );
+
+const scopeMacro: Macro = (walk, call, within) => {
+  const scopes = scopeSymbols(call, within);
+  return added(walk, scopes, scopes.length === 0 ? [] : [call.id]);
+};
+
+const MACROS = new Map<string, Macro>([
+  ...[...ATTRS].map(([word, kinds]): [string, Macro] => [word, attrMacro(kinds)]),
+  ['delegate', delegateMacro],
+  ['scope', scopeMacro],
+]);
+
 const METHODS = new Set(['method', 'singleton_method']);
 
 const isSingletonBlock = (node: Node): boolean =>
@@ -343,27 +372,8 @@ const walked = (walk: Walk, node: Node, within: string | undefined): Walk => {
   const called = node.childForFieldName('method')?.text;
   if (called === 'private_constant')
     return { ...walk, privateConstants: [...walk.privateConstants, ...symbolsNamedIn(node)] };
-  const attrs = ATTRS.get(called ?? '');
-  if (attrs)
-    return {
-      ...walk,
-      symbols: [...walk.symbols, ...attrSymbols(node, attrs, within, walk)],
-      holes: readsWhole(node, ATTR_ARGUMENTS) ? [...walk.holes, node.id] : walk.holes,
-    };
-  if (called === 'scope') {
-    const scopes = scopeSymbols(node, within);
-    return {
-      ...walk,
-      symbols: [...walk.symbols, ...scopes],
-      holes: scopes.length === 0 ? walk.holes : [...walk.holes, node.id],
-    };
-  }
-  if (called === 'delegate')
-    return {
-      ...walk,
-      symbols: [...walk.symbols, ...delegateSymbols(node, within, walk)],
-      holes: readsWhole(node, DELEGATE_ARGUMENTS) ? [...walk.holes, node.id] : walk.holes,
-    };
+  const macro = MACROS.get(called ?? '');
+  if (macro) return macro(walk, node, within);
   const held = VISIBILITY_CALLS.get(called ?? '');
   if (held) {
     const inner = walkedChildren({ ...walk, ...held }, node, within);
