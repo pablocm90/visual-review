@@ -7,8 +7,7 @@ const DEFINITIONS = new Set(['class', 'module']);
 
 const BODIES = new Set(['program', 'body_statement', 'block_body']);
 
-const constantWithin = (definition: Node, within: string | undefined): string => {
-  const written = definition.childForFieldName('name')?.text ?? '';
+const constantWithin = (written: string, within: string | undefined): string => {
   if (written.startsWith('::')) return written.slice(2);
   return within === undefined ? written : `${within}::${written}`;
 };
@@ -30,6 +29,7 @@ type Walk = {
   readonly moduleFunction: boolean;
   readonly hiddenClassMethod: boolean;
   readonly byName: ReadonlyArray<ByName>;
+  readonly privateConstants: ReadonlyArray<string>;
   readonly symbols: ReadonlyArray<ReadSymbol>;
 };
 
@@ -39,6 +39,7 @@ const STARTING: Walk = {
   moduleFunction: false,
   hiddenClassMethod: false,
   byName: [],
+  privateConstants: [],
   symbols: [],
 };
 
@@ -74,20 +75,38 @@ const VISIBILITY_CALLS = new Map<string, Partial<Walk> & Pick<Walk, 'exported'>>
   ['private_class_method', { exported: false, hiddenClassMethod: true }],
 ]);
 
+const symbolsNamedIn = (call: Node): ReadonlyArray<string> =>
+  (call.childForFieldName('arguments')?.namedChildren ?? [])
+    .filter(({ type }) => type === 'simple_symbol')
+    .map(({ text }) => text.slice(1));
+
 const namedIn = (
   call: Node,
   held: Partial<Walk> & Pick<Walk, 'exported'>,
   walk: Walk,
 ): ReadonlyArray<ByName> =>
-  (call.childForFieldName('arguments')?.namedChildren ?? [])
-    .filter(({ type }) => type === 'simple_symbol')
-    .map(({ text }) => ({
-      key: `${walk.singleton || held.hiddenClassMethod ? 'self.' : ''}${text.slice(1)}`,
-      exported: held.exported,
-      toSingleton: held.moduleFunction === true,
-    }));
+  symbolsNamedIn(call).map(name => ({
+    key: `${walk.singleton || held.hiddenClassMethod ? 'self.' : ''}${name}`,
+    exported: held.exported,
+    toSingleton: held.moduleFunction === true,
+  }));
 
 const keyOf = ({ kind, name }: ReadSymbol): string => (kind === 'setter' ? `${name}=` : name);
+
+const isOrIsBelow = (name: string, constant: string): boolean =>
+  name === constant || name.startsWith(`${constant}::`);
+
+const withoutPrivateConstants = (
+  inner: Walk,
+  within: string | undefined,
+): ReadonlyArray<ReadSymbol> => {
+  const hidden = inner.privateConstants.map(name => constantWithin(name, within));
+  return inner.symbols.map(symbol =>
+    hidden.some(constant => isOrIsBelow(symbol.scope ?? symbol.name, constant))
+      ? { ...symbol, exported: false }
+      : symbol,
+  );
+};
 
 const settledByName = (inner: Walk, within: string | undefined): ReadonlyArray<ReadSymbol> => {
   const last = new Map(inner.byName.map(named => [named.key, named]));
@@ -116,11 +135,17 @@ const walked = (walk: Walk, node: Node, within: string | undefined): Walk => {
     return { ...walk, symbols: [...walk.symbols, methodSymbol(node, within, walk)] };
   if (BODIES.has(node.type)) {
     const inner = walkedChildren({ ...STARTING, singleton: walk.singleton }, node, within);
-    return joined({ ...inner, symbols: settledByName(inner, within) });
+    return joined({
+      ...inner,
+      symbols: withoutPrivateConstants({ ...inner, symbols: settledByName(inner, within) }, within),
+    });
   }
   if (isSingletonBlock(node))
     return joined(walkedChildren({ ...STARTING, singleton: true }, node, within));
-  const held = VISIBILITY_CALLS.get(node.childForFieldName('method')?.text ?? '');
+  const called = node.childForFieldName('method')?.text;
+  if (called === 'private_constant')
+    return { ...walk, privateConstants: [...walk.privateConstants, ...symbolsNamedIn(node)] };
+  const held = VISIBILITY_CALLS.get(called ?? '');
   if (held)
     return {
       ...walk,
@@ -128,7 +153,7 @@ const walked = (walk: Walk, node: Node, within: string | undefined): Walk => {
       symbols: walkedChildren({ ...walk, ...held }, node, within).symbols,
     };
   if (!DEFINITIONS.has(node.type)) return walkedChildren(walk, node, within);
-  const constant = constantWithin(node, within);
+  const constant = constantWithin(node.childForFieldName('name')?.text ?? '', within);
   const definition: ReadSymbol = {
     name: constant,
     kind: 'class',

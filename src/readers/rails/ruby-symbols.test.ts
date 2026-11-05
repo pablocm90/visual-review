@@ -261,3 +261,26 @@ test('module_function naming a method makes it self.x and public', () => {
   ]);
   expect(exportedIn(...lines)).toEqual(['self.round']);
 });
+
+test('private_constant hides the class, what it scopes and the constants below it', () => {
+  const exported = read(
+    'class Shop',
+    '  class Inner',
+    '    def open; end',
+    '    class Deep',
+    '      def close; end',
+    '    end',
+    '  end',
+    '  class Innermost',
+    '    def shown; end',
+    '  end',
+    '  def own; end',
+    '  private_constant :Inner',
+    'end',
+    'class Inner; end',
+  )
+    .symbols.filter(symbol => symbol.exported)
+    .map(({ name }) => name);
+
+  expect(exported).toEqual(['Shop', 'Shop::Innermost', 'shown', 'own', 'Inner']);
+});
