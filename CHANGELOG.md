@@ -2,6 +2,14 @@
 
 What changed in each release of `@pablocm90/visual-review`, newest first. Versions follow [semver](https://semver.org); while it is 0.x, a minor version may change the exported types.
 
+## 0.44.0 — 2026-11-05
+
+### Changed
+
+- The inspector's Note tab is now the part's reading column: Claude's note, then **What changed**, its changed symbols and logic lines with their count in the heading, then **Why look**, the findings on it with their answers. The Symbols tab is gone. An arrow holds its note and findings only.
+- "No note" shows only when the column holds nothing else.
+- Going to a draft on a symbol or logic line, from the review tray, lands on its row in the column, opening the fold it sits in.
+
 ## 0.43.0 — 2026-11-05
 
 ### Added
