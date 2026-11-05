@@ -81,12 +81,17 @@ const namedExitOf = (statement: Node): Exit | undefined => {
   return { text: before === undefined ? word : `${word} and return`, foundByName: true };
 };
 
+const throwTextOf = (node: Node): string | undefined => {
+  const word = wordOf(node);
+  if (word === undefined || !THROWS.has(word)) return undefined;
+  return `${word}${thrownName(statementsOf(fieldOf(node, 'arguments'))[0])}`;
+};
+
 const exitOf = (statement: Node | undefined): Exit | undefined => {
   if (statement === undefined) return undefined;
   if (statement.type === 'return') return { text: 'return' };
-  const word = wordOf(statement);
-  if (word === undefined || !THROWS.has(word)) return namedExitOf(statement);
-  return { text: `${word}${thrownName(statementsOf(fieldOf(statement, 'arguments'))[0])}` };
+  const thrown = throwTextOf(statement);
+  return thrown === undefined ? namedExitOf(statement) : { text: thrown };
 };
 
 const fieldsOf = (node: Node, ...fields: ReadonlyArray<string>): ReadonlyArray<Node> =>
@@ -195,6 +200,11 @@ const modifierRescue = (node: Node): Read => ({
 const returnOf = (node: Node, walk: Walk): Read | undefined =>
   walk.depth > 0 ? { kind: 'return', text: 'return', deeper: node.namedChildren } : undefined;
 
+const throwOf = (node: Node): Read | undefined => {
+  const text = throwTextOf(node);
+  return text === undefined ? undefined : { kind: 'throw', text, deeper: [] };
+};
+
 const READS = new Map<string, (node: Node, walk: Walk) => Read | undefined>([
   ['if', blockIf],
   ['unless', blockIf],
@@ -207,7 +217,8 @@ const READS = new Map<string, (node: Node, walk: Walk) => Read | undefined>([
   ['for', blockLoop],
   ['while_modifier', modifierLoop],
   ['until_modifier', modifierLoop],
-  ['call', namedLoop],
+  ['call', node => throwOf(node) ?? namedLoop(node)],
+  ['identifier', throwOf],
   ['when', clauseOf('case')],
   ['in_clause', clauseOf('case')],
   ['rescue', clauseOf('catch')],
@@ -218,10 +229,15 @@ const READS = new Map<string, (node: Node, walk: Walk) => Read | undefined>([
   ['operator_assignment', logicalOf],
 ]);
 
+const partsOf = (node: Node): ReadonlyArray<Node> => {
+  const method = fieldOf(node, 'method')?.id;
+  return node.namedChildren.filter(({ id }) => id !== method);
+};
+
 const decisionsUnder = (walk: Walk, nodes: ReadonlyArray<Node>): ReadonlyArray<Decision> =>
   nodes.flatMap(node => {
     const read = READS.get(node.type)?.(node, walk);
-    if (read === undefined) return decisionsUnder(walk, node.namedChildren);
+    if (read === undefined) return decisionsUnder(walk, partsOf(node));
     const { deeper, beside = [], ...head } = read;
     const depth = node.type === 'elsif' ? walk.depth - 1 : walk.depth;
     return [
@@ -232,4 +248,4 @@ const decisionsUnder = (walk: Walk, nodes: ReadonlyArray<Node>): ReadonlyArray<D
   });
 
 export const decisionsOfMethod = (method: Node): ReadonlyArray<Decision> =>
-  decisionsUnder({ depth: 0 }, method.namedChildren);
+  decisionsUnder({ depth: 0 }, fieldsOf(method, 'body'));

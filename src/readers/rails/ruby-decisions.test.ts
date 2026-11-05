@@ -273,3 +273,38 @@ test('what a return in a branch returns reads one deeper than it', () => {
     ['ternary', 2],
   ]);
 });
+
+test.for([
+  { line: 'raise Foo', text: 'raise Foo' },
+  { line: 'raise Foo, "no"', text: 'raise Foo' },
+  { line: 'raise', text: 'raise' },
+  { line: 'fail Foo.new(a ? 1 : 2)', text: 'fail Foo' },
+  { line: 'fail', text: 'fail' },
+])('$line reads as the throw $text, and nothing in it reads', ({ line, text }) => {
+  expect(decisionsIn(line)).toEqual([{ kind: 'throw', text, depth: 0, line: 2 }]);
+});
+
+test('a raise in a branch reads one deeper', () => {
+  expect(decisionsIn('y || raise(Foo)')).toEqual([
+    { kind: 'logical', text: 'y ||', depth: 0, line: 2 },
+    { kind: 'throw', text: 'raise Foo', depth: 1, line: 2 },
+  ]);
+});
+
+test.for([
+  { reason: 'a raise sent to another object', lines: ['log.raise Foo'] },
+  { reason: 'a raise sent to another object, bare', lines: ['log.raise'] },
+  { reason: 'a word not a throw', lines: ['go Foo'] },
+])('$reason is no throw', ({ lines }) => {
+  expect(decisionsIn(...lines)).toEqual([]);
+});
+
+test('a method named after a throw reads none', () => {
+  const symbols = railsReader.symbols?.('def fail\n  go\nend', 'app/models/shop.rb')?.symbols;
+  expect(symbols?.[0]?.decisions).toEqual([]);
+});
+
+test('an endless method reads its body', () => {
+  const symbols = railsReader.symbols?.('def charge = a ? 1 : 2', 'app/models/shop.rb')?.symbols;
+  expect(symbols?.[0]?.decisions).toEqual([{ kind: 'ternary', text: 'a ?', depth: 0, line: 1 }]);
+});
