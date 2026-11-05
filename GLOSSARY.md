@@ -43,13 +43,18 @@ _Avoid_: seen, viewed, done
 _In code_: `storedReadMarks` (`src/viewer/read-marks.ts`)
 
 **Look first**:
-The few findings that need a look, ranked so the blind spots come first, then direct dependency changes and risky migrations, then what most depends on, then what changes most.
+The few findings that need a look, ranked so the blind spots come first, then direct dependency changes, risky migrations and removed tables, then what most depends on, then what changes most.
 _Avoid_: top findings, priorities
 
 **Dependency change**:
 A package added to or removed from a lockfile, or major-bumped, or one that became or stopped being direct at the same version. Major-bumped means its set of compatibility lines differs across the sides: a version's numbers up to the first non-zero one, as `^` and Cargo read them, so `0.2.1` to `0.3.0` counts and `1.4.0` to `1.9.2` doesn't.
 _Avoid_: dependency update, upgrade
 _In code_: `PackageChange` (`src/core/dependency-changes.ts`)
+
+**Table change**:
+A table added to, removed from or changed in a schema dump, with its table options, columns and indexes before and after; a column or index pairs by name, so a rename is one removed and one added.
+_Avoid_: migration, schema diff
+_In code_: `TableChange` (`src/core/schema-diff.ts`)
 
 **Direct**:
 Declared by the project itself on either side of the change, as a lockfile says or, for `yarn.lock`, as the `package.json` files at or under its folder say. Any other package in a lockfile is transitive.
@@ -163,6 +168,7 @@ _In code_: `SinceReview['calledFine']`
 - A review holds at most one comment or **finding answer** per **anchor**, and each comment has one **comment kind**; the **suggested verdict** follows the kinds and the answers, and the verdict the reviewer picks overrides it.
 - A **round** after the first compares against the newest review of its pull request at another head; **changed since** is always a subset of what the pull request changes at either head, so a part it has reverted counts; a symbol, logic line, test or file is **changed since** by its own anchor id, a diff line by its file.
 - A **direct** package's **dependency change** raises its own **finding** that needs a look; a lockfile's transitive ones roll up into one **finding** for information.
+- A **table change** raises a **finding** in the schema dimension, for information, or needing a look when the table is removed; a dump added or removed whole raises one for the file, and none per table.
 - A **flag** is answered like any other **finding**, under the id `notes:<node or edge id>`.
 - A removed guard or catch **logic line** raises a **finding** in the logic dimension that needs a look; a function's other **logic lines** that changed, a moved one among them, raise one for information; a file with either and no test changed alongside it raises one in the tests dimension.
 

@@ -12,6 +12,7 @@ import { type MeasuredNode, measuredNodes } from './metrics.ts';
 import type { MigrationReader } from './migration.ts';
 import { type DependencyChanges, readLockfiles } from './read-lockfiles.ts';
 import { type MigrationReading, readMigrations } from './read-migrations.ts';
+import { readSchemas, type SchemaReading } from './read-schemas.ts';
 import {
   type Adapters,
   checkConfig,
@@ -21,6 +22,7 @@ import {
 } from './read-stacks.ts';
 import type { FileMeasures, FileSymbols, Reader } from './reader.ts';
 import type { Review } from './review.ts';
+import type { SchemaReader } from './schema.ts';
 import type { Skipped } from './skipped.ts';
 import { type FileSymbolChanges, symbolChangesOf } from './symbol-changes.ts';
 import { type TestFile, testChanges, withMovedTests } from './test-changes.ts';
@@ -80,6 +82,7 @@ export type RangeReading = {
   readonly symbolsNotRead: ReadonlyArray<string>;
   readonly dependencyChanges: ReadonlyArray<DependencyChanges>;
   readonly migrations: ReadonlyArray<MigrationReading>;
+  readonly schemas: ReadonlyArray<SchemaReading>;
   readonly danglingCalls: ReadonlyArray<DanglingCall>;
   readonly skipped: ReadonlyArray<Skipped>;
   readonly thresholds: Omit<Config['metrics'], 'churnDays'>;
@@ -90,6 +93,7 @@ export type RangeReading = {
 type ReadRangeOptions = Adapters & {
   readonly lockfiles: ReadonlyArray<Lockfile>;
   readonly migrations: ReadonlyArray<MigrationReader>;
+  readonly schemas: ReadonlyArray<SchemaReader>;
   readonly repo: string;
   readonly from: string;
   readonly to: string;
@@ -485,6 +489,7 @@ export const readRange = async ({
   reviewed,
   lockfiles,
   migrations,
+  schemas,
   ...adapters
 }: ReadRangeOptions): Promise<RangeReading> => {
   const [fromCommit, toCommit] = await Promise.all([resolve(repo, from), resolve(repo, to)]);
@@ -559,6 +564,7 @@ export const readRange = async ({
       ...anchors,
       dependencyChanges: await readLockfiles({ repo, base, head: toCommit, changes, lockfiles }),
       migrations: await readMigrations({ repo, base, head: toCommit, changes, migrations }),
+      schemas: await readSchemas({ repo, base, head: toCommit, changes, schemas }),
       danglingCalls: after.danglingCalls,
       skipped: skippedAcross([...before.skipped, ...after.skipped]),
       thresholds,
