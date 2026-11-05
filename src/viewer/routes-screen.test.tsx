@@ -44,19 +44,24 @@ test('the Routes tab shows only when the review holds a route change, and a link
   expect(tabs().queryByRole('link', { name: 'Routes' })).toBeNull();
 });
 
-test("route files that couldn't be read say so on the Routes tab", async () => {
-  atHash('#routes');
+test("route files that couldn't be read say so on the Routes tab, where their finding lands", async () => {
+  atHash('#structure');
+  const user = userEvent.setup();
+  const routes: PageData['routes'] = [{ file: 'config/routes.rb', notRead: 'Ruby syntax error' }];
   render(
-    <ReviewPage review={reviewOf([{ file: 'config/routes.rb', notRead: 'Ruby syntax error' }])} />,
+    <ReviewPage review={pageWith({ ...reviewOf(routes), findings: routeFindings(routes) })} />,
   );
 
-  expect((await tabs().findByRole('link', { name: 'Routes' })).getAttribute('aria-current')).toBe(
-    'page',
+  await user.click(
+    within(await screen.findByRole('region', { name: 'Start here' })).getByRole('button', {
+      name: /config\/routes\.rb not read/,
+    }),
   );
-  expect(
-    within(screen.getByRole('region', { name: 'config/routes.rb' })).getByText(/not read/i)
-      .textContent,
-  ).toContain('Ruby syntax error');
+
+  const file = await screen.findByRole('region', { name: 'config/routes.rb' });
+  await waitFor(() => expect(document.activeElement).toBe(file));
+  expect(within(file).getByText(/not read/i).textContent).toContain('Ruby syntax error');
+  expect(tabs().getByRole('link', { name: 'Routes' }).getAttribute('aria-current')).toBe('page');
 });
 
 const route = (overrides: Partial<Route> = {}): Route => ({
@@ -254,6 +259,12 @@ test("a route file's finding opens the Routes tab at its file, from the rail", a
     ),
   );
   expect(tabs().getByRole('link', { name: 'Routes' }).getAttribute('aria-current')).toBe('page');
+
+  await user.click(tabs().getByRole('link', { name: 'Structure' }));
+  const routesTab = tabs().getByRole('link', { name: 'Routes' });
+  await user.click(routesTab);
+  await screen.findByRole('region', { name: 'config/routes/admin.rb' });
+  expect(document.activeElement).toBe(routesTab);
 });
 
 test("a route's finding lands on its row, among rows of one line from two apps", async () => {

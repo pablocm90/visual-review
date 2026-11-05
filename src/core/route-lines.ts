@@ -16,11 +16,10 @@ export type KeyedStatement = { readonly key: string; readonly row: UnreadRow };
 export const keyedStatements = (rows: ReadonlyArray<UnreadRow>): ReadonlyArray<KeyedStatement> => {
   const seen = new Map<string, number>();
   return rows.map(row => {
-    const { state, item } = row;
-    const key = `${state} ${item.file}:${item.line} ${item.text}`;
-    const before = seen.get(key) ?? 0;
-    seen.set(key, before + 1);
-    return { key: countedId(key, before), row };
+    const { text } = row.item;
+    const before = seen.get(text) ?? 0;
+    seen.set(text, before + 1);
+    return { key: countedId(text, before), row };
   });
 };
 

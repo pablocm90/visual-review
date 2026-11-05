@@ -47,6 +47,15 @@ test('a removed route needs a look, opening the patch that explains it', () => {
   ]);
 });
 
+test.each([
+  ['verb', { verb: 'DELETE' }],
+  ['path', { path: '/people' }],
+])('routes differing only by %s land on rows of their own', (_field, other) => {
+  const lands = routeFindings(reading(removed(), removed(other))).map(({ route }) => route);
+
+  expect(new Set(lands).size).toBe(2);
+});
+
 test('a new target at the same path needs a look', () => {
   expect(routeFindings(reading(changed()))).toStrictEqual([
     {
