@@ -109,9 +109,21 @@ export type SignatureDiff = {
   readonly closer: ReadonlyArray<SignatureLine>;
 };
 
-const NAME = /^[^:=(<]*?([\w$]+)\s*(?:[:?=(<]|$)/;
+const nameOf = (text: string): string | undefined => {
+  const [heading = ''] = text.split(/[:?=(<]/, 1);
+  return (
+    heading
+      .trimEnd()
+      .split(/[^\w$]/)
+      .at(-1) || undefined
+  );
+};
 
-const comparable = (member: string): string => member.trim().replace(/\s*[,;|]$/, '');
+const comparable = (member: string): string =>
+  member
+    .trim()
+    .replace(/[,;|]$/, '')
+    .trimEnd();
 
 const edge = (base: string, head: string): ReadonlyArray<SignatureLine> => {
   const [from, to] = [base.trim(), head.trim()];
@@ -127,7 +139,7 @@ type Member = { readonly text: string; readonly name: string | undefined };
 
 const memberOf = (member: string): Member => {
   const text = comparable(member);
-  return { text, name: NAME.exec(text)?.[1] };
+  return { text, name: nameOf(text) };
 };
 
 const partnersOf = (base: ReadonlyArray<Member>, head: ReadonlyArray<Member>) =>
@@ -155,6 +167,8 @@ const linesOfGap = (
   ];
 };
 
+export const LONGEST_SIGNATURE = 10_000;
+
 export const signatureDiff = ({
   base,
   head,
@@ -162,6 +176,7 @@ export const signatureDiff = ({
   readonly base: string;
   readonly head: string;
 }): SignatureDiff | undefined => {
+  if (base.length > LONGEST_SIGNATURE || head.length > LONGEST_SIGNATURE) return undefined;
   const [from, to] = [splitSignature(base), splitSignature(head)];
   if (from === undefined || to === undefined || from.by !== to.by) return undefined;
   const diff = {

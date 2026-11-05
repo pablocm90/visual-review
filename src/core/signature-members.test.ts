@@ -1,5 +1,5 @@
 import { expect, test } from 'vitest';
-import { signatureDiff, splitSignature } from './signature-members.ts';
+import { LONGEST_SIGNATURE, signatureDiff, splitSignature } from './signature-members.ts';
 
 const rejoined = (text: string): string | undefined => {
   const split = splitSignature(text);
@@ -229,4 +229,13 @@ test.for([
   { what: 'only separators differing', base: '{ a: 1, b: 2 }', head: '{ a: 1; b: 2 }' },
 ])('$what gets no diff', ({ base, head }) => {
   expect(signatureDiff({ base, head })).toBeUndefined();
+});
+
+test.for([
+  { what: 'a base', sides: (long: string) => ({ base: long, head: '(c: 1)' }) },
+  { what: 'a head', sides: (long: string) => ({ base: '(c: 1)', head: long }) },
+])('$what past the longest signature read reads unsplit', ({ sides }) => {
+  const sized = (length: number) => `(${'b'.repeat(length - 2)})`;
+  expect(signatureDiff(sides(sized(LONGEST_SIGNATURE)))).toBeDefined();
+  expect(signatureDiff(sides(sized(LONGEST_SIGNATURE + 1)))).toBeUndefined();
 });
