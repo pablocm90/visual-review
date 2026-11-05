@@ -267,27 +267,38 @@ export const FindingsRail = (props: FindingsRailProps) => {
   );
 };
 
+const LensCount = ({
+  findings,
+  level,
+}: {
+  readonly findings: ReadonlyArray<Finding>;
+  readonly level: Level;
+}) => {
+  const shown = findings.filter(finding => finding.level === level).length;
+  return (
+    shown > 0 && (
+      <span className="lens-count">
+        <LevelMark level={level} />
+        {shown}
+      </span>
+    )
+  );
+};
+
 type LensChipsProps = {
   readonly findings: ReadonlyArray<Finding>;
+  readonly coverage: PageData['coverage'];
   readonly picked: Lens | undefined;
   readonly onPick: (lens: Lens | undefined) => void;
 };
 
-export const LensChips = ({ findings, picked, onPick }: LensChipsProps) => (
+export const LensChips = ({ findings, coverage, picked, onPick }: LensChipsProps) => (
   <div className="lenses" role="group" aria-label="Lenses">
     {LENSES.map(lens => {
       const found = findings.filter(finding => LENS_OF[finding.dimension] === lens);
-      const count = (level: Level) => {
-        const shown = found.filter(finding => finding.level === level).length;
-        return (
-          shown > 0 && (
-            <span className="lens-count">
-              <LevelMark level={level} />
-              {shown}
-            </span>
-          )
-        );
-      };
+      const covered = coverage.filter(({ dimension }) => LENS_OF[dimension] === lens);
+      const checked = found.length === 0 && covered.every(({ notRead }) => notRead.length === 0);
+      const names = covered.map(({ dimension }) => nameOf(dimension).toLowerCase()).join(', ');
       return (
         <button
           key={lens}
@@ -296,19 +307,51 @@ export const LensChips = ({ findings, picked, onPick }: LensChipsProps) => (
           aria-pressed={lens === picked}
           onClick={() => onPick(lens === picked ? undefined : lens)}
         >
-          {lens}
-          {count('info')}
-          {count('look')}
+          {checked ? `${lens} · ${names} checked, nothing found` : lens}
+          <LensCount findings={found} level="info" />
+          <LensCount findings={found} level="look" />
         </button>
       );
     })}
   </div>
 );
 
+type LensRowProps = {
+  readonly picked: Lens | undefined;
+  readonly findings: ReadonlyArray<Finding>;
+  readonly coverage: PageData['coverage'];
+};
+
+const coverageLine = (found: number, notRead: ReadonlyArray<string>) => {
+  const reasons = notRead.join(' · ');
+  if (found === 0) return reasons || 'checked, none';
+  return reasons && `· ${reasons}`;
+};
+
+export const LensRow = ({ picked, findings, coverage }: LensRowProps) => {
+  if (picked === undefined) return null;
+  return (
+    <ul className="lens-row" aria-label={`${picked} dimensions`}>
+      {DIMENSIONS.filter(dimension => LENS_OF[dimension] === picked).flatMap(dimension => {
+        const found = findings.filter(finding => finding.dimension === dimension);
+        const entry = coverage.find(covered => covered.dimension === dimension);
+        if (entry === undefined && found.length === 0) return [];
+        return [
+          <li key={dimension} className="lens-row-item">
+            <span className="lens-row-name">{nameOf(dimension)}</span>
+            <LensCount findings={found} level="info" />
+            <LensCount findings={found} level="look" />
+            {coverageLine(found.length, entry?.notRead ?? [])}
+          </li>,
+        ];
+      })}
+    </ul>
+  );
+};
+
 type StartHereProps = LineOptions & {
   readonly findings: ReadonlyArray<Finding>;
   readonly onShowAll: () => void;
-  readonly picked: Lens | undefined;
   readonly review: Pick<PageData, 'diff' | 'metrics' | 'sinceReview'>;
 };
 
@@ -357,7 +400,7 @@ export const StartHere = (props: StartHereProps) => {
     metrics: props.review.metrics,
     nodes: props.review.diff.nodes,
   });
-  if (lines.length === 0 && props.picked === undefined) return null;
+  if (lines.length === 0) return null;
   const lineOf = linesOf(props);
   const lineOfOne = (finding: Finding): Line => {
     const { groups, ...line } = lineOf(finding);
@@ -376,9 +419,7 @@ export const StartHere = (props: StartHereProps) => {
             Start here
           </button>
         </h2>
-        <span className="start-here-count">
-          {lines.length === 0 ? `nothing to show in ${props.picked}` : startHereCount(look, total)}
-        </span>
+        <span className="start-here-count">{startHereCount(look, total)}</span>
         <button type="button" className="show-all" onClick={props.onShowAll}>
           All findings
         </button>

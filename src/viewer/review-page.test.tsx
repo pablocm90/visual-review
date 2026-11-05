@@ -1864,9 +1864,9 @@ test("the findings rail starts collapsed to their total and how many need a look
   expect(lines('Routes')).toEqual(['cli-adapter: 2 calls with no route: /api/info, /api/users']);
 
   expect(lensChips()).toEqual([
-    'Behaviour false',
+    'Behaviour · logic, tests checked, nothing found false',
     'Contract ○1 false',
-    'Risk false',
+    'Risk · dependencies checked, nothing found false',
     'Shape ○1 ▲2 false',
     'Context ○1 ▲1 false',
   ]);
@@ -1900,11 +1900,11 @@ test("the findings rail starts collapsed to their total and how many need a look
   rerender(<ReviewPage review={pageWith({ ...review, findings: [] })} />);
   expect(within(rail()).getByRole('button', { name: 'Show 0 findings' })).toBeDefined();
   expect(lensChips()).toEqual([
-    'Behaviour false',
-    'Contract false',
-    'Risk false',
-    'Shape false',
-    'Context false',
+    'Behaviour · logic, tests checked, nothing found false',
+    'Contract · api, schema, routes checked, nothing found false',
+    'Risk · dependencies checked, nothing found false',
+    'Shape · structure, cohesion checked, nothing found false',
+    'Context · metrics checked, nothing found false',
   ]);
 });
 
@@ -1950,9 +1950,9 @@ test("a lens counts each of its dimensions' findings, a note's flag among them, 
   expect(startHereLines.getByRole('button', { name: /reads a token/ })).toBeDefined();
   expect(lensChips()).toEqual([
     'Behaviour ○2 ▲1 false',
-    'Contract false',
+    'Contract · api, schema, routes checked, nothing found false',
     'Risk ▲1 false',
-    'Shape false',
+    'Shape · structure, cohesion checked, nothing found false',
     'Context ○1 false',
   ]);
 
@@ -1974,31 +1974,78 @@ test("a lens counts each of its dimensions' findings, a note's flag among them, 
   expect(screen.getByRole('button', { name: 'domain: unchanged' })).toBeDefined();
 });
 
-test("a picked lens with nothing to show keeps Start here's band, saying so, with All findings, until it's unpicked", async () => {
+const lensRow = (lens: string) =>
+  within(screen.getByRole('list', { name: `${lens} dimensions` }))
+    .getAllByRole('listitem')
+    .map(item => {
+      const count = (level: string, mark: string) => {
+        const shown = within(item).queryByRole('img', { name: level })?.parentElement?.textContent;
+        return shown ? ` ${mark}${shown}` : '';
+      };
+      return `${item.textContent?.replace(/\d/g, '')}${count('for information', '○')}${count('needs a look', '▲')}`;
+    });
+
+test("a picked lens lists its dimensions under the chips, each with its counts, 'checked, none' or why it wasn't read, a part-read one with both, and a dimension no check raises only when a finding is in it", async () => {
   const user = userEvent.setup();
   render(
     <ReviewPage
       review={pageWith({
         ...review,
-        findings: [findingOn('rust/crate/domain', { check: 'logic:changed', dimension: 'logic' })],
+        findings: [
+          findingOn('rust/crate/domain', { id: 'a', check: 'logic:changed', dimension: 'logic' }),
+          findingOn('rust/crate/domain', {
+            id: 'b',
+            check: 'logic:removed',
+            dimension: 'logic',
+            level: 'look',
+          }),
+          findingOn('rust/crate/domain', { id: 'c', check: 'api:signature', dimension: 'api' }),
+          findingOn('rust/crate/domain', {
+            id: 'd',
+            check: 'flag',
+            dimension: 'security',
+            level: 'look',
+          }),
+        ],
+        coverage: [
+          { dimension: 'structure', notRead: ['crates not read'] },
+          { dimension: 'logic', notRead: ['not read for crates'] },
+          { dimension: 'api', notRead: [] },
+          { dimension: 'tests', notRead: ['not read for crates', 'not read for web/a.test.ts'] },
+          { dimension: 'metrics', notRead: [] },
+          { dimension: 'dependencies', notRead: [] },
+          { dimension: 'schema', notRead: ['Rails only'] },
+          { dimension: 'routes', notRead: [] },
+          { dimension: 'cohesion', notRead: [] },
+        ],
       })}
     />,
   );
 
-  const band = await screen.findByRole('region', { name: 'Start here' });
-  const risk = within(screen.getByRole('group', { name: 'Lenses' })).getByRole('button', {
-    name: 'Risk',
-  });
+  const lenses = within(await screen.findByRole('group', { name: 'Lenses' }));
+  expect(lensChips()).toEqual([
+    'Behaviour ○1 ▲1 false',
+    'Contract ○1 false',
+    'Risk ▲1 false',
+    'Shape false',
+    'Context · metrics checked, nothing found false',
+  ]);
+  expect(screen.queryByRole('list', { name: /dimensions/ })).toBeNull();
 
-  await user.click(risk);
-  const picked = within(screen.getByRole('region', { name: 'Start here' }));
-  expect(picked.getByText('nothing to show in Risk')).toBeDefined();
-  expect(picked.getByRole('button', { name: 'All findings' })).toBeDefined();
-  expect(picked.queryByRole('listitem')).toBeNull();
+  await user.click(lenses.getByRole('button', { name: /Behaviour/ }));
+  expect(lensRow('Behaviour')).toEqual([
+    'Logic· not read for crates ○1 ▲1',
+    'Testsnot read for crates · not read for web/a.test.ts',
+  ]);
 
-  await user.click(risk);
-  expect(within(band).queryByText(/nothing to show/)).toBeNull();
-  expect(within(band).getAllByRole('listitem')).toHaveLength(1);
+  await user.click(lenses.getByRole('button', { name: /Contract/ }));
+  expect(lensRow('Contract')).toEqual(['API ○1', 'SchemaRails only', 'Routeschecked, none']);
+
+  await user.click(lenses.getByRole('button', { name: /Risk/ }));
+  expect(lensRow('Risk')).toEqual(['Dependencieschecked, none', 'Security ▲1']);
+
+  await user.click(lenses.getByRole('button', { name: /Risk/ }));
+  expect(screen.queryByRole('list', { name: /dimensions/ })).toBeNull();
 });
 
 test("a note's or a metric finding in the rail goes to its node or edge as the summary's links do", async () => {

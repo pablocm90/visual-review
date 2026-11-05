@@ -32,9 +32,10 @@ export const fakeReader = ({
 type FakeLinkerOptions = {
   readonly from: ReaderName;
   readonly to: ReaderName;
+  readonly notRead?: string;
 };
 
-export const fakeLinker = ({ from, to }: FakeLinkerOptions): Linker => ({
+export const fakeLinker = ({ from, to, notRead }: FakeLinkerOptions): Linker => ({
   name: 'fetch-axum',
   from,
   to,
@@ -43,5 +44,6 @@ export const fakeLinker = ({ from, to }: FakeLinkerOptions): Linker => ({
       nodes.flatMap(node => options.to.map(({ stack }) => ({ from: node.id, to: stack }))),
     ),
     dangling: options.from.map(({ stack }) => ({ from: stack, path: '/missing' })),
+    ...(notRead === undefined ? {} : { notRead }),
   }),
 });

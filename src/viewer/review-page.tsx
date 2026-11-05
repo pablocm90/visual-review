@@ -50,7 +50,7 @@ import {
   LevelMark,
   worstOf,
 } from './finding-display.tsx';
-import { FindingsRail, LensChips, StartHere } from './findings-rail.tsx';
+import { FindingsRail, LensChips, LensRow, StartHere } from './findings-rail.tsx';
 import { highlightPatch, type PatchLine as Line, type Piece } from './highlight-patch.ts';
 import { LastReview } from './last-review.tsx';
 import {
@@ -1671,10 +1671,15 @@ const Page = ({ review, notes, send }: ReviewPageProps) => {
             </div>
             <div className="content">
               {notes && notes.summary.length > 0 && <Summary notes={notes} onGoTo={goTo} />}
-              <LensChips findings={findings} picked={picked} onPick={setPicked} />
+              <LensChips
+                findings={findings}
+                coverage={review.coverage}
+                picked={picked}
+                onPick={setPicked}
+              />
+              <LensRow picked={picked} findings={findings} coverage={review.coverage} />
               <StartHere
                 findings={inLens}
-                picked={picked}
                 onShowAll={() => setRailOpen(true)}
                 review={review}
                 onGoTo={goTo}

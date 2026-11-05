@@ -25,6 +25,7 @@ test("a TS stack's fetch joins the axum crate that declares its route, under the
   expect(range.after.edges.filter(({ via }) => via !== undefined)).toEqual([
     { from: 'front/file/a.ts', to: 'rust/crate/routes', via: ['/api/info'] },
   ]);
+  expect(range.linksNotRead).toEqual([]);
 });
 
 test.for([
@@ -49,6 +50,7 @@ test.for([
 
   expect(range.after.edges).toEqual([]);
   expect(range.danglingCalls).toEqual([]);
+  expect(range.linksNotRead).toEqual(['no axum crate']);
 });
 
 test("each side joins a web file's fetch to http-adapter through a matching route, and the after side lists calls that lost their route", async () => {
