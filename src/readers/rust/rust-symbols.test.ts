@@ -213,10 +213,18 @@ test.for([
   { impl: 'impl<T> Tr<T> for Foo<T>', scope: 'Foo as Tr<T>' },
   { impl: 'impl From<A> for a::Foo', scope: 'a::Foo as From<A>' },
   { impl: 'impl Tr<\n  A,\n> for (\n  B,\n  C,\n)', scope: '( B, C, ) as Tr< A, >' },
+  { impl: 'impl Tr for &Foo', scope: '&Foo as Tr' },
+  { impl: 'impl Tr for &mut Foo<u8>', scope: '&mut Foo<u8> as Tr' },
 ])('$impl scopes its methods to $scope', ({ impl, scope }) => {
   expect(read(`${impl} {\n  fn open() {}\n}`).symbols).toMatchObject([
     { kind: 'method', scope, name: 'open' },
   ]);
+});
+
+test.for(['&Foo', '&mut Foo<u8>', '&&Foo'])('a trait method on %s is exported with Foo', type => {
+  expect(
+    methodsIn(read('pub struct Foo;', `impl Tr for ${type} {\n  fn open() {}\n}`)),
+  ).toMatchObject([{ exported: true }]);
 });
 
 test.for([

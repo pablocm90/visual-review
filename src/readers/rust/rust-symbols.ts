@@ -79,7 +79,12 @@ const functionsIn = (item: Node): ReadonlyArray<ReadSymbol> =>
 
 const typeOfImpl = (item: Node): string => {
   const type = item.childForFieldName('type');
-  return (type?.childForFieldName('type') ?? type)?.text ?? '';
+  return textOf(type?.type === 'generic_type' ? type.childForFieldName('type') : type);
+};
+
+const underlyingType = (type: Node | null): string => {
+  const inner = type?.childForFieldName('type') ?? null;
+  return inner === null ? textOf(type) : underlyingType(inner);
 };
 
 const isPubBeside = (item: Node, name: string): boolean =>
@@ -93,7 +98,10 @@ const methodsOfImpl = (item: Node): ReadonlyArray<ReadSymbol> => {
   const place =
     trait === null
       ? { scope: type }
-      : { scope: collapsed(`${type} as ${trait.text}`), exported: isPubBeside(item, type) };
+      : {
+          scope: collapsed(`${type} as ${trait.text}`),
+          exported: isPubBeside(item, underlyingType(item.childForFieldName('type'))),
+        };
   return functionsIn(item).map(method => ({ ...method, kind: 'method', ...place }));
 };
 
