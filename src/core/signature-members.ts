@@ -1,4 +1,7 @@
+import { aligned } from './aligned.ts';
+
 export type SplitSignature = {
+  readonly by: '(' | '{' | '|';
   readonly opener: string;
   readonly members: ReadonlyArray<string>;
   readonly closer: string;
@@ -37,12 +40,17 @@ const marksOf = (text: string): ReadonlyArray<Mark> | undefined => {
   return scan?.open === '' ? scan.marks : undefined;
 };
 
-const sliced = (
-  text: string,
-  { start, cuts, end }: { start: number; cuts: ReadonlyArray<number>; end: number },
-): SplitSignature => {
+type Slices = {
+  readonly by: SplitSignature['by'];
+  readonly start: number;
+  readonly cuts: ReadonlyArray<number>;
+  readonly end: number;
+};
+
+const sliced = (text: string, { by, start, cuts, end }: Slices): SplitSignature => {
   const trimmedEnd = start + text.slice(start, end).trimEnd().length;
   return {
+    by,
     opener: text.slice(0, start),
     members: [start, ...cuts]
       .map((from, index) => text.slice(from, cuts[index] ?? trimmedEnd))
@@ -59,6 +67,7 @@ const unionSplit = (text: string, top: ReadonlyArray<Mark>): SplitSignature | un
   if (first === undefined) return undefined;
   const leading = text.slice(equals.at + 1, first.at).trim() === '';
   return sliced(text, {
+    by: '|',
     start: (leading ? first.at : equals.at) + 1,
     cuts: (leading ? rest : bars).map(({ at }) => at + 1),
     end: text.endsWith(';') ? text.length - 1 : text.length,
@@ -72,10 +81,13 @@ export const splitSignature = (text: string): SplitSignature | undefined => {
   if (top.some(({ token, at }) => token === ';' && at < text.length - 1)) return undefined;
   const union = unionSplit(text, top);
   if (union !== undefined) return union;
-  const open = top.find(({ token }) => token === '(' || token === '{');
+  const open = top.find((mark): mark is Mark & { token: '(' | '{' } =>
+    ['(', '{'].includes(mark.token),
+  );
   const close = open && top[top.indexOf(open) + 1];
   if (open === undefined || close === undefined) return undefined;
   return sliced(text, {
+    by: open.token,
     start: open.at + 1,
     cuts: marks
       .filter(
@@ -85,4 +97,58 @@ export const splitSignature = (text: string): SplitSignature | undefined => {
       .map(({ at }) => at + 1),
     end: close.at,
   });
+};
+
+export type SignatureLine =
+  | { readonly change: 'same' | 'added' | 'removed'; readonly text: string }
+  | { readonly change: 'changed'; readonly base: string; readonly head: string };
+
+export type SignatureDiff = {
+  readonly opener: ReadonlyArray<SignatureLine>;
+  readonly members: ReadonlyArray<SignatureLine>;
+  readonly closer: ReadonlyArray<SignatureLine>;
+};
+
+const comparable = (member: string): string => member.trim().replace(/\s*[,;|]$/, '');
+
+const edge = (base: string, head: string): ReadonlyArray<SignatureLine> => {
+  const [from, to] = [base.trim(), head.trim()];
+  return from === to
+    ? [{ change: 'same', text: to }]
+    : [
+        { change: 'removed', text: from },
+        { change: 'added', text: to },
+      ];
+};
+
+export const signatureDiff = ({
+  base,
+  head,
+}: {
+  readonly base: string;
+  readonly head: string;
+}): SignatureDiff | undefined => {
+  const [from, to] = [splitSignature(base), splitSignature(head)];
+  if (from === undefined || to === undefined || from.by !== to.by) return undefined;
+  const diff = {
+    opener: edge(from.opener, to.opener),
+    members: aligned({
+      base: from.members.map(comparable),
+      head: to.members.map(comparable),
+      same: (one, other) => one === other,
+    }).flatMap(
+      (run): ReadonlyArray<SignatureLine> =>
+        'kept' in run
+          ? [{ change: 'same', text: run.kept }]
+          : [
+              ...run.base.map((text): SignatureLine => ({ change: 'removed', text })),
+              ...run.head.map((text): SignatureLine => ({ change: 'added', text })),
+            ],
+    ),
+    closer: edge(from.closer, to.closer),
+  };
+  const marked = [...diff.opener, ...diff.members, ...diff.closer].some(
+    ({ change }) => change !== 'same',
+  );
+  return marked ? diff : undefined;
 };
