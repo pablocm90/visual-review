@@ -234,17 +234,27 @@ const matched: Handler = (call, scope) => {
     : namesIn(via).flatMap(verb => drawnBy(VIAS.get(verb) ?? verb.toUpperCase())(call, scope));
 };
 
+const isSplat = ({ type }: Node): boolean => type === 'hash_splat_argument';
+
 const mounted: Handler = (call, scope) => {
   const args = argsOf(call);
   const [first] = args;
   const pair = first?.type === 'pair' ? first : undefined;
   const path = pair?.childForFieldName('value') ?? optionOf(args, 'at');
   const app = pair?.childForFieldName('key') ?? first;
+  if (
+    app === undefined ||
+    path === undefined ||
+    !isName(path) ||
+    optionOf(args, 'via') !== undefined ||
+    args.some(isSplat)
+  )
+    return [unread(call, scope)];
   return [
     {
       verb: 'ANY',
-      path: under(scope.path, nameOf(path ?? undefined)),
-      target: app?.text ?? '',
+      path: under(scope.path, nameOf(path)),
+      target: app.text,
       ...placeOf(call, scope),
     },
   ];
@@ -295,7 +305,7 @@ const namesWhatItDraws = (args: ReadonlyArray<Node>): boolean => {
   const to = toOf(args);
   const on = optionOf(args, 'on');
   return (
-    !args.some(({ type }) => type === 'hash_splat_argument') &&
+    !args.some(isSplat) &&
     positional(args).every(isName) &&
     NAMING_OPTIONS.every(key => {
       const option = optionOf(args, key);

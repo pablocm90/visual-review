@@ -423,6 +423,12 @@ test.for([
   },
   { reads: 'match with no via', written: 'match "a", to: "b#c"' },
   { reads: 'root with no target', written: 'root' },
+  { reads: 'a mount at a path it cannot read', written: 'mount Blog::Engine, at: PATH' },
+  { reads: 'a mount by a rocket to a path it cannot read', written: 'mount Blog::Engine => PATH' },
+  { reads: 'a mount at an interpolated path', written: 'mount Blog::Engine, at: "#{prefix}/blog"' },
+  { reads: 'a mount at no path', written: 'mount Blog::Engine' },
+  { reads: 'a mount with a splatted option', written: 'mount Blog::Engine, at: "blog", **options' },
+  { reads: 'a mount narrowing its verbs', written: 'mount Blog::Engine, at: "blog", via: :get' },
 ])('$reads is not read, and not guessed at', ({ written }) => {
   const { routes, unread } = read(written);
   expect(routes).toStrictEqual([]);
