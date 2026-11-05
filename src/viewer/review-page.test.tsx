@@ -2516,6 +2516,54 @@ test('while reading, the reading order narrows to numbered stops: the part curre
   expect(screen.getByRole('group', { name: 'Map' })).toBeDefined();
 });
 
+test("while reading, Next to it lists the part's edges by what each does, its change and whether the other end is read, each going to it; a linker's edge calls, and the landing has none", async () => {
+  const user = userEvent.setup();
+  const { unmount } = render(
+    <ReviewPage
+      review={{
+        ...walkedReview(),
+        diff: {
+          ...review.diff,
+          edges: [
+            ...review.diff.edges,
+            { ...dependency('application', 'legacy', 'unchanged'), via: ['/api/x'] },
+            { ...dependency('domain', 'application', 'unchanged'), via: ['/api/y'] },
+          ],
+        },
+      }}
+    />,
+  );
+  const rust = await screen.findByRole('group', { name: 'rust' });
+  const nextToIt = () => screen.queryByRole('region', { name: 'Next to it' });
+  const rows = () =>
+    within(nextToIt() ?? document.body)
+      .getAllByRole('button')
+      .map(row => row.textContent);
+  await user.click(within(rust).getByRole('button', { name: 'application: modified' }));
+  expect(nextToIt()).toBeNull();
+
+  await user.keyboard('jak');
+
+  expect(selectedPart()).toBe('application');
+  expect(rows()).toEqual([
+    'imports domain',
+    'calls legacy',
+    'imported by cli-adapter · added · read',
+    'called by domain',
+  ]);
+
+  await user.click(screen.getByRole('button', { name: 'imports domain' }));
+  expect(selectedPart()).toBe('domain');
+  expect(screen.getByRole('group', { name: 'Map' })).toBeDefined();
+  unmount();
+
+  render(<ReviewPage review={{ ...walkedReview(), diff: { ...review.diff, edges: [] } }} />);
+  await screen.findByRole('group', { name: 'rust' });
+  await user.keyboard('j');
+  expect(selectedPart()).toBe('application');
+  expect(nextToIt()).toBeNull();
+});
+
 test('J and K walk the reading order from the selected part, starting at its first part, going to each as its row does, and stay put at either end', async () => {
   const user = userEvent.setup();
   render(<ReviewPage review={walkedReview()} />);

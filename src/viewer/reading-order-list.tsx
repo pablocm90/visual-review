@@ -47,6 +47,7 @@ const Stop = ({ number, label, read, current, onClick }: StopProps) => (
   <li className="reading-stop">
     <button
       type="button"
+      className="reading-stop-button"
       title={label}
       aria-current={current ? 'step' : undefined}
       onClick={event => onClick(event.currentTarget)}

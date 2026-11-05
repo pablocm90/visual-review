@@ -57,6 +57,7 @@ import {
 import { LENS_OF, type Lens } from './lenses.ts';
 import { MetricsScreen } from './metrics-screen.tsx';
 import { MetricsTable } from './metrics-tab.tsx';
+import { NextToIt } from './next-to-it.tsx';
 import { storedReadMarks, storeReadMarks } from './read-marks.ts';
 import { partsRead, ReadingOrderList, ReadingStops } from './reading-order-list.tsx';
 import { Ref, shortRef } from './ref.tsx';
@@ -1872,6 +1873,9 @@ const Page = ({ review, notes, send }: ReviewPageProps) => {
             </>
           )}
         </div>
+      )}
+      {reading && selectedNode && (
+        <NextToIt diff={review.diff} part={selectedNode.id} read={read} onGoTo={goTo} />
       )}
     </div>
   );
