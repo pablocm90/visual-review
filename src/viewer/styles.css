@@ -2969,7 +2969,9 @@ main:has(> .review-tray) {
   background: var(--unchanged-fill);
 }
 
-.columns.reading .frame {
+.columns.reading .frame,
+.columns.reading .edge,
+.columns.reading .flag-badge {
   cursor: default;
 }
 

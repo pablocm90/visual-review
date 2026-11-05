@@ -2411,7 +2411,6 @@ test('on the map the current part is marked, a click on a node goes to it as J d
   expect(node('cli-adapter: added').getAttribute('aria-current')).toBe('true');
   expect(application().getAttribute('aria-current')).toBeNull();
   expect(application().tabIndex).toBe(-1);
-  expect(node('application → domain: unchanged').tabIndex).toBe(-1);
 
   await user.click(legacy());
   expect(selectedPart()).toBe('legacy');
@@ -2702,6 +2701,38 @@ test('reading holds across Metrics and Tests: the map, the part and the column a
   expect(rowsOf(readingOrder())).toHaveLength(3);
 });
 
+test('on the map an arrow and its badge go nowhere: the part stays, and they go again on the landing', async () => {
+  const user = userEvent.setup();
+  const edge = 'rust/crate/cli-adapter -> rust/crate/application';
+  render(
+    <ReviewPage
+      review={walkedReview()}
+      notes={{
+        version: 1,
+        tests: '',
+        summary: [],
+        notes: { [edge]: { text: 'The CLI drives the use case.', flag: 'new direction' } },
+      }}
+    />,
+  );
+  await screen.findByRole('group', { name: 'rust' });
+  const arrowName = 'cli-adapter → application: added, flagged: new direction';
+  const arrow = screen.getByRole('button', { name: arrowName });
+  const badge = screen.getByRole('img', { name: /new direction/ });
+
+  await user.keyboard('j');
+  expect(selectedPart()).toBe('application');
+  expect(screen.queryByRole('button', { name: arrowName })).toBeNull();
+  await user.click(arrow);
+  expect(selectedPart()).toBe('application');
+  await user.click(badge);
+  expect(selectedPart()).toBe('application');
+
+  await user.click(screen.getByRole('button', { name: 'Open map' }));
+  await user.click(screen.getByRole('button', { name: arrowName }));
+  expect(noteShown()).toBe('The CLI drives the use case.');
+});
+
 test('Start here left collapsed is still collapsed after reading', async () => {
   const user = userEvent.setup();
   render(<ReviewPage review={{ ...walkedReview(), findings: [findingOn('rust/crate/domain')] }} />);
@@ -2835,6 +2866,7 @@ test("a part's head marks it read and goes to the next part, as A and J do, even
   expect(markRead()).not.toBeNull();
   expect(anyNext()).toBeNull();
 
+  await user.click(screen.getByRole('button', { name: 'Open map' }));
   await user.click(within(rust).getByRole('button', { name: 'application → domain: unchanged' }));
   expect(head().queryByRole('button', { name: 'Mark read' })).toBeNull();
   expect(anyNext()).toBeNull();

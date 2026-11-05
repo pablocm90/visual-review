@@ -362,7 +362,7 @@ const EdgeView = ({ edge, name, drawing }: EdgeViewProps) => {
   return (
     <>
       <path
-        {...selectable({ id, name, note, onSelect, register, inMap })}
+        {...(inMap ? {} : selectable({ id, name, note, onSelect, register, inMap }))}
         className={edge.via ? 'edge call' : 'edge'}
         data-state={edge.state}
         d={edgePath(edge.points)}
@@ -373,7 +373,7 @@ const EdgeView = ({ edge, name, drawing }: EdgeViewProps) => {
           {...middleOf(edge.points)}
           findings={found}
           picked={drawing.picked}
-          onPress={() => onSelect(id)}
+          {...(inMap ? {} : { onPress: () => onSelect(id) })}
         />
       )}
     </>
