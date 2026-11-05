@@ -245,10 +245,10 @@ test('a ? reads as a try, the whole expression as written', () => {
   ]);
 });
 
-test('a chain of ? reads one line each, the inner first, at one depth', () => {
+test("a chain of ? reads one line each, the inner first, at one depth, each on its own ?'s row", () => {
   expect(decisionsIn('a()?', '.b()?;')).toEqual([
     { kind: 'try', text: 'a()?', depth: 0, line: 2 },
-    { kind: 'try', text: '….b()?', depth: 0, line: 2 },
+    { kind: 'try', text: '….b()?', depth: 0, line: 3 },
   ]);
 });
 

@@ -164,6 +164,9 @@ const READS = new Map<string, (node: Node, walk: Walk) => Read | undefined>([
   ['try_expression', tryOf],
 ]);
 
+const lineOf = (node: Node): number =>
+  (node.type === 'try_expression' ? node.endPosition : node.startPosition).row + 1;
+
 const decisionsUnder = (walk: Walk, nodes: ReadonlyArray<Node>): ReadonlyArray<Decision> =>
   nodes.flatMap(node => {
     if (node.type === 'function_item') return [];
@@ -173,7 +176,7 @@ const decisionsUnder = (walk: Walk, nodes: ReadonlyArray<Node>): ReadonlyArray<D
     const depth = isElseIf(node) ? walk.depth - 1 : walk.depth;
     return [
       ...decisionsUnder(walk, beside),
-      { ...head, depth, line: node.startPosition.row + 1 },
+      { ...head, depth, line: lineOf(node) },
       ...decisionsUnder({ depth: depth + 1 }, deeper),
     ];
   });
