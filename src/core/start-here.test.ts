@@ -39,3 +39,13 @@ test("a check's findings at one level make one line, counted, with the files the
   expect(lines[0]?.names).toStrictEqual(['0.ts', '1.ts', '2.ts', '3.ts']);
   expect(lines[0]?.findings).toHaveLength(7);
 });
+
+test('a line of one finding reads its own title, and a note flag is always a line of its own', () => {
+  const flag = (id: string) =>
+    findingOn('web/file/0.ts', { id, check: 'flag', title: `said ${id}` });
+  const findings = [flag('notes:a'), flag('notes:b'), ...raisedOver('api:added', 'info', 1, 1)];
+
+  const { lines } = startHere({ findings, metrics: {}, nodes });
+
+  expect(lines.map(line => line.title)).toStrictEqual(['said notes:a', 'said notes:b', '0']);
+});

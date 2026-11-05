@@ -27,18 +27,19 @@ export const startHere = ({ findings, nodes }: StartHereOptions) => {
   const ranked = findings.toSorted(
     (one, other) => Number(other.level === 'look') - Number(one.level === 'look'),
   );
-  const lines = [...Map.groupBy(ranked, ({ check, level }) => `${check} ${level}`)].flatMap(
-    ([key, group]) =>
-      group.slice(0, 1).map(
-        ({ level, check }): StartHereLine => ({
-          key,
-          level,
-          title: check === 'flag' ? '' : `${group.length} ${CHECK_TITLES[check]}`,
-          findings: group,
-          names: distinct(nodesOf(group).map(node => node.label)),
-          files: distinct(nodesOf(group).map(node => node.id)).length,
-        }),
-      ),
+  const keyOf = ({ id, check, level }: Finding) => (check === 'flag' ? id : `${check} ${level}`);
+  const lines = [...Map.groupBy(ranked, keyOf)].flatMap(([key, group]) =>
+    group.slice(0, 1).map(
+      ({ level, check, title }): StartHereLine => ({
+        key,
+        level,
+        title:
+          check === 'flag' || group.length === 1 ? title : `${group.length} ${CHECK_TITLES[check]}`,
+        findings: group,
+        names: distinct(nodesOf(group).map(node => node.label)),
+        files: distinct(nodesOf(group).map(node => node.id)).length,
+      }),
+    ),
   );
   return { lines };
 };
