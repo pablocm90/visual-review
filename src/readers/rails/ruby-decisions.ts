@@ -67,8 +67,11 @@ const thrownName = (raised: Node | undefined): string => {
 
 const NAMED_EXITS = new Set(['head', 'render', 'redirect_to']);
 
+const THEN_OPERATORS = new Set(['and', '&&']);
+
 const beforeAndReturn = (statement: Node): Node | undefined =>
-  fieldOf(statement, 'operator')?.text === 'and' && fieldOf(statement, 'right')?.type === 'return'
+  THEN_OPERATORS.has(fieldOf(statement, 'operator')?.text ?? '') &&
+  fieldOf(statement, 'right')?.type === 'return'
     ? fieldOf(statement, 'left')
     : undefined;
 

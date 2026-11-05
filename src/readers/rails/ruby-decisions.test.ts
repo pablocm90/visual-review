@@ -37,6 +37,7 @@ test.for([
   { lines: ['render if x'], text: 'render if x' },
   { lines: ['if x', '  head :ok', 'end'], text: 'head if x' },
   { lines: ['render :a and return if x'], text: 'render and return if x' },
+  { lines: ['render(:a) && return if x'], text: 'render and return if x' },
   { lines: ['if x', '  redirect_to a and return', 'end'], text: 'redirect_to and return if x' },
 ])('$lines reads as the guard $text, found by name', ({ lines, text }) => {
   expect(decisionsIn(...lines)).toEqual([
