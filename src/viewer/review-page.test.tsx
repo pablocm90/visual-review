@@ -2266,6 +2266,44 @@ const readRows = () =>
     .filter(row => within(row).queryByRole('img', { name: 'read' }) !== null)
     .map(row => within(row).getByRole('button').textContent);
 
+test("a part's head marks it read and goes to the next part, as A and J do, even on a page not served; a part outside the reading order takes no mark, the last no Next", async () => {
+  const user = userEvent.setup();
+  render(<ReviewPage review={walkedReview()} />);
+  const rust = await screen.findByRole('group', { name: 'rust' });
+  const head = () => within(inspector());
+  const markRead = () => head().getByRole('button', { name: 'Mark read' });
+  const goNext = (part: string) =>
+    user.click(head().getByRole('button', { name: `Next: ${part}` }));
+  const anyNext = () => head().queryByRole('button', { name: /^Next/ });
+
+  await user.click(within(rust).getByRole('button', { name: 'domain: unchanged' }));
+  expect(head().queryByRole('button', { name: 'Mark read' })).toBeNull();
+
+  await goNext('application');
+  expect(selectedPart()).toBe('application');
+  expect(markRead().getAttribute('aria-pressed')).toBe('false');
+
+  await user.click(markRead());
+  expect(markRead().getAttribute('aria-pressed')).toBe('true');
+  expect(readRows()).toEqual([expect.stringContaining('application')]);
+  await user.keyboard('a');
+  expect(markRead().getAttribute('aria-pressed')).toBe('false');
+
+  await goNext('cli-adapter');
+  expect(selectedPart()).toBe('cli-adapter');
+  await waitFor(() =>
+    expect(document.activeElement).toBe(screen.getByRole('button', { name: 'cli-adapter: added' })),
+  );
+  await goNext('legacy');
+  expect(selectedPart()).toBe('legacy');
+  expect(markRead()).not.toBeNull();
+  expect(anyNext()).toBeNull();
+
+  await user.click(within(rust).getByRole('button', { name: 'application → domain: unchanged' }));
+  expect(head().queryByRole('button', { name: 'Mark read' })).toBeNull();
+  expect(anyNext()).toBeNull();
+});
+
 test('the next part opens at the top of the column, which holds its scroll while the part stays', async () => {
   const user = userEvent.setup();
   render(<ReviewPage review={walkedReview()} />);
@@ -3336,7 +3374,7 @@ const metricCells = (metric: string) => {
   );
 };
 
-test("a measured node's Metrics tab gives each measure before and after with the difference, a missing side and its difference as —, and a side without complexity as not measured, and a box's values as the highest inside it, with no functions listed without their cyclomatic; a node or an edge without metrics has no Metrics tab", async () => {
+test("a measured node's Metrics fold gives each measure before and after with the difference, a missing side and its difference as —, and a side without complexity as not measured, and a box's values as the highest inside it, with no functions listed without their cyclomatic; a node or an edge without metrics has no Metrics fold", async () => {
   const user = userEvent.setup();
   render(
     <ReviewPage
@@ -3435,7 +3473,7 @@ test("a Metrics row is marked by the level of the node's finding on it, a hotspo
   expect(metricMarks('Functions')).toEqual([]);
 });
 
-test("a measured file's Metrics tab lists its functions by cyclomatic base → head, a repeated name paired n-th with n-th, marked added, removed or modified, the highest head first and removed ones last", async () => {
+test("a measured file's Metrics fold lists its functions by cyclomatic base → head, a repeated name paired n-th with n-th, marked added, removed or modified, the highest head first and removed ones last", async () => {
   const user = userEvent.setup();
   const byFunction = (pairs: ReadonlyArray<readonly [string, number]>) => ({
     highest: 14,

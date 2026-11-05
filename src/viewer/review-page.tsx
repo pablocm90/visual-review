@@ -595,12 +595,21 @@ const stackOf = (nodes: ReadonlyArray<DiffNode>, node: DiffNode): DiffNode => {
   return parent ? stackOf(nodes, parent) : node;
 };
 
+type Walking = {
+  readonly read: boolean | undefined;
+  readonly onToggleRead: () => void;
+  readonly next: DiffNode | undefined;
+  readonly onGoTo: (id: string) => void;
+};
+
 const InspectorHead = ({
   nodes,
   node,
+  walking: { read, onToggleRead, next, onGoTo },
 }: {
   readonly nodes: ReadonlyArray<DiffNode>;
   readonly node: DiffNode;
+  readonly walking: Walking;
 }) => (
   <header className="inspector-head">
     <p className="chips">
@@ -615,6 +624,18 @@ const InspectorHead = ({
         ? node.path
         : `${node.path}, renamed from ${node.renamedFrom}`}
     </p>
+    <div className="part-actions">
+      {read !== undefined && (
+        <button type="button" aria-pressed={read} onClick={onToggleRead}>
+          Mark read <kbd aria-hidden="true">A</kbd>
+        </button>
+      )}
+      {next && (
+        <button type="button" onClick={() => onGoTo(next.id)}>
+          Next: {next.label} <kbd aria-hidden="true">J</kbd>
+        </button>
+      )}
+    </div>
   </header>
 );
 
@@ -640,6 +661,7 @@ type InspectorProps = {
   readonly onAnswer: AnswerTo | undefined;
   readonly width: number;
   readonly onClose: () => void;
+  readonly walking: Walking;
 };
 
 type LandingPlace = string | null | undefined;
@@ -819,6 +841,7 @@ const Inspector = ({
   onClose,
   landing,
   onLand,
+  walking,
   ...props
 }: InspectorProps) => {
   const showLine = ({ node: at, ...line }: LineAt) =>
@@ -837,7 +860,7 @@ const Inspector = ({
       <button type="button" className="close" aria-label="Close inspector" onClick={onClose}>
         ×
       </button>
-      {node && <InspectorHead nodes={props.nodes} node={node} />}
+      {node && <InspectorHead nodes={props.nodes} node={node} walking={walking} />}
       <NotePanel {...props} node={node} onShowLine={showLine} landing={landing} />
       {node && measured && (
         <Fold title="Metrics" open={metricsOpen} onToggle={() => setMetricsOpen(!metricsOpen)}>
@@ -905,7 +928,12 @@ type SidePanelProps = {
   readonly onGoTo: (id: string) => void;
   readonly landing: LandingIn | undefined;
   readonly onLand: (landing: LandingIn) => void;
+  readonly read: ReadonlySet<string>;
+  readonly onToggleRead: (id: string) => void;
 };
+
+const partFrom = (parts: ReadonlyArray<string>, selected: string | undefined, step: number) =>
+  parts[Math.max(parts.indexOf(selected ?? '') + step, 0)];
 
 const SidePanel = ({
   review,
@@ -927,6 +955,8 @@ const SidePanel = ({
   onGoTo,
   landing,
   onLand,
+  read,
+  onToggleRead,
 }: SidePanelProps) => {
   const patches = outside
     ? review.undrawn
@@ -979,6 +1009,8 @@ const SidePanel = ({
   }
   if (selected === undefined) return null;
   const anchor = { kind: node === undefined ? 'edge' : 'part', id: selected } as const;
+  const { parts } = review.readingOrder;
+  const nextId = partFrom(parts, selected, 1);
   return (
     <>
       {divider}
@@ -1006,6 +1038,12 @@ const SidePanel = ({
         onClose={() => onCloseInspector(selected)}
         landing={landing}
         onLand={onLand}
+        walking={{
+          read: parts.includes(selected) ? read.has(selected) : undefined,
+          onToggleRead: () => onToggleRead(selected),
+          next: review.diff.nodes.find(({ id }) => id === nextId),
+          onGoTo,
+        }}
       />
     </>
   );
@@ -1561,10 +1599,9 @@ const Page = ({ review, notes, send }: ReviewPageProps) => {
   };
   const [read, setRead] = useState(() => storedReadMarks(review.range, stillReadIn(review)));
   useEffect(() => storeReadMarks(review.range, read), [review.range, read]);
+  const toggleRead = (id: string) => setRead(current => toggled(current, id));
   const walk = (step: number) => {
-    const { parts } = review.readingOrder;
-    const at = parts.indexOf(selected ?? '');
-    const next = parts[Math.max(at + step, 0)];
+    const next = partFrom(review.readingOrder.parts, selected, step);
     if (next !== undefined) goTo(next);
   };
   useEffect(() => {
@@ -1576,7 +1613,7 @@ const Page = ({ review, notes, send }: ReviewPageProps) => {
       if (key === 'j') walk(1);
       if (key === 'k') walk(-1);
       if (key === 'a' && selected !== undefined && review.readingOrder.parts.includes(selected))
-        setRead(current => toggled(current, selected));
+        toggleRead(selected);
     };
     document.addEventListener('keydown', keyed);
     return () => document.removeEventListener('keydown', keyed);
@@ -1761,6 +1798,8 @@ const Page = ({ review, notes, send }: ReviewPageProps) => {
                 onGoTo={goTo}
                 landing={landing}
                 onLand={line => landOn(selected, line)}
+                read={read}
+                onToggleRead={toggleRead}
               />
             </ChangedSinceMarks>
           </div>
