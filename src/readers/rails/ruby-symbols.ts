@@ -2,6 +2,7 @@ import { createHash } from 'node:crypto';
 import type { Node } from 'web-tree-sitter';
 import type { FileSymbols, ReadSymbol } from '../../core/reader.ts';
 import { isTooBig, TOO_BIG } from '../too-big.ts';
+import { decisionsOfMethod } from './ruby-decisions.ts';
 import { parseRuby } from './ruby-syntax.ts';
 
 const DEFINITIONS = new Set(['class', 'module']);
@@ -144,6 +145,7 @@ const methodSymbol = (method: Node, within: string | undefined, walk: Walk): Rea
     exported: isMethodExported(method, written, walk),
     signature: parameterText(method),
     ...hashesOf({ signed: parametersOf(method), body: fieldOf(method, 'body'), text: method.text }),
+    decisions: decisionsOfMethod(method),
   };
 };
 
