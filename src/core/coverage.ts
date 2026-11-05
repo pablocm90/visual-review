@@ -17,6 +17,7 @@ export type CoverageFacts = Pick<
   | 'dependencyChanges'
   | 'schemas'
   | 'migrations'
+  | 'readers'
 >;
 
 const notReadFor = (name: string): string => `not read for ${name}`;
@@ -30,12 +31,20 @@ export const coverageOf = ({
   dependencyChanges,
   schemas,
   migrations,
+  readers,
 }: CoverageFacts): ReadonlyArray<Coverage> => {
   const skippedStacks = skipped.flatMap(({ stacks }) => stacks);
   const symbolsMissing = [
     ...[...new Set([...skippedStacks, ...symbolsNotRead])].map(notReadFor),
     ...symbols.flatMap(file => ('unreadable' in file ? [notReadFor(file.node)] : [])),
   ];
+  const schemaReadings = [...schemas, ...migrations];
+  const schemaNotRead =
+    schemaReadings.length === 0 && !readers.includes('rails')
+      ? ['Rails only']
+      : schemaReadings.flatMap(reading =>
+          'notRead' in reading ? [`not read: ${reading.file}`] : [],
+        );
   return [
     { dimension: 'structure', notRead: skipped.map(notReadLine) },
     { dimension: 'logic', notRead: symbolsMissing },
@@ -57,12 +66,7 @@ export const coverageOf = ({
         'notRead' in change ? [`not read: ${change.lockfile}`] : [],
       ),
     },
-    {
-      dimension: 'schema',
-      notRead: [...schemas, ...migrations].flatMap(reading =>
-        'notRead' in reading ? [`not read: ${reading.file}`] : [],
-      ),
-    },
+    { dimension: 'schema', notRead: schemaNotRead },
     { dimension: 'cohesion', notRead: [] },
   ];
 };

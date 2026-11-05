@@ -11,6 +11,7 @@ const facts = (overrides: Partial<CoverageFacts> = {}): CoverageFacts => ({
   dependencyChanges: [],
   schemas: [],
   migrations: [],
+  readers: ['rails'],
   ...overrides,
 });
 
@@ -102,4 +103,20 @@ test('metrics names, once each, the skipped stacks and those whose reader measur
     'not read for worker',
     'not read for web',
   ]);
+});
+
+test.for([
+  { reason: 'no Rails stack on either side', overrides: {}, notRead: ['Rails only'] },
+  {
+    reason: 'a dump read',
+    overrides: { schemas: [{ file: 'db/schema.rb', tables: [] }] },
+    notRead: [],
+  },
+  {
+    reason: 'a migration read',
+    overrides: { migrations: [{ file: 'db/migrate/1_add.rb', risks: [] }] },
+    notRead: [],
+  },
+])('with $reason and no Rails reader, schema reads $notRead', ({ overrides, notRead }) => {
+  expect(notReadIn('schema', { readers: ['typescript'], ...overrides })).toEqual(notRead);
 });
