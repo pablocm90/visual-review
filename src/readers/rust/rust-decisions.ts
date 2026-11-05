@@ -9,13 +9,14 @@ const SENDS: ReadonlySet<string> = new Set(['.']);
 
 const { codeOf, codeUpTo } = codeReaderOf(SENDS);
 
-const isWalkedBody = (node: Node): boolean =>
-  node.type === 'block' ||
-  node.type === 'match_block' ||
+const READ_ON_THEIR_OWN: ReadonlySet<string> = new Set(['block', 'match_block', 'try_expression']);
+
+const isReadOnItsOwn = (node: Node): boolean =>
+  READ_ON_THEIR_OWN.has(node.type) ||
   (node.parent?.type === 'closure_expression' &&
     node.parent.childForFieldName('body')?.id === node.id);
 
-const { codeOf: codeWithoutBodies } = codeReaderOf(SENDS, isWalkedBody);
+const { codeOf: codeLeavingThemOut } = codeReaderOf(SENDS, isReadOnItsOwn);
 
 type Read = Head & {
   readonly deeper: ReadonlyArray<Node>;
@@ -114,7 +115,7 @@ const returnOf = (node: Node, walk: Walk): Read | undefined =>
 
 const tryOf = (node: Node): Read => ({
   kind: 'try',
-  text: codeWithoutBodies(node),
+  text: `${codeLeavingThemOut(node.firstChild ?? undefined)}?`,
   deeper: [],
   beside: node.namedChildren,
 });

@@ -248,9 +248,22 @@ test('a ? reads as a try, the whole expression as written', () => {
 test('a chain of ? reads one line each, the inner first, at one depth', () => {
   expect(decisionsIn('a()?', '.b()?;')).toEqual([
     { kind: 'try', text: 'a()?', depth: 0, line: 2 },
-    { kind: 'try', text: 'a()?.b()?', depth: 0, line: 2 },
+    { kind: 'try', text: '….b()?', depth: 0, line: 2 },
   ]);
 });
+
+test.for([
+  { line: 'f(g()?, h)?;', inner: 'g()?', outer: 'f(…, h)?' },
+  { line: 'g()??;', inner: 'g()?', outer: '…?' },
+])(
+  "$line reads the ? inside it on its own line, and leaves it out of the outer's",
+  ({ line, inner, outer }) => {
+    expect(decisionsIn(line)).toEqual([
+      { kind: 'try', text: inner, depth: 0, line: 2 },
+      { kind: 'try', text: outer, depth: 0, line: 2 },
+    ]);
+  },
+);
 
 test.for([
   { line: 'a.b(|e| e.d())?;', text: 'a.b(|e| …)?' },
