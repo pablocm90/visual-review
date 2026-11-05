@@ -77,7 +77,8 @@ import {
   withResolveToggled,
 } from './said-before.tsx';
 import { type SchemaLanding, SchemaScreen } from './schema-screen.tsx';
-import { type LineAt, WhatChanged } from './symbols-tab.tsx';
+import { scrollInPanel } from './scroll-in-panel.ts';
+import { holdsRow, type LineAt, type RowLanding, WhatChanged } from './symbols-tab.tsx';
 import { changedCount, TestFiles, TestsScreen } from './tests-screen.tsx';
 import {
   boxOf,
@@ -469,13 +470,7 @@ const Scoped = ({ scopes: [scope, ...inner], text }: Piece) =>
 
 type Landing = Omit<LineAt, 'node'> & { readonly text?: string };
 
-type LandingIn = Partial<Landing> & { readonly path: string | undefined };
-
-const scrollInPanel = (element: HTMLElement, block: ScrollLogicalPosition) => {
-  const { scrollX, scrollY } = window;
-  element.scrollIntoView({ block });
-  window.scrollTo(scrollX, scrollY);
-};
+type LandingIn = Partial<Landing> & { readonly path: string | undefined } & RowLanding;
 
 const rowLandedOn = (
   lines: ReadonlyArray<Line>,
@@ -753,6 +748,7 @@ type NotePanelProps = Pick<
   | 'saidInPlace'
   | 'answers'
   | 'onAnswer'
+  | 'landing'
 > & {
   readonly onShowLine: (at: LineAt) => void;
 };
@@ -763,6 +759,7 @@ const NotePanel = ({
   symbols,
   onGoTo,
   onShowLine,
+  landing,
   note,
   found,
   anchor,
@@ -795,6 +792,7 @@ const NotePanel = ({
         nodes={nodes}
         onGoTo={onGoTo}
         onShowLine={onShowLine}
+        landing={landing}
         comments={comments}
         onComment={onComment}
       />
@@ -836,7 +834,10 @@ const Inspector = ({
     onPick('diff');
   };
   const sections: ReadonlyArray<Section> = [
-    { tab: 'note' as const, panel: <NotePanel {...props} node={node} onShowLine={showLine} /> },
+    {
+      tab: 'note' as const,
+      panel: <NotePanel {...props} node={node} onShowLine={showLine} landing={landing} />,
+    },
     ...(patches.length > 0
       ? [
           {
@@ -1521,7 +1522,10 @@ const Page = ({ review, notes, send }: ReviewPageProps) => {
     select(undefined);
   };
 
-  const [focusTarget, setFocusTarget] = useState<string>();
+  const [focusTarget, setFocusTarget] = useState<{
+    readonly id: string;
+    readonly inGraph: boolean;
+  }>();
   const goTo = (id: string) => {
     select(id);
     const opened = expandedToShow({ diff: review.diff, expanded, id });
@@ -1536,7 +1540,7 @@ const Page = ({ review, notes, send }: ReviewPageProps) => {
         EVERYTHING,
     );
     centre(id);
-    setFocusTarget(id);
+    setFocusTarget({ id, inGraph: true });
   };
   const goToOnStructure = (id: string) => {
     location.hash = '#structure';
@@ -1549,9 +1553,11 @@ const Page = ({ review, notes, send }: ReviewPageProps) => {
     goToOnStructure(id);
   };
   const goToDraft = (id: string, anchor: Comment['anchor']) => {
-    const place = placeOfLine(anchor);
+    const onRow = holdsRow(review.symbols, anchor);
+    const place = onRow ? { path: undefined, row: anchorKey(anchor) } : placeOfLine(anchor);
     if (place) landOn(id, place);
     goToOnTab(id, tabOfDraft(anchor));
+    if (onRow) setFocusTarget({ id, inGraph: false });
   };
   const showOutsideAt = (place: LandingIn, opener: HTMLButtonElement) => {
     landOn(null, place);
@@ -1600,9 +1606,9 @@ const Page = ({ review, notes, send }: ReviewPageProps) => {
   }, [drawn]);
   useEffect(() => {
     if (layout === undefined || focusTarget === undefined) return;
-    const element = elements.current.get(focusTarget);
+    const element = elements.current.get(focusTarget.id);
     if (element) {
-      element.focus({ preventScroll: true });
+      if (focusTarget.inGraph) element.focus({ preventScroll: true });
       frameElement?.scrollIntoView({ block: 'nearest' });
       setFocusTarget(undefined);
     }

@@ -1,3 +1,4 @@
+import { createContext, useContext, useLayoutEffect, useRef } from 'react';
 import { anchorKey } from '../core/anchors.ts';
 import type { DiffedNode } from '../core/diff-graphs.ts';
 import type { LogicLine } from '../core/logic-diff.ts';
@@ -15,6 +16,7 @@ import { boxesAboveIn } from '../core/visible-diff.ts';
 import { ChangedSinceTag, sinceLabel, useIsChangedSince } from './changed-since.tsx';
 import type { Comments } from './comment-field.tsx';
 import { CommentOn, SaidBefore, useHasSaid } from './said-before.tsx';
+import { scrollInPanel } from './scroll-in-panel.ts';
 import { Signature } from './signature-lines.tsx';
 
 type Group = readonly [string, (symbol: SymbolStatement) => boolean];
@@ -52,6 +54,28 @@ type Places = {
   readonly comments: Comments;
   readonly onComment: ((comment: Comment) => void) | undefined;
 };
+
+export type RowLanding = { readonly row?: string };
+
+const RowLanded = createContext<string | undefined>(undefined);
+
+const useRowMarks = () => {
+  const landed = useContext(RowLanded);
+  return (anchor: Pick<Comment['anchor'], 'kind' | 'id'>) =>
+    landed === anchorKey(anchor) ? ({ 'aria-current': true, tabIndex: -1 } as const) : {};
+};
+
+export const holdsRow = (
+  files: ReadonlyArray<SymbolFile>,
+  { kind, id }: Comment['anchor'],
+): boolean =>
+  files
+    .flatMap(file => ('symbols' in file ? anchoredSymbols(file.node, file.symbols) : []))
+    .some(symbol =>
+      kind === 'symbol'
+        ? symbol.id === id
+        : kind === 'decision' && decisionsOf(symbol).some(line => line.id === id),
+    );
 
 const labelOf = (nodes: ReadonlyArray<DiffedNode>, id: string): string | undefined =>
   nodes.find(node => node.id === id)?.label;
@@ -159,6 +183,7 @@ const LogicLines = ({
   readonly onShowLine: ShowLine;
 }) => {
   const isChangedSince = useIsChangedSince();
+  const marksOf = useRowMarks();
   return (
     <ul
       className="logic-lines"
@@ -172,6 +197,7 @@ const LogicLines = ({
             key={id}
             className={`logic-${line.change}`}
             aria-label={label}
+            {...marksOf({ kind: 'decision', id })}
             style={{ paddingInlineStart: `${line.depth}em` }}
           >
             {line.change === 'same' ? (
@@ -227,6 +253,7 @@ const SymbolList = ({
   readonly symbols: ReadonlyArray<AnchoredSymbol>;
 }) => {
   const isChangedSince = useIsChangedSince();
+  const marksOf = useRowMarks();
   return (
     <ul aria-label={title}>
       {symbols.map(({ item: symbol, id }) => (
@@ -236,6 +263,7 @@ const SymbolList = ({
             `${nameOf(symbol)}: ${symbol.change}`,
             isChangedSince('symbols', id),
           )}
+          {...marksOf({ kind: 'symbol', id })}
         >
           <span className="kind">{symbol.kind}</span> <code>{qualified(symbol)}</code>
           {exportMarkOf(symbol) !== undefined && (
@@ -332,9 +360,24 @@ const SymbolsOf = ({
 export const WhatChanged = ({
   node,
   files,
+  landing,
   ...places
-}: Places & { readonly node: DiffedNode; readonly files: ReadonlyArray<SymbolFile> }) => {
+}: Places & {
+  readonly node: DiffedNode;
+  readonly files: ReadonlyArray<SymbolFile>;
+  readonly landing: RowLanding | undefined;
+}) => {
   const hasSymbolNews = useHasSymbolNews();
+  const section = useRef<HTMLElement>(null);
+  useLayoutEffect(() => {
+    if (landing?.row === undefined) return;
+    const row = section.current?.querySelector<HTMLElement>('[aria-current]');
+    if (!row) return;
+    const fold = row.closest('details');
+    if (fold) fold.open = true;
+    scrollInPanel(row, 'center');
+    row.focus({ preventScroll: true });
+  }, [landing]);
   const boxesAbove = boxesAboveIn(places.nodes);
   const here = files.filter(
     file => file.node === node.id || boxesAbove(file.node).includes(node.id),
@@ -342,9 +385,11 @@ export const WhatChanged = ({
   if (!here.some(hasSymbolNews)) return null;
   const count = changedSymbolCount(here);
   return (
-    <section className="column-section symbols" aria-label="What changed">
+    <section ref={section} className="column-section symbols" aria-label="What changed">
       <h3>What changed{count > 0 && ` ${count}`}</h3>
-      <SymbolsOf node={node} files={here} {...places} />
+      <RowLanded.Provider value={landing?.row}>
+        <SymbolsOf node={node} files={here} {...places} />
+      </RowLanded.Provider>
     </section>
   );
 };

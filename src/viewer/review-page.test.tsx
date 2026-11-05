@@ -5195,12 +5195,19 @@ test('a draft in the open tray goes to where it was written, though the inspecto
   await user.click(screen.getByRole('button', { name: 'Close inspector' }));
   await openReview(user);
 
-  await user.click(screen.getByRole('button', { name: 'ReviewPage.goTo in review-page.tsx' }));
-  expect(
-    within(
-      within(whatChanged()).getByRole('listitem', { name: 'method ReviewPage.goTo: edited' }),
-    ).getAllByRole('textbox', { name: 'Your comment' })[0],
-  ).toHaveProperty('value', 'On the method.');
+  const goToMethod = () =>
+    user.click(screen.getByRole('button', { name: 'ReviewPage.goTo in review-page.tsx' }));
+  const methodRow = () =>
+    within(whatChanged()).getByRole('listitem', { name: 'method ReviewPage.goTo: edited' });
+  await goToMethod();
+  expect(within(methodRow()).getAllByRole('textbox', { name: 'Your comment' })[0]).toHaveProperty(
+    'value',
+    'On the method.',
+  );
+  expect(document.activeElement).toBe(methodRow());
+  expect(scrolledIntoView.mock.contexts).toContain(methodRow());
+  await goToMethod();
+  expect(document.activeElement).toBe(methodRow());
   await user.click(
     within(screen.getByRole('list', { name: 'Drafts' })).getByRole('button', {
       name: 'review-page.tsx',
@@ -5208,12 +5215,13 @@ test('a draft in the open tray goes to where it was written, though the inspecto
   );
   expect(partField()).toHaveProperty('value', 'On the file.');
   await user.click(screen.getByRole('button', { name: 'if (ready)' }));
-  expect(
-    within(within(whatChanged()).getByRole('listitem', { name: 'same if: if (ready)' })).getByRole(
-      'textbox',
-      { name: 'Your comment' },
-    ),
-  ).toHaveProperty('value', 'On the line.');
+  const lineRow = within(whatChanged()).getByRole('listitem', { name: 'same if: if (ready)' });
+  expect(within(lineRow).getByRole('textbox', { name: 'Your comment' })).toHaveProperty(
+    'value',
+    'On the line.',
+  );
+  expect(document.activeElement).toBe(lineRow);
+  expect(scrolledIntoView.mock.contexts).toContain(lineRow);
 });
 
 test("same-named symbols in one file take a comment each, counted through the file's symbols whatever group shows them, and a draft on a later one still opens the unchanged", async () => {
@@ -5483,6 +5491,23 @@ const draftOnTheUnchangedSymbol = async (user: ReturnType<typeof userEvent.setup
     'Why not?',
   );
 };
+
+test('going to a draft on an unchanged symbol opens the fold again, though it was closed by hand', async () => {
+  const user = userEvent.setup();
+  render(<ReviewPage review={pageWithAnUnchangedSymbol()} send={vi.fn(async () => {})} />);
+
+  await user.click(await screen.findByRole('button', { name: 'tax.ts: modified' }));
+  await draftOnTheUnchangedSymbol(user);
+  await user.click(within(whatChanged()).getByText('1 unchanged'));
+  expect(unchangedSymbols().hasAttribute('open')).toBe(false);
+  await openReview(user);
+  await user.click(screen.getByRole('button', { name: /^round in tax\.ts/ }));
+
+  expect(unchangedSymbols().hasAttribute('open')).toBe(true);
+  expect(document.activeElement).toBe(
+    within(unchangedSymbols()).getByRole('listitem', { name: 'function round: unchanged' }),
+  );
+});
 
 test('the unchanged symbols open by themselves when one holds a draft', async () => {
   const user = userEvent.setup();
