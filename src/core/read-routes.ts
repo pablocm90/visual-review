@@ -6,10 +6,12 @@ export type RouteRow = RouteChange & { readonly patch: string };
 
 export type UnreadRow = UnreadChange & { readonly patch: string };
 
-export type RoutesReading = {
-  readonly routes: ReadonlyArray<RouteRow>;
-  readonly unread: ReadonlyArray<UnreadRow>;
-};
+export type RoutesReading =
+  | {
+      readonly routes: ReadonlyArray<RouteRow>;
+      readonly unread: ReadonlyArray<UnreadRow>;
+    }
+  | { readonly file: string; readonly notRead: string };
 
 type Changes = ReadonlyArray<ReadonlyArray<string>>;
 
@@ -51,18 +53,27 @@ export const readRoutes = async ({
   ): Promise<ReadonlyArray<RoutesReading>> => {
     const patchOf = (file: string): string =>
       lastOf(changed.find(paths => paths.includes(file)) ?? changed[0]);
-    const diff = diffRoutes({
-      base: await tableAt(base, reader),
-      head: await tableAt(head, reader),
-    });
-    return diff.routes.length === 0 && diff.unread.length === 0
-      ? []
-      : [
-          {
-            routes: diff.routes.map(change => ({ ...change, patch: patchOf(fileOf(change)) })),
-            unread: diff.unread.map(change => ({ ...change, patch: patchOf(change.item.file) })),
-          },
-        ];
+    try {
+      const diff = diffRoutes({
+        base: await tableAt(base, reader),
+        head: await tableAt(head, reader),
+      });
+      return diff.routes.length === 0 && diff.unread.length === 0
+        ? []
+        : [
+            {
+              routes: diff.routes.map(change => ({ ...change, patch: patchOf(fileOf(change)) })),
+              unread: diff.unread.map(change => ({ ...change, patch: patchOf(change.item.file) })),
+            },
+          ];
+    } catch (error) {
+      return [
+        {
+          file: lastOf(changed[0]),
+          notRead: error instanceof Error ? error.message : String(error),
+        },
+      ];
+    }
   };
   const readings = await Promise.all(
     routes.map(reader => {

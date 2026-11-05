@@ -153,6 +153,17 @@ test('a changed route that also moved file opens at the file it is in now', asyn
   });
 });
 
+test('a side the reader cannot read gives the changed file and why, on either side', async () => {
+  using workspace = gitRepo({ [ROUTES]: drawing(USERS) });
+  const { repo, root } = workspace;
+  const broken = commit(repo, { [ROUTES]: 'Rails.application.routes.draw do\n' });
+  const fixed = commit(repo, { [ROUTES]: drawing(USERS) });
+
+  const notRead = { file: ROUTES, notRead: 'Ruby syntax error' };
+  expect(await read(repo, root, broken)).toStrictEqual([notRead]);
+  expect(await read(repo, broken, fixed)).toStrictEqual([notRead]);
+});
+
 test('a route file broken on both sides and not changed raises nothing', async () => {
   using workspace = gitRepo({ [ROUTES]: 'Rails.application.routes.draw do\n', 'app/a.rb': '' });
   const { repo, root } = workspace;
