@@ -142,6 +142,16 @@ test.for([
   },
   { edit: 'the visibility', before: 'pub(crate) fn a() {}', after: 'pub(super) fn a() {}' },
   {
+    edit: "a macro's last comma, in a tuple",
+    before: 'fn a() { b!((c,)); }',
+    after: 'fn a() { b!((c)); }',
+  },
+  {
+    edit: "a comma before a macro's >",
+    before: 'fn a() { b!(c, > d); }',
+    after: 'fn a() { b!(c > d); }',
+  },
+  {
     edit: 'a comma that sits between',
     before: 'fn a() { b!(c, d); }',
     after: 'fn a() { b!(c d); }',
@@ -678,4 +688,13 @@ test('a file whose name only holds the word tests reads its symbols', () => {
   expect(rustReader.symbols?.('pub fn open() {}', 'src/my_tests/orders.rs')).toMatchObject({
     symbols: [{ name: 'open' }],
   });
+});
+
+test("dropping a macro rule's optional comma reads as a logic change", () => {
+  expect(
+    symbolChanges({
+      before: read('macro_rules! m { ($a:expr $(,)?) => { $a }; }'),
+      after: read('macro_rules! m { ($a:expr $()?) => { $a }; }'),
+    }).kind,
+  ).toBe('logic');
 });

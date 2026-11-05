@@ -38,6 +38,8 @@ const CLOSERS: ReadonlySet<string> = new Set([')', ']', '}', '>']);
 const isOneTuple = ({ type, children }: Node): boolean =>
   type.startsWith('tuple') && children.filter(child => child.type === ',').length === 1;
 
+const isTokens = ({ type }: Node): boolean => type.startsWith('token_');
+
 const withoutLastComma = (children: ReadonlyArray<Node>): ReadonlyArray<Node> =>
   children.filter(({ type }, index) => {
     const next = children[index + 1];
@@ -46,7 +48,7 @@ const withoutLastComma = (children: ReadonlyArray<Node>): ReadonlyArray<Node> =>
 
 const writtenChildrenOf = (node: Node): ReadonlyArray<Node> => {
   const written = node.children.filter(child => !isComment(child));
-  return isOneTuple(node) ? written : withoutLastComma(written);
+  return isOneTuple(node) || isTokens(node) ? written : withoutLastComma(written);
 };
 
 export const shapeOf = (node: Node, holes: Holes = NO_HOLES): Shape => {
