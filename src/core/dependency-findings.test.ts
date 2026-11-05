@@ -50,6 +50,7 @@ test.for([
   expect(dependencyFindings(inLockfile([packageChange({ change, from, to })]))).toStrictEqual([
     {
       id: 'dependencies:web/pnpm-lock.yaml:zod',
+      check: 'dependencies:direct',
       dimension: 'dependencies',
       level: 'look',
       file: 'web/pnpm-lock.yaml',
@@ -74,6 +75,7 @@ test('transitive packages are one finding for information per lockfile, counting
 
   expect(finding).toStrictEqual({
     id: 'dependencies:transitive:web/pnpm-lock.yaml',
+    check: 'dependencies:transitive',
     dimension: 'dependencies',
     level: 'info',
     file: 'web/pnpm-lock.yaml',
@@ -120,6 +122,7 @@ test('a lockfile not read is a finding to look at, naming the format', () => {
   ).toStrictEqual([
     {
       id: 'dependencies:not-read:web/yarn.lock',
+      check: 'dependencies:not-read',
       dimension: 'dependencies',
       level: 'look',
       file: 'web/yarn.lock',
