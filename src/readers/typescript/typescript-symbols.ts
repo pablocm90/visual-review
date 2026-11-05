@@ -7,17 +7,16 @@ import type {
   TSDeclareMethod,
 } from '@babel/types';
 import type { FileSymbols } from '../../core/reader.ts';
+import { isTooBig, TOO_BIG } from '../too-big.ts';
 import { decisionsIn } from './typescript-decisions.ts';
 import {
   isFunction,
   isMethod,
   isOverload,
-  isTooBig,
   nameOf,
   parseTypeScript,
   sourceOf,
   symbolsIn,
-  TOO_BIG,
   type WalkedSymbol,
 } from './typescript-syntax.ts';
 
