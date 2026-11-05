@@ -6,7 +6,6 @@ const UNCOUNTABLE =
 const IRREGULAR: ReadonlyArray<readonly [string, string]> = [
   ['zombie', 'zombies'],
   ['move', 'moves'],
-  ['sex', 'sexes'],
   ['child', 'children'],
   ['man', 'men'],
   ['person', 'people'],
@@ -27,7 +26,6 @@ const PLURAL: ReadonlyArray<Rule> = [
   [/(matr|vert|ind)(?:ix|ex)$/i, '$1ices'],
   [/(x|ch|ss|sh)$/i, '$1es'],
   [/([^aeiouy]|qu)y$/i, '$1ies'],
-  [/(hive)$/i, '$1s'],
   [/(?:([^f])fe|([lr])f)$/i, '$1$2ves'],
   [/sis$/i, 'ses'],
   [/([ti])a$/i, '$1a'],
@@ -65,7 +63,6 @@ const SINGULAR: ReadonlyArray<Rule> = [
   [/(tive)s$/i, '$1'],
   [/(hive)s$/i, '$1'],
   [/([^f])ves$/i, '$1fe'],
-  [/(^analy)(sis|ses)$/i, '$1sis'],
   [/((a)naly|(b)a|(d)iagno|(p)arenthe|(p)rogno|(s)ynop|(t)he)(sis|ses)$/i, '$1sis'],
   [/([ti])a$/i, '$1um'],
   [/(n)ews$/i, '$1ews'],

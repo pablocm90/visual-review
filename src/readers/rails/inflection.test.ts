@@ -21,6 +21,7 @@ test.for([
   ['movies', 'movie'],
   ['boxes', 'box'],
   ['mice', 'mouse'],
+  ['tv_series', 'tv_series'],
   ['mouse', 'mouse'],
   ['buses', 'bus'],
   ['tomatoes', 'tomato'],
@@ -99,6 +100,8 @@ test.for([
   ['data', 'data'],
   ['news', 'news'],
   ['crisis', 'crises'],
+  ['mice', 'mice'],
+  ['octopi', 'octopi'],
 ] as const)('%s pluralizes to %s, as ActiveSupport does', ([word, expected]) => {
   expect(plural(word)).toBe(expected);
 });
