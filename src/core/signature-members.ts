@@ -74,13 +74,11 @@ const unionSplit = (text: string, top: ReadonlyArray<Mark>): SplitSignature | un
   });
 };
 
-export const splitSignature = (text: string): SplitSignature | undefined => {
-  const marks = marksOf(text);
-  if (marks === undefined) return undefined;
-  const top = marks.filter(({ depth }) => depth === 0);
-  if (top.some(({ token, at }) => token === ';' && at < text.length - 1)) return undefined;
-  const union = unionSplit(text, top);
-  if (union !== undefined) return union;
+const bracketSplit = (
+  text: string,
+  marks: ReadonlyArray<Mark>,
+  top: ReadonlyArray<Mark>,
+): SplitSignature | undefined => {
   const open = top.find((mark): mark is Mark & { token: '(' | '{' } =>
     ['(', '{'].includes(mark.token),
   );
@@ -97,6 +95,14 @@ export const splitSignature = (text: string): SplitSignature | undefined => {
       .map(({ at }) => at + 1),
     end: close.at,
   });
+};
+
+export const splitSignature = (text: string): SplitSignature | undefined => {
+  const marks = marksOf(text);
+  if (marks === undefined) return undefined;
+  const top = marks.filter(({ depth }) => depth === 0);
+  if (top.some(({ token, at }) => token === ';' && at < text.length - 1)) return undefined;
+  return unionSplit(text, top) ?? bracketSplit(text, marks, top);
 };
 
 export type SignatureLine =
