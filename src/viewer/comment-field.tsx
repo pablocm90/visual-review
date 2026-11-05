@@ -1,4 +1,12 @@
-import { type ReactNode, useId, useState } from 'react';
+import {
+  createContext,
+  type ReactNode,
+  useContext,
+  useId,
+  useLayoutEffect,
+  useRef,
+  useState,
+} from 'react';
 import { anchorKey } from '../core/anchors.ts';
 import type { Comment } from '../core/review.ts';
 
@@ -14,14 +22,30 @@ type Draft = Pick<Comment, 'kind' | 'text'>;
 
 const NO_DRAFT: Draft = { kind: 'question', text: '' };
 
+export const CommentAsked = createContext<
+  { readonly anchor: string; readonly request: object } | undefined
+>(undefined);
+
+const useAsked = (anchor: Comment['anchor']) => {
+  const asked = useContext(CommentAsked);
+  return asked?.anchor === anchorKey(anchor) ? asked.request : undefined;
+};
+
 export type CommentFieldProps = {
   readonly anchor: Comment['anchor'];
   readonly comments: Comments;
   readonly onComment: (comment: Comment) => void;
 };
 
-export const CommentField = ({ anchor, comments, onComment }: CommentFieldProps) => {
+type FocusedFieldProps = CommentFieldProps & { readonly clicked?: object | undefined };
+
+export const CommentField = ({ anchor, comments, onComment, clicked }: FocusedFieldProps) => {
   const group = useId();
+  const textarea = useRef<HTMLTextAreaElement>(null);
+  const asked = useAsked(anchor);
+  useLayoutEffect(() => {
+    if (clicked ?? asked) textarea.current?.focus();
+  }, [clicked, asked]);
   const { kind, text } = comments[anchorKey(anchor)] ?? NO_DRAFT;
   const write = (draft: Draft) => onComment({ anchor, ...draft });
   return (
@@ -41,7 +65,11 @@ export const CommentField = ({ anchor, comments, onComment }: CommentFieldProps)
       </div>
       <label className="comment">
         Your comment
-        <textarea value={text} onChange={event => write({ kind, text: event.target.value })} />
+        <textarea
+          ref={textarea}
+          value={text}
+          onChange={event => write({ kind, text: event.target.value })}
+        />
       </label>
     </>
   );
@@ -57,6 +85,13 @@ export const CommentOpener = ({ word, label, landing, ...field }: CommentOpenerP
   const drafted = field.comments[anchorKey(field.anchor)] !== undefined;
   const [open, setOpen] = useState(drafted);
   const [landed, setLanded] = useState(landing);
+  const [clicked, setClicked] = useState<object>();
+  const asked = useAsked(field.anchor);
+  const [answered, setAnswered] = useState(asked);
+  if (asked !== answered) {
+    setAnswered(asked);
+    if (asked !== undefined) setOpen(true);
+  }
   if (landing !== landed) {
     setLanded(landing);
     if (landing !== undefined && drafted) setOpen(true);
@@ -68,11 +103,14 @@ export const CommentOpener = ({ word, label, landing, ...field }: CommentOpenerP
         className="comment-on"
         aria-expanded={open}
         aria-label={label}
-        onClick={() => setOpen(!open)}
+        onClick={() => {
+          setClicked(open ? undefined : {});
+          setOpen(!open);
+        }}
       >
         {word}
       </button>
-      {open && <CommentField {...field} />}
+      {open && <CommentField {...field} clicked={clicked} />}
     </>
   );
 };

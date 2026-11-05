@@ -2654,6 +2654,48 @@ test('J, K and A held with Control, Meta or Alt are left to the browser, neither
   expect(within(readingOrder()).getByText('0 of 3 parts read')).toBeDefined();
 });
 
+test("C opens and focuses the selected part's comment, or refocuses it, not in a textarea or with a modifier, and going away and back leaves focus alone; a click on the opener focuses too", async () => {
+  const user = userEvent.setup();
+  render(<ReviewPage review={walkedReview()} send={async () => {}} />);
+  const rust = await screen.findByRole('group', { name: 'rust' });
+  const field = () => within(inspector()).queryByRole('textbox', { name: 'Your comment' });
+  const opener = (part: string) =>
+    within(inspector()).getByRole('button', { name: `Comment on ${part}` });
+
+  await user.click(within(rust).getByRole('button', { name: 'domain: unchanged' }));
+  await user.click(opener('domain'));
+  expect(document.activeElement).toBe(field());
+  await user.click(opener('domain'));
+
+  await user.keyboard('{Control>}c{/Control}');
+  expect(field()).toBeNull();
+  await user.keyboard('c');
+  expect(document.activeElement).toBe(field());
+  await user.keyboard('c');
+  expect(field()).toHaveProperty('value', 'c');
+
+  await user.click(within(inspector()).getByRole('heading', { level: 2 }));
+  await user.keyboard('c');
+  expect(document.activeElement).toBe(field());
+
+  await user.click(within(rust).getByRole('button', { name: 'application: modified' }));
+  expect(field()).toBeNull();
+  await user.click(within(rust).getByRole('button', { name: 'domain: unchanged' }));
+  expect(field()).not.toBeNull();
+  expect(document.activeElement).not.toBe(field());
+});
+
+test('C focuses the field of a selected edge', async () => {
+  const user = userEvent.setup();
+  render(<ReviewPage review={walkedReview()} send={async () => {}} />);
+  const rust = await screen.findByRole('group', { name: 'rust' });
+  await user.click(within(rust).getByRole('button', { name: 'application → domain: unchanged' }));
+  await user.keyboard('c');
+  expect(document.activeElement).toBe(
+    within(inspector()).getByRole('textbox', { name: 'Your comment' }),
+  );
+});
+
 test('J, K and A typed in a comment are text, neither walking nor marking', async () => {
   const user = userEvent.setup();
   render(<ReviewPage review={walkedReview()} send={async () => {}} />);
@@ -5450,6 +5492,39 @@ test("a logic line of the later of two same-named symbols comments on its own de
       ],
     }),
   );
+});
+
+test("C opens the part's own comment, not those of the rows under it", async () => {
+  const user = userEvent.setup();
+  render(
+    <ReviewPage
+      review={pageWith({
+        range: review.range,
+        diff: {
+          nodes: [
+            { id: 'web', kind: 'stack', label: 'web', path: '', state: 'unchanged' },
+            topFile('review-page.tsx', 'modified'),
+          ],
+          edges: [],
+        },
+        symbols: [
+          symbolsOf('web/file/review-page.tsx', [
+            {
+              name: 'goTo',
+              scope: 'ReviewPage',
+              kind: 'method',
+              exported: { base: false, head: false },
+              change: 'edited',
+            },
+          ]),
+        ],
+      })}
+      send={async () => {}}
+    />,
+  );
+  await user.click(await screen.findByRole('button', { name: 'review-page.tsx: modified' }));
+  await user.keyboard('c');
+  expect(within(inspector()).getAllByRole('textbox', { name: 'Your comment' })).toHaveLength(1);
 });
 
 test('a draft in the open tray goes to where it was written, though the inspector was closed', async () => {

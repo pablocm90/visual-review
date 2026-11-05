@@ -40,7 +40,7 @@ import {
 import { anchorName, lineAnchor, placeOfLine, rowOfLine } from './anchors.ts';
 import { ChangedSinceMarks, ChangedSinceTag, useIsChangedSince } from './changed-since.tsx';
 import { ColourBy, type Colouring, ScaleLegend, type Shade, shadeOf } from './colour-by.tsx';
-import type { Comments } from './comment-field.tsx';
+import { CommentAsked, type Comments } from './comment-field.tsx';
 import { type Answers, type AnswerTo, findingLine, LEVELS, worstOf } from './finding-display.tsx';
 import { FindingRows, type FindingRowsProps } from './finding-rows.tsx';
 import { FindingsRail, LensChips, LensRow, StartHere } from './findings-rail.tsx';
@@ -966,6 +966,7 @@ type SidePanelProps = {
   readonly onLand: (landing: LandingIn) => void;
   readonly read: ReadonlySet<string>;
   readonly onToggleRead: (id: string) => void;
+  readonly commentAsked: { readonly on: string } | undefined;
 };
 
 const partFrom = (parts: ReadonlyArray<string>, selected: string | undefined, step: number) =>
@@ -993,6 +994,7 @@ const SidePanel = ({
   onLand,
   read,
   onToggleRead,
+  commentAsked,
 }: SidePanelProps) => {
   const patches = outside
     ? review.undrawn
@@ -1048,7 +1050,9 @@ const SidePanel = ({
   const { parts } = review.readingOrder;
   const nextId = partFrom(parts, selected, 1);
   return (
-    <>
+    <CommentAsked.Provider
+      value={commentAsked && { anchor: anchorKey(anchor), request: commentAsked }}
+    >
       {divider}
       <Inspector
         nodes={review.diff.nodes}
@@ -1081,7 +1085,7 @@ const SidePanel = ({
           onGoTo,
         }}
       />
-    </>
+    </CommentAsked.Provider>
   );
 };
 
@@ -1460,6 +1464,8 @@ const Page = ({ review, notes, send }: ReviewPageProps) => {
   const { frameElement, placed, frameProps, zoomAtCentre, fitToFrame, centre, pin } =
     useGraphView(layout);
   const [selected, setSelected] = useState<string>();
+  const [commentAsked, setCommentAsked] = useState<{ readonly on: string }>();
+  if (commentAsked !== undefined && commentAsked.on !== selected) setCommentAsked(undefined);
   const [outside, setOutside] = useState(false);
   const outsideOpener = useRef<HTMLButtonElement>(null);
   const select = (id: string | undefined) => {
@@ -1648,6 +1654,10 @@ const Page = ({ review, notes, send }: ReviewPageProps) => {
       const key = event.key.toLowerCase();
       if (key === 'j') walk(1);
       if (key === 'k') walk(-1);
+      if (key === 'c' && selected !== undefined) {
+        event.preventDefault();
+        setCommentAsked({ on: selected });
+      }
       if (key === 'a' && selected !== undefined && review.readingOrder.parts.includes(selected))
         toggleRead(selected);
     };
@@ -1836,6 +1846,7 @@ const Page = ({ review, notes, send }: ReviewPageProps) => {
                 onLand={line => landOn(selected, line)}
                 read={read}
                 onToggleRead={toggleRead}
+                commentAsked={commentAsked}
               />
             </ChangedSinceMarks>
           </div>

@@ -48,7 +48,7 @@ export const ReadingOrderList = ({
             })}
           </p>
           <p className="reading-keys">
-            <kbd>J</kbd> / <kbd>K</kbd> next or previous, <kbd>A</kbd> mark read
+            <kbd>J</kbd> / <kbd>K</kbd> next or previous, <kbd>A</kbd> mark read, <kbd>C</kbd> comment
           </p>
         </>
       )}
