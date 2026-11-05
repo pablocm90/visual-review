@@ -349,3 +349,40 @@ test.for([
 ])('$reads', ({ written, expected }) => {
   expect(lines(written)).toStrictEqual([expected]);
 });
+
+test.for([
+  { written: 'root "home#index"', expected: ['GET / home#index'] },
+  { written: 'root to: "home#index"', expected: ['GET / home#index'] },
+  { written: 'root to: redirect("/join")', expected: ['GET / redirect("/join")'] },
+  {
+    written: 'namespace :api do\n root "home#index"\n end',
+    expected: ['GET /api api/home#index'],
+  },
+  {
+    written: 'match "a", to: "b#c", via: [:get, :post]',
+    expected: ['GET /a b#c', 'POST /a b#c'],
+  },
+  { written: 'match "a", to: "b#c", via: :get', expected: ['GET /a b#c'] },
+  { written: 'match "a", to: "b#c", via: :all', expected: ['ANY /a b#c'] },
+  { written: 'mount Sidekiq::Web => "/sidekiq"', expected: ['ANY /sidekiq Sidekiq::Web'] },
+  { written: 'mount Blog::Engine, at: "blog"', expected: ['ANY /blog Blog::Engine'] },
+  {
+    written: 'namespace :api do\n mount Blog::Engine, at: "/blog"\n end',
+    expected: ['ANY /api/blog Blog::Engine'],
+  },
+  {
+    written: 'constraints(Auth) do\n resources :users, only: :index\n end',
+    expected: ['GET /users users#index'],
+  },
+  {
+    written: 'defaults format: :json do\n resources :users, only: :index\n end',
+    expected: ['GET /users users#index'],
+  },
+  { written: 'resources :pages, only: :index, path: ""', expected: ['GET / pages#index'] },
+  {
+    written: 'resources :pages, only: [], path: "" do\n get "about", on: :collection\n end',
+    expected: ['GET /about pages#about'],
+  },
+])('$written draws what it says', ({ written, expected }) => {
+  expect(lines(written)).toStrictEqual(expected);
+});

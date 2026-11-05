@@ -69,7 +69,10 @@ type Resourceful = {
   readonly nestedOf: (path: string, name: string, param: string) => string;
 };
 
-const under = (base: string, name: string): string => `${base}/${name.replace(/^\//, '')}`;
+const under = (base: string, name: string): string => {
+  const segment = name.replace(/^\//, '');
+  return segment === '' ? base : `${base}/${segment}`;
+};
 
 const writtenOr = (args: ReadonlyArray<Node>, key: string, fallback: string): string => {
   const option = optionOf(args, key);
@@ -113,6 +116,22 @@ const resourcesOf =
       ];
     });
   };
+
+const VIAS: ReadonlyMap<string, string> = new Map([['all', 'ANY']]);
+
+const rooted: Handler = (call, scope) => {
+  const args = argsOf(call);
+  const to = toOf(args) ?? args[0];
+  return [
+    {
+      verb: 'GET',
+      path: scope.path,
+      target: to?.type === 'string' ? `${scope.module}${nameOf(to)}` : (to?.text ?? ''),
+      file: scope.file,
+      line: call.startPosition.row + 1,
+    },
+  ];
+};
 
 const placedAt = (on: string | undefined, scope: Scope): string => {
   if (on === 'member') return scope.member;
@@ -168,6 +187,30 @@ const drawnBy =
     }));
   };
 
+const matched: Handler = (call, scope) => {
+  const args = argsOf(call);
+  return namesIn(optionOf(args, 'via')).flatMap(via =>
+    drawnBy(VIAS.get(via) ?? via.toUpperCase())(call, scope),
+  );
+};
+
+const mounted: Handler = (call, scope) => {
+  const args = argsOf(call);
+  const [first] = args;
+  const pair = first?.type === 'pair' ? first : undefined;
+  const path = pair?.childForFieldName('value') ?? optionOf(args, 'at');
+  const app = pair?.childForFieldName('key') ?? first;
+  return [
+    {
+      verb: 'ANY',
+      path: under(scope.path, nameOf(path ?? undefined)),
+      target: app?.text ?? '',
+      file: scope.file,
+      line: call.startPosition.row + 1,
+    },
+  ];
+};
+
 const namespace: Handler = (call, scope) => {
   const args = argsOf(call);
   const name = nameOf(args[0]);
@@ -212,6 +255,11 @@ const HANDLERS: ReadonlyMap<string, Handler> = new Map<string, Handler>([
   ],
   ['namespace', namespace],
   ['scope', scoped],
+  ['root', rooted],
+  ['match', matched],
+  ['mount', mounted],
+  ['constraints', within],
+  ['defaults', within],
   ['member', (call, scope) => within(call, { ...scope, path: scope.member })],
   ['collection', (call, scope) => within(call, { ...scope, path: scope.collection })],
   ['get', drawnBy('GET')],
@@ -224,21 +272,17 @@ const HANDLERS: ReadonlyMap<string, Handler> = new Map<string, Handler>([
 const routesIn = (statement: Node, scope: Scope): ReadonlyArray<Route> =>
   HANDLERS.get(methodOf(statement))?.(statement, scope) ?? [];
 
+const START = { path: '', module: '', controller: '', member: '', collection: '' };
+
 export const railsRoutes: RouteReader = {
   holds: path => ROUTES_FILE.test(path),
   routes: files => ({
-    routes: [...files].flatMap(([file, text]) => {
-      const program = parseRuby(text);
-      return (program?.namedChildren ?? []).flatMap(statement =>
-        routesIn(statement, {
-          file,
-          path: '',
-          module: '',
-          controller: '',
-          member: '',
-          collection: '',
-        }),
-      );
-    }),
+    routes: [...files]
+      .flatMap(([file, text]) =>
+        (parseRuby(text)?.namedChildren ?? []).flatMap(statement =>
+          routesIn(statement, { ...START, file }),
+        ),
+      )
+      .map(route => ({ ...route, path: route.path === '' ? '/' : route.path })),
   }),
 };
