@@ -602,14 +602,26 @@ type Walking = {
   readonly onGoTo: (id: string) => void;
 };
 
+const KeyHint = ({ letter }: { readonly letter: string }) => (
+  <span aria-hidden="true">
+    <kbd>{letter}</kbd>
+  </span>
+);
+
 const InspectorHead = ({
   nodes,
   node,
   walking: { read, onToggleRead, next, onGoTo },
+  anchor,
+  comments,
+  onComment,
 }: {
   readonly nodes: ReadonlyArray<DiffNode>;
   readonly node: DiffNode;
   readonly walking: Walking;
+  readonly anchor: Comment['anchor'];
+  readonly comments: Comments;
+  readonly onComment: ((comment: Comment) => void) | undefined;
 }) => (
   <header className="inspector-head">
     <p className="chips">
@@ -625,14 +637,28 @@ const InspectorHead = ({
         : `${node.path}, renamed from ${node.renamedFrom}`}
     </p>
     <div className="part-actions">
+      {onComment && (
+        <CommentOn
+          key={node.id}
+          anchor={anchor}
+          name={node.label}
+          word={
+            <>
+              Comment <KeyHint letter="C" />
+            </>
+          }
+          comments={comments}
+          onComment={onComment}
+        />
+      )}
       {read !== undefined && (
         <button type="button" aria-pressed={read} onClick={onToggleRead}>
-          Mark read <kbd aria-hidden="true">A</kbd>
+          Mark read <KeyHint letter="A" />
         </button>
       )}
       {next && (
         <button type="button" onClick={() => onGoTo(next.id)}>
-          Next: {next.label} <kbd aria-hidden="true">J</kbd>
+          Next: {next.label} <KeyHint letter="J" />
         </button>
       )}
     </div>
@@ -802,6 +828,7 @@ const NotePanel = ({
         </div>
       ))}
       {onComment &&
+        !node &&
         (commentable ? (
           <CommentFieldUnlessSaid anchor={anchor} comments={comments} onComment={onComment} />
         ) : (
@@ -860,7 +887,16 @@ const Inspector = ({
       <button type="button" className="close" aria-label="Close inspector" onClick={onClose}>
         ×
       </button>
-      {node && <InspectorHead nodes={props.nodes} node={node} walking={walking} />}
+      {node && (
+        <InspectorHead
+          nodes={props.nodes}
+          node={node}
+          walking={walking}
+          anchor={props.anchor}
+          comments={props.comments}
+          onComment={props.onComment}
+        />
+      )}
       <NotePanel {...props} node={node} onShowLine={showLine} landing={landing} />
       {node && measured && (
         <Fold title="Metrics" open={metricsOpen} onToggle={() => setMetricsOpen(!metricsOpen)}>

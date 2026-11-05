@@ -180,6 +180,31 @@ test('draws every crate and dependency inside the rust stack with its change sta
   expect(document.activeElement).toBe(legacy);
 });
 
+const partComment = async (user: ReturnType<typeof userEvent.setup>) => {
+  const part = within(inspector()).queryByRole('heading', { level: 2 })?.textContent;
+  const opener = within(inspector()).queryByRole('button', { name: `Comment on ${part}` });
+  if (opener?.getAttribute('aria-expanded') === 'false') await user.click(opener);
+  return within(inspector()).getByRole('textbox', { name: 'Your comment' });
+};
+
+test("a part's head opens its comment field, a field per part, and an edge has its field in the column", async () => {
+  const user = userEvent.setup();
+  render(<ReviewPage review={pageWith(review)} send={async () => {}} />);
+  const rust = await screen.findByRole('group', { name: 'rust' });
+  const field = () => within(inspector()).queryByRole('textbox', { name: 'Your comment' });
+
+  await user.click(within(rust).getByRole('button', { name: 'domain: unchanged' }));
+  expect(field()).toBeNull();
+  await user.click(within(inspector()).getByRole('button', { name: 'Comment on domain' }));
+  expect(field()).not.toBeNull();
+
+  await user.click(within(rust).getByRole('button', { name: 'legacy: removed' }));
+  expect(field()).toBeNull();
+
+  await user.click(within(rust).getByRole('button', { name: 'application → domain: unchanged' }));
+  expect(field()).not.toBeNull();
+});
+
 test("the column's comment field holds a comment per node or edge, kept while others are selected and the inspector closed", async () => {
   const user = userEvent.setup();
   render(<ReviewPage review={pageWith(review)} send={async () => {}} />);
@@ -187,10 +212,10 @@ test("the column's comment field holds a comment per node or edge, kept while ot
 
   const rust = await screen.findByRole('group', { name: 'rust' });
   await user.click(within(rust).getByRole('button', { name: 'domain: unchanged' }));
-  await write(user, comment(), 'Keep domain free of IO.');
+  await write(user, await partComment(user), 'Keep domain free of IO.');
   await user.click(within(rust).getByRole('button', { name: 'application → domain: unchanged' }));
   expect(comment()).toHaveProperty('value', '');
-  await write(user, comment(), 'Why this way round?');
+  await write(user, await partComment(user), 'Why this way round?');
   await user.click(within(inspector()).getByRole('button', { name: 'Close inspector' }));
 
   await user.click(within(rust).getByRole('button', { name: 'domain: unchanged' }));
@@ -203,14 +228,13 @@ test("a served page's Review button opens the review, whose Send to Claude sends
   const user = userEvent.setup();
   const sent = vi.fn(async () => {});
   render(<ReviewPage review={pageWith(review)} send={sent} />);
-  const comment = () => within(inspector()).getByRole('textbox', { name: 'Your comment' });
   const reviewButton = () => screen.getByRole('button', { name: 'Review' });
 
   const rust = await screen.findByRole('group', { name: 'rust' });
   await user.click(within(rust).getByRole('button', { name: 'domain: unchanged' }));
-  await write(user, comment(), 'Keep domain free of IO.');
+  await write(user, await partComment(user), 'Keep domain free of IO.');
   await user.click(within(rust).getByRole('button', { name: 'application → domain: unchanged' }));
-  await write(user, comment(), 'Why this way round?');
+  await write(user, await partComment(user), 'Why this way round?');
   expect(reviewButton().getAttribute('aria-expanded')).toBe('false');
   expect(screen.queryByRole('button', { name: 'Send to Claude' })).toBeNull();
   await openReview(user);
@@ -251,13 +275,10 @@ test('each comment carries the kind picked beside it, Question until another is 
 
   const rust = await screen.findByRole('group', { name: 'rust' });
   await user.click(within(rust).getByRole('button', { name: 'domain: unchanged' }));
+  await partComment(user);
   expect(kind('Question')).toHaveProperty('checked', true);
   await user.click(kind('Change this'));
-  await write(
-    user,
-    within(inspector()).getByRole('textbox', { name: 'Your comment' }),
-    'Move the IO out of domain.',
-  );
+  await write(user, await partComment(user), 'Move the IO out of domain.');
   await user.click(within(rust).getByRole('button', { name: 'application → domain: unchanged' }));
   expect(kind('Question')).toHaveProperty('checked', true);
   await user.click(kind('Suggestion'));
@@ -292,28 +313,27 @@ test('the verdict follows the drafts, Approve with none or only suggestions, Com
   const user = userEvent.setup();
   const sent = vi.fn(async () => {});
   render(<ReviewPage review={pageWith(review)} send={sent} />);
-  const comment = () => within(inspector()).getByRole('textbox', { name: 'Your comment' });
 
   const rust = await screen.findByRole('group', { name: 'rust' });
   await openReview(user);
   expect(verdict('Approve')).toHaveProperty('checked', true);
   await user.click(within(rust).getByRole('button', { name: 'cli-adapter: added' }));
   await pickKind(user, 'Suggestion');
-  await write(user, comment(), 'A builder might read better.');
+  await write(user, await partComment(user), 'A builder might read better.');
   expect(verdict('Approve')).toHaveProperty('checked', true);
   await user.click(within(rust).getByRole('button', { name: 'domain: unchanged' }));
-  await write(user, comment(), 'Why here?');
+  await write(user, await partComment(user), 'Why here?');
   expect(verdict('Comment')).toHaveProperty('checked', true);
   await user.click(within(rust).getByRole('button', { name: 'application: modified' }));
   await pickKind(user, 'Change this');
-  await write(user, comment(), 'Split it.');
+  await write(user, await partComment(user), 'Split it.');
   expect(verdict('Request changes')).toHaveProperty('checked', true);
   expect(suggestedVerdict()).toBe(verdict('Request changes'));
 
   await user.click(verdict('Comment'));
   await user.click(within(rust).getByRole('button', { name: 'legacy: removed' }));
   await pickKind(user, 'Change this');
-  await write(user, comment(), 'Keep it a release longer.');
+  await write(user, await partComment(user), 'Keep it a release longer.');
   await openReview(user);
   expect(screen.queryByRole('radiogroup', { name: 'Verdict' })).toBeNull();
   await openReview(user);
@@ -333,11 +353,7 @@ test('picking the verdict already suggested holds it as the drafts change', asyn
   await openReview(user);
   await user.click(verdict('Approve'));
   await user.click(within(rust).getByRole('button', { name: 'domain: unchanged' }));
-  await write(
-    user,
-    within(inspector()).getByRole('textbox', { name: 'Your comment' }),
-    'Why here?',
-  );
+  await write(user, await partComment(user), 'Why here?');
   expect(suggestedVerdict()).toBe(verdict('Comment'));
   await user.click(screen.getByRole('button', { name: 'Send to Claude' }));
 
@@ -358,12 +374,12 @@ test('Send to Claude waits for a comment that is more than blanks, and sends no 
   await write(user, screen.getByRole('textbox', { name: 'General comment' }), '  ');
   expect(sendButton()).toHaveProperty('disabled', true);
   await user.click(within(rust).getByRole('button', { name: 'domain: unchanged' }));
-  await write(user, comment(), '  ');
+  await write(user, await partComment(user), '  ');
   expect(sendButton()).toHaveProperty('disabled', true);
   await user.click(within(rust).getByRole('button', { name: 'application → domain: unchanged' }));
-  await write(user, comment(), 'Why this way round?');
+  await write(user, await partComment(user), 'Why this way round?');
   await user.click(within(rust).getByRole('button', { name: 'application: modified' }));
-  await write(user, comment(), 'Split the crate.');
+  await write(user, await partComment(user), 'Split the crate.');
   await user.clear(comment());
   await user.click(sendButton());
 
@@ -626,6 +642,7 @@ test('a page that is not served has no comment field, no answers to findings and
   const rust = await screen.findByRole('group', { name: 'rust' });
   await user.click(within(rust).getByRole('button', { name: 'domain: unchanged' }));
   await user.click(screen.getByRole('button', { name: 'Show 1 finding' }));
+  await partComment(user);
   expect(comment()).not.toBeNull();
   expect(answers()).not.toBeNull();
   expect(noteAnswers()).not.toBeNull();
@@ -645,11 +662,7 @@ test('a send that fails says why and leaves Send to Claude to try again', async 
 
   const rust = await screen.findByRole('group', { name: 'rust' });
   await user.click(within(rust).getByRole('button', { name: 'domain: unchanged' }));
-  await write(
-    user,
-    within(inspector()).getByRole('textbox', { name: 'Your comment' }),
-    'Keep domain free of IO.',
-  );
+  await write(user, await partComment(user), 'Keep domain free of IO.');
   await openReview(user);
   await user.click(screen.getByRole('button', { name: 'Send to Claude' }));
 
@@ -661,8 +674,9 @@ test('a send that fails says why and leaves Send to Claude to try again', async 
 
 const tray = () => screen.getByRole('region', { name: 'Review tray' });
 
-const pickKind = (user: ReturnType<typeof userEvent.setup>, name: string) =>
-  user.click(
+const pickKind = async (user: ReturnType<typeof userEvent.setup>, name: string) => {
+  await partComment(user);
+  await user.click(
     within(within(inspector()).getByRole('radiogroup', { name: 'Comment kind' })).getByRole(
       'radio',
       {
@@ -670,24 +684,24 @@ const pickKind = (user: ReturnType<typeof userEvent.setup>, name: string) =>
       },
     ),
   );
+};
 
 test("the review tray sits at the page's foot, its line counting the drafts and each kind among them, blank ones left out", async () => {
   const user = userEvent.setup();
   render(<ReviewPage review={pageWith(review)} send={async () => {}} />);
-  const comment = () => within(inspector()).getByRole('textbox', { name: 'Your comment' });
 
   const rust = await screen.findByRole('group', { name: 'rust' });
   expect(within(tray()).getByText('Nothing drafted')).toBeDefined();
   await user.click(within(rust).getByRole('button', { name: 'domain: unchanged' }));
-  await write(user, comment(), 'Why here?');
+  await write(user, await partComment(user), 'Why here?');
   expect(within(tray()).getByText('1 drafted · 1 question')).toBeDefined();
   await user.click(within(rust).getByRole('button', { name: 'application: modified' }));
   await pickKind(user, 'Change this');
-  await write(user, comment(), 'Split it.');
+  await write(user, await partComment(user), 'Split it.');
   await user.click(within(rust).getByRole('button', { name: 'application → domain: unchanged' }));
-  await write(user, comment(), 'And this?');
+  await write(user, await partComment(user), 'And this?');
   await user.click(within(rust).getByRole('button', { name: 'cli-adapter: added' }));
-  await write(user, comment(), '  ');
+  await write(user, await partComment(user), '  ');
   expect(within(tray()).getByText('3 drafted · 1 change · 2 questions')).toBeDefined();
   expect(within(tray()).getByRole('button', { name: 'Review' })).toBeDefined();
 });
@@ -703,12 +717,11 @@ test('the open tray lists the drafts, those on parts in reading order first, the
       send={async () => {}}
     />,
   );
-  const comment = () => within(inspector()).getByRole('textbox', { name: 'Your comment' });
   const draft = async (name: string, text: string) => {
     await user.click(
       within(screen.getByRole('group', { name: 'rust' })).getByRole('button', { name }),
     );
-    await write(user, comment(), text);
+    await write(user, await partComment(user), text);
   };
 
   await screen.findByRole('group', { name: 'rust' });
@@ -772,11 +785,7 @@ test("the open tray lists the finding answers after the comments, each named by 
 
   const rust = await screen.findByRole('group', { name: 'rust' });
   await user.click(within(rust).getByRole('button', { name: 'domain: unchanged' }));
-  await write(
-    user,
-    within(inspector()).getByRole('textbox', { name: 'Your comment' }),
-    'Why here?',
-  );
+  await write(user, await partComment(user), 'Why here?');
   await user.click(screen.getByRole('button', { name: 'Show 3 findings' }));
   await answer('cyclomatic 30, over 20', 'Explain');
   await answer('lines 900, over 800', "It's fine");
@@ -2449,11 +2458,7 @@ test('the review sends the parts marked read in reading order, none outside it, 
   await user.keyboard('jjja');
   await user.keyboard('kka');
   await user.keyboard('j');
-  await write(
-    user,
-    within(inspector()).getByRole('textbox', { name: 'Your comment' }),
-    'Is this adapter tested?',
-  );
+  await write(user, await partComment(user), 'Is this adapter tested?');
   await openReview(user);
   await user.click(screen.getByRole('button', { name: 'Send to Claude' }));
 
@@ -2514,9 +2519,9 @@ test('the open tray names the parts read with nothing to say, in reading order, 
   const rust = await screen.findByRole('group', { name: 'rust' });
   await user.keyboard('jajaja');
   await user.click(within(rust).getByRole('button', { name: 'cli-adapter: added' }));
-  await write(user, within(inspector()).getByRole('textbox', { name: 'Your comment' }), 'Why?');
+  await write(user, await partComment(user), 'Why?');
   await user.click(within(rust).getByRole('button', { name: 'legacy: removed' }));
-  await write(user, within(inspector()).getByRole('textbox', { name: 'Your comment' }), ' ');
+  await write(user, await partComment(user), ' ');
   await openReview(user);
 
   const silent = within(tray()).getByRole('list', { name: 'Read, nothing to say' });
@@ -2533,10 +2538,10 @@ test("the open tray previews what Claude gets as lines: the verdict and parts re
   const rust = await screen.findByRole('group', { name: 'rust' });
   await user.keyboard('ja');
   await user.click(within(rust).getByRole('button', { name: 'application → domain: unchanged' }));
-  await write(user, within(inspector()).getByRole('textbox', { name: 'Your comment' }), 'Why?');
+  await write(user, await partComment(user), 'Why?');
   await user.click(within(rust).getByRole('button', { name: 'legacy: removed' }));
   await pickKind(user, 'Change this');
-  await write(user, within(inspector()).getByRole('textbox', { name: 'Your comment' }), 'Keep it.');
+  await write(user, await partComment(user), 'Keep it.');
   await openReview(user);
 
   const preview = () => within(tray()).getByLabelText('What Claude gets').textContent?.split('\n');
@@ -2655,7 +2660,7 @@ test('J, K and A typed in a comment are text, neither walking nor marking', asyn
   await screen.findByRole('group', { name: 'rust' });
 
   await user.keyboard('j');
-  await user.type(within(inspector()).getByRole('textbox', { name: 'Your comment' }), 'jaj');
+  await user.type(await partComment(user), 'jaj');
   expect(selectedPart()).toBe('application');
   expect(within(readingOrder()).getByText('0 of 3 parts read')).toBeDefined();
   expect(within(inspector()).getByRole('textbox', { name: 'Your comment' })).toHaveProperty(
@@ -3212,6 +3217,7 @@ test('a served page offers no comment on an edge drawn between closed modules, w
   const comment = () => within(inspector()).queryByRole('textbox', { name: 'Your comment' });
 
   await user.click(within(web).getByRole('button', { name: 'orders: unchanged' }));
+  await partComment(user);
   expect(comment()).not.toBeNull();
   await user.click(within(web).getByRole('button', { name: 'orders → billing: unchanged' }));
 
@@ -5479,6 +5485,7 @@ test('a draft in the open tray goes to where it was written, though the inspecto
     within(inspector()).getAllByRole('textbox', { name: 'Your comment' })[0] ?? inspector();
 
   await user.click(await screen.findByRole('button', { name: 'review-page.tsx: modified' }));
+  await partComment(user);
   await write(user, partField(), 'On the file.');
   await user.click(
     within(whatChanged()).getByRole('button', { name: 'Comment on method ReviewPage.goTo' }),
@@ -6613,7 +6620,7 @@ test("a served page's line in a file outside the graph takes a comment, named by
   await user.click(
     within(inspector()).getByRole('button', { name: 'Comment on README.md:1 "new"' }),
   );
-  await write(user, within(inspector()).getByRole('textbox', { name: 'Your comment' }), 'Why new?');
+  await write(user, await partComment(user), 'Why new?');
   await openReview(user);
   await user.click(screen.getByRole('button', { name: 'Send to Claude' }));
 
@@ -6641,7 +6648,7 @@ test('the tray goes to a draft on a line outside the graph from any screen, open
   await openUndrawnFiles(user);
   await user.click(within(inspector()).getByText('README.md'));
   await user.click(within(inspector()).getByRole('button', { name: `Comment on ${name}` }));
-  await write(user, within(inspector()).getByRole('textbox', { name: 'Your comment' }), 'Why new?');
+  await write(user, await partComment(user), 'Why new?');
   await user.click(screen.getByRole('button', { name: 'domain: unchanged' }));
   await user.click(screen.getByRole('link', { name: 'Tests' }));
   await openReview(user);
@@ -7682,7 +7689,7 @@ test('a part with a last comment takes Reply and no comment field in its Note pa
   );
 
   await user.click(await screen.findByRole('button', { name: 'domain: unchanged' }));
-  expect(within(inspector()).getByRole('textbox', { name: 'Your comment' })).toBeTruthy();
+  expect(await partComment(user)).toBeTruthy();
 
   await user.click(screen.getByRole('button', { name: 'application: modified' }));
   expect(within(inspector()).getByRole('button', { name: 'Reply' })).toBeTruthy();

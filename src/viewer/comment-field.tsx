@@ -1,4 +1,4 @@
-import { useId, useState } from 'react';
+import { type ReactNode, useId, useState } from 'react';
 import { anchorKey } from '../core/anchors.ts';
 import type { Comment } from '../core/review.ts';
 
@@ -48,7 +48,7 @@ export const CommentField = ({ anchor, comments, onComment }: CommentFieldProps)
 };
 
 type CommentOpenerProps = CommentFieldProps & {
-  readonly word: string;
+  readonly word: ReactNode;
   readonly label?: string;
   readonly landing?: object | undefined;
 };
