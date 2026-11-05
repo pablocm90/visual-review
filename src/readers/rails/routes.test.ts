@@ -711,6 +711,31 @@ test.for([
 
 test.for([
   {
+    reads: 'a written format left out',
+    written: 'get "a(.:format)", to: "b#c"',
+    expected: 'GET /a b#c',
+  },
+  {
+    reads: 'a trailing slash left out',
+    written: 'get "a/", to: "b#c"',
+    expected: 'GET /a b#c',
+  },
+  {
+    reads: 'slashes at both ends left out',
+    written: 'get "/a/b/", to: "x#y"',
+    expected: 'GET /a/b x#y',
+  },
+  {
+    reads: 'a trailing slash in a scope and a path: left out',
+    written: 'scope "a/" do\n resources :b, path: "z/", only: :index\n end',
+    expected: 'GET /a/z b#index',
+  },
+  {
+    reads: 'format: and constraints: as options changing no path',
+    written: 'get "a", to: "b#c", format: false, constraints: { id: /x/ }',
+    expected: 'GET /a b#c',
+  },
+  {
     reads: 'a controller: beside a two-part path, which the path overrides',
     written: 'get "reports/monthly", controller: "other"',
     expected: 'GET /reports/monthly reports#monthly',

@@ -96,7 +96,7 @@ type Resourceful = {
 };
 
 const under = (base: string, name: string): string => {
-  const segment = name.replace(/^\//, '');
+  const segment = name.replace(/\(\.:format\)$/, '').replace(/^\/|\/$/g, '');
   return segment === '' ? base : `${base}/${segment}`;
 };
 
