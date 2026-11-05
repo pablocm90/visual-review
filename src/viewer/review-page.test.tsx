@@ -2623,6 +2623,38 @@ test('signatures called fine at the last review leave the Start here line counte
   expect(rail.getAllByText('called fine')).toHaveLength(3);
 });
 
+test('a suggested split in Start here opens the rail, where its group buttons are', async () => {
+  const user = userEvent.setup();
+  render(
+    <ReviewPage
+      review={pageWith({
+        ...review,
+        findings: [
+          {
+            id: 'cohesion:split',
+            check: 'cohesion:split',
+            dimension: 'cohesion',
+            level: 'info',
+            title: 'may be 2 independent changes',
+            detail: 'read from the edges between parts',
+            groups: [['rust/crate/domain'], ['rust/crate/application']],
+          },
+        ],
+      })}
+    />,
+  );
+
+  const band = within(await screen.findByRole('region', { name: 'Start here' }));
+  const groupButton = { name: /^1 part, from/ };
+  expect(band.queryByRole('button', groupButton)).toBeNull();
+  expect(screen.queryByRole('complementary', { name: 'Findings' })).toBeNull();
+
+  await user.click(band.getByRole('button', { name: 'may be 2 independent changes' }));
+
+  const rail = within(screen.getByRole('complementary', { name: 'Findings' }));
+  expect(rail.getAllByRole('button', groupButton)).toHaveLength(2);
+});
+
 test("modules open collapsed, joined by their files' imports; a module's toggle expands it into its files and back; a note on a hidden import shows on the edge it merges into; a summary item on a hidden file or a rail finding on a hidden import expands what hides it and focuses it, without pulling focus back later", async () => {
   const user = userEvent.setup();
   render(

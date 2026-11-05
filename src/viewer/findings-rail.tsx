@@ -328,6 +328,10 @@ export const StartHere = (props: StartHereProps) => {
   });
   if (lines.length === 0) return null;
   const lineOf = linesOf(props);
+  const lineOfOne = (finding: Finding): Line => {
+    const { groups, ...line } = lineOf(finding);
+    return groups ? { ...line, target: '', act: props.onShowAll } : line;
+  };
   return (
     <section className="start-here" aria-label="Start here">
       <div className="start-here-head">
@@ -354,7 +358,9 @@ export const StartHere = (props: StartHereProps) => {
         <ul>
           {lines.map(line =>
             line.findings.length === 1 ? (
-              line.findings.map(finding => <FindingItem key={line.key} finding={lineOf(finding)} />)
+              line.findings.map(finding => (
+                <FindingItem key={line.key} finding={lineOfOne(finding)} />
+              ))
             ) : (
               <SeveralFindings key={line.key} line={line} lineOf={lineOf} />
             ),
