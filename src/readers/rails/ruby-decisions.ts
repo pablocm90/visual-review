@@ -259,13 +259,20 @@ export const decisionsOfBody = (nodes: ReadonlyArray<Node>): ReadonlyArray<Decis
 const CALLBACKS = /^((prepend|append|skip)_)?(before_\w+|around_action)$/;
 const VALIDATIONS = /^validates?$|^validates_\w+$/;
 
-const OPTIONS = new Set(['pair', 'hash', 'hash_splat_argument', 'block_argument']);
+const NAMES_NOTHING = new Set([
+  'pair',
+  'hash',
+  'hash_splat_argument',
+  'block_argument',
+  'lambda',
+  'call',
+]);
 
 const subjectOf = (word: string, call: Node): string =>
   [
     word,
     ...statementsOf(fieldOf(call, 'arguments'))
-      .filter(({ type }) => !OPTIONS.has(type))
+      .filter(({ type }) => !NAMES_NOTHING.has(type))
       .map(codeOf),
   ].join(' ');
 

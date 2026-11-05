@@ -571,13 +571,28 @@ test.for([
   },
   {
     reason: 'its argument laid out over lines',
-    before: ['before_action foo(', '  :a', ')'],
-    after: ['before_action foo(:a), only: :b'],
+    before: ['validates [', '  :a,', '], presence: true'],
+    after: ['validates [:a], presence: false'],
   },
   {
     reason: 'a space added inside its argument',
-    before: ['before_action foo(:a,:b), only: :x'],
-    after: ['before_action foo(:a, :b), only: :y'],
+    before: ['validates [:a,:b], presence: true'],
+    after: ['validates [:a, :b], presence: false'],
+  },
+  {
+    reason: 'a lambda edited',
+    before: ['before_action -> { a }, only: :x'],
+    after: ['before_action -> { b }, only: :x'],
+  },
+  {
+    reason: 'a lambda call edited',
+    before: ['before_save lambda { a }'],
+    after: ['before_save lambda { b }'],
+  },
+  {
+    reason: 'an object edited',
+    before: ['before_save Foo.new(1)'],
+    after: ['before_save Foo.new(2)'],
   },
   {
     reason: 'its rescue edited',
