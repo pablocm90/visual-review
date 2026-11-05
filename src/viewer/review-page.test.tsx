@@ -2008,7 +2008,7 @@ test("a lens counts each of its dimensions' findings, a note's flag among them, 
       .getAllByRole('heading', { level: 3 })
       .map(heading => heading.textContent),
   ).toEqual(['Logic', 'Tests']);
-  expect(screen.getByRole('button', { name: 'domain: unchanged' })).toBeDefined();
+  expect(await screen.findByRole('button', { name: 'domain: unchanged' })).toBeDefined();
 });
 
 const lensRow = (lens: string) =>
@@ -7214,7 +7214,7 @@ test('the tray goes to a draft on a line outside the graph from any screen, open
   await user.click(within(inspector()).getByText('README.md'));
   await user.click(within(inspector()).getByRole('button', { name: `Comment on ${name}` }));
   await write(user, await partComment(user), 'Why new?');
-  await user.click(screen.getByRole('button', { name: 'domain: unchanged' }));
+  await user.click(await screen.findByRole('button', { name: 'domain: unchanged' }));
   await user.click(screen.getByRole('link', { name: 'Tests' }));
   await openReview(user);
 
