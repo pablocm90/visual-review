@@ -1704,6 +1704,33 @@ const LandingHead = ({
   </>
 );
 
+type ReadingFootProps = {
+  readonly diff: GraphDiff;
+  readonly part: string | undefined;
+  readonly read: ReadonlySet<string>;
+  readonly anyFindings: boolean;
+  readonly onGoTo: (id: string) => void;
+  readonly onShowAllFindings: () => void;
+};
+
+const ReadingFoot = ({
+  diff,
+  part,
+  read,
+  anyFindings,
+  onGoTo,
+  onShowAllFindings,
+}: ReadingFootProps) => (
+  <>
+    {part !== undefined && <NextToIt diff={diff} part={part} read={read} onGoTo={onGoTo} />}
+    {anyFindings && (
+      <button type="button" className="all-findings" onClick={onShowAllFindings}>
+        All findings
+      </button>
+    )}
+  </>
+);
+
 type LeftColumnProps = {
   readonly review: PageData;
   readonly notes: ReviewPageProps['notes'];
@@ -2158,13 +2185,15 @@ const Page = ({ review, notes, send }: ReviewPageProps) => {
           onFit={fitToFrame}
         />
       )}
-      {reading && selectedNode && (
-        <NextToIt diff={review.diff} part={selectedNode.id} read={read} onGoTo={goTo} />
-      )}
-      {reading && findings.length > 0 && (
-        <button type="button" className="all-findings" onClick={showAllFindings}>
-          All findings
-        </button>
+      {reading && (
+        <ReadingFoot
+          diff={review.diff}
+          part={selectedNode?.id}
+          read={read}
+          anyFindings={findings.length > 0}
+          onGoTo={goTo}
+          onShowAllFindings={showAllFindings}
+        />
       )}
     </div>
   );
