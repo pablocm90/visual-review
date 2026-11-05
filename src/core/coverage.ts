@@ -11,6 +11,7 @@ export type CoverageFacts = Pick<
   RangeReading,
   | 'skipped'
   | 'symbolsNotRead'
+  | 'measuresNotRead'
   | 'symbols'
   | 'tests'
   | 'dependencyChanges'
@@ -23,16 +24,16 @@ const notReadFor = (name: string): string => `not read for ${name}`;
 export const coverageOf = ({
   skipped,
   symbolsNotRead,
+  measuresNotRead,
   symbols,
   tests,
   dependencyChanges,
   schemas,
   migrations,
 }: CoverageFacts): ReadonlyArray<Coverage> => {
+  const skippedStacks = skipped.flatMap(({ stacks }) => stacks);
   const symbolsMissing = [
-    ...[...new Set([...skipped.flatMap(({ stacks }) => stacks), ...symbolsNotRead])].map(
-      notReadFor,
-    ),
+    ...[...new Set([...skippedStacks, ...symbolsNotRead])].map(notReadFor),
     ...symbols.flatMap(file => ('unreadable' in file ? [notReadFor(file.node)] : [])),
   ];
   return [
@@ -45,6 +46,10 @@ export const coverageOf = ({
         ...symbolsMissing,
         ...tests.flatMap(file => ('unreadable' in file ? [notReadFor(file.path)] : [])),
       ],
+    },
+    {
+      dimension: 'metrics',
+      notRead: [...new Set([...skippedStacks, ...measuresNotRead])].map(notReadFor),
     },
     {
       dimension: 'dependencies',

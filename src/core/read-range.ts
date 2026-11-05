@@ -74,6 +74,7 @@ export type RangeReading = {
   readonly after: Graph;
   readonly churn: { readonly before: Churn; readonly after: Churn };
   readonly measures: { readonly before: Measures; readonly after: Measures };
+  readonly measuresNotRead: ReadonlyArray<string>;
   readonly changedPaths: ReadonlyArray<string>;
   readonly renames: ReadonlyArray<Rename>;
   readonly patches: ReadonlyArray<FilePatch>;
@@ -530,6 +531,9 @@ export const readRange = async ({
         files: measured.map(({ id, headPath }) => ({ stack: stackOf(id), path: headPath })),
       }),
     };
+    const unmeasured = (stack: string): boolean =>
+      ![...before.stacks, ...after.stacks].find(each => each.stack === stack)?.reader.measure;
+    const measuresNotRead = [...new Set(measured.map(({ id }) => stackOf(id)))].filter(unmeasured);
     const baseSide = { directory: sides.before, reading: before };
     const headSide = { directory: sides.after, reading: after };
     const anchors = await anchorsAcross({
@@ -561,6 +565,7 @@ export const readRange = async ({
       after: after.graph,
       churn,
       measures,
+      measuresNotRead,
       ...anchors,
       dependencyChanges: await readLockfiles({ repo, base, head: toCommit, changes, lockfiles }),
       migrations: await readMigrations({ repo, base, head: toCommit, changes, migrations }),

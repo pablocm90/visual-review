@@ -585,9 +585,10 @@ test("each changed file of a stack whose reader reads symbols comes with its sym
     },
   ]);
   expect(range.symbolsNotRead).toEqual([]);
+  expect(range.measuresNotRead).toEqual([]);
 });
 
-test('a changed file of a stack whose reader reads no symbols lists that stack as not read', async () => {
+test('a changed file of a stack whose reader reads neither symbols nor measures lists that stack as not read for both', async () => {
   using repository = gitRepo({ 'README.md': 'a shop\n' });
   const { repo, root } = repository;
   const head = commit(repo, { 'a.txt': 'a long enough line\n' });
@@ -616,6 +617,7 @@ test('a changed file of a stack whose reader reads no symbols lists that stack a
 
   expect(range.symbols).toEqual([]);
   expect(range.symbolsNotRead).toEqual(['shop']);
+  expect(range.measuresNotRead).toEqual(['shop']);
 });
 
 test('a changed file whose symbols do not parse is listed with the parser message', async () => {

@@ -5,6 +5,7 @@ import type { Dimension } from './findings.ts';
 const facts = (overrides: Partial<CoverageFacts> = {}): CoverageFacts => ({
   skipped: [],
   symbolsNotRead: [],
+  measuresNotRead: [],
   symbols: [],
   tests: [],
   dependencyChanges: [],
@@ -22,6 +23,7 @@ test('with nothing unread, each dimension a check raises is listed as checked, a
     { dimension: 'logic', notRead: [] },
     { dimension: 'api', notRead: [] },
     { dimension: 'tests', notRead: [] },
+    { dimension: 'metrics', notRead: [] },
     { dimension: 'dependencies', notRead: [] },
     { dimension: 'schema', notRead: [] },
     { dimension: 'cohesion', notRead: [] },
@@ -89,5 +91,15 @@ test('schema names the dump and the migration it could not read, and not those i
   expect(notReadIn('schema', { schemas, migrations })).toEqual([
     'not read: db/schema.rb',
     'not read: db/migrate/1_add.rb',
+  ]);
+});
+
+test('metrics names, once each, the skipped stacks and those whose reader measures nothing', () => {
+  const skipped = [{ reader: 'rust' as const, tool: 'cargo', stacks: ['api', 'worker'] }];
+
+  expect(notReadIn('metrics', { skipped, measuresNotRead: ['worker', 'web'] })).toEqual([
+    'not read for api',
+    'not read for worker',
+    'not read for web',
   ]);
 });
