@@ -111,17 +111,17 @@ test.for([
     expected: ['column users.email added as null: false with no default'],
   },
   { written: 'add_column :users, :email, :string', expected: [] },
+  { written: 'add_column :users, :email, :string, index: true', expected: [] },
   { written: 'add_column :users, :email, :string, null: true', expected: [] },
   { written: "add_column :users, :email, :string, null: false, default: ''", expected: [] },
   {
-    written: 'add_reference :users, :account, null: false',
+    written: 'add_reference :users, :account, null: false, index: false',
     expected: ['reference users.account added as null: false with no default'],
   },
   {
-    written: 'add_belongs_to :users, :account, null: false',
+    written: 'add_belongs_to :users, :account, null: false, index: false',
     expected: ['reference users.account added as null: false with no default'],
   },
-  { written: 'add_reference :users, :account', expected: [] },
   {
     written: 'add_timestamps :users',
     expected: ['timestamps of users added as null: false with no default'],
@@ -170,6 +170,68 @@ test.for([
   { written: 'add_index :orders, :user_id, algorithm: :concurrently', expected: [] },
   { written: 'add_index :orders, :user_id, :algorithm => :concurrently', expected: [] },
 ])('$written is flagged unless built concurrently', ({ written, expected }) => {
+  expect(titles(written)).toStrictEqual(expected);
+});
+
+test.for([{ method: 'add_reference' }, { method: 'add_belongs_to' }])(
+  '$method indexes its column, so it blocks writes as add_index does',
+  ({ method }) => {
+    expect(railsMigrations.risks(migration(`${method} :orders, :user`))).toStrictEqual([
+      {
+        title: 'index on orders (user_id) added, not concurrently',
+        why: 'Blocks writes to the table while the index builds.',
+        line: 3,
+      },
+    ]);
+  },
+);
+
+test.for([
+  {
+    written: 'add_reference :orders, :user, **options',
+    expected: ['index on orders (user_id) added, not concurrently'],
+  },
+  { written: 'add_reference :orders, :user, index: false', expected: [] },
+  { written: 'add_reference :orders, :user, :index => false', expected: [] },
+  { written: 'add_reference :orders, :user, index: nil', expected: [] },
+  {
+    written: 'add_reference :orders, :user, index: true',
+    expected: ['index on orders (user_id) added, not concurrently'],
+  },
+  {
+    written: 'add_reference :orders, :user, index: { unique: true }',
+    expected: ['index on orders (user_id) added, not concurrently'],
+  },
+  {
+    written: 'add_reference :orders, :user, index: wanted',
+    expected: ['index on orders (user_id) added, not concurrently'],
+  },
+  { written: 'add_reference :orders, :user, index: { algorithm: :concurrently }', expected: [] },
+  {
+    written: 'add_reference :orders, :user, index: { algorithm: :inplace }',
+    expected: ['index on orders (user_id) added, not concurrently'],
+  },
+])(
+  '$written is flagged unless its index is plainly off or built concurrently',
+  ({ written, expected }) => {
+    expect(titles(written)).toStrictEqual(expected);
+  },
+);
+
+test.for([
+  {
+    written: 'add_reference :orders, :owner, polymorphic: true',
+    expected: ['index on orders (owner_type, owner_id) added, not concurrently'],
+  },
+  {
+    written: "add_reference :orders, :owner, polymorphic: { default: 'User' }",
+    expected: ['index on orders (owner_type, owner_id) added, not concurrently'],
+  },
+  {
+    written: 'add_reference :orders, :owner, polymorphic: false',
+    expected: ['index on orders (owner_id) added, not concurrently'],
+  },
+])('$written names the columns its index covers', ({ written, expected }) => {
   expect(titles(written)).toStrictEqual(expected);
 });
 
@@ -320,13 +382,55 @@ test.for([
     expected: ['column users.email added as null: false with no default'],
   },
   {
-    written: 't.references :account, null: false',
+    written: 't.references :account, null: false, index: false',
     expected: ['reference users.account added as null: false with no default'],
   },
   {
-    written: 't.belongs_to :account, null: false',
+    written: 't.belongs_to :account, null: false, index: false',
     expected: ['reference users.account added as null: false with no default'],
   },
+  {
+    written: 't.references :account',
+    expected: ['index on users (account_id) added, not concurrently'],
+  },
+  {
+    written: 't.belongs_to :account, :plan',
+    expected: [
+      'index on users (account_id) added, not concurrently',
+      'index on users (plan_id) added, not concurrently',
+    ],
+  },
+  { written: 't.references *REFS', expected: ['index on users (*REFS) added, not concurrently'] },
+  { written: 't.references :account, index: false', expected: [] },
+  {
+    written: 't.string :email, index: true',
+    expected: ['index on users (email) added, not concurrently'],
+  },
+  {
+    written: 't.string :email, index: { unique: true }',
+    expected: ['index on users (email) added, not concurrently'],
+  },
+  {
+    written: 't.text :bio, :motto, index: true',
+    expected: [
+      'index on users (bio) added, not concurrently',
+      'index on users (motto) added, not concurrently',
+    ],
+  },
+  {
+    written: 't.string :email, null: false, index: true',
+    expected: [
+      'column users.email added as null: false with no default',
+      'index on users (email) added, not concurrently',
+    ],
+  },
+  { written: 't.string :email, index: false', expected: [] },
+  { written: 't.string :email, index: { algorithm: :concurrently }', expected: [] },
+  {
+    written: 't.column :email, :string, index: true',
+    expected: ['index on users (email) added, not concurrently'],
+  },
+  { written: 't.column :email, :string', expected: [] },
   {
     written: 't.timestamps',
     expected: ['timestamps of users added as null: false with no default'],
@@ -345,6 +449,8 @@ test.for([
 test.for([
   { written: 't.index :email', expected: [] },
   { written: 't.string :email, null: false', expected: [] },
+  { written: 't.references :account', expected: [] },
+  { written: 't.string :email, index: true', expected: [] },
   { written: 't.remove :name', expected: ['column users.name removed'] },
 ])('change_table on a table created alongside: $written', ({ written, expected }) => {
   expect(

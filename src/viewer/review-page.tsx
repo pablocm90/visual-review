@@ -50,7 +50,7 @@ import {
   LevelMark,
   worstOf,
 } from './finding-display.tsx';
-import { FindingsRail, LookFirst, nameOf, TriageStrip } from './findings-rail.tsx';
+import { FindingsRail, nameOf, StartHere, TriageStrip } from './findings-rail.tsx';
 import { highlightPatch, type PatchLine as Line, type Piece } from './highlight-patch.ts';
 import { LastReview } from './last-review.tsx';
 import {
@@ -1659,7 +1659,7 @@ const Page = ({ review, notes, send }: ReviewPageProps) => {
             <div className="content">
               {notes && notes.summary.length > 0 && <Summary notes={notes} onGoTo={goTo} />}
               <TriageStrip findings={findings} picked={picked} onPick={setPicked} />
-              <LookFirst
+              <StartHere
                 findings={triaged}
                 onShowAll={() => setRailOpen(true)}
                 review={review}

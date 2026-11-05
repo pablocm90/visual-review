@@ -1751,7 +1751,7 @@ pre .hljs-emphasis {
   margin-bottom: 8px;
 }
 
-.look-first {
+.start-here {
   margin-bottom: 8px;
   padding: 6px 12px;
   border: 1px solid var(--stack-line);
@@ -1759,27 +1759,24 @@ pre .hljs-emphasis {
   background: var(--stack);
 }
 
-.look-first-title {
+.start-here-title {
   margin: 0;
   font-size: 13px;
 }
 
-.look-first ul {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
-  gap: 0 16px;
+.start-here ul {
   margin: 0;
   padding: 0;
   list-style: none;
 }
 
-.look-first .finding {
+.start-here .finding {
   padding: 2px 0;
   align-items: center;
 }
 
-.look-first .finding button,
-.look-first .finding-said {
+.start-here .finding button,
+.start-here .finding-said {
   flex-direction: row;
   align-items: baseline;
   gap: 8px;
@@ -1788,7 +1785,7 @@ pre .hljs-emphasis {
   text-overflow: ellipsis;
 }
 
-.look-first-toggle,
+.start-here-toggle,
 .show-all {
   padding: 0;
   border: 0;
@@ -2719,4 +2716,38 @@ main:has(> .review-tray) {
 .signature-line {
   display: block;
   white-space: pre-wrap;
+}
+
+.start-here-head {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+}
+
+.start-here-count {
+  margin-left: auto;
+  color: var(--muted);
+  font-size: 12.5px;
+}
+
+.start-here-names {
+  overflow: hidden;
+  color: var(--muted);
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.start-here-several {
+  flex-wrap: wrap;
+}
+
+.start-here .start-here-several > button {
+  flex: 1 1 0;
+  min-width: 0;
+}
+
+.start-here .start-here-opened {
+  flex-basis: 100%;
+  padding-left: 20px;
 }

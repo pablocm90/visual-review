@@ -36,6 +36,7 @@ export const measured = (overrides: Partial<NodeMeasures> = {}): NodeMeasures =>
 
 export const findingOn = (target: string, overrides: Partial<Finding> = {}): Finding => ({
   id: `metrics:lines:${target}`,
+  check: 'metrics:lines',
   dimension: 'metrics',
   level: 'info',
   target,

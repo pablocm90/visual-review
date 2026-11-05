@@ -148,6 +148,7 @@ test.for([
     ).toStrictEqual([
       {
         id: 'structure:undrawn',
+        check: 'structure:undrawn',
         dimension: 'structure',
         level: 'info',
         title,
@@ -175,6 +176,7 @@ test.for([
       pageData({ repo: 'shop', reading, range: 'a..b', version, parsers }).findings,
     ).toContainEqual({
       id: 'structure:name-not-utf8',
+      check: 'structure:name-not-utf8',
       dimension: 'structure',
       level: 'look',
       title,
@@ -201,6 +203,7 @@ test('fetch calls with no route are a routes finding for information on each cal
   ).toStrictEqual([
     {
       id: 'routes:dangling:web/file/a.ts',
+      check: 'routes:dangling',
       dimension: 'routes',
       level: 'info',
       target: 'web/file/a.ts',
@@ -209,6 +212,7 @@ test('fetch calls with no route are a routes finding for information on each cal
     },
     {
       id: 'routes:dangling:web/file/b.ts',
+      check: 'routes:dangling',
       dimension: 'routes',
       level: 'info',
       target: 'web/file/b.ts',
@@ -279,6 +283,7 @@ test('stacks a missing tool kept from being read are a structure finding to look
   ).toStrictEqual([
     {
       id: 'structure:skipped:rust',
+      check: 'structure:skipped',
       dimension: 'structure',
       level: 'look',
       title: 'api, worker not read: cargo not found on PATH',
@@ -294,6 +299,7 @@ test('each stack with changed files whose reader reads no symbols is a structure
   ).toStrictEqual([
     {
       id: 'structure:symbols-not-read:api',
+      check: 'structure:symbols-not-read',
       dimension: 'structure',
       level: 'info',
       target: 'api',
@@ -301,6 +307,7 @@ test('each stack with changed files whose reader reads no symbols is a structure
     },
     {
       id: 'structure:symbols-not-read:admin',
+      check: 'structure:symbols-not-read',
       dimension: 'structure',
       level: 'info',
       target: 'admin',
@@ -354,6 +361,7 @@ test('an exported symbol removed, or no longer exported, is an api finding to lo
   expect(findingsOfSymbols(symbols)).toStrictEqual([
     {
       id: 'api:removed:web/file/a.ts#charge',
+      check: 'api:removed',
       dimension: 'api',
       level: 'look',
       target: 'web/file/a.ts',
@@ -361,6 +369,7 @@ test('an exported symbol removed, or no longer exported, is an api finding to lo
     },
     {
       id: 'api:removed:web/file/a.ts#Orders.refund',
+      check: 'api:removed',
       dimension: 'api',
       level: 'look',
       target: 'web/file/a.ts',
@@ -401,6 +410,7 @@ test('an exported symbol renamed or moved away is a removal, the title naming it
   expect(findingsOfSymbols(symbols)).toStrictEqual([
     {
       id: 'api:removed:web/file/a.ts#Orders.bill',
+      check: 'api:removed',
       dimension: 'api',
       level: 'look',
       target: 'web/file/a.ts',
@@ -408,6 +418,7 @@ test('an exported symbol renamed or moved away is a removal, the title naming it
     },
     {
       id: 'api:removed:web/file/a.ts#pay',
+      check: 'api:removed',
       dimension: 'api',
       level: 'look',
       target: 'web/file/a.ts',
@@ -416,6 +427,7 @@ test('an exported symbol renamed or moved away is a removal, the title naming it
     },
     {
       id: 'api:removed:web/file/a.ts#total',
+      check: 'api:removed',
       dimension: 'api',
       level: 'look',
       target: 'web/file/a.ts',
@@ -495,6 +507,7 @@ test('an exported symbol whose signature changed is an api finding to look at, i
   expect(findingsOfSymbols(symbols)).toStrictEqual([
     {
       id: 'api:signature:web/file/a.ts#Orders.charge',
+      check: 'api:signature',
       dimension: 'api',
       level: 'look',
       target: 'web/file/a.ts',
@@ -528,6 +541,7 @@ test('an export added, moved in or newly exported is an api finding for informat
   expect(findingsOfSymbols(symbols)).toStrictEqual([
     {
       id: 'api:added:web/file/a.ts#charge',
+      check: 'api:added',
       dimension: 'api',
       level: 'info',
       target: 'web/file/a.ts',
@@ -535,6 +549,7 @@ test('an export added, moved in or newly exported is an api finding for informat
     },
     {
       id: 'api:added:web/file/a.ts#tax',
+      check: 'api:added',
       dimension: 'api',
       level: 'info',
       target: 'web/file/a.ts',
@@ -542,6 +557,7 @@ test('an export added, moved in or newly exported is an api finding for informat
     },
     {
       id: 'api:added:web/file/a.ts#Order',
+      check: 'api:added',
       dimension: 'api',
       level: 'info',
       target: 'web/file/a.ts',
@@ -582,6 +598,7 @@ test.for([
     expect(exportListFindings(symbols)).toStrictEqual([
       {
         id: 'api:exports:web/file/a.ts',
+        check: 'api:exports',
         dimension: 'api',
         level,
         target: 'web/file/a.ts',
@@ -638,6 +655,7 @@ test("a changed file whose symbols wouldn't parse is a structure finding for inf
   expect(findingsOfSymbols(symbols)).toStrictEqual([
     {
       id: 'structure:unreadable-symbols:web/file/a.ts',
+      check: 'structure:unreadable-symbols',
       dimension: 'structure',
       level: 'info',
       target: 'web/file/a.ts',
@@ -710,6 +728,7 @@ test('a guard or catch removed from an edited function is a logic finding to loo
   ).toStrictEqual([
     {
       id: 'logic:removed:web/file/a.ts#Orders.charge#if (!order.paid) return',
+      check: 'logic:removed',
       dimension: 'logic',
       level: 'look',
       target: 'web/file/a.ts',
@@ -718,6 +737,7 @@ test('a guard or catch removed from an edited function is a logic finding to loo
     },
     {
       id: 'logic:removed:web/file/a.ts#Orders.charge#catch (error)',
+      check: 'logic:removed',
       dimension: 'logic',
       level: 'look',
       target: 'web/file/a.ts',
@@ -733,6 +753,7 @@ test('names that hide logic at the head are one finding for information on their
   expect(findingsOfSymbols([file])).toStrictEqual([
     {
       id: 'logic:blind-spot:web/file/a.ts',
+      check: 'logic:blind-spot',
       dimension: 'logic',
       level: 'info',
       target: 'web/file/a.ts',
@@ -847,6 +868,7 @@ test("an edited function's other decision changes are one logic finding for info
   expect(findingsOfSymbols(symbols).filter(({ level }) => level === 'info')).toStrictEqual([
     {
       id: 'logic:changed:web/file/a.ts#charge',
+      check: 'logic:changed',
       dimension: 'logic',
       level: 'info',
       target: 'web/file/a.ts',
@@ -855,6 +877,7 @@ test("an edited function's other decision changes are one logic finding for info
     },
     {
       id: 'logic:changed:web/file/a.ts#total',
+      check: 'logic:changed',
       dimension: 'logic',
       level: 'info',
       target: 'web/file/a.ts',
@@ -885,6 +908,7 @@ test("a moved guard or catch needs no look: it counts in its function's logic fi
     [
       {
         id: 'logic:changed:web/file/a.ts#ReviewPage',
+        check: 'logic:changed',
         dimension: 'logic',
         level: 'info',
         target: 'web/file/a.ts',
@@ -959,6 +983,7 @@ test("a file whose logic changed, with no test added, removed or edited alongsid
   ).toStrictEqual([
     {
       id: 'tests:untested-logic:web/file/b.ts',
+      check: 'tests:untested-logic',
       dimension: 'tests',
       level: 'look',
       target: 'web/file/b.ts',
@@ -1526,6 +1551,7 @@ const splitPageOf = (names: ReadonlyArray<string>) =>
 test('parts that fall into separate groups raise one cohesion finding for information, with no target, holding the groups and counting the parts left out', () => {
   expect(splitPageOf(['a.ts', 'b.ts', 'c.ts', 'd.ts', 'e.ts'])).toStrictEqual({
     id: 'cohesion:split',
+    check: 'cohesion:split',
     dimension: 'cohesion',
     level: 'info',
     title: 'may be 2 independent changes',
@@ -1720,6 +1746,7 @@ test.for([
     ).toStrictEqual(
       ['cyclomatic', 'hotspot', 'abc'].map((metric, at) => ({
         id: `metrics:${metric}:web/file/a.ts`,
+        check: `metrics:${metric}`,
         dimension: 'metrics',
         target: 'web/file/a.ts',
         ...said[at],
@@ -3151,11 +3178,13 @@ test.for([
   {
     on: 'a finding on a part changed since, with the commits on it',
     id: 'routes:dangling:web/file/a.ts',
+    check: 'routes:dangling',
     mark: { target: 'web/file/a.ts', changedSince: [commitOnA] },
   },
   {
     on: 'a finding on a part as it was',
     id: 'routes:dangling:web/file/b.ts',
+    check: 'routes:dangling',
     mark: { target: 'web/file/b.ts' },
   },
   {
@@ -3176,11 +3205,13 @@ test.for([
   {
     on: 'a finding with no target, still raised, as it was',
     id: 'structure:skipped:rust',
+    check: 'structure:skipped',
     mark: {},
   },
   {
     on: 'a finding no longer raised, changed with no commit to name',
     id: 'routes:dangling:web/file/gone.ts',
+    check: 'routes:dangling',
     mark: { changedSince: [] },
   },
 ])('a previous answer to $on', ({ id, mark }) => {
@@ -3198,6 +3229,7 @@ test.for([
   {
     on: 'a finding on a part',
     id: 'routes:dangling:web/file/a.ts',
+    check: 'routes:dangling',
     held: { target: 'web/file/a.ts' },
   },
   { on: 'a note flag on a part', id: 'notes:web/file/a.ts', held: { target: 'web/file/a.ts' } },

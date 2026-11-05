@@ -15,6 +15,7 @@ test("a migration's risk is a schema finding to look at, opening its file, sayin
   ).toStrictEqual([
     {
       id: `schema:${FILE}:column users.name removed`,
+      check: 'schema:migration-risk',
       dimension: 'schema',
       level: 'look',
       file: FILE,
@@ -45,6 +46,7 @@ test("a migration that couldn't be read is a finding to look at, naming why", ()
   expect(migrationFindings([{ file: FILE, notRead: 'Ruby syntax error' }])).toStrictEqual([
     {
       id: `schema:not-read:${FILE}`,
+      check: 'schema:not-read',
       dimension: 'schema',
       level: 'look',
       file: FILE,

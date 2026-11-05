@@ -466,6 +466,7 @@ test('a split finding has a button per group in the rail, naming its size and go
         findings: [
           {
             id: 'cohesion:split',
+            check: 'cohesion:split',
             dimension: 'cohesion',
             level: 'info',
             title: 'may be 2 independent changes',
@@ -725,6 +726,7 @@ test("the open tray lists the finding answers after the comments, each named by 
   const user = userEvent.setup();
   const undrawn: Finding = {
     id: 'structure:undrawn',
+    check: 'structure:undrawn',
     dimension: 'structure',
     level: 'info',
     title: '1 changed file outside the graph',
@@ -1793,6 +1795,7 @@ test("the findings rail starts collapsed to their total and how many need a look
           }),
           {
             id: 'structure:undrawn',
+            check: 'structure:undrawn',
             dimension: 'structure',
             level: 'info',
             title: '1 changed file outside the graph',
@@ -2416,74 +2419,88 @@ test("J, K and A typed in why it's fine are text, neither walking nor marking", 
   );
 });
 
-test('look first lists the findings to look at in rank order, in the dimension a triage chip picks, collapsing to their count, each going to its node, seven at most and Show all opening the rail past them, and is absent when none needs a look', async () => {
+test('Start here lists its lines in rank order, in the dimension a triage chip picks, folding to its title, each going to its node, five at most with All findings opening the rail, and is absent with no findings', async () => {
   const user = userEvent.setup();
-  const looks = (count: number) =>
-    Array.from({ length: count }, (_, index) =>
-      findingOn('rust/crate/domain', { id: `look ${index}`, level: 'look', title: `${index}` }),
-    );
+  const flagged = (target: string, overrides: Partial<Finding>) =>
+    findingOn(target, { check: 'flag', level: 'look', ...overrides });
   const { rerender } = render(
     <ReviewPage
       review={pageWith({
         ...review,
         findings: [
           findingOn('rust/crate/application'),
-          findingOn('rust/crate/domain', { id: 'b', level: 'look', title: 'second' }),
-          findingOn('rust/crate/cli-adapter', { id: 'a', level: 'look', title: 'first' }),
-          findingOn('rust/crate/application', {
-            id: 'c',
-            dimension: 'routes',
-            level: 'look',
-            title: 'third',
-          }),
+          flagged('rust/crate/domain', { id: 'b', title: 'second' }),
+          flagged('rust/crate/cli-adapter', { id: 'a', title: 'first' }),
+          flagged('rust/crate/application', { id: 'c', dimension: 'routes', title: 'third' }),
         ],
       })}
     />,
   );
 
-  const band = () => within(screen.getByRole('region', { name: 'Look first' }));
-  await screen.findByRole('region', { name: 'Look first' });
+  const band = () => within(screen.getByRole('region', { name: 'Start here' }));
+  await screen.findByRole('region', { name: 'Start here' });
   const items = () =>
     band()
       .getAllByRole('listitem')
       .map(item => within(item).getByRole('button').getAttribute('aria-label'));
-  expect(items()).toEqual(['cli-adapter: first', 'domain: second', 'application: third']);
+  expect(items()).toEqual([
+    'cli-adapter: first',
+    'domain: second',
+    'application: third',
+    'application: lines 900, over 800',
+  ]);
+  expect(band().getByText('3 findings need a look')).toBeDefined();
   const routes = () =>
     within(screen.getByRole('group', { name: 'Triage' })).getByRole('button', { name: /Routes/ });
   await user.click(routes());
   expect(items()).toEqual(['application: third']);
   await user.click(routes());
-  expect(items()).toHaveLength(3);
-  const toggle = () => band().getByRole('button', { name: /^Look first/ });
+  expect(items()).toHaveLength(4);
+  const toggle = () => band().getByRole('button', { name: 'Start here' });
   expect(toggle().getAttribute('aria-expanded')).toBe('true');
   await user.click(toggle());
   expect(band().queryAllByRole('listitem')).toHaveLength(0);
-  expect(toggle().textContent).toBe('Look first: 3');
+  expect(band().getByText('3 findings need a look')).toBeDefined();
   expect(toggle().getAttribute('aria-expanded')).toBe('false');
   await user.click(toggle());
-  expect(items()).toHaveLength(3);
+  expect(items()).toHaveLength(4);
   await user.click(band().getByRole('button', { name: 'domain: second' }));
   await waitFor(() =>
     expect(document.activeElement).toBe(screen.getByRole('button', { name: 'domain: unchanged' })),
   );
 
-  rerender(<ReviewPage review={pageWith({ ...review, findings: looks(7) })} />);
-  expect(items()).toHaveLength(7);
-  const showAll = () => band().queryByRole('button', { name: /^Show all/ });
-  expect(showAll()).toBeNull();
-  rerender(<ReviewPage review={pageWith({ ...review, findings: looks(8) })} />);
-  expect(items()).toEqual(['0', '1', '2', '3', '4', '5', '6'].map(title => `domain: ${title}`));
+  const flags = Array.from({ length: 6 }, (_, index) =>
+    flagged('rust/crate/domain', { id: `look ${index}`, title: `${index}` }),
+  );
+  rerender(<ReviewPage review={pageWith({ ...review, findings: flags })} />);
+  expect(items()).toEqual(['0', '1', '2', '3', '4'].map(title => `domain: ${title}`));
   expect(screen.queryByRole('complementary', { name: 'Findings' })).toBeNull();
-  await user.click(band().getByRole('button', { name: 'Show all 8' }));
+  await user.click(band().getByRole('button', { name: 'All findings' }));
   expect(screen.getByRole('complementary', { name: 'Findings' })).toBeDefined();
   await user.click(screen.getByRole('button', { name: 'Hide findings' }));
 
+  rerender(<ReviewPage review={pageWith({ ...review, findings: [] })} />);
+  expect(screen.queryByRole('region', { name: 'Start here' })).toBeNull();
+});
+
+test('with nothing to look at, Start here says so and still shows what is for information', async () => {
+  const { rerender } = render(
+    <ReviewPage review={pageWith({ ...review, findings: [findingOn('rust/crate/domain')] })} />,
+  );
+
+  const band = within(await screen.findByRole('region', { name: 'Start here' }));
+  expect(band.getByText('nothing needs a look · 1 finding')).toBeDefined();
+  expect(band.getByRole('button', { name: 'domain: lines 900, over 800' })).toBeDefined();
+
   rerender(
     <ReviewPage
-      review={pageWith({ ...review, findings: [findingOn('rust/crate/application')] })}
+      review={pageWith({
+        ...review,
+        findings: [findingOn('rust/crate/domain', { level: 'look' })],
+      })}
     />,
   );
-  expect(screen.queryByRole('region', { name: 'Look first' })).toBeNull();
+  expect(band.getByText('1 finding needs a look')).toBeDefined();
 });
 
 const webModule = (label: string, state: Diffed = 'unchanged') => ({
@@ -2514,6 +2531,160 @@ const buttonsIn = (element: HTMLElement) =>
   within(element)
     .getAllByRole('button')
     .map(drawn => drawn.getAttribute('aria-label'));
+
+const webFilesReview = (count: number) => ({
+  range: 'abc123..def456',
+  diff: {
+    nodes: [
+      { id: 'web', kind: 'stack' as const, label: 'web', path: '', state: 'unchanged' as const },
+      webModule('utils', 'modified'),
+      ...Array.from({ length: count }, (_, at) => webFile('utils', `${at}.ts`, 'modified')),
+    ],
+    edges: [],
+  },
+});
+
+const findingsOnFiles = (
+  { count, files }: { readonly count: number; readonly files: number },
+  overrides: Partial<Finding>,
+) =>
+  Array.from({ length: count }, (_, at) =>
+    findingOn(`web/file/utils/${at % files}.ts`, {
+      id: `${overrides.check}:${at}`,
+      title: `said ${at}`,
+      ...overrides,
+    }),
+  );
+
+test("a check's findings read as one line, which opens in place to list them, unanswered, each going to its target", async () => {
+  const user = userEvent.setup();
+  render(
+    <ReviewPage
+      review={pageWith({
+        ...webFilesReview(9),
+        findings: [
+          ...findingsOnFiles({ count: 7, files: 4 }, { check: 'api:signature', level: 'look' }),
+          ...findingsOnFiles({ count: 30, files: 9 }, { check: 'api:added', level: 'info' }),
+        ],
+      })}
+      send={vi.fn()}
+    />,
+  );
+
+  const band = within(await screen.findByRole('region', { name: 'Start here' }));
+  const signatures = () =>
+    band.getByRole('button', { name: '7 exported signatures changed · 4 files' });
+  expect(band.getByRole('button', { name: '30 exported symbols added · 9 files' })).toBeDefined();
+  expect(
+    band
+      .getAllByRole('listitem')
+      .map(line => within(line).getByRole('img').getAttribute('aria-label')),
+  ).toEqual(['needs a look', 'for information']);
+  expect(band.getByText('0.ts, 1.ts, 2.ts, 3.ts')).toBeDefined();
+  expect(signatures().getAttribute('aria-expanded')).toBe('false');
+  expect(band.queryByRole('button', { name: '1.ts: said 1' })).toBeNull();
+
+  await user.click(signatures());
+
+  expect(signatures().getAttribute('aria-expanded')).toBe('true');
+  expect(band.getAllByRole('button', { name: /: said \d$/ })).toHaveLength(7);
+  expect(band.queryByRole('group', { name: 'Answer' })).toBeNull();
+  await user.click(band.getByRole('button', { name: '1.ts: said 1' }));
+  await waitFor(() =>
+    expect(document.activeElement).toBe(screen.getByRole('button', { name: '1.ts: modified' })),
+  );
+
+  await user.click(signatures());
+  expect(band.queryByRole('button', { name: '1.ts: said 1' })).toBeNull();
+});
+
+test("an opened Start here line's finding on a file opens that file's patch", async () => {
+  const user = userEvent.setup();
+  const page = pageWithLockfile('undrawn', 'pnpm-lock.yaml');
+  const direct = (name: string) => ({
+    id: `dependencies:pnpm-lock.yaml:${name}`,
+    check: 'dependencies:direct' as const,
+    dimension: 'dependencies' as const,
+    level: 'look' as const,
+    file: 'pnpm-lock.yaml',
+    title: `${name} 1.0.0 → 2.0.0`,
+    detail: 'pnpm-lock.yaml',
+  });
+  render(<ReviewPage review={{ ...page, findings: [direct('vite'), direct('zod')] }} />);
+
+  const band = within(await screen.findByRole('region', { name: 'Start here' }));
+  await user.click(band.getByRole('button', { name: '2 direct dependencies changed · 1 file' }));
+  await user.click(band.getByRole('button', { name: 'pnpm-lock.yaml: zod 1.0.0 → 2.0.0' }));
+
+  expect(within(inspector()).getByRole('heading', { level: 2 }).textContent).toBe(
+    'Changed files outside the graph',
+  );
+  expect(
+    within(inspector()).getByRole('group', { name: 'pnpm-lock.yaml' }).hasAttribute('open'),
+  ).toBe(true);
+});
+
+test('signatures called fine at the last review leave the Start here line counted without them, and the rail lists them all, tagged', async () => {
+  const user = userEvent.setup();
+  const findings = findingsOnFiles(
+    { count: 7, files: 4 },
+    { check: 'api:signature', dimension: 'api', level: 'look' },
+  );
+  render(
+    <ReviewPage
+      review={pageWith({
+        ...webFilesReview(4),
+        findings,
+        sinceReview: {
+          ...sinceReview,
+          calledFine: ['api:signature:0', 'api:signature:1', 'api:signature:2'],
+        },
+      })}
+    />,
+  );
+
+  const band = within(await screen.findByRole('region', { name: 'Start here' }));
+  expect(
+    band.getByRole('button', { name: '4 exported signatures changed · 4 files' }),
+  ).toBeDefined();
+  await user.click(screen.getByRole('button', { name: 'Show 7 findings' }));
+  const rail = within(screen.getByRole('region', { name: 'API' }));
+  expect(rail.getAllByRole('button', { name: /said \d$/ })).toHaveLength(4);
+  expect(rail.getAllByRole('button', { name: /said \d, called fine$/ })).toHaveLength(3);
+  expect(rail.getAllByText('called fine')).toHaveLength(3);
+});
+
+test('a suggested split in Start here opens the rail, where its group buttons are', async () => {
+  const user = userEvent.setup();
+  render(
+    <ReviewPage
+      review={pageWith({
+        ...review,
+        findings: [
+          {
+            id: 'cohesion:split',
+            check: 'cohesion:split',
+            dimension: 'cohesion',
+            level: 'info',
+            title: 'may be 2 independent changes',
+            detail: 'read from the edges between parts',
+            groups: [['rust/crate/domain'], ['rust/crate/application']],
+          },
+        ],
+      })}
+    />,
+  );
+
+  const band = within(await screen.findByRole('region', { name: 'Start here' }));
+  const groupButton = { name: /^1 part, from/ };
+  expect(band.queryByRole('button', groupButton)).toBeNull();
+  expect(screen.queryByRole('complementary', { name: 'Findings' })).toBeNull();
+
+  await user.click(band.getByRole('button', { name: 'may be 2 independent changes' }));
+
+  const rail = within(screen.getByRole('complementary', { name: 'Findings' }));
+  expect(rail.getAllByRole('button', groupButton)).toHaveLength(2);
+});
 
 test("modules open collapsed, joined by their files' imports; a module's toggle expands it into its files and back; a note on a hidden import shows on the edge it merges into; a summary item on a hidden file or a rail finding on a hidden import expands what hides it and focuses it, without pulling focus back later", async () => {
   const user = userEvent.setup();
@@ -3128,6 +3299,7 @@ test("the rail's changed files outside the graph open in the inspector at the ch
         findings: [
           {
             id: 'structure:undrawn',
+            check: 'structure:undrawn',
             dimension: 'structure',
             level: 'info',
             title: '2 changed files outside the graph',
@@ -3140,7 +3312,11 @@ test("the rail's changed files outside the graph open in the inspector at the ch
 
   await user.click(await screen.findByRole('button', { name: 'Show 1 finding' }));
   const outside = 'README.md, docs/a.md: 2 changed files outside the graph';
-  await user.click(screen.getByRole('button', { name: outside }));
+  await user.click(
+    within(screen.getByRole('complementary', { name: 'Findings' })).getByRole('button', {
+      name: outside,
+    }),
+  );
   expect(within(inspector()).getByRole('heading', { level: 2 }).textContent).toBe(
     'Changed files outside the graph',
   );
@@ -3154,7 +3330,10 @@ test("the rail's changed files outside the graph open in the inspector at the ch
   await user.click(await screen.findByRole('button', { name: 'domain: unchanged' }));
   expect(within(inspector()).getByRole('heading', { level: 2 }).textContent).toBe('domain');
 
-  const opener = screen.getByRole('button', { name: outside });
+  const opener = within(screen.getByRole('complementary', { name: 'Findings' })).getByRole(
+    'button',
+    { name: outside },
+  );
   await user.click(opener);
   await user.click(within(inspector()).getByRole('button', { name: 'Close inspector' }));
   expect(screen.queryByRole('complementary', { name: 'Inspector' })).toBeNull();
@@ -5524,6 +5703,7 @@ const pageWithUndrawnFile = () =>
     findings: [
       {
         id: 'structure:undrawn',
+        check: 'structure:undrawn',
         dimension: 'structure',
         level: 'info',
         title: '1 changed file outside the graph',
@@ -5535,7 +5715,9 @@ const pageWithUndrawnFile = () =>
 const openUndrawnFiles = async (user: ReturnType<typeof userEvent.setup>) => {
   await user.click(await screen.findByRole('button', { name: 'Show 1 finding' }));
   await user.click(
-    screen.getByRole('button', { name: 'README.md: 1 changed file outside the graph' }),
+    within(screen.getByRole('complementary', { name: 'Findings' })).getByRole('button', {
+      name: 'README.md: 1 changed file outside the graph',
+    }),
   );
 };
 
@@ -5546,6 +5728,7 @@ const pageWithLockfile = (place: 'undrawn' | 'patches', path: string) =>
     findings: [
       {
         id: `dependencies:${path}:zod`,
+        check: 'dependencies:direct',
         dimension: 'dependencies',
         level: 'look',
         file: path,
@@ -5554,6 +5737,7 @@ const pageWithLockfile = (place: 'undrawn' | 'patches', path: string) =>
       },
       {
         id: `dependencies:not-read:${path}`,
+        check: 'dependencies:not-read',
         dimension: 'dependencies',
         level: 'look',
         file: path,
@@ -5702,7 +5886,9 @@ test('the tray goes to a draft on a line outside the graph from any screen, open
 
   scrolledIntoView.mockClear();
   await user.click(
-    screen.getByRole('button', { name: 'README.md: 1 changed file outside the graph' }),
+    within(screen.getByRole('complementary', { name: 'Findings' })).getByRole('button', {
+      name: 'README.md: 1 changed file outside the graph',
+    }),
   );
   expect(within(inspector()).getByRole('insertion', { current: false })).toBeDefined();
   expect(scrolledIntoView).not.toHaveBeenCalled();
@@ -6285,6 +6471,7 @@ test('a last answer to a finding is listed by its title, going to its target; on
   const user = userEvent.setup();
   const raised: Finding = {
     id: 'metrics:look:rust/crate/application',
+    check: 'metrics:lines',
     dimension: 'metrics',
     level: 'look',
     title: 'application got harder',
@@ -7278,6 +7465,7 @@ const pageWithAnAnsweredFinding = (
 ) => {
   const finding = (id: string, title: string): Finding => ({
     id,
+    check: 'logic:changed',
     dimension: 'logic',
     level: 'look',
     target: 'rust/crate/application',
@@ -7291,7 +7479,7 @@ const pageWithAnAnsweredFinding = (
   });
 };
 
-test('a last answer to a finding shows under it in the rail, not in the Look first band', async () => {
+test('a last answer to a finding shows under it in the rail, not in Start here', async () => {
   const user = userEvent.setup();
   render(
     <ReviewPage
@@ -7311,23 +7499,6 @@ test('a last answer to a finding shows under it in the rail, not in the Look fir
       name: 'Last review: Explain, As it was',
     }),
   ).toBeTruthy();
-  expect(within(screen.getByRole('region', { name: 'Look first' })).queryByRole('note')).toBeNull();
+  expect(within(screen.getByRole('region', { name: 'Start here' })).queryByRole('note')).toBeNull();
   expect(screen.getAllByRole('note', { name: /^Last review/ })).toHaveLength(1);
-});
-
-test('a finding called fine at the last review stays out of Look first and reads so in its group', async () => {
-  const user = userEvent.setup();
-  render(<ReviewPage review={pageWithAnAnsweredFinding({ calledFine: ['logic:a'] })} />);
-
-  const band = within(await screen.findByRole('region', { name: 'Look first' }));
-  expect(band.getByRole('button', { name: /^application: changed a branch/ })).toBeTruthy();
-  expect(band.queryByRole('button', { name: /lost a guard/ })).toBeNull();
-
-  await user.click(screen.getByRole('button', { name: 'Show 2 findings' }));
-  const group = within(screen.getByRole('region', { name: 'Logic' }));
-  expect(
-    group.getByRole('button', { name: /^application: lost a guard.*, called fine$/ }),
-  ).toBeTruthy();
-  expect(group.getByRole('button', { name: /^application: changed a branch.*[^e]$/ })).toBeTruthy();
-  expect(group.getAllByText('called fine')).toHaveLength(1);
 });

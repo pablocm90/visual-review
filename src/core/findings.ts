@@ -1,9 +1,10 @@
+import type { Check } from './checks.ts';
 import { dependencyFindings } from './dependency-findings.ts';
 import type { FilePatch, GraphDiff } from './diff-graphs.ts';
 import { endsOfId, type GraphNode } from './graph.ts';
 import type { DanglingCall } from './linker.ts';
 import type { MetricFinding } from './metric-findings.ts';
-import { type NodeMetrics, tenths } from './metrics.ts';
+import { tenths } from './metrics.ts';
 import { migrationFindings } from './migration-findings.ts';
 import type { ReviewNotes } from './notes.ts';
 import type { PageData } from './page.ts';
@@ -43,6 +44,7 @@ export type Dimension = (typeof DIMENSIONS)[number];
 
 export type Finding = {
   readonly id: string;
+  readonly check: Check | 'flag';
   readonly dimension: Dimension;
   readonly level: 'look' | 'info';
   readonly target?: string;
@@ -109,6 +111,7 @@ const withUntestedLogic = (
     .map(
       (node): Finding => ({
         id: `tests:untested-logic:${node.id}`,
+        check: 'tests:untested-logic',
         dimension: 'tests',
         level: 'look',
         target: node.id,
@@ -122,6 +125,7 @@ const SPLIT_CAVEAT =
 
 const splitFinding = ({ groups, leftOut }: SplitSuggestion): Finding => ({
   id: 'cohesion:split',
+  check: 'cohesion:split',
   dimension: 'cohesion',
   level: 'info',
   title: `may be ${groups.length} independent changes`,
@@ -138,6 +142,7 @@ const namesNotUtf8Finding = (paths: ReadonlyArray<string>): ReadonlyArray<Findin
     : [
         {
           id: 'structure:name-not-utf8',
+          check: 'structure:name-not-utf8',
           dimension: 'structure',
           level: 'look',
           title:
@@ -168,6 +173,7 @@ export const raisedFindings = ({
   ...skipped.map(
     (skip): Finding => ({
       id: skippedFindingId(skip),
+      check: 'structure:skipped',
       dimension: 'structure',
       level: 'look',
       title: notReadLine(skip),
@@ -178,6 +184,7 @@ export const raisedFindings = ({
     : [
         {
           id: 'structure:undrawn',
+          check: 'structure:undrawn' as const,
           dimension: 'structure' as const,
           level: 'info' as const,
           title: `${counted(undrawn.length, 'changed file', 'changed files')} outside the graph`,
@@ -188,6 +195,7 @@ export const raisedFindings = ({
   ...[...Map.groupBy(dangling, call => call.from)].map(
     ([from, calls]): Finding => ({
       id: `routes:dangling:${from}`,
+      check: 'routes:dangling',
       dimension: 'routes',
       level: 'info',
       target: from,
@@ -198,6 +206,7 @@ export const raisedFindings = ({
   ...metricFindings.map(
     (finding): Finding => ({
       id: `metrics:${finding.metric}:${finding.node}`,
+      check: `metrics:${finding.metric}`,
       dimension: 'metrics',
       level: finding.level,
       target: finding.node,
@@ -208,6 +217,7 @@ export const raisedFindings = ({
   ...symbolsNotRead.map(
     (stack): Finding => ({
       id: `structure:symbols-not-read:${stack}`,
+      check: 'structure:symbols-not-read',
       dimension: 'structure',
       level: 'info',
       target: stack,
@@ -235,31 +245,18 @@ export const findingsOf = ({ data, notes }: FindingsOfOptions): ReadonlyArray<Fi
   ...Object.entries(notes?.notes ?? {}).flatMap(([id, { flag, dimension = 'structure' }]) =>
     flag === undefined
       ? []
-      : [{ id: `${NOTE_FLAG}${id}`, dimension, level: 'look' as const, target: id, title: flag }],
+      : [
+          {
+            id: `${NOTE_FLAG}${id}`,
+            check: 'flag' as const,
+            dimension,
+            level: 'look' as const,
+            target: id,
+            title: flag,
+          },
+        ],
   ),
 ];
-
-type LookFirstOptions = {
-  readonly findings: ReadonlyArray<Finding>;
-  readonly metrics: Readonly<Record<string, NodeMetrics>>;
-};
-
-export const lookFirst = ({ findings, metrics }: LookFirstOptions): ReadonlyArray<Finding> => {
-  const highest = (target: string | undefined, measure: 'fanIn' | 'churn') =>
-    target === undefined
-      ? Number.POSITIVE_INFINITY
-      : Math.max(...endsOfId(target).map(end => metrics[end]?.head?.[measure] ?? 0));
-  const isBlindSpot = ({ target, dimension, id }: Finding) =>
-    target === undefined &&
-    (!(dimension === 'dependencies' || dimension === 'schema') ||
-      id.startsWith(`${dimension}:not-read:`));
-  const before = (one: Finding, other: Finding) =>
-    Number(isBlindSpot(other)) - Number(isBlindSpot(one)) ||
-    highest(other.target, 'fanIn') - highest(one.target, 'fanIn') ||
-    highest(other.target, 'churn') - highest(one.target, 'churn') ||
-    (one.id < other.id ? -1 : 1);
-  return findings.filter(finding => finding.level === 'look').toSorted(before);
-};
 
 type FindingsAtOptions = {
   readonly diff: GraphDiff;

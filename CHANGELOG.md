@@ -2,6 +2,21 @@
 
 What changed in each release of `@pablocm90/visual-review`, newest first. Versions follow [semver](https://semver.org); while it is 0.x, a minor version may change the exported types.
 
+## 0.34.0 — 2026-11-05
+
+### Changed
+
+- Start here replaces Look first above the graph. It shows at most five lines, each gathering what one check found, such as `7 exported signatures changed · 4 files`, so one check can't fill it, and its heading counts what needs a look. With nothing to look at, it shows the information lines. **All findings** replaces Show all and is always shown.
+- A line of several findings opens in place to list them, each going to its target or file. A line of one goes as before, and a suggested split's line opens the rail, where its groups' buttons are.
+- A finding called fine on the last review lowers its line's count; the rail still lists it, tagged.
+- Each finding in the page data carries a `check`, so a page's `.json` says what raised it.
+
+## 0.33.0 — 2026-11-05
+
+### Added
+
+- A migration's `add_reference` or `add_belongs_to`, which index by default, and `t.references` or a column's `index: true` in `change_table`, raise the same finding as `add_index`, naming the columns the index covers. `index: false`, `index: nil`, `index: { algorithm: :concurrently }` and a table the migration creates raise none.
+
 ## 0.32.0 — 2026-11-05
 
 ### Added

@@ -9,6 +9,7 @@ const riskFindings = (file: string, risks: ReadonlyArray<MigrationRisk>): Readon
       `schema:${file}:${title}`,
       risks.slice(0, index).filter(other => other.title === title).length,
     ),
+    check: 'schema:migration-risk',
     dimension: 'schema',
     level: 'look',
     file,
@@ -24,6 +25,7 @@ export const migrationFindings = (
       ? [
           {
             id: `schema:not-read:${reading.file}`,
+            check: 'schema:not-read',
             dimension: 'schema',
             level: 'look',
             file: reading.file,
