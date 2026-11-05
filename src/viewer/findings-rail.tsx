@@ -319,30 +319,37 @@ export const LensChips = ({ findings, coverage, picked, onPick }: LensChipsProps
 );
 
 type LensRowProps = {
-  readonly lens: Lens;
+  readonly picked: Lens | undefined;
   readonly findings: ReadonlyArray<Finding>;
   readonly coverage: PageData['coverage'];
 };
 
-export const LensRow = ({ lens, findings, coverage }: LensRowProps) => (
-  <ul className="lens-row" aria-label={`${lens} dimensions`}>
-    {DIMENSIONS.filter(dimension => LENS_OF[dimension] === lens).flatMap(dimension => {
-      const found = findings.filter(finding => finding.dimension === dimension);
-      const entry = coverage.find(covered => covered.dimension === dimension);
-      if (entry === undefined && found.length === 0) return [];
-      const notRead = (entry?.notRead ?? []).join(' · ');
-      return [
-        <li key={dimension}>
-          <span className="lens-row-name">{nameOf(dimension)}</span>
-          <LensCount findings={found} level="info" />
-          <LensCount findings={found} level="look" />
-          {found.length === 0 && (notRead || 'checked, none')}
-          {found.length > 0 && notRead && `· ${notRead}`}
-        </li>,
-      ];
-    })}
-  </ul>
-);
+const coverageLine = (found: number, notRead: ReadonlyArray<string>) => {
+  const reasons = notRead.join(' · ');
+  if (found === 0) return reasons || 'checked, none';
+  return reasons && `· ${reasons}`;
+};
+
+export const LensRow = ({ picked, findings, coverage }: LensRowProps) => {
+  if (picked === undefined) return null;
+  return (
+    <ul className="lens-row" aria-label={`${picked} dimensions`}>
+      {DIMENSIONS.filter(dimension => LENS_OF[dimension] === picked).flatMap(dimension => {
+        const found = findings.filter(finding => finding.dimension === dimension);
+        const entry = coverage.find(covered => covered.dimension === dimension);
+        if (entry === undefined && found.length === 0) return [];
+        return [
+          <li key={dimension}>
+            <span className="lens-row-name">{nameOf(dimension)}</span>
+            <LensCount findings={found} level="info" />
+            <LensCount findings={found} level="look" />
+            {coverageLine(found.length, entry?.notRead ?? [])}
+          </li>,
+        ];
+      })}
+    </ul>
+  );
+};
 
 type StartHereProps = LineOptions & {
   readonly findings: ReadonlyArray<Finding>;
