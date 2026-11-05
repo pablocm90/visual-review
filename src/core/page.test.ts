@@ -48,6 +48,7 @@ const readingWith = (overrides: Partial<RangeReading>): RangeReading => ({
   after: { nodes: [webStack, webFile('a.ts')], edges: [] },
   churn: { before: {}, after: {} },
   measures: { before: {}, after: {} },
+  measuresNotRead: [],
   changedPaths: ['web/src/a.ts'],
   renames: [],
   patches: [],
@@ -59,7 +60,9 @@ const readingWith = (overrides: Partial<RangeReading>): RangeReading => ({
   symbols: [],
   symbolsNotRead: [],
   danglingCalls: [],
+  linksNotRead: [],
   skipped: [],
+  readers: ['typescript'],
   thresholds: { cyclomatic: 10, splitParts: 4, hotspot: { churn: 6, cyclomatic: 8 } },
   churnDays: 90,
   ...overrides,
@@ -102,6 +105,7 @@ test("a reading's page data holds its diff, the reading order of its changed par
     readingOrder: { parts: ['web/file/a.ts'], cycles: [] },
     metrics: {},
     findings: expect.any(Array),
+    coverage: expect.any(Array),
     dangling: [{ from: 'web/file/a.ts', path: '/api/x' }],
     patches: [patch('web/src/a.ts')],
     undrawn: [patch('README.md')],
@@ -130,7 +134,12 @@ test("a pull request's page data names it, and lists the stacks a missing tool k
       parsers,
       pullRequest,
     }),
-  ).toMatchObject({ range: 'abc..def', pullRequest, skipped });
+  ).toMatchObject({
+    range: 'abc..def',
+    pullRequest,
+    skipped,
+    coverage: expect.arrayContaining([{ dimension: 'metrics', notRead: ['not read for rust'] }]),
+  });
 });
 
 const version = '1.2.3';

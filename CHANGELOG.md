@@ -2,13 +2,22 @@
 
 What changed in each release of `@pablocm90/visual-review`, newest first. Versions follow [semver](https://semver.org); while it is 0.x, a minor version may change the exported types.
 
-## 0.39.0 — 2026-11-05
+## Unreleased
 
 ### Added
 
 - A changed Rust function reads its logic lines: its guards, ifs, loops, match arms, logicals, returns inside a branch, throws and `?`s. `ensure!`, the asserts, `bail!`, `panic!` and the like count by name. A `?` reads as a new kind of decision, `try`, for information when it changes, its text leaving out closure bodies, blocks and the `?`s inside it, whose logic reads as lines of its own.
 - A removed guard or catch in a Rust function needs a look, and a Rust file with logic changes and no changed test alongside raises `tests:untested-logic`, as in TS and Rails, unless all it changed is `?`s.
 - A Rust macro or `macro_rules!` holding a real `?`, `return` or `if` is named as hiding logic, for information. A tracing `?field` or a macro's `$(,)?` isn't. Logic in a function nested in another reads no line.
+
+## 0.39.0 — 2026-11-05
+
+### Added
+
+- Each dimension a check raises now says what it read. A picked lens lists its dimensions under the chips, each with what it found, `checked, none`, or why it wasn't read, such as `Rails only`, `no axum crate`, `no stack drawn` or `not read for crates`, and both when it was read in part. A lens with nothing found and nothing unread names what it checked on its chip, as in `Risk · dependencies checked, nothing found`, in place of Start here's "nothing to show".
+- The review `.json` carries this as `coverage`, and the skill is told not to claim what a dimension didn't read. It speaks for the stacks drawn: a changed file outside the graph keeps its own finding, and nothing in it was read.
+- `routes` speaks for a Rails app's routes and the axum linker together, so a Rails app is never told it has no axum crate; a route file that didn't parse is named.
+- A `Linker`'s `Links` can name why it read nothing, in an optional `notRead`.
 
 ## 0.38.0 — 2026-11-05
 
