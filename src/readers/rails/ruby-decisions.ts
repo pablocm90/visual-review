@@ -157,10 +157,12 @@ const namedLoop = (node: Node): Read | undefined => {
   };
 };
 
-const clauseOf = (node: Node): Read => {
-  const body = fieldOf(node, 'body');
-  return { kind: 'case', text: codeUpTo(node, body), deeper: body === undefined ? [] : [body] };
-};
+const clauseOf =
+  (kind: Decision['kind']) =>
+  (node: Node): Read => {
+    const body = fieldOf(node, 'body');
+    return { kind, text: codeUpTo(node, body), deeper: body === undefined ? [] : [body] };
+  };
 
 const CASES = new Set(['case', 'case_match']);
 
@@ -181,6 +183,13 @@ const logicalOf = (node: Node): Read | undefined => {
   };
 };
 
+const modifierRescue = (node: Node): Read => ({
+  kind: 'catch',
+  text: `rescue ${codeOf(fieldOf(node, 'handler'))}`,
+  deeper: fieldsOf(node, 'handler'),
+  beside: fieldsOf(node, 'body'),
+});
+
 const READS = new Map<string, (node: Node) => Read | undefined>([
   ['if', blockIf],
   ['unless', blockIf],
@@ -194,8 +203,10 @@ const READS = new Map<string, (node: Node) => Read | undefined>([
   ['while_modifier', modifierLoop],
   ['until_modifier', modifierLoop],
   ['call', namedLoop],
-  ['when', clauseOf],
-  ['in_clause', clauseOf],
+  ['when', clauseOf('case')],
+  ['in_clause', clauseOf('case')],
+  ['rescue', clauseOf('catch')],
+  ['rescue_modifier', modifierRescue],
   ['else', caseElse],
   ['binary', logicalOf],
   ['operator_assignment', logicalOf],

@@ -221,3 +221,22 @@ test.for([
 ])('$reason is no logical', ({ line }) => {
   expect(decisionsIn(line)).toEqual([]);
 });
+
+test('a rescue reads as a catch by its head, its body one deeper', () => {
+  const lines = ['begin', '  go', 'rescue Foo, Bar => e', '  go if y', 'rescue', 'end'];
+  expect(decisionsIn(...lines)).toEqual([
+    { kind: 'catch', text: 'rescue Foo, Bar => e', depth: 0, line: 4 },
+    { kind: 'if', text: 'if y', depth: 1, line: 5 },
+    { kind: 'catch', text: 'rescue', depth: 0, line: 6 },
+  ]);
+});
+
+test('a rescue modifier reads what it falls to, its body level and its handler one deeper', () => {
+  expect(
+    decisionsIn('(go if y) rescue (go if z)')?.map(({ kind, text, depth }) => [kind, text, depth]),
+  ).toEqual([
+    ['if', 'if y', 0],
+    ['catch', 'rescue (go if z)', 0],
+    ['if', 'if z', 1],
+  ]);
+});
