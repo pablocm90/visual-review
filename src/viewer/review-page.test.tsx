@@ -55,7 +55,8 @@ const scrolledIntoView = vi.fn();
 
 Object.defineProperty(HTMLElement.prototype, 'scrollIntoView', { value: scrolledIntoView });
 
-vi.stubGlobal('scrollTo', vi.fn());
+const scrolledTo = vi.fn();
+vi.stubGlobal('scrollTo', scrolledTo);
 const scrolledBy = vi.fn();
 vi.stubGlobal('scrollBy', scrolledBy);
 
@@ -2467,6 +2468,21 @@ test('walking brings the current stop into view in its list, and marking it read
   scrolledIntoView.mockClear();
   await user.keyboard('a');
   expect(scrolledIntoView.mock.contexts).not.toContain(second);
+});
+
+test('walking leaves the page where it stands, wherever the current stop sits on screen', async () => {
+  const user = userEvent.setup();
+  render(<ReviewPage review={walkedReview()} />);
+  await screen.findByRole('group', { name: 'rust' });
+  const everything = vi.spyOn(Element.prototype, 'getBoundingClientRect');
+  onTestFinished(() => everything.mockRestore());
+  everything.mockReturnValue(at(-120, -20));
+  scrolledBy.mockClear();
+
+  await user.keyboard('j');
+
+  expect(within(readingOrder()).getByRole('button', { current: 'step' })).toBeDefined();
+  expect(scrolledBy).not.toHaveBeenCalled();
 });
 
 test('on a map fitted too small to see a part, the ring around the current one stays big enough to find', async () => {
@@ -7303,6 +7319,27 @@ const at = (top: number, bottom: number): DOMRect => ({
   width: 0,
   height: bottom - top,
   toJSON: () => ({}),
+});
+
+test('landing on a row puts the page back where it stood, and with no review tray lifts it no further', async () => {
+  const user = userEvent.setup();
+  render(<ReviewPage review={{ ...walkedReview(), findings: [findingOn('rust/crate/domain')] }} />);
+  await user.click(await screen.findByRole('button', { name: 'Show 1 finding' }));
+  const scrollY = vi.spyOn(window, 'scrollY', 'get');
+  onTestFinished(() => scrollY.mockRestore());
+  scrollY.mockReturnValue(250);
+  scrolledTo.mockClear();
+  scrolledBy.mockClear();
+
+  await user.click(
+    within(screen.getByRole('complementary', { name: 'Findings' })).getByRole('button', {
+      name: /^domain/,
+    }),
+  );
+
+  expect(within(inspector()).getByRole('listitem', { current: true })).toBeDefined();
+  expect(scrolledTo).toHaveBeenCalledWith(0, 250);
+  expect(scrolledBy).not.toHaveBeenCalled();
 });
 
 test('landing on a row the review tray covers lifts the page just clear of it, one above the window brings it back, and one in view moves nothing', async () => {

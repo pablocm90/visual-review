@@ -76,7 +76,6 @@ export const ReadingStops = ({
   const { parts } = review.readingOrder;
   const stops = useRef<HTMLElement>(null);
   useLayoutEffect(() => {
-    if (current === undefined) return;
     const stop = stops.current?.querySelector<HTMLElement>('[aria-current]');
     if (stop) scrollInPanel(stop, 'nearest');
   }, [current]);
