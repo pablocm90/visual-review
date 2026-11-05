@@ -305,3 +305,8 @@ test.for([
 ])('$reason is no blind spot', ({ line }) => {
   expect(blindSpotsIn(line)).toEqual([]);
 });
+
+test('a macro_rules! whose body holds those tokens is a blind spot, as one holding none is not', () => {
+  expect(blindSpotsIn('macro_rules! m { ($x:expr) => { $x? }; }')).toEqual(['macro_rules!']);
+  expect(blindSpotsIn('macro_rules! n { () => { 1 } }')).toEqual([]);
+});

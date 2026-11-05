@@ -174,10 +174,12 @@ const LOGIC_TOKENS = ['?', 'return', 'if'];
 const holdsLogicTokens = (node: Node): boolean => node.descendantsOfType(LOGIC_TOKENS).length > 0;
 
 const hidingNameOf = (node: Node): ReadonlyArray<string> => {
+  if (!holdsLogicTokens(node)) return [];
+  if (node.type === 'macro_definition') return ['macro_rules!'];
   const name = macroNameOf(node) ?? '';
-  return THROWS.has(name) || COMMAS_KEPT.has(name) || !holdsLogicTokens(node) ? [] : [`${name}!`];
+  return THROWS.has(name) || COMMAS_KEPT.has(name) ? [] : [`${name}!`];
 };
 
 export const blindSpotsIn = (root: Node): ReadonlyArray<string> => [
-  ...new Set(root.descendantsOfType(['macro_invocation']).flatMap(hidingNameOf)),
+  ...new Set(root.descendantsOfType(['macro_invocation', 'macro_definition']).flatMap(hidingNameOf)),
 ];
