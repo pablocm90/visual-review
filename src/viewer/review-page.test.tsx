@@ -2343,9 +2343,14 @@ test("Open map and Escape outside a field return to the landing with the part st
   expect(document.activeElement).toBe(headingOfPart());
 
   await user.keyboard('j');
+  scrolledIntoView.mockClear();
   await user.click(screen.getByRole('button', { name: 'Close inspector' }));
-  expect(screen.getByRole('group', { name: 'Graph' })).toBeDefined();
+  const graph = screen.getByRole('group', { name: 'Graph' });
   expect(screen.queryByRole('complementary', { name: 'Inspector' })).toBeNull();
+  await waitFor(() =>
+    expect(document.activeElement).toBe(screen.getByRole('button', { name: /^legacy:/ })),
+  );
+  expect(scrolledIntoView.mock.contexts).toContain(graph);
 });
 
 test('the map draws the graph fitted and takes no zoom or pan, and Open map brings back the graph on the part', async () => {

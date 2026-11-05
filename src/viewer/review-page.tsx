@@ -1647,7 +1647,8 @@ const Page = ({ review, notes, send }: ReviewPageProps) => {
     setReading(false);
   };
   const closeInspector = (id: string) => {
-    elements.current.get(id)?.focus({ preventScroll: true });
+    if (reading) setFocusTarget({ id, inGraph: true });
+    else elements.current.get(id)?.focus({ preventScroll: true });
     select(undefined);
     setReading(false);
   };
