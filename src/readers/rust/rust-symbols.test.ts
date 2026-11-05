@@ -477,3 +477,82 @@ test('a struct under another name reads as renamed', () => {
     renamedFrom: 'A',
   });
 });
+
+test.for([
+  { written: 'pub enum Foo { A }', exported: true },
+  { written: 'enum Foo { A }', exported: false },
+  { written: 'pub(crate) enum Foo { A }', exported: false },
+  { written: 'pub type Foo = u8;', exported: true },
+  { written: 'type Foo = u8;', exported: false },
+])('$written is a type, exported: $exported', ({ written, exported }) => {
+  expect(typesIn(read(written))).toMatchObject([{ name: 'Foo', exported }]);
+});
+
+test.for([
+  { written: 'pub(crate) enum Foo { A, B(u8) }', signature: 'enum Foo { A, B(u8) }' },
+  {
+    written:
+      '/// doc\n#[doc = "doc"]\n#[derive(Debug,\n  Clone)]\npub enum Foo<T> where T: Send {\n  /// a\n  #[doc = "a"]\n  #[serde(skip)]\n  A { b: T }, // why\n  /* c */ C = 1,\n}',
+    signature:
+      '#[derive(Debug, Clone)] enum Foo<T> where T: Send { #[serde(skip)] A { b: T }, C = 1, }',
+  },
+  { written: 'pub type Foo<T> = Vec<\n  T,\n>;', signature: 'type Foo<T> = Vec< T, >;' },
+  {
+    written: '/// doc\n#[cfg(x)]\ntype Foo = /* a */ u8 /* b */;',
+    signature: '#[cfg(x)] type Foo = u8;',
+  },
+])('$written reads the signature $signature', ({ written, signature }) => {
+  expect(typesIn(read(written))).toMatchObject([{ signature }]);
+});
+
+test.for([
+  { edit: 'a derive', before: 'enum A {}', after: '#[derive(Debug)]\nenum A {}' },
+  { edit: 'the generics', before: 'enum A<T> {}', after: 'enum A<U> {}' },
+  { edit: 'the where', before: 'enum A<T> where T: B {}', after: 'enum A<T> where T: C {}' },
+  { edit: 'a variant added', before: 'enum A { B }', after: 'enum A { B, C }' },
+  { edit: "a variant's private field", before: 'enum A { B(u8) }', after: 'enum A { B(u16) }' },
+  { edit: "a variant's value", before: 'enum A { B = 1 }', after: 'enum A { B = 2 }' },
+  { edit: "a variant's attribute", before: 'enum A { B }', after: 'enum A { #[serde(skip)] B }' },
+  { edit: 'the keyword', before: 'type A = B;', after: 'enum A { B }' },
+  { edit: "an alias's type", before: 'type A = u8;', after: 'type A = u16;' },
+  { edit: "an alias's generics", before: 'type A<T> = B;', after: 'type A<U> = B;' },
+])('a change to $edit reads as a changed signature on the type', ({ before, after }) => {
+  expect(typeChange(before, after)).toMatchObject({
+    change: 'edited',
+    signature: expect.anything(),
+  });
+});
+
+test.for([
+  { edit: "an enum's visibility", before: 'pub(crate) enum A {}', after: 'pub(super) enum A {}' },
+  {
+    edit: "an alias's visibility",
+    before: 'pub(crate) type A = B;',
+    after: 'pub(super) type A = B;',
+  },
+])('a change to $edit reads as edited, with the signature as it was', ({ before, after }) => {
+  const change = typeChange(before, after);
+  expect(change).toMatchObject({ change: 'edited' });
+  expect(change).not.toHaveProperty('signature');
+});
+
+test.for([
+  { edit: 'a comment', before: 'enum A { B }', after: 'enum A {\n  // why\n  B,\n}' },
+  { edit: "a variant's doc", before: 'enum A { B }', after: 'enum A { #[doc = "why"] B }' },
+  { edit: 'its doc', before: 'enum A {}', after: '#[doc = "why"]\nenum A {}' },
+  { edit: "an alias's reflow", before: 'type A = B<u8>;', after: 'type A = B<\n  u8,\n>;' },
+  { edit: "an alias's comment", before: 'type A = u8;', after: 'type A = /* why */ u8;' },
+])('$edit reads as formatting', ({ before, after }) => {
+  expect(typeChange(before, after)).toMatchObject({ change: 'formatting' });
+});
+
+test.for([
+  { before: 'enum A { B }', after: 'enum C { B }' },
+  { before: 'type A = B;', after: 'type C = B;' },
+])('$before under another name reads as renamed', ({ before, after }) => {
+  expect(typeChange(before, after)).toMatchObject({
+    name: 'C',
+    change: 'renamed',
+    renamedFrom: 'A',
+  });
+});

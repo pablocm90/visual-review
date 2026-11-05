@@ -199,9 +199,46 @@ const structSymbol = (item: Node): ReadSymbol => {
   };
 };
 
+const wholeTypeSymbol = (item: Node): ReadSymbol => {
+  const visibility = present([childOfType(item, 'visibility_modifier')]);
+  const written = writtenAttributesOf(item);
+  const body = item.childForFieldName('body');
+  const members = body?.namedChildren ?? [];
+  const left = idsOf([item.childForFieldName('name'), body, ...visibility]);
+  const said = ownText(
+    item,
+    idsOf([
+      ...visibility,
+      ...members.filter(isDocText),
+      ...item.descendantsOfType(['line_comment', 'block_comment']),
+    ]),
+  );
+  return {
+    name: item.childForFieldName('name')?.text ?? '',
+    kind: 'type',
+    exported: isExactlyPub(item),
+    signature: collapsed([...written.map(({ text }) => text), said.trim()].join(' ')).replace(
+      /\s+;/g,
+      ';',
+    ),
+    ...hashesOf({
+      signed: [
+        ...written,
+        ...item.children.filter(child => !left.has(child.id) && !isComment(child)),
+        ...members.filter(member => !isComment(member) && !isDocText(member)),
+      ],
+      body: visibility,
+      text: [...attributesOf(item), item].map(({ text }) => text).join('\n'),
+    }),
+  };
+};
+
+const WHOLE_TYPES: ReadonlySet<string> = new Set(['enum_item', 'type_item']);
+
 const symbolsOfItem = (item: Node): ReadonlyArray<ReadSymbol> => {
   if (item.type === 'function_item') return [functionSymbol(item)];
   if (item.type === 'struct_item' || item.type === 'union_item') return [structSymbol(item)];
+  if (WHOLE_TYPES.has(item.type)) return [wholeTypeSymbol(item)];
   if (item.type === 'trait_item') return [traitSymbol(item), ...methodsOfTrait(item)];
   return item.type === 'impl_item' ? methodsOfImpl(item) : [];
 };
