@@ -150,3 +150,61 @@ test('at most five lines show, the counts still taking in every finding', () => 
   expect(lines).toHaveLength(5);
   expect({ look, total }).toStrictEqual({ look: 12, total: 15 });
 });
+
+test.for([
+  {
+    reason: "a finding's file names it and counts",
+    finding: { file: 'pnpm-lock.yaml' },
+    names: ['pnpm-lock.yaml'],
+    files: 1,
+  },
+  {
+    reason: 'a module is named and counts as a file',
+    finding: { target: 'web/module/utils' },
+    names: ['utils'],
+    files: 1,
+  },
+  {
+    reason: 'a stack is named and is not called a file',
+    finding: { target: 'web' },
+    names: ['web'],
+    files: 0,
+  },
+  {
+    reason: 'a package is named and is not called a file',
+    finding: { target: 'rust/crate/core' },
+    names: ['core'],
+    files: 0,
+  },
+  {
+    reason: 'an edge is named by its ends and is not called a file',
+    finding: { target: 'web/module/utils -> web' },
+    names: ['utils → web'],
+    files: 0,
+  },
+  {
+    reason: 'a target no node holds goes by its id',
+    finding: { target: 'gone' },
+    names: ['gone'],
+    files: 0,
+  },
+  { reason: 'nothing to name', finding: {}, names: [], files: 0 },
+])('$reason', ({ finding, names, files }) => {
+  const drawn: ReadonlyArray<GraphNode> = [
+    { id: 'web', kind: 'stack', label: 'web', path: '' },
+    { id: 'rust/crate/core', kind: 'package', label: 'core', path: 'core' },
+    { id: 'web/module/utils', kind: 'module', label: 'utils', path: 'utils' },
+  ];
+  const raised: Finding = {
+    id: 'x',
+    check: 'api:added',
+    dimension: 'api',
+    level: 'info',
+    title: 'x',
+    ...finding,
+  };
+
+  const { lines } = startHere({ findings: [raised], metrics: {}, nodes: drawn });
+
+  expect({ names: lines[0]?.names, files: lines[0]?.files }).toStrictEqual({ names, files });
+});

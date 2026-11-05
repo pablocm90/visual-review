@@ -20,12 +20,23 @@ export type StartHereLine = {
 
 const SHOWN = 5;
 
+const FILE_KINDS: ReadonlySet<GraphNode['kind']> = new Set(['file', 'module']);
+
 const distinct = (values: ReadonlyArray<string>) => [...new Set(values)];
 
 export const startHere = ({ findings, metrics, nodes }: StartHereOptions) => {
   const nodeOf = new Map(nodes.map(node => [node.id, node]));
-  const nodesOf = (group: ReadonlyArray<Finding>) =>
-    group.flatMap(({ target }) => [nodeOf.get(target ?? '')].filter(node => node !== undefined));
+  const nameOf = ({ file, target }: Finding) =>
+    file ??
+    (target === undefined
+      ? []
+      : endsOfId(target)
+          .map(end => nodeOf.get(end)?.label ?? end)
+          .join(' → '));
+  const fileOf = ({ file, target }: Finding) => {
+    const node = nodeOf.get(target ?? '');
+    return file ?? (node && FILE_KINDS.has(node.kind) ? node.id : []);
+  };
   const highest = (target: string | undefined, measure: 'fanIn' | 'churn') =>
     target === undefined
       ? Number.POSITIVE_INFINITY
@@ -50,8 +61,8 @@ export const startHere = ({ findings, metrics, nodes }: StartHereOptions) => {
         title:
           check === 'flag' || group.length === 1 ? title : `${group.length} ${CHECK_TITLES[check]}`,
         findings: group,
-        names: distinct(nodesOf(group).map(node => node.label)),
-        files: distinct(nodesOf(group).map(node => node.id)).length,
+        names: distinct(group.flatMap(nameOf)),
+        files: distinct(group.flatMap(fileOf)).length,
       }),
     ),
   );
