@@ -74,11 +74,12 @@ import {
   LastSaidOnPage,
   RespondingOnPage,
   SaidBefore,
+  useHasSaid,
   useSaidLinesOf,
   withResolveToggled,
 } from './said-before.tsx';
 import { type SchemaLanding, SchemaScreen } from './schema-screen.tsx';
-import { changedSymbolCount, type LineAt, SymbolsOf, useHasSymbolNews } from './symbols-tab.tsx';
+import { scrollInPanel } from './scroll-in-panel.ts';
 import { changedCount, TestFiles, TestsScreen } from './tests-screen.tsx';
 import {
   boxOf,
@@ -92,6 +93,15 @@ import {
   type View,
   zoomed,
 } from './view.ts';
+import {
+  holdsRow,
+  LandedRows,
+  type LineAt,
+  type RowLanding,
+  useFilesWithNews,
+  useRowMarks,
+  WhatChanged,
+} from './what-changed.tsx';
 
 const STATES = ['added', 'removed', 'modified', 'unchanged'] as const;
 
@@ -470,13 +480,7 @@ const Scoped = ({ scopes: [scope, ...inner], text }: Piece) =>
 
 type Landing = Omit<LineAt, 'node'> & { readonly text?: string };
 
-type LandingIn = Partial<Landing> & { readonly path: string | undefined };
-
-const scrollInPanel = (element: HTMLElement, block: ScrollLogicalPosition) => {
-  const { scrollX, scrollY } = window;
-  element.scrollIntoView({ block });
-  window.scrollTo(scrollX, scrollY);
-};
+type LandingIn = Partial<Landing> & { readonly path: string | undefined } & RowLanding;
 
 const rowLandedOn = (
   lines: ReadonlyArray<Line>,
@@ -647,16 +651,15 @@ type InspectorProps = {
   readonly onClose: () => void;
 };
 
-type InspectorTab = 'note' | 'metrics' | 'diff' | 'tests' | 'symbols';
+type InspectorTab = 'note' | 'metrics' | 'diff' | 'tests';
 
-const DRAFT_TABS: Partial<Record<Comment['anchor']['kind'], InspectorTab>> = {
-  symbol: 'symbols',
-  decision: 'symbols',
+const DRAFT_TABS: Partial<Record<PreviousComment['anchor']['kind'], InspectorTab>> = {
   test: 'tests',
   line: 'diff',
 };
 
-const tabOfDraft = ({ kind }: Comment['anchor']): InspectorTab => DRAFT_TABS[kind] ?? 'note';
+const tabOfDraft = ({ kind }: PreviousComment['anchor']): InspectorTab =>
+  DRAFT_TABS[kind] ?? 'note';
 
 type LandingPlace = string | null | undefined;
 
@@ -680,7 +683,6 @@ const INSPECTOR_TABS: Readonly<Record<InspectorTab, string>> = {
   metrics: 'Metrics',
   diff: 'Diff',
   tests: 'Tests',
-  symbols: 'Symbols',
 };
 
 type Section = {
@@ -691,11 +693,9 @@ type Section = {
 
 type NodeSectionsOptions = Pick<
   InspectorProps,
-  'nodes' | 'metrics' | 'findings' | 'tests' | 'symbols' | 'onGoTo' | 'comments' | 'onComment'
+  'nodes' | 'metrics' | 'findings' | 'tests' | 'comments' | 'onComment'
 > & {
   readonly node: DiffNode;
-  readonly onShowLine: (at: LineAt) => void;
-  readonly hasSymbolNews: (file: SymbolFile) => boolean;
 };
 
 const nodeSections = ({
@@ -704,20 +704,11 @@ const nodeSections = ({
   metrics,
   findings,
   tests,
-  symbols,
-  onGoTo,
-  onShowLine,
   comments,
   onComment,
-  hasSymbolNews,
 }: NodeSectionsOptions): ReadonlyArray<Section> => {
   const measured = metrics[node.id];
   const testsHere = testsAlongside({ nodes, node, tests });
-  const boxesAbove = boxesAboveIn(nodes);
-  const symbolsHere = symbols.filter(
-    file => file.node === node.id || boxesAbove(file.node).includes(node.id),
-  );
-  const symbolCount = changedSymbolCount(symbolsHere);
   return [
     ...(measured
       ? [
@@ -750,33 +741,15 @@ const nodeSections = ({
           },
         ]
       : []),
-    ...(symbolsHere.some(hasSymbolNews)
-      ? [
-          {
-            tab: 'symbols' as const,
-            ...(symbolCount > 0 && { count: symbolCount }),
-            panel: (
-              <div className="symbols">
-                <SymbolsOf
-                  node={node}
-                  files={symbolsHere}
-                  nodes={nodes}
-                  onGoTo={onGoTo}
-                  onShowLine={onShowLine}
-                  comments={comments}
-                  onComment={onComment}
-                />
-              </div>
-            ),
-          },
-        ]
-      : []),
   ];
 };
 
 type NotePanelProps = Pick<
   InspectorProps,
   | 'nodes'
+  | 'node'
+  | 'symbols'
+  | 'onGoTo'
   | 'note'
   | 'found'
   | 'anchor'
@@ -786,10 +759,42 @@ type NotePanelProps = Pick<
   | 'saidInPlace'
   | 'answers'
   | 'onAnswer'
->;
+  | 'landing'
+> & {
+  readonly onShowLine: (at: LineAt) => void;
+};
+
+const WhyLook = ({
+  found,
+  answers,
+  onAnswer,
+}: Pick<NotePanelProps, 'found' | 'answers' | 'onAnswer'>) => {
+  const marksOf = useRowMarks();
+  return (
+    <section className="column-section" aria-label="Why look">
+      <h3>Why look</h3>
+      <ul className="note-findings" aria-label="Findings">
+        {found.map(finding => (
+          <li key={finding.id} {...marksOf({ kind: 'finding', id: finding.id })}>
+            <LevelMark level={finding.level} />
+            {findingLine(finding)}
+            {onAnswer && (
+              <AnswerButtons id={finding.id} answer={answers[finding.id]} onAnswer={onAnswer} />
+            )}
+          </li>
+        ))}
+      </ul>
+    </section>
+  );
+};
 
 const NotePanel = ({
   nodes,
+  node,
+  symbols,
+  onGoTo,
+  onShowLine,
+  landing,
   note,
   found,
   anchor,
@@ -799,37 +804,45 @@ const NotePanel = ({
   saidInPlace,
   answers,
   onAnswer,
-}: NotePanelProps) => (
-  <>
-    {found.length > 0 && (
-      <ul className="note-findings" aria-label="Findings">
-        {found.map(finding => (
-          <li key={finding.id}>
-            <LevelMark level={finding.level} />
-            {findingLine(finding)}
-            {onAnswer && (
-              <AnswerButtons id={finding.id} answer={answers[finding.id]} onAnswer={onAnswer} />
-            )}
-          </li>
-        ))}
-      </ul>
-    )}
-    <p>{note?.text ?? 'No note'}</p>
-    <SaidBefore key={anchorKey(anchor)} on={anchor} />
-    {saidInPlace.map(id => (
-      <div key={id}>
-        <p className="said-edge">{anchorName({ kind: 'edge', id }, nodes)}</p>
-        <SaidBefore on={{ kind: 'edge', id }} />
-      </div>
-    ))}
-    {onComment &&
-      (commentable ? (
-        <CommentFieldUnlessSaid anchor={anchor} comments={comments} onComment={onComment} />
-      ) : (
-        <p>Drawn for several edges: open its ends to comment on one of them.</p>
+}: NotePanelProps) => {
+  const filesWithNews = useFilesWithNews(node, symbols, nodes);
+  const hasSaid = useHasSaid();
+  const isBare =
+    filesWithNews.length === 0 &&
+    found.length === 0 &&
+    !hasSaid(anchor) &&
+    saidInPlace.length === 0;
+  return (
+    <LandedRows landing={landing}>
+      {note ? <p>{note.text}</p> : isBare && <p>No note</p>}
+      <SaidBefore key={anchorKey(anchor)} on={anchor} />
+      {saidInPlace.map(id => (
+        <div key={id}>
+          <p className="said-edge">{anchorName({ kind: 'edge', id }, nodes)}</p>
+          <SaidBefore on={{ kind: 'edge', id }} />
+        </div>
       ))}
-  </>
-);
+      {onComment &&
+        (commentable ? (
+          <CommentFieldUnlessSaid anchor={anchor} comments={comments} onComment={onComment} />
+        ) : (
+          <p>Drawn for several edges: open its ends to comment on one of them.</p>
+        ))}
+      {node && filesWithNews.length > 0 && (
+        <WhatChanged
+          node={node}
+          files={filesWithNews}
+          nodes={nodes}
+          onGoTo={onGoTo}
+          onShowLine={onShowLine}
+          comments={comments}
+          onComment={onComment}
+        />
+      )}
+      {found.length > 0 && <WhyLook found={found} answers={answers} onAnswer={onAnswer} />}
+    </LandedRows>
+  );
+};
 
 const SECTION_ORDER = Object.keys(INSPECTOR_TABS);
 
@@ -844,13 +857,15 @@ const Inspector = ({
   onLand,
   ...props
 }: InspectorProps) => {
-  const hasSymbolNews = useHasSymbolNews();
   const showLine = ({ node: at, ...line }: LineAt) => {
     onLand({ ...line, path: props.nodes.find(({ id }) => id === at)?.path });
     onPick('diff');
   };
   const sections: ReadonlyArray<Section> = [
-    { tab: 'note' as const, panel: <NotePanel {...props} /> },
+    {
+      tab: 'note' as const,
+      panel: <NotePanel {...props} node={node} onShowLine={showLine} landing={landing} />,
+    },
     ...(patches.length > 0
       ? [
           {
@@ -873,11 +888,18 @@ const Inspector = ({
           },
         ]
       : []),
-    ...(node ? nodeSections({ ...props, node, onShowLine: showLine, hasSymbolNews }) : []),
+    ...(node ? nodeSections({ ...props, node }) : []),
   ].toSorted((a, b) => SECTION_ORDER.indexOf(a.tab) - SECTION_ORDER.indexOf(b.tab));
   const shown = sections.find(({ tab }) => tab === picked) ?? sections[0];
+  const column = useRef<HTMLElement>(null);
+  // biome-ignore lint/correctness/useExhaustiveDependencies: a new part opens at the column's top
+  useLayoutEffect(() => {
+    const onItsRow = landing?.row !== undefined && shown?.tab === 'note';
+    if (!column.current || onItsRow || landing?.path !== undefined) return;
+    column.current.scrollTop = 0;
+  }, [props.anchor.id, landing]);
   return (
-    <aside className="note" aria-label="Inspector" style={{ width }}>
+    <aside ref={column} className="note" aria-label="Inspector" style={{ width }}>
       <button type="button" className="close" aria-label="Close inspector" onClick={onClose}>
         ×
       </button>
@@ -1538,7 +1560,10 @@ const Page = ({ review, notes, send }: ReviewPageProps) => {
     select(undefined);
   };
 
-  const [focusTarget, setFocusTarget] = useState<string>();
+  const [focusTarget, setFocusTarget] = useState<{
+    readonly id: string;
+    readonly inGraph: boolean;
+  }>();
   const goTo = (id: string) => {
     select(id);
     const opened = expandedToShow({ diff: review.diff, expanded, id });
@@ -1553,7 +1578,7 @@ const Page = ({ review, notes, send }: ReviewPageProps) => {
         EVERYTHING,
     );
     centre(id);
-    setFocusTarget(id);
+    setFocusTarget({ id, inGraph: true });
   };
   const goToOnStructure = (id: string) => {
     location.hash = '#structure';
@@ -1565,10 +1590,19 @@ const Page = ({ review, notes, send }: ReviewPageProps) => {
     setInspectorTab(inspect);
     goToOnStructure(id);
   };
-  const goToDraft = (id: string, anchor: Comment['anchor']) => {
-    const place = placeOfLine(anchor);
-    if (place) landOn(id, place);
+  const goToDraft = (id: string, anchor: PreviousComment['anchor']) => {
+    const onRow =
+      anchor.kind === 'finding'
+        ? findings.some(finding => finding.id === anchor.id)
+        : holdsRow(review.symbols, anchor);
+    const place = onRow ? { path: undefined, row: anchorKey(anchor) } : placeOfLine(anchor);
+    landOn(id, place ?? { path: undefined });
     goToOnTab(id, tabOfDraft(anchor));
+    if (onRow) setFocusTarget({ id, inGraph: false });
+  };
+  const goToFinding = (id: string, finding: string) => {
+    landOn(id, { path: undefined, row: anchorKey({ kind: 'finding', id: finding }) });
+    goTo(id);
   };
   const showOutsideAt = (place: LandingIn, opener: HTMLButtonElement) => {
     landOn(null, place);
@@ -1626,9 +1660,9 @@ const Page = ({ review, notes, send }: ReviewPageProps) => {
   }, [drawn]);
   useEffect(() => {
     if (layout === undefined || focusTarget === undefined) return;
-    const element = elements.current.get(focusTarget);
+    const element = elements.current.get(focusTarget.id);
     if (element) {
-      element.focus({ preventScroll: true });
+      if (focusTarget.inGraph) element.focus({ preventScroll: true });
       frameElement?.scrollIntoView({ block: 'nearest' });
       setFocusTarget(undefined);
     }
@@ -1667,6 +1701,7 @@ const Page = ({ review, notes, send }: ReviewPageProps) => {
                 onOpen={setRailOpen}
                 review={review}
                 onGoTo={goTo}
+                onGoToFinding={goToFinding}
                 onShowOutside={showOutside}
                 onShowFile={showFile}
                 answers={answers}
@@ -1687,6 +1722,7 @@ const Page = ({ review, notes, send }: ReviewPageProps) => {
                 onShowAll={() => setRailOpen(true)}
                 review={review}
                 onGoTo={goTo}
+                onGoToFinding={goToFinding}
                 onShowOutside={showOutside}
                 onShowFile={showFile}
               />
@@ -1848,7 +1884,6 @@ const Page = ({ review, notes, send }: ReviewPageProps) => {
           findings={findings}
           nodes={review.diff.nodes}
           tests={review.tests}
-          onGoTo={id => goToOnTab(id, 'note')}
           onGoToDraft={goToDraft}
           onGoToOutside={showOutsideAt}
           onGoToFile={showFile}

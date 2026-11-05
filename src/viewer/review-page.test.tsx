@@ -1696,11 +1696,18 @@ test("a drawn node's or edge's badge names its findings under the worst level, s
   await user.click(entry);
   expect(noteShown()).toBe('A second way in.');
   expect(findingsShown()).toEqual(['cyclomatic 4 → 14, over 10', 'new entry point']);
+  const whyLook = () => within(noteTab()).queryByRole('region', { name: 'Why look' });
+  expect(within(whyLook() ?? noteTab()).getAllByRole('listitem')).toHaveLength(2);
+  expect(
+    within(noteTab())
+      .getByText('A second way in.')
+      .compareDocumentPosition(whyLook() ?? noteTab()) & Node.DOCUMENT_POSITION_FOLLOWING,
+  ).toBeTruthy();
 
   await user.click(screen.getByRole('button', { name: 'domain: unchanged' }));
   expect(findingsShown()).toEqual(['lines 900, over 800']);
   await user.click(screen.getByRole('button', { name: 'application: modified' }));
-  expect(within(noteTab()).queryByRole('list', { name: 'Findings' })).toBeNull();
+  expect(whyLook()).toBeNull();
 
   const shape = () =>
     within(screen.getByRole('group', { name: 'Lenses' })).getByRole('button', { name: /Shape/ });
@@ -2048,7 +2055,7 @@ test("a picked lens lists its dimensions under the chips, each with its counts, 
   expect(screen.queryByRole('list', { name: /dimensions/ })).toBeNull();
 });
 
-test("a note's or a metric finding in the rail goes to its node or edge as the summary's links do", async () => {
+test("a note's or a metric finding in the rail goes to its node or edge as the summary's links do, its row in view under Why look, the graph keeping the focus", async () => {
   const user = userEvent.setup();
   render(
     <ReviewPage
@@ -2084,6 +2091,11 @@ test("a note's or a metric finding in the rail goes to its node or edge as the s
 
   await user.click(rail().getByRole('button', { name: 'domain: lines 900, over 800' }));
   expect(document.activeElement).toBe(screen.getByRole('button', { name: 'domain: unchanged' }));
+  const row = within(within(noteTab()).getByRole('region', { name: 'Why look' })).getByRole(
+    'listitem',
+    { current: true },
+  );
+  expect(scrolledIntoView.mock.contexts).toContain(row);
 });
 
 test("the reading order numbers the changed parts in its order, on the graph too, each marked with its findings' worst level and count, a cycle's first part saying it is one, and going to its part as the summary's links do", async () => {
@@ -2233,6 +2245,65 @@ const readRows = () =>
     .getAllByRole('listitem')
     .filter(row => within(row).queryByRole('img', { name: 'read' }) !== null)
     .map(row => within(row).getByRole('button').textContent);
+
+test('the next part opens at the top of the column, which holds its scroll while the part stays', async () => {
+  const user = userEvent.setup();
+  render(<ReviewPage review={walkedReview()} />);
+  await screen.findByRole('group', { name: 'rust' });
+
+  await user.keyboard('k');
+  inspector().scrollTop = 300;
+  await user.keyboard('a');
+  expect(inspector().scrollTop).toBe(300);
+  await user.keyboard('j');
+  expect(selectedPart()).toBe('cli-adapter');
+  expect(inspector().scrollTop).toBe(0);
+
+  const rust = screen.getByRole('group', { name: 'rust' });
+  await user.click(within(rust).getByRole('button', { name: 'application → domain: unchanged' }));
+  inspector().scrollTop = 300;
+  await user.click(within(rust).getByRole('button', { name: 'cli-adapter → application: added' }));
+  expect(inspector().scrollTop).toBe(0);
+});
+
+test('a finding opens its part at the top of the column unless Note is there to show its row', async () => {
+  const user = userEvent.setup();
+  render(
+    <ReviewPage
+      review={pageWith({
+        ...review,
+        findings: [findingOn('rust/crate/domain')],
+        metrics: {
+          'rust/crate/application': { base: measured(), head: measured() },
+          'rust/crate/domain': { base: measured(), head: measured() },
+        },
+      })}
+    />,
+  );
+  const rust = await screen.findByRole('group', { name: 'rust' });
+  const goToFinding = () =>
+    user.click(
+      within(screen.getByRole('complementary', { name: 'Findings' })).getByRole('button', {
+        name: 'domain: lines 900, over 800',
+      }),
+    );
+  await user.click(await screen.findByRole('button', { name: 'Show 1 finding' }));
+
+  await user.click(within(rust).getByRole('button', { name: 'application: modified' }));
+  await user.click(within(inspector()).getByRole('tab', { name: 'Metrics' }));
+  inspector().scrollTop = 300;
+  await goToFinding();
+  expect(selectedPart()).toBe('domain');
+  expect(within(inspector()).getByRole('tab', { selected: true }).textContent).toBe('Metrics');
+  expect(inspector().scrollTop).toBe(0);
+
+  await user.click(within(rust).getByRole('button', { name: 'application: modified' }));
+  await user.click(within(inspector()).getByRole('tab', { name: /^Note/ }));
+  inspector().scrollTop = 300;
+  await goToFinding();
+  expect(selectedPart()).toBe('domain');
+  expect(inspector().scrollTop).toBe(300);
+});
 
 test('A marks the selected part read, ticking its row and counting it at the head of the reading order, and A again leaves it unread', async () => {
   const user = userEvent.setup();
@@ -2624,6 +2695,11 @@ test('Start here lists its lines in rank order, in the lens a chip picks, foldin
   await waitFor(() =>
     expect(document.activeElement).toBe(screen.getByRole('button', { name: 'domain: unchanged' })),
   );
+  expect(
+    within(within(noteTab()).getByRole('region', { name: 'Why look' })).getByRole('listitem', {
+      current: true,
+    }).textContent,
+  ).toContain('second');
 
   const flags = Array.from({ length: 6 }, (_, index) =>
     flagged('rust/crate/domain', { id: `look ${index}`, title: `${index}` }),
@@ -4178,8 +4254,13 @@ test('on Kind of change a closed box is named with the strongest kind among the 
   ]);
 });
 
+const closeAndReopen = async (user: ReturnType<typeof userEvent.setup>, part: string) => {
+  await user.click(within(inspector()).getByRole('button', { name: 'Close inspector' }));
+  await user.click(screen.getByRole('button', { name: part }));
+};
+
 const symbolGroups = () =>
-  within(screen.getByRole('tabpanel', { name: 'Symbols' }))
+  within(screen.getByRole('region', { name: 'What changed' }))
     .getAllByRole('list')
     .filter(list => !list.getAttribute('aria-label')?.startsWith('Signature of'))
     .map(list => [
@@ -4190,7 +4271,7 @@ const symbolGroups = () =>
         .map(item => item.getAttribute('aria-label')),
     ]);
 
-test("a file's Symbols tab lists its changed symbols grouped by change, counting them on the tab, its unchanged and formatting-only ones collapsed under a count, and is left out on a node with no symbol changes", async () => {
+test("a file's What changed lists its changed symbols grouped by change, counting them in its heading, its unchanged and formatting-only ones collapsed under a count, and is left out on a node with no symbol changes", async () => {
   const user = userEvent.setup();
   render(
     <ReviewPage
@@ -4240,7 +4321,11 @@ test("a file's Symbols tab lists its changed symbols grouped by change, counting
   );
 
   await user.click(await screen.findByRole('button', { name: 'refund.ts: modified' }));
-  await user.click(within(inspector()).getByRole('tab', { name: 'Symbols 4' }));
+  expect(
+    within(screen.getByRole('region', { name: 'What changed' })).getByRole('heading', {
+      name: 'What changed 4',
+    }),
+  ).toBeTruthy();
   expect(symbolGroups()).toEqual([
     ['Edited', ['function refund: edited']],
     ['Added', ['class Refunds: added', 'method Refunds.void: added']],
@@ -4248,16 +4333,16 @@ test("a file's Symbols tab lists its changed symbols grouped by change, counting
     ['Unchanged', ['function round: unchanged', 'function format: formatting']],
   ]);
   expect(
-    within(screen.getByRole('tabpanel', { name: 'Symbols' })).queryAllByRole('region'),
+    within(screen.getByRole('region', { name: 'What changed' })).queryAllByRole('region'),
   ).toEqual([]);
   expect(
-    within(screen.getByRole('tabpanel', { name: 'Symbols' })).getByText('2 unchanged'),
+    within(screen.getByRole('region', { name: 'What changed' })).getByText('2 unchanged'),
   ).toBeTruthy();
   await user.click(screen.getByRole('button', { name: 'total.ts: modified' }));
-  expect(inspectorTabs()).toEqual(['Note']);
+  expect(screen.queryByRole('region', { name: 'What changed' })).toBeNull();
 });
 
-test("a file's Symbols tab lists its API changes first: exported symbols added, removed, renamed, moved, un-exported or whose signature changed, a changed signature shown base then head, each symbol marked exported, now exported or no longer exported", async () => {
+test("a file's What changed lists its API changes first: exported symbols added, removed, renamed, moved, un-exported or whose signature changed, a changed signature shown base then head, each symbol marked exported, now exported or no longer exported", async () => {
   const user = userEvent.setup();
   const exported = (base?: boolean, head?: boolean) => ({
     ...(base !== undefined && { base }),
@@ -4313,7 +4398,6 @@ test("a file's Symbols tab lists its API changes first: exported symbols added, 
   );
 
   await user.click(await screen.findByRole('button', { name: 'refund.ts: modified' }));
-  await user.click(within(inspector()).getByRole('tab', { name: 'Symbols 8' }));
   expect(symbolGroups()).toEqual([
     [
       'API',
@@ -4372,7 +4456,6 @@ const signatureLinesOf = async (signature: { readonly base: string; readonly hea
     />,
   );
   await user.click(await screen.findByRole('button', { name: 'reader.ts: modified' }));
-  await user.click(within(inspector()).getByRole('tab', { name: 'Symbols 1' }));
   return within(screen.getByRole('list', { name: 'Signature of type Reader' }))
     .getAllByRole('listitem')
     .map(line => line.textContent);
@@ -4453,7 +4536,6 @@ test('a renamed symbol says what it was renamed from, probably when its body cha
   );
 
   await user.click(await screen.findByRole('button', { name: 'refund.ts: modified' }));
-  await user.click(within(inspector()).getByRole('tab', { name: 'Symbols 2' }));
   expect(screen.getByRole('listitem', { name: 'function settle: renamed' }).textContent).toBe(
     'function settle renamed from pay',
   );
@@ -4491,7 +4573,6 @@ test('a moved symbol names the file it moved to or from, and goes to that file',
   );
 
   await user.click(await screen.findByRole('button', { name: 'refund.ts: modified' }));
-  await user.click(within(inspector()).getByRole('tab', { name: 'Symbols 1' }));
   const movedTo = screen.getByRole('listitem', { name: 'function tax: moved' });
   expect(movedTo.textContent).toBe('function tax moved to tax.ts');
   await user.click(within(movedTo).getByRole('button', { name: 'tax.ts' }));
@@ -4502,7 +4583,7 @@ test('a moved symbol names the file it moved to or from, and goes to that file',
   expect(within(inspector()).getByRole('heading', { level: 2 }).textContent).toBe('refund.ts');
 });
 
-test("a box's Symbols tab lists each file inside it with symbol changes, each with its own groups; a logic line opens its own file's patch on its row, or at its top when outside every hunk, until another part is picked", async () => {
+test("a box's What changed lists each file inside it with symbol changes, each with its own groups; a logic line opens its own file's patch on its row, or at its top when outside every hunk, until another part is picked", async () => {
   const user = userEvent.setup();
   const inBilling = (label: string) => ({
     ...topFile(label, 'modified'),
@@ -4566,8 +4647,7 @@ test("a box's Symbols tab lists each file inside it with symbol changes, each wi
   );
 
   await user.click(await screen.findByRole('button', { name: 'billing: modified' }));
-  await user.click(within(inspector()).getByRole('tab', { name: 'Symbols 2' }));
-  const files = within(screen.getByRole('tabpanel', { name: 'Symbols' })).getAllByRole('region');
+  const files = within(screen.getByRole('region', { name: 'What changed' })).getAllByRole('region');
   expect(
     files.map(file => [
       file.getAttribute('aria-label'),
@@ -4601,7 +4681,7 @@ test("a box's Symbols tab lists each file inside it with symbol changes, each wi
   ]);
 
   await user.click(
-    within(screen.getByRole('tabpanel', { name: 'Symbols' })).getByRole('button', {
+    within(screen.getByRole('region', { name: 'What changed' })).getByRole('button', {
       name: /^added throw/,
     }),
   );
@@ -4618,9 +4698,9 @@ test("a box's Symbols tab lists each file inside it with symbol changes, each wi
     Array.from(document.querySelectorAll('[aria-current="true"]'), row => row.textContent),
   ).toEqual(['+  throw new Late();']);
 
-  await user.click(within(inspector()).getByRole('tab', { name: 'Symbols 2' }));
+  await user.click(within(inspector()).getByRole('tab', { name: 'Note' }));
   await user.click(
-    within(screen.getByRole('tabpanel', { name: 'Symbols' })).getByRole('button', {
+    within(screen.getByRole('region', { name: 'What changed' })).getByRole('button', {
       name: /^added return/,
     }),
   );
@@ -4630,9 +4710,9 @@ test("a box's Symbols tab lists each file inside it with symbol changes, each wi
   );
   expect(document.querySelectorAll('[aria-current="true"]')).toHaveLength(0);
 
-  await user.click(within(inspector()).getByRole('tab', { name: 'Symbols 2' }));
+  await user.click(within(inspector()).getByRole('tab', { name: 'Note' }));
   await user.click(
-    within(screen.getByRole('tabpanel', { name: 'Symbols' })).getByRole('button', {
+    within(screen.getByRole('region', { name: 'What changed' })).getByRole('button', {
       name: /^added throw/,
     }),
   );
@@ -4647,7 +4727,7 @@ test("a box's Symbols tab lists each file inside it with symbol changes, each wi
   expect(document.querySelectorAll('[aria-current="true"]')).toHaveLength(0);
 });
 
-test("an edited function's logic lines show under it on the Symbols tab, each with its change, kind and text, a changed one base then head; a line that changed opens the Diff tab on its row, head side unless removed", async () => {
+test("an edited function's logic lines show under it in What changed, each with its change, kind and text, a changed one base then head; a line that changed opens the Diff tab on its row, head side unless removed", async () => {
   const user = userEvent.setup();
   render(
     <ReviewPage
@@ -4710,8 +4790,7 @@ test("an edited function's logic lines show under it on the Symbols tab, each wi
   );
 
   await user.click(await screen.findByRole('button', { name: 'refund.ts: modified' }));
-  await user.click(within(inspector()).getByRole('tab', { name: 'Symbols 1' }));
-  const logic = within(screen.getByRole('tabpanel', { name: 'Symbols' })).getByRole('list', {
+  const logic = within(screen.getByRole('region', { name: 'What changed' })).getByRole('list', {
     name: 'Logic of function refund',
   });
   expect(
@@ -4741,9 +4820,9 @@ test("an edited function's logic lines show under it on the Symbols tab, each wi
   await user.click(within(logic).getByRole('button', { name: /^changed if/ }));
   expect(within(inspector()).getByRole('tab', { selected: true }).textContent).toBe('Diff');
   expect(landed()).toEqual(['+    if (a >= 0) {', 'true']);
-  await user.click(within(inspector()).getByRole('tab', { name: 'Symbols 1' }));
+  await user.click(within(inspector()).getByRole('tab', { name: 'Note' }));
   await user.click(
-    within(screen.getByRole('tabpanel', { name: 'Symbols' })).getByRole('button', {
+    within(screen.getByRole('region', { name: 'What changed' })).getByRole('button', {
       name: /^removed guard/,
     }),
   );
@@ -4810,8 +4889,7 @@ test('a moved logic line names the symbol it moved to, and opens the Diff tab on
   );
 
   await user.click(await screen.findByRole('button', { name: 'refund.ts: modified' }));
-  await user.click(within(inspector()).getByRole('tab', { name: 'Symbols 1' }));
-  const panel = within(screen.getByRole('tabpanel', { name: 'Symbols' }));
+  const panel = within(screen.getByRole('region', { name: 'What changed' }));
   const line = panel.getByRole('button', {
     name: 'moved guard: if (!paid) return, moved to checked',
   });
@@ -4827,7 +4905,7 @@ test('a moved logic line names the symbol it moved to, and opens the Diff tab on
   expect(row instanceof HTMLElement ? row.textContent : undefined).toBe('-  if (!paid) return;');
 });
 
-test("a file whose symbols wouldn't parse shows the parse error on its Symbols tab, and in its box's", async () => {
+test("a file whose symbols wouldn't parse shows the parse error in its What changed, and in its box's", async () => {
   const user = userEvent.setup();
   render(
     <ReviewPage
@@ -4860,18 +4938,18 @@ test("a file whose symbols wouldn't parse shows the parse error on its Symbols t
       })}
     />,
   );
-  const symbolsTab = () => screen.getByRole('tabpanel', { name: 'Symbols' });
+  const whatChanged = () => screen.getByRole('region', { name: 'What changed' });
 
   await user.click(await screen.findByRole('button', { name: 'billing: modified' }));
-  await user.click(within(inspector()).getByRole('tab', { name: 'Symbols' }));
+  expect(within(whatChanged()).getByRole('heading', { name: 'What changed' })).toBeTruthy();
   expect(
-    within(within(symbolsTab()).getByRole('region', { name: 'refund.ts' })).getByText(
+    within(within(whatChanged()).getByRole('region', { name: 'refund.ts' })).getByText(
       'Unexpected token (3:4)',
       { exact: false },
     ),
   ).toBeTruthy();
   await user.click(screen.getByRole('button', { name: 'total.ts: modified' }));
-  expect(within(symbolsTab()).getByText('Missing semicolon (7:1)', { exact: false })).toBeTruthy();
+  expect(within(whatChanged()).getByText('Missing semicolon (7:1)', { exact: false })).toBeTruthy();
 });
 
 test('a box read as a part keeps its reading number once it is expanded, and an expanded box that is none gets no number', async () => {
@@ -4908,7 +4986,7 @@ test('a box read as a part keeps its reading number once it is expanded, and an 
   expect(await numbersIn('lib')).toEqual([]);
 });
 
-const symbolsTab = () => screen.getByRole('tabpanel', { name: 'Symbols' });
+const whatChanged = () => screen.getByRole('region', { name: 'What changed' });
 
 test("a served page's symbol row takes a comment, on its file and qualified name, held while the inspector goes elsewhere", async () => {
   const user = userEvent.setup();
@@ -4939,22 +5017,20 @@ test("a served page's symbol row takes a comment, on its file and qualified name
       send={sent}
     />,
   );
-  const symbolComment = () => within(symbolsTab()).getByRole('textbox', { name: 'Your comment' });
+  const symbolComment = () => within(whatChanged()).getByRole('textbox', { name: 'Your comment' });
   const commentOn = () =>
-    within(symbolsTab()).getByRole('button', { name: 'Comment on method ReviewPage.goTo' });
+    within(whatChanged()).getByRole('button', { name: 'Comment on method ReviewPage.goTo' });
 
   await user.click(await screen.findByRole('button', { name: 'review-page.tsx: modified' }));
-  await user.click(within(inspector()).getByRole('tab', { name: 'Symbols 1' }));
   await user.click(commentOn());
   await user.click(commentOn());
   expect(commentOn().getAttribute('aria-expanded')).toBe('false');
-  expect(within(symbolsTab()).queryByRole('textbox', { name: 'Your comment' })).toBeNull();
+  expect(within(whatChanged()).queryByRole('textbox', { name: 'Your comment' })).toBeNull();
   await user.click(commentOn());
   expect(commentOn().getAttribute('aria-expanded')).toBe('true');
-  await user.click(within(symbolsTab()).getByRole('radio', { name: 'Change this' }));
+  await user.click(within(whatChanged()).getByRole('radio', { name: 'Change this' }));
   await user.type(symbolComment(), 'Split it.');
-  await user.click(within(inspector()).getByRole('tab', { name: 'Note' }));
-  await user.click(within(inspector()).getByRole('tab', { name: 'Symbols 1' }));
+  await closeAndReopen(user, 'review-page.tsx: modified');
   expect(symbolComment()).toHaveProperty('value', 'Split it.');
   await openReview(user);
   await user.click(screen.getByRole('button', { name: 'Send to Claude' }));
@@ -5012,27 +5088,26 @@ test("a served page's logic line takes a comment on its decision, the same id as
   );
 
   await user.click(await screen.findByRole('button', { name: 'review-page.tsx: modified' }));
-  await user.click(within(inspector()).getByRole('tab', { name: 'Symbols 1' }));
   expect(
-    within(symbolsTab()).getByRole('button', { name: 'Comment on same if: if (ready)' }),
+    within(whatChanged()).getByRole('button', { name: 'Comment on same if: if (ready)' }),
   ).toBeTruthy();
   await user.click(
-    within(symbolsTab()).getByRole('button', {
+    within(whatChanged()).getByRole('button', {
       name: 'Comment on removed guard: if (!open) return',
     }),
   );
   await write(
     user,
-    within(symbolsTab()).getByRole('textbox', { name: 'Your comment' }),
+    within(whatChanged()).getByRole('textbox', { name: 'Your comment' }),
     'Why did it move?',
   );
   await user.click(
-    within(symbolsTab()).getByRole('button', { name: 'Comment on changed if: if (a) → if (b)' }),
+    within(whatChanged()).getByRole('button', { name: 'Comment on changed if: if (a) → if (b)' }),
   );
   await write(
     user,
     within(
-      within(symbolsTab()).getByRole('listitem', { name: 'changed if: if (a) → if (b)' }),
+      within(whatChanged()).getByRole('listitem', { name: 'changed if: if (a) → if (b)' }),
     ).getByRole('textbox', { name: 'Your comment' }),
     'Why b?',
   );
@@ -5106,12 +5181,11 @@ test("a logic line of the later of two same-named symbols comments on its own de
   );
 
   await user.click(await screen.findByRole('button', { name: 'c.ts: modified' }));
-  await user.click(within(inspector()).getByRole('tab', { name: /^Symbols/ }));
-  const [, later] = within(symbolsTab()).getAllByRole('button', {
+  const [, later] = within(whatChanged()).getAllByRole('button', {
     name: 'Comment on removed guard: if (a) return',
   });
-  await user.click(later ?? symbolsTab());
-  await write(user, within(symbolsTab()).getByRole('textbox', { name: 'Your comment' }), 'Why?');
+  await user.click(later ?? whatChanged());
+  await write(user, within(whatChanged()).getByRole('textbox', { name: 'Your comment' }), 'Why?');
   await openReview(user);
   await user.click(screen.getByRole('button', { name: 'Send to Claude' }));
 
@@ -5132,7 +5206,7 @@ test("a logic line of the later of two same-named symbols comments on its own de
   );
 });
 
-test('a draft in the open tray goes to the tab it was written on, though the inspector was closed or on another tab', async () => {
+test('a draft in the open tray goes to where it was written, though the inspector was closed', async () => {
   const user = userEvent.setup();
   render(
     <ReviewPage
@@ -5161,23 +5235,27 @@ test('a draft in the open tray goes to the tab it was written on, though the ins
       send={vi.fn(async () => {})}
     />,
   );
-  const panelOf = (name: string) => screen.getByRole('tabpanel', { name });
-  const fieldIn = (name: string) =>
-    within(panelOf(name)).getByRole('textbox', { name: 'Your comment' });
+  const partField = () =>
+    within(noteTab()).getAllByRole('textbox', { name: 'Your comment' })[0] ?? noteTab();
 
   await user.click(await screen.findByRole('button', { name: 'review-page.tsx: modified' }));
-  await write(user, fieldIn('Note'), 'On the file.');
-  await user.click(within(inspector()).getByRole('tab', { name: 'Symbols 1' }));
+  await write(user, partField(), 'On the file.');
   await user.click(
-    within(symbolsTab()).getByRole('button', { name: 'Comment on method ReviewPage.goTo' }),
-  );
-  await write(user, fieldIn('Symbols'), 'On the method.');
-  await user.click(
-    within(symbolsTab()).getByRole('button', { name: 'Comment on same if: if (ready)' }),
+    within(whatChanged()).getByRole('button', { name: 'Comment on method ReviewPage.goTo' }),
   );
   await write(
     user,
-    within(within(symbolsTab()).getByRole('listitem', { name: 'same if: if (ready)' })).getByRole(
+    within(
+      within(whatChanged()).getByRole('listitem', { name: 'method ReviewPage.goTo: edited' }),
+    ).getByRole('textbox', { name: 'Your comment' }),
+    'On the method.',
+  );
+  await user.click(
+    within(whatChanged()).getByRole('button', { name: 'Comment on same if: if (ready)' }),
+  );
+  await write(
+    user,
+    within(within(whatChanged()).getByRole('listitem', { name: 'same if: if (ready)' })).getByRole(
       'textbox',
       { name: 'Your comment' },
     ),
@@ -5186,25 +5264,51 @@ test('a draft in the open tray goes to the tab it was written on, though the ins
   await user.click(screen.getByRole('button', { name: 'Close inspector' }));
   await openReview(user);
 
-  await user.click(screen.getByRole('button', { name: 'ReviewPage.goTo in review-page.tsx' }));
-  expect(
-    within(
-      within(symbolsTab()).getByRole('listitem', { name: 'method ReviewPage.goTo: edited' }),
-    ).getAllByRole('textbox', { name: 'Your comment' })[0],
-  ).toHaveProperty('value', 'On the method.');
+  const goToMethod = () =>
+    user.click(screen.getByRole('button', { name: 'ReviewPage.goTo in review-page.tsx' }));
+  const methodRow = () =>
+    within(whatChanged()).getByRole('listitem', { name: 'method ReviewPage.goTo: edited' });
+  await goToMethod();
+  expect(within(methodRow()).getAllByRole('textbox', { name: 'Your comment' })[0]).toHaveProperty(
+    'value',
+    'On the method.',
+  );
+  expect(document.activeElement).toBe(methodRow());
+  expect(scrolledIntoView.mock.contexts).toContain(methodRow());
+  await goToMethod();
+  expect(document.activeElement).toBe(methodRow());
   await user.click(
     within(screen.getByRole('list', { name: 'Drafts' })).getByRole('button', {
       name: 'review-page.tsx',
     }),
   );
-  expect(fieldIn('Note')).toHaveProperty('value', 'On the file.');
+  expect(partField()).toHaveProperty('value', 'On the file.');
+  expect(methodRow().hasAttribute('aria-current')).toBe(false);
   await user.click(screen.getByRole('button', { name: 'if (ready)' }));
-  expect(
-    within(within(symbolsTab()).getByRole('listitem', { name: 'same if: if (ready)' })).getByRole(
-      'textbox',
-      { name: 'Your comment' },
-    ),
-  ).toHaveProperty('value', 'On the line.');
+  const lineRow = within(whatChanged()).getByRole('listitem', { name: 'same if: if (ready)' });
+  expect(within(lineRow).getByRole('textbox', { name: 'Your comment' })).toHaveProperty(
+    'value',
+    'On the line.',
+  );
+  expect(document.activeElement).toBe(lineRow);
+  expect(scrolledIntoView.mock.contexts).toContain(lineRow);
+  await user.click(
+    within(screen.getByRole('list', { name: 'Drafts' })).getByRole('button', {
+      name: 'review-page.tsx',
+    }),
+  );
+  expect(inspector().scrollTop).toBe(0);
+  scrolledIntoView.mockImplementationOnce(() => {
+    inspector().scrollTop = 300;
+  });
+  await goToMethod();
+  expect(inspector().scrollTop).toBe(300);
+  await user.click(
+    within(screen.getByRole('list', { name: 'Drafts' })).getByRole('button', {
+      name: 'review-page.tsx',
+    }),
+  );
+  expect(inspector().scrollTop).toBe(0);
 });
 
 test("same-named symbols in one file take a comment each, counted through the file's symbols whatever group shows them, and a draft on a later one still opens the unchanged", async () => {
@@ -5239,7 +5343,7 @@ test("same-named symbols in one file take a comment each, counted through the fi
     />,
   );
   const commentIn = async (group: string, name: string, text: string) => {
-    const row = within(within(symbolsTab()).getByRole('list', { name: group })).getByRole(
+    const row = within(within(whatChanged()).getByRole('list', { name: group })).getByRole(
       'listitem',
     );
     await user.click(within(row).getByRole('button', { name: `Comment on ${name}` }));
@@ -5247,14 +5351,12 @@ test("same-named symbols in one file take a comment each, counted through the fi
   };
 
   await user.click(await screen.findByRole('button', { name: 'tax.ts: modified' }));
-  await user.click(within(inspector()).getByRole('tab', { name: /^Symbols/ }));
   await commentIn('Edited', 'function F', 'On the edited one.');
   await commentIn('Added', 'type F', 'On the type.');
-  await user.click(within(symbolsTab()).getByText('1 unchanged'));
+  await user.click(within(whatChanged()).getByText('1 unchanged'));
   await commentIn('Unchanged', 'function F', 'On the unchanged one.');
-  await user.click(within(inspector()).getByRole('tab', { name: 'Note' }));
-  await user.click(within(inspector()).getByRole('tab', { name: /^Symbols/ }));
-  expect(within(symbolsTab()).getByRole('group').hasAttribute('open')).toBe(true);
+  await closeAndReopen(user, 'tax.ts: modified');
+  expect(within(whatChanged()).getByRole('group').hasAttribute('open')).toBe(true);
   await openReview(user);
   await user.click(screen.getByRole('button', { name: 'Send to Claude' }));
 
@@ -5274,14 +5376,145 @@ test("same-named symbols in one file take a comment each, counted through the fi
   );
 });
 
+test("the column reads a part's note, then What changed, then Why look; an edge's holds its note and findings only", async () => {
+  const user = userEvent.setup();
+  const edge = 'web/file/tax.ts -> web/file/vat.ts';
+  render(
+    <ReviewPage
+      review={pageWith({
+        range: review.range,
+        diff: {
+          nodes: [
+            { id: 'web', kind: 'stack', label: 'web', path: '', state: 'unchanged' },
+            topFile('tax.ts', 'modified'),
+            topFile('vat.ts', 'modified'),
+          ],
+          edges: [{ from: 'web/file/tax.ts', to: 'web/file/vat.ts', state: 'added' }],
+        },
+        findings: [findingOn('web/file/tax.ts'), findingOn(edge)],
+        symbols: [
+          symbolsOf('web/file/tax.ts', [
+            {
+              name: 'tax',
+              kind: 'function',
+              exported: { base: false, head: false },
+              change: 'edited',
+            },
+          ]),
+        ],
+      })}
+      notes={{
+        version: 1,
+        tests: '',
+        summary: [],
+        notes: {
+          'web/file/tax.ts': { text: 'Rounds now.' },
+          [edge]: { text: 'A new way in.' },
+        },
+      }}
+    />,
+  );
+  const region = (name: string) => within(noteTab()).queryByRole('region', { name });
+  const follows = (first: Element | null, second: Element | null) =>
+    first !== null &&
+    second !== null &&
+    (first.compareDocumentPosition(second) & Node.DOCUMENT_POSITION_FOLLOWING) !== 0;
+
+  await user.click(await screen.findByRole('button', { name: 'tax.ts: modified' }));
+  expect(follows(within(noteTab()).getByText('Rounds now.'), region('What changed'))).toBe(true);
+  expect(follows(region('What changed'), region('Why look'))).toBe(true);
+
+  await user.click(screen.getByRole('button', { name: 'tax.ts → vat.ts: added' }));
+  expect(noteShown()).toBe('A new way in.');
+  expect(region('Why look')).not.toBeNull();
+  expect(region('What changed')).toBeNull();
+});
+
+test('a part with no note starts at what else its column holds, and says "No note" only when it holds nothing', async () => {
+  const user = userEvent.setup();
+  render(
+    <ReviewPage
+      review={pageWith({
+        range: review.range,
+        diff: {
+          nodes: [
+            { id: 'web', kind: 'stack', label: 'web', path: '', state: 'unchanged' },
+            topFile('tax.ts', 'modified'),
+            topFile('vat.ts', 'modified'),
+            topFile('bare.ts', 'modified'),
+          ],
+          edges: [],
+        },
+        findings: [findingOn('web/file/vat.ts')],
+        symbols: [
+          symbolsOf('web/file/tax.ts', [
+            {
+              name: 'tax',
+              kind: 'function',
+              exported: { base: false, head: false },
+              change: 'edited',
+            },
+          ]),
+          symbolsOf('web/file/bare.ts', [
+            {
+              name: 'bare',
+              kind: 'function',
+              exported: { base: false, head: false },
+              change: 'unchanged',
+            },
+          ]),
+        ],
+      })}
+    />,
+  );
+  const saysNoNote = () => within(noteTab()).queryByText('No note') !== null;
+
+  await user.click(await screen.findByRole('button', { name: 'bare.ts: modified' }));
+  expect(saysNoNote()).toBe(true);
+  expect(within(noteTab()).queryByRole('region', { name: 'What changed' })).toBeNull();
+
+  await user.click(screen.getByRole('button', { name: 'tax.ts: modified' }));
+  expect(within(noteTab()).getByRole('region', { name: 'What changed' })).toBeTruthy();
+  expect(saysNoNote()).toBe(false);
+
+  await user.click(screen.getByRole('button', { name: /^vat\.ts: modified/ }));
+  expect(within(noteTab()).getByRole('region', { name: 'Why look' })).toBeTruthy();
+  expect(saysNoNote()).toBe(false);
+});
+
+test('a part with no note but a last comment shows that comment, not "No note"', async () => {
+  const user = userEvent.setup();
+  render(
+    <ReviewPage
+      review={pageWith({
+        range: review.range,
+        diff: {
+          nodes: [
+            { id: 'web', kind: 'stack', label: 'web', path: '', state: 'unchanged' },
+            topFile('said.ts', 'modified'),
+            topFile('bare.ts', 'modified'),
+          ],
+          edges: [],
+        },
+        sinceReview: {
+          ...sinceReview,
+          comments: [saidOnPart('web/file/said.ts', { text: 'Why the rounding?' })],
+        },
+      })}
+    />,
+  );
+  const saysNoNote = () => within(noteTab()).queryByText('No note') !== null;
+
+  await user.click(await screen.findByRole('button', { name: 'bare.ts: modified' }));
+  expect(saysNoNote()).toBe(true);
+
+  await user.click(screen.getByRole('button', { name: /^said\.ts: modified/ }));
+  expect(within(noteTab()).getByText('Why the rounding?')).toBeTruthy();
+  expect(saysNoNote()).toBe(false);
+});
+
 test('the inspector goes back to Note when it closes or Structure is left, and holds its tab between parts', async () => {
   const user = userEvent.setup();
-  const symbol = {
-    name: 'tax',
-    kind: 'function' as const,
-    exported: { base: false, head: false },
-    change: 'edited' as const,
-  };
   render(
     <ReviewPage
       review={pageWith({
@@ -5294,23 +5527,26 @@ test('the inspector goes back to Note when it closes or Structure is left, and h
           ],
           edges: [],
         },
-        symbols: [symbolsOf('web/file/tax.ts', [symbol]), symbolsOf('web/file/vat.ts', [symbol])],
+        metrics: {
+          'web/file/tax.ts': { base: measured(), head: measured() },
+          'web/file/vat.ts': { base: measured(), head: measured() },
+        },
       })}
     />,
   );
-  const pickSymbols = () => user.click(within(inspector()).getByRole('tab', { name: /^Symbols/ }));
+  const pickMetrics = () => user.click(within(inspector()).getByRole('tab', { name: 'Metrics' }));
   const onTab = () => within(inspector()).getByRole('tab', { selected: true }).textContent;
 
   await user.click(await screen.findByRole('button', { name: 'tax.ts: modified' }));
-  await pickSymbols();
+  await pickMetrics();
   await user.click(screen.getByRole('button', { name: 'vat.ts: modified' }));
-  expect(onTab()).toMatch(/^Symbols/);
+  expect(onTab()).toBe('Metrics');
 
   await user.click(within(inspector()).getByRole('button', { name: 'Close inspector' }));
   await user.click(screen.getByRole('button', { name: 'tax.ts: modified' }));
   expect(onTab()).toBe('Note');
 
-  await pickSymbols();
+  await pickMetrics();
   await user.click(screen.getByRole('link', { name: /^Tests/ }));
   await screen.findByRole('group', { name: 'Tests shown' });
   await user.click(screen.getByRole('link', { name: /^Structure/ }));
@@ -5320,12 +5556,6 @@ test('the inspector goes back to Note when it closes or Structure is left, and h
 
 test('the inspector holds its tab through an edge selected between two parts', async () => {
   const user = userEvent.setup();
-  const symbol = {
-    name: 'tax',
-    kind: 'function' as const,
-    exported: { base: false, head: false },
-    change: 'edited' as const,
-  };
   render(
     <ReviewPage
       review={pageWith({
@@ -5344,20 +5574,23 @@ test('the inspector holds its tab through an edge selected between two parts', a
             },
           ],
         },
-        symbols: [symbolsOf('web/file/tax.ts', [symbol]), symbolsOf('web/file/vat.ts', [symbol])],
+        metrics: {
+          'web/file/tax.ts': { base: measured(), head: measured() },
+          'web/file/vat.ts': { base: measured(), head: measured() },
+        },
       })}
     />,
   );
 
   await user.click(await screen.findByRole('button', { name: 'tax.ts: modified' }));
-  await user.click(within(inspector()).getByRole('tab', { name: /^Symbols/ }));
+  await user.click(within(inspector()).getByRole('tab', { name: 'Metrics' }));
   await user.click(screen.getByRole('button', { name: 'tax.ts → vat.ts: added' }));
   await user.click(screen.getByRole('button', { name: 'vat.ts: modified' }));
 
-  expect(within(inspector()).getByRole('tab', { selected: true }).textContent).toMatch(/^Symbols/);
+  expect(within(inspector()).getByRole('tab', { selected: true }).textContent).toBe('Metrics');
 });
 
-test('going to a finding answer in the open tray opens Note, where the answer is, whatever tab was up', async () => {
+test('going to a finding answer in the open tray opens Note, where the answer is, whatever tab was up, landing on its row', async () => {
   const user = userEvent.setup();
   render(
     <ReviewPage
@@ -5371,16 +5604,7 @@ test('going to a finding answer in the open tray opens Note, where the answer is
           edges: [],
         },
         findings: [findingOn('web/file/tax.ts')],
-        symbols: [
-          symbolsOf('web/file/tax.ts', [
-            {
-              name: 'tax',
-              kind: 'function',
-              exported: { base: false, head: false },
-              change: 'edited',
-            },
-          ]),
-        ],
+        metrics: { 'web/file/tax.ts': { base: measured(), head: measured() } },
       })}
       send={async () => {}}
     />,
@@ -5388,11 +5612,18 @@ test('going to a finding answer in the open tray opens Note, where the answer is
 
   await user.click(await screen.findByRole('button', { name: 'tax.ts: modified' }));
   await user.click(within(noteTab()).getByRole('button', { name: 'Fix this' }));
-  await user.click(within(inspector()).getByRole('tab', { name: /^Symbols/ }));
+  await user.click(within(inspector()).getByRole('tab', { name: 'Metrics' }));
   await openReview(user);
   await user.click(screen.getByRole('button', { name: 'lines 900, over 800' }));
 
   expect(within(inspector()).getByRole('tab', { selected: true }).textContent).toBe('Note');
+  const row = within(within(noteTab()).getByRole('list', { name: 'Findings' })).getByRole(
+    'listitem',
+    { current: true },
+  );
+  expect(within(row).getByRole('button', { name: 'Fix this' })).toBeDefined();
+  expect(document.activeElement).toBe(row);
+  expect(scrolledIntoView.mock.contexts).toContain(row);
 });
 
 const pageWithAnUnchangedSymbol = () =>
@@ -5424,32 +5655,45 @@ const pageWithAnUnchangedSymbol = () =>
     ],
   });
 
-const unchangedSymbols = () => within(symbolsTab()).getByRole('group');
-
-const leaveSymbolsAndComeBack = async (user: ReturnType<typeof userEvent.setup>) => {
-  await user.click(within(inspector()).getByRole('tab', { name: 'Note' }));
-  await user.click(within(inspector()).getByRole('tab', { name: /^Symbols/ }));
-};
+const unchangedSymbols = () => within(whatChanged()).getByRole('group');
 
 const draftOnTheUnchangedSymbol = async (user: ReturnType<typeof userEvent.setup>) => {
-  await user.click(within(symbolsTab()).getByText('1 unchanged'));
-  await user.click(within(symbolsTab()).getByRole('button', { name: 'Comment on function round' }));
+  await user.click(within(whatChanged()).getByText('1 unchanged'));
+  await user.click(
+    within(whatChanged()).getByRole('button', { name: 'Comment on function round' }),
+  );
   await write(
     user,
-    within(symbolsTab()).getByRole('textbox', { name: 'Your comment' }),
+    within(whatChanged()).getByRole('textbox', { name: 'Your comment' }),
     'Why not?',
   );
 };
+
+test('going to a draft on an unchanged symbol opens the fold again, though it was closed by hand', async () => {
+  const user = userEvent.setup();
+  render(<ReviewPage review={pageWithAnUnchangedSymbol()} send={vi.fn(async () => {})} />);
+
+  await user.click(await screen.findByRole('button', { name: 'tax.ts: modified' }));
+  await draftOnTheUnchangedSymbol(user);
+  await user.click(within(whatChanged()).getByText('1 unchanged'));
+  expect(unchangedSymbols().hasAttribute('open')).toBe(false);
+  await openReview(user);
+  await user.click(screen.getByRole('button', { name: /^round in tax\.ts/ }));
+
+  expect(unchangedSymbols().hasAttribute('open')).toBe(true);
+  expect(document.activeElement).toBe(
+    within(unchangedSymbols()).getByRole('listitem', { name: 'function round: unchanged' }),
+  );
+});
 
 test('the unchanged symbols open by themselves when one holds a draft', async () => {
   const user = userEvent.setup();
   render(<ReviewPage review={pageWithAnUnchangedSymbol()} send={vi.fn(async () => {})} />);
 
   await user.click(await screen.findByRole('button', { name: 'tax.ts: modified' }));
-  await user.click(within(inspector()).getByRole('tab', { name: /^Symbols/ }));
   expect(unchangedSymbols().hasAttribute('open')).toBe(false);
   await draftOnTheUnchangedSymbol(user);
-  await leaveSymbolsAndComeBack(user);
+  await closeAndReopen(user, 'tax.ts: modified');
 
   expect(unchangedSymbols().hasAttribute('open')).toBe(true);
 });
@@ -5459,12 +5703,11 @@ test('a page that is not served has no Comment toggle on a symbol or a logic lin
   const page = pageWithAnUnchangedSymbol();
   const { rerender } = render(<ReviewPage review={page} send={vi.fn(async () => {})} />);
   const toggles = () =>
-    within(symbolsTab())
+    within(whatChanged())
       .queryAllByRole('button', { name: /^Comment on/ })
       .map(toggle => toggle.getAttribute('aria-label'));
 
   await user.click(await screen.findByRole('button', { name: 'tax.ts: modified' }));
-  await user.click(within(inspector()).getByRole('tab', { name: /^Symbols/ }));
   expect(toggles()).toContain('Comment on function tax');
   expect(toggles()).toContain('Comment on added guard: if (!rate) return');
 
@@ -5819,8 +6062,12 @@ test("the tray goes to a diff line's draft on the Diff tab, landing on its row o
   expect(scrolledIntoView.mock.contexts).toContain(row);
 
   scrolledIntoView.mockClear();
+  scrolledIntoView.mockImplementationOnce(() => {
+    inspector().scrollTop = 300;
+  });
   await goToDraft();
   expect(scrolledIntoView.mock.contexts).toContain(row);
+  expect(inspector().scrollTop).toBe(300);
 
   const patch = within(diffTab()).getByRole('group', { name: 'web/src/x.ts' });
   await user.click(within(patch).getByText('web/src/x.ts'));
@@ -6361,13 +6608,12 @@ test('a later round marks the symbol changed since the last review, not the one 
   render(<ReviewPage review={pageWithSymbolsEditedThenAndSince()} />);
 
   await user.click(await screen.findByRole('button', { name: 'tax.ts: modified' }));
-  await user.click(within(inspector()).getByRole('tab', { name: /^Symbols/ }));
 
-  const since = within(symbolsTab()).getByRole('listitem', {
+  const since = within(whatChanged()).getByRole('listitem', {
     name: 'function tax: edited, changed since',
   });
   expect(within(since).getAllByText('changed since')).toHaveLength(2);
-  const before = within(symbolsTab()).getByRole('listitem', { name: 'function round: edited' });
+  const before = within(whatChanged()).getByRole('listitem', { name: 'function round: edited' });
   expect(within(before).queryByText('changed since')).toBeNull();
 
   const lineSince = within(since).getByRole('listitem', {
@@ -6398,7 +6644,6 @@ test('the unchanged symbols open by themselves when one is marked changed since,
   );
 
   await user.click(await screen.findByRole('button', { name: 'tax.ts: modified' }));
-  await user.click(within(inspector()).getByRole('tab', { name: /^Symbols/ }));
 
   expect(unchangedSymbols().hasAttribute('open')).toBe(true);
   expect(
@@ -6454,15 +6699,14 @@ test('a box shows a file whose only news is a symbol changed since the last revi
   );
 
   await user.click(await screen.findByRole('button', { name: 'billing: modified' }));
-  await user.click(within(inspector()).getByRole('tab', { name: 'Symbols' }));
 
   expect(
-    within(within(symbolsTab()).getByRole('region', { name: 'restored.ts' })).getByRole(
+    within(within(whatChanged()).getByRole('region', { name: 'restored.ts' })).getByRole(
       'listitem',
       { name: 'function round: unchanged, changed since', hidden: true },
     ),
   ).toBeTruthy();
-  expect(within(symbolsTab()).queryByRole('region', { name: 'quiet.ts' })).toBeNull();
+  expect(within(whatChanged()).queryByRole('region', { name: 'quiet.ts' })).toBeNull();
 });
 
 test('a later round marks the test changed since the last review, not its namesake changed only before it', async () => {
@@ -6655,7 +6899,7 @@ test.for([
   ).toBeTruthy();
 });
 
-test('a last answer to a finding is listed by its title, going to its target; one no longer raised reads changed, naming no commit, with nowhere to go', async () => {
+test('a last answer to a finding is listed by its title, going to its row at its target; one no longer raised reads changed, naming no commit, with nowhere to go, unless it keeps a target, whose graph node takes the focus', async () => {
   const user = userEvent.setup();
   const raised: Finding = {
     id: 'metrics:look:rust/crate/application',
@@ -6680,6 +6924,11 @@ test('a last answer to a finding is listed by its title, going to its target; on
               target: 'rust/crate/application',
             },
             { anchor: { kind: 'finding', id: 'logic:old' }, kind: 'fix', changedSince: [] },
+            {
+              anchor: { kind: 'finding', id: 'notes:dropped' },
+              kind: 'fix',
+              target: 'rust/crate/domain',
+            },
           ],
         },
       })}
@@ -6698,9 +6947,17 @@ test('a last answer to a finding is listed by its title, going to its target; on
 
   await user.click(last.getByRole('button', { name: 'application got harder' }));
 
+  expect(selectedPart()).toBe('application');
   expect(document.activeElement).toBe(
-    screen.getByRole('button', { name: 'application: modified' }),
+    within(within(noteTab()).getByRole('region', { name: 'Why look' })).getByRole('listitem', {
+      current: true,
+    }),
   );
+
+  await user.click(last.getByRole('button', { name: 'notes:dropped' }));
+
+  expect(selectedPart()).toBe('domain');
+  expect(document.activeElement).toBe(screen.getByRole('button', { name: 'domain: unchanged' }));
 });
 
 test('a last comment on a line outside the graph goes to its row in the files outside it', async () => {
@@ -7201,9 +7458,8 @@ test('a symbol with a last comment takes Reply and no Comment, and the logic lin
   );
 
   await user.click(await screen.findByRole('button', { name: 'tax.ts: modified' }));
-  await user.click(within(inspector()).getByRole('tab', { name: /^Symbols/ }));
 
-  const symbol = within(symbolsTab()).getByRole('listitem', { name: /^function tax: edited/ });
+  const symbol = within(whatChanged()).getByRole('listitem', { name: /^function tax: edited/ });
   expect(within(symbol).getByRole('button', { name: 'Reply' })).toBeTruthy();
   expect(within(symbol).queryByRole('button', { name: 'Comment on function tax' })).toBeNull();
   expect(
@@ -7399,6 +7655,7 @@ test('a last comment on an edge shows on the arrow drawn in its place, closed bo
   await user.click(await within(web).findByRole('button', { name: 'orders → billing: unchanged' }));
   expect(said('Why the cart?')).toBeTruthy();
   expect(said('Why the checkout?')).toBeNull();
+  expect(said('No note')).toBeNull();
 
   await user.click(
     await within(web).findByRole('button', { name: 'checkout.ts → invoice.ts: unchanged' }),
@@ -7415,7 +7672,7 @@ test('a last comment on an edge shows on the arrow drawn in its place, closed bo
   expect(said('Why the checkout?')).toBeTruthy();
 });
 
-test('a last comment on a symbol or a logic line shows under it on the Symbols tab, with no send too', async () => {
+test('a last comment on a symbol or a logic line shows under it in What changed, with no send too', async () => {
   const user = userEvent.setup();
   render(
     <ReviewPage
@@ -7446,9 +7703,8 @@ test('a last comment on a symbol or a logic line shows under it on the Symbols t
   );
 
   await user.click(await screen.findByRole('button', { name: 'tax.ts: modified' }));
-  await user.click(within(inspector()).getByRole('tab', { name: /^Symbols/ }));
 
-  const symbol = within(symbolsTab()).getByRole('listitem', { name: /^function tax: edited/ });
+  const symbol = within(whatChanged()).getByRole('listitem', { name: /^function tax: edited/ });
   expect(
     within(
       within(symbol).getByRole('note', { name: 'Last review: Change this, As it was' }),
@@ -7463,7 +7719,7 @@ test('a last comment on a symbol or a logic line shows under it on the Symbols t
   expect(within(decision).queryByText('Rename this.')).toBeNull();
 });
 
-test('a last comment on an unchanged symbol brings up the Symbols tab and opens the unchanged ones', async () => {
+test('a last comment on an unchanged symbol brings up What changed and opens the unchanged ones', async () => {
   const user = userEvent.setup();
   const page = pageWithAnUnchangedSymbol();
   render(
@@ -7495,7 +7751,6 @@ test('a last comment on an unchanged symbol brings up the Symbols tab and opens 
   );
 
   await user.click(await screen.findByRole('button', { name: 'tax.ts: modified' }));
-  await user.click(within(inspector()).getByRole('tab', { name: /^Symbols/ }));
 
   expect(unchangedSymbols().hasAttribute('open')).toBe(true);
   expect(within(unchangedSymbols()).getByText('Why not?')).toBeTruthy();

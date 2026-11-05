@@ -1,6 +1,8 @@
+import { createContext, type ReactNode, useContext, useLayoutEffect, useRef } from 'react';
 import { anchorKey } from '../core/anchors.ts';
 import type { DiffedNode } from '../core/diff-graphs.ts';
 import type { LogicLine } from '../core/logic-diff.ts';
+import type { PreviousComment } from '../core/previous-comments.ts';
 import type { SymbolFile } from '../core/read-range.ts';
 import type { Comment } from '../core/review.ts';
 import {
@@ -11,9 +13,11 @@ import {
   type SymbolStatement,
 } from '../core/symbol-changes.ts';
 import { type AnchoredSymbol, anchoredSymbols, decisionsOf } from '../core/symbol-findings.ts';
+import { boxesAboveIn } from '../core/visible-diff.ts';
 import { ChangedSinceTag, sinceLabel, useIsChangedSince } from './changed-since.tsx';
 import type { Comments } from './comment-field.tsx';
 import { CommentOn, SaidBefore, useHasSaid } from './said-before.tsx';
+import { scrollInPanel } from './scroll-in-panel.ts';
 import { Signature } from './signature-lines.tsx';
 
 type Group = readonly [string, (symbol: SymbolStatement) => boolean];
@@ -35,7 +39,7 @@ const GROUPS: ReadonlyArray<Group> = [
 const symbolsIn = (files: ReadonlyArray<SymbolFile>): ReadonlyArray<SymbolStatement> =>
   files.flatMap(file => ('symbols' in file ? file.symbols : []));
 
-export const changedSymbolCount = (files: ReadonlyArray<SymbolFile>): number =>
+const changedSymbolCount = (files: ReadonlyArray<SymbolFile>): number =>
   symbolsIn(files).filter(symbol => !isQuiet(symbol)).length;
 
 export type LineAt = {
@@ -51,6 +55,28 @@ type Places = {
   readonly comments: Comments;
   readonly onComment: ((comment: Comment) => void) | undefined;
 };
+
+export type RowLanding = { readonly row?: string };
+
+const RowLanded = createContext<string | undefined>(undefined);
+
+export const useRowMarks = () => {
+  const landed = useContext(RowLanded);
+  return (anchor: Pick<PreviousComment['anchor'], 'kind' | 'id'>) =>
+    landed === anchorKey(anchor) ? ({ 'aria-current': true, tabIndex: -1 } as const) : {};
+};
+
+export const holdsRow = (
+  files: ReadonlyArray<SymbolFile>,
+  { kind, id }: PreviousComment['anchor'],
+): boolean =>
+  files
+    .flatMap(file => ('symbols' in file ? anchoredSymbols(file.node, file.symbols) : []))
+    .some(symbol =>
+      kind === 'symbol'
+        ? symbol.id === id
+        : kind === 'decision' && decisionsOf(symbol).some(line => line.id === id),
+    );
 
 const labelOf = (nodes: ReadonlyArray<DiffedNode>, id: string): string | undefined =>
   nodes.find(node => node.id === id)?.label;
@@ -158,6 +184,7 @@ const LogicLines = ({
   readonly onShowLine: ShowLine;
 }) => {
   const isChangedSince = useIsChangedSince();
+  const marksOf = useRowMarks();
   return (
     <ul
       className="logic-lines"
@@ -171,6 +198,7 @@ const LogicLines = ({
             key={id}
             className={`logic-${line.change}`}
             aria-label={label}
+            {...marksOf({ kind: 'decision', id })}
             style={{ paddingInlineStart: `${line.depth}em` }}
           >
             {line.change === 'same' ? (
@@ -204,7 +232,7 @@ const LogicLines = ({
   );
 };
 
-export const useHasSymbolNews = () => {
+const useHasSymbolNews = () => {
   const isChangedSince = useIsChangedSince();
   const hasSaid = useHasSaid();
   return (file: SymbolFile): boolean =>
@@ -226,6 +254,7 @@ const SymbolList = ({
   readonly symbols: ReadonlyArray<AnchoredSymbol>;
 }) => {
   const isChangedSince = useIsChangedSince();
+  const marksOf = useRowMarks();
   return (
     <ul aria-label={title}>
       {symbols.map(({ item: symbol, id }) => (
@@ -235,6 +264,7 @@ const SymbolList = ({
             `${nameOf(symbol)}: ${symbol.change}`,
             isChangedSince('symbols', id),
           )}
+          {...marksOf({ kind: 'symbol', id })}
         >
           <span className="kind">{symbol.kind}</span> <code>{qualified(symbol)}</code>
           {exportMarkOf(symbol) !== undefined && (
@@ -308,7 +338,7 @@ const SymbolFiles = ({ file, ...places }: Places & { readonly file: SymbolFile }
   );
 };
 
-export const SymbolsOf = ({
+const SymbolsOf = ({
   node,
   files,
   ...places
@@ -322,8 +352,62 @@ export const SymbolsOf = ({
           className="symbol-file"
           aria-label={labelOf(places.nodes, file.node)}
         >
-          <h3>{labelOf(places.nodes, file.node)}</h3>
+          <h4>{labelOf(places.nodes, file.node)}</h4>
           <SymbolFiles file={file} {...places} />
         </section>
       ));
+};
+
+export const useFilesWithNews = (
+  node: DiffedNode | undefined,
+  files: ReadonlyArray<SymbolFile>,
+  nodes: ReadonlyArray<DiffedNode>,
+): ReadonlyArray<SymbolFile> => {
+  const hasSymbolNews = useHasSymbolNews();
+  const boxesAbove = boxesAboveIn(nodes);
+  const here = node
+    ? files.filter(file => file.node === node.id || boxesAbove(file.node).includes(node.id))
+    : [];
+  return here.some(hasSymbolNews) ? here : [];
+};
+
+export const LandedRows = ({
+  landing,
+  children,
+}: {
+  readonly landing: RowLanding | undefined;
+  readonly children: ReactNode;
+}) => {
+  const rows = useRef<HTMLDivElement>(null);
+  useLayoutEffect(() => {
+    if (landing?.row === undefined) return;
+    const row = rows.current?.querySelector<HTMLElement>('[aria-current]');
+    if (!row) return;
+    const fold = row.closest('details');
+    if (fold) fold.open = true;
+    scrollInPanel(row, 'center');
+    row.focus({ preventScroll: true });
+  }, [landing]);
+  return (
+    <div ref={rows}>
+      <RowLanded.Provider value={landing?.row}>{children}</RowLanded.Provider>
+    </div>
+  );
+};
+
+export const WhatChanged = ({
+  node,
+  files,
+  ...places
+}: Places & {
+  readonly node: DiffedNode;
+  readonly files: ReadonlyArray<SymbolFile>;
+}) => {
+  const count = changedSymbolCount(files);
+  return (
+    <section className="column-section symbols" aria-label="What changed">
+      <h3>What changed{count > 0 && ` ${count}`}</h3>
+      <SymbolsOf node={node} files={files} {...places} />
+    </section>
+  );
 };

@@ -45,7 +45,6 @@ const renderTray = (
       findings={[]}
       nodes={nodes}
       tests={[{ path: 'web/src/cart/total.test.ts', stack: 'web' }]}
-      onGoTo={vi.fn()}
       onGoToDraft={onGoToDraft}
       onGoToOutside={vi.fn()}
       onGoToFile={vi.fn()}
