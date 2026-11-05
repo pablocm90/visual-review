@@ -209,8 +209,9 @@ const optionOf = (call: Node, option: string): Node | undefined =>
     ?.childForFieldName('value') ?? undefined;
 
 const writtenName = (value: Node | undefined): string => {
-  if (value?.type === 'simple_symbol') return value.text.slice(1);
-  return value?.namedChildren[0]?.text ?? value?.text ?? '';
+  if (value === undefined) return '';
+  if (value.type === 'simple_symbol') return value.text.slice(1);
+  return value.namedChildren[0]?.text ?? value.text;
 };
 
 const delegatePrefix = (call: Node): string => {
