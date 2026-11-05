@@ -1,3 +1,4 @@
+import type { Check } from './checks.ts';
 import { dependencyFindings } from './dependency-findings.ts';
 import type { FilePatch, GraphDiff } from './diff-graphs.ts';
 import { endsOfId, type GraphNode } from './graph.ts';
@@ -43,6 +44,7 @@ export type Dimension = (typeof DIMENSIONS)[number];
 
 export type Finding = {
   readonly id: string;
+  readonly check?: Check;
   readonly dimension: Dimension;
   readonly level: 'look' | 'info';
   readonly target?: string;
@@ -109,6 +111,7 @@ const withUntestedLogic = (
     .map(
       (node): Finding => ({
         id: `tests:untested-logic:${node.id}`,
+        check: 'tests:untested-logic',
         dimension: 'tests',
         level: 'look',
         target: node.id,
@@ -122,6 +125,7 @@ const SPLIT_CAVEAT =
 
 const splitFinding = ({ groups, leftOut }: SplitSuggestion): Finding => ({
   id: 'cohesion:split',
+  check: 'cohesion:split',
   dimension: 'cohesion',
   level: 'info',
   title: `may be ${groups.length} independent changes`,
@@ -138,6 +142,7 @@ const namesNotUtf8Finding = (paths: ReadonlyArray<string>): ReadonlyArray<Findin
     : [
         {
           id: 'structure:name-not-utf8',
+          check: 'structure:name-not-utf8',
           dimension: 'structure',
           level: 'look',
           title:
@@ -168,6 +173,7 @@ export const raisedFindings = ({
   ...skipped.map(
     (skip): Finding => ({
       id: skippedFindingId(skip),
+      check: 'structure:skipped',
       dimension: 'structure',
       level: 'look',
       title: notReadLine(skip),
@@ -178,6 +184,7 @@ export const raisedFindings = ({
     : [
         {
           id: 'structure:undrawn',
+          check: 'structure:undrawn' as const,
           dimension: 'structure' as const,
           level: 'info' as const,
           title: `${counted(undrawn.length, 'changed file', 'changed files')} outside the graph`,
@@ -188,6 +195,7 @@ export const raisedFindings = ({
   ...[...Map.groupBy(dangling, call => call.from)].map(
     ([from, calls]): Finding => ({
       id: `routes:dangling:${from}`,
+      check: 'routes:dangling',
       dimension: 'routes',
       level: 'info',
       target: from,
@@ -198,6 +206,7 @@ export const raisedFindings = ({
   ...metricFindings.map(
     (finding): Finding => ({
       id: `metrics:${finding.metric}:${finding.node}`,
+      check: `metrics:${finding.metric}`,
       dimension: 'metrics',
       level: finding.level,
       target: finding.node,
@@ -208,6 +217,7 @@ export const raisedFindings = ({
   ...symbolsNotRead.map(
     (stack): Finding => ({
       id: `structure:symbols-not-read:${stack}`,
+      check: 'structure:symbols-not-read',
       dimension: 'structure',
       level: 'info',
       target: stack,

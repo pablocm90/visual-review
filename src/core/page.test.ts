@@ -148,6 +148,7 @@ test.for([
     ).toStrictEqual([
       {
         id: 'structure:undrawn',
+        check: 'structure:undrawn',
         dimension: 'structure',
         level: 'info',
         title,
@@ -175,6 +176,7 @@ test.for([
       pageData({ repo: 'shop', reading, range: 'a..b', version, parsers }).findings,
     ).toContainEqual({
       id: 'structure:name-not-utf8',
+      check: 'structure:name-not-utf8',
       dimension: 'structure',
       level: 'look',
       title,
@@ -201,6 +203,7 @@ test('fetch calls with no route are a routes finding for information on each cal
   ).toStrictEqual([
     {
       id: 'routes:dangling:web/file/a.ts',
+      check: 'routes:dangling',
       dimension: 'routes',
       level: 'info',
       target: 'web/file/a.ts',
@@ -209,6 +212,7 @@ test('fetch calls with no route are a routes finding for information on each cal
     },
     {
       id: 'routes:dangling:web/file/b.ts',
+      check: 'routes:dangling',
       dimension: 'routes',
       level: 'info',
       target: 'web/file/b.ts',
@@ -279,6 +283,7 @@ test('stacks a missing tool kept from being read are a structure finding to look
   ).toStrictEqual([
     {
       id: 'structure:skipped:rust',
+      check: 'structure:skipped',
       dimension: 'structure',
       level: 'look',
       title: 'api, worker not read: cargo not found on PATH',
@@ -294,6 +299,7 @@ test('each stack with changed files whose reader reads no symbols is a structure
   ).toStrictEqual([
     {
       id: 'structure:symbols-not-read:api',
+      check: 'structure:symbols-not-read',
       dimension: 'structure',
       level: 'info',
       target: 'api',
@@ -301,6 +307,7 @@ test('each stack with changed files whose reader reads no symbols is a structure
     },
     {
       id: 'structure:symbols-not-read:admin',
+      check: 'structure:symbols-not-read',
       dimension: 'structure',
       level: 'info',
       target: 'admin',
@@ -959,6 +966,7 @@ test("a file whose logic changed, with no test added, removed or edited alongsid
   ).toStrictEqual([
     {
       id: 'tests:untested-logic:web/file/b.ts',
+      check: 'tests:untested-logic',
       dimension: 'tests',
       level: 'look',
       target: 'web/file/b.ts',
@@ -1526,6 +1534,7 @@ const splitPageOf = (names: ReadonlyArray<string>) =>
 test('parts that fall into separate groups raise one cohesion finding for information, with no target, holding the groups and counting the parts left out', () => {
   expect(splitPageOf(['a.ts', 'b.ts', 'c.ts', 'd.ts', 'e.ts'])).toStrictEqual({
     id: 'cohesion:split',
+    check: 'cohesion:split',
     dimension: 'cohesion',
     level: 'info',
     title: 'may be 2 independent changes',
@@ -1720,6 +1729,7 @@ test.for([
     ).toStrictEqual(
       ['cyclomatic', 'hotspot', 'abc'].map((metric, at) => ({
         id: `metrics:${metric}:web/file/a.ts`,
+        check: `metrics:${metric}`,
         dimension: 'metrics',
         target: 'web/file/a.ts',
         ...said[at],
@@ -3151,11 +3161,13 @@ test.for([
   {
     on: 'a finding on a part changed since, with the commits on it',
     id: 'routes:dangling:web/file/a.ts',
+    check: 'routes:dangling',
     mark: { target: 'web/file/a.ts', changedSince: [commitOnA] },
   },
   {
     on: 'a finding on a part as it was',
     id: 'routes:dangling:web/file/b.ts',
+    check: 'routes:dangling',
     mark: { target: 'web/file/b.ts' },
   },
   {
@@ -3176,11 +3188,13 @@ test.for([
   {
     on: 'a finding with no target, still raised, as it was',
     id: 'structure:skipped:rust',
+    check: 'structure:skipped',
     mark: {},
   },
   {
     on: 'a finding no longer raised, changed with no commit to name',
     id: 'routes:dangling:web/file/gone.ts',
+    check: 'routes:dangling',
     mark: { changedSince: [] },
   },
 ])('a previous answer to $on', ({ id, mark }) => {
@@ -3198,6 +3212,7 @@ test.for([
   {
     on: 'a finding on a part',
     id: 'routes:dangling:web/file/a.ts',
+    check: 'routes:dangling',
     held: { target: 'web/file/a.ts' },
   },
   { on: 'a note flag on a part', id: 'notes:web/file/a.ts', held: { target: 'web/file/a.ts' } },
