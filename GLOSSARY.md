@@ -122,6 +122,16 @@ What Claude says became of an earlier comment or finding answer on a later round
 _Avoid_: answer alone (a finding answer is the reviewer's), reply, resolution
 _In code_: `ReviewNotes['answers']`
 
+**Resolve**:
+Closing an earlier comment or finding answer from the last review: nothing more is asked of it, and Claude does nothing for it. A finding answer of kind It's fine has none, since it asks for nothing. The review lists it as said, under `resolved`, and it doesn't change the suggested verdict.
+_Avoid_: dismiss, close, done
+_In code_: `Review['resolved']`, `Resolve` (`src/viewer/said-before.tsx`)
+
+**Reply**:
+A comment on what an earlier comment was on, written beside it, so that anchor offers Reply in place of Comment. It's an ordinary comment on the anchor at the head, read with Claude's earlier answer. A finding answer has none: the finding's answer buttons are its reply.
+_Avoid_: follow-up, Claude's answer (that's Claude's)
+_In code_: `Reply` (`src/viewer/said-before.tsx`), a `Comment`
+
 **Unasked change**:
 A change Claude made on a later round that nothing in the last review asked for, by part or edge, listed in the last review so it isn't read as asked for.
 _Avoid_: extra, drive-by

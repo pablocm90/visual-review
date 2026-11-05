@@ -2,6 +2,16 @@
 
 What changed in each release of `@pablocm90/visual-review`, newest first. Versions follow [semver](https://semver.org); while it is 0.x, a minor version may change the exported types.
 
+## Unreleased
+
+### Added
+
+- On a PR's later round, each comment of the last review offers **Resolve**, closing it, and **Reply**, a comment on what it was on, in the Last review section and under its anchor. Replying takes the place of that anchor's Comment. A finding answer takes Resolve only, and an It's fine neither. The tray counts and lists what's resolved, and names it in What Claude gets; a draft on what the head no longer holds is listed with nowhere to go.
+
+### Changed
+
+- The review is now format 6, with `resolved`, the anchors closed as they were said.
+
 ## 0.27.0 — 2026-11-05
 
 ### Added
