@@ -6,8 +6,8 @@ import { type NodeMetrics, nodeMetrics } from './metrics.ts';
 import { notesProblems, type ReviewNotes } from './notes.ts';
 import type { DependencyChanges } from './read-lockfiles.ts';
 import type { MigrationReading } from './read-migrations.ts';
-import type { SchemaReading } from './read-schemas.ts';
 import type { RangeReading, SymbolFile } from './read-range.ts';
+import type { SchemaReading } from './read-schemas.ts';
 import { type ReadingOrder, readingOrder } from './reading-order.ts';
 import type { Review } from './review.ts';
 import { type SinceReview, sinceReviewOf } from './since-review.ts';
@@ -77,6 +77,7 @@ export const pageData = ({
     dangling: reading.danglingCalls,
     dependencyChanges: reading.dependencyChanges,
     migrations: reading.migrations,
+    schemas: reading.schemas,
     metricFindings: metricFindings({ metrics, thresholds: reading.thresholds }),
     symbols: reading.symbols,
     symbolsNotRead: reading.symbolsNotRead,

@@ -255,7 +255,7 @@ test("an added migration's risks raise their findings on the page, and it keeps 
   expect(data.findings.map(({ id }) => id)).toContain('schema:not-read:db/migrate/1_a.rb');
 });
 
-test("a changed schema's reading stays on the page", () => {
+test("a changed schema's reading stays on the page and raises its findings", () => {
   const schemas = [{ file: 'db/schema.rb', notRead: 'Ruby syntax error' }];
 
   const data = pageData({
@@ -267,6 +267,7 @@ test("a changed schema's reading stays on the page", () => {
   });
 
   expect(data.schemas).toStrictEqual(schemas);
+  expect(data.findings.map(({ id }) => id)).toContain('schema:not-read:db/schema.rb');
 });
 
 test('stacks a missing tool kept from being read are a structure finding to look at, on no node', () => {
