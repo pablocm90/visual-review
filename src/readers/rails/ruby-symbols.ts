@@ -114,21 +114,29 @@ const hashesOf = ({ signed, body, holes, text }: Hashed) => {
   };
 };
 
+const scopeOf = (within: string | undefined): { readonly scope?: string } =>
+  within === undefined ? {} : { scope: within };
+
+const isSelf = ({ singleton, moduleFunction }: Walk): boolean => singleton || moduleFunction;
+
+const methodObject = (method: Node, walk: Walk): string | undefined =>
+  method.childForFieldName('object')?.text ?? (isSelf(walk) ? 'self' : undefined);
+
+const isMethodExported = (method: Node, written: string, walk: Walk): boolean =>
+  method.type === 'singleton_method'
+    ? !walk.hiddenClassMethod
+    : walk.exported || written === 'initialize';
+
 const methodSymbol = (method: Node, within: string | undefined, walk: Walk): ReadSymbol => {
   const name = method.childForFieldName('name');
   const isSetter = name?.type === 'setter';
   const written = (isSetter ? name.text.slice(0, -1) : name?.text) ?? '';
-  const object =
-    method.childForFieldName('object')?.text ??
-    (walk.singleton || walk.moduleFunction ? 'self' : undefined);
+  const object = methodObject(method, walk);
   return {
     name: object === undefined ? written : `${object}.${written}`,
-    ...(within === undefined ? {} : { scope: within }),
+    ...scopeOf(within),
     kind: isSetter ? 'setter' : within === undefined ? 'function' : 'method',
-    exported:
-      method.type === 'singleton_method'
-        ? !walk.hiddenClassMethod
-        : walk.exported || written === 'initialize',
+    exported: isMethodExported(method, written, walk),
     signature: parameterText(method),
     ...hashesOf({ signed: parametersOf(method), body: fieldOf(method, 'body'), text: method.text }),
   };
@@ -160,8 +168,8 @@ const memberOf = (
   within: string | undefined,
   walk: Walk,
 ): ReadSymbol => ({
-  name: walk.singleton || walk.moduleFunction ? `self.${name}` : name,
-  ...(within === undefined ? {} : { scope: within }),
+  name: isSelf(walk) ? `self.${name}` : name,
+  ...scopeOf(within),
   ...rest,
 });
 
