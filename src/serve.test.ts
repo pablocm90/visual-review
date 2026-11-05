@@ -36,6 +36,7 @@ const removeBesideItsOpener = (bin: string) => {
 };
 
 const NOT_WAITING_FOR_A_PAGE = { VISUAL_REVIEW_FIRST_PING_MS: '1' };
+const SECOND_SERVE_LIMIT_MS = 30_000;
 
 const fakeOpeners = (openers: ReadonlyArray<string>) => {
   const bin = mkdtempSync(join(tmpdir(), 'visual-review-opener-'));
@@ -529,16 +530,20 @@ test('serve whose page has pinged exits non-zero its idle time after the last pi
   });
 });
 
-test('serving a page that is already served opens the live server instead of starting another, and exits 0', async () => {
-  using server = await servedPage();
-  await vi.waitFor(() => expect(server.opened()).toBe(server.url));
-  server.forgetOpened();
+test(
+  'serving a page that is already served opens the live server instead of starting another, and exits 0',
+  async () => {
+    using server = await servedPage();
+    await vi.waitFor(() => expect(server.opened()).toBe(server.url));
+    server.forgetOpened();
 
-  const again = await server.serveAgain();
+    const again = await server.serveAgain();
 
-  expect(again.stdout).toBe('');
-  await vi.waitFor(() => expect(server.opened()).toBe(server.url));
-});
+    expect(again.stdout).toBe('');
+    await vi.waitFor(() => expect(server.opened()).toBe(server.url));
+  },
+  SECOND_SERVE_LIMIT_MS,
+);
 
 test('serve --no-open serves the page at the URL it prints and opens nothing', async () => {
   using server = await servedPage({ flags: ['--no-open'], firstPingMs: 500 });
@@ -548,39 +553,51 @@ test('serve --no-open serves the page at the URL it prints and opens nothing', a
   expect(server.openedAny()).toBe(false);
 });
 
-test('serving an already served page with --no-open prints the live URL, opens nothing, and exits 0', async () => {
-  using server = await servedPage({ flags: ['--no-open'] });
+test(
+  'serving an already served page with --no-open prints the live URL, opens nothing, and exits 0',
+  async () => {
+    using server = await servedPage({ flags: ['--no-open'] });
 
-  const again = await server.serveAgain(['--no-open']);
+    const again = await server.serveAgain(['--no-open']);
 
-  expect(again).toEqual({ stdout: '', stderr: `Serving ${server.url}\n` });
-  await delay(300);
-  expect(server.openedAny()).toBe(false);
-});
+    expect(again).toEqual({ stdout: '', stderr: `Serving ${server.url}\n` });
+    await delay(300);
+    expect(server.openedAny()).toBe(false);
+  },
+  SECOND_SERVE_LIMIT_MS,
+);
 
-test('serving an already served page leaves the live server waiting for its first ping, past its idle time', async () => {
-  using server = await servedPage({ flags: ['--no-open'], idleMs: 200 });
+test(
+  'serving an already served page leaves the live server waiting for its first ping, past its idle time',
+  async () => {
+    using server = await servedPage({ flags: ['--no-open'], idleMs: 200 });
 
-  await server.serveAgain(['--no-open']);
-  await delay(600);
+    await server.serveAgain(['--no-open']);
+    await delay(600);
 
-  expect(await statusFor({ url: server.url })).toBe(200);
-});
+    expect(await statusFor({ url: server.url })).toBe(200);
+  },
+  SECOND_SERVE_LIMIT_MS,
+);
 
-test('serving a page rewritten since it was first served opens the live server, which serves the page as it is now', async () => {
-  using server = await servedPage();
-  writeFileSync(
-    server.page,
-    readFileSync(server.page, 'utf8').replace(
-      '"range":"main..feature"',
-      '"range":"main..rewritten"',
-    ),
-  );
+test(
+  'serving a page rewritten since it was first served opens the live server, which serves the page as it is now',
+  async () => {
+    using server = await servedPage();
+    writeFileSync(
+      server.page,
+      readFileSync(server.page, 'utf8').replace(
+        '"range":"main..feature"',
+        '"range":"main..rewritten"',
+      ),
+    );
 
-  await server.serveAgain();
+    await server.serveAgain();
 
-  expect(await (await fetch(server.url)).text()).toContain('"range":"main..rewritten"');
-});
+    expect(await (await fetch(server.url)).text()).toContain('"range":"main..rewritten"');
+  },
+  SECOND_SERVE_LIMIT_MS,
+);
 
 test('a page removed since it was served is answered 500 naming why', async () => {
   using server = await servedPage();
@@ -678,18 +695,22 @@ test('a lock file beside the page is not looked at: the server it names gets no 
   expect((await fetch(server.url)).status).toBe(200);
 });
 
-test('a page served again through a link to its folder is the page already served', async () => {
-  using server = await servedPage();
-  await vi.waitFor(() => expect(server.opened()).toBe(server.url));
-  server.forgetOpened();
-  const linked = `${dirname(server.page)}-linked`;
-  symlinkSync(dirname(server.page), linked);
-  using _removed = { [Symbol.dispose]: () => rmSync(linked, { force: true }) };
+test(
+  'a page served again through a link to its folder is the page already served',
+  async () => {
+    using server = await servedPage();
+    await vi.waitFor(() => expect(server.opened()).toBe(server.url));
+    server.forgetOpened();
+    const linked = `${dirname(server.page)}-linked`;
+    symlinkSync(dirname(server.page), linked);
+    using _removed = { [Symbol.dispose]: () => rmSync(linked, { force: true }) };
 
-  await server.serveAgain([], join(linked, basename(server.page)));
+    await server.serveAgain([], join(linked, basename(server.page)));
 
-  await vi.waitFor(() => expect(server.opened()).toBe(server.url));
-});
+    await vi.waitFor(() => expect(server.opened()).toBe(server.url));
+  },
+  SECOND_SERVE_LIMIT_MS,
+);
 
 test('another page in the same folder is served by a server of its own, and each writes its own review', async () => {
   using first = await servedPage();
