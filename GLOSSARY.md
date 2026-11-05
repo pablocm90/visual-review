@@ -62,6 +62,11 @@ The few lines to begin with above the graph, at most five, each the findings of 
 _Avoid_: Look first, top findings, priorities
 _In code_: `startHere` (`src/core/start-here.ts`)
 
+**Reading column**:
+What the inspector reads for one part, top to bottom: its note, What changed (its symbols and logic lines), then Why look (the findings on it). An arrow's holds its note and findings only.
+_Avoid_: note panel, sidebar
+_In code_: `NotePanel` (`src/viewer/review-page.tsx`)
+
 **Dependency change**:
 A package added to or removed from a lockfile, or major-bumped, or one that became or stopped being direct at the same version. Major-bumped means its set of compatibility lines differs across the sides: a version's numbers up to the first non-zero one, as `^` and Cargo read them, so `0.2.1` to `0.3.0` counts and `1.4.0` to `1.9.2` doesn't.
 _Avoid_: dependency update, upgrade
