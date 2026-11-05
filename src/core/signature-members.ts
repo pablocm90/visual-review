@@ -109,6 +109,8 @@ export type SignatureDiff = {
   readonly closer: ReadonlyArray<SignatureLine>;
 };
 
+const NAME = /^[^:=(<]*?([\w$]+)\s*(?:[:?=(<]|$)/;
+
 const comparable = (member: string): string => member.trim().replace(/\s*[,;|]$/, '');
 
 const edge = (base: string, head: string): ReadonlyArray<SignatureLine> => {
@@ -119,6 +121,38 @@ const edge = (base: string, head: string): ReadonlyArray<SignatureLine> => {
         { change: 'removed', text: from },
         { change: 'added', text: to },
       ];
+};
+
+type Member = { readonly text: string; readonly name: string | undefined };
+
+const memberOf = (member: string): Member => {
+  const text = comparable(member);
+  return { text, name: NAME.exec(text)?.[1] };
+};
+
+const partnersOf = (base: ReadonlyArray<Member>, head: ReadonlyArray<Member>) =>
+  head.map(({ text, name }, index) => {
+    const before = head.slice(0, index).filter(member => member.name === name).length;
+    const partner = base.filter(member => member.name === name)[before];
+    return name === undefined || partner?.text === text ? undefined : partner;
+  });
+
+const linesOfGap = (
+  base: ReadonlyArray<Member>,
+  head: ReadonlyArray<Member>,
+): ReadonlyArray<SignatureLine> => {
+  const partners = partnersOf(base, head);
+  return [
+    ...base
+      .filter(member => !partners.includes(member))
+      .map(({ text }): SignatureLine => ({ change: 'removed', text })),
+    ...head.map(({ text }, index): SignatureLine => {
+      const partner = partners[index];
+      return partner
+        ? { change: 'changed', base: partner.text, head: text }
+        : { change: 'added', text };
+    }),
+  ];
 };
 
 export const signatureDiff = ({
@@ -133,17 +167,12 @@ export const signatureDiff = ({
   const diff = {
     opener: edge(from.opener, to.opener),
     members: aligned({
-      base: from.members.map(comparable),
-      head: to.members.map(comparable),
-      same: (one, other) => one === other,
+      base: from.members.map(memberOf),
+      head: to.members.map(memberOf),
+      same: (one, other) => one.text === other.text,
     }).flatMap(
       (run): ReadonlyArray<SignatureLine> =>
-        'kept' in run
-          ? [{ change: 'same', text: run.kept }]
-          : [
-              ...run.base.map((text): SignatureLine => ({ change: 'removed', text })),
-              ...run.head.map((text): SignatureLine => ({ change: 'added', text })),
-            ],
+        'kept' in run ? [{ change: 'same', text: run.kept.text }] : linesOfGap(run.base, run.head),
     ),
     closer: edge(from.closer, to.closer),
   };

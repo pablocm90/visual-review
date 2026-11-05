@@ -147,6 +147,80 @@ test('a parameter moved reads removed and added, since order matters in a call',
   ]);
 });
 
+test('members of one name in one gap read as changed, in order, and the rest added or removed', () => {
+  expect(
+    signatureDiff({
+      base: '(a, b: 1, c: 2, c: 3, d: 4, e)',
+      head: '(a, b: 5, c: 6, f: 7, e)',
+    })?.members,
+  ).toEqual([
+    { change: 'same', text: 'a' },
+    { change: 'removed', text: 'c: 3' },
+    { change: 'removed', text: 'd: 4' },
+    { change: 'changed', base: 'b: 1', head: 'b: 5' },
+    { change: 'changed', base: 'c: 2', head: 'c: 6' },
+    { change: 'added', text: 'f: 7' },
+    { change: 'same', text: 'e' },
+  ]);
+});
+
+test('members of one name pair in order', () => {
+  expect(signatureDiff({ base: '(a: 1, a: 2)', head: '(a: 3, a: 4)' })?.members).toEqual([
+    { change: 'changed', base: 'a: 1', head: 'a: 3' },
+    { change: 'changed', base: 'a: 2', head: 'a: 4' },
+  ]);
+});
+
+test('a member repeated on one side still reads removed for the copy left unpaired', () => {
+  expect(signatureDiff({ base: '(c: 2, c: 2)', head: '(c: 3)' })?.members).toEqual([
+    { change: 'removed', text: 'c: 2' },
+    { change: 'changed', base: 'c: 2', head: 'c: 3' },
+  ]);
+});
+
+test.for([
+  { what: 'a dotted spread', base: '(...rest: 1)', head: '(...rest: 2)' },
+  { what: 'a keyword before the name', base: '{ readonly a?: 1 }', head: '{ readonly a?: 2 }' },
+  { what: "Ruby's splat", base: '(**opts)', head: '(**opts = {})' },
+  { what: 'a generic', base: 'type A = Foo<1> | B;', head: 'type A = Foo<2> | B;' },
+  { what: 'a method', base: '{ a(b: 1): 2 }', head: '{ a(b: 3): 2 }' },
+  { what: 'a dollar in the name', base: '(a$: 1)', head: '(a$: 2)' },
+])('$what pairs by its name', ({ base, head }) => {
+  expect(signatureDiff({ base, head })?.members[0]?.change).toBe('changed');
+});
+
+test.for([
+  { what: 'strings', base: "type A = 'a' | 'c';", head: "type A = 'b' | 'c';" },
+  { what: 'destructured parameters', base: '({ a, b }: P)', head: '({ a, b }: Q)' },
+  { what: 'a type after destructuring', base: '({ a }: P = 1)', head: '({ a }: P = 2)' },
+  { what: 'a default after destructuring', base: '({ a } = P(1))', head: '({ a } = P(2))' },
+  {
+    what: 'a generic function',
+    base: 'type A = <T = 1>() => 2 | C;',
+    head: 'type A = <T = 3>() => 2 | C;',
+  },
+  {
+    what: 'a function alternative',
+    base: 'type A = (a: 1) => 2 | C;',
+    head: 'type A = (a: 3) => 2 | C;',
+  },
+])('$what have no name to pair by', ({ base, head }) => {
+  expect(
+    signatureDiff({ base, head })
+      ?.members.slice(0, 2)
+      .map(({ change }) => change),
+  ).toEqual(['removed', 'added']);
+});
+
+test("past the alignment's cap, a member of unchanged text still reads removed and added", () => {
+  const members = Array.from({ length: 201 }, (_, index) => `m${index}: 1`);
+  const lines = signatureDiff({
+    base: `(${members.join(', ')})`,
+    head: `(${members.toReversed().join(', ')})`,
+  })?.members;
+  expect(lines?.some(({ change }) => change === 'changed')).toBe(false);
+});
+
 test.for([
   { what: 'a base that does not split', base: 'extends Y', head: '(a)' },
   { what: 'a head that does not split', base: '(a)', head: 'extends Z' },
