@@ -781,7 +781,7 @@ const gets = (count: number): string =>
     '\n',
   );
 
-const GET_COST = 26;
+const GET_COST = 45;
 
 test('a reading takes statements up to its limit, each costing what it writes and draws', () => {
   expect(upTo(1 + 99 * GET_COST, gets(99)).routes).toHaveLength(99);
@@ -792,12 +792,12 @@ test('a statement past the limit throws', () => {
 });
 
 test.for([
-  { reason: 'its text', statement: 'devise_for :a', cost: 17 },
-  { reason: 'its text as written', statement: 'devise_for :a,     x: 1', cost: 37 },
+  { reason: 'its text', statement: 'devise_for :a', cost: 33 },
+  { reason: 'its text as written', statement: 'devise_for :a,     x: 1', cost: 53 },
   {
     reason: 'the path and module it is listed under',
     statement: 'scope "abc", module: "m" do\ndevise_for :a\nend',
-    cost: 42,
+    cost: 58,
   },
 ])('a statement not read also costs $reason', ({ statement, cost }) => {
   expect(upTo(cost, statement).unread).toHaveLength(1);
@@ -805,19 +805,28 @@ test.for([
 });
 
 test.for([
-  { statement: 'get "a", to: "b#c"', cost: 21 },
-  { statement: 'root "a#b"', cost: 10 },
-  { statement: 'mount Rack => "/a"', cost: 20 },
-  { statement: 'resource :a, only: :show', cost: 26 },
-])('a route drawn by $statement costs its path and target too', ({ statement, cost }) => {
+  { statement: 'get "a", to: "b#c"', cost: 40 },
+  { statement: 'root "a#b"', cost: 29 },
+  { statement: 'mount Rack => "/a"', cost: 39 },
+  { statement: 'resource :a, only: :show', cost: 45 },
+  { statement: 'match "a", to: "b#c", via: :longverb', cost: 61 },
+])('a route drawn by $statement costs every field it holds', ({ statement, cost }) => {
   expect(upTo(cost, statement).routes).toHaveLength(1);
   expect(() => upTo(cost - 1, statement)).toThrow('Too many routes to read');
 });
 
+test('a statement not read also costs the root it sits in', () => {
+  const inRoot = (most: number) =>
+    railsRoutesUpTo(most).routes(new Map([['apps/a/config/routes.rb', drawing('devise_for :a')]]));
+  expect(inRoot(47).unread).toHaveLength(1);
+  expect(() => inRoot(46)).toThrow('Too many routes to read');
+});
+
 test('every root of a reading spends from one limit', () => {
-  const each = 1 + 60 * GET_COST;
+  const GET_COST_IN_A_ROOT = 59;
+  const each = 1 + 60 * GET_COST_IN_A_ROOT;
   const roots = (paths: ReadonlyArray<string>) =>
-    railsRoutesUpTo(each + 60 * GET_COST).routes(
+    railsRoutesUpTo(each + 60 * GET_COST_IN_A_ROOT).routes(
       new Map(paths.map(path => [path, drawing(gets(60))])),
     );
   expect(roots(['apps/a/config/routes.rb']).routes).toHaveLength(60);

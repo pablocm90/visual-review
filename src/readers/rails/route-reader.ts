@@ -70,17 +70,25 @@ const placeOf = (statement: Node, { root, file }: Scope) => ({
   line: statement.startPosition.row + 1,
 });
 
+const placeCost = ({ root, file }: Scope): number => root.length + file.length;
+
 const drawnAt = (
   statement: Node,
   scope: Scope,
   { verb, path, target }: Pick<Route, 'verb' | 'path' | 'target'>,
 ): Route => {
-  scope.spend(path.length + target.length);
+  scope.spend(verb.length + path.length + target.length + placeCost(scope));
   return { verb, path, target, ...placeOf(statement, scope) };
 };
 
 const unread = (statement: Node, scope: Scope): UnreadRoute => {
-  scope.spend(statement.endIndex - statement.startIndex + scope.path.length + scope.module.length);
+  scope.spend(
+    statement.endIndex -
+      statement.startIndex +
+      scope.path.length +
+      scope.module.length +
+      placeCost(scope),
+  );
   return {
     text: statement.text.replace(/\s+/g, ' '),
     path: scope.path,
