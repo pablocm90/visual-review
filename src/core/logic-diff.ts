@@ -9,6 +9,7 @@ export type LogicLine = {
   readonly line: number;
   readonly movedTo?: string;
   readonly movedToNode?: string;
+  readonly foundByName?: true;
 };
 
 type Sides = {
@@ -81,6 +82,7 @@ const removed = (decision: Decision): LogicLine => ({
   depth: decision.depth,
   base: decision.text,
   line: decision.line,
+  ...(decision.foundByName ? { foundByName: true } : {}),
 });
 
 const ofHead = (change: 'same' | 'added', decision: Decision): LogicLine => ({

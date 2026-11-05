@@ -710,6 +710,24 @@ test('a guard or catch removed from an edited function is a logic finding to loo
   ]);
 });
 
+test("a lost decision's detail says when it was found by name", () => {
+  const [lost] = findingsOfSymbols([
+    symbolFile([
+      {
+        name: 'charge',
+        kind: 'method',
+        exported: { base: true, head: true },
+        change: 'edited',
+        logic: [
+          logicLine({ change: 'removed', kind: 'guard', base: 'render if x', foundByName: true }),
+        ],
+      },
+    ]),
+  ]);
+
+  expect(lost?.detail).toBe('render if x (found by name)');
+});
+
 test("two identical decisions removed from one function are two findings, each id counting the function's lines that read the same up to it, as its decision anchor's does", () => {
   const lost = logicLine({ change: 'removed', kind: 'catch', base: 'catch (error)' });
   const moved = logicLine({ change: 'added', kind: 'catch', head: 'catch (error)' });

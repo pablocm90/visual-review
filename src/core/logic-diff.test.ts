@@ -227,3 +227,14 @@ test.for([
     expect(lines.map(({ change }) => change)).toEqual(changes);
   },
 );
+
+test('a removed line keeps that its decision was found by name', () => {
+  expect(
+    logicDiff({
+      base: [decision({ kind: 'guard', foundByName: true, text: 'render if a' })],
+      head: [],
+    }),
+  ).toEqual([
+    { change: 'removed', kind: 'guard', depth: 0, base: 'render if a', line: 1, foundByName: true },
+  ]);
+});

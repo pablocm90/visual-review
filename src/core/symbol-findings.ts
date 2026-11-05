@@ -190,7 +190,7 @@ const logicFindings = (node: string, symbol: AnchoredSymbol): ReadonlyArray<Find
               level: 'look' as const,
               target: node,
               title: `${statement.kind} ${name} lost a ${line.kind}`,
-              detail: line.base ?? '',
+              detail: `${line.base ?? ''}${line.foundByName ? ' (found by name)' : ''}`,
             },
           ]
         : [],
