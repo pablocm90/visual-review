@@ -1,5 +1,6 @@
 // @vitest-environment jsdom
-import { render, screen, within } from '@testing-library/react';
+import { render, screen, waitFor, within } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { expect, onTestFinished, test, vi } from 'vitest';
 import type { PageData } from '../core/page.ts';
 import type { Route } from '../core/routes.ts';
@@ -204,4 +205,51 @@ test("statements not read are listed under the file behind them, each with its c
   expect(removed).toContain('−');
   expect(removed).not.toContain('under');
   expect(within(file).queryByRole('table')).toBeNull();
+});
+
+const reviewWithFindings = (): PageData =>
+  pageWith({
+    ...reviewOf([
+      {
+        routes: [
+          { state: 'added', patch: 'config/routes.rb', head: route({ path: '/new' }) },
+          {
+            state: 'added',
+            patch: 'config/routes/admin.rb',
+            head: route({ path: '/admin', file: 'config/routes/admin.rb' }),
+          },
+        ],
+        unread: [],
+      },
+    ]),
+    findings: [
+      {
+        id: 'routes:added:config/routes/admin.rb',
+        check: 'routes:added',
+        dimension: 'routes',
+        level: 'info',
+        file: 'config/routes/admin.rb',
+        title: '1 route added in config/routes/admin.rb',
+      },
+    ],
+  });
+
+test("a route file's finding opens the Routes tab at its file, from the rail", async () => {
+  atHash('#structure');
+  const user = userEvent.setup();
+  render(<ReviewPage review={reviewWithFindings()} />);
+
+  await user.click(await screen.findByRole('button', { name: 'Show 1 finding' }));
+  await user.click(
+    within(screen.getByRole('complementary', { name: 'Findings' })).getByRole('button', {
+      name: /1 route added in config\/routes\/admin\.rb/,
+    }),
+  );
+
+  await waitFor(() =>
+    expect(document.activeElement).toBe(
+      screen.getByRole('region', { name: 'config/routes/admin.rb' }),
+    ),
+  );
+  expect(tabs().getByRole('link', { name: 'Routes' }).getAttribute('aria-current')).toBe('page');
 });

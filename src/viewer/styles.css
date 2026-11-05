@@ -2803,3 +2803,8 @@ main:has(> .review-tray) {
 .routes-where {
   color: var(--muted);
 }
+
+.schema-rows tr:focus {
+  outline: 2px solid var(--ramp-3);
+  outline-offset: 2px;
+}
