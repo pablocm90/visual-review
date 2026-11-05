@@ -2564,6 +2564,31 @@ test("while reading, Next to it lists the part's edges by what each does, its ch
   expect(nextToIt()).toBeNull();
 });
 
+test('All findings, while reading, returns to the landing with every finding open in the rail whatever lens was picked, and is there only with findings', async () => {
+  const user = userEvent.setup();
+  const { unmount } = render(<ReviewPage review={walkedReview()} />);
+  await screen.findByRole('group', { name: 'rust' });
+  await user.keyboard('j');
+  expect(screen.getByRole('group', { name: 'Map' })).toBeDefined();
+  expect(screen.queryByRole('button', { name: 'All findings' })).toBeNull();
+  unmount();
+
+  render(<ReviewPage review={{ ...walkedReview(), findings: [findingOn('rust/crate/domain')] }} />);
+  await screen.findByRole('group', { name: 'rust' });
+  await user.click(
+    within(screen.getByRole('group', { name: 'Lenses' })).getByRole('button', { name: /Risk/ }),
+  );
+  await user.keyboard('j');
+  await user.click(screen.getByRole('button', { name: 'All findings' }));
+
+  expect(screen.getByRole('group', { name: 'Graph' })).toBeDefined();
+  expect(
+    within(screen.getByRole('complementary', { name: 'Findings' })).getByRole('button', {
+      name: 'domain: lines 900, over 800',
+    }),
+  ).toBeDefined();
+});
+
 test('J and K walk the reading order from the selected part, starting at its first part, going to each as its row does, and stay put at either end', async () => {
   const user = userEvent.setup();
   render(<ReviewPage review={walkedReview()} />);

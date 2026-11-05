@@ -3055,3 +3055,19 @@ main:has(> .review-tray) {
 .next-to-it-row:hover {
   text-decoration: underline;
 }
+
+.all-findings {
+  margin-top: 12px;
+  padding: 2px 8px;
+  border: 1px solid var(--stack-line);
+  border-radius: 6px;
+  background: var(--stack);
+  color: var(--ink);
+  font: inherit;
+  font-size: 12.5px;
+  cursor: pointer;
+}
+
+.all-findings:hover {
+  background: var(--unchanged-fill);
+}

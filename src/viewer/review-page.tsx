@@ -1728,6 +1728,11 @@ const Page = ({ review, notes, send }: ReviewPageProps) => {
     setReading(false);
     if (selected !== undefined) setFocusTarget({ id: selected, inGraph: true });
   };
+  const showAllFindings = () => {
+    openMap();
+    setPicked(undefined);
+    setRailOpen(true);
+  };
   useEffect(() => {
     if (tab !== 'structure') return;
     const keyed = (event: globalThis.KeyboardEvent) => {
@@ -1876,6 +1881,11 @@ const Page = ({ review, notes, send }: ReviewPageProps) => {
       )}
       {reading && selectedNode && (
         <NextToIt diff={review.diff} part={selectedNode.id} read={read} onGoTo={goTo} />
+      )}
+      {reading && findings.length > 0 && (
+        <button type="button" className="all-findings" onClick={showAllFindings}>
+          All findings
+        </button>
       )}
     </div>
   );
