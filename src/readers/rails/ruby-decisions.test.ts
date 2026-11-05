@@ -195,3 +195,29 @@ test('an else of a begin is no decision, what is in it stays level', () => {
     { kind: 'if', text: 'if y', depth: 0, line: 7 },
   ]);
 });
+
+test.for([
+  { line: 'y = a || (go if z)', text: 'a ||' },
+  { line: 'y = a && (go if z)', text: 'a &&' },
+  { line: 'a and (go if z)', text: 'a and' },
+  { line: 'a or (go if z)', text: 'a or' },
+  { line: 'y ||= (go if z)', text: 'y ||=' },
+  { line: 'y &&= (go if z)', text: 'y &&=' },
+])('$line reads as the logical $text, its right side one deeper', ({ line, text }) => {
+  expect(decisionsIn(line)).toEqual([
+    { kind: 'logical', text, depth: 0, line: 2 },
+    { kind: 'if', text: 'if z', depth: 1, line: 2 },
+  ]);
+});
+
+test('only the outermost of a chain of logicals reads', () => {
+  expect(decisionsIn('y = a && b || c')?.map(({ text }) => text)).toEqual(['a && b ||']);
+});
+
+test.for([
+  { reason: 'a comparison', line: 'y = a == b' },
+  { reason: 'a sum', line: 'y = a + b' },
+  { reason: 'an adding assignment', line: 'y += 1' },
+])('$reason is no logical', ({ line }) => {
+  expect(decisionsIn(line)).toEqual([]);
+});

@@ -169,6 +169,18 @@ const caseElse = (node: Node): Read | undefined =>
     ? { kind: 'case', text: 'else', deeper: node.namedChildren }
     : undefined;
 
+const LOGICALS = new Set(['&&', '||', 'and', 'or', '||=', '&&=']);
+
+const logicalOf = (node: Node): Read | undefined => {
+  const operator = fieldOf(node, 'operator')?.text ?? '';
+  if (!LOGICALS.has(operator)) return undefined;
+  return {
+    kind: 'logical',
+    text: `${codeOf(fieldOf(node, 'left'))} ${operator}`,
+    deeper: fieldsOf(node, 'right'),
+  };
+};
+
 const READS = new Map<string, (node: Node) => Read | undefined>([
   ['if', blockIf],
   ['unless', blockIf],
@@ -185,6 +197,8 @@ const READS = new Map<string, (node: Node) => Read | undefined>([
   ['when', clauseOf],
   ['in_clause', clauseOf],
   ['else', caseElse],
+  ['binary', logicalOf],
+  ['operator_assignment', logicalOf],
 ]);
 
 type Walk = { readonly depth: number };
