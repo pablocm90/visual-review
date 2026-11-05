@@ -2885,6 +2885,7 @@ test('the next part opens at the top of the column, which holds its scroll while
   expect(selectedPart()).toBe('cli-adapter');
   expect(inspector().scrollTop).toBe(0);
 
+  await user.keyboard('{Escape}');
   const rust = screen.getByRole('group', { name: 'rust' });
   await user.click(within(rust).getByRole('button', { name: 'application → domain: unchanged' }));
   inspector().scrollTop = 300;
@@ -3095,7 +3096,7 @@ test("the open tray previews what Claude gets as lines: the verdict and parts re
   const user = userEvent.setup();
   const walked = render(<ReviewPage review={walkedReview()} send={async () => {}} />);
   const rust = await screen.findByRole('group', { name: 'rust' });
-  await user.keyboard('ja');
+  await user.keyboard('ja{Escape}');
   await user.click(within(rust).getByRole('button', { name: 'application → domain: unchanged' }));
   await write(user, await partComment(user), 'Why?');
   await user.click(within(rust).getByRole('button', { name: 'legacy: removed' }));
