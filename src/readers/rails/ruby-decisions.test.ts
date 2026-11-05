@@ -1,4 +1,6 @@
 import { expect, test } from 'vitest';
+import { symbolChanges } from '../../core/symbol-changes.ts';
+import { symbolFindings } from '../../core/symbol-findings.ts';
 import { railsReader } from './reader.ts';
 
 const decisionsIn = (...lines: ReadonlyArray<string>) =>
@@ -433,4 +435,50 @@ test.for([
   { reason: 'any other call', line: 'order.map(&:send)' },
 ])('$reason is no blind spot', ({ line }) => {
   expect(blindSpotsIn(line)).toEqual([]);
+});
+
+test.for([
+  {
+    reason: 'a callback lost',
+    before: ['before_action :a'],
+    after: [],
+    finding: {
+      id: 'logic:removed:shop#Shop#before_action :a',
+      level: 'look',
+      title: 'class Shop lost a guard',
+      detail: 'before_action :a (found by name)',
+    },
+  },
+  {
+    reason: 'a validation lost',
+    before: ['validates :a, presence: true'],
+    after: [],
+    finding: {
+      id: 'logic:removed:shop#Shop#validates :a, presence: true',
+      level: 'look',
+      title: 'class Shop lost a guard',
+      detail: 'validates :a, presence: true (found by name)',
+    },
+  },
+  {
+    reason: 'a skip added',
+    before: [],
+    after: ['skip_before_action :a'],
+    finding: {
+      id: 'logic:changed:shop#Shop',
+      level: 'info',
+      title: 'class Shop changed its logic',
+      detail: '1 added',
+    },
+  },
+])('$reason on a class raises one finding at $finding.level', ({ before, after, finding }) => {
+  const sideOf = (lines: ReadonlyArray<string>) => {
+    const file = railsReader.symbols?.(['class Shop', ...lines, 'end'].join('\n'), 'shop.rb');
+    if (file === undefined) throw new Error('read no symbols');
+    return file;
+  };
+  const changes = symbolChanges({ before: sideOf(before), after: sideOf(after) });
+  expect(
+    symbolFindings({ files: [{ stack: 'shop', node: 'shop', ...changes }], nodes: [] }),
+  ).toEqual([{ dimension: 'logic', target: 'shop', ...finding }]);
 });
