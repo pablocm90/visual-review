@@ -2792,7 +2792,7 @@ main:has(> .review-tray) {
   font-size: 12.5px;
 }
 
-.routes-unread li {
+.routes-statement {
   display: flex;
   flex-wrap: wrap;
   gap: 4px 10px;
@@ -2805,7 +2805,7 @@ main:has(> .review-tray) {
 }
 
 .schema-rows tr:focus,
-.routes-unread li:focus {
+.routes-statement:focus {
   outline: 2px solid var(--ramp-3);
   outline-offset: 2px;
 }

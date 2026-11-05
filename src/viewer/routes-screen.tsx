@@ -84,6 +84,7 @@ const NotRead = ({ rows }: { readonly rows: ReadonlyArray<KeyedStatement> }) => 
       {rows.map(({ key, row: { state, item, patch } }) => (
         <li
           key={key}
+          className="routes-statement"
           id={placeId({ file: patch, route: key })}
           tabIndex={-1}
           data-state={STATE_NAMES[state]}
