@@ -58,7 +58,7 @@ import { LENS_OF, type Lens } from './lenses.ts';
 import { MetricsScreen } from './metrics-screen.tsx';
 import { MetricsTable } from './metrics-tab.tsx';
 import { storedReadMarks, storeReadMarks } from './read-marks.ts';
-import { ReadingOrderList } from './reading-order-list.tsx';
+import { partsRead, ReadingOrderList } from './reading-order-list.tsx';
 import { Ref, shortRef } from './ref.tsx';
 import { ReviewTray, verdictLabels } from './review-tray.tsx';
 import { type RoutesLanding, RoutesScreen, routesHold } from './routes-screen.tsx';
@@ -1389,6 +1389,7 @@ const useTab = (review: PageData): Tab => {
 type HeaderProps = {
   readonly review: PageData;
   readonly tab: Tab;
+  readonly read: ReadonlySet<string>;
 };
 
 const LastVerdict = ({ since }: { readonly since: SinceReview }) => (
@@ -1414,7 +1415,23 @@ const UncomparedReview = ({ since }: { readonly since: SinceReview }) => {
   return null;
 };
 
-const Header = ({ review, tab }: HeaderProps) => {
+type ReadingProgressProps = {
+  readonly parts: ReadonlyArray<string>;
+  readonly read: ReadonlySet<string>;
+};
+
+const ReadingProgress = ({ parts, read }: ReadingProgressProps) => {
+  if (parts.length === 0) return null;
+  const count = parts.filter(part => read.has(part)).length;
+  return (
+    <p className="reading-progress">
+      {partsRead({ read: count, parts: parts.length })}{' '}
+      <progress aria-label="Parts read" value={count} max={parts.length} />
+    </p>
+  );
+};
+
+const Header = ({ review, tab, read }: HeaderProps) => {
   const changed = changedCount(review.tests);
   return (
     <header className="review">
@@ -1442,6 +1459,7 @@ const Header = ({ review, tab }: HeaderProps) => {
             <UncomparedReview since={review.sinceReview} />
           </>
         )}
+        <ReadingProgress parts={review.readingOrder.parts} read={read} />
       </div>
       <nav aria-label="Review">
         {tabsOf(review).map(shown => (
@@ -1897,7 +1915,7 @@ const Page = ({ review, notes, send }: ReviewPageProps) => {
   );
   const page = (
     <main>
-      <Header review={review} tab={tab} />
+      <Header review={review} tab={tab} read={read} />
       {tab === 'structure' && (
         <>
           {!reading && (

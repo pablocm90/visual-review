@@ -2967,3 +2967,9 @@ main:has(> .review-tray) {
   vector-effect: non-scaling-stroke;
   pointer-events: none;
 }
+
+.reading-progress progress {
+  width: 96px;
+  height: 6px;
+  vertical-align: middle;
+}

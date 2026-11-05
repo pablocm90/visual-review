@@ -45,12 +45,6 @@ export const ReadingOrderList = ({
       <h2 className="reading-order-title">Reading order</h2>
       {review.readingOrder.parts.length > 0 && (
         <>
-          <p className="reading-progress">
-            {partsRead({
-              read: review.readingOrder.parts.filter(part => read.has(part)).length,
-              parts: review.readingOrder.parts.length,
-            })}
-          </p>
           <button type="button" className="start-reading" onClick={onStart}>
             Start reading
           </button>

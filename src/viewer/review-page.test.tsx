@@ -2220,12 +2220,14 @@ test('the reading order shows no outside heading when every changed file is draw
   expect(screen.queryByRole('navigation', { name: 'Reading order' })).toBeNull();
 });
 
-test('the reading order counts the parts read only when it has parts, a single part in the singular', async () => {
+test('the parts read are counted and barred on every tab, only when there are parts, a single part in the singular, and no longer in the reading order', async () => {
+  const user = userEvent.setup();
   const { rerender } = render(
     <ReviewPage review={pageWith({ ...review, undrawn: [{ path: 'README.md', patch: '' }] })} />,
   );
   await screen.findByRole('group', { name: 'rust' });
-  expect(within(readingOrder()).queryByText(/read$/)).toBeNull();
+  expect(screen.queryByText(/parts? read$/)).toBeNull();
+  expect(screen.queryByRole('progressbar')).toBeNull();
 
   rerender(
     <ReviewPage
@@ -2235,7 +2237,18 @@ test('the reading order counts the parts read only when it has parts, a single p
       })}
     />,
   );
-  expect(within(readingOrder()).getByText('0 of 1 part read')).toBeDefined();
+  expect(screen.getByText('0 of 1 part read')).toBeDefined();
+  expect(within(readingOrder()).queryByText('0 of 1 part read')).toBeNull();
+
+  rerender(<ReviewPage review={walkedReview()} />);
+  await user.keyboard('ja');
+  const bar = () => screen.getByRole<HTMLProgressElement>('progressbar', { name: 'Parts read' });
+  expect(screen.getByText('1 of 3 parts read')).toBeDefined();
+  expect([bar().value, bar().max]).toEqual([1, 3]);
+
+  await user.click(screen.getByRole('link', { name: 'Metrics' }));
+  expect(screen.getByText('1 of 3 parts read')).toBeDefined();
+  expect(bar().value).toBe(1);
 });
 
 const walkedReview = () =>
@@ -2570,24 +2583,24 @@ test('a finding leaves the column to its row, not its top', async () => {
   expect(inspector().scrollTop).toBe(300);
 });
 
-test('A marks the selected part read, ticking its row and counting it at the head of the reading order, and A again leaves it unread', async () => {
+test('A marks the selected part read, ticking its row and counting it, and A again leaves it unread', async () => {
   const user = userEvent.setup();
   render(<ReviewPage review={walkedReview()} />);
   await screen.findByRole('group', { name: 'rust' });
-  expect(within(readingOrder()).getByText('0 of 3 parts read')).toBeDefined();
+  expect(screen.getByText('0 of 3 parts read')).toBeDefined();
 
   await user.keyboard('ja');
   await user.keyboard('jja');
   expect(readRows()).toEqual(['1 application', '3 legacy']);
-  expect(within(readingOrder()).getByText('2 of 3 parts read')).toBeDefined();
+  expect(screen.getByText('2 of 3 parts read')).toBeDefined();
 
   await user.keyboard('a');
   expect(readRows()).toEqual(['1 application']);
-  expect(within(readingOrder()).getByText('1 of 3 parts read')).toBeDefined();
+  expect(screen.getByText('1 of 3 parts read')).toBeDefined();
 
   await user.click(screen.getByRole('button', { name: 'domain: unchanged' }));
   await user.keyboard('a');
-  expect(within(readingOrder()).getByText('1 of 3 parts read')).toBeDefined();
+  expect(screen.getByText('1 of 3 parts read')).toBeDefined();
 });
 
 test('a part marked read stays read when the page for its range opens again, and the page for another range starts with none read', async () => {
@@ -2601,7 +2614,7 @@ test('a part marked read stays read when the page for its range opens again, and
   const again = render(<ReviewPage review={walked} />);
   await screen.findByRole('group', { name: 'rust' });
   expect(readRows()).toEqual(['1 application']);
-  expect(within(readingOrder()).getByText('1 of 3 parts read')).toBeDefined();
+  expect(screen.getByText('1 of 3 parts read')).toBeDefined();
   again.unmount();
 
   render(<ReviewPage review={walkedReview()} />);
@@ -2644,7 +2657,7 @@ test('a stored mark on a part no longer in the reading order, the range having m
   render(<ReviewPage review={walked} />);
   await screen.findByRole('group', { name: 'rust' });
 
-  expect(within(readingOrder()).getByText('1 of 3 parts read')).toBeDefined();
+  expect(screen.getByText('1 of 3 parts read')).toBeDefined();
 });
 
 test('the review sends the parts marked read in reading order, none outside it, beside the comments and what the page was drawn for', async () => {
@@ -2792,7 +2805,7 @@ test('A on a node outside the reading order keeps no mark, so it starts unread w
     />,
   );
   await screen.findByRole('group', { name: 'rust' });
-  expect(within(readingOrder()).getByText('0 of 4 parts read')).toBeDefined();
+  expect(screen.getByText('0 of 4 parts read')).toBeDefined();
 });
 
 test('stored read marks that are not a list of ids are ignored, the page starting with none read', async () => {
@@ -2837,7 +2850,7 @@ test('J, K and A act on Structure alone: on Metrics and Tests they neither walk 
   await screen.findByRole('group', { name: 'rust' });
 
   expect(selectedPart()).toBe('application');
-  expect(within(readingOrder()).getByText('0 of 3 parts read')).toBeDefined();
+  expect(screen.getByText('0 of 3 parts read')).toBeDefined();
 });
 
 test('J, K and A in capitals, with Caps Lock or Shift, walk and mark as in lower case', async () => {
@@ -2858,7 +2871,7 @@ test('J, K and A held with Control, Meta or Alt are left to the browser, neither
   await user.keyboard('j');
   await user.keyboard('{Control>}j{/Control}{Meta>}a{/Meta}{Alt>}j{/Alt}');
   expect(selectedPart()).toBe('application');
-  expect(within(readingOrder()).getByText('0 of 3 parts read')).toBeDefined();
+  expect(screen.getByText('0 of 3 parts read')).toBeDefined();
 });
 
 test("C opens and focuses the selected part's comment, or refocuses it, not in a textarea or with a modifier, and going away and back leaves focus alone; a click on the opener focuses too", async () => {
@@ -2945,7 +2958,7 @@ test('J, K and A typed in a comment are text, neither walking nor marking', asyn
   await user.keyboard('j');
   await user.type(await partComment(user), 'jaj');
   expect(selectedPart()).toBe('application');
-  expect(within(readingOrder()).getByText('0 of 3 parts read')).toBeDefined();
+  expect(screen.getByText('0 of 3 parts read')).toBeDefined();
   expect(within(inspector()).getByRole('textbox', { name: 'Your comment' })).toHaveProperty(
     'value',
     'jaj',
@@ -2976,7 +2989,7 @@ test("J, K and A typed in why it's fine are text, neither walking nor marking", 
   await user.click(within(inspector()).getByRole('button', { name: "It's fine" }));
   await user.type(within(inspector()).getByRole('textbox', { name: "Why it's fine" }), 'jaj');
   expect(selectedPart()).toBe('application');
-  expect(within(readingOrder()).getByText('0 of 3 parts read')).toBeDefined();
+  expect(screen.getByText('0 of 3 parts read')).toBeDefined();
   expect(within(inspector()).getByRole('textbox', { name: "Why it's fine" })).toHaveProperty(
     'value',
     'jaj',
