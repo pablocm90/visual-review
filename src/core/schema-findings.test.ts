@@ -34,6 +34,7 @@ test('a changed table is one finding for information, opening its card and summi
   ).toStrictEqual([
     {
       id: `schema:${FILE}:users`,
+      check: 'schema:table-changed',
       dimension: 'schema',
       level: 'info',
       file: FILE,
@@ -89,10 +90,10 @@ test('an added table is for information and a removed one needs a look', () => {
           columns: [removed(column('x')), removed(column('y'))],
         }),
       ),
-    ).map(({ level, title }) => ({ level, title })),
+    ).map(({ check, level, title }) => ({ check, level, title })),
   ).toStrictEqual([
-    { level: 'info', title: 'a added: 0 columns' },
-    { level: 'look', title: 'b removed: 2 columns' },
+    { check: 'schema:table-changed', level: 'info', title: 'a added: 0 columns' },
+    { check: 'schema:table-removed', level: 'look', title: 'b removed: 2 columns' },
   ]);
 });
 
@@ -109,7 +110,14 @@ test.for([
   { whole: 'removed' as const, title: `${FILE} removed, with 3 tables` },
 ])('a schema file $whole is one finding for information, no table named', ({ whole, title }) => {
   expect(schemaFindings([{ file: FILE, whole, tableCount: 3 }])).toStrictEqual([
-    { id: `schema:${FILE}`, dimension: 'schema', level: 'info', file: FILE, title },
+    {
+      id: `schema:${FILE}`,
+      check: 'schema:whole',
+      dimension: 'schema',
+      level: 'info',
+      file: FILE,
+      title,
+    },
   ]);
 });
 
@@ -117,6 +125,7 @@ test("a schema that couldn't be read is a finding to look at, naming why", () =>
   expect(schemaFindings([{ file: FILE, notRead: 'Ruby syntax error' }])).toStrictEqual([
     {
       id: `schema:not-read:${FILE}`,
+      check: 'schema:not-read',
       dimension: 'schema',
       level: 'look',
       file: FILE,
