@@ -630,6 +630,54 @@ test.for([
     after: ['class Shop', '  scope :admin do', '    two', '  end', 'end'],
     expected: ['edited Shop'],
   },
+  {
+    edit: 'a splat beside an attr_reader name',
+    before: ['class Shop', '  attr_reader :a, *OLD', 'end'],
+    after: ['class Shop', '  attr_reader :a, *NEW', 'end'],
+    expected: ['edited Shop', 'unchanged Shop.a'],
+  },
+  {
+    edit: 'an option beside an attr_reader name',
+    before: ['class Shop', '  attr_reader :a, note: 1', 'end'],
+    after: ['class Shop', '  attr_reader :a, note: 2', 'end'],
+    expected: ['edited Shop', 'unchanged Shop.a'],
+  },
+  {
+    edit: "an attr_reader's receiver",
+    before: ['class Shop', '  One.attr_reader :a', 'end'],
+    after: ['class Shop', '  Two.attr_reader :a', 'end'],
+    expected: ['edited Shop', 'unchanged Shop.a'],
+  },
+  {
+    edit: "an attr_reader's block",
+    before: ['class Shop', '  attr_reader(:a) { 1 }', 'end'],
+    after: ['class Shop', '  attr_reader(:a) { 2 }', 'end'],
+    expected: ['edited Shop', 'unchanged Shop.a'],
+  },
+  {
+    edit: 'a comment between attr_reader names',
+    before: ['class Shop', '  attr_reader :a,', '    :b', 'end'],
+    after: ['class Shop', '  attr_reader :a, # why', '    :b', 'end'],
+    expected: ['unchanged Shop', 'unchanged Shop.a', 'unchanged Shop.b'],
+  },
+  {
+    edit: 'a splat beside a delegate name',
+    before: ['class Shop', '  delegate :a, *OLD, to: :door', 'end'],
+    after: ['class Shop', '  delegate :a, *NEW, to: :door', 'end'],
+    expected: ['edited Shop', 'unchanged Shop.a'],
+  },
+  {
+    edit: "a delegate's receiver",
+    before: ['class Shop', '  One.delegate :a, to: :door', 'end'],
+    after: ['class Shop', '  Two.delegate :a, to: :door', 'end'],
+    expected: ['edited Shop', 'unchanged Shop.a'],
+  },
+  {
+    edit: "a delegate's block",
+    before: ['class Shop', '  delegate(:a, to: :door) { 1 }', 'end'],
+    after: ['class Shop', '  delegate(:a, to: :door) { 2 }', 'end'],
+    expected: ['edited Shop', 'unchanged Shop.a'],
+  },
 ])('with $edit, a class and what it holds read apart', ({ before, after, expected }) => {
   expect(changesOf(before, after)).toEqual(expected);
 });

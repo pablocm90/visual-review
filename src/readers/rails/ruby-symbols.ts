@@ -145,6 +145,15 @@ const ATTRS = new Map<string, ReadonlyArray<'getter' | 'setter'>>([
   ['attr_accessor', ['getter', 'setter']],
 ]);
 
+const ATTR_ARGUMENTS = new Set(['simple_symbol', 'comment']);
+
+const DELEGATE_ARGUMENTS = new Set([...ATTR_ARGUMENTS, 'pair']);
+
+const readsWhole = (call: Node, read: ReadonlySet<string>): boolean =>
+  call.childForFieldName('receiver') === null &&
+  call.childForFieldName('block') === null &&
+  (call.childForFieldName('arguments')?.namedChildren ?? []).every(({ type }) => read.has(type));
+
 const memberOf = (
   name: string,
   rest: Omit<ReadSymbol, 'name' | 'scope'>,
@@ -338,7 +347,7 @@ const walked = (walk: Walk, node: Node, within: string | undefined): Walk => {
     return {
       ...walk,
       symbols: [...walk.symbols, ...attrSymbols(node, attrs, within, walk)],
-      holes: [...walk.holes, node.id],
+      holes: readsWhole(node, ATTR_ARGUMENTS) ? [...walk.holes, node.id] : walk.holes,
     };
   if (called === 'scope') {
     const scopes = scopeSymbols(node, within);
@@ -352,7 +361,7 @@ const walked = (walk: Walk, node: Node, within: string | undefined): Walk => {
     return {
       ...walk,
       symbols: [...walk.symbols, ...delegateSymbols(node, within, walk)],
-      holes: [...walk.holes, node.id],
+      holes: readsWhole(node, DELEGATE_ARGUMENTS) ? [...walk.holes, node.id] : walk.holes,
     };
   const held = VISIBILITY_CALLS.get(called ?? '');
   if (held) {
