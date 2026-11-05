@@ -117,8 +117,15 @@ const groupsOf = (props: FindingsRailProps): ReadonlyArray<Group> => {
   }));
 };
 
+const LensOf = ({ dimension }: { readonly dimension: Dimension }) => (
+  <span className="start-here-lens">
+    {LENS_OF[dimension]} · {nameOf(dimension).toLowerCase()}
+  </span>
+);
+
 type FindingItemProps = {
   readonly finding: Line;
+  readonly lens?: Dimension;
   readonly calledFine?: boolean | undefined;
   readonly answer?: Answer | undefined;
   readonly onAnswer?: AnswerTo | undefined;
@@ -137,11 +144,19 @@ const FindingSaid = ({ finding, calledFine }: Pick<FindingItemProps, 'finding' |
   </>
 );
 
-const FindingItem = ({ finding, calledFine, answer, onAnswer, children }: FindingItemProps) => {
+const FindingItem = ({
+  finding,
+  lens,
+  calledFine,
+  answer,
+  onAnswer,
+  children,
+}: FindingItemProps) => {
   const said = <FindingSaid finding={finding} calledFine={calledFine} />;
   return (
     <li className="finding">
       <LevelMark level={finding.level} />
+      {lens && <LensOf dimension={lens} />}
       {finding.act ? (
         <button
           type="button"
@@ -307,6 +322,7 @@ const SeveralFindings = ({ line, lineOf }: SeveralFindingsProps) => {
   return (
     <li className="finding start-here-several">
       <LevelMark level={line.level} />
+      <LensOf dimension={line.dimension} />
       <button
         type="button"
         aria-label={heading}
@@ -368,7 +384,7 @@ export const StartHere = (props: StartHereProps) => {
           {lines.map(line =>
             line.findings.length === 1 ? (
               line.findings.map(finding => (
-                <FindingItem key={line.key} finding={lineOfOne(finding)} />
+                <FindingItem key={line.key} finding={lineOfOne(finding)} lens={line.dimension} />
               ))
             ) : (
               <SeveralFindings key={line.key} line={line} lineOf={lineOf} />

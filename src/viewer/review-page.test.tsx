@@ -2679,6 +2679,38 @@ test("a check's findings read as one line, which opens in place to list them, un
   expect(band.queryByRole('button', { name: '1.ts: said 1' })).toBeNull();
 });
 
+test("Start here's lines name their lens and dimension, and the findings an opened line lists don't", async () => {
+  const user = userEvent.setup();
+  render(
+    <ReviewPage
+      review={pageWith({
+        ...webFilesReview(2),
+        findings: [
+          ...findingsOnFiles(
+            { count: 2, files: 2 },
+            { check: 'api:signature', dimension: 'api', level: 'look' },
+          ),
+          findingOn('web/file/utils/0.ts', {
+            check: 'flag',
+            id: 'flagged',
+            dimension: 'blast-radius',
+            title: 'reaches far',
+          }),
+        ],
+      })}
+    />,
+  );
+
+  const band = within(await screen.findByRole('region', { name: 'Start here' }));
+  const lineOf = (name: RegExp) => band.getByRole('button', { name }).closest('li');
+  expect(lineOf(/exported signatures changed/)?.textContent).toContain('Contract · api');
+  expect(lineOf(/reaches far/)?.textContent).toContain('Contract · blast radius');
+
+  await user.click(band.getByRole('button', { name: /exported signatures changed/ }));
+  expect(band.getByRole('button', { name: /said 0/ })).toBeDefined();
+  expect(band.getAllByText('Contract · api')).toHaveLength(1);
+});
+
 test("an opened Start here line's finding on a file opens that file's patch", async () => {
   const user = userEvent.setup();
   const page = pageWithLockfile('undrawn', 'pnpm-lock.yaml');

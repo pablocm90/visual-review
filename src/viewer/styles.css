@@ -2768,3 +2768,11 @@ main:has(> .review-tray) {
   background: transparent;
   color: var(--muted);
 }
+
+.start-here-lens {
+  flex: 0 0 150px;
+  overflow: hidden;
+  color: var(--muted);
+  font-size: 12px;
+  white-space: nowrap;
+}
