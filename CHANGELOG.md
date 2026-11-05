@@ -6,7 +6,7 @@ What changed in each release of `@pablocm90/visual-review`, newest first. Versio
 
 ### Changed
 
-- **Tested by** joins the inspector's Note tab, after **Why look**: the test files alongside the part, its changed tests counted in the heading. The inspector's Tests tab is gone; the Tests screen stays.
+- **Tested by** joins the inspector's Note tab, after **Why look**: the changed tests alongside the part, counted in the heading, with an unchanged test only when it holds a comment or changed since the last review. The inspector's Tests tab is gone; the Tests screen stays, listing them all.
 - Logic changed with no test changed alongside now shows under **Tested by**, with its answers, rather than under **Why look**.
 - Going to a draft on a test, from the review tray or the last review's list, lands on its row in the column.
 

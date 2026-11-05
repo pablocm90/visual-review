@@ -3796,6 +3796,147 @@ test("Tested by lists the test files at or under the selected node, counting the
   expect(within(testedBy()).getByRole('heading', { name: 'Tested by' })).toBeTruthy();
 });
 
+const pageWithQuietTests = () =>
+  pageWith({
+    range: review.range,
+    diff: {
+      nodes: [
+        { id: 'web', kind: 'stack', label: 'web', path: '', state: 'unchanged' },
+        topFile('total.ts', 'modified'),
+        topFile('quiet.ts', 'modified'),
+      ],
+      edges: [],
+    },
+    tests: [
+      {
+        path: 'total.test.ts',
+        stack: 'web',
+        statements: [
+          { kind: 'test', name: 'rounds', change: 'unchanged' },
+          { kind: 'test', name: 'rounds', change: 'edited' },
+          {
+            kind: 'heading',
+            name: 'Till',
+            children: [{ kind: 'test', name: 'opens', change: 'unchanged' }],
+          },
+          {
+            kind: 'heading',
+            name: 'Cart',
+            children: [
+              { kind: 'test', name: 'holds', change: 'unchanged' },
+              { kind: 'test', name: 'adds tax', change: 'added' },
+            ],
+          },
+        ],
+      },
+      {
+        path: 'quiet.test.ts',
+        stack: 'web',
+        statements: [{ kind: 'test', name: 'stays', change: 'unchanged' }],
+      },
+    ],
+  });
+
+const testedByRows = () =>
+  within(testedBy())
+    .getAllByRole('listitem')
+    .map(row => row.getAttribute('aria-label'));
+
+test('Tested by lists only changed tests, under the headings that hold one, each keeping its own id, while the Tests screen lists them all', async () => {
+  const user = userEvent.setup();
+  const sent = vi.fn(async () => {});
+  render(<ReviewPage review={pageWithQuietTests()} send={sent} />);
+
+  await user.click(await screen.findByRole('button', { name: 'total.ts: modified' }));
+  expect(testedByRows()).toEqual(['rounds: edited', 'Cart', 'adds tax: added']);
+  expect(screen.queryByText('No note')).toBeNull();
+
+  await user.click(within(testedBy()).getByRole('button', { name: 'Comment on rounds#2' }));
+  await write(user, within(testedBy()).getByRole('textbox', { name: 'Your comment' }), 'Why?');
+  await openReview(user);
+  await user.click(screen.getByRole('button', { name: 'Send to Claude' }));
+  expect(sent).toHaveBeenCalledExactlyOnceWith(
+    sentReview({
+      verdict: 'comment',
+      comments: [
+        { anchor: { kind: 'test', id: 'total.test.ts#rounds#2' }, kind: 'question', text: 'Why?' },
+      ],
+    }),
+  );
+
+  location.hash = '#tests';
+  const testChanges = await screen.findByRole('region', { name: 'Test changes' });
+  expect(within(testChanges).getByRole('listitem', { name: 'opens: unchanged' })).toBeTruthy();
+  expect(within(testChanges).getByRole('listitem', { name: 'stays: unchanged' })).toBeTruthy();
+});
+
+test('a part whose test files changed no test draws no Tested by', async () => {
+  const user = userEvent.setup();
+  render(<ReviewPage review={pageWithQuietTests()} />);
+
+  await user.click(await screen.findByRole('button', { name: 'quiet.ts: modified' }));
+
+  expect(screen.queryByRole('region', { name: 'Tested by' })).toBeNull();
+  expect(screen.getByText('No note')).toBeTruthy();
+});
+
+test('an unchanged test with a draft from the Tests screen shows in Tested by, and going to the draft lands on its row', async () => {
+  const user = userEvent.setup();
+  render(<ReviewPage review={pageWithQuietTests()} send={vi.fn(async () => {})} />);
+  await screen.findByRole('button', { name: 'total.ts: modified' });
+  location.hash = '#tests';
+  const quiet = within(
+    within(await screen.findByRole('region', { name: 'Test changes' })).getByRole('listitem', {
+      name: 'stays: unchanged',
+    }),
+  );
+  await user.click(quiet.getByRole('button', { name: 'Comment on stays' }));
+  await write(user, quiet.getByRole('textbox', { name: 'Your comment' }), 'Still right?');
+  await openReview(user);
+
+  await user.click(screen.getByRole('button', { name: 'stays' }));
+
+  const row = await within(await screen.findByRole('region', { name: 'Tested by' })).findByRole(
+    'listitem',
+    { name: 'stays: unchanged' },
+  );
+  await waitFor(() => expect(document.activeElement).toBe(row));
+  expect(testedByRows()).toEqual(['stays: unchanged']);
+});
+
+test('on a later round an unchanged test stays in Tested by when the last review said something on it or it changed since', async () => {
+  const user = userEvent.setup();
+  render(
+    <ReviewPage
+      review={{
+        ...pageWithQuietTests(),
+        sinceReview: {
+          ...sinceReview,
+          changed: changedSince({ tests: ['total.test.ts#Cart › holds'] }),
+          comments: [
+            {
+              anchor: { kind: 'test', id: 'total.test.ts#Till › opens' },
+              kind: 'question',
+              text: 'Does it?',
+            },
+          ],
+        },
+      }}
+    />,
+  );
+
+  await user.click(await screen.findByRole('button', { name: 'total.ts: modified' }));
+
+  expect(testedByRows()).toEqual([
+    'rounds: edited',
+    'Till',
+    'opens: unchanged',
+    'Cart',
+    'holds: unchanged, changed since',
+    'adds tax: added',
+  ]);
+});
+
 test("logic changed with no test alongside shows its finding under Tested by, with its answers, and Why look doesn't repeat it, nor draws for it alone; going to it lands on its row there", async () => {
   const user = userEvent.setup();
   const untestedOn = (target: string) =>

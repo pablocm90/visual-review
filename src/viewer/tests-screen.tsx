@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { anchorKey } from '../core/anchors.ts';
 import type { GraphNode } from '../core/graph.ts';
 import type { ReviewNotes } from '../core/notes.ts';
 import type { PageData } from '../core/page.ts';
@@ -19,7 +20,7 @@ import { ChangedSinceTag, sinceLabel, useIsChangedSince } from './changed-since.
 import type { Comments } from './comment-field.tsx';
 import { LevelMark } from './finding-display.tsx';
 import { FindingRows, type FindingRowsProps } from './finding-rows.tsx';
-import { CommentOn, SaidBefore } from './said-before.tsx';
+import { CommentOn, SaidBefore, useHasSaid } from './said-before.tsx';
 import { useRowMarks } from './what-changed.tsx';
 
 const TEST_MARKS: Readonly<Record<TestChange, string>> = {
@@ -110,13 +111,23 @@ const TestTree = ({
   </ul>
 );
 
-type TestFilesProps = Commenting & {
-  readonly files: ReadonlyArray<TestFile>;
+type DrawnFile = {
+  readonly file: TestFile;
+  readonly statements: ReadonlyArray<AnchoredStatement>;
+};
+
+const anchoredIn = (file: TestFile): DrawnFile => ({
+  file,
+  statements: 'statements' in file ? anchoredTests(file.statements) : [],
+});
+
+type DrawnFilesProps = Commenting & {
+  readonly drawn: ReadonlyArray<DrawnFile>;
   readonly nodes: ReadonlyArray<GraphNode>;
 };
 
-export const TestFiles = ({ files, nodes, ...commenting }: TestFilesProps) =>
-  files.map(file => (
+const DrawnFiles = ({ drawn, nodes, ...commenting }: DrawnFilesProps) =>
+  drawn.map(({ file, statements }) => (
     <section key={file.path} aria-label={file.path}>
       <h3>
         <code>{file.path}</code>
@@ -127,26 +138,55 @@ export const TestFiles = ({ files, nodes, ...commenting }: TestFilesProps) =>
         {file.new && <span className="new">new file</span>}
       </h3>
       {'statements' in file ? (
-        <TestTree statements={anchoredTests(file.statements)} path={file.path} {...commenting} />
+        <TestTree statements={statements} path={file.path} {...commenting} />
       ) : (
         <p>Couldn't read its tests: {file.unreadable}</p>
       )}
     </section>
   ));
 
-export const TestedBy = ({
-  files,
-  found,
-  answers,
-  onAnswer,
-  ...shown
-}: TestFilesProps & FindingRowsProps) => {
-  const count = changedCount(files);
+const kept = (
+  statements: ReadonlyArray<AnchoredStatement>,
+  keeps: (test: AnchoredTest) => boolean,
+): ReadonlyArray<AnchoredStatement> =>
+  statements.flatMap<AnchoredStatement>(statement => {
+    if (statement.kind === 'test') return keeps(statement) ? [statement] : [];
+    const children = kept(statement.children, keeps);
+    return children.length > 0 ? [{ ...statement, children }] : [];
+  });
+
+export const useTestsToRead = (
+  files: ReadonlyArray<TestFile>,
+  comments: Comments,
+): ReadonlyArray<DrawnFile> => {
+  const hasSaid = useHasSaid();
+  const isChangedSince = useIsChangedSince();
+  return files
+    .map(anchoredIn)
+    .map(({ file, statements }) => ({
+      file,
+      statements: kept(statements, ({ change, trail }) => {
+        const anchor = { kind: 'test', id: testAnchorId(file.path, trail) } as const;
+        return (
+          change !== 'unchanged' ||
+          comments[anchorKey(anchor)] !== undefined ||
+          hasSaid(anchor) ||
+          isChangedSince('tests', anchor.id)
+        );
+      }),
+    }))
+    .filter(({ file, statements }) => 'unreadable' in file || statements.length > 0);
+};
+
+type TestedByProps = DrawnFilesProps & FindingRowsProps;
+
+export const TestedBy = ({ drawn, found, answers, onAnswer, ...shown }: TestedByProps) => {
+  const count = changedCount(drawn.map(({ file }) => file));
   return (
     <section className="column-section tests" aria-label="Tested by">
       <h3>Tested by{count > 0 && ` ${count}`}</h3>
       {found.length > 0 && <FindingRows found={found} answers={answers} onAnswer={onAnswer} />}
-      <TestFiles files={files} {...shown} />
+      <DrawnFiles drawn={drawn} {...shown} />
     </section>
   );
 };
@@ -276,7 +316,7 @@ export const TestsScreen = ({
       </div>
       <section className="tests tests-files" aria-label="Test changes">
         {shown.length > 0 ? (
-          <TestFiles files={shown} nodes={review.diff.nodes} {...commenting} />
+          <DrawnFiles drawn={shown.map(anchoredIn)} nodes={review.diff.nodes} {...commenting} />
         ) : (
           <p>{forNode ? 'No test changed here.' : 'No test changed.'}</p>
         )}

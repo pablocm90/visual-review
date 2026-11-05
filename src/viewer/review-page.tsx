@@ -73,7 +73,7 @@ import {
 } from './said-before.tsx';
 import { type SchemaLanding, SchemaScreen } from './schema-screen.tsx';
 import { scrollInPanel } from './scroll-in-panel.ts';
-import { changedCount, TestedBy, TestsScreen } from './tests-screen.tsx';
+import { changedCount, TestedBy, TestsScreen, useTestsToRead } from './tests-screen.tsx';
 import {
   boxOf,
   centred,
@@ -755,13 +755,13 @@ const NotePanel = ({
 }: NotePanelProps) => {
   const filesWithNews = useFilesWithNews(node, symbols, nodes);
   const hasSaid = useHasSaid();
-  const testsHere = node ? testsAlongside({ nodes, node, tests }) : [];
+  const testsToRead = useTestsToRead(node ? testsAlongside({ nodes, node, tests }) : [], comments);
   const untested = found.filter(isUntestedLogic);
   const toLookAt = found.filter(finding => !isUntestedLogic(finding));
   const isBare =
     filesWithNews.length === 0 &&
     found.length === 0 &&
-    testsHere.length === 0 &&
+    testsToRead.length === 0 &&
     !hasSaid(anchor) &&
     saidInPlace.length === 0;
   return (
@@ -792,9 +792,9 @@ const NotePanel = ({
         />
       )}
       {toLookAt.length > 0 && <WhyLook found={toLookAt} answers={answers} onAnswer={onAnswer} />}
-      {(testsHere.length > 0 || untested.length > 0) && (
+      {(testsToRead.length > 0 || untested.length > 0) && (
         <TestedBy
-          files={testsHere}
+          drawn={testsToRead}
           nodes={nodes}
           comments={comments}
           onComment={onComment}
