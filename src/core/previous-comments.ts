@@ -5,6 +5,7 @@ import { type Finding, targetOfNoteFlag } from './findings.ts';
 import { endsOfId, type GraphNode } from './graph.ts';
 import type { Commit, ReviewedHead } from './read-range.ts';
 import type { ChangedSince } from './since-review.ts';
+import { decisionOfLost } from './symbol-findings.ts';
 
 type Said = ReviewedHead['comments'][number];
 
@@ -67,18 +68,20 @@ const edgeChanged = (compared: Compared, targets: TargetsOf, id: string): boolea
   );
 };
 
-type InAFile = Extract<Said['anchor'], { readonly kind: 'test' | 'line' }>;
+type Subject = Pick<Exclude<Said['anchor'], { readonly kind: 'finding' }>, 'kind' | 'id'>;
+
+type InAFile = Subject & { readonly kind: 'test' | 'line' };
 
 const fileOf = ({ kind, id }: InAFile): string =>
   kind === 'test' ? split(id, '#')[0] : fileOfLine(id);
 
-const isInAFile = (anchor: Said['anchor']): anchor is InAFile =>
+const isInAFile = (anchor: Subject): anchor is InAFile =>
   anchor.kind === 'test' || anchor.kind === 'line';
 
 const headFile = ({ renames }: Compared, file: string): string =>
   renames.find(({ from }) => from === file)?.to ?? file;
 
-const commitsOf = (compared: Compared, anchor: Said['anchor']): ReadonlyArray<Commit> => {
+const commitsOf = (compared: Compared, anchor: Subject): ReadonlyArray<Commit> => {
   if (isInAFile(anchor)) {
     const file = fileOf(anchor);
     const head = headFile(compared, file);
@@ -94,7 +97,7 @@ const commitsOf = (compared: Compared, anchor: Said['anchor']): ReadonlyArray<Co
 const listed = (compared: Compared, kind: keyof Compared['held'], id: string): boolean =>
   !compared.held[kind].includes(id) || compared.changed[kind].includes(id);
 
-const isChanged = (compared: Compared, targets: TargetsOf, { kind, id }: Said['anchor']) => {
+const isChanged = (compared: Compared, targets: TargetsOf, { kind, id }: Subject) => {
   if (kind === 'part') return partChanged(compared, targets, compared.named(id));
   if (kind === 'edge') return edgeChanged(compared, targets, id);
   if (kind === 'symbol') return listed(compared, 'symbols', id);
@@ -103,10 +106,10 @@ const isChanged = (compared: Compared, targets: TargetsOf, { kind, id }: Said['a
   return listed(compared, 'files', fileOfLine(id));
 };
 
-const markOf = (compared: Compared, targets: TargetsOf, anchor: Said['anchor']) =>
+const markOf = (compared: Compared, targets: TargetsOf, anchor: Subject) =>
   isChanged(compared, targets, anchor) ? { changedSince: commitsOf(compared, anchor) } : {};
 
-const headId = (compared: Compared, anchor: Said['anchor']): string => {
+const headId = (compared: Compared, anchor: Subject): string => {
   const { kind, id } = anchor;
   if (isInAFile(anchor)) {
     const file = fileOf(anchor);
@@ -117,9 +120,7 @@ const headId = (compared: Compared, anchor: Said['anchor']): string => {
   return `${compared.named(node)}#${rest}`;
 };
 
-type OnASubject = Exclude<Said['anchor'], { readonly kind: 'finding' }>;
-
-const onTheGraph = (target: string): OnASubject =>
+const onTheGraph = (target: string): Subject =>
   target.includes(' -> ') ? { kind: 'edge', id: target } : { kind: 'part', id: target };
 
 export const previousComments = ({
@@ -128,7 +129,7 @@ export const previousComments = ({
   findings,
   compared,
 }: PreviousCommentsOptions): ReadonlyArray<PreviousComment> => {
-  const placed = (comment: Said, anchor: OnASubject): PreviousComment => {
+  const placed = (comment: Said, anchor: Subject): PreviousComment => {
     const id = compared === undefined ? anchor.id : headId(compared, anchor);
     const target = anchorTarget({ ...anchor, id }, targets);
     return {
@@ -137,14 +138,19 @@ export const previousComments = ({
       ...(compared === undefined ? {} : markOf(compared, targets, anchor)),
     };
   };
+  const answered = (comment: Said, findingId: string): PreviousComment => {
+    const raised = findings.find(({ id }) => id === findingId);
+    const target = targetOfNoteFlag(findingId) ?? raised?.target;
+    if (target !== undefined) return placed(comment, onTheGraph(target));
+    if (raised !== undefined || compared === undefined) return comment;
+    const decision = compared.held.decisions.find(held => held === decisionOfLost(findingId));
+    return decision === undefined
+      ? { ...comment, changedSince: [] }
+      : placed(comment, { kind: 'decision', id: decision });
+  };
   return comments.map(comment => {
     const { anchor } = comment;
     if (anchor.kind !== 'finding') return placed(comment, anchor);
-    const raised = findings.find(({ id }) => id === anchor.id);
-    const target = targetOfNoteFlag(anchor.id) ?? raised?.target;
-    if (target !== undefined) return placed(comment, onTheGraph(target));
-    return raised === undefined && compared !== undefined
-      ? { ...comment, changedSince: [] }
-      : comment;
+    return answered(comment, anchor.id);
   });
 };

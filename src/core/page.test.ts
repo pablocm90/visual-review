@@ -52,6 +52,7 @@ const readingWith = (overrides: Partial<RangeReading>): RangeReading => ({
   renames: [],
   patches: [],
   dependencyChanges: [],
+  migrations: [],
   tests: [],
   symbols: [],
   symbolsNotRead: [],
@@ -103,6 +104,7 @@ test("a reading's page data holds its diff, the reading order of its changed par
     patches: [patch('web/src/a.ts')],
     undrawn: [patch('README.md')],
     dependencyChanges,
+    migrations: [],
     tests,
     symbols,
     skipped: [],
@@ -234,6 +236,21 @@ test("a lockfile's changes raise their findings on the page", () => {
       parsers,
     }).findings.map(({ id }) => id),
   ).toContain('dependencies:pnpm-lock.yaml:zod');
+});
+
+test("an added migration's risks raise their findings on the page, and it keeps the reading", () => {
+  const migrations = [{ file: 'db/migrate/1_a.rb', notRead: 'Ruby syntax error' }];
+
+  const data = pageData({
+    repo: 'shop',
+    reading: readingWith({ migrations }),
+    range: 'a..b',
+    version,
+    parsers,
+  });
+
+  expect(data.migrations).toStrictEqual(migrations);
+  expect(data.findings.map(({ id }) => id)).toContain('schema:not-read:db/migrate/1_a.rb');
 });
 
 test('stacks a missing tool kept from being read are a structure finding to look at, on no node', () => {
@@ -792,6 +809,37 @@ test("an edited function's other decision changes are one logic finding for info
       detail: '1 changed',
     },
   ]);
+});
+
+test("a moved guard or catch needs no look: it counts in its function's logic finding for information, which says how it was found", () => {
+  const symbols = [
+    symbolFile([
+      {
+        name: 'ReviewPage',
+        kind: 'function',
+        exported: { base: true, head: true },
+        change: 'edited',
+        logic: [
+          logicLine({ change: 'moved', kind: 'guard', base: 'if (!a) return', movedTo: 'Page' }),
+          logicLine({ change: 'moved', kind: 'catch', base: 'catch (error)', movedTo: 'Page' }),
+          logicLine({ change: 'added', kind: 'if', head: 'if (b)' }),
+        ],
+      },
+    ]),
+  ];
+
+  expect(findingsOfSymbols(symbols).filter(({ dimension }) => dimension === 'logic')).toStrictEqual(
+    [
+      {
+        id: 'logic:changed:web/file/a.ts#ReviewPage',
+        dimension: 'logic',
+        level: 'info',
+        target: 'web/file/a.ts',
+        title: 'function ReviewPage changed its logic',
+        detail: '1 added, 2 moved (found by text)',
+      },
+    ],
+  );
 });
 
 test('two accessors of one name each changing their logic are two findings, the later id counting the symbol and each title naming its kind', () => {
@@ -3105,6 +3153,45 @@ test.for([
   const previous = firstPrevious(answersReading(id, () => ({ ...reviewedHead(), gone: true })));
 
   expect(previous).toEqual({ ...answering(id), ...held });
+});
+
+test.for([
+  {
+    case: 'still in the function, read as moved, keeps its line and asks nothing new',
+    logic: [ifLine('moved', 'if (gone)', undefined)],
+    mark: { target: 'web/file/a.ts' },
+    withoutComment: [],
+  },
+  {
+    case: 'gone from the function is no longer raised, changed with no commit to name',
+    logic: [],
+    mark: { changedSince: [] },
+    withoutComment: ['web/file/a.ts'],
+  },
+])('a previous answer to a lost decision $case', ({ logic, mark, withoutComment }) => {
+  const id = 'logic:removed:web/file/a.ts#f#if (gone)';
+  const reading = readingWith({
+    before: anchorGraph,
+    after: anchorGraph,
+    changedPaths: ['web/src/a.ts'],
+    symbols: [anchorFile('a.ts', [editedWith(logic)])],
+    reviewed: {
+      ...reviewedAt({ before: anchorGraph, changedPaths: ['web/src/a.ts'] }),
+      comments: [answering(id)],
+      commits: [commitOnA],
+    },
+  });
+
+  const { sinceReview } = pageData({
+    repo: 'shop',
+    reading,
+    range: 'a..b',
+    version: '1.2.3',
+    parsers: {},
+  });
+
+  expect(sinceReview?.comments).toEqual([{ ...answering(id), ...mark }]);
+  expect(sinceReview).toMatchObject({ changedWithoutComment: withoutComment });
 });
 
 const boxed = {

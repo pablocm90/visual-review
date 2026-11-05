@@ -5,6 +5,7 @@ import { metricFindings } from './metric-findings.ts';
 import { type NodeMetrics, nodeMetrics } from './metrics.ts';
 import { notesProblems, type ReviewNotes } from './notes.ts';
 import type { DependencyChanges } from './read-lockfiles.ts';
+import type { MigrationReading } from './read-migrations.ts';
 import type { RangeReading, SymbolFile } from './read-range.ts';
 import { type ReadingOrder, readingOrder } from './reading-order.ts';
 import type { Review } from './review.ts';
@@ -33,6 +34,7 @@ export type PageData = {
   readonly patches: ReadonlyArray<FilePatch>;
   readonly undrawn: ReadonlyArray<FilePatch>;
   readonly dependencyChanges: ReadonlyArray<DependencyChanges>;
+  readonly migrations: ReadonlyArray<MigrationReading>;
   readonly tests: ReadonlyArray<TestFile>;
   readonly symbols: ReadonlyArray<SymbolFile>;
   readonly skipped: ReadonlyArray<Skipped>;
@@ -72,6 +74,7 @@ export const pageData = ({
     undrawn,
     dangling: reading.danglingCalls,
     dependencyChanges: reading.dependencyChanges,
+    migrations: reading.migrations,
     metricFindings: metricFindings({ metrics, thresholds: reading.thresholds }),
     symbols: reading.symbols,
     symbolsNotRead: reading.symbolsNotRead,
@@ -97,6 +100,7 @@ export const pageData = ({
     patches: reading.patches.filter(isDrawn),
     undrawn,
     dependencyChanges: reading.dependencyChanges,
+    migrations: reading.migrations,
     tests: reading.tests,
     symbols: reading.symbols,
     skipped: reading.skipped,

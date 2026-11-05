@@ -1508,6 +1508,7 @@ test('a reader skipped for want of its tool is named once, at the top of the fin
           undrawn: [],
           dangling: [],
           dependencyChanges: [],
+          migrations: [],
           metricFindings: [],
           symbols: [],
           symbolsNotRead: [],
@@ -4306,6 +4307,83 @@ test("an edited function's logic lines show under it on the Symbols tab, each wi
     }),
   );
   expect(landed()).toEqual(['-  if (!paid) return;', 'true']);
+});
+
+test('a moved logic line names the symbol it moved to, and opens the Diff tab on its base row', async () => {
+  const user = userEvent.setup();
+  render(
+    <ReviewPage
+      review={pageWith({
+        range: 'abc123..def456',
+        diff: {
+          nodes: [
+            { id: 'web', kind: 'stack', label: 'web', path: '', state: 'unchanged' },
+            topFile('refund.ts', 'modified'),
+            topFile('retry.ts', 'modified'),
+          ],
+          edges: [],
+        },
+        symbols: [
+          symbolsOf('web/file/refund.ts', [
+            {
+              name: 'refund',
+              kind: 'function',
+              exported: { base: false, head: false },
+              change: 'edited',
+              logic: [
+                {
+                  change: 'moved',
+                  kind: 'guard',
+                  depth: 0,
+                  base: 'if (!paid) return',
+                  line: 2,
+                  movedTo: 'checked',
+                },
+                {
+                  change: 'moved',
+                  kind: 'catch',
+                  depth: 0,
+                  base: 'catch (error)',
+                  line: 3,
+                  movedTo: 'refund',
+                  movedToNode: 'web/file/retry.ts',
+                },
+              ],
+            },
+          ]),
+        ],
+        patches: [
+          {
+            path: 'web/src/refund.ts',
+            patch: [
+              'diff --git a/web/src/refund.ts b/web/src/refund.ts',
+              '@@ -1,2 +1,2 @@',
+              ' function refund(order) {',
+              '-  if (!paid) return;',
+              '+  checked(order);',
+            ].join('\n'),
+          },
+        ],
+      })}
+    />,
+  );
+
+  await user.click(await screen.findByRole('button', { name: 'refund.ts: modified' }));
+  await user.click(within(inspector()).getByRole('tab', { name: 'Symbols 1' }));
+  const panel = within(screen.getByRole('tabpanel', { name: 'Symbols' }));
+  const line = panel.getByRole('button', {
+    name: 'moved guard: if (!paid) return, moved to checked',
+  });
+  expect(line.textContent).toMatch(/moved to checked$/);
+  expect(
+    panel.getByRole('button', {
+      name: 'moved catch: catch (error), moved to refund in retry.ts',
+    }).textContent,
+  ).toMatch(/moved to refund in retry\.ts$/);
+
+  await user.click(line);
+  const row = scrolledIntoView.mock.contexts.at(-1);
+  expect(row instanceof HTMLElement ? row.textContent : undefined).toBe('-  if (!paid) return;');
 });
 
 test("a file whose symbols wouldn't parse shows the parse error on its Symbols tab, and in its box's", async () => {

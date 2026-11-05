@@ -24,7 +24,10 @@ export type TargetsOf = {
 export const isHeld = ({ nodes }: Pick<TargetsOf, 'nodes'>, id: string): boolean =>
   nodes.some(node => node.id === id);
 
-const namedTarget = (anchor: Anchor, { nodes, tests }: TargetsOf): string | undefined => {
+const namedTarget = (
+  anchor: Pick<Anchor, 'kind' | 'id'>,
+  { nodes, tests }: TargetsOf,
+): string | undefined => {
   if (anchor.kind === 'symbol' || anchor.kind === 'decision') return split(anchor.id, '#')[0];
   if (anchor.kind === 'line') return deepestHolding(fileOfLine(anchor.id), nodes)?.id;
   if (anchor.kind !== 'test') return anchor.id;
@@ -32,7 +35,10 @@ const namedTarget = (anchor: Anchor, { nodes, tests }: TargetsOf): string | unde
   return file && nodeOfTests({ nodes, file });
 };
 
-export const anchorTarget = (anchor: Anchor, targets: TargetsOf): string | undefined => {
+export const anchorTarget = (
+  anchor: Pick<Anchor, 'kind' | 'id'>,
+  targets: TargetsOf,
+): string | undefined => {
   const target = namedTarget(anchor, targets);
   return target !== undefined && endsOfId(target).every(end => isHeld(targets, end))
     ? target

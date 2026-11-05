@@ -102,12 +102,22 @@ const MARKS: Readonly<Record<LogicLine['change'], string>> = {
   added: '+',
   removed: '−',
   changed: '~',
+  moved: '→',
 };
 
 const textOf = ({ base, head }: LogicLine): string =>
   base !== undefined && head !== undefined ? `${base} → ${head}` : (head ?? base ?? '');
 
-const LogicText = ({ line }: { readonly line: LogicLine }) => (
+const fileMovedTo = ({ movedToNode }: LogicLine, nodes: Places['nodes']): string =>
+  movedToNode === undefined ? '' : ` in ${labelOf(nodes, movedToNode) ?? movedToNode}`;
+
+const LogicText = ({
+  line,
+  nodes,
+}: {
+  readonly line: LogicLine;
+  readonly nodes: Places['nodes'];
+}) => (
   <>
     <span className="mark">{MARKS[line.change]}</span> <span className="kind">{line.kind}</span>{' '}
     {line.change === 'changed' ? (
@@ -117,19 +127,32 @@ const LogicText = ({ line }: { readonly line: LogicLine }) => (
     ) : (
       <code>{line.head ?? line.base}</code>
     )}
+    {line.movedTo !== undefined && (
+      <span className="origin">
+        {' '}
+        moved to <code>{line.movedTo}</code>
+        {fileMovedTo(line, nodes)}
+      </span>
+    )}
   </>
 );
 
-const logicLabel = (line: LogicLine): string => `${line.change} ${line.kind}: ${textOf(line)}`;
+const logicLabel = (line: LogicLine, nodes: Places['nodes']): string => {
+  const label = `${line.change} ${line.kind}: ${textOf(line)}`;
+  return line.movedTo === undefined
+    ? label
+    : `${label}, moved to ${line.movedTo}${fileMovedTo(line, nodes)}`;
+};
 
 type ShowLine = (at: Omit<LineAt, 'node'>) => void;
 
 const LogicLines = ({
   symbol,
   onShowLine,
+  nodes,
   comments,
   onComment,
-}: Pick<Places, 'comments' | 'onComment'> & {
+}: Pick<Places, 'nodes' | 'comments' | 'onComment'> & {
   readonly symbol: AnchoredSymbol;
   readonly onShowLine: ShowLine;
 }) => {
@@ -141,7 +164,7 @@ const LogicLines = ({
     >
       {decisionsOf(symbol).map(({ line, id, text }) => {
         const marked = isChangedSince('decisions', id);
-        const label = sinceLabel(logicLabel(line), marked);
+        const label = sinceLabel(logicLabel(line, nodes), marked);
         return (
           <li
             key={id}
@@ -150,24 +173,24 @@ const LogicLines = ({
             style={{ paddingInlineStart: `${line.depth}em` }}
           >
             {line.change === 'same' ? (
-              <LogicText line={line} />
+              <LogicText line={line} nodes={nodes} />
             ) : (
               <button
                 type="button"
                 className="logic-line"
                 aria-label={label}
                 onClick={() =>
-                  onShowLine({ side: line.change === 'removed' ? 'base' : 'head', line: line.line })
+                  onShowLine({ side: line.head === undefined ? 'base' : 'head', line: line.line })
                 }
               >
-                <LogicText line={line} />
+                <LogicText line={line} nodes={nodes} />
               </button>
             )}
             <ChangedSinceTag marked={marked} />
             <SaidBefore on={{ kind: 'decision', id }} />
             {onComment && (
               <CommentOn
-                name={logicLabel(line)}
+                name={logicLabel(line, nodes)}
                 anchor={{ kind: 'decision', id, text }}
                 comments={comments}
                 onComment={onComment}
@@ -237,6 +260,7 @@ const SymbolList = ({
             <LogicLines
               symbol={{ item: symbol, id }}
               onShowLine={at => places.onShowLine({ node, ...at })}
+              nodes={places.nodes}
               comments={places.comments}
               onComment={places.onComment}
             />

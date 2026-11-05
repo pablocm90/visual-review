@@ -2,6 +2,25 @@
 
 What changed in each release of `@pablocm90/visual-review`, newest first. Versions follow [semver](https://semver.org); while it is 0.x, a minor version may change the exported types.
 
+## 0.27.0 — 2026-11-05
+
+### Added
+
+- A Rails migration the change adds raises a Schema finding that needs a look for each risky operation that runs going up: a column, reference or timestamps removed, a column renamed, a type changed, a column set to `null: false`, a required column added with no default, and an index added without `algorithm: :concurrently`. It names the line and why, ranks in Look first beside direct dependency changes, and opens the file's patch. A migration that doesn't parse raises a finding saying it wasn't read, ranked first.
+- The review data carries `migrations`.
+
+## 0.26.0 — 2026-11-05
+
+### Added
+
+- A changed Rails file reads its symbols as a TS/JS file does: a Symbols tab, Kind of change and the `api` findings. Classes and modules go by their full constant; methods, setters, `attr_*`, `delegate` and `scope` go under them, public or not as `private`, `protected`, `module_function`, `private_class_method` and `private_constant` say. A module holding only classes and modules is a namespace and isn't public, so deleting a file under it doesn't raise the module's removal. A method's signature is its parameters. A file that doesn't parse reads `unreadable`. Test files read none, and Rails logic lines come next.
+
+## 0.25.0 — 2026-11-05
+
+### Changed
+
+- A decision a function lost that another symbol gained, in any changed file read, reads **moved to** that symbol, naming its file when that's another one, rather than removed. A moved guard or catch counts in its function's logic finding, for information, which says it was found by text, so extracting a method no longer ranks each of its guards first. Found by text alone: the guard's new home may not be called. Each gain takes one lost line, and a guard the other symbol already had, or whose condition was reworded, still needs a look.
+
 ## 0.24.0 — 2026-11-05
 
 ### Added
