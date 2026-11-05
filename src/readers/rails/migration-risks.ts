@@ -6,9 +6,10 @@ import {
   blockParameterOf,
   methodOf,
   nameOf,
+  namesIn,
+  optionOf,
   parseRuby,
   positional,
-  writtenIn,
 } from './ruby-syntax.ts';
 
 const STILL_READ = 'Code still running during the deploy may read it.';
@@ -31,13 +32,6 @@ const NO_VALUE = 'Fails on a table with rows.';
 
 const BLOCKS_WRITES = 'Blocks writes to the table while the index builds.';
 
-const LISTS: ReadonlySet<string> = new Set(['array', 'symbol_array', 'string_array']);
-
-const namesOf = (node: Node | undefined): string =>
-  node !== undefined && LISTS.has(node.type)
-    ? writtenIn(node).map(nameOf).join(', ')
-    : nameOf(node);
-
 const DOWN_FIELD: ReadonlyMap<string, string> = new Map([
   ['method', 'name'],
   ['singleton_method', 'name'],
@@ -53,17 +47,6 @@ const callsIn = (node: Node): ReadonlyArray<Node> =>
   runsBackwards(node)
     ? []
     : [...(node.type === 'call' ? [node] : []), ...node.namedChildren.flatMap(callsIn)];
-
-const pairsOf = (arg: Node): ReadonlyArray<Node> => {
-  if (arg.type === 'pair') return [arg];
-  return arg.type === 'hash' ? arg.namedChildren : [];
-};
-
-const optionOf = (args: ReadonlyArray<Node>, key: string): Node | undefined =>
-  args
-    .flatMap(pairsOf)
-    .find(pair => nameOf(pair.childForFieldName('key') ?? undefined) === key)
-    ?.childForFieldName('value') ?? undefined;
 
 const leavesRowsEmpty = (args: ReadonlyArray<Node>, nullDefault: string): boolean => {
   const fallback = optionOf(args, 'default');
@@ -123,7 +106,7 @@ const concurrent = (args: ReadonlyArray<Node>): boolean =>
   optionOf(args, 'algorithm')?.text === ':concurrently';
 
 const addsIndex: Rule = ({ table, args }) =>
-  concurrent(args) ? [] : [indexAdded(table, namesOf(args[0]))];
+  concurrent(args) ? [] : [indexAdded(table, namesIn(args[0]).join(', '))];
 
 const OFF: ReadonlySet<string> = new Set(['false', 'nil']);
 
