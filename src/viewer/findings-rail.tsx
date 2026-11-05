@@ -339,7 +339,7 @@ export const LensRow = ({ picked, findings, coverage }: LensRowProps) => {
         const entry = coverage.find(covered => covered.dimension === dimension);
         if (entry === undefined && found.length === 0) return [];
         return [
-          <li key={dimension}>
+          <li key={dimension} className="lens-row-item">
             <span className="lens-row-name">{nameOf(dimension)}</span>
             <LensCount findings={found} level="info" />
             <LensCount findings={found} level="look" />

@@ -2796,7 +2796,7 @@ main:has(> .review-tray) {
   list-style: none;
 }
 
-.lens-row li {
+.lens-row-item {
   display: inline-flex;
   flex-wrap: wrap;
   align-items: center;
