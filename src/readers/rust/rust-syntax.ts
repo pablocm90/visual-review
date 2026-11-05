@@ -1,5 +1,5 @@
 import type { Node } from 'web-tree-sitter';
-import { parserOf } from '../tree-sitter.ts';
+import { isComment, parserOf } from '../tree-sitter.ts';
 
 export const parseRust = await parserOf('tree-sitter-rust');
 
@@ -23,11 +23,12 @@ export const isCfgTest = (item: Node): boolean => attributeOf(item)?.text === 'c
 
 export const pathOf = (item: Node) => attributeOf(item)?.namedChildren[0]?.text;
 
+export const isDocText = (item: Node): boolean =>
+  pathOf(item) === 'doc' && attributeOf(item)?.childForFieldName('value') !== null;
+
 export const isTestAttribute = (item: Node): boolean => pathOf(item)?.split('::').at(-1) === 'test';
 
-export const isComment = (node: Node): boolean => node.type.endsWith('_comment');
-
-const attributesOf = (item: Node): ReadonlyArray<Node> => {
+export const attributesOf = (item: Node): ReadonlyArray<Node> => {
   const previous = item.previousNamedSibling;
   if (previous !== null && isComment(previous)) return attributesOf(previous);
   return previous?.type === 'attribute_item' ? [...attributesOf(previous), previous] : [];

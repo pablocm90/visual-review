@@ -31,11 +31,13 @@ export type Holes = ReadonlySet<number>;
 
 const NO_HOLES: Holes = new Set();
 
+export const isComment = ({ type }: Node): boolean => type.endsWith('comment');
+
 export const shapeOf = (node: Node, holes: Holes = NO_HOLES): Shape => {
   if (holes.has(node.id)) return [];
   return node.childCount === 0
     ? node.text
-    : node.children.filter(({ type }) => type !== 'comment').map(child => shapeOf(child, holes));
+    : node.children.filter(child => !isComment(child)).map(child => shapeOf(child, holes));
 };
 
 export const hashOf = (shape: Shape): string =>

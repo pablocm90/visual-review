@@ -1,5 +1,6 @@
 import { expect, test } from 'vitest';
 import type { FileSymbols } from '../../core/reader.ts';
+import { symbolChanges } from '../../core/symbol-changes.ts';
 import { rustReader } from './reader.ts';
 
 const source = (...lines: ReadonlyArray<string>) => lines.join('\n');
@@ -46,4 +47,53 @@ test.for([
   },
 ])('$written reads the signature $signature', ({ written, signature }) => {
   expect(read(written).symbols).toMatchObject([{ signature }]);
+});
+
+test.for([
+  { edit: 'a comment in the body', before: 'fn a() { b(); }', after: 'fn a() { /* why */ b(); }' },
+  {
+    edit: 'a comment in the parameters',
+    before: 'fn a(x: u8) {}',
+    after: 'fn a(/* why */ x: u8) {}',
+  },
+  { edit: 'a line comment', before: 'fn a() { b(); }', after: 'fn a() {\n  // why\n  b();\n}' },
+  { edit: 'a doc attribute', before: 'fn a() {}', after: '#[doc = "why"]\nfn a() {}' },
+  { edit: 'spacing', before: 'fn a(x: u8) { b(); }', after: 'fn a( x:u8 ) {\n  b();\n}' },
+])('$edit reads as formatting', ({ before, after }) => {
+  expect(symbolChanges({ before: read(before), after: read(after) }).symbols).toMatchObject([
+    { change: 'formatting' },
+  ]);
+});
+
+test.for([
+  { edit: 'the body', before: 'fn a() { b(); }', after: 'fn a() { c(); }' },
+  { edit: 'an attribute', before: 'fn a() {}', after: '#[inline]\nfn a() {}' },
+  { edit: 'doc(hidden)', before: 'fn a() {}', after: '#[doc(hidden)]\nfn a() {}' },
+  {
+    edit: 'an attribute with a value',
+    before: 'fn a() {}',
+    after: '#[deprecated = "old"]\nfn a() {}',
+  },
+  { edit: 'the visibility', before: 'pub(crate) fn a() {}', after: 'pub(super) fn a() {}' },
+])('a change to $edit reads as edited, with the signature as it was', ({ before, after }) => {
+  const [change] = symbolChanges({ before: read(before), after: read(after) }).symbols;
+  expect(change).toMatchObject({ change: 'edited' });
+  expect(change).not.toHaveProperty('signature');
+});
+
+test.for([
+  { edit: 'a qualifier', before: 'fn a() {}', after: 'async fn a() {}' },
+  { edit: 'the generics', before: 'fn a<T>() {}', after: 'fn a<U>() {}' },
+  { edit: 'a parameter', before: 'fn a(x: u8) {}', after: 'fn a(x: u16) {}' },
+  { edit: 'the return', before: 'fn a() -> u8 {}', after: 'fn a() -> u16 {}' },
+  { edit: 'the where', before: 'fn a<T>() where T: B {}', after: 'fn a<T>() where T: C {}' },
+])('a change to $edit reads as a changed signature', ({ before, after }) => {
+  const [change] = symbolChanges({ before: read(before), after: read(after) }).symbols;
+  expect(change).toMatchObject({ change: 'edited', signature: expect.anything() });
+});
+
+test('a function under another name reads as renamed', () => {
+  expect(
+    symbolChanges({ before: read('fn a() { b(); }'), after: read('fn c() { b(); }') }).symbols,
+  ).toMatchObject([{ name: 'c', change: 'renamed', renamedFrom: 'a' }]);
 });
