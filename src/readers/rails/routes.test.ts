@@ -1,6 +1,6 @@
 import { expect, test } from 'vitest';
 import type { Route } from '../../core/routes.ts';
-import { railsRoutes } from './route-reader.ts';
+import { railsRoutes, railsRoutesUpTo } from './route-reader.ts';
 
 const drawing = (body: string) => `Rails.application.routes.draw do
   ${body}
@@ -607,8 +607,22 @@ test.for([
 const twice = (depth: number): string =>
   depth === 0 ? 'get "a"' : `resources :a, :b, only: [] do\n${twice(depth - 1)}\nend`;
 
+const upTo = (most: number, body: string) =>
+  railsRoutesUpTo(most).routes(new Map([['config/routes.rb', drawing(body)]]));
+
+const gets = (count: number): string =>
+  Array.from({ length: count }, (_, at) => `get "p${at}", to: "a#b"`).join('\n');
+
+test('a reading takes as many statements as its limit, the draw among them', () => {
+  expect(upTo(100, gets(99)).routes).toHaveLength(99);
+});
+
+test('a statement past the limit throws', () => {
+  expect(() => upTo(100, gets(100))).toThrow('Too many routes to read');
+});
+
 test('names multiplying under names throw, rather than read without end', () => {
-  expect(() => read(twice(20))).toThrow('Too many routes to read');
+  expect(() => upTo(100, twice(20))).toThrow('Too many routes to read');
 });
 
 test('files drawing each other twice over throw, rather than read without end', () => {
@@ -617,15 +631,16 @@ test('files drawing each other twice over throw, rather than read without end', 
     (_, at) => [`config/routes/f${at}.rb`, `draw :f${at + 1}\ndraw :f${at + 1}\n`] as const,
   );
   expect(() =>
-    readFiles([
-      ['config/routes.rb', drawing('draw :f0')],
-      ...files,
-      ['config/routes/f20.rb', 'get "a"\n'],
-    ]),
+    railsRoutesUpTo(100).routes(
+      new Map([
+        ['config/routes.rb', drawing('draw :f0')],
+        ...files,
+        ['config/routes/f20.rb', 'get "a"\n'],
+      ]),
+    ),
   ).toThrow('Too many routes to read');
 });
 
-test('an app far larger than a real one still reads', () => {
-  const many = Array.from({ length: 5000 }, (_, at) => `get "p${at}", to: "a#b"`).join('\n');
-  expect(read(many).routes).toHaveLength(5000);
+test('an app of a thousand statements, past the largest seen, still reads', () => {
+  expect(read(gets(1000)).routes).toHaveLength(1000);
 });
