@@ -16,8 +16,26 @@ type FrameHeightOptions = {
   readonly windowHeight: number;
 };
 
+const heightAtWidth = (graph: Size, frameWidth: number) =>
+  graph.height * Math.min(1, frameWidth / graph.width);
+
 export const frameHeight = ({ graph, frameWidth, windowHeight }: FrameHeightOptions): number =>
-  Math.min(graph.height * Math.min(1, frameWidth / graph.width), windowHeight - PAGE_PADDING);
+  Math.min(heightAtWidth(graph, frameWidth), windowHeight - PAGE_PADDING);
+
+const MAP_TALLEST = 320;
+
+export const mapHeight = ({ graph, frameWidth }: Omit<FrameHeightOptions, 'windowHeight'>) =>
+  Math.min(heightAtWidth(graph, frameWidth), MAP_TALLEST);
+
+const SMALLEST_RING = 20;
+
+type RingOptions = { readonly node: Size; readonly scale: number };
+
+export const ringAround = ({ node, scale }: RingOptions) => {
+  const width = Math.max(node.width, SMALLEST_RING / scale);
+  const height = Math.max(node.height, SMALLEST_RING / scale);
+  return { x: (node.width - width) / 2, y: (node.height - height) / 2, width, height };
+};
 
 type Point = { readonly x: number; readonly y: number };
 

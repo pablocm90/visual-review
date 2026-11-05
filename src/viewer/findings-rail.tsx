@@ -354,6 +354,8 @@ export const LensRow = ({ picked, findings, coverage }: LensRowProps) => {
 type StartHereProps = LineOptions & {
   readonly findings: ReadonlyArray<Finding>;
   readonly onShowAll: () => void;
+  readonly open: boolean;
+  readonly onOpen: (open: boolean) => void;
   readonly review: Pick<PageData, 'diff' | 'metrics' | 'sinceReview'>;
 };
 
@@ -395,7 +397,7 @@ const startHereCount = (look: number, total: number) =>
     : `nothing needs a look · ${counted(total, 'finding', 'findings')}`;
 
 export const StartHere = (props: StartHereProps) => {
-  const [open, setOpen] = useState(true);
+  const { open, onOpen } = props;
   const calledFine = props.review.sinceReview?.calledFine ?? [];
   const { lines, look, total } = startHere({
     findings: props.findings.filter(finding => !calledFine.includes(finding.id)),
@@ -416,7 +418,7 @@ export const StartHere = (props: StartHereProps) => {
             type="button"
             className="start-here-toggle"
             aria-expanded={open}
-            onClick={() => setOpen(!open)}
+            onClick={() => onOpen(!open)}
           >
             Start here
           </button>

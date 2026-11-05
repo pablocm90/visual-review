@@ -67,6 +67,15 @@ What the inspector reads for one part, top to bottom: its note, What changed (it
 _Avoid_: note panel, sidebar
 _In code_: `NotePanel` (`src/viewer/review-page.tsx`)
 
+**Reading** (the page's state):
+Walking the parts one at a time: the left column narrows to numbered stops, the reading column takes the middle, and the aside holds the corner map and Next to it. `J`, `K`, Start reading, a row of the reading order and the head's Next enter it; a click in the graph, a finding or Start here keep the graph whole.
+_In code_: `reading` (`src/viewer/review-page.tsx`)
+
+**Corner map**:
+The graph while reading: the same layout fitted into the aside, with the current part ringed. It says where you are, and a click on a node goes there; it doesn't zoom, pan or open boxes, and its labels aren't promised at that scale. Open map returns to the graph whole.
+_Avoid_: minimap, thumbnail
+_In code_: `map` in `useGraphView`, `mapHeight` (`src/viewer/view.ts`)
+
 **Dependency change**:
 A package added to or removed from a lockfile, or major-bumped, or one that became or stopped being direct at the same version. Major-bumped means its set of compatibility lines differs across the sides: a version's numbers up to the first non-zero one, as `^` and Cargo read them, so `0.2.1` to `0.3.0` counts and `1.4.0` to `1.9.2` doesn't.
 _Avoid_: dependency update, upgrade

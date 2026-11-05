@@ -1,6 +1,16 @@
+import { useLayoutEffect, useRef } from 'react';
 import type { Finding } from '../core/findings.ts';
 import type { PageData } from '../core/page.ts';
 import { LEVELS, LevelMark, worstOf } from './finding-display.tsx';
+import { scrollInPanel } from './scroll-in-panel.ts';
+
+type ReadingStopsProps = {
+  readonly review: Pick<PageData, 'diff' | 'readingOrder' | 'undrawn'>;
+  readonly read: ReadonlySet<string>;
+  readonly current: string | undefined;
+  readonly onGoTo: (id: string) => void;
+  readonly onShowOutside: (opener: HTMLButtonElement) => void;
+};
 
 type ReadingOrderListProps = {
   readonly review: Pick<PageData, 'diff' | 'readingOrder' | 'undrawn'>;
@@ -8,6 +18,7 @@ type ReadingOrderListProps = {
   readonly read: ReadonlySet<string>;
   readonly commentable: boolean;
   readonly onGoTo: (id: string) => void;
+  readonly onStart: () => void;
   readonly onShowOutside: (opener: HTMLButtonElement) => void;
 };
 
@@ -26,12 +37,85 @@ const FindingsMark = ({ findings }: { readonly findings: ReadonlyArray<Finding> 
   );
 };
 
+type StopProps = {
+  readonly number: number;
+  readonly label: string | undefined;
+  readonly read: boolean;
+  readonly current: boolean;
+  readonly onClick: (opener: HTMLButtonElement) => void;
+};
+
+const Stop = ({ number, label, read, current, onClick }: StopProps) => {
+  const button = useRef<HTMLButtonElement>(null);
+  useLayoutEffect(() => {
+    if (current && button.current) scrollInPanel(button.current, 'nearest');
+  }, [current]);
+  return (
+    <li className="reading-stop">
+      <button
+        type="button"
+        className="reading-stop-button"
+        title={label}
+        aria-current={current ? 'step' : undefined}
+        ref={button}
+        onClick={event => onClick(event.currentTarget)}
+      >
+        <span className="reading-number">{number}</span>{' '}
+        <span className="visually-hidden">{label}</span>
+      </button>
+      {read && (
+        <span className="reading-read" role="img" aria-label="read">
+          ✓
+        </span>
+      )}
+    </li>
+  );
+};
+
+export const ReadingStops = ({
+  review,
+  read,
+  current,
+  onGoTo,
+  onShowOutside,
+}: ReadingStopsProps) => {
+  const labelOf = new Map(review.diff.nodes.map(node => [node.id, node.label]));
+  const { parts } = review.readingOrder;
+  return (
+    <nav className="reading-stops" aria-label="Reading order">
+      <ol>
+        {parts.map((part, index) => (
+          <Stop
+            key={part}
+            number={index + 1}
+            label={labelOf.get(part)}
+            read={read.has(part)}
+            current={part === current}
+            onClick={() => onGoTo(part)}
+          />
+        ))}
+        {review.undrawn.map(({ path }, index) => (
+          <Stop
+            key={path}
+            number={parts.length + index + 1}
+            label={path}
+            read={false}
+            current={false}
+            onClick={onShowOutside}
+          />
+        ))}
+      </ol>
+    </nav>
+  );
+};
+
 export const ReadingOrderList = ({
   review,
   findings,
   read,
   commentable,
   onGoTo,
+  onStart,
   onShowOutside,
 }: ReadingOrderListProps) => {
   if (review.readingOrder.parts.length === 0 && review.undrawn.length === 0) return null;
@@ -43,12 +127,9 @@ export const ReadingOrderList = ({
       <h2 className="reading-order-title">Reading order</h2>
       {review.readingOrder.parts.length > 0 && (
         <>
-          <p className="reading-progress">
-            {partsRead({
-              read: review.readingOrder.parts.filter(part => read.has(part)).length,
-              parts: review.readingOrder.parts.length,
-            })}
-          </p>
+          <button type="button" className="start-reading" onClick={onStart}>
+            Start reading
+          </button>
           <p className="reading-keys">
             <kbd>J</kbd> / <kbd>K</kbd> next or previous, <kbd>A</kbd> mark read
             {commentable && (

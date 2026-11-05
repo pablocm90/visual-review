@@ -2904,3 +2904,212 @@ main:has(> .review-tray) {
 .fold-toggle[aria-expanded="true"]::before {
   content: "▾ ";
 }
+
+.columns.reading {
+  display: grid;
+  grid-template-columns: 64px minmax(0, 1fr) 320px;
+  gap: 16px;
+}
+
+.columns.reading > .left-column {
+  position: sticky;
+  top: 24px;
+  box-sizing: border-box;
+  min-width: 0;
+  max-height: calc(100vh - 48px - var(--foot, 0px));
+  margin: 0;
+  padding: 2px;
+  overflow: auto;
+  border: 0;
+  scrollbar-width: thin;
+}
+
+.columns.reading > .content {
+  position: sticky;
+  top: 24px;
+  display: flex;
+  flex-direction: column;
+  max-height: calc(100vh - 48px - var(--foot, 0px));
+}
+
+:where(.columns.reading > .content) > .frame {
+  flex: none;
+}
+
+@media (width < 1100px) {
+  .columns.reading {
+    grid-template-columns: 64px minmax(0, 1fr);
+  }
+
+  .columns.reading > .content {
+    position: static;
+    grid-column: 2;
+    max-height: none;
+  }
+
+  .columns.reading > .note {
+    position: static;
+  }
+}
+
+.open-map {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  padding: 2px 8px;
+  border: 1px solid var(--stack-line);
+  border-radius: 6px;
+  background: var(--stack);
+  color: var(--ink);
+  font: inherit;
+  cursor: pointer;
+}
+
+.open-map:hover {
+  background: var(--unchanged-fill);
+}
+
+.columns.reading .frame,
+.columns.reading .edge,
+.columns.reading .flag-badge {
+  cursor: default;
+}
+
+.current-ring {
+  fill: none;
+  stroke: var(--ink);
+  stroke-width: 3px;
+  vector-effect: non-scaling-stroke;
+  pointer-events: none;
+}
+
+.reading-progress progress {
+  width: 96px;
+  height: 6px;
+  vertical-align: middle;
+}
+
+.reading-stops ol {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.reading-stop {
+  position: relative;
+}
+
+.reading-stop-button {
+  display: block;
+  scroll-margin-block: 64px;
+  width: 100%;
+  height: 32px;
+  padding: 0;
+  border: 1px solid var(--stack-line);
+  border-radius: 6px;
+  background: var(--stack);
+  color: var(--ink);
+  font: inherit;
+  cursor: pointer;
+}
+
+.reading-stop-button:hover {
+  background: var(--unchanged-fill);
+}
+
+.reading-stop-button[aria-current="step"] {
+  border-color: var(--ink);
+  box-shadow: inset 0 0 0 1px var(--ink);
+  font-weight: 600;
+}
+
+.reading-stop .reading-read {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  margin: 0;
+  color: var(--ink);
+  pointer-events: none;
+}
+
+.reading-stop:has(.reading-read) .reading-number {
+  visibility: hidden;
+}
+
+.next-to-it {
+  min-height: 0;
+  overflow: auto;
+}
+
+.next-to-it h3 {
+  margin: 12px 0 4px;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.next-to-it ul {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.next-to-it-row {
+  width: 100%;
+  padding: 3px 0;
+  overflow: hidden;
+  border: 0;
+  background: none;
+  color: var(--ink);
+  font: inherit;
+  font-size: 12.5px;
+  text-align: left;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.next-to-it-row:hover {
+  text-decoration: underline;
+}
+
+.all-findings {
+  flex: none;
+  align-self: flex-start;
+  margin-top: 12px;
+  padding: 2px 8px;
+  border: 1px solid var(--stack-line);
+  border-radius: 6px;
+  background: var(--stack);
+  color: var(--ink);
+  font: inherit;
+  font-size: 12.5px;
+  cursor: pointer;
+}
+
+.all-findings:hover {
+  background: var(--unchanged-fill);
+}
+
+.start-reading {
+  display: block;
+  width: 100%;
+  margin: 0 0 8px;
+  padding: 5px 8px;
+  border: 1px solid var(--ink);
+  border-radius: 6px;
+  background: var(--ink);
+  color: var(--stack);
+  font: inherit;
+  font-size: 12.5px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.start-reading:hover {
+  opacity: 0.85;
+}

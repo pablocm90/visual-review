@@ -3,6 +3,7 @@ import {
   type MouseEvent,
   type PointerEvent,
   type ReactNode,
+  type RefObject,
   useEffect,
   useEffectEvent,
   useId,
@@ -56,8 +57,9 @@ import {
 import { LENS_OF, type Lens } from './lenses.ts';
 import { MetricsScreen } from './metrics-screen.tsx';
 import { MetricsTable } from './metrics-tab.tsx';
+import { NextToIt } from './next-to-it.tsx';
 import { storedReadMarks, storeReadMarks } from './read-marks.ts';
-import { ReadingOrderList } from './reading-order-list.tsx';
+import { partsRead, ReadingOrderList, ReadingStops } from './reading-order-list.tsx';
 import { Ref, shortRef } from './ref.tsx';
 import { ReviewTray, verdictLabels } from './review-tray.tsx';
 import { type RoutesLanding, RoutesScreen, routesHold } from './routes-screen.tsx';
@@ -79,9 +81,11 @@ import {
   centred,
   fitted,
   frameHeight,
+  mapHeight,
   panned,
   pinned,
   resized,
+  ringAround,
   type Size,
   type View,
   zoomed,
@@ -96,6 +100,8 @@ import {
 } from './what-changed.tsx';
 
 const STATES = ['added', 'removed', 'modified', 'unchanged'] as const;
+
+const NOTHING_EXPANDABLE: ReadonlySet<string> = new Set();
 
 const NOTE_WIDTH = 360;
 const CHANGES_WIDTH = 600;
@@ -132,13 +138,14 @@ type SelectableOptions = {
   readonly note: Note | undefined;
   readonly onSelect: (id: string) => void;
   readonly register: (id: string, element: SVGElement | null) => void;
+  readonly inMap: boolean;
 };
 
-const selectable = ({ id, name, note, onSelect, register }: SelectableOptions) => ({
+const selectable = ({ id, name, note, onSelect, register, inMap }: SelectableOptions) => ({
   ...pressable(() => onSelect(id)),
   ref: (element: SVGElement | null) => register(id, element),
   role: 'button',
-  tabIndex: 0,
+  tabIndex: inMap ? -1 : 0,
   'aria-label': note?.flag ? `${name}, flagged: ${note.flag}` : name,
 });
 
@@ -208,7 +215,21 @@ type Drawing = {
   readonly onToggle: (id: string) => void;
   readonly unroutedOf: (id: string) => ReadonlyArray<string>;
   readonly shadeOf: (node: DiffedNode) => Shade | undefined;
+  readonly inMap: boolean;
+  readonly current: string | undefined;
+  readonly scale: number;
 };
+
+type CurrentRingProps = {
+  readonly node: PlacedNode;
+  readonly drawing: Drawing;
+  readonly rx: number;
+};
+
+const CurrentRing = ({ node, drawing, rx }: CurrentRingProps) =>
+  node.id === drawing.current && (
+    <rect className="current-ring" {...ringAround({ node, scale: drawing.scale })} rx={rx} />
+  );
 
 type ToggleProps = {
   readonly node: PlacedNode;
@@ -232,7 +253,7 @@ const Toggle = ({ node, expanded, onToggle }: ToggleProps) => (
 );
 
 const NodeView = ({ node, drawing }: { readonly node: PlacedNode; readonly drawing: Drawing }) => {
-  const { notes, onSelect, register, expandable, expanded, onToggle, unroutedOf, shadeOf } =
+  const { notes, onSelect, register, expandable, expanded, onToggle, unroutedOf, shadeOf, inMap } =
     drawing;
   const unrouted = unroutedOf(node.id);
   const shade = shadeOf(node);
@@ -248,11 +269,13 @@ const NodeView = ({ node, drawing }: { readonly node: PlacedNode; readonly drawi
         <g
           role="group"
           aria-label={node.label}
+          aria-current={node.id === drawing.current || undefined}
           className="module"
           data-state={node.state}
           transform={`translate(${node.x} ${node.y})`}
         >
           <rect className="module-box" width={node.width} height={node.height} rx={8} />
+          <CurrentRing node={node} drawing={drawing} rx={8} />
           <text className="module-label" x={16} y={26}>
             {node.label}
             {node.formerLabel !== undefined && (
@@ -285,7 +308,9 @@ const NodeView = ({ node, drawing }: { readonly node: PlacedNode; readonly drawi
           note: notes[node.id],
           onSelect,
           register,
+          inMap,
         })}
+        aria-current={node.id === drawing.current || undefined}
         className="node"
         data-state={node.state}
         data-step={shade?.step}
@@ -295,6 +320,7 @@ const NodeView = ({ node, drawing }: { readonly node: PlacedNode; readonly drawi
           {`${node.path} — ${[node.state, ...(shade === undefined ? [] : [shade.name])].join(', ')}`}
         </title>
         <rect width={node.width} height={node.height} rx={6} />
+        <CurrentRing node={node} drawing={drawing} rx={6} />
         <text x={node.width / 2} y={node.height / 2}>
           {node.formerLabel === undefined ? (
             node.label
@@ -329,14 +355,14 @@ type EdgeViewProps = {
 };
 
 const EdgeView = ({ edge, name, drawing }: EdgeViewProps) => {
-  const { notes, onSelect, register, findingsOn } = drawing;
+  const { notes, onSelect, register, findingsOn, inMap } = drawing;
   const id = edgeId(edge);
   const note = notes[id];
   const found = findingsOn(id);
   return (
     <>
       <path
-        {...selectable({ id, name, note, onSelect, register })}
+        {...(inMap ? {} : selectable({ id, name, note, onSelect, register, inMap }))}
         className={edge.via ? 'edge call' : 'edge'}
         data-state={edge.state}
         d={edgePath(edge.points)}
@@ -347,7 +373,7 @@ const EdgeView = ({ edge, name, drawing }: EdgeViewProps) => {
           {...middleOf(edge.points)}
           findings={found}
           picked={drawing.picked}
-          onPress={() => onSelect(id)}
+          {...(inMap ? {} : { onPress: () => onSelect(id) })}
         />
       )}
     </>
@@ -619,7 +645,9 @@ const InspectorHead = ({
   comments,
   onComment,
   landing,
+  heading,
 }: {
+  readonly heading: RefObject<HTMLHeadingElement | null>;
   readonly nodes: ReadonlyArray<DiffNode>;
   readonly node: DiffNode;
   readonly walking: Walking;
@@ -635,7 +663,9 @@ const InspectorHead = ({
       </span>
       <span data-state={node.state}>{node.state}</span>
     </p>
-    <h2>{node.label}</h2>
+    <h2 ref={heading} tabIndex={-1}>
+      {node.label}
+    </h2>
     <p className="path">
       {node.renamedFrom === undefined
         ? node.path
@@ -691,9 +721,10 @@ type InspectorProps = {
   readonly saidInPlace: ReadonlyArray<string>;
   readonly answers: Answers;
   readonly onAnswer: AnswerTo | undefined;
-  readonly width: number;
+  readonly width: number | undefined;
   readonly onClose: () => void;
   readonly walking: Walking;
+  readonly heading: RefObject<HTMLHeadingElement | null>;
 };
 
 type LandingPlace = string | null | undefined;
@@ -877,6 +908,7 @@ const Inspector = ({
   landing,
   onLand,
   walking,
+  heading,
   ...props
 }: InspectorProps) => {
   const showLine = ({ node: at, ...line }: LineAt) =>
@@ -897,6 +929,7 @@ const Inspector = ({
       </button>
       {node && (
         <InspectorHead
+          heading={heading}
           nodes={props.nodes}
           node={node}
           walking={walking}
@@ -935,7 +968,7 @@ const Inspector = ({
 type OutsideFilesProps = LineComments & {
   readonly patches: ReadonlyArray<FilePatch>;
   readonly landing: LandingIn | undefined;
-  readonly width: number;
+  readonly width: number | undefined;
   readonly onClose: () => void;
 };
 
@@ -971,11 +1004,14 @@ type SidePanelProps = {
   readonly onCloseOutside: () => void;
   readonly onCloseInspector: (id: string) => void;
   readonly onGoTo: (id: string) => void;
+  readonly onWalkTo: (id: string) => void;
   readonly landing: LandingIn | undefined;
   readonly onLand: (landing: LandingIn) => void;
   readonly read: ReadonlySet<string>;
   readonly onToggleRead: (id: string) => void;
   readonly commentAsked: { readonly on: string } | undefined;
+  readonly heading: RefObject<HTMLHeadingElement | null>;
+  readonly reading: boolean;
 };
 
 const partFrom = (parts: ReadonlyArray<string>, selected: string | undefined, step: number) =>
@@ -999,11 +1035,14 @@ const SidePanel = ({
   onCloseOutside,
   onCloseInspector,
   onGoTo,
+  onWalkTo,
   landing,
   onLand,
   read,
   onToggleRead,
   commentAsked,
+  heading,
+  reading,
 }: SidePanelProps) => {
   const patches = outside
     ? review.undrawn
@@ -1011,6 +1050,7 @@ const SidePanel = ({
       ? review.patches.filter(({ path }) => isAtOrUnder(path, node))
       : [];
   const width = chosenWidth ?? (patches.length > 0 ? CHANGES_WIDTH : NOTE_WIDTH);
+  const shownWidth = reading ? undefined : width;
   const moveDivider = (event: KeyboardEvent) => {
     const step = { ArrowLeft: DIVIDER_STEP, ArrowRight: -DIVIDER_STEP }[event.key];
     if (step === undefined) return;
@@ -1026,7 +1066,7 @@ const SidePanel = ({
       once: true,
     });
   };
-  const divider = (
+  const divider = !reading && (
     <div
       className="divider"
       role="separator"
@@ -1045,7 +1085,7 @@ const SidePanel = ({
         <OutsideFiles
           patches={patches}
           landing={landing}
-          width={width}
+          width={shownWidth}
           onClose={onCloseOutside}
           nodes={review.diff.nodes}
           comments={comments}
@@ -1064,6 +1104,7 @@ const SidePanel = ({
     >
       {divider}
       <Inspector
+        heading={heading}
         nodes={review.diff.nodes}
         node={node}
         metrics={review.metrics}
@@ -1083,7 +1124,7 @@ const SidePanel = ({
         saidInPlace={saidInPlace}
         answers={answers}
         onAnswer={onAnswer}
-        width={width}
+        width={shownWidth}
         onClose={() => onCloseInspector(selected)}
         landing={landing}
         onLand={onLand}
@@ -1091,7 +1132,7 @@ const SidePanel = ({
           read: parts.includes(selected) ? read.has(selected) : undefined,
           onToggleRead: () => onToggleRead(selected),
           next: review.diff.nodes.find(({ id }) => id === nextId),
-          onGoTo,
+          onGoTo: onWalkTo,
         }}
       />
     </CommentAsked.Provider>
@@ -1231,7 +1272,7 @@ const TABS = {
 
 type Tab = keyof typeof TABS;
 
-const useGraphView = (layout: Layout | undefined) => {
+const useGraphView = (layout: Layout | undefined, map: boolean) => {
   const [frameElement, setFrameElement] = useState<HTMLDivElement | null>(null);
   const [frameWidth, setFrameWidth] = useState<number>();
   useEffect(() => {
@@ -1244,11 +1285,14 @@ const useGraphView = (layout: Layout | undefined) => {
     layout && frameWidth !== undefined
       ? {
           width: frameWidth,
-          height: frameHeight({ graph: layout, frameWidth, windowHeight: window.innerHeight }),
+          height: map
+            ? mapHeight({ graph: layout, frameWidth })
+            : frameHeight({ graph: layout, frameWidth, windowHeight: window.innerHeight }),
         }
       : undefined;
   const [chosen, setChosen] = useState<Chosen>();
-  const view = layout && frame && viewOn({ layout, frame, chosen });
+  const view =
+    layout && frame && (map ? fitted({ graph: layout, frame }) : viewOn({ layout, frame, chosen }));
   const placed = layout && frame && view && { graph: layout, frame, view };
   const choose = (next: (on: NonNullable<typeof placed>) => View, pin?: string) => {
     if (placed) setChosen({ of: placed.graph, view: next(placed), in: placed.frame, pin });
@@ -1256,7 +1300,7 @@ const useGraphView = (layout: Layout | undefined) => {
   const dragged = useRef(false);
   const pan = (down: PointerEvent<HTMLDivElement>) => {
     dragged.current = false;
-    if (down.button !== 0) return;
+    if (map || down.button !== 0) return;
     const follow = (move: globalThis.PointerEvent) => {
       const by = { x: move.clientX - down.clientX, y: move.clientY - down.clientY };
       dragged.current ||= Math.hypot(by.x, by.y) >= LEAST_DRAG;
@@ -1272,7 +1316,7 @@ const useGraphView = (layout: Layout | undefined) => {
     choose(on => zoomed({ ...on, scale, at: { x: on.frame.width / 2, y: on.frame.height / 2 } }));
   const fitToFrame = () => setChosen(undefined);
   const keyed = (event: KeyboardEvent) => {
-    if (!view || event.ctrlKey || event.metaKey || event.altKey) return;
+    if (map || !view || event.ctrlKey || event.metaKey || event.altKey) return;
     const panBy = (x: number, y: number) => () => choose(on => panned({ ...on, by: { x, y } }));
     const act = {
       '+': () => zoomAtCentre(view.scale * ZOOM_STEP),
@@ -1290,7 +1334,7 @@ const useGraphView = (layout: Layout | undefined) => {
     act();
   };
   const wheel = useEffectEvent((event: WheelEvent) => {
-    if (!frameElement || !placed) return;
+    if (map || !frameElement || !placed) return;
     const bounds = frameElement.getBoundingClientRect();
     const at = { x: event.clientX - bounds.left, y: event.clientY - bounds.top };
     const by = { x: -event.deltaX, y: -event.deltaY };
@@ -1355,6 +1399,7 @@ const useTab = (review: PageData): Tab => {
 type HeaderProps = {
   readonly review: PageData;
   readonly tab: Tab;
+  readonly read: ReadonlySet<string>;
 };
 
 const LastVerdict = ({ since }: { readonly since: SinceReview }) => (
@@ -1380,7 +1425,23 @@ const UncomparedReview = ({ since }: { readonly since: SinceReview }) => {
   return null;
 };
 
-const Header = ({ review, tab }: HeaderProps) => {
+type ReadingProgressProps = {
+  readonly parts: ReadonlyArray<string>;
+  readonly read: ReadonlySet<string>;
+};
+
+const ReadingProgress = ({ parts, read }: ReadingProgressProps) => {
+  if (parts.length === 0) return null;
+  const count = parts.filter(part => read.has(part)).length;
+  return (
+    <p className="reading-progress">
+      {partsRead({ read: count, parts: parts.length })}{' '}
+      <progress aria-label="Parts read" value={count} max={parts.length} />
+    </p>
+  );
+};
+
+const Header = ({ review, tab, read }: HeaderProps) => {
   const changed = changedCount(review.tests);
   return (
     <header className="review">
@@ -1408,6 +1469,7 @@ const Header = ({ review, tab }: HeaderProps) => {
             <UncomparedReview since={review.sinceReview} />
           </>
         )}
+        <ReadingProgress parts={review.readingOrder.parts} read={read} />
       </div>
       <nav aria-label="Review">
         {tabsOf(review).map(shown => (
@@ -1467,15 +1529,382 @@ const GraphCaveat = ({ since, nothingDrawn }: GraphCaveatProps) => {
   );
 };
 
+type GraphFrameProps = Pick<ReturnType<typeof useGraphView>, 'placed' | 'frameProps'> & {
+  readonly layout: Layout;
+  readonly reading: boolean;
+  readonly drawing: Drawing;
+  readonly colouring: Colouring;
+  readonly range: string;
+  readonly labelOf: ReadonlyMap<string, string>;
+  readonly onOpenMap: () => void;
+  readonly onZoom: (scale: number) => void;
+  readonly onFit: () => void;
+};
+
+const GraphFrame = ({
+  layout,
+  placed,
+  frameProps,
+  reading,
+  drawing,
+  colouring,
+  range,
+  labelOf,
+  onOpenMap,
+  onZoom,
+  onFit,
+}: GraphFrameProps) => (
+  <div
+    className="frame"
+    role="group"
+    aria-label={reading ? 'Map' : 'Graph'}
+    tabIndex={reading ? -1 : 0}
+    {...frameProps}
+  >
+    {placed && (
+      <>
+        {reading ? (
+          <button type="button" className="open-map" onClick={onOpenMap}>
+            Open map
+          </button>
+        ) : (
+          <Zoom scale={placed.view.scale} onZoom={onZoom} onFit={onFit} />
+        )}
+        <svg className="graph" data-colouring={colouring}>
+          <title>{`Structure ${shortRange(range)}`}</title>
+          <defs>
+            {STATES.map(state => (
+              <marker
+                key={state}
+                id={`arrow-${state}`}
+                className="arrow"
+                data-state={state}
+                viewBox="0 0 10 10"
+                refX={9}
+                refY={5}
+                markerWidth={7}
+                markerHeight={7}
+                orient="auto-start-reverse"
+              >
+                <path d="M 0 0 L 10 5 L 0 10 z" />
+              </marker>
+            ))}
+          </defs>
+          <g transform={`translate(${placed.view.x} ${placed.view.y}) scale(${placed.view.scale})`}>
+            {layout.stacks.map(stack => (
+              <Stack key={stack.id} stack={stack} drawing={drawing} />
+            ))}
+            {layout.calls.map(edge => (
+              <EdgeView
+                key={edgeId(edge)}
+                edge={edge}
+                name={`${labelOf.get(edge.from)} ⇢ ${labelOf.get(edge.to)}: ${edge.state} (${edge.via?.join(', ')})`}
+                drawing={drawing}
+              />
+            ))}
+          </g>
+        </svg>
+      </>
+    )}
+  </div>
+);
+
+type GraphControlsProps = {
+  readonly colouring: Colouring;
+  readonly onColouring: (colouring: Colouring) => void;
+  readonly scopes: ReadonlyArray<Scope>;
+  readonly scope: Scope;
+  readonly onScope: (scope: Scope) => void;
+  readonly allEdges: boolean;
+  readonly onAllEdges: (allEdges: boolean) => void;
+};
+
+const GraphControls = ({
+  colouring,
+  onColouring,
+  scopes,
+  scope,
+  onScope,
+  allEdges,
+  onAllEdges,
+}: GraphControlsProps) => (
+  <>
+    <div className="graph-controls">
+      <ColourBy colouring={colouring} onPick={onColouring} />
+      <div className="graph-filters">
+        <Show scopes={scopes} scope={scope} onPick={onScope} />
+        <label className="near-only">
+          <input
+            type="checkbox"
+            checked={allEdges}
+            onChange={event => onAllEdges(event.target.checked)}
+          />
+          All edges
+        </label>
+      </div>
+    </div>
+    <div className="graph-key">
+      {colouring === 'change' ? <Legend /> : <ScaleLegend colouring={colouring} />}
+    </div>
+  </>
+);
+
+type LandingHeadProps = GraphControlsProps &
+  GraphCaveatProps & {
+    readonly review: PageData;
+    readonly notes: ReviewPageProps['notes'];
+    readonly findings: ReadonlyArray<Finding>;
+    readonly inLens: ReadonlyArray<Finding>;
+    readonly picked: Lens | undefined;
+    readonly onPick: (lens: Lens | undefined) => void;
+    readonly onShowAll: () => void;
+    readonly startHereOpen: boolean;
+    readonly onStartHereOpen: (open: boolean) => void;
+    readonly onGoTo: (id: string) => void;
+    readonly onGoToFinding: (id: string, finding: string) => void;
+    readonly onShowOutside: (opener: HTMLButtonElement) => void;
+    readonly onShowFile: (path: string, opener: HTMLButtonElement, place?: string) => void;
+  };
+
+const LandingHead = ({
+  review,
+  notes,
+  findings,
+  inLens,
+  picked,
+  onPick,
+  onShowAll,
+  startHereOpen,
+  onStartHereOpen,
+  onGoTo,
+  onGoToFinding,
+  onShowOutside,
+  onShowFile,
+  since,
+  nothingDrawn,
+  ...controls
+}: LandingHeadProps) => (
+  <>
+    {notes && notes.summary.length > 0 && <Summary notes={notes} onGoTo={onGoTo} />}
+    <LensChips findings={findings} coverage={review.coverage} picked={picked} onPick={onPick} />
+    <LensRow picked={picked} findings={findings} coverage={review.coverage} />
+    <StartHere
+      findings={inLens}
+      onShowAll={onShowAll}
+      open={startHereOpen}
+      onOpen={onStartHereOpen}
+      review={review}
+      onGoTo={onGoTo}
+      onGoToFinding={onGoToFinding}
+      onShowOutside={onShowOutside}
+      onShowFile={onShowFile}
+    />
+    <GraphControls {...controls} />
+    <GraphCaveat since={since} nothingDrawn={nothingDrawn} />
+  </>
+);
+
+type ReadingFootProps = {
+  readonly diff: GraphDiff;
+  readonly part: string | undefined;
+  readonly read: ReadonlySet<string>;
+  readonly anyFindings: boolean;
+  readonly onGoTo: (id: string) => void;
+  readonly onShowAllFindings: () => void;
+};
+
+const ReadingFoot = ({
+  diff,
+  part,
+  read,
+  anyFindings,
+  onGoTo,
+  onShowAllFindings,
+}: ReadingFootProps) => (
+  <>
+    {part !== undefined && <NextToIt diff={diff} part={part} read={read} onGoTo={onGoTo} />}
+    {anyFindings && (
+      <button type="button" className="all-findings" onClick={onShowAllFindings}>
+        All findings
+      </button>
+    )}
+  </>
+);
+
+type LeftColumnProps = {
+  readonly review: PageData;
+  readonly notes: ReviewPageProps['notes'];
+  readonly reading: boolean;
+  readonly read: ReadonlySet<string>;
+  readonly selected: string | undefined;
+  readonly commentable: boolean;
+  readonly findings: ReadonlyArray<Finding>;
+  readonly inLens: ReadonlyArray<Finding>;
+  readonly railOpen: boolean;
+  readonly onRailOpen: (open: boolean) => void;
+  readonly answers: Answers;
+  readonly onAnswer: AnswerTo | undefined;
+  readonly onGoTo: (id: string) => void;
+  readonly onWalkTo: (id: string) => void;
+  readonly onStart: () => void;
+  readonly onGoToDraft: (id: string, anchor: PreviousComment['anchor']) => void;
+  readonly onGoToFinding: (id: string, finding: string) => void;
+  readonly onGoToOutside: (place: LandingIn, opener: HTMLButtonElement) => void;
+  readonly onShowOutside: (opener: HTMLButtonElement) => void;
+  readonly onShowFile: (path: string, opener: HTMLButtonElement, place?: string) => void;
+};
+
+const LeftColumn = ({
+  review,
+  notes,
+  reading,
+  read,
+  selected,
+  commentable,
+  findings,
+  inLens,
+  railOpen,
+  onRailOpen,
+  answers,
+  onAnswer,
+  onGoTo,
+  onWalkTo,
+  onStart,
+  onGoToDraft,
+  onGoToFinding,
+  onGoToOutside,
+  onShowOutside,
+  onShowFile,
+}: LeftColumnProps) => (
+  <div className="left-column">
+    {!reading && review.sinceReview !== undefined && (
+      <LastReview
+        since={review.sinceReview}
+        unasked={notes?.unasked}
+        nodes={review.diff.nodes}
+        findings={findings}
+        onGoTo={onGoTo}
+        onGoToDraft={onGoToDraft}
+        onGoToOutside={onGoToOutside}
+      />
+    )}
+    {reading ? (
+      <ReadingStops
+        review={review}
+        read={read}
+        current={selected}
+        onGoTo={onGoTo}
+        onShowOutside={onShowOutside}
+      />
+    ) : (
+      <ReadingOrderList
+        review={review}
+        read={read}
+        commentable={commentable}
+        findings={findings}
+        onGoTo={onWalkTo}
+        onStart={onStart}
+        onShowOutside={onShowOutside}
+      />
+    )}
+    {!reading && (
+      <FindingsRail
+        findings={inLens}
+        open={railOpen}
+        onOpen={onRailOpen}
+        review={review}
+        onGoTo={onGoTo}
+        onGoToFinding={onGoToFinding}
+        onShowOutside={onShowOutside}
+        onShowFile={onShowFile}
+        answers={answers}
+        onAnswer={onAnswer}
+      />
+    )}
+  </div>
+);
+
+type OtherScreenProps = {
+  readonly tab: Tab;
+  readonly review: PageData;
+  readonly notes: ReviewPageProps['notes'];
+  readonly selected: DiffNode | undefined;
+  readonly comments: Comments;
+  readonly onComment: ((comment: Comment) => void) | undefined;
+  readonly onGoTo: (id: string) => void;
+  readonly schemaLanding: SchemaLanding | undefined;
+  readonly onSchemaLanded: () => void;
+  readonly routesLanding: RoutesLanding | undefined;
+  readonly onRoutesLanded: () => void;
+  readonly onShowPatch: (path: string, opener: HTMLButtonElement) => void;
+};
+
+const OtherScreen = ({
+  tab,
+  review,
+  notes,
+  selected,
+  comments,
+  onComment,
+  onGoTo,
+  schemaLanding,
+  onSchemaLanded,
+  routesLanding,
+  onRoutesLanded,
+  onShowPatch,
+}: OtherScreenProps) => (
+  <>
+    {tab === 'metrics' && <MetricsScreen review={review} onGoTo={onGoTo} />}
+    {tab === 'tests' && (
+      <ChangedSinceMarks value={changedSinceIn(review)}>
+        <TestsScreen
+          review={review}
+          notes={notes}
+          selected={selected}
+          onGoTo={onGoTo}
+          comments={comments}
+          onComment={onComment}
+        />
+      </ChangedSinceMarks>
+    )}
+    {tab === 'schema' && (
+      <SchemaScreen review={review} landing={schemaLanding} onLanded={onSchemaLanded} />
+    )}
+    {tab === 'routes' && (
+      <RoutesScreen
+        review={review}
+        landing={routesLanding}
+        onLanded={onRoutesLanded}
+        onShowPatch={onShowPatch}
+      />
+    )}
+  </>
+);
+
+const notesIn = (notes: ReviewPageProps['notes']) => notes?.notes ?? {};
+
+const reviewedIn = ({ range, pullRequest }: PageData) => ({
+  range,
+  ...(pullRequest && { pullRequest: pullRequest.number }),
+});
+
+const useCommentAsked = (selected: string | undefined, tab: Tab) => {
+  const [asked, setAsked] = useState<{ readonly on: string }>();
+  if (asked !== undefined && (asked.on !== selected || tab !== 'structure')) setAsked(undefined);
+  return [asked, setAsked] as const;
+};
+
 const Page = ({ review, notes, send }: ReviewPageProps) => {
   const tab = useTab(review);
   const [layout, setLayout] = useState<Layout>();
-  const { frameElement, placed, frameProps, zoomAtCentre, fitToFrame, centre, pin } =
-    useGraphView(layout);
+  const [reading, setReading] = useState(false);
+  const { frameElement, placed, frameProps, zoomAtCentre, fitToFrame, centre, pin } = useGraphView(
+    layout,
+    reading,
+  );
   const [selected, setSelected] = useState<string>();
-  const [commentAsked, setCommentAsked] = useState<{ readonly on: string }>();
-  if (commentAsked !== undefined && (commentAsked.on !== selected || tab !== 'structure'))
-    setCommentAsked(undefined);
+  const [commentAsked, setCommentAsked] = useCommentAsked(selected, tab);
+  const heading = useRef<HTMLHeadingElement>(null);
   const [outside, setOutside] = useState(false);
   const outsideOpener = useRef<HTMLButtonElement>(null);
   const select = (id: string | undefined) => {
@@ -1499,12 +1928,13 @@ const Page = ({ review, notes, send }: ReviewPageProps) => {
   );
   const visible = useMemo(() => visibleDiff({ diff: review.diff, expanded }), [review, expanded]);
   const [allEdges, setAllEdges] = useState(false);
-  const noted = useMemo(() => new Set(Object.keys(notes?.notes ?? {})), [notes]);
+  const noted = useMemo(() => new Set(Object.keys(notesIn(notes))), [notes]);
   const scopes = useMemo(() => scopesOf(review), [review]);
   const [scope, setScope] = useState(CHANGES_ONLY);
   const [colouring, setColouring] = useState<Colouring>('change');
   const [picked, setPicked] = useState<Lens>();
   const [railOpen, setRailOpen] = useState(false);
+  const [startHereOpen, setStartHereOpen] = useState(true);
   const findings = findingsOf({ data: review, notes });
   const inLens = findings.filter(
     finding => picked === undefined || LENS_OF[finding.dimension] === picked,
@@ -1522,7 +1952,7 @@ const Page = ({ review, notes, send }: ReviewPageProps) => {
     return keep({ diff: review.diff, expanded, drawn: atExpansion });
   }, [review, expanded, unmerged, allEdges, scope]);
   const shown = useMemo(
-    () => visibleNotes({ diff: review.diff, expanded, notes: notes?.notes ?? {} }),
+    () => visibleNotes({ diff: review.diff, expanded, notes: notesIn(notes) }),
     [review, notes, expanded],
   );
   const toggle = (id: string) => {
@@ -1544,11 +1974,14 @@ const Page = ({ review, notes, send }: ReviewPageProps) => {
     numberOf: (id: string) => numbers.get(id),
     picked,
     notes: shown,
-    onSelect: select,
+    onSelect: (id: string) => (reading ? goTo(id) : select(id)),
     register,
-    expandable,
+    expandable: reading ? NOTHING_EXPANDABLE : expandable,
     expanded,
     onToggle: toggle,
+    inMap: reading,
+    current: reading ? selected : undefined,
+    scale: placed?.view.scale ?? 1,
     unroutedOf: (id: string) =>
       dangling.filter(call => visibleOf(call.from) === id).map(call => call.path),
     shadeOf: ({ id, state }: DiffedNode) =>
@@ -1573,12 +2006,15 @@ const Page = ({ review, notes, send }: ReviewPageProps) => {
   };
   const closeOutside = () => {
     const opener = outsideOpener.current;
-    (opener?.isConnected ? opener : frameElement)?.focus();
+    (!reading && opener?.isConnected ? opener : frameElement)?.focus();
     setOutside(false);
+    setReading(false);
   };
   const closeInspector = (id: string) => {
-    elements.current.get(id)?.focus({ preventScroll: true });
+    if (reading) setFocusTarget({ id, inGraph: true });
+    else elements.current.get(id)?.focus({ preventScroll: true });
     select(undefined);
+    setReading(false);
   };
 
   const [focusTarget, setFocusTarget] = useState<{
@@ -1652,9 +2088,26 @@ const Page = ({ review, notes, send }: ReviewPageProps) => {
   const [read, setRead] = useState(() => storedReadMarks(review.range, stillReadIn(review)));
   useEffect(() => storeReadMarks(review.range, read), [review.range, read]);
   const toggleRead = (id: string) => setRead(current => toggled(current, id));
+  const walkTo = (id: string) => {
+    setReading(true);
+    goTo(id);
+  };
   const walk = (step: number) => {
-    const next = partFrom(review.readingOrder.parts, selected, step);
-    if (next !== undefined) goTo(next);
+    const { parts } = review.readingOrder;
+    const next = parts.includes(selected ?? '')
+      ? (partFrom(parts, selected, step) ?? selected)
+      : (parts.find(part => !read.has(part)) ?? parts[0]);
+    if (next !== undefined) walkTo(next);
+  };
+  const openMap = () => {
+    setReading(false);
+    if (selected === undefined) frameElement?.focus();
+    else setFocusTarget({ id: selected, inGraph: true });
+  };
+  const showAllFindings = () => {
+    openMap();
+    setPicked(undefined);
+    setRailOpen(true);
   };
   useEffect(() => {
     if (tab !== 'structure') return;
@@ -1662,6 +2115,7 @@ const Page = ({ review, notes, send }: ReviewPageProps) => {
       if (typesText(event.target)) return;
       if (event.ctrlKey || event.metaKey || event.altKey) return;
       const key = event.key.toLowerCase();
+      if (key === 'escape' && reading) openMap();
       if (key === 'j') walk(1);
       if (key === 'k') walk(-1);
       if (key === 'c' && selected !== undefined) {
@@ -1678,7 +2132,13 @@ const Page = ({ review, notes, send }: ReviewPageProps) => {
     layoutDiff(drawn).then(setLayout);
   }, [drawn]);
   useEffect(() => {
-    if (layout === undefined || focusTarget === undefined) return;
+    if (focusTarget === undefined || tab !== 'structure') return;
+    if (reading) {
+      if (focusTarget.inGraph) heading.current?.focus({ preventScroll: landing !== undefined });
+      setFocusTarget(undefined);
+      return;
+    }
+    if (layout === undefined) return;
     const element = elements.current.get(focusTarget.id);
     if (element) {
       if (focusTarget.inGraph && !typesText(document.activeElement))
@@ -1686,218 +2146,160 @@ const Page = ({ review, notes, send }: ReviewPageProps) => {
       frameElement?.scrollIntoView({ block: 'nearest' });
       setFocusTarget(undefined);
     }
-  }, [layout, focusTarget, frameElement]);
+  }, [layout, focusTarget, frameElement, reading, landing, tab]);
+  const content = (
+    <div key="content" className="content">
+      {!reading && (
+        <LandingHead
+          review={review}
+          notes={notes}
+          findings={findings}
+          inLens={inLens}
+          picked={picked}
+          onPick={setPicked}
+          onShowAll={() => setRailOpen(true)}
+          startHereOpen={startHereOpen}
+          onStartHereOpen={setStartHereOpen}
+          onGoTo={goTo}
+          onGoToFinding={goToFinding}
+          onShowOutside={showOutside}
+          onShowFile={showFile}
+          colouring={colouring}
+          onColouring={setColouring}
+          scopes={scopes}
+          scope={scope}
+          onScope={next => {
+            fitToFrame();
+            setScope(next);
+          }}
+          allEdges={allEdges}
+          onAllEdges={next => {
+            fitToFrame();
+            setAllEdges(next);
+          }}
+          since={since}
+          nothingDrawn={drawn.nodes.length === 0}
+        />
+      )}
+      {layout && (
+        <GraphFrame
+          layout={layout}
+          placed={placed}
+          frameProps={frameProps}
+          reading={reading}
+          drawing={drawing}
+          colouring={colouring}
+          range={review.range}
+          labelOf={labelOf}
+          onOpenMap={openMap}
+          onZoom={zoomAtCentre}
+          onFit={fitToFrame}
+        />
+      )}
+      {reading && (
+        <ReadingFoot
+          diff={review.diff}
+          part={selectedNode?.id}
+          read={read}
+          anyFindings={findings.length > 0}
+          onGoTo={goTo}
+          onShowAllFindings={showAllFindings}
+        />
+      )}
+    </div>
+  );
+  const side = (
+    <ChangedSinceMarks key="side" value={changedSinceIn(review)}>
+      <SidePanel
+        review={review}
+        selected={selected}
+        node={selectedNode}
+        outside={outside}
+        note={selectedNote}
+        found={selectedFindings}
+        saidInPlace={edgesSaidInPlace({
+          comments: review.sinceReview?.comments ?? [],
+          arrow: selected,
+          diff: review.diff,
+          expanded,
+          noted: unmerged,
+          allEdges,
+        })}
+        comments={comments}
+        onComment={comment}
+        answers={answers}
+        onAnswer={answer}
+        chosenWidth={chosenWidth}
+        onChooseWidth={setChosenWidth}
+        graphLeft={graphLeft}
+        onCloseOutside={closeOutside}
+        onCloseInspector={closeInspector}
+        onGoTo={goTo}
+        onWalkTo={walkTo}
+        landing={landing}
+        onLand={line => landOn(selected, line)}
+        read={read}
+        onToggleRead={toggleRead}
+        commentAsked={commentAsked}
+        heading={heading}
+        reading={reading}
+      />
+    </ChangedSinceMarks>
+  );
   const page = (
     <main>
-      <Header review={review} tab={tab} />
+      <Header review={review} tab={tab} read={read} />
       {tab === 'structure' && (
         <>
-          <div className="structure-head">
-            <p className="caveat">Calls whose path is built at runtime are not drawn.</p>
-          </div>
-          <div className="columns">
-            <div className="left-column">
-              {review.sinceReview !== undefined && (
-                <LastReview
-                  since={review.sinceReview}
-                  unasked={notes?.unasked}
-                  nodes={review.diff.nodes}
-                  findings={findings}
-                  onGoTo={goTo}
-                  onGoToDraft={goToDraft}
-                  onGoToOutside={showOutsideAt}
-                />
-              )}
-              <ReadingOrderList
-                review={review}
-                read={read}
-                commentable={send !== undefined}
-                findings={findings}
-                onGoTo={goTo}
-                onShowOutside={showOutside}
-              />
-              <FindingsRail
-                findings={inLens}
-                open={railOpen}
-                onOpen={setRailOpen}
-                review={review}
-                onGoTo={goTo}
-                onGoToFinding={goToFinding}
-                onShowOutside={showOutside}
-                onShowFile={showFile}
-                answers={answers}
-                onAnswer={answer}
-              />
+          {!reading && (
+            <div className="structure-head">
+              <p className="caveat">Calls whose path is built at runtime are not drawn.</p>
             </div>
-            <div className="content">
-              {notes && notes.summary.length > 0 && <Summary notes={notes} onGoTo={goTo} />}
-              <LensChips
-                findings={findings}
-                coverage={review.coverage}
-                picked={picked}
-                onPick={setPicked}
-              />
-              <LensRow picked={picked} findings={findings} coverage={review.coverage} />
-              <StartHere
-                findings={inLens}
-                onShowAll={() => setRailOpen(true)}
-                review={review}
-                onGoTo={goTo}
-                onGoToFinding={goToFinding}
-                onShowOutside={showOutside}
-                onShowFile={showFile}
-              />
-              <div className="graph-controls">
-                <ColourBy colouring={colouring} onPick={setColouring} />
-                <div className="graph-filters">
-                  <Show
-                    scopes={scopes}
-                    scope={scope}
-                    onPick={next => {
-                      fitToFrame();
-                      setScope(next);
-                    }}
-                  />
-                  <label className="near-only">
-                    <input
-                      type="checkbox"
-                      checked={allEdges}
-                      onChange={event => {
-                        fitToFrame();
-                        setAllEdges(event.target.checked);
-                      }}
-                    />
-                    All edges
-                  </label>
-                </div>
-              </div>
-              <div className="graph-key">
-                {colouring === 'change' ? <Legend /> : <ScaleLegend colouring={colouring} />}
-              </div>
-              <GraphCaveat since={since} nothingDrawn={drawn.nodes.length === 0} />
-              {layout && (
-                <div
-                  className="frame"
-                  role="group"
-                  aria-label="Graph"
-                  // biome-ignore lint/a11y/noNoninteractiveTabindex: the frame takes the zoom and pan keys
-                  tabIndex={0}
-                  {...frameProps}
-                >
-                  {placed && (
-                    <>
-                      <Zoom scale={placed.view.scale} onZoom={zoomAtCentre} onFit={fitToFrame} />
-                      <svg className="graph" data-colouring={colouring}>
-                        <title>{`Structure ${shortRange(review.range)}`}</title>
-                        <defs>
-                          {STATES.map(state => (
-                            <marker
-                              key={state}
-                              id={`arrow-${state}`}
-                              className="arrow"
-                              data-state={state}
-                              viewBox="0 0 10 10"
-                              refX={9}
-                              refY={5}
-                              markerWidth={7}
-                              markerHeight={7}
-                              orient="auto-start-reverse"
-                            >
-                              <path d="M 0 0 L 10 5 L 0 10 z" />
-                            </marker>
-                          ))}
-                        </defs>
-                        <g
-                          transform={`translate(${placed.view.x} ${placed.view.y}) scale(${placed.view.scale})`}
-                        >
-                          {layout.stacks.map(stack => (
-                            <Stack key={stack.id} stack={stack} drawing={drawing} />
-                          ))}
-                          {layout.calls.map(edge => (
-                            <EdgeView
-                              key={edgeId(edge)}
-                              edge={edge}
-                              name={`${labelOf.get(edge.from)} ⇢ ${labelOf.get(edge.to)}: ${edge.state} (${edge.via?.join(', ')})`}
-                              drawing={drawing}
-                            />
-                          ))}
-                        </g>
-                      </svg>
-                    </>
-                  )}
-                </div>
-              )}
-            </div>
-            <ChangedSinceMarks value={changedSinceIn(review)}>
-              <SidePanel
-                review={review}
-                selected={selected}
-                node={selectedNode}
-                outside={outside}
-                note={selectedNote}
-                found={selectedFindings}
-                saidInPlace={edgesSaidInPlace({
-                  comments: review.sinceReview?.comments ?? [],
-                  arrow: selected,
-                  diff: review.diff,
-                  expanded,
-                  noted: unmerged,
-                  allEdges,
-                })}
-                comments={comments}
-                onComment={comment}
-                answers={answers}
-                onAnswer={answer}
-                chosenWidth={chosenWidth}
-                onChooseWidth={setChosenWidth}
-                graphLeft={graphLeft}
-                onCloseOutside={closeOutside}
-                onCloseInspector={closeInspector}
-                onGoTo={goTo}
-                landing={landing}
-                onLand={line => landOn(selected, line)}
-                read={read}
-                onToggleRead={toggleRead}
-                commentAsked={commentAsked}
-              />
-            </ChangedSinceMarks>
+          )}
+          <div className={reading ? 'columns reading' : 'columns'}>
+            <LeftColumn
+              review={review}
+              notes={notes}
+              reading={reading}
+              read={read}
+              selected={selected}
+              commentable={send !== undefined}
+              findings={findings}
+              inLens={inLens}
+              railOpen={railOpen}
+              onRailOpen={setRailOpen}
+              answers={answers}
+              onAnswer={answer}
+              onGoTo={goTo}
+              onWalkTo={walkTo}
+              onStart={() => walk(1)}
+              onGoToDraft={goToDraft}
+              onGoToFinding={goToFinding}
+              onGoToOutside={showOutsideAt}
+              onShowOutside={showOutside}
+              onShowFile={showFile}
+            />
+            {reading ? [side, content] : [content, side]}
           </div>
         </>
       )}
-      {tab === 'metrics' && <MetricsScreen review={review} onGoTo={goToOnStructure} />}
-      {tab === 'tests' && (
-        <ChangedSinceMarks value={changedSinceIn(review)}>
-          <TestsScreen
-            review={review}
-            notes={notes}
-            selected={selectedNode}
-            onGoTo={goToOnStructure}
-            comments={comments}
-            onComment={comment}
-          />
-        </ChangedSinceMarks>
-      )}
-      {tab === 'schema' && (
-        <SchemaScreen
-          review={review}
-          landing={schemaLanding}
-          onLanded={() => setSchemaLanding(undefined)}
-        />
-      )}
-      {tab === 'routes' && (
-        <RoutesScreen
-          review={review}
-          landing={routesLanding}
-          onLanded={() => setRoutesLanding(undefined)}
-          onShowPatch={showPatch}
-        />
-      )}
+      <OtherScreen
+        tab={tab}
+        review={review}
+        notes={notes}
+        selected={selectedNode}
+        comments={comments}
+        onComment={comment}
+        onGoTo={goToOnStructure}
+        schemaLanding={schemaLanding}
+        onSchemaLanded={() => setSchemaLanding(undefined)}
+        routesLanding={routesLanding}
+        onRoutesLanded={() => setRoutesLanding(undefined)}
+        onShowPatch={showPatch}
+      />
       {send && (
         <ReviewTray
-          reviewed={{
-            range: review.range,
-            ...(review.pullRequest && { pullRequest: review.pullRequest.number }),
-          }}
+          reviewed={reviewedIn(review)}
           read={review.readingOrder.parts.filter(part => read.has(part))}
           resolved={resolved}
           parts={review.readingOrder.parts}

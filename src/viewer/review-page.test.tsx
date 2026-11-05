@@ -16,6 +16,7 @@ import { symbolFindings } from '../core/symbol-findings.ts';
 import { findingOn, measured, pageWith } from '../test-support/page-data.ts';
 import { layoutDiff } from './layout.ts';
 import { ReviewPage } from './review-page.tsx';
+import { boxOf, centred, frameHeight, mapHeight } from './view.ts';
 
 const frameOfWidth = (width: number) => {
   const observing: { report?: (width: number) => void } = {};
@@ -54,7 +55,10 @@ const scrolledIntoView = vi.fn();
 
 Object.defineProperty(HTMLElement.prototype, 'scrollIntoView', { value: scrolledIntoView });
 
-vi.stubGlobal('scrollTo', vi.fn());
+const scrolledTo = vi.fn();
+vi.stubGlobal('scrollTo', scrolledTo);
+const scrolledBy = vi.fn();
+vi.stubGlobal('scrollBy', scrolledBy);
 
 type Diffed = GraphDiff['nodes'][number]['state'];
 
@@ -2007,7 +2011,7 @@ test("a lens counts each of its dimensions' findings, a note's flag among them, 
       .getAllByRole('heading', { level: 3 })
       .map(heading => heading.textContent),
   ).toEqual(['Logic', 'Tests']);
-  expect(screen.getByRole('button', { name: 'domain: unchanged' })).toBeDefined();
+  expect(await screen.findByRole('button', { name: 'domain: unchanged' })).toBeDefined();
 });
 
 const lensRow = (lens: string) =>
@@ -2127,6 +2131,11 @@ test("a note's or a metric finding in the rail goes to its node or edge as the s
   expect(scrolledIntoView.mock.contexts).toContain(row);
 });
 
+const rowsOf = (order: HTMLElement) =>
+  within(order)
+    .getAllByRole('listitem')
+    .map(row => within(row).getByRole('button').textContent);
+
 test("the reading order numbers the changed parts in its order, on the graph too, each marked with its findings' worst level and count, a cycle's first part saying it is one, and going to its part as the summary's links do", async () => {
   const user = userEvent.setup();
   render(
@@ -2161,11 +2170,13 @@ test("the reading order numbers the changed parts in its order, on the graph too
   expect(numberOn('domain: unchanged')).toEqual([]);
 
   const order = screen.getByRole('navigation', { name: 'Reading order' });
-  expect(
-    within(order)
-      .getAllByRole('button')
-      .map(item => item.textContent),
-  ).toEqual(['1 application', '2 cli-adapter', '3 legacy', '4 README.md', '5 docs/a.md']);
+  expect(rowsOf(order)).toEqual([
+    '1 application',
+    '2 cli-adapter',
+    '3 legacy',
+    '4 README.md',
+    '5 docs/a.md',
+  ]);
   expect(within(order).getByRole('heading', { name: 'Outside the graph' })).toBeDefined();
   await user.click(within(order).getByRole('button', { name: '5 docs/a.md' }));
   expect(within(inspector()).getByRole('heading', { level: 2 }).textContent).toBe(
@@ -2183,7 +2194,6 @@ test("the reading order numbers the changed parts in its order, on the graph too
     within(first ?? order).getByText('3 parts depend on each other: read in name order'),
   ]);
   await user.click(within(order).getByRole('button', { name: '2 cli-adapter' }));
-  expect(document.activeElement).toBe(screen.getByRole('button', { name: 'cli-adapter: added' }));
   expect(within(inspector()).getByRole('heading', { level: 2 }).textContent).toBe('cli-adapter');
 });
 
@@ -2199,32 +2209,28 @@ test('the reading order shows no outside heading when every changed file is draw
   await screen.findByRole('group', { name: 'rust' });
 
   const order = screen.getByRole('navigation', { name: 'Reading order' });
-  expect(
-    within(order)
-      .getAllByRole('button')
-      .map(row => row.textContent),
-  ).toEqual(['1 application']);
+  expect(rowsOf(order)).toEqual(['1 application']);
   expect(within(order).queryByRole('heading', { name: 'Outside the graph' })).toBeNull();
 
   rerender(
     <ReviewPage review={pageWith({ ...review, undrawn: [{ path: 'README.md', patch: '' }] })} />,
   );
-  expect(
-    within(screen.getByRole('navigation', { name: 'Reading order' }))
-      .getAllByRole('button')
-      .map(row => row.textContent),
-  ).toEqual(['1 README.md']);
+  expect(rowsOf(screen.getByRole('navigation', { name: 'Reading order' }))).toEqual([
+    '1 README.md',
+  ]);
 
   rerender(<ReviewPage review={pageWith(review)} />);
   expect(screen.queryByRole('navigation', { name: 'Reading order' })).toBeNull();
 });
 
-test('the reading order counts the parts read only when it has parts, a single part in the singular', async () => {
+test('the parts read are counted and barred on every tab, only when there are parts, a single part in the singular, and no longer in the reading order', async () => {
+  const user = userEvent.setup();
   const { rerender } = render(
     <ReviewPage review={pageWith({ ...review, undrawn: [{ path: 'README.md', patch: '' }] })} />,
   );
   await screen.findByRole('group', { name: 'rust' });
-  expect(within(readingOrder()).queryByText(/read$/)).toBeNull();
+  expect(screen.queryByText(/parts? read$/)).toBeNull();
+  expect(screen.queryByRole('progressbar')).toBeNull();
 
   rerender(
     <ReviewPage
@@ -2234,7 +2240,18 @@ test('the reading order counts the parts read only when it has parts, a single p
       })}
     />,
   );
-  expect(within(readingOrder()).getByText('0 of 1 part read')).toBeDefined();
+  expect(screen.getByText('0 of 1 part read')).toBeDefined();
+  expect(within(readingOrder()).queryByText('0 of 1 part read')).toBeNull();
+
+  rerender(<ReviewPage review={walkedReview()} />);
+  await user.keyboard('ja');
+  const bar = () => screen.getByRole<HTMLProgressElement>('progressbar', { name: 'Parts read' });
+  expect(screen.getByText('1 of 3 parts read')).toBeDefined();
+  expect([bar().value, bar().max]).toEqual([1, 3]);
+
+  await user.click(screen.getByRole('link', { name: 'Metrics' }));
+  expect(screen.getByText('1 of 3 parts read')).toBeDefined();
+  expect(bar().value).toBe(1);
 });
 
 const walkedReview = () =>
@@ -2249,6 +2266,531 @@ const walkedReview = () =>
 
 const selectedPart = () => within(inspector()).getByRole('heading', { level: 2 }).textContent;
 
+const headingOfPart = () => within(inspector()).getByRole('heading', { level: 2 });
+
+test("from the landing, J goes to the first part unread, the graph becomes the map, and focus moves to the part's heading", async () => {
+  const user = userEvent.setup();
+  render(<ReviewPage review={walkedReview()} />);
+  const rust = await screen.findByRole('group', { name: 'rust' });
+  await user.click(within(rust).getByRole('button', { name: 'application: modified' }));
+  await user.keyboard('a');
+  await user.click(screen.getByRole('button', { name: 'Close inspector' }));
+  expect(screen.getByRole('group', { name: 'Graph' })).toBeDefined();
+  expect(screen.queryByRole('group', { name: 'Map' })).toBeNull();
+
+  await user.keyboard('j');
+
+  expect(selectedPart()).toBe('cli-adapter');
+  expect(screen.getByRole('group', { name: 'Map' })).toBeDefined();
+  expect(screen.queryByRole('group', { name: 'Graph' })).toBeNull();
+  await waitFor(() => expect(document.activeElement).toBe(headingOfPart()));
+});
+
+test('while reading, the landing gives way: no lenses, Start here or findings rail, and the column comes before the map', async () => {
+  const user = userEvent.setup();
+  render(<ReviewPage review={{ ...walkedReview(), findings: [findingOn('rust/crate/domain')] }} />);
+  await screen.findByRole('group', { name: 'rust' });
+  const landing = () => [
+    screen.queryByRole('group', { name: 'Lenses' }),
+    screen.queryByRole('region', { name: 'Start here' }),
+    screen.queryByRole('navigation', { name: 'Findings' }),
+  ];
+  await user.click(screen.getByRole('button', { name: 'domain: unchanged' }));
+  expect(screen.getByRole('group', { name: 'Graph' })).toBeDefined();
+  expect(landing().every(piece => piece !== null)).toBe(true);
+  expect(screen.getByRole('separator', { name: 'Panel width' })).toBeDefined();
+  expect(inspector().style.width).toBe('360px');
+
+  await user.keyboard('j');
+
+  expect(landing()).toEqual([null, null, null]);
+  expect(screen.queryByRole('separator', { name: 'Panel width' })).toBeNull();
+  expect(inspector().style.width).toBe('');
+  const map = screen.getByRole('group', { name: 'Map' });
+  expect(inspector().compareDocumentPosition(map)).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
+});
+
+test("Open map and Escape outside a field return to the landing with the part still selected and focused in the graph; the column's close returns with nothing selected", async () => {
+  const user = userEvent.setup();
+  render(<ReviewPage review={walkedReview()} send={vi.fn()} />);
+  await screen.findByRole('group', { name: 'rust' });
+  const nodeOfPart = () => screen.getByRole('button', { name: 'application: modified' });
+
+  await user.keyboard('j');
+  await user.click(screen.getByRole('button', { name: 'Open map' }));
+  expect(screen.getByRole('group', { name: 'Graph' })).toBeDefined();
+  expect(screen.queryByRole('button', { name: 'Open map' })).toBeNull();
+  expect(selectedPart()).toBe('application');
+  await waitFor(() => expect(document.activeElement).toBe(nodeOfPart()));
+
+  await user.keyboard('j');
+  expect(selectedPart()).toBe('cli-adapter');
+  const box = await partComment(user);
+  await user.click(box);
+  await user.keyboard('{Escape}');
+  expect(screen.getByRole('group', { name: 'Map' })).toBeDefined();
+  await user.click(headingOfPart());
+  await user.keyboard('{Control>}{Escape}{/Control}');
+  expect(screen.getByRole('group', { name: 'Map' })).toBeDefined();
+  await user.keyboard('{Escape}');
+  expect(screen.getByRole('group', { name: 'Graph' })).toBeDefined();
+  expect(selectedPart()).toBe('cli-adapter');
+  await waitFor(() =>
+    expect(document.activeElement).toBe(screen.getByRole('button', { name: 'cli-adapter: added' })),
+  );
+  await user.click(headingOfPart());
+  await user.keyboard('{Escape}');
+  expect(document.activeElement).toBe(headingOfPart());
+
+  await user.keyboard('j');
+  scrolledIntoView.mockClear();
+  await user.click(screen.getByRole('button', { name: 'Close inspector' }));
+  const graph = screen.getByRole('group', { name: 'Graph' });
+  expect(screen.queryByRole('complementary', { name: 'Inspector' })).toBeNull();
+  await waitFor(() =>
+    expect(document.activeElement).toBe(screen.getByRole('button', { name: /^legacy:/ })),
+  );
+  expect(scrolledIntoView.mock.contexts).toContain(graph);
+});
+
+test('the map draws the graph fitted and takes no zoom or pan, and Open map brings back the graph on the part', async () => {
+  const user = userEvent.setup();
+  const graph = await layoutDiff(review.diff);
+  const width = graph.width / 2;
+  renderInFrame(walkedReview(), { width, windowHeight: 100 });
+  const rust = await screen.findByRole('group', { name: 'rust' });
+  const box = boxOf({ layout: graph, id: 'rust/crate/application' });
+  if (box === undefined) throw new Error('no box for application');
+  const onThePart = centred({
+    graph,
+    frame: { width, height: frameHeight({ graph, frameWidth: width, windowHeight: 100 }) },
+    box,
+  });
+  const whole = viewOf(rust);
+
+  await user.click(within(rust).getByRole('button', { name: 'domain: unchanged' }));
+  expect(screen.getByRole('group', { name: 'Graph' })).toBeDefined();
+  expect(viewOf(rust)).toBe(whole);
+
+  await user.keyboard('j');
+
+  const map = screen.getByRole('group', { name: 'Map' });
+  const fittedView = 'translate(0 0) scale(0.5)';
+  expect(viewOf(rust)).toBe(fittedView);
+  expect(map.style.height).toBe(`${mapHeight({ graph, frameWidth: width })}px`);
+  expect(map.tabIndex).toBe(-1);
+  expect(screen.queryByRole('toolbar', { name: 'View' })).toBeNull();
+
+  fireEvent.keyDown(map, { key: '+' });
+  expect(fireEvent.keyDown(map, { key: 'ArrowLeft' })).toBe(true);
+  expect(fireEvent.wheel(map, { ctrlKey: true, deltaY: -100 })).toBe(true);
+  expect(fireEvent.wheel(map, { deltaY: 40 })).toBe(true);
+  fireEvent.pointerDown(map, { button: 0, clientX: 100, clientY: 100 });
+  fireEvent.pointerMove(window, { clientX: 60, clientY: 60 });
+  fireEvent.pointerUp(window);
+  expect(viewOf(rust)).toBe(fittedView);
+  expect(selectedPart()).toBe('application');
+
+  await user.click(screen.getByRole('button', { name: 'Open map' }));
+  expect(viewOf(rust)).toBe(`translate(${onThePart.x} ${onThePart.y}) scale(${onThePart.scale})`);
+});
+
+test('on the map the current part is marked, a click on a node goes to it as J does, and nothing on it takes a tab stop', async () => {
+  const user = userEvent.setup();
+  render(<ReviewPage review={walkedReview()} />);
+  const rust = await screen.findByRole('group', { name: 'rust' });
+  const node = (name: string) => within(rust).getByRole('button', { name });
+  const application = () => node('application: modified');
+  const legacy = () => node('legacy: removed');
+  await user.click(application());
+  expect(application().getAttribute('aria-current')).toBeNull();
+  expect(application().tabIndex).toBe(0);
+
+  await user.keyboard('j');
+  expect(selectedPart()).toBe('cli-adapter');
+  expect(node('cli-adapter: added').getAttribute('aria-current')).toBe('true');
+  expect(application().getAttribute('aria-current')).toBeNull();
+  expect(application().tabIndex).toBe(-1);
+
+  await user.click(legacy());
+  expect(selectedPart()).toBe('legacy');
+  expect(legacy().getAttribute('aria-current')).toBe('true');
+  await waitFor(() => expect(document.activeElement).toBe(headingOfPart()));
+  expect(screen.getByRole('group', { name: 'Map' })).toBeDefined();
+});
+
+test('on the map no box takes a toggle, and a part whose box stands open is marked as a closed one is', async () => {
+  const user = userEvent.setup();
+  render(
+    <ReviewPage
+      review={pageWith({
+        range: `walk-${crypto.randomUUID()}`,
+        diff: {
+          nodes: [
+            { id: 'web', kind: 'stack', label: 'web', path: '', state: 'unchanged' },
+            webModule('utils', 'modified'),
+            webFile('utils', 'y.ts'),
+          ],
+          edges: [],
+        },
+        readingOrder: { parts: ['web/module/utils'], cycles: [] },
+      })}
+    />,
+  );
+  await screen.findByRole('group', { name: 'web' });
+  await showEverything(user);
+  await user.click(await screen.findByRole('button', { name: 'Expand utils' }));
+  const box = await screen.findByRole('group', { name: 'utils' });
+  expect(box.getAttribute('aria-current')).toBeNull();
+  expect(screen.getByRole('button', { name: 'Collapse utils' })).toBeDefined();
+
+  await user.keyboard('j');
+
+  expect(selectedPart()).toBe('utils');
+  expect(screen.getByRole('group', { name: 'utils' }).getAttribute('aria-current')).toBe('true');
+  expect(screen.queryByRole('button', { name: 'Collapse utils' })).toBeNull();
+});
+
+test('while reading, going to a draft on a diff line keeps the column on its row, where a walk lets the heading bring the window to it', async () => {
+  const user = userEvent.setup();
+  const page = pageWithPatch('@@ -1 +1 @@', '-const x = 1;', '+const x = 2;');
+  render(
+    <ReviewPage
+      review={{ ...page, readingOrder: { parts: ['web/file/x.ts'], cycles: [] } }}
+      send={vi.fn(async () => {})}
+    />,
+  );
+  const name = 'x.ts:1 "const x = 1;"';
+  await screen.findByRole('button', { name: 'x.ts: modified' });
+  const focused = vi.spyOn(HTMLElement.prototype, 'focus');
+  onTestFinished(() => focused.mockRestore());
+
+  await user.keyboard('j');
+  await waitFor(() => expect(document.activeElement).toBe(headingOfPart()));
+  expect(focused.mock.lastCall).toEqual([{ preventScroll: false }]);
+
+  await openFold(user, 'Full diff');
+  await user.click(within(diffTab()).getByRole('button', { name: `Comment on ${name}` }));
+  await write(user, within(diffTab()).getByRole('textbox', { name: 'Your comment' }), 'Why?');
+  await openReview(user);
+  await user.click(
+    within(screen.getByRole('list', { name: 'Drafts' })).getByRole('button', { name }),
+  );
+
+  await waitFor(() => expect(document.activeElement).toBe(headingOfPart()));
+  expect(focused.mock.lastCall).toEqual([{ preventScroll: true }]);
+});
+
+test('walking brings the current stop into view in its list, and marking it read leaves the list where it is', async () => {
+  const user = userEvent.setup();
+  render(<ReviewPage review={walkedReview()} />);
+  await screen.findByRole('group', { name: 'rust' });
+  const currentStop = () =>
+    within(readingOrder())
+      .getAllByRole('button')
+      .find(button => button.getAttribute('aria-current') !== null);
+
+  await user.keyboard('j');
+  expect(scrolledIntoView.mock.contexts).toContain(currentStop());
+
+  const first = currentStop();
+  scrolledIntoView.mockClear();
+  await user.keyboard('j');
+  expect(currentStop()).not.toBe(first);
+  expect(scrolledIntoView.mock.contexts).toContain(currentStop());
+  expect(scrolledIntoView.mock.contexts).not.toContain(first);
+
+  const second = currentStop();
+  scrolledIntoView.mockClear();
+  await user.keyboard('a');
+  expect(scrolledIntoView.mock.contexts).not.toContain(second);
+});
+
+test('walking leaves the page where it stands, wherever the current stop sits on screen', async () => {
+  const user = userEvent.setup();
+  render(<ReviewPage review={walkedReview()} />);
+  await screen.findByRole('group', { name: 'rust' });
+  const everything = vi.spyOn(Element.prototype, 'getBoundingClientRect');
+  onTestFinished(() => everything.mockRestore());
+  everything.mockReturnValue(at(-120, -20));
+  scrolledBy.mockClear();
+
+  await user.keyboard('j');
+
+  expect(within(readingOrder()).getByRole('button', { current: 'step' })).toBeDefined();
+  expect(scrolledBy).not.toHaveBeenCalled();
+});
+
+test('on a map fitted too small to see a part, the ring around the current one stays big enough to find', async () => {
+  const user = userEvent.setup();
+  renderInFrame(walkedReview(), { width: 20, windowHeight: 800 });
+  await screen.findByRole('group', { name: 'rust' });
+
+  await user.keyboard('j');
+
+  await waitFor(() => expect(document.querySelector('.current-ring')).not.toBeNull());
+  const ring = document.querySelector('.current-ring');
+  const widthOf = (element: Element | null | undefined) => Number(element?.getAttribute('width'));
+  expect(widthOf(ring)).toBeGreaterThan(widthOf(ring?.previousElementSibling));
+});
+
+test('a row of the reading order and Start reading enter reading, Start reading as J goes; a click in the graph and a finding keep the graph whole', async () => {
+  const user = userEvent.setup();
+  render(<ReviewPage review={{ ...walkedReview(), findings: [findingOn('rust/crate/domain')] }} />);
+  await screen.findByRole('group', { name: 'rust' });
+  const row = (part: string) =>
+    within(readingOrder()).getByRole('button', { name: new RegExp(part) });
+  const inGraph = () => screen.getByRole('group', { name: 'Graph' });
+  const onMap = () => screen.getByRole('group', { name: 'Map' });
+
+  await user.click(screen.getByRole('button', { name: 'domain: unchanged' }));
+  expect(inGraph()).toBeDefined();
+  await user.click(screen.getByRole('button', { name: 'Show 1 finding' }));
+  await user.click(
+    within(screen.getByRole('complementary', { name: 'Findings' })).getByRole('button', {
+      name: 'domain: lines 900, over 800',
+    }),
+  );
+  expect(inGraph()).toBeDefined();
+
+  await user.click(row('legacy'));
+  expect(selectedPart()).toBe('legacy');
+  expect(onMap()).toBeDefined();
+  await waitFor(() => expect(document.activeElement).toBe(headingOfPart()));
+
+  await user.click(screen.getByRole('button', { name: 'Open map' }));
+  await user.click(screen.getByRole('button', { name: 'Close inspector' }));
+  await user.click(within(readingOrder()).getByRole('button', { name: 'Start reading' }));
+  expect(selectedPart()).toBe('application');
+  expect(onMap()).toBeDefined();
+});
+
+test('while reading, the reading order narrows to numbered stops: the part current, a tick on what is read, each going to its part, and outside files opening their panel', async () => {
+  const user = userEvent.setup();
+  render(
+    <ReviewPage review={{ ...walkedReview(), undrawn: [{ path: 'README.md', patch: '' }] }} />,
+  );
+  await screen.findByRole('group', { name: 'rust' });
+  const stop = (name: string) => within(readingOrder()).getByRole('button', { name });
+  const currentStops = () =>
+    within(readingOrder())
+      .getAllByRole('button')
+      .filter(button => button.getAttribute('aria-current') !== null)
+      .map(button => [button.textContent, button.getAttribute('aria-current')]);
+  const startReading = () =>
+    within(readingOrder()).queryByRole('button', { name: 'Start reading' });
+  const outsideHeading = () => within(readingOrder()).queryByText('Outside the graph');
+  expect(startReading()).not.toBeNull();
+  expect(outsideHeading()).not.toBeNull();
+  expect(currentStops()).toEqual([]);
+
+  await user.keyboard('j');
+
+  expect(startReading()).toBeNull();
+  expect(outsideHeading()).toBeNull();
+  expect(rowsOf(readingOrder())).toEqual([
+    '1 application',
+    '2 cli-adapter',
+    '3 legacy',
+    '4 README.md',
+  ]);
+  expect(stop('2 cli-adapter').title).toBe('cli-adapter');
+  expect(currentStops()).toEqual([['1 application', 'step']]);
+
+  await user.keyboard('a');
+  expect(readRows()).toEqual(['1 application']);
+
+  await user.click(stop('3 legacy'));
+  expect(selectedPart()).toBe('legacy');
+  expect(currentStops()).toEqual([['3 legacy', 'step']]);
+  expect(screen.getByRole('group', { name: 'Map' })).toBeDefined();
+
+  await user.click(stop('4 README.md'));
+  expect(selectedPart()).toBe('Changed files outside the graph');
+  expect(currentStops()).toEqual([]);
+  expect(screen.getByRole('group', { name: 'Map' })).toBeDefined();
+});
+
+test("while reading, Next to it lists the part's edges by what each does, its change and whether the other end is read, each going to it; a linker's edge calls, and the landing has none", async () => {
+  const user = userEvent.setup();
+  const { unmount } = render(
+    <ReviewPage
+      review={{
+        ...walkedReview(),
+        diff: {
+          ...review.diff,
+          edges: [
+            ...review.diff.edges,
+            { ...dependency('application', 'legacy', 'unchanged'), via: ['/api/x'] },
+            { ...dependency('domain', 'application', 'unchanged'), via: ['/api/y'] },
+          ],
+        },
+      }}
+    />,
+  );
+  const rust = await screen.findByRole('group', { name: 'rust' });
+  const nextToIt = () => screen.queryByRole('region', { name: 'Next to it' });
+  const rows = () =>
+    within(nextToIt() ?? document.body)
+      .getAllByRole('button')
+      .map(row => row.textContent);
+  await user.click(within(rust).getByRole('button', { name: 'application: modified' }));
+  expect(nextToIt()).toBeNull();
+
+  await user.keyboard('jak');
+
+  expect(selectedPart()).toBe('application');
+  expect(rows()).toEqual([
+    'imports domain',
+    'calls legacy',
+    'imported by cli-adapter · added · read',
+    'called by domain',
+  ]);
+
+  await user.click(screen.getByRole('button', { name: 'imports domain' }));
+  expect(selectedPart()).toBe('domain');
+  expect(screen.getByRole('group', { name: 'Map' })).toBeDefined();
+  unmount();
+
+  render(<ReviewPage review={{ ...walkedReview(), diff: { ...review.diff, edges: [] } }} />);
+  await screen.findByRole('group', { name: 'rust' });
+  await user.keyboard('j');
+  expect(selectedPart()).toBe('application');
+  expect(nextToIt()).toBeNull();
+});
+
+test('All findings, while reading, returns to the landing with every finding open in the rail whatever lens was picked, and is there only with findings', async () => {
+  const user = userEvent.setup();
+  const { unmount } = render(<ReviewPage review={walkedReview()} />);
+  await screen.findByRole('group', { name: 'rust' });
+  await user.keyboard('j');
+  expect(screen.getByRole('group', { name: 'Map' })).toBeDefined();
+  expect(screen.queryByRole('button', { name: 'All findings' })).toBeNull();
+  unmount();
+
+  render(<ReviewPage review={{ ...walkedReview(), findings: [findingOn('rust/crate/domain')] }} />);
+  await screen.findByRole('group', { name: 'rust' });
+  await user.click(
+    within(screen.getByRole('group', { name: 'Lenses' })).getByRole('button', { name: /Risk/ }),
+  );
+  await user.keyboard('j');
+  await user.click(screen.getByRole('button', { name: 'All findings' }));
+
+  expect(screen.getByRole('group', { name: 'Graph' })).toBeDefined();
+  expect(
+    within(screen.getByRole('complementary', { name: 'Findings' })).getByRole('button', {
+      name: 'domain: lines 900, over 800',
+    }),
+  ).toBeDefined();
+});
+
+test('reading holds across Metrics and Tests: the map, the part and the column are as they were left', async () => {
+  const user = userEvent.setup();
+  render(<ReviewPage review={walkedReview()} />);
+  await screen.findByRole('group', { name: 'rust' });
+  await user.keyboard('jj');
+  expect(selectedPart()).toBe('cli-adapter');
+
+  await user.click(screen.getByRole('link', { name: 'Metrics' }));
+  expect(screen.queryByRole('group', { name: 'Map' })).toBeNull();
+  await user.click(screen.getByRole('link', { name: /Tests/ }));
+  await user.click(screen.getByRole('link', { name: 'Structure' }));
+
+  expect(await screen.findByRole('group', { name: 'Map' })).toBeDefined();
+  expect(selectedPart()).toBe('cli-adapter');
+  expect(rowsOf(readingOrder())).toHaveLength(3);
+});
+
+test('on the map an arrow and its badge go nowhere: the part stays, and they go again on the landing', async () => {
+  const user = userEvent.setup();
+  const edge = 'rust/crate/cli-adapter -> rust/crate/application';
+  render(
+    <ReviewPage
+      review={walkedReview()}
+      notes={{
+        version: 1,
+        tests: '',
+        summary: [],
+        notes: { [edge]: { text: 'The CLI drives the use case.', flag: 'new direction' } },
+      }}
+    />,
+  );
+  await screen.findByRole('group', { name: 'rust' });
+  const arrowName = 'cli-adapter → application: added, flagged: new direction';
+  const arrow = screen.getByRole('button', { name: arrowName });
+  const badge = screen.getByRole('img', { name: /new direction/ });
+
+  await user.keyboard('j');
+  expect(selectedPart()).toBe('application');
+  expect(screen.queryByRole('button', { name: arrowName })).toBeNull();
+  await user.click(arrow);
+  expect(selectedPart()).toBe('application');
+  await user.click(badge);
+  expect(selectedPart()).toBe('application');
+
+  await user.click(screen.getByRole('button', { name: 'Open map' }));
+  await user.click(screen.getByRole('button', { name: arrowName }));
+  expect(noteShown()).toBe('The CLI drives the use case.');
+});
+
+test('Start here left collapsed is still collapsed after reading', async () => {
+  const user = userEvent.setup();
+  render(<ReviewPage review={{ ...walkedReview(), findings: [findingOn('rust/crate/domain')] }} />);
+  await screen.findByRole('group', { name: 'rust' });
+  const toggle = () =>
+    within(screen.getByRole('region', { name: 'Start here' })).getByRole('button', {
+      name: 'Start here',
+    });
+  await user.click(toggle());
+  expect(toggle().getAttribute('aria-expanded')).toBe('false');
+
+  await user.keyboard('j');
+  await user.keyboard('{Escape}');
+
+  expect(toggle().getAttribute('aria-expanded')).toBe('false');
+});
+
+test("going to a part from another tab while reading lands focus on the part's heading", async () => {
+  const user = userEvent.setup();
+  render(<ReviewPage review={walkedReview()} />);
+  await screen.findByRole('group', { name: 'rust' });
+  await user.keyboard('j');
+
+  await user.click(screen.getByRole('link', { name: 'Tests' }));
+  await user.click(await screen.findByRole('button', { name: 'cli-adapter' }));
+
+  expect(await screen.findByRole('group', { name: 'Map' })).toBeDefined();
+  expect(selectedPart()).toBe('cli-adapter');
+  await waitFor(() => expect(document.activeElement).toBe(headingOfPart()));
+});
+
+test('going from Next to it to a neighbour Show hides widens Show, and the map rings it', async () => {
+  const user = userEvent.setup();
+  render(
+    <ReviewPage
+      review={{
+        ...walkedReview(),
+        diff: { ...review.diff, edges: [dependency('application', 'domain', 'unchanged')] },
+      }}
+    />,
+  );
+  await screen.findByRole('group', { name: 'rust' });
+  await user.keyboard('j');
+  const map = () => within(screen.getByRole('group', { name: 'Map' }));
+  await waitFor(() =>
+    expect(map().getByRole('button', { name: 'application: modified' })).toHaveProperty(
+      'ariaCurrent',
+      'true',
+    ),
+  );
+  expect(map().queryByRole('button', { name: 'domain: unchanged' })).toBeNull();
+
+  await user.click(screen.getByRole('button', { name: 'imports domain' }));
+
+  const domain = await map().findByRole('button', { name: 'domain: unchanged' });
+  expect(domain.getAttribute('aria-current')).toBe('true');
+});
+
 test('J and K walk the reading order from the selected part, starting at its first part, going to each as its row does, and stay put at either end', async () => {
   const user = userEvent.setup();
   render(<ReviewPage review={walkedReview()} />);
@@ -2258,12 +2800,27 @@ test('J and K walk the reading order from the selected part, starting at its fir
   expect(selectedPart()).toBe('application');
   await user.keyboard('j');
   expect(selectedPart()).toBe('cli-adapter');
-  await waitFor(() =>
-    expect(document.activeElement).toBe(screen.getByRole('button', { name: 'cli-adapter: added' })),
-  );
+  await waitFor(() => expect(document.activeElement).toBe(headingOfPart()));
   await user.keyboard('jjj');
   expect(selectedPart()).toBe('legacy');
   await user.keyboard('kkk');
+  expect(selectedPart()).toBe('application');
+});
+
+test('J at the last part selected in the graph enters reading on it, and with every part read goes from the landing to the first', async () => {
+  const user = userEvent.setup();
+  render(<ReviewPage review={walkedReview()} />);
+  const rust = await screen.findByRole('group', { name: 'rust' });
+
+  await user.click(within(rust).getByRole('button', { name: 'legacy: removed' }));
+  expect(screen.getByRole('group', { name: 'Graph' })).toBeDefined();
+  await user.keyboard('j');
+  expect(selectedPart()).toBe('legacy');
+  expect(screen.getByRole('group', { name: 'Map' })).toBeDefined();
+
+  await user.keyboard('akakak');
+  await user.click(screen.getByRole('button', { name: 'Close inspector' }));
+  await user.keyboard('j');
   expect(selectedPart()).toBe('application');
 });
 
@@ -2289,8 +2846,10 @@ test("a part's head marks it read and goes to the next part, as A and J do, even
   await user.click(within(rust).getByRole('button', { name: 'domain: unchanged' }));
   expect(head().queryByRole('button', { name: 'Mark read' })).toBeNull();
 
+  expect(screen.getByRole('group', { name: 'Graph' })).toBeDefined();
   await goNext('application');
   expect(selectedPart()).toBe('application');
+  expect(screen.getByRole('group', { name: 'Map' })).toBeDefined();
   expect(markRead().getAttribute('aria-pressed')).toBe('false');
 
   await user.click(markRead());
@@ -2301,14 +2860,13 @@ test("a part's head marks it read and goes to the next part, as A and J do, even
 
   await goNext('cli-adapter');
   expect(selectedPart()).toBe('cli-adapter');
-  await waitFor(() =>
-    expect(document.activeElement).toBe(screen.getByRole('button', { name: 'cli-adapter: added' })),
-  );
+  await waitFor(() => expect(document.activeElement).toBe(headingOfPart()));
   await goNext('legacy');
   expect(selectedPart()).toBe('legacy');
   expect(markRead()).not.toBeNull();
   expect(anyNext()).toBeNull();
 
+  await user.click(screen.getByRole('button', { name: 'Open map' }));
   await user.click(within(rust).getByRole('button', { name: 'application → domain: unchanged' }));
   expect(head().queryByRole('button', { name: 'Mark read' })).toBeNull();
   expect(anyNext()).toBeNull();
@@ -2327,6 +2885,7 @@ test('the next part opens at the top of the column, which holds its scroll while
   expect(selectedPart()).toBe('cli-adapter');
   expect(inspector().scrollTop).toBe(0);
 
+  await user.keyboard('{Escape}');
   const rust = screen.getByRole('group', { name: 'rust' });
   await user.click(within(rust).getByRole('button', { name: 'application → domain: unchanged' }));
   inspector().scrollTop = 300;
@@ -2364,24 +2923,24 @@ test('a finding leaves the column to its row, not its top', async () => {
   expect(inspector().scrollTop).toBe(300);
 });
 
-test('A marks the selected part read, ticking its row and counting it at the head of the reading order, and A again leaves it unread', async () => {
+test('A marks the selected part read, ticking its row and counting it, and A again leaves it unread', async () => {
   const user = userEvent.setup();
   render(<ReviewPage review={walkedReview()} />);
   await screen.findByRole('group', { name: 'rust' });
-  expect(within(readingOrder()).getByText('0 of 3 parts read')).toBeDefined();
+  expect(screen.getByText('0 of 3 parts read')).toBeDefined();
 
   await user.keyboard('ja');
   await user.keyboard('jja');
   expect(readRows()).toEqual(['1 application', '3 legacy']);
-  expect(within(readingOrder()).getByText('2 of 3 parts read')).toBeDefined();
+  expect(screen.getByText('2 of 3 parts read')).toBeDefined();
 
   await user.keyboard('a');
   expect(readRows()).toEqual(['1 application']);
-  expect(within(readingOrder()).getByText('1 of 3 parts read')).toBeDefined();
+  expect(screen.getByText('1 of 3 parts read')).toBeDefined();
 
   await user.click(screen.getByRole('button', { name: 'domain: unchanged' }));
   await user.keyboard('a');
-  expect(within(readingOrder()).getByText('1 of 3 parts read')).toBeDefined();
+  expect(screen.getByText('1 of 3 parts read')).toBeDefined();
 });
 
 test('a part marked read stays read when the page for its range opens again, and the page for another range starts with none read', async () => {
@@ -2395,7 +2954,7 @@ test('a part marked read stays read when the page for its range opens again, and
   const again = render(<ReviewPage review={walked} />);
   await screen.findByRole('group', { name: 'rust' });
   expect(readRows()).toEqual(['1 application']);
-  expect(within(readingOrder()).getByText('1 of 3 parts read')).toBeDefined();
+  expect(screen.getByText('1 of 3 parts read')).toBeDefined();
   again.unmount();
 
   render(<ReviewPage review={walkedReview()} />);
@@ -2438,7 +2997,7 @@ test('a stored mark on a part no longer in the reading order, the range having m
   render(<ReviewPage review={walked} />);
   await screen.findByRole('group', { name: 'rust' });
 
-  expect(within(readingOrder()).getByText('1 of 3 parts read')).toBeDefined();
+  expect(screen.getByText('1 of 3 parts read')).toBeDefined();
 });
 
 test('the review sends the parts marked read in reading order, none outside it, beside the comments and what the page was drawn for', async () => {
@@ -2537,7 +3096,7 @@ test("the open tray previews what Claude gets as lines: the verdict and parts re
   const user = userEvent.setup();
   const walked = render(<ReviewPage review={walkedReview()} send={async () => {}} />);
   const rust = await screen.findByRole('group', { name: 'rust' });
-  await user.keyboard('ja');
+  await user.keyboard('ja{Escape}');
   await user.click(within(rust).getByRole('button', { name: 'application → domain: unchanged' }));
   await write(user, await partComment(user), 'Why?');
   await user.click(within(rust).getByRole('button', { name: 'legacy: removed' }));
@@ -2586,7 +3145,7 @@ test('A on a node outside the reading order keeps no mark, so it starts unread w
     />,
   );
   await screen.findByRole('group', { name: 'rust' });
-  expect(within(readingOrder()).getByText('0 of 4 parts read')).toBeDefined();
+  expect(screen.getByText('0 of 4 parts read')).toBeDefined();
 });
 
 test('stored read marks that are not a list of ids are ignored, the page starting with none read', async () => {
@@ -2631,7 +3190,7 @@ test('J, K and A act on Structure alone: on Metrics and Tests they neither walk 
   await screen.findByRole('group', { name: 'rust' });
 
   expect(selectedPart()).toBe('application');
-  expect(within(readingOrder()).getByText('0 of 3 parts read')).toBeDefined();
+  expect(screen.getByText('0 of 3 parts read')).toBeDefined();
 });
 
 test('J, K and A in capitals, with Caps Lock or Shift, walk and mark as in lower case', async () => {
@@ -2652,7 +3211,7 @@ test('J, K and A held with Control, Meta or Alt are left to the browser, neither
   await user.keyboard('j');
   await user.keyboard('{Control>}j{/Control}{Meta>}a{/Meta}{Alt>}j{/Alt}');
   expect(selectedPart()).toBe('application');
-  expect(within(readingOrder()).getByText('0 of 3 parts read')).toBeDefined();
+  expect(screen.getByText('0 of 3 parts read')).toBeDefined();
 });
 
 test("C opens and focuses the selected part's comment, or refocuses it, not in a textarea or with a modifier, and going away and back leaves focus alone; a click on the opener focuses too", async () => {
@@ -2717,14 +3276,21 @@ test("C pressed before going to a part has finished drawing keeps the focus in t
           ],
           edges: [],
         },
-        readingOrder: { parts: ['web/file/utils/y.ts'], cycles: [] },
       })}
+      notes={{
+        version: 1,
+        tests: '',
+        summary: [{ text: 'Check y.ts', target: 'web/file/utils/y.ts' }],
+        notes: {},
+      }}
       send={async () => {}}
     />,
   );
   await screen.findByRole('group', { name: 'web' });
+  scrolledIntoView.mockClear();
 
-  await user.keyboard('jc');
+  await user.click(screen.getByRole('button', { name: 'Check y.ts' }));
+  await user.keyboard('c');
   await screen.findByRole('button', { name: 'y.ts: unchanged' });
   await waitFor(() => expect(scrolledIntoView).toHaveBeenCalled());
   expect(document.activeElement).toBe(
@@ -2740,7 +3306,7 @@ test('J, K and A typed in a comment are text, neither walking nor marking', asyn
   await user.keyboard('j');
   await user.type(await partComment(user), 'jaj');
   expect(selectedPart()).toBe('application');
-  expect(within(readingOrder()).getByText('0 of 3 parts read')).toBeDefined();
+  expect(screen.getByText('0 of 3 parts read')).toBeDefined();
   expect(within(inspector()).getByRole('textbox', { name: 'Your comment' })).toHaveProperty(
     'value',
     'jaj',
@@ -2771,7 +3337,7 @@ test("J, K and A typed in why it's fine are text, neither walking nor marking", 
   await user.click(within(inspector()).getByRole('button', { name: "It's fine" }));
   await user.type(within(inspector()).getByRole('textbox', { name: "Why it's fine" }), 'jaj');
   expect(selectedPart()).toBe('application');
-  expect(within(readingOrder()).getByText('0 of 3 parts read')).toBeDefined();
+  expect(screen.getByText('0 of 3 parts read')).toBeDefined();
   expect(within(inspector()).getByRole('textbox', { name: "Why it's fine" })).toHaveProperty(
     'value',
     'jaj',
@@ -6737,7 +7303,7 @@ test("a dependencies finding opens its lockfile's patch in Full diff on the node
   expect(scrolledIntoView.mock.contexts).toContain(patch);
 });
 
-test("an answer to a dependencies finding goes from the tray to its lockfile's patch, from any screen", async () => {
+test("an answer to a dependencies finding goes from the tray to its lockfile's patch, from any screen, and the patch's top, taller than the tray leaves, doesn't lift the page", async () => {
   const user = userEvent.setup();
   render(
     <ReviewPage
@@ -6752,11 +7318,20 @@ test("an answer to a dependencies finding goes from the tray to its lockfile's p
   await user.click(within(finding).getByRole('button', { name: 'Fix this' }));
   await user.click(screen.getByRole('link', { name: 'Tests' }));
   await openReview(user);
+  const everything = vi.spyOn(Element.prototype, 'getBoundingClientRect');
+  onTestFinished(() => everything.mockRestore());
+  everything.mockReturnValue(at(100, 2000));
+  vi.spyOn(
+    screen.getByRole('region', { name: 'Review tray' }),
+    'getBoundingClientRect',
+  ).mockReturnValue(at(464, 800));
+  scrolledBy.mockClear();
   await user.click(
     within(screen.getByRole('list', { name: 'Drafts' })).getByRole('button', {
       name: 'zod 3.25.0 → 4.6.7',
     }),
   );
+  expect(scrolledBy).not.toHaveBeenCalled();
 
   expect(within(inspector()).getByRole('group', { name: 'pnpm-lock.yaml' })).toHaveProperty(
     'open',
@@ -6803,7 +7378,7 @@ test('the tray goes to a draft on a line outside the graph from any screen, open
   await user.click(within(inspector()).getByText('README.md'));
   await user.click(within(inspector()).getByRole('button', { name: `Comment on ${name}` }));
   await write(user, await partComment(user), 'Why new?');
-  await user.click(screen.getByRole('button', { name: 'domain: unchanged' }));
+  await user.click(await screen.findByRole('button', { name: 'domain: unchanged' }));
   await user.click(screen.getByRole('link', { name: 'Tests' }));
   await openReview(user);
 
@@ -6833,6 +7408,74 @@ test('the tray goes to a draft on a line outside the graph from any screen, open
   );
   expect(within(inspector()).getByRole('insertion', { current: false })).toBeDefined();
   expect(scrolledIntoView).not.toHaveBeenCalled();
+});
+
+const at = (top: number, bottom: number): DOMRect => ({
+  x: 0,
+  y: top,
+  top,
+  bottom,
+  left: 0,
+  right: 0,
+  width: 0,
+  height: bottom - top,
+  toJSON: () => ({}),
+});
+
+test('landing on a row puts the page back where it stood, and with no review tray lifts it no further', async () => {
+  const user = userEvent.setup();
+  render(<ReviewPage review={{ ...walkedReview(), findings: [findingOn('rust/crate/domain')] }} />);
+  await user.click(await screen.findByRole('button', { name: 'Show 1 finding' }));
+  const scrollY = vi.spyOn(window, 'scrollY', 'get');
+  onTestFinished(() => scrollY.mockRestore());
+  scrollY.mockReturnValue(250);
+  scrolledTo.mockClear();
+  scrolledBy.mockClear();
+
+  await user.click(
+    within(screen.getByRole('complementary', { name: 'Findings' })).getByRole('button', {
+      name: /^domain/,
+    }),
+  );
+
+  expect(within(inspector()).getByRole('listitem', { current: true })).toBeDefined();
+  expect(scrolledTo).toHaveBeenCalledWith(0, 250);
+  expect(scrolledBy).not.toHaveBeenCalled();
+});
+
+test('landing on a row the review tray covers lifts the page just clear of it, one above the window brings it back, and one in view moves nothing', async () => {
+  const user = userEvent.setup();
+  render(<ReviewPage review={pageWithUndrawnFile()} send={vi.fn(async () => {})} />);
+  const name = 'README.md:1 "new"';
+  await openUndrawnFiles(user);
+  await user.click(within(inspector()).getByText('README.md'));
+  await user.click(within(inspector()).getByRole('button', { name: `Comment on ${name}` }));
+  await write(user, await partComment(user), 'Why new?');
+  await openReview(user);
+  const landOnDraft = () =>
+    user.click(within(screen.getByRole('list', { name: 'Drafts' })).getByRole('button', { name }));
+  await landOnDraft();
+  const row = within(inspector()).getByRole('insertion', { current: true });
+  const rowAt = vi.spyOn(row, 'getBoundingClientRect');
+  vi.spyOn(
+    screen.getByRole('region', { name: 'Review tray' }),
+    'getBoundingClientRect',
+  ).mockReturnValue(at(464, 800));
+
+  scrolledBy.mockClear();
+  rowAt.mockReturnValue(at(490, 600));
+  await landOnDraft();
+  expect(scrolledBy.mock.calls).toEqual([[0, 136]]);
+
+  scrolledBy.mockClear();
+  rowAt.mockReturnValue(at(300, 464));
+  await landOnDraft();
+  expect(scrolledBy).not.toHaveBeenCalled();
+
+  scrolledBy.mockClear();
+  rowAt.mockReturnValue(at(-120, -20));
+  await landOnDraft();
+  expect(scrolledBy.mock.calls).toEqual([[0, -120]]);
 });
 
 test("going to a line's draft shows its hidden field, and leaves hidden the one on the row it left", async () => {
@@ -8453,4 +9096,32 @@ test('a last answer to a finding shows under it in the rail, not in Start here',
   ).toBeTruthy();
   expect(within(screen.getByRole('region', { name: 'Start here' })).queryByRole('note')).toBeNull();
   expect(screen.getAllByRole('note', { name: /^Last review/ })).toHaveLength(1);
+});
+
+test("closing a stop's outside files returns to the landing with focus on the graph, the stop that opened them having gone", async () => {
+  const user = userEvent.setup();
+  render(
+    <ReviewPage review={{ ...walkedReview(), undrawn: [{ path: 'README.md', patch: '' }] }} />,
+  );
+  await screen.findByRole('group', { name: 'rust' });
+
+  await user.keyboard('j');
+  await user.click(within(readingOrder()).getByRole('button', { name: '4 README.md' }));
+  await user.click(screen.getByRole('button', { name: 'Close inspector' }));
+
+  expect(document.activeElement).toBe(screen.getByRole('group', { name: 'Graph' }));
+});
+
+test('Escape from a stop with no part, the outside files, leaves focus on the graph', async () => {
+  const user = userEvent.setup();
+  render(
+    <ReviewPage review={{ ...walkedReview(), undrawn: [{ path: 'README.md', patch: '' }] }} />,
+  );
+  await screen.findByRole('group', { name: 'rust' });
+
+  await user.keyboard('j');
+  await user.click(within(readingOrder()).getByRole('button', { name: '4 README.md' }));
+  await user.keyboard('{Escape}');
+
+  expect(document.activeElement).toBe(screen.getByRole('group', { name: 'Graph' }));
 });
