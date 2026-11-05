@@ -80,3 +80,90 @@ test('namespace prefixes the path and the controller, nesting', () => {
     end`),
   ).toStrictEqual(['GET /api/v1/users api/v1/users#index']);
 });
+
+test.for([
+  {
+    reads: 'resources inside resources',
+    written: `resources :templates, only: [] do
+      resources :bodies, only: :index
+    end`,
+    expected: ['GET /templates/:template_id/bodies bodies#index'],
+  },
+  {
+    reads: 'its parent named singular as ActiveSupport does',
+    written: `resources :statuses, only: [] do
+      resources :bodies, only: :index
+    end`,
+    expected: ['GET /statuses/:status_id/bodies bodies#index'],
+  },
+  {
+    reads: 'resources inside a resource',
+    written: `resource :profile, only: [] do
+      resources :posts, only: :index
+    end`,
+    expected: ['GET /profile/posts posts#index'],
+  },
+  {
+    reads: 'the parent routes kept beside it',
+    written: `resources :templates, only: :index do
+      resources :bodies, only: :index
+    end`,
+    expected: ['GET /templates templates#index', 'GET /templates/:template_id/bodies bodies#index'],
+  },
+  {
+    reads: 'a module carried in',
+    written: `namespace :api do
+      resources :templates, only: [] do
+        resources :bodies, only: :index
+      end
+    end`,
+    expected: ['GET /api/templates/:template_id/bodies api/bodies#index'],
+  },
+])('nesting reads $reads', ({ written, expected }) => {
+  expect(lines(written)).toStrictEqual(expected);
+});
+
+test.for([
+  { verb: 'get', drawn: 'GET' },
+  { verb: 'post', drawn: 'POST' },
+  { verb: 'put', drawn: 'PUT' },
+  { verb: 'patch', drawn: 'PATCH' },
+  { verb: 'delete', drawn: 'DELETE' },
+])('$verb in a member block draws $drawn', ({ verb, drawn }) => {
+  expect(
+    lines(`resources :templates, only: [] do
+      member do
+        ${verb} "logs"
+      end
+    end`),
+  ).toStrictEqual([`${drawn} /templates/:id/logs templates#logs`]);
+});
+
+test.for([
+  {
+    reads: 'a collection block',
+    inner: 'collection do\n put "order"\n end',
+    on: '/templates/order',
+  },
+  { reads: 'on: :member', inner: 'put "order", on: :member', on: '/templates/:id/order' },
+  { reads: 'on: :collection', inner: 'put "order", on: :collection', on: '/templates/order' },
+  { reads: 'no block, nested', inner: 'put "order"', on: '/templates/:template_id/order' },
+])('a verb in resources sits by $reads', ({ inner, on }) => {
+  expect(
+    lines(`resources :templates, only: [] do
+      ${inner}
+    end`),
+  ).toStrictEqual([`PUT ${on} templates#order`]);
+});
+
+test.for([
+  { reads: 'a member block', inner: 'member do\n get "logs"\n end' },
+  { reads: 'a collection block', inner: 'collection do\n get "logs"\n end' },
+  { reads: 'no block', inner: 'get "logs"' },
+])('a verb in a resource has no id, by $reads', ({ inner }) => {
+  expect(
+    lines(`resource :profile, only: [] do
+      ${inner}
+    end`),
+  ).toStrictEqual(['GET /profile/logs profiles#logs']);
+});
