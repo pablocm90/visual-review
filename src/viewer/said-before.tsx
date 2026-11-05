@@ -174,11 +174,12 @@ export const useTargetOfSaid = () => {
   return (anchor: Comment['anchor']): string | undefined => byAnchor.get(anchorKey(anchor))?.target;
 };
 
-type CommentOnProps = CommentFieldProps & Landed & { readonly name: string };
+type CommentOnProps = CommentFieldProps &
+  Landed & { readonly name: string; readonly word?: ReactNode };
 
-export const CommentOn = ({ name, ...opener }: CommentOnProps) =>
+export const CommentOn = ({ name, word = 'Comment', ...opener }: CommentOnProps) =>
   useHasSaid()(opener.anchor) ? null : (
-    <CommentOpener word="Comment" label={`Comment on ${name}`} {...opener} />
+    <CommentOpener word={word} label={`Comment on ${name}`} {...opener} />
   );
 
 export const CommentFieldUnlessSaid = (field: CommentFieldProps) =>

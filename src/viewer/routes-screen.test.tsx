@@ -99,7 +99,7 @@ test("a route file's patch opens from its section, among the files outside the g
   expect(document.activeElement).toBe(screen.getByRole('group', { name: 'Graph' }));
 });
 
-test("a route file's patch opens on the Diff tab of the node holding it", async () => {
+test("a route file's patch opens in Full diff on the node holding it", async () => {
   atHash('#routes');
   const user = userEvent.setup();
   const path = 'config/routes.rb';
@@ -126,9 +126,9 @@ test("a route file's patch opens on the Diff tab of the node holding it", async 
 
   const inspector = await screen.findByRole('complementary', { name: 'Inspector' });
   expect(within(inspector).getByRole('heading', { level: 2 }).textContent).toBe('config');
-  expect(within(inspector).getByRole('tab', { name: 'Diff' }).getAttribute('aria-selected')).toBe(
-    'true',
-  );
+  expect(
+    within(inspector).getByRole('button', { name: 'Full diff' }).getAttribute('aria-expanded'),
+  ).toBe('true');
   expect(within(inspector).getByRole('group', { name: path }).hasAttribute('open')).toBe(true);
   expect(tabs().getByRole('link', { name: 'Structure' }).getAttribute('aria-current')).toBe('page');
 });
