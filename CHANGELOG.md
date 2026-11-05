@@ -7,7 +7,7 @@ What changed in each release of `@pablocm90/visual-review`, newest first. Versio
 ### Changed
 
 - Walking the parts now reads one at a time. `J`, `K`, **Start reading**, a row of the reading order or a part's **Next** narrow the left column to numbered stops, put the reading column in the middle and shrink the graph to a corner map, with the current part ringed and a click on a node going to it. A click in the graph, a finding or Start here keeps the graph whole.
-- Under the map, **Next to it** lists the part's edges in this change, each going to its other end, and **All findings** returns to the graph whole with the rail open. **Open map**, Escape outside a field, or the column's `×` returns too, the part still selected.
+- Under the map, **Next to it** lists the part's edges, changed or not, each going to its other end, and **All findings** returns to the graph whole with the lens cleared and the rail open. **Open map** or Escape outside a field returns too, the part still selected; the column's `×` returns with nothing selected.
 - The header counts and bars the parts read, on every tab; the left column no longer counts them.
 
 ### Fixed
