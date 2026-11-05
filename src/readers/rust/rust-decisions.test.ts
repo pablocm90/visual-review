@@ -117,3 +117,20 @@ test('a plain let reads what its value holds', () => {
     { kind: 'if', text: 'if d', depth: 0, line: 2 },
   ]);
 });
+
+test.for([
+  { written: 'ensure!(a, "no")', text: 'ensure!(a)' },
+  { written: 'anyhow::ensure!(a)', text: 'ensure!(a)' },
+  { written: 'assert!(f(a, b), "no {}", c)', text: 'assert!(f(a, b))' },
+  { written: 'assert_eq!(a, f(b, c), "no")', text: 'assert_eq!(a, f(b, c))' },
+  { written: 'assert_ne!(a, b)', text: 'assert_ne!(a, b)' },
+  { written: 'assert![a, "no"]', text: 'assert![a]' },
+])('$written reads as a guard found by name, with no message', ({ written, text }) => {
+  expect(decisionsIn(`${written};`)).toEqual([
+    { kind: 'guard', text, foundByName: true, depth: 0, line: 2 },
+  ]);
+});
+
+test('debug_assert! is no guard', () => {
+  expect(decisionsIn('debug_assert!(a);')).toEqual([]);
+});

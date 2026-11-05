@@ -64,9 +64,32 @@ const letElseOf = (node: Node): Read | undefined => {
   };
 };
 
+const COMMAS_KEPT = new Map([
+  ['ensure', 0],
+  ['assert', 0],
+  ['assert_eq', 1],
+  ['assert_ne', 1],
+]);
+
+const macroOf = (node: Node): Read | undefined => {
+  const name = macroNameOf(node) ?? '';
+  const kept = COMMAS_KEPT.get(name);
+  const tokens = node.lastNamedChild;
+  if (kept === undefined || tokens === null) return undefined;
+  const end = tokens.children.filter(({ type }) => type === ',')[kept];
+  const close = end === undefined ? '' : tokens.lastChild?.text;
+  return {
+    kind: 'guard',
+    text: `${name}!${codeUpTo(tokens, end)}${close}`,
+    foundByName: true,
+    deeper: [],
+  };
+};
+
 const READS = new Map<string, (node: Node) => Read | undefined>([
   ['if_expression', ifOf],
   ['let_declaration', letElseOf],
+  ['macro_invocation', macroOf],
 ]);
 
 const decisionsUnder = (walk: Walk, nodes: ReadonlyArray<Node>): ReadonlyArray<Decision> =>
