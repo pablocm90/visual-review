@@ -169,6 +169,11 @@ export const useHasSaid = () => {
   };
 };
 
+export const useTargetOfSaid = () => {
+  const { byAnchor } = useContext(SaidOnThisPage);
+  return (anchor: Comment['anchor']): string | undefined => byAnchor.get(anchorKey(anchor))?.target;
+};
+
 type CommentOnProps = CommentFieldProps & Landed & { readonly name: string };
 
 export const CommentOn = ({ name, ...opener }: CommentOnProps) =>

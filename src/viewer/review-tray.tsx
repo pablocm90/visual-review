@@ -9,6 +9,7 @@ import { COMMENT_KINDS, type Comments } from './comment-field.tsx';
 import { ANSWER_KINDS, type Answers } from './finding-display.tsx';
 import { whereOf } from './last-review.tsx';
 import { partsRead } from './reading-order-list.tsx';
+import { useTargetOfSaid } from './said-before.tsx';
 
 type Drafted = Review['comments'][number];
 
@@ -224,7 +225,9 @@ export const ReviewTray = ({
   const drafted = Object.values(comments).filter(({ text }) => text.trim() !== '');
   const answered = Object.values(answers).map(withWhy);
   const written = [...drafted, ...answered];
-  const targetOf: TargetOf = anchor => anchorTarget(anchor, { nodes, tests });
+  const targetOfSaid = useTargetOfSaid();
+  const targetOf: TargetOf = anchor =>
+    anchorTarget(anchor, { nodes, tests }) ?? targetOfSaid(anchor);
   const ordered = inReadingOrder({ written: drafted, parts, targetOf });
   const hasBody = body.trim() !== '';
   const suggested = suggestedFor(written);

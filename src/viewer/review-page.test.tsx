@@ -6676,6 +6676,60 @@ test('the Note panel opens Reply by the part selected: a draft elsewhere shows o
   expect(within(noteTab()).getByRole<HTMLTextAreaElement>('textbox').value).toBe('Still?');
 });
 
+test("a reply on a symbol whose file was renamed since takes its comment's target: a button, its rank, and its part no longer read with nothing to say", async () => {
+  const user = userEvent.setup();
+  const goneSince = 'rust/crate/old-name#tax';
+  render(
+    <ReviewPage
+      review={pageWith({
+        ...review,
+        readingOrder: { parts: ['rust/crate/application', 'rust/crate/domain'], cycles: [] },
+        sinceReview: {
+          ...sinceReview,
+          comments: [
+            saidOnPart('rust/crate/domain'),
+            {
+              anchor: { kind: 'symbol', id: goneSince },
+              kind: 'question',
+              text: 'Why?',
+              target: 'rust/crate/application',
+            },
+          ],
+        },
+      })}
+      send={async () => {}}
+    />,
+  );
+  await screen.findByRole('group', { name: 'rust' });
+  const said = (name: RegExp) =>
+    within(within(lastReviewSection()).getByRole('listitem', { name }));
+  const replyOn = async (name: RegExp) => {
+    await user.click(said(name).getByRole('button', { name: 'Reply' }));
+    await write(user, said(name).getByRole('textbox', { name: 'Your comment' }), 'Still?');
+  };
+  await replyOn(/^domain/);
+  await replyOn(/tax/);
+  await user.click(screen.getByRole('button', { name: 'application: modified' }));
+  await user.keyboard('a');
+
+  await openReview(user);
+  const drafts = within(screen.getByRole('list', { name: 'Drafts' }));
+  expect(drafts.getAllByRole('listitem').map(item => item.textContent)).toEqual([
+    expect.stringMatching(/tax/),
+    expect.stringMatching(/^domain/),
+  ]);
+  expect(screen.getByLabelText('What Claude gets').textContent).toContain('read 1 of 2');
+  expect(
+    within(screen.getByRole('list', { name: 'Read, nothing to say' })).queryAllByRole('listitem'),
+  ).toEqual([]);
+
+  await user.click(screen.getByRole('button', { name: 'domain: unchanged' }));
+  await user.click(drafts.getByRole('button', { name: /tax/ }));
+  expect(document.activeElement).toBe(
+    screen.getByRole('button', { name: 'application: modified' }),
+  );
+});
+
 test('a symbol with a last comment takes Reply and no Comment, and the logic line under it keeps its own', async () => {
   const user = userEvent.setup();
   render(
@@ -6739,7 +6793,7 @@ test('a diff line with a last comment takes Reply and no Comment, while a row a 
   ).toEqual(['Comment on x.ts:21 "const x = 2;"']);
 });
 
-test('a row at a drifted comment\'s old number, reading otherwise, keeps its Comment', async () => {
+test("a row at a drifted comment's old number, reading otherwise, keeps its Comment", async () => {
   const user = userEvent.setup();
   render(
     <ReviewPage
