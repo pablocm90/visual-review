@@ -266,17 +266,18 @@ const symbolsOfItem = (item: Node): ReadonlyArray<ReadSymbol> => {
   return item.type === 'impl_item' ? methodsOfImpl(item) : [];
 };
 
+const lastSegmentOf = (path: string): string => path.split('::').at(-1) ?? '';
+
 const namesUsedIn = (node: Node, path: string): ReadonlyArray<string> => {
   if (isComment(node)) return [];
   if (node.type === 'use_wildcard')
-    return [`* from ${joined(path, node.namedChildren[0]?.text ?? '')}`];
-  if (node.type === 'use_as_clause') return [node.childForFieldName('alias')?.text ?? ''];
-  if (node.type === 'self') return [path.split('::').at(-1) ?? ''];
+    return [`* from ${joined(path, textOf(node.namedChildren[0]))}`];
+  if (node.type === 'use_as_clause') return [textOf(node.childForFieldName('alias'))];
+  if (node.type === 'self') return [lastSegmentOf(path)];
   if (node.type === 'use_list')
     return node.namedChildren.flatMap(child => namesUsedIn(child, path));
   const list = node.childForFieldName('list');
-  if (list !== null)
-    return namesUsedIn(list, joined(path, node.childForFieldName('path')?.text ?? ''));
+  if (list !== null) return namesUsedIn(list, joined(path, textOf(node.childForFieldName('path'))));
   return [(node.childForFieldName('name') ?? node).text];
 };
 
