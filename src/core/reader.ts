@@ -49,6 +49,7 @@ export type Decision = {
   readonly text: string;
   readonly depth: number;
   readonly line: number;
+  readonly foundByName?: true;
 };
 
 export type ReadSymbol = {

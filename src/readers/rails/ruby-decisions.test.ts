@@ -29,6 +29,37 @@ test.for([
 });
 
 test.for([
+  { lines: ['head :forbidden unless z'], text: 'head unless z' },
+  { lines: ['render json: { a: 1 } if x'], text: 'render if x' },
+  { lines: ['redirect_to root_path if x'], text: 'redirect_to if x' },
+  { lines: ['render if x'], text: 'render if x' },
+  { lines: ['if x', '  head :ok', 'end'], text: 'head if x' },
+  { lines: ['render :a and return if x'], text: 'render and return if x' },
+  { lines: ['if x', '  redirect_to a and return', 'end'], text: 'redirect_to and return if x' },
+])('$lines reads as the guard $text, found by name', ({ lines, text }) => {
+  expect(decisionsIn(...lines)).toEqual([
+    { kind: 'guard', text, depth: 0, line: 2, foundByName: true },
+  ]);
+});
+
+test('what follows a render in its guard reads one deeper, as a render does not exit', () => {
+  expect(decisionsIn('if x', '  render :a', '  go if y', 'end')).toEqual([
+    { kind: 'guard', text: 'render if x', depth: 0, line: 2, foundByName: true },
+    { kind: 'if', text: 'if y', depth: 1, line: 4 },
+  ]);
+});
+
+test.for([
+  { lines: ['raise Foo and return if x'], text: 'if x' },
+  { lines: ['render :a or return if x'], text: 'if x' },
+  { lines: ['render :a and go if x'], text: 'if x' },
+  { lines: ['go and return if x'], text: 'if x' },
+  { lines: ['log.render :a if x'], text: 'if x' },
+])('$lines is no guard', ({ lines, text }) => {
+  expect(decisionsIn(...lines)?.[0]).toMatchObject({ kind: 'if', text });
+});
+
+test.for([
   { reason: 'a raise sent to another object', lines: ['log.raise Foo if y'] },
   { reason: 'an if with an else', lines: ['if x', '  return', 'else', '  go', 'end'] },
   { reason: 'an if opening with something else', lines: ['if x', '  go', '  return', 'end'] },

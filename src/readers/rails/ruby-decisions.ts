@@ -1,7 +1,7 @@
 import type { Node } from 'web-tree-sitter';
 import type { Decision } from '../../core/reader.ts';
 
-type Head = Pick<Decision, 'kind' | 'text'>;
+type Head = Pick<Decision, 'kind' | 'text' | 'foundByName'>;
 
 type Read = Head & { readonly deeper: ReadonlyArray<Node> };
 
@@ -49,12 +49,28 @@ const thrownName = (raised: Node | undefined): string => {
   return ` ${codeOf(named)}`;
 };
 
-const exitOf = (statement: Node | undefined): string | undefined => {
+const NAMED_EXITS = new Set(['head', 'render', 'redirect_to']);
+
+const beforeAndReturn = (statement: Node): Node | undefined =>
+  fieldOf(statement, 'operator')?.text === 'and' && fieldOf(statement, 'right')?.type === 'return'
+    ? fieldOf(statement, 'left')
+    : undefined;
+
+type Exit = Pick<Decision, 'text' | 'foundByName'>;
+
+const namedExitOf = (statement: Node): Exit | undefined => {
+  const before = beforeAndReturn(statement);
+  const word = wordOf(before ?? statement);
+  if (word === undefined || !NAMED_EXITS.has(word)) return undefined;
+  return { text: before === undefined ? word : `${word} and return`, foundByName: true };
+};
+
+const exitOf = (statement: Node | undefined): Exit | undefined => {
   if (statement === undefined) return undefined;
-  if (statement.type === 'return') return 'return';
+  if (statement.type === 'return') return { text: 'return' };
   const word = wordOf(statement);
-  if (word === undefined || !THROWS.has(word)) return undefined;
-  return `${word}${thrownName(statementsOf(fieldOf(statement, 'arguments'))[0])}`;
+  if (word === undefined || !THROWS.has(word)) return namedExitOf(statement);
+  return { text: `${word}${thrownName(statementsOf(fieldOf(statement, 'arguments'))[0])}` };
 };
 
 const fieldsOf = (node: Node, ...fields: ReadonlyArray<string>): ReadonlyArray<Node> =>
@@ -65,11 +81,11 @@ const conditionOf = (node: Node, word: string): string =>
 
 const ifOf = (text: string, deeper: ReadonlyArray<Node>): Read => ({ kind: 'if', text, deeper });
 
-const guardOr = (branch: Read, opening: Node | undefined): Read => {
-  const exit = exitOf(opening);
+const guardOr = (branch: Read, statements: ReadonlyArray<Node>): Read => {
+  const exit = exitOf(statements[0]);
   return exit === undefined
     ? branch
-    : { kind: 'guard', text: `${exit} ${branch.text}`, deeper: [] };
+    : { ...exit, kind: 'guard', text: `${exit.text} ${branch.text}`, deeper: statements.slice(1) };
 };
 
 const branchedIf = (node: Node): Read =>
@@ -77,13 +93,13 @@ const branchedIf = (node: Node): Read =>
 
 const blockIf = (node: Node): Read =>
   fieldOf(node, 'alternative') === undefined
-    ? guardOr(branchedIf(node), statementsOf(fieldOf(node, 'consequence'))[0])
+    ? guardOr(branchedIf(node), statementsOf(fieldOf(node, 'consequence')))
     : branchedIf(node);
 
 const modifierIf = (node: Node): Read =>
   guardOr(
     ifOf(conditionOf(node, node.type.replace('_modifier', '')), fieldsOf(node, 'body')),
-    fieldOf(node, 'body'),
+    fieldsOf(node, 'body'),
   );
 
 const READS = new Map<string, (node: Node) => Read>([
@@ -100,10 +116,11 @@ const decisionsUnder = (walk: Walk, nodes: ReadonlyArray<Node>): ReadonlyArray<D
   nodes.flatMap(node => {
     const read = READS.get(node.type)?.(node);
     if (read === undefined) return decisionsUnder(walk, node.namedChildren);
+    const { deeper, ...head } = read;
     const depth = node.type === 'elsif' ? walk.depth - 1 : walk.depth;
     return [
-      { kind: read.kind, text: read.text, depth, line: node.startPosition.row + 1 },
-      ...decisionsUnder({ depth: depth + 1 }, read.deeper),
+      { ...head, depth, line: node.startPosition.row + 1 },
+      ...decisionsUnder({ depth: depth + 1 }, deeper),
     ];
   });
 
