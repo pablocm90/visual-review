@@ -89,7 +89,7 @@ _Avoid_: unread logic
 _In code_: `FileSymbols['blindSpots']`, `logic:blind-spot:<node>`
 
 **Logic line**:
-One decision of an edited or renamed symbol, diffed across the sides: the same, added, removed, changed (a base and a head decision of one kind paired in place), or moved (one it lost whose kind and text another symbol gained at the head, found by text alone).
+One decision of an edited or renamed symbol, diffed across the sides: the same, added, removed, changed (a base and a head decision of one kind and subject paired in place), or moved (one it lost whose kind and text another symbol gained at the head, found by text alone).
 _Avoid_: logic diff (for one line), branch change
 _In code_: `LogicLine`
 
