@@ -5631,6 +5631,20 @@ test('a draft in the open tray goes to where it was written, though the inspecto
     }),
   );
   expect(inspector().scrollTop).toBe(0);
+
+  const partOpener = () =>
+    within(inspector()).getByRole('button', { name: 'Comment on review-page.tsx' });
+  await user.click(partOpener());
+  expect(partOpener().getAttribute('aria-expanded')).toBe('false');
+  await goToMethod();
+  expect(partOpener().getAttribute('aria-expanded')).toBe('false');
+  await user.click(
+    within(screen.getByRole('list', { name: 'Drafts' })).getByRole('button', {
+      name: 'review-page.tsx',
+    }),
+  );
+  expect(partOpener().getAttribute('aria-expanded')).toBe('true');
+  expect(partField()).toHaveProperty('value', 'On the file.');
 });
 
 test("same-named symbols in one file take a comment each, counted through the file's symbols whatever group shows them, and a draft on a later one still opens the unchanged", async () => {
@@ -7804,6 +7818,11 @@ test('the Note panel opens Reply by the part selected: a draft elsewhere shows o
 
   await openReview(user);
   const tray = within(screen.getByRole('region', { name: 'Review tray' }));
+  await user.click(tray.getByRole('button', { name: 'application' }));
+  expect(within(inspector()).getByRole<HTMLTextAreaElement>('textbox').value).toBe('Still?');
+
+  await user.click(within(inspector()).getByRole('button', { name: 'Reply' }));
+  expect(within(inspector()).queryByRole('textbox', { name: 'Your comment' })).toBeNull();
   await user.click(tray.getByRole('button', { name: 'application' }));
   expect(within(inspector()).getByRole<HTMLTextAreaElement>('textbox').value).toBe('Still?');
 });

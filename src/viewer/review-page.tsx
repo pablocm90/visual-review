@@ -474,6 +474,9 @@ type Landing = Omit<LineAt, 'node'> & { readonly text?: string };
 
 type LandingIn = Partial<Landing> & { readonly path: string | undefined } & RowLanding;
 
+const onThePart = (landing: LandingIn | undefined) =>
+  landing?.path === undefined && landing?.row === undefined ? landing : undefined;
+
 const rowLandedOn = (
   lines: ReadonlyArray<Line>,
   path: string,
@@ -615,11 +618,13 @@ const InspectorHead = ({
   anchor,
   comments,
   onComment,
+  landing,
 }: {
   readonly nodes: ReadonlyArray<DiffNode>;
   readonly node: DiffNode;
   readonly walking: Walking;
   readonly anchor: Comment['anchor'];
+  readonly landing: LandingIn | undefined;
   readonly comments: Comments;
   readonly onComment: ((comment: Comment) => void) | undefined;
 }) => (
@@ -649,6 +654,7 @@ const InspectorHead = ({
           }
           comments={comments}
           onComment={onComment}
+          landing={onThePart(landing)}
         />
       )}
       {read !== undefined && (
@@ -820,7 +826,7 @@ const NotePanel = ({
           <p>{shownNote}</p>
         </section>
       )}
-      <SaidBefore key={anchorKey(anchor)} on={anchor} />
+      <SaidBefore key={anchorKey(anchor)} on={anchor} landing={onThePart(landing)} />
       {saidInPlace.map(id => (
         <div key={id}>
           <p className="said-edge">{anchorName({ kind: 'edge', id }, nodes)}</p>
@@ -895,6 +901,7 @@ const Inspector = ({
           anchor={props.anchor}
           comments={props.comments}
           onComment={props.onComment}
+          landing={landing}
         />
       )}
       <NotePanel {...props} node={node} onShowLine={showLine} landing={landing} />
