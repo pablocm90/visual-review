@@ -11,6 +11,30 @@ const fieldOf = (node: Node, field: string): Node | undefined =>
 const statementsOf = (body: Node | undefined): ReadonlyArray<Node> =>
   (body?.namedChildren ?? []).filter(({ type }) => type !== 'comment');
 
+const leavesOf = (node: Node): ReadonlyArray<Node> => {
+  if (node.type === 'comment') return [];
+  return node.childCount === 0 ? [node] : node.children.flatMap(leavesOf);
+};
+
+const OPENERS = new Set(['(', '[', '{']);
+const CLOSERS = new Set([')', ']', '}']);
+
+const isGapped = (leaf: Node, before: Node | undefined): boolean =>
+  before !== undefined &&
+  leaf.startIndex > before.endIndex &&
+  !OPENERS.has(before.text) &&
+  !CLOSERS.has(leaf.text);
+
+const codeOf = (node: Node | undefined): string => {
+  const leaves = node === undefined ? [] : leavesOf(node);
+  const kept = leaves.filter(
+    ({ text }, index) => !(text === ',' && CLOSERS.has(leaves[index + 1]?.text ?? '')),
+  );
+  return kept
+    .map((leaf, index) => (isGapped(leaf, kept[index - 1]) ? ` ${leaf.text}` : leaf.text))
+    .join('');
+};
+
 const THROWS = new Set(['raise', 'fail']);
 
 const wordOf = (node: Node): string | undefined => {
@@ -22,7 +46,7 @@ const wordOf = (node: Node): string | undefined => {
 const thrownName = (raised: Node | undefined): string => {
   if (raised === undefined || raised.type === 'string') return '';
   const named = fieldOf(raised, 'method')?.text === 'new' ? fieldOf(raised, 'receiver') : raised;
-  return ` ${named?.text}`;
+  return ` ${codeOf(named)}`;
 };
 
 const exitOf = (statement: Node | undefined): string | undefined => {
@@ -37,7 +61,7 @@ const guardOf = (node: Node, word: string, opening: Node | undefined): Read | un
   const exit = exitOf(opening);
   return exit === undefined
     ? undefined
-    : { kind: 'guard', text: `${exit} ${word} ${fieldOf(node, 'condition')?.text}`, deeper: [] };
+    : { kind: 'guard', text: `${exit} ${word} ${codeOf(fieldOf(node, 'condition'))}`, deeper: [] };
 };
 
 const blockIf = (node: Node): Read | undefined =>
