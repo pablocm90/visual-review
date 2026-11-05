@@ -1,6 +1,7 @@
 import type { Node } from 'web-tree-sitter';
 import type { Decision } from '../../core/reader.ts';
 import { codeReaderOf, isComment } from '../tree-sitter.ts';
+import { isTestCode } from './rust-syntax.ts';
 
 type Head = Pick<Decision, 'kind' | 'text' | 'foundByName'>;
 
@@ -174,7 +175,7 @@ const LOGIC_TOKENS = ['?', 'return', 'if'];
 const holdsLogicTokens = (node: Node): boolean => node.descendantsOfType(LOGIC_TOKENS).length > 0;
 
 const hidingNameOf = (node: Node): ReadonlyArray<string> => {
-  if (!holdsLogicTokens(node)) return [];
+  if (!holdsLogicTokens(node) || isTestCode(node)) return [];
   if (node.type === 'macro_definition') return ['macro_rules!'];
   const name = macroNameOf(node) ?? '';
   return THROWS.has(name) || COMMAS_KEPT.has(name) ? [] : [`${name}!`];

@@ -310,3 +310,14 @@ test('a macro_rules! whose body holds those tokens is a blind spot, as one holdi
   expect(blindSpotsIn('macro_rules! m { ($x:expr) => { $x? }; }')).toEqual(['macro_rules!']);
   expect(blindSpotsIn('macro_rules! n { () => { 1 } }')).toEqual([]);
 });
+
+test.for([
+  { reason: 'a test function', lines: ['#[test]', 'fn a() { println!("{}", b()?); }'] },
+  {
+    reason: 'a function in a test module',
+    lines: ['#[cfg(test)]', 'mod tests { fn a() { println!("{}", b()?); } }'],
+  },
+  { reason: 'a test macro_rules!', lines: ['#[cfg(test)]', 'macro_rules! m { () => { a? } }'] },
+])('$reason is no blind spot', ({ lines }) => {
+  expect(blindSpotsIn(...lines)).toEqual([]);
+});
