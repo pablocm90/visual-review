@@ -74,6 +74,7 @@ import {
   LastSaidOnPage,
   RespondingOnPage,
   SaidBefore,
+  useHasSaid,
   useSaidLinesOf,
   withResolveToggled,
 } from './said-before.tsx';
@@ -778,7 +779,12 @@ const NotePanel = ({
   onAnswer,
 }: NotePanelProps) => {
   const filesWithNews = useFilesWithNews(node, symbols, nodes);
-  const isBare = filesWithNews.length === 0 && found.length === 0;
+  const hasSaid = useHasSaid();
+  const isBare =
+    filesWithNews.length === 0 &&
+    found.length === 0 &&
+    !hasSaid(anchor) &&
+    saidInPlace.length === 0;
   return (
     <>
       {note ? <p>{note.text}</p> : isBare && <p>No note</p>}

@@ -5395,6 +5395,37 @@ test('a part with no note starts at what else its column holds, and says "No not
   expect(saysNoNote()).toBe(false);
 });
 
+test('a part with no note but a last comment shows that comment, not "No note"', async () => {
+  const user = userEvent.setup();
+  render(
+    <ReviewPage
+      review={pageWith({
+        range: review.range,
+        diff: {
+          nodes: [
+            { id: 'web', kind: 'stack', label: 'web', path: '', state: 'unchanged' },
+            topFile('said.ts', 'modified'),
+            topFile('bare.ts', 'modified'),
+          ],
+          edges: [],
+        },
+        sinceReview: {
+          ...sinceReview,
+          comments: [saidOnPart('web/file/said.ts', { text: 'Why the rounding?' })],
+        },
+      })}
+    />,
+  );
+  const saysNoNote = () => within(noteTab()).queryByText('No note') !== null;
+
+  await user.click(await screen.findByRole('button', { name: 'bare.ts: modified' }));
+  expect(saysNoNote()).toBe(true);
+
+  await user.click(screen.getByRole('button', { name: /^said\.ts: modified/ }));
+  expect(within(noteTab()).getByText('Why the rounding?')).toBeTruthy();
+  expect(saysNoNote()).toBe(false);
+});
+
 test('the inspector goes back to Note when it closes or Structure is left, and holds its tab between parts', async () => {
   const user = userEvent.setup();
   render(
@@ -7513,6 +7544,7 @@ test('a last comment on an edge shows on the arrow drawn in its place, closed bo
   await user.click(await within(web).findByRole('button', { name: 'orders → billing: unchanged' }));
   expect(said('Why the cart?')).toBeTruthy();
   expect(said('Why the checkout?')).toBeNull();
+  expect(said('No note')).toBeNull();
 
   await user.click(
     await within(web).findByRole('button', { name: 'checkout.ts → invoice.ts: unchanged' }),
