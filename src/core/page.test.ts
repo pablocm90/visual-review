@@ -106,6 +106,7 @@ test("a reading's page data holds its diff, the reading order of its changed par
     undrawn: [patch('README.md')],
     dependencyChanges,
     migrations: [],
+    schemas: [],
     tests,
     symbols,
     skipped: [],
@@ -252,6 +253,20 @@ test("an added migration's risks raise their findings on the page, and it keeps 
 
   expect(data.migrations).toStrictEqual(migrations);
   expect(data.findings.map(({ id }) => id)).toContain('schema:not-read:db/migrate/1_a.rb');
+});
+
+test("a changed schema's reading stays on the page", () => {
+  const schemas = [{ file: 'db/schema.rb', notRead: 'Ruby syntax error' }];
+
+  const data = pageData({
+    repo: 'shop',
+    reading: readingWith({ schemas }),
+    range: 'a..b',
+    version,
+    parsers,
+  });
+
+  expect(data.schemas).toStrictEqual(schemas);
 });
 
 test('stacks a missing tool kept from being read are a structure finding to look at, on no node', () => {

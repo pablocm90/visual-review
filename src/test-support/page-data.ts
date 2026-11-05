@@ -13,6 +13,7 @@ export const pageWith = (data: Pick<PageData, 'range' | 'diff'> & Partial<PageDa
   undrawn: [],
   dependencyChanges: [],
   migrations: [],
+  schemas: [],
   parsers: {},
   tests: [],
   symbols: [],
