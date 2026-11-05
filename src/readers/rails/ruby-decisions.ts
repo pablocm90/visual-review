@@ -157,6 +157,18 @@ const namedLoop = (node: Node): Read | undefined => {
   };
 };
 
+const clauseOf = (node: Node): Read => {
+  const body = fieldOf(node, 'body');
+  return { kind: 'case', text: codeUpTo(node, body), deeper: body === undefined ? [] : [body] };
+};
+
+const CASES = new Set(['case', 'case_match']);
+
+const caseElse = (node: Node): Read | undefined =>
+  CASES.has(node.parent?.type ?? '')
+    ? { kind: 'case', text: 'else', deeper: node.namedChildren }
+    : undefined;
+
 const READS = new Map<string, (node: Node) => Read | undefined>([
   ['if', blockIf],
   ['unless', blockIf],
@@ -170,6 +182,9 @@ const READS = new Map<string, (node: Node) => Read | undefined>([
   ['while_modifier', modifierLoop],
   ['until_modifier', modifierLoop],
   ['call', namedLoop],
+  ['when', clauseOf],
+  ['in_clause', clauseOf],
+  ['else', caseElse],
 ]);
 
 type Walk = { readonly depth: number };

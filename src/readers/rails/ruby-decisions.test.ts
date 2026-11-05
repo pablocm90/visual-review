@@ -156,3 +156,42 @@ test.for([
     ['loop', 0],
   ]);
 });
+
+test('a case reads each when and its else, their bodies one deeper', () => {
+  const lines = [
+    'case x',
+    'when 1, 2 then go if y',
+    'when 3',
+    '  go if z',
+    'when 4',
+    'else',
+    '  go if w',
+    'end',
+  ];
+  expect(decisionsIn(...lines)).toEqual([
+    { kind: 'case', text: 'when 1, 2', depth: 0, line: 3 },
+    { kind: 'if', text: 'if y', depth: 1, line: 3 },
+    { kind: 'case', text: 'when 3', depth: 0, line: 4 },
+    { kind: 'if', text: 'if z', depth: 1, line: 5 },
+    { kind: 'case', text: 'when 4', depth: 0, line: 6 },
+    { kind: 'case', text: 'else', depth: 0, line: 7 },
+    { kind: 'if', text: 'if w', depth: 1, line: 8 },
+  ]);
+});
+
+test('a case in reads each pattern, with its guard, and its else', () => {
+  const lines = ['case x', 'in [a]', '  go if y', 'in {b:} if c', '  go', 'else', '  go', 'end'];
+  expect(decisionsIn(...lines)).toEqual([
+    { kind: 'case', text: 'in [a]', depth: 0, line: 3 },
+    { kind: 'if', text: 'if y', depth: 1, line: 4 },
+    { kind: 'case', text: 'in {b:} if c', depth: 0, line: 5 },
+    { kind: 'case', text: 'else', depth: 0, line: 7 },
+  ]);
+});
+
+test('an else of a begin is no decision, what is in it stays level', () => {
+  const lines = ['begin', '  go', 'rescue', '  no', 'else', '  go if y', 'end'];
+  expect(decisionsIn(...lines)?.filter(({ text }) => text !== 'rescue')).toEqual([
+    { kind: 'if', text: 'if y', depth: 0, line: 7 },
+  ]);
+});
