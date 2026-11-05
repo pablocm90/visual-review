@@ -69,15 +69,21 @@ const editedWhereUnchanged = (
     return statement.change === 'unchanged' ? { ...statement, change: 'edited' } : statement;
   });
 
+type ReadHeading = Extract<ReadTest, { kind: 'heading' }>;
+
+const comparedChildren = (old: ReadHeading, test: ReadHeading): ReadonlyArray<TestStatement> => {
+  const children = compared(old.children, test.children);
+  return old.label === test.label ? children : editedWhereUnchanged(children);
+};
+
 const comparedPair = (old: ReadTest | undefined, test: ReadTest): ReadonlyArray<TestStatement> => {
   if (old?.kind === 'heading' && test.kind === 'heading') {
-    const children = compared(old.children, test.children);
     return [
       {
         kind: 'heading',
         name: test.name,
         label: test.label,
-        children: old.label === test.label ? children : editedWhereUnchanged(children),
+        children: comparedChildren(old, test),
       },
     ];
   }
