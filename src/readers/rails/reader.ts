@@ -9,7 +9,7 @@ import { readRubyTests } from './ruby-tests.ts';
 
 const APPLICATION = 'config/application.rb';
 
-const NOT_SEARCHED = new Set(['vendor', 'node_modules', 'test', 'spec']);
+export const NOT_SEARCHED = new Set(['vendor', 'node_modules', 'test', 'spec']);
 
 const RUBY_FILES = ['app/*/**/*.rb', 'lib/**/*.rb'];
 

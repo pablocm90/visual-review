@@ -52,6 +52,7 @@ const readingWith = (overrides: Partial<RangeReading>): RangeReading => ({
   renames: [],
   patches: [],
   dependencyChanges: [],
+  migrations: [],
   tests: [],
   symbols: [],
   symbolsNotRead: [],
@@ -103,6 +104,7 @@ test("a reading's page data holds its diff, the reading order of its changed par
     patches: [patch('web/src/a.ts')],
     undrawn: [patch('README.md')],
     dependencyChanges,
+    migrations: [],
     tests,
     symbols,
     skipped: [],
@@ -234,6 +236,21 @@ test("a lockfile's changes raise their findings on the page", () => {
       parsers,
     }).findings.map(({ id }) => id),
   ).toContain('dependencies:pnpm-lock.yaml:zod');
+});
+
+test("an added migration's risks raise their findings on the page, and it keeps the reading", () => {
+  const migrations = [{ file: 'db/migrate/1_a.rb', notRead: 'Ruby syntax error' }];
+
+  const data = pageData({
+    repo: 'shop',
+    reading: readingWith({ migrations }),
+    range: 'a..b',
+    version,
+    parsers,
+  });
+
+  expect(data.migrations).toStrictEqual(migrations);
+  expect(data.findings.map(({ id }) => id)).toContain('schema:not-read:db/migrate/1_a.rb');
 });
 
 test('stacks a missing tool kept from being read are a structure finding to look at, on no node', () => {
