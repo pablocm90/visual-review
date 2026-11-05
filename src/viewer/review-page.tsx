@@ -1294,15 +1294,16 @@ const tabsOf = ({ schemas }: Pick<PageData, 'schemas'>): ReadonlyArray<Tab> => [
   ...(schemas.length === 0 ? [] : (['schema'] as const)),
 ];
 
+const tabAt = (review: PageData, hash: string): Tab =>
+  tabsOf(review).find(tab => `#${tab}` === hash) ?? 'structure';
+
 const useTab = (review: PageData): Tab => {
-  const tabAt = (hash: string): Tab =>
-    tabsOf(review).find(tab => `#${tab}` === hash) ?? 'structure';
-  const [tab, setTab] = useState(() => tabAt(location.hash));
+  const [tab, setTab] = useState(() => tabAt(review, location.hash));
   useEffect(() => {
-    const follow = () => setTab(tabAt(location.hash));
+    const follow = () => setTab(tabAt(review, location.hash));
     addEventListener('hashchange', follow);
     return () => removeEventListener('hashchange', follow);
-  });
+  }, [review]);
   return tab;
 };
 
