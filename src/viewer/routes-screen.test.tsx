@@ -113,3 +113,43 @@ test('changed routes are rows under the file behind them, each with its target b
     cellsOf(screen.getByRole('region', { name: 'config/routes/admin.rb' }), 'GET /admin'),
   ).toStrictEqual(['+', '', 'admin#index', 'config/routes/admin.rb:4']);
 });
+
+test('in a file, what needs a look comes first, and PATCH and PUT of one path are one line', async () => {
+  atHash('#routes');
+  render(
+    <ReviewPage
+      review={reviewOf([
+        {
+          routes: [
+            { state: 'added', patch: 'config/routes.rb', head: route({ path: '/new' }) },
+            {
+              state: 'added',
+              patch: 'config/routes.rb',
+              head: route({ verb: 'PATCH', path: '/both' }),
+            },
+            {
+              state: 'added',
+              patch: 'config/routes.rb',
+              head: route({ verb: 'PUT', path: '/both' }),
+            },
+            {
+              state: 'changed',
+              patch: 'config/routes.rb',
+              base: route({ path: '/moved', target: 'a#old' }),
+              head: route({ path: '/moved', target: 'a#new' }),
+            },
+            { state: 'removed', patch: 'config/routes.rb', base: route({ path: '/gone' }) },
+          ],
+          unread: [],
+        },
+      ])}
+    />,
+  );
+
+  const file = await screen.findByRole('region', { name: 'config/routes.rb' });
+  expect(
+    within(file)
+      .getAllByRole('rowheader')
+      .map(name => name.textContent),
+  ).toStrictEqual(['GET /gone', 'GET /moved', 'GET /new', 'PATCH/PUT /both']);
+});

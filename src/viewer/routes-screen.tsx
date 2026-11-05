@@ -2,7 +2,7 @@ import type { ReactNode } from 'react';
 import type { PageData } from '../core/page.ts';
 import type { RoutesReading } from '../core/read-routes.ts';
 import { type RouteLine, routeLines, routeOf } from '../core/route-lines.ts';
-import { ChangeRow } from './change-row.tsx';
+import { ChangeRow, type ChangeState } from './change-row.tsx';
 
 const RouteRow = ({ verbs, row }: RouteLine) => {
   const { path, file, line } = routeOf(row);
@@ -25,13 +25,7 @@ const lineKey = ({ verbs, row }: RouteLine) => {
   return `${root} ${verbs} ${path}`;
 };
 
-const RouteFile = ({
-  file,
-  children,
-}: {
-  readonly file: string;
-  readonly children: ReactNode;
-}) => (
+const RouteFile = ({ file, children }: { readonly file: string; readonly children: ReactNode }) => (
   <section aria-label={file}>
     <h2 className="schema-file">
       <code>{file}</code>
@@ -67,6 +61,11 @@ const RouteTable = ({ lines }: { readonly lines: ReadonlyArray<RouteLine> }) => 
   </div>
 );
 
+const FIRST: Readonly<Record<ChangeState, number>> = { removed: 0, changed: 1, added: 2 };
+
+const lookFirst = (lines: ReadonlyArray<RouteLine>) =>
+  lines.toSorted((one, other) => FIRST[one.row.state] - FIRST[other.row.state]);
+
 const filesOf = (reading: RoutesReading) => {
   if ('notRead' in reading)
     return (
@@ -77,7 +76,7 @@ const filesOf = (reading: RoutesReading) => {
   return [...Map.groupBy(routeLines(reading.routes), ({ row }) => row.patch)].map(
     ([file, lines]) => (
       <RouteFile key={file} file={file}>
-        <RouteTable lines={lines} />
+        <RouteTable lines={lookFirst(lines)} />
       </RouteFile>
     ),
   );
