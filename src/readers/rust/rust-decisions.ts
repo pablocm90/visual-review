@@ -5,9 +5,7 @@ const exprOf = (statement: Node | undefined): Node | undefined =>
   statement?.type === 'expression_statement' ? statement.namedChildren[0] : statement;
 
 const macroNameOf = (node: Node | undefined): string | undefined =>
-  node?.type === 'macro_invocation'
-    ? node.childForFieldName('macro')?.text.split('::').at(-1)
-    : undefined;
+  node?.childForFieldName('macro')?.text.split('::').at(-1);
 
 type Exit = Pick<Decision, 'foundByName'>;
 
@@ -20,7 +18,7 @@ const exitOf = (statement: Node | undefined): Exit | undefined => {
 const decisionsUnder = (nodes: ReadonlyArray<Node>): ReadonlyArray<Decision> =>
   nodes.flatMap(node => {
     const exit =
-      node.type === 'if_expression'
+      node.type === 'if_expression' && node.childForFieldName('alternative') === null
         ? exitOf(node.childForFieldName('consequence')?.namedChildren[0])
         : undefined;
     return exit === undefined

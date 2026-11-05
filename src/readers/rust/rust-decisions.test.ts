@@ -28,3 +28,9 @@ test.for(['bail!("no");', 'anyhow::bail!("no")'])(
 test('a macro of another name is no exit', () => {
   expect(decisionsIn('if c { log!("no"); }')?.map(({ kind }) => kind)).not.toContain('guard');
 });
+
+test('an if that returns first but has an else is no guard', () => {
+  expect(decisionsIn('if c { return 1; } else { go(); }')?.map(({ kind }) => kind)).not.toContain(
+    'guard',
+  );
+});
