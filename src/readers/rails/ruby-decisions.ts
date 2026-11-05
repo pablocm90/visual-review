@@ -1,5 +1,6 @@
 import type { Node } from 'web-tree-sitter';
 import type { Decision } from '../../core/reader.ts';
+import { codeReaderOf } from '../tree-sitter.ts';
 
 type Head = Pick<Decision, 'kind' | 'text' | 'foundByName' | 'subject'>;
 
@@ -14,40 +15,7 @@ const fieldOf = (node: Node, field: string): Node | undefined =>
 const statementsOf = (body: Node | undefined): ReadonlyArray<Node> =>
   (body?.namedChildren ?? []).filter(({ type }) => type !== 'comment');
 
-const leavesOf = (node: Node): ReadonlyArray<Node> => {
-  if (node.type === 'comment') return [];
-  return node.childCount === 0 ? [node] : node.children.flatMap(leavesOf);
-};
-
-const OPENERS = new Set(['(', '[', '{']);
-const CLOSERS = new Set([')', ']', '}']);
-
-const SENDS = new Set(['.', '&.']);
-
-const isGapped = (leaf: Node, before: Node | undefined): boolean =>
-  before !== undefined &&
-  leaf.startIndex > before.endIndex &&
-  !OPENERS.has(before.text) &&
-  !CLOSERS.has(leaf.text) &&
-  !SENDS.has(leaf.text) &&
-  !SENDS.has(before.text);
-
-const codeFrom = (leaves: ReadonlyArray<Node>): string => {
-  const kept = leaves.filter(
-    ({ text }, index) => !(text === ',' && CLOSERS.has(leaves[index + 1]?.text ?? '')),
-  );
-  return kept
-    .map((leaf, index) => (isGapped(leaf, kept[index - 1]) ? ` ${leaf.text}` : leaf.text))
-    .join('');
-};
-
-const codeOf = (node: Node | undefined): string =>
-  codeFrom(node === undefined ? [] : leavesOf(node));
-
-const codeUpTo = (node: Node, end: Node | undefined): string =>
-  codeFrom(
-    leavesOf(node).filter(({ endIndex }) => end === undefined || endIndex <= end.startIndex),
-  );
+const { codeOf, codeUpTo } = codeReaderOf(new Set(['.', '&.']));
 
 type Walk = { readonly depth: number };
 
