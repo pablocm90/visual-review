@@ -286,6 +286,9 @@ test.for([
   { line: 'fn a() { println!("{}", b()?); }', name: 'println!' },
   { line: 'fn a() { let v = vec![if c { 1 } else { 2 }]; }', name: 'vec!' },
   { line: 'fn a() { foo::bar!(x, (y, { return 1 })); }', name: 'bar!' },
+  { line: 'fn a() { log!(?b, c?); }', name: 'log!' },
+  { line: 'fn a() { log!(b.await?); }', name: 'log!' },
+  { line: 'macro_rules! m { ($($x:expr),*) => { $($x?),* } }', name: 'macro_rules!' },
 ])('$line is a blind spot, $name', ({ line, name }) => {
   expect(blindSpotsIn(line)).toEqual([name]);
 });
@@ -302,6 +305,17 @@ test.for([
   { reason: 'an if outside any macro', line: 'fn a() { if b { c!(); } }' },
   { reason: 'a guard macro', line: 'fn a() { ensure!(b()?, "no"); }' },
   { reason: 'a throw macro', line: 'fn a() { panic!("{}", b()?); }' },
+  { reason: 'a ? sigil opening a macro', line: 'fn a() { error!(?b, "no"); }' },
+  { reason: 'a ? sigil after a comma', line: 'fn a() { error!(c, ?b); }' },
+  { reason: 'a ? sigil after a field name', line: 'fn a() { error!(c = ?b); }' },
+  {
+    reason: 'a macro matcher repeated at most once',
+    line: 'macro_rules! m { ($($x:expr),* $(,)?) => { 1 } }',
+  },
+  {
+    reason: 'a macro transcriber repeated at most once',
+    line: 'macro_rules! m { ($($x:expr),*) => { $(a)? } }',
+  },
 ])('$reason is no blind spot', ({ line }) => {
   expect(blindSpotsIn(line)).toEqual([]);
 });

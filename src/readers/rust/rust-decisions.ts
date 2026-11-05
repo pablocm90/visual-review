@@ -170,9 +170,13 @@ const decisionsUnder = (walk: Walk, nodes: ReadonlyArray<Node>): ReadonlyArray<D
 export const decisionsOfFunction = (item: Node): ReadonlyArray<Decision> =>
   decisionsUnder({ depth: 0 }, fieldsOf(item, 'body'));
 
-const LOGIC_TOKENS = ['?', 'return', 'if'];
+const BEFORE_NO_TRY: ReadonlySet<string> = new Set(['(', ',', '=', ')']);
 
-const holdsLogicTokens = (node: Node): boolean => node.descendantsOfType(LOGIC_TOKENS).length > 0;
+const isTryMark = (mark: Node): boolean => !BEFORE_NO_TRY.has(mark.previousSibling?.type ?? '');
+
+const holdsLogicTokens = (node: Node): boolean =>
+  node.descendantsOfType(['return', 'if']).length > 0 ||
+  node.descendantsOfType('?').some(isTryMark);
 
 const hidingNameOf = (node: Node): ReadonlyArray<string> => {
   if (!holdsLogicTokens(node) || isTestCode(node)) return [];
