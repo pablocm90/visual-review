@@ -113,6 +113,11 @@ test('a bare private or protected holds until public, in its own body only, and 
   ).toEqual(['first', 'second', 'initialize', 'block', 'inner', 'last']);
 });
 
+test('a top-level def is exported, and exports stay empty because the flags say it all', () => {
+  expect(exportedIn('def helper; end')).toEqual(['helper']);
+  expect(read('def helper; end', 'class Shop; def open; end; end').exports).toEqual([]);
+});
+
 test('def self.x, and a def in class << self or class_methods do, is the method self.x, public under a bare private', () => {
   expect(
     symbolsIn(
@@ -515,6 +520,12 @@ test.for([
     before: 'def open(a); a; end',
     after: 'def open a; a; end',
     change: 'formatting',
+  },
+  {
+    edit: "a call's parentheses",
+    before: 'def open; foo(1); end',
+    after: 'def open; foo 1; end',
+    change: 'edited',
   },
   {
     edit: 'its body',
