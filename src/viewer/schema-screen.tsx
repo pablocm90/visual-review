@@ -75,8 +75,12 @@ const TableCard = ({ file, table }: { readonly file: string; readonly table: Tab
         <tr>
           <td />
           <td />
-          <th scope="col">Before</th>
-          <th scope="col">After</th>
+          <th scope="col" className="schema-head">
+            Before
+          </th>
+          <th scope="col" className="schema-head">
+            After
+          </th>
         </tr>
       </thead>
       <tbody>
