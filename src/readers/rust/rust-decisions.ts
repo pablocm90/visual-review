@@ -182,5 +182,7 @@ const hidingNameOf = (node: Node): ReadonlyArray<string> => {
 };
 
 export const blindSpotsIn = (root: Node): ReadonlyArray<string> => [
-  ...new Set(root.descendantsOfType(['macro_invocation', 'macro_definition']).flatMap(hidingNameOf)),
+  ...new Set(
+    root.descendantsOfType(['macro_invocation', 'macro_definition']).flatMap(hidingNameOf),
+  ),
 ];
