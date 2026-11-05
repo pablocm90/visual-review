@@ -54,8 +54,6 @@ const ownText = (definition: Node, holes: Holes): string => {
 const tokensOf = (shape: Shape): ReadonlyArray<string> =>
   typeof shape === 'string' ? [shape] : shape.flatMap(tokensOf);
 
-const NOT_YET_HASHED = { signatureHash: '', bodyHash: '', textHash: '', bodyTokens: [] };
-
 type ByName = {
   readonly key: string;
   readonly exported: boolean;
@@ -229,12 +227,21 @@ const delegateSymbols = (
 };
 
 const scopeSymbols = (call: Node, within: string | undefined): ReadonlyArray<ReadSymbol> => {
-  const [named, callable] = call.childForFieldName('arguments')?.namedChildren ?? [];
-  if (callable === undefined || callable.type === 'pair') return [];
+  const [named, ...callable] = call.childForFieldName('arguments')?.namedChildren ?? [];
+  if (callable[0] === undefined || callable[0].type === 'pair') return [];
   return [
     memberOf(
       writtenName(named),
-      { kind: 'method', exported: true, signature: '', ...NOT_YET_HASHED },
+      {
+        kind: 'method',
+        exported: true,
+        signature: '',
+        ...hashesOf({
+          signed: [],
+          body: [...callable, ...fieldOf(call, 'block')],
+          text: call.text,
+        }),
+      },
       within,
       { ...STARTING, singleton: true },
     ),
@@ -333,8 +340,14 @@ const walked = (walk: Walk, node: Node, within: string | undefined): Walk => {
       symbols: [...walk.symbols, ...attrSymbols(node, attrs, within, walk)],
       holes: [...walk.holes, node.id],
     };
-  if (called === 'scope')
-    return { ...walk, symbols: [...walk.symbols, ...scopeSymbols(node, within)] };
+  if (called === 'scope') {
+    const scopes = scopeSymbols(node, within);
+    return {
+      ...walk,
+      symbols: [...walk.symbols, ...scopes],
+      holes: scopes.length === 0 ? walk.holes : [...walk.holes, node.id],
+    };
+  }
   if (called === 'delegate')
     return {
       ...walk,

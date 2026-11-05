@@ -500,6 +500,15 @@ test('a method with the same body under another name reads renamed, a similar on
   ).toMatchObject([{ name: 'shut', change: 'renamed', renamedFrom: 'open', probably: true }]);
 });
 
+test('a scope with the same lambda under another name reads renamed', () => {
+  expect(
+    changesBetween(
+      ['class Shop', '  scope :a, -> { where(open: true) }', 'end'],
+      ['class Shop', '  scope :b, -> { where(open: true) }', 'end'],
+    ).symbols[1],
+  ).toMatchObject({ name: 'self.b', change: 'renamed', renamedFrom: 'Shop.self.a' });
+});
+
 test.for([
   {
     edit: 'an edit to a method in it',
@@ -596,6 +605,30 @@ test.for([
     before: ['class Shop', '  delegate :a, to: :door', 'end'],
     after: ['class Shop', '  delegate :a, to:  :door', 'end'],
     expected: ['unchanged Shop', 'formatting Shop.a'],
+  },
+  {
+    edit: "an edit to a scope's lambda",
+    before: ['class Shop', '  scope :a, -> { where(open: true) }', 'end'],
+    after: ['class Shop', '  scope :a, -> { where(open: false) }', 'end'],
+    expected: ['unchanged Shop', 'edited Shop.self.a'],
+  },
+  {
+    edit: "an edit to a scope's do block",
+    before: ['class Shop', '  scope :a, lambda do', '    all', '  end', 'end'],
+    after: ['class Shop', '  scope :a, lambda do', '    none', '  end', 'end'],
+    expected: ['unchanged Shop', 'edited Shop.self.a'],
+  },
+  {
+    edit: 'whitespace in a scope',
+    before: ['class Shop', '  scope :a, -> { all }', 'end'],
+    after: ['class Shop', '  scope :a, -> {  all }', 'end'],
+    expected: ['unchanged Shop', 'formatting Shop.self.a'],
+  },
+  {
+    edit: 'an edit inside a scope that is no symbol',
+    before: ['class Shop', '  scope :admin do', '    one', '  end', 'end'],
+    after: ['class Shop', '  scope :admin do', '    two', '  end', 'end'],
+    expected: ['edited Shop'],
   },
 ])('with $edit, a class and what it holds read apart', ({ before, after, expected }) => {
   expect(changesOf(before, after)).toEqual(expected);
