@@ -643,7 +643,7 @@ type InspectorProps = {
   readonly onClose: () => void;
 };
 
-type InspectorTab = 'note' | 'metrics' | 'diff';
+type InspectorTab = 'note' | 'diff';
 
 const DRAFT_TABS: Partial<Record<PreviousComment['anchor']['kind'], InspectorTab>> = {
   line: 'diff',
@@ -671,7 +671,6 @@ const useInspectorTab = (screen: string, selected: string | undefined) => {
 
 const INSPECTOR_TABS: Readonly<Record<InspectorTab, string>> = {
   note: 'Note',
-  metrics: 'Metrics',
   diff: 'Diff',
 };
 
@@ -680,30 +679,21 @@ type Section = {
   readonly panel: ReactNode;
 };
 
-type MetricsSectionOptions = Pick<InspectorProps, 'metrics' | 'findings'> & {
-  readonly node: DiffNode;
+type FoldProps = {
+  readonly title: string;
+  readonly open: boolean;
+  readonly onToggle: () => void;
+  readonly children: ReactNode;
 };
 
-const metricsSection = ({
-  node,
-  metrics,
-  findings,
-}: MetricsSectionOptions): ReadonlyArray<Section> => {
-  const measured = metrics[node.id];
-  return measured
-    ? [
-        {
-          tab: 'metrics',
-          panel: (
-            <MetricsTable
-              metrics={measured}
-              findings={findings.filter(finding => finding.node === node.id)}
-            />
-          ),
-        },
-      ]
-    : [];
-};
+const Fold = ({ title, open, onToggle, children }: FoldProps) => (
+  <section className="fold" aria-label={title}>
+    <button type="button" className="fold-toggle" aria-expanded={open} onClick={onToggle}>
+      {title}
+    </button>
+    {open && children}
+  </section>
+);
 
 type NotePanelProps = Pick<
   InspectorProps,
@@ -851,8 +841,9 @@ const Inspector = ({
           },
         ]
       : []),
-    ...(node ? metricsSection({ ...props, node }) : []),
   ].toSorted((a, b) => SECTION_ORDER.indexOf(a.tab) - SECTION_ORDER.indexOf(b.tab));
+  const [metricsOpen, setMetricsOpen] = useState(false);
+  const measured = node && props.metrics[node.id];
   const shown = sections.find(({ tab }) => tab === picked) ?? sections[0];
   const column = useRef<HTMLElement>(null);
   // biome-ignore lint/correctness/useExhaustiveDependencies: a new part opens at the column's top
@@ -884,6 +875,14 @@ const Inspector = ({
         <div role="tabpanel" aria-label={INSPECTOR_TABS[shown.tab]}>
           {shown.panel}
         </div>
+      )}
+      {node && measured && (
+        <Fold title="Metrics" open={metricsOpen} onToggle={() => setMetricsOpen(!metricsOpen)}>
+          <MetricsTable
+            metrics={measured}
+            findings={props.findings.filter(finding => finding.node === node.id)}
+          />
+        </Fold>
       )}
     </aside>
   );

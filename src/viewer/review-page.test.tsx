@@ -134,6 +134,11 @@ const inspectorTabs = () =>
     .queryAllByRole('tab')
     .map(tab => tab.textContent);
 
+const fold = (name: string) => within(inspector()).queryByRole('region', { name });
+
+const openFold = (user: ReturnType<typeof userEvent.setup>, name: string) =>
+  user.click(within(inspector()).getByRole('button', { name, expanded: false }));
+
 const findingsShown = () =>
   within(noteTab())
     .queryAllByRole('listitem')
@@ -2268,7 +2273,7 @@ test('the next part opens at the top of the column, which holds its scroll while
   expect(inspector().scrollTop).toBe(0);
 });
 
-test('a finding opens its part at the top of the column unless Note is there to show its row', async () => {
+test('a finding leaves the column to its row, not its top', async () => {
   const user = userEvent.setup();
   render(
     <ReviewPage
@@ -2292,15 +2297,6 @@ test('a finding opens its part at the top of the column unless Note is there to 
   await user.click(await screen.findByRole('button', { name: 'Show 1 finding' }));
 
   await user.click(within(rust).getByRole('button', { name: 'application: modified' }));
-  await user.click(within(inspector()).getByRole('tab', { name: 'Metrics' }));
-  inspector().scrollTop = 300;
-  await goToFinding();
-  expect(selectedPart()).toBe('domain');
-  expect(within(inspector()).getByRole('tab', { selected: true }).textContent).toBe('Metrics');
-  expect(inspector().scrollTop).toBe(0);
-
-  await user.click(within(rust).getByRole('button', { name: 'application: modified' }));
-  await user.click(within(inspector()).getByRole('tab', { name: /^Note/ }));
   inspector().scrollTop = 300;
   await goToFinding();
   expect(selectedPart()).toBe('domain');
@@ -3312,7 +3308,7 @@ test("web calls to API routes are drawn between the stacks, named by their paths
 });
 
 const metricCells = (metric: string) => {
-  const panel = screen.getByRole('tabpanel', { name: 'Metrics' });
+  const panel = screen.getByRole('region', { name: 'Metrics' });
   const header = within(panel)
     .getAllByRole('rowheader')
     .find(cell => cell.textContent?.startsWith(metric));
@@ -3352,8 +3348,8 @@ test("a measured node's Metrics tab gives each measure before and after with the
   );
 
   await user.click(await screen.findByRole('button', { name: 'application: modified' }));
-  expect(inspectorTabs()).toEqual(['Note', 'Metrics']);
-  await user.click(within(inspector()).getByRole('tab', { name: 'Metrics' }));
+  expect(within(inspector()).queryByRole('rowheader', { name: /^Lines/ })).toBeNull();
+  await openFold(user, 'Metrics');
   expect(metricCells('Lines')).toEqual(['120', '184', '+64']);
   expect(metricCells('Functions')).toEqual(['6', '9', '+3']);
   expect(metricCells('Cyclomatic, highest')).toEqual(['4', '14', '+10']);
@@ -3373,13 +3369,13 @@ test("a measured node's Metrics tab gives each measure before and after with the
   expect(within(inspector()).getByText(/highest inside/)).toBeTruthy();
 
   await user.click(screen.getByRole('button', { name: 'domain: unchanged' }));
-  expect(inspectorTabs()).toEqual(['Note']);
+  expect(fold('Metrics')).toBeNull();
   await user.click(screen.getByRole('button', { name: 'application → domain: unchanged' }));
-  expect(inspectorTabs()).toEqual(['Note']);
+  expect(fold('Metrics')).toBeNull();
 });
 
 const metricMarks = (metric: string) => {
-  const header = within(screen.getByRole('tabpanel', { name: 'Metrics' }))
+  const header = within(screen.getByRole('region', { name: 'Metrics' }))
     .getAllByRole('rowheader')
     .find(cell => cell.textContent?.startsWith(metric));
   return (
@@ -3416,7 +3412,7 @@ test("a Metrics row is marked by the level of the node's finding on it, a hotspo
   );
 
   await user.click(await screen.findByRole('button', { name: 'application: modified' }));
-  await user.click(within(inspector()).getByRole('tab', { name: 'Metrics' }));
+  await openFold(user, 'Metrics');
   expect(metricMarks('Cyclomatic, highest')).toEqual(['for information']);
   expect(metricMarks('ABC size')).toEqual(['for information']);
   expect(metricMarks('Churn')).toEqual(['for information']);
@@ -3462,7 +3458,7 @@ test("a measured file's Metrics tab lists its functions by cyclomatic base → h
   );
 
   await user.click(await screen.findByRole('button', { name: 'application: modified' }));
-  await user.click(within(inspector()).getByRole('tab', { name: 'Metrics' }));
+  await openFold(user, 'Metrics');
   const functions = screen.getByRole('list', { name: 'Functions by cyclomatic' });
   expect(
     within(functions)
@@ -5728,7 +5724,7 @@ test('a part with no note but a last comment shows that comment, not "No note"',
   expect(saysNoNote()).toBe(false);
 });
 
-test('the inspector goes back to Note when it closes or Structure is left, and holds its tab between parts', async () => {
+test('an open fold stays open between parts, and closes when the inspector does or Structure is left', async () => {
   const user = userEvent.setup();
   render(
     <ReviewPage
@@ -5749,27 +5745,28 @@ test('the inspector goes back to Note when it closes or Structure is left, and h
       })}
     />,
   );
-  const pickMetrics = () => user.click(within(inspector()).getByRole('tab', { name: 'Metrics' }));
-  const onTab = () => within(inspector()).getByRole('tab', { selected: true }).textContent;
+  const metricsOpen = () =>
+    within(inspector()).getByRole('button', { name: 'Metrics' }).getAttribute('aria-expanded');
 
   await user.click(await screen.findByRole('button', { name: 'tax.ts: modified' }));
-  await pickMetrics();
+  expect(metricsOpen()).toBe('false');
+  await openFold(user, 'Metrics');
   await user.click(screen.getByRole('button', { name: 'vat.ts: modified' }));
-  expect(onTab()).toBe('Metrics');
+  expect(metricsOpen()).toBe('true');
 
   await user.click(within(inspector()).getByRole('button', { name: 'Close inspector' }));
   await user.click(screen.getByRole('button', { name: 'tax.ts: modified' }));
-  expect(onTab()).toBe('Note');
+  expect(metricsOpen()).toBe('false');
 
-  await pickMetrics();
+  await openFold(user, 'Metrics');
   await user.click(screen.getByRole('link', { name: /^Tests/ }));
   await screen.findByRole('group', { name: 'Tests shown' });
   await user.click(screen.getByRole('link', { name: /^Structure/ }));
   await screen.findByRole('button', { name: 'tax.ts: modified' });
-  expect(onTab()).toBe('Note');
+  expect(metricsOpen()).toBe('false');
 });
 
-test('the inspector holds its tab through an edge selected between two parts', async () => {
+test('an open fold stays open through an edge selected between two parts', async () => {
   const user = userEvent.setup();
   render(
     <ReviewPage
@@ -5798,14 +5795,15 @@ test('the inspector holds its tab through an edge selected between two parts', a
   );
 
   await user.click(await screen.findByRole('button', { name: 'tax.ts: modified' }));
-  await user.click(within(inspector()).getByRole('tab', { name: 'Metrics' }));
+  await openFold(user, 'Metrics');
   await user.click(screen.getByRole('button', { name: 'tax.ts → vat.ts: added' }));
   await user.click(screen.getByRole('button', { name: 'vat.ts: modified' }));
 
-  expect(within(inspector()).getByRole('tab', { selected: true }).textContent).toBe('Metrics');
+  expect(fold('Metrics')).not.toBeNull();
+  expect(within(inspector()).getByRole('rowheader', { name: /^Lines/ })).toBeTruthy();
 });
 
-test('going to a finding answer in the open tray opens Note, where the answer is, whatever tab was up, landing on its row', async () => {
+test('going to a finding answer in the open tray lands on its row, whatever fold is open', async () => {
   const user = userEvent.setup();
   render(
     <ReviewPage
@@ -5827,11 +5825,10 @@ test('going to a finding answer in the open tray opens Note, where the answer is
 
   await user.click(await screen.findByRole('button', { name: 'tax.ts: modified' }));
   await user.click(within(noteTab()).getByRole('button', { name: 'Fix this' }));
-  await user.click(within(inspector()).getByRole('tab', { name: 'Metrics' }));
+  await openFold(user, 'Metrics');
   await openReview(user);
   await user.click(screen.getByRole('button', { name: 'lines 900, over 800' }));
 
-  expect(within(inspector()).getByRole('tab', { selected: true }).textContent).toBe('Note');
   const row = within(within(noteTab()).getByRole('list', { name: 'Findings' })).getByRole(
     'listitem',
     { current: true },
