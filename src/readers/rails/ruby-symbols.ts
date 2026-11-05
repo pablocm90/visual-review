@@ -22,10 +22,17 @@ type Walk = {
   readonly exported: boolean;
   readonly singleton: boolean;
   readonly moduleFunction: boolean;
+  readonly hiddenClassMethod: boolean;
   readonly symbols: ReadonlyArray<ReadSymbol>;
 };
 
-const STARTING: Walk = { exported: true, singleton: false, moduleFunction: false, symbols: [] };
+const STARTING: Walk = {
+  exported: true,
+  singleton: false,
+  moduleFunction: false,
+  hiddenClassMethod: false,
+  symbols: [],
+};
 
 const methodSymbol = (method: Node, within: string | undefined, walk: Walk): ReadSymbol => {
   const name = method.childForFieldName('name');
@@ -38,7 +45,10 @@ const methodSymbol = (method: Node, within: string | undefined, walk: Walk): Rea
     name: object === undefined ? written : `${object}.${written}`,
     ...(within === undefined ? {} : { scope: within }),
     kind: isSetter ? 'setter' : within === undefined ? 'function' : 'method',
-    exported: method.type === 'singleton_method' || walk.exported || written === 'initialize',
+    exported:
+      method.type === 'singleton_method'
+        ? !walk.hiddenClassMethod
+        : walk.exported || written === 'initialize',
     signature: '',
     ...NOT_YET_HASHED,
   };
@@ -49,6 +59,11 @@ const BARE_WORDS = new Map([
   ['protected', { exported: false, moduleFunction: false }],
   ['public', { exported: true, moduleFunction: false }],
   ['module_function', { exported: true, moduleFunction: true }],
+]);
+
+const CALLS_WITH_A_DEF = new Map<string, Partial<Walk>>([
+  ...BARE_WORDS,
+  ['private_class_method', { hiddenClassMethod: true }],
 ]);
 
 const METHODS = new Set(['method', 'singleton_method']);
@@ -67,6 +82,8 @@ const walked = (walk: Walk, node: Node, within: string | undefined): Walk => {
     return joined(walkedChildren({ ...STARTING, singleton: walk.singleton }, node, within));
   if (isSingletonBlock(node))
     return joined(walkedChildren({ ...STARTING, singleton: true }, node, within));
+  const held = CALLS_WITH_A_DEF.get(node.childForFieldName('method')?.text ?? '');
+  if (held) return { ...walk, symbols: walkedChildren({ ...walk, ...held }, node, within).symbols };
   if (!DEFINITIONS.has(node.type)) return walkedChildren(walk, node, within);
   const constant = constantWithin(node, within);
   const definition: ReadSymbol = {

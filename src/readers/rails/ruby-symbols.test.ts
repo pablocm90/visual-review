@@ -191,3 +191,22 @@ test('a bare module_function makes what follows self.x and public, until a visib
     ),
   ).toEqual(['self.round', 'plain']);
 });
+
+test('a visibility call with a def in it sets that def alone, and private_class_method a def self.x', () => {
+  const lines = [
+    'class Shop',
+    '  private def hidden; end',
+    '  def plain; end',
+    '  protected def guarded; end',
+    '  private_class_method def self.secret; end',
+    '  def self.open; end',
+    '  private',
+    '  public def shown; end',
+    '  module_function def round; end',
+    '  def still_hidden; end',
+    'end',
+  ];
+
+  expect(exportedIn(...lines)).toEqual(['plain', 'self.open', 'shown', 'self.round']);
+  expect(symbolsIn(...lines)).toContain('method Shop.still_hidden');
+});
