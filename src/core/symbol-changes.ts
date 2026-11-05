@@ -158,7 +158,9 @@ const counterpart = (
   to: FileSymbols,
 ): ReadSymbol | undefined => namedAlike(symbol, to)[namedAlike(symbol, from).indexOf(symbol)];
 
-export const symbolChanges = ({ before, after }: SymbolChangesOptions): SymbolChanges => {
+type ReadStatement = { readonly statement: SymbolStatement; readonly read: ReadSymbol };
+
+const readStatements = ({ before, after }: SymbolChangesOptions): ReadonlyArray<ReadStatement> => {
   const unpaired = before.symbols.filter(
     symbol => counterpart(symbol, before, after) === undefined,
   );
@@ -190,35 +192,44 @@ export const symbolChanges = ({ before, after }: SymbolChangesOptions): SymbolCh
       .map(({ symbol, former }) => [symbol, former] as const),
   );
   const renamed = new Set(renames.values());
+  const headStatement = (symbol: ReadSymbol): SymbolStatement => {
+    const old = partnerOf(symbol);
+    if (old !== undefined) return pairedWith(old, symbol);
+    const former = renames.get(symbol);
+    if (former !== undefined) {
+      return {
+        ...pairedWith(former, symbol),
+        change: 'renamed',
+        renamedFrom: qualified(former),
+        ...(former.bodyHash === symbol.bodyHash ? {} : { probably: true }),
+      };
+    }
+    return { ...named(symbol), exported: { head: symbol.exported }, change: 'added' };
+  };
+  return [
+    ...after.symbols.map(read => ({ statement: headStatement(read), read })),
+    ...removed
+      .filter(symbol => !renamed.has(symbol))
+      .map(read => ({
+        statement: {
+          ...named(read),
+          exported: { base: read.exported },
+          change: 'removed' as const,
+        },
+        read,
+      })),
+  ];
+};
+
+const changesOf = (
+  { before, after }: SymbolChangesOptions,
+  statements: ReadonlyArray<ReadStatement>,
+): SymbolChanges => {
+  const symbols = statements.map(({ statement }) => statement);
   const exports = {
     added: after.exports.filter(name => !before.exports.includes(name)),
     removed: before.exports.filter(name => !after.exports.includes(name)),
   };
-  const symbols = [
-    ...after.symbols.map((symbol): SymbolStatement => {
-      const old = partnerOf(symbol);
-      if (old !== undefined) return pairedWith(old, symbol);
-      const former = renames.get(symbol);
-      if (former !== undefined) {
-        return {
-          ...pairedWith(former, symbol),
-          change: 'renamed',
-          renamedFrom: qualified(former),
-          ...(former.bodyHash === symbol.bodyHash ? {} : { probably: true }),
-        };
-      }
-      return { ...named(symbol), exported: { head: symbol.exported }, change: 'added' };
-    }),
-    ...removed
-      .filter(symbol => !renamed.has(symbol))
-      .map(
-        (symbol): SymbolStatement => ({
-          ...named(symbol),
-          exported: { base: symbol.exported },
-          change: 'removed',
-        }),
-      ),
-  ];
   return {
     symbols,
     exports,
@@ -227,45 +238,33 @@ export const symbolChanges = ({ before, after }: SymbolChangesOptions): SymbolCh
   };
 };
 
+export const symbolChanges = (options: SymbolChangesOptions): SymbolChanges =>
+  changesOf(options, readStatements(options));
+
 type SidedFile = SymbolChangesOptions & { readonly node: string };
 
 export type FileSymbolChanges = SymbolChanges & { readonly node: string };
 
-type End = {
-  readonly node: string;
-  readonly statement: SymbolStatement;
-  readonly symbol: ReadSymbol;
-};
+type End = ReadStatement & { readonly node: string };
 
 type Gain = { readonly key: string; readonly owner: SymbolStatement; readonly node: string };
 
-const decisionsIn = (statement: SymbolStatement, side: FileSymbols) =>
-  side.symbols.find(read => sameSymbol(read, statement))?.decisions ?? [];
-
-const gainsOf = (
-  statement: SymbolStatement,
-  { node, after }: Pick<Settled, 'node' | 'after'>,
-): ReadonlyArray<Gain> => {
+const gainsOf = ({ statement, read }: ReadStatement, node: string): ReadonlyArray<Gain> => {
   const decisions =
     statement.change === 'added'
-      ? decisionsIn(statement, after)
+      ? (read.decisions ?? [])
       : (statement.logic ?? [])
           .filter(({ change }) => change === 'added')
           .map(line => ({ kind: line.kind, text: decisionText(line) }));
   return decisions.map(decision => ({ key: decisionKey(decision), owner: statement, node }));
 };
 
-type Settled = {
-  readonly node: string;
-  readonly before: FileSymbols;
-  readonly after: FileSymbols;
-  readonly symbols: ReadonlyArray<SymbolStatement>;
-};
+type Settled = { readonly node: string; readonly statements: ReadonlyArray<ReadStatement> };
 
-const heldByRemoved = ({ before, symbols }: Settled): ReadonlyArray<string> =>
-  symbols
-    .filter(({ change }) => change === 'removed')
-    .flatMap(symbol => decisionsIn(symbol, before))
+const heldByRemoved = ({ statements }: Settled): ReadonlyArray<string> =>
+  statements
+    .filter(({ statement }) => statement.change === 'removed')
+    .flatMap(({ read }) => read.decisions ?? [])
     .map(decisionKey);
 
 const withoutOne = (gains: ReadonlyArray<Gain>, key: string): ReadonlyArray<Gain> => {
@@ -277,13 +276,13 @@ const movesOf = (files: ReadonlyArray<Settled>): ReadonlyMap<LogicLine, Gain> =>
   const gains = Map.groupBy(
     files.flatMap(heldByRemoved).reduce(
       withoutOne,
-      files.flatMap(file => file.symbols.flatMap(symbol => gainsOf(symbol, file))),
+      files.flatMap(({ node, statements }) => statements.flatMap(read => gainsOf(read, node))),
     ),
     ({ key }) => key,
   );
   const lost = files
-    .flatMap(({ symbols }) => symbols)
-    .flatMap(owner =>
+    .flatMap(({ statements }) => statements)
+    .flatMap(({ statement: owner }) =>
       (owner.logic ?? [])
         .filter(({ change }) => change === 'removed')
         .map(line => ({ owner, line })),
@@ -324,21 +323,20 @@ export const symbolChangesOf = (
   files: ReadonlyArray<SidedFile>,
 ): ReadonlyArray<FileSymbolChanges> => {
   const paired = files.map(({ node, before, after }) => {
-    const sides: Partial<Record<SymbolChange, FileSymbols>> = { added: after, removed: before };
-    const changes = symbolChanges({ before, after });
-    const ends = changes.symbols.flatMap(statement => {
-      const symbol = sides[statement.change]?.symbols.find(read => sameSymbol(read, statement));
-      return symbol === undefined ? [] : [{ node, statement, symbol }];
-    });
-    return { node, before, after, changes, ends };
+    const statements = readStatements({ before, after });
+    return { node, statements, changes: changesOf({ before, after }, statements) };
   });
-  const ends = paired.flatMap(file => file.ends);
+  const ends = paired.flatMap(({ node, statements }) =>
+    statements
+      .filter(({ statement }) => statement.change === 'added' || statement.change === 'removed')
+      .map(end => ({ ...end, node })),
+  );
   const onlyEndOf = (end: End): End | undefined => {
     const [other, ...more] = ends.filter(
       other =>
         other.statement.change !== end.statement.change &&
-        sameSymbol(other.symbol, end.symbol) &&
-        other.symbol.bodyHash === end.symbol.bodyHash,
+        sameSymbol(other.read, end.read) &&
+        other.read.bodyHash === end.read.bodyHash,
     );
     return more.length === 0 ? other : undefined;
   };
@@ -350,17 +348,18 @@ export const symbolChangesOf = (
       ? { change: 'moved', movedTo: other.node }
       : { change: 'moved', movedFrom: other.node };
   };
-  const settled = paired.map(({ node, before, after, changes }) => ({
+  const settled = paired.map(({ node, statements, changes }) => ({
     node,
-    before,
-    after,
     changes,
-    symbols: changes.symbols.map(statement => ({ ...statement, ...moved(statement) })),
+    statements: statements.map(({ statement, read }) => ({
+      statement: { ...statement, ...moved(statement) },
+      read,
+    })),
   }));
   const moves = movesOf(settled);
-  return settled.map(({ node, changes, symbols }) => ({
+  return settled.map(({ node, changes, statements }) => ({
     node,
     ...changes,
-    symbols: symbols.map(statement => withMoves(statement, node, moves)),
+    symbols: statements.map(({ statement }) => withMoves(statement, node, moves)),
   }));
 };
