@@ -154,6 +154,7 @@ const READS = new Map<string, (node: Node, walk: Walk) => Read | undefined>([
 
 const decisionsUnder = (walk: Walk, nodes: ReadonlyArray<Node>): ReadonlyArray<Decision> =>
   nodes.flatMap(node => {
+    if (node.type === 'function_item') return [];
     const read = READS.get(node.type)?.(node, walk);
     if (read === undefined) return decisionsUnder(walk, node.namedChildren);
     const { deeper, beside = [], ...head } = read;

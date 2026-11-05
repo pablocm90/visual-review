@@ -265,3 +265,16 @@ test('a ? turned into an unwrap is for information, no lost guard', () => {
     findingsOfChange('a.b()?;', 'a.b().unwrap();').map(({ check, level }) => ({ check, level })),
   ).toEqual([{ check: 'logic:changed', level: 'info' }]);
 });
+
+test.for([
+  { reason: 'a nested fn', line: 'fn inner() { if d { go(); } }' },
+  { reason: "a nested impl's method", line: 'impl A { fn inner() { if d { go(); } } }' },
+])('$reason reads no line', ({ line }) => {
+  expect(decisionsIn(line)).toEqual([]);
+});
+
+test('a closure is walked', () => {
+  expect(decisionsIn('let f = |a| if a { 1 } else { 2 };')).toEqual([
+    { kind: 'if', text: 'if a', depth: 0, line: 2 },
+  ]);
+});
