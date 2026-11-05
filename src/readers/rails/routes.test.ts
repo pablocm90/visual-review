@@ -837,6 +837,18 @@ test('files drawing each other twice over throw, rather than read without end', 
   ).toThrow('Too many routes to read');
 });
 
+test('a file drawn thousands of times is parsed and walked once', () => {
+  const comments = Array.from({ length: 2500 }, () => `# ${'x'.repeat(100)}`).join('\n');
+  const draws = Array.from({ length: 5000 }, () => 'draw :comments').join('\n');
+  const { routes, unread } = railsRoutes.routes(
+    new Map([
+      ['config/routes.rb', drawing(draws)],
+      ['config/routes/comments.rb', comments],
+    ]),
+  );
+  expect([routes, unread]).toEqual([[], []]);
+});
+
 test('an app of a thousand statements, past the largest seen, still reads', () => {
   expect(read(gets(1000)).routes).toHaveLength(1000);
 });

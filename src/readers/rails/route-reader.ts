@@ -47,6 +47,7 @@ const MOST_IN_A_CALL = 300;
 
 type Scope = {
   readonly spend: (cost: number) => void;
+  readonly statementsIn: (file: string) => ReadonlyArray<Node>;
   readonly files: ReadonlyMap<string, string>;
   readonly root: string;
   readonly loading: ReadonlyArray<string>;
@@ -362,12 +363,12 @@ const programOf = (file: string, text: string): Node => {
   return program;
 };
 
-const drawnFrom = (file: string, scope: Scope): ReadonlyArray<Drawn> => {
-  const statements = writtenIn(programOf(file, scope.files.get(file) ?? ''));
-  return statements.flatMap(statement =>
-    routesIn(statement, { ...scope, file, loading: [...scope.loading, file] }),
-  );
-};
+const drawnFrom = (file: string, scope: Scope): ReadonlyArray<Drawn> =>
+  scope
+    .statementsIn(file)
+    .flatMap(statement =>
+      routesIn(statement, { ...scope, file, loading: [...scope.loading, file] }),
+    );
 
 const follows =
   (pathOf: (args: ReadonlyArray<Node>) => string | undefined): Handler =>
@@ -451,16 +452,26 @@ const spendingUpTo = (most: number): Scope['spend'] => {
   };
 };
 
+const parsingOnce = (files: ReadonlyMap<string, string>): Scope['statementsIn'] => {
+  const parsed = new Map<string, ReadonlyArray<Node>>();
+  return file => {
+    const statements = parsed.get(file) ?? writtenIn(programOf(file, files.get(file) ?? ''));
+    parsed.set(file, statements);
+    return statements;
+  };
+};
+
 export const railsRoutesUpTo = (most: number): RouteReader => ({
   holds: path =>
     ROUTES_FILE.test(path) && !path.split('/').some(folder => NOT_SEARCHED.has(folder)),
   routes: files => {
     const spend = spendingUpTo(most);
+    const statementsIn = parsingOnce(files);
     const drawn = [...files.keys()].flatMap(file => {
       const root = ROOT_FILE.exec(file)?.[1];
       return root === undefined
         ? []
-        : drawnFrom(file, { ...START, spend, files, root, loading: [], file });
+        : drawnFrom(file, { ...START, spend, statementsIn, files, root, loading: [], file });
     });
     return {
       routes: drawn
