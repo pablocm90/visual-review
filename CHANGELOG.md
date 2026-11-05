@@ -2,6 +2,13 @@
 
 What changed in each release of `@pablocm90/visual-review`, newest first. Versions follow [semver](https://semver.org); while it is 0.x, a minor version may change the exported types.
 
+## 0.37.0 — 2026-11-05
+
+### Changed
+
+- Five lens chips replace the triage strip: a chip filters the rail and Start here to its lens, and picking it again clears the filter. A quiet lens's chip stays drawn, so the same five are always there to read, and picked, Start here says there's nothing to show in it.
+- Each Start here line names its lens and its dimension.
+
 ## 0.36.0 — 2026-11-05
 
 ### Added
