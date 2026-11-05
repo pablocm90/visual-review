@@ -95,9 +95,10 @@ export type StackOptions = HoldsOptions & {
  * its files (functions, methods, classes and types, with their signatures and body hashes) and the
  * names the file exports; it throws on a file it can't parse. A file it reads as `undefined` has no
  * symbols, as every file of a reader without one. A symbol's `decisions` are its logic, each marked
- * `foundByName` when only a call's name says it is one, and given a `subject`, the names it decides
- * on, when its text alone says them, so that it reads as changed only where the head holds them all;
- * `blindSpots` names what the file calls that hides logic from this reading.
+ * `foundByName` when only a call's or a macro's name says it is one, and given a `subject`, the
+ * names it decides on, when its text alone says them, so that it reads as changed only where the
+ * head holds them all;
+ * `blindSpots` names the calls and macros in the file that hide logic from this reading.
  */
 export interface Reader {
   readonly name: ReaderName;

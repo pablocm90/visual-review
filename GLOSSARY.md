@@ -85,17 +85,17 @@ _Avoid_: change type, severity
 _In code_: `'api' | 'logic' | 'formatting'`
 
 **Decision**:
-A point in a function's own code where its path can fork or end early: a guard, an if, a ternary, a loop, a case, an outermost logical, a catch, a return inside a branch, a throw. In Rails, a class's callbacks, validations and `rescue_from` are decisions of the class. Read as its normalised source text.
+A point in a function's own code where its path can fork or end early: a guard, an if, a ternary, a loop, a case, an outermost logical, a catch, a return inside a branch, a throw, a Rust `?`. In Rails, a class's callbacks, validations and `rescue_from` are decisions of the class. Read as its normalised source text.
 _Avoid_: branch, condition
 _In code_: `Decision`, `DecisionKind`
 
 **Found by name**:
-A decision known only from what a call is named, such as `render`, `before_action` or `each`: the reader can't see what the call does, so a lost one's finding says so.
+A decision known only from what a call is named, such as `render`, `before_action`, `each` or `ensure!`: the reader can't see what the call does, so a lost one's finding says so.
 _Avoid_: heuristic, guessed
 _In code_: `Decision['foundByName']`
 
 **Logic not read through**:
-A changed file calls something that hides logic from its reading, such as `send` or `define_method`, which one finding for information names. It isn't one of Start here's blind spots, which are what the review couldn't read at all, though its id says `blind-spot`.
+A changed file calls something that hides logic from its reading, such as `send`, `define_method` or a Rust macro holding a `?`, which one finding for information names. It isn't one of Start here's blind spots, which are what the review couldn't read at all, though its id says `blind-spot`.
 _Avoid_: unread logic
 _In code_: `FileSymbols['blindSpots']`, `logic:blind-spot:<node>`
 
