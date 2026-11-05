@@ -166,9 +166,9 @@ const placedAt = (on: string | undefined, scope: Scope): string => {
   return on === 'collection' ? scope.collection : scope.path;
 };
 
-const SHORTHAND = /^\/?[-\w]+\/[-\w/]+$/;
+const TWO_PART_PATH = /^\/?[-\w]+\/[-\w/]+$/;
 
-const actionWord = (name: string): string => name.replaceAll('-', '_');
+const underscored = (name: string): string => name.replaceAll('-', '_');
 
 const pairedTo = (args: ReadonlyArray<Node>): Node | undefined =>
   args.find(arg => arg.type === 'pair' && arg.childForFieldName('key')?.type === 'string');
@@ -176,19 +176,19 @@ const pairedTo = (args: ReadonlyArray<Node>): Node | undefined =>
 const toOf = (args: ReadonlyArray<Node>): Node | undefined =>
   optionOf(args, 'to') ?? pairedTo(args)?.childForFieldName('value') ?? undefined;
 
-const shorthandFor = (name: string, args: ReadonlyArray<Node>): string | undefined =>
-  toOf(args) === undefined && optionOf(args, 'action') === undefined && SHORTHAND.test(name)
-    ? actionWord(name.replace(/^\//, '').replace(/\/([^/]*)$/, '#$1'))
+const twoPartTarget = (name: string, args: ReadonlyArray<Node>): string | undefined =>
+  toOf(args) === undefined && optionOf(args, 'action') === undefined && TWO_PART_PATH.test(name)
+    ? underscored(name.replace(/^\//, '').replace(/\/([^/]*)$/, '#$1'))
     : undefined;
 
-const ACTION_WORD = /^[-\w]+$/;
+const PLAIN_NAME = /^[-\w]+$/;
 
 const actionOf = (name: string, args: ReadonlyArray<Node>): string | undefined => {
   const to = toOf(args);
   if (to !== undefined) return nameOf(to);
   const action = optionOf(args, 'action');
   if (action !== undefined) return nameOf(action);
-  return ACTION_WORD.test(name) ? actionWord(name) : undefined;
+  return PLAIN_NAME.test(name) ? underscored(name) : undefined;
 };
 
 const namedTarget = (name: string, args: ReadonlyArray<Node>, scope: Scope): string | undefined => {
@@ -202,7 +202,7 @@ const namedTarget = (name: string, args: ReadonlyArray<Node>, scope: Scope): str
 const targetOf = (name: string, args: ReadonlyArray<Node>, scope: Scope): string | undefined => {
   const to = toOf(args);
   if (to !== undefined && to.type !== 'string') return to.text;
-  const target = shorthandFor(name, args) ?? namedTarget(name, args, scope);
+  const target = twoPartTarget(name, args) ?? namedTarget(name, args, scope);
   return target === undefined ? undefined : inModuleOf(scope.module, target);
 };
 
