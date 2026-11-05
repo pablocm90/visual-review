@@ -141,11 +141,42 @@ const traitSymbol = (item: Node): ReadSymbol => {
   };
 };
 
+const isPubField = (field: Node): boolean =>
+  isExactlyPub(field) || field.previousNamedSibling?.text === 'pub';
+
+const pubFieldsOf = (fields: Node | null): ReadonlyArray<Node> =>
+  (fields?.namedChildren ?? []).filter(isPubField);
+
+const pubFieldsWritten = (fields: Node | null): string => {
+  const written = pubFieldsOf(fields).map(({ text }) => collapsed(text));
+  if (written.length === 0) return '';
+  return fields?.type === 'field_declaration_list'
+    ? ` { ${written.join(', ')} }`
+    : `(${written.map(type => `pub ${type}`).join(', ')})`;
+};
+
+const structSignature = (item: Node): string => {
+  const generics = item.childForFieldName('type_parameters');
+  const fields = item.childForFieldName('body');
+  const bounds = childOfType(item, 'where_clause');
+  const opener = `${item.type === 'union_item' ? 'union' : 'struct'} ${item.childForFieldName('name')?.text}${generics === null ? '' : `<${writtenIn(generics)}>`}`;
+  const where = bounds === null ? '' : ` where ${writtenIn(bounds)}`;
+  const written = pubFieldsWritten(fields);
+  return [
+    ...attributesOf(item)
+      .filter(attribute => !isDocText(attribute))
+      .map(({ text }) => collapsed(text)),
+    fields?.type === 'ordered_field_declaration_list'
+      ? `${opener}${written}${where}`
+      : `${opener}${where}${written}`,
+  ].join(' ');
+};
+
 const structSymbol = (item: Node): ReadSymbol => ({
   name: item.childForFieldName('name')?.text ?? '',
   kind: 'type',
   exported: isExactlyPub(item),
-  signature: '',
+  signature: structSignature(item),
   ...hashesOf({ signed: [], body: [item], text: item.text }),
 });
 

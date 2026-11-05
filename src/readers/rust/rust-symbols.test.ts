@@ -373,3 +373,33 @@ test.for([
 ])('$written is a type, exported: $exported', ({ written, exported }) => {
   expect(typesIn(read(written))).toMatchObject([{ name: 'Foo', exported }]);
 });
+
+test.for([
+  { written: 'struct Foo;', signature: 'struct Foo' },
+  { written: 'pub(crate) struct Foo { a: u8 }', signature: 'struct Foo' },
+  { written: 'union Foo { pub a: u8 }', signature: 'union Foo { pub a: u8 }' },
+  {
+    written:
+      'struct Foo {\n  pub a: Vec<\n    u8,\n  >,\n  b: u8,\n  pub(crate) c: u8,\n  pub d: u8,\n}',
+    signature: 'struct Foo { pub a: Vec< u8, >, pub d: u8 }',
+  },
+  { written: 'struct Foo(u8);', signature: 'struct Foo' },
+  {
+    written: 'struct Foo(pub u8, u16, pub(crate) u32, pub u64);',
+    signature: 'struct Foo(pub u8, pub u64)',
+  },
+  {
+    written: '/// doc\n#[doc = "doc"]\n#[derive(Debug,\n  Clone)]\n#[repr(C)]\npub struct Foo;',
+    signature: '#[derive(Debug, Clone)] #[repr(C)] struct Foo',
+  },
+  {
+    written: 'struct Foo<T,\n  U> where T: Send, U: Copy { pub a: T }',
+    signature: 'struct Foo<T, U> where T: Send, U: Copy { pub a: T }',
+  },
+  {
+    written: 'struct Foo<T>(pub T) where T: Send;',
+    signature: 'struct Foo<T>(pub T) where T: Send',
+  },
+])('$written reads the signature $signature', ({ written, signature }) => {
+  expect(typesIn(read(written))).toMatchObject([{ signature }]);
+});
