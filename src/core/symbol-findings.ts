@@ -64,6 +64,7 @@ const findingOf = ({
   if (removal !== undefined)
     return {
       id: `api:removed:${id}`,
+      check: 'api:removed',
       ...on,
       title: `${statement.kind} ${removal.former} ${removal.how}`,
       ...(removal.detail === undefined ? {} : { detail: removal.detail }),
@@ -73,6 +74,7 @@ const findingOf = ({
   if (isAddedExport(statement))
     return {
       id: `api:added:${id}`,
+      check: 'api:added',
       ...on,
       level: 'info',
       title: `${statement.kind} ${name} ${addedHow(statement, pathOf)}`,
@@ -80,6 +82,7 @@ const findingOf = ({
   if (signature === undefined || exported.base !== true) return undefined;
   return {
     id: `api:signature:${id}`,
+    check: 'api:signature',
     ...on,
     title: `${statement.kind} ${name}'s signature changed`,
     detail: signatureSummary(signature),
@@ -103,6 +106,7 @@ const exportsFinding = (file: FileSymbolChanges): ReadonlyArray<Finding> => {
   return [
     {
       id: `api:exports:${file.node}`,
+      check: 'api:exports',
       dimension: 'api',
       level: removed.length === 0 ? 'info' : 'look',
       target: file.node,
@@ -134,6 +138,7 @@ const changedFinding = (
   return [
     {
       id: `logic:changed:${id}`,
+      check: 'logic:changed',
       dimension: 'logic',
       level: 'info',
       target: node,
@@ -187,6 +192,7 @@ const logicFindings = (node: string, symbol: AnchoredSymbol): ReadonlyArray<Find
         ? [
             {
               id: `${LOST_DECISION}${id}`,
+              check: 'logic:removed' as const,
               dimension: 'logic' as const,
               level: 'look' as const,
               target: node,
@@ -214,6 +220,7 @@ const blindSpotFinding = ({ node, blindSpots = [] }: FileSymbolChanges): Readonl
     : [
         {
           id: `${BLIND_SPOT}${node}`,
+          check: 'logic:blind-spot',
           dimension: 'logic',
           level: 'info',
           target: node,
@@ -233,6 +240,7 @@ export const symbolFindings = ({ files, nodes }: SymbolFindingsOptions): Readonl
       ? [
           {
             id: `structure:unreadable-symbols:${file.node}`,
+            check: 'structure:unreadable-symbols',
             dimension: 'structure',
             level: 'info',
             target: file.node,

@@ -361,6 +361,7 @@ test('an exported symbol removed, or no longer exported, is an api finding to lo
   expect(findingsOfSymbols(symbols)).toStrictEqual([
     {
       id: 'api:removed:web/file/a.ts#charge',
+      check: 'api:removed',
       dimension: 'api',
       level: 'look',
       target: 'web/file/a.ts',
@@ -368,6 +369,7 @@ test('an exported symbol removed, or no longer exported, is an api finding to lo
     },
     {
       id: 'api:removed:web/file/a.ts#Orders.refund',
+      check: 'api:removed',
       dimension: 'api',
       level: 'look',
       target: 'web/file/a.ts',
@@ -408,6 +410,7 @@ test('an exported symbol renamed or moved away is a removal, the title naming it
   expect(findingsOfSymbols(symbols)).toStrictEqual([
     {
       id: 'api:removed:web/file/a.ts#Orders.bill',
+      check: 'api:removed',
       dimension: 'api',
       level: 'look',
       target: 'web/file/a.ts',
@@ -415,6 +418,7 @@ test('an exported symbol renamed or moved away is a removal, the title naming it
     },
     {
       id: 'api:removed:web/file/a.ts#pay',
+      check: 'api:removed',
       dimension: 'api',
       level: 'look',
       target: 'web/file/a.ts',
@@ -423,6 +427,7 @@ test('an exported symbol renamed or moved away is a removal, the title naming it
     },
     {
       id: 'api:removed:web/file/a.ts#total',
+      check: 'api:removed',
       dimension: 'api',
       level: 'look',
       target: 'web/file/a.ts',
@@ -502,6 +507,7 @@ test('an exported symbol whose signature changed is an api finding to look at, i
   expect(findingsOfSymbols(symbols)).toStrictEqual([
     {
       id: 'api:signature:web/file/a.ts#Orders.charge',
+      check: 'api:signature',
       dimension: 'api',
       level: 'look',
       target: 'web/file/a.ts',
@@ -535,6 +541,7 @@ test('an export added, moved in or newly exported is an api finding for informat
   expect(findingsOfSymbols(symbols)).toStrictEqual([
     {
       id: 'api:added:web/file/a.ts#charge',
+      check: 'api:added',
       dimension: 'api',
       level: 'info',
       target: 'web/file/a.ts',
@@ -542,6 +549,7 @@ test('an export added, moved in or newly exported is an api finding for informat
     },
     {
       id: 'api:added:web/file/a.ts#tax',
+      check: 'api:added',
       dimension: 'api',
       level: 'info',
       target: 'web/file/a.ts',
@@ -549,6 +557,7 @@ test('an export added, moved in or newly exported is an api finding for informat
     },
     {
       id: 'api:added:web/file/a.ts#Order',
+      check: 'api:added',
       dimension: 'api',
       level: 'info',
       target: 'web/file/a.ts',
@@ -589,6 +598,7 @@ test.for([
     expect(exportListFindings(symbols)).toStrictEqual([
       {
         id: 'api:exports:web/file/a.ts',
+        check: 'api:exports',
         dimension: 'api',
         level,
         target: 'web/file/a.ts',
@@ -645,6 +655,7 @@ test("a changed file whose symbols wouldn't parse is a structure finding for inf
   expect(findingsOfSymbols(symbols)).toStrictEqual([
     {
       id: 'structure:unreadable-symbols:web/file/a.ts',
+      check: 'structure:unreadable-symbols',
       dimension: 'structure',
       level: 'info',
       target: 'web/file/a.ts',
@@ -717,6 +728,7 @@ test('a guard or catch removed from an edited function is a logic finding to loo
   ).toStrictEqual([
     {
       id: 'logic:removed:web/file/a.ts#Orders.charge#if (!order.paid) return',
+      check: 'logic:removed',
       dimension: 'logic',
       level: 'look',
       target: 'web/file/a.ts',
@@ -725,6 +737,7 @@ test('a guard or catch removed from an edited function is a logic finding to loo
     },
     {
       id: 'logic:removed:web/file/a.ts#Orders.charge#catch (error)',
+      check: 'logic:removed',
       dimension: 'logic',
       level: 'look',
       target: 'web/file/a.ts',
@@ -740,6 +753,7 @@ test('names that hide logic at the head are one finding for information on their
   expect(findingsOfSymbols([file])).toStrictEqual([
     {
       id: 'logic:blind-spot:web/file/a.ts',
+      check: 'logic:blind-spot',
       dimension: 'logic',
       level: 'info',
       target: 'web/file/a.ts',
@@ -854,6 +868,7 @@ test("an edited function's other decision changes are one logic finding for info
   expect(findingsOfSymbols(symbols).filter(({ level }) => level === 'info')).toStrictEqual([
     {
       id: 'logic:changed:web/file/a.ts#charge',
+      check: 'logic:changed',
       dimension: 'logic',
       level: 'info',
       target: 'web/file/a.ts',
@@ -862,6 +877,7 @@ test("an edited function's other decision changes are one logic finding for info
     },
     {
       id: 'logic:changed:web/file/a.ts#total',
+      check: 'logic:changed',
       dimension: 'logic',
       level: 'info',
       target: 'web/file/a.ts',
@@ -892,6 +908,7 @@ test("a moved guard or catch needs no look: it counts in its function's logic fi
     [
       {
         id: 'logic:changed:web/file/a.ts#ReviewPage',
+        check: 'logic:changed',
         dimension: 'logic',
         level: 'info',
         target: 'web/file/a.ts',
