@@ -36,6 +36,7 @@ const rollUp = (
   return [
     {
       id: `dependencies:transitive:${lockfile}`,
+      check: 'dependencies:transitive',
       dimension: 'dependencies',
       level: 'info',
       file: lockfile,
@@ -53,6 +54,7 @@ export const dependencyFindings = (
       ? [
           {
             id: `dependencies:not-read:${change.lockfile}`,
+            check: 'dependencies:not-read',
             dimension: 'dependencies',
             level: 'look',
             file: change.lockfile,
@@ -65,6 +67,7 @@ export const dependencyFindings = (
             .map(
               (found): Finding => ({
                 id: `dependencies:${change.lockfile}:${found.name}`,
+                check: 'dependencies:direct',
                 dimension: 'dependencies',
                 level: 'look',
                 file: change.lockfile,

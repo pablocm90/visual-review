@@ -175,6 +175,7 @@ const reviewWithFindings = (): PageData =>
     findings: [
       {
         id: 'schema:db/queue_schema.rb:users',
+        check: 'schema:table-changed',
         dimension: 'schema',
         level: 'info',
         file: 'db/queue_schema.rb',
@@ -184,6 +185,7 @@ const reviewWithFindings = (): PageData =>
       },
       {
         id: 'schema:not-read:db/cache_schema.rb',
+        check: 'schema:not-read',
         dimension: 'schema',
         level: 'look',
         file: 'db/cache_schema.rb',
@@ -192,7 +194,7 @@ const reviewWithFindings = (): PageData =>
     ],
   });
 
-test('a table finding in the rail opens the Schema tab at its card, in its file, and one on a whole file from Look first at that file', async () => {
+test('a table finding in the rail opens the Schema tab at its card, in its file, and one on a whole file from Start here at that file', async () => {
   atHash('#structure');
   const user = userEvent.setup();
   render(<ReviewPage review={reviewWithFindings()} />);
@@ -214,7 +216,7 @@ test('a table finding in the rail opens the Schema tab at its card, in its file,
 
   await user.click(tabs().getByRole('link', { name: 'Structure' }));
   await user.click(
-    within(await screen.findByRole('region', { name: 'Look first' })).getByRole('button', {
+    within(await screen.findByRole('region', { name: 'Start here' })).getByRole('button', {
       name: 'db/cache_schema.rb not read: Ruby syntax error',
     }),
   );
@@ -268,6 +270,7 @@ test("a migration's finding, of the same dimension, still opens its own patch on
         findings: [
           {
             id: `schema:${path}:1`,
+            check: 'schema:migration-risk',
             dimension: 'schema',
             level: 'look',
             file: path,
