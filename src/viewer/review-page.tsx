@@ -1590,7 +1590,10 @@ const Page = ({ review, notes, send }: ReviewPageProps) => {
     goToOnStructure(id);
   };
   const goToDraft = (id: string, anchor: PreviousComment['anchor']) => {
-    const onRow = holdsRow(review.symbols, anchor);
+    const onRow =
+      anchor.kind === 'finding'
+        ? findings.some(finding => finding.id === anchor.id)
+        : holdsRow(review.symbols, anchor);
     const place = onRow ? { path: undefined, row: anchorKey(anchor) } : placeOfLine(anchor);
     landOn(id, place ?? { path: undefined });
     goToOnTab(id, tabOfDraft(anchor));

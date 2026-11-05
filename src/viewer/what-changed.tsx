@@ -70,7 +70,6 @@ export const holdsRow = (
   files: ReadonlyArray<SymbolFile>,
   { kind, id }: PreviousComment['anchor'],
 ): boolean =>
-  kind === 'finding' ||
   files
     .flatMap(file => ('symbols' in file ? anchoredSymbols(file.node, file.symbols) : []))
     .some(symbol =>

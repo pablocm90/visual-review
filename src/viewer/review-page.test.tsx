@@ -6854,7 +6854,7 @@ test.for([
   ).toBeTruthy();
 });
 
-test('a last answer to a finding is listed by its title, going to its row at its target; one no longer raised reads changed, naming no commit, with nowhere to go', async () => {
+test('a last answer to a finding is listed by its title, going to its row at its target; one no longer raised reads changed, naming no commit, with nowhere to go, unless it keeps a target, whose graph node takes the focus', async () => {
   const user = userEvent.setup();
   const raised: Finding = {
     id: 'metrics:look:rust/crate/application',
@@ -6879,6 +6879,11 @@ test('a last answer to a finding is listed by its title, going to its row at its
               target: 'rust/crate/application',
             },
             { anchor: { kind: 'finding', id: 'logic:old' }, kind: 'fix', changedSince: [] },
+            {
+              anchor: { kind: 'finding', id: 'notes:dropped' },
+              kind: 'fix',
+              target: 'rust/crate/domain',
+            },
           ],
         },
       })}
@@ -6903,6 +6908,11 @@ test('a last answer to a finding is listed by its title, going to its row at its
       current: true,
     }),
   );
+
+  await user.click(last.getByRole('button', { name: 'notes:dropped' }));
+
+  expect(selectedPart()).toBe('domain');
+  expect(document.activeElement).toBe(screen.getByRole('button', { name: 'domain: unchanged' }));
 });
 
 test('a last comment on a line outside the graph goes to its row in the files outside it', async () => {
