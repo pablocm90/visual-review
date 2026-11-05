@@ -2446,6 +2446,29 @@ test('on the map no box takes a toggle, and a part whose box stands open is mark
   expect(screen.queryByRole('button', { name: 'Collapse utils' })).toBeNull();
 });
 
+test('walking brings the current stop into view in its list, and marking it read leaves the list where it is', async () => {
+  const user = userEvent.setup();
+  render(<ReviewPage review={walkedReview()} />);
+  await screen.findByRole('group', { name: 'rust' });
+  const currentStop = () =>
+    within(readingOrder())
+      .getAllByRole('button')
+      .find(button => button.getAttribute('aria-current') !== null);
+
+  await user.keyboard('j');
+  expect(scrolledIntoView.mock.contexts).toContain(currentStop());
+
+  const first = currentStop();
+  await user.keyboard('j');
+  expect(currentStop()).not.toBe(first);
+  expect(scrolledIntoView.mock.contexts).toContain(currentStop());
+
+  const second = currentStop();
+  scrolledIntoView.mockClear();
+  await user.keyboard('a');
+  expect(scrolledIntoView.mock.contexts).not.toContain(second);
+});
+
 test('on a map fitted too small to see a part, the ring around the current one stays big enough to find', async () => {
   const user = userEvent.setup();
   renderInFrame(walkedReview(), { width: 20, windowHeight: 800 });
@@ -2455,8 +2478,7 @@ test('on a map fitted too small to see a part, the ring around the current one s
 
   await waitFor(() => expect(document.querySelector('.current-ring')).not.toBeNull());
   const ring = document.querySelector('.current-ring');
-  const widthOf = (element: Element | null | undefined) =>
-    Number(element?.getAttribute('width'));
+  const widthOf = (element: Element | null | undefined) => Number(element?.getAttribute('width'));
   expect(widthOf(ring)).toBeGreaterThan(widthOf(ring?.previousElementSibling));
 });
 

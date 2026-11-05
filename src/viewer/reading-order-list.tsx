@@ -1,6 +1,8 @@
+import { useLayoutEffect, useRef } from 'react';
 import type { Finding } from '../core/findings.ts';
 import type { PageData } from '../core/page.ts';
 import { LEVELS, LevelMark, worstOf } from './finding-display.tsx';
+import { scrollInPanel } from './scroll-in-panel.ts';
 
 type ReadingStopsProps = {
   readonly review: Pick<PageData, 'diff' | 'readingOrder' | 'undrawn'>;
@@ -72,8 +74,14 @@ export const ReadingStops = ({
 }: ReadingStopsProps) => {
   const labelOf = new Map(review.diff.nodes.map(node => [node.id, node.label]));
   const { parts } = review.readingOrder;
+  const stops = useRef<HTMLElement>(null);
+  useLayoutEffect(() => {
+    if (current === undefined) return;
+    const stop = stops.current?.querySelector<HTMLElement>('[aria-current]');
+    if (stop) scrollInPanel(stop, 'nearest');
+  }, [current]);
   return (
-    <nav className="reading-stops" aria-label="Reading order">
+    <nav className="reading-stops" aria-label="Reading order" ref={stops}>
       <ol>
         {parts.map((part, index) => (
           <Stop
