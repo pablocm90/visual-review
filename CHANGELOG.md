@@ -2,6 +2,13 @@
 
 What changed in each release of `@pablocm90/visual-review`, newest first. Versions follow [semver](https://semver.org); while it is 0.x, a minor version may change the exported types.
 
+## Unreleased
+
+### Changed
+
+- A changed signature in the Symbols tab shows the members that moved, not both whole: a type's or interface's members, a function's parameters or a union's alternatives, one added `+`, one removed `−` and one changed `~ base → head`, those as they were folded under a count that opens. A parameter that moves reads removed and added, since order matters in a call. A signature with no members to split, such as `extends`, or a very long one, shows base above head as before.
+- A changed signature's finding sums up what moved, such as `1 member added, 1 changed`, so the rail and Look first stop printing both whole types.
+
 ## 0.29.0 — 2026-11-05
 
 ### Added
