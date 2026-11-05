@@ -141,8 +141,17 @@ const traitSymbol = (item: Node): ReadSymbol => {
   };
 };
 
+const structSymbol = (item: Node): ReadSymbol => ({
+  name: item.childForFieldName('name')?.text ?? '',
+  kind: 'type',
+  exported: isExactlyPub(item),
+  signature: '',
+  ...hashesOf({ signed: [], body: [item], text: item.text }),
+});
+
 const symbolsOfItem = (item: Node): ReadonlyArray<ReadSymbol> => {
   if (item.type === 'function_item') return [functionSymbol(item)];
+  if (item.type === 'struct_item' || item.type === 'union_item') return [structSymbol(item)];
   if (item.type === 'trait_item') return [traitSymbol(item), ...methodsOfTrait(item)];
   return item.type === 'impl_item' ? methodsOfImpl(item) : [];
 };

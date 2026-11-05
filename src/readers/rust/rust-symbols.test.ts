@@ -11,6 +11,8 @@ const read = (...lines: ReadonlyArray<string>): FileSymbols => {
   return file;
 };
 
+const methodsIn = ({ symbols }: FileSymbols) => symbols.filter(({ kind }) => kind === 'method');
+
 test.for([
   { written: 'pub fn open() {}', exported: true },
   { written: 'fn open() {}', exported: false },
@@ -202,7 +204,7 @@ test.for([
   { type: 'pub(crate) struct Foo;', exported: false },
   { type: 'pub struct Bar;', exported: false },
 ])('a trait method on Foo beside $type has exported: $exported', ({ type, exported }) => {
-  expect(read(type, 'impl Tr for Foo<u8> {\n  fn open() {}\n}').symbols).toMatchObject([
+  expect(methodsIn(read(type, 'impl Tr for Foo<u8> {\n  fn open() {}\n}'))).toMatchObject([
     { name: 'open', exported },
   ]);
 });
@@ -219,8 +221,6 @@ test('a type with both Display and Debug has each fmt read, and changed, apart',
   ]);
 });
 
-const methodsIn = ({ symbols }: FileSymbols) => symbols.filter(({ kind }) => kind === 'method');
-
 test.for([
   { trait: 'pub trait Tr', exported: true },
   { trait: 'trait Tr', exported: false },
@@ -235,18 +235,18 @@ test.for([
   ]);
 });
 
-const traitOf = ({ symbols }: FileSymbols) => symbols.filter(({ kind }) => kind === 'type');
+const typesIn = ({ symbols }: FileSymbols) => symbols.filter(({ kind }) => kind === 'type');
 
 test.for([
   { written: 'pub trait Tr {}', exported: true },
   { written: 'trait Tr {}', exported: false },
   { written: 'pub(crate) trait Tr {}', exported: false },
 ])('$written is a type, exported: $exported', ({ written, exported }) => {
-  expect(traitOf(read(written))).toMatchObject([{ name: 'Tr', exported }]);
+  expect(typesIn(read(written))).toMatchObject([{ name: 'Tr', exported }]);
 });
 
 test('a trait with no attribute reads from its keyword', () => {
-  expect(traitOf(read('pub trait Tr {}'))).toMatchObject([{ signature: 'trait Tr {}' }]);
+  expect(typesIn(read('pub trait Tr {}'))).toMatchObject([{ signature: 'trait Tr {}' }]);
 });
 
 test('a trait reads as its text with no visibility, comments, doc or default bodies', () => {
@@ -263,7 +263,7 @@ test('a trait reads as its text with no visibility, comments, doc or default bod
     '  type D;',
     '}',
   ];
-  expect(traitOf(read(...written))).toMatchObject([
+  expect(typesIn(read(...written))).toMatchObject([
     {
       signature:
         '#[async_trait] trait Tr<T>: Send where T: Copy { #[inline] fn a(&self) -> u8; fn b(&self); type D; }',
@@ -362,4 +362,14 @@ test('a trait under another name reads as renamed', () => {
     change: 'renamed',
     renamedFrom: 'Tr',
   });
+});
+
+test.for([
+  { written: 'pub struct Foo { a: u8 }', exported: true },
+  { written: 'struct Foo(u8);', exported: false },
+  { written: 'pub(crate) struct Foo;', exported: false },
+  { written: 'pub union Foo { a: u8 }', exported: true },
+  { written: 'union Foo { a: u8 }', exported: false },
+])('$written is a type, exported: $exported', ({ written, exported }) => {
+  expect(typesIn(read(written))).toMatchObject([{ name: 'Foo', exported }]);
 });
