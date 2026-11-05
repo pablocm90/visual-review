@@ -6,7 +6,10 @@ type Head = Pick<Decision, 'kind' | 'text' | 'foundByName'>;
 
 const { codeOf, codeUpTo } = codeReaderOf(new Set(['.']));
 
-type Read = Head & { readonly deeper: ReadonlyArray<Node> };
+type Read = Head & {
+  readonly deeper: ReadonlyArray<Node>;
+  readonly beside?: ReadonlyArray<Node>;
+};
 
 type Walk = { readonly depth: number };
 
@@ -98,6 +101,13 @@ const logicalOf = (node: Node): Read | undefined => {
 const returnOf = (node: Node, walk: Walk): Read | undefined =>
   walk.depth > 0 ? { kind: 'return', text: 'return', deeper: node.namedChildren } : undefined;
 
+const tryOf = (node: Node): Read => ({
+  kind: 'try',
+  text: codeOf(node),
+  deeper: [],
+  beside: node.namedChildren,
+});
+
 const COMMAS_KEPT = new Map([
   ['ensure', 0],
   ['assert', 0],
@@ -139,15 +149,17 @@ const READS = new Map<string, (node: Node, walk: Walk) => Read | undefined>([
   ['loop_expression', loopOf],
   ['binary_expression', logicalOf],
   ['return_expression', returnOf],
+  ['try_expression', tryOf],
 ]);
 
 const decisionsUnder = (walk: Walk, nodes: ReadonlyArray<Node>): ReadonlyArray<Decision> =>
   nodes.flatMap(node => {
     const read = READS.get(node.type)?.(node, walk);
     if (read === undefined) return decisionsUnder(walk, node.namedChildren);
-    const { deeper, ...head } = read;
+    const { deeper, beside = [], ...head } = read;
     const depth = isElseIf(node) ? walk.depth - 1 : walk.depth;
     return [
+      ...decisionsUnder(walk, beside),
       { ...head, depth, line: node.startPosition.row + 1 },
       ...decisionsUnder({ depth: depth + 1 }, deeper),
     ];

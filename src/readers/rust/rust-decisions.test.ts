@@ -1,4 +1,6 @@
 import { expect, test } from 'vitest';
+import { symbolChanges } from '../../core/symbol-changes.ts';
+import { symbolFindings } from '../../core/symbol-findings.ts';
 import { rustReader } from './reader.ts';
 
 const decisionsIn = (...lines: ReadonlyArray<string>) =>
@@ -235,4 +237,31 @@ test('a let else takes in the bail that opens its block', () => {
   expect(decisionsIn('let Some(a) = b else {', 'bail!("no");', '};')).toEqual([
     { kind: 'guard', text: 'let Some(a) = b else', depth: 0, line: 2 },
   ]);
+});
+
+test('a ? reads as a try, the whole expression as written', () => {
+  expect(decisionsIn('let a = b.c(  d )?;')).toEqual([
+    { kind: 'try', text: 'b.c(d)?', depth: 0, line: 2 },
+  ]);
+});
+
+test('a chain of ? reads one line each, the inner first, at one depth', () => {
+  expect(decisionsIn('a()?', '.b()?;')).toEqual([
+    { kind: 'try', text: 'a()?', depth: 0, line: 2 },
+    { kind: 'try', text: 'a()?.b()?', depth: 0, line: 2 },
+  ]);
+});
+
+const findingsOfChange = (before: string, after: string) => {
+  const read = (body: string) => rustReader.symbols?.(`fn charge() {\n${body}\n}`, 'src/shop.rs');
+  const [baseFile, headFile] = [read(before), read(after)];
+  if (baseFile === undefined || headFile === undefined) throw new Error('not read');
+  const changes = symbolChanges({ before: baseFile, after: headFile });
+  return symbolFindings({ files: [{ stack: 'shop', node: 'shop', ...changes }], nodes: [] });
+};
+
+test('a ? turned into an unwrap is for information, no lost guard', () => {
+  expect(
+    findingsOfChange('a.b()?;', 'a.b().unwrap();').map(({ check, level }) => ({ check, level })),
+  ).toEqual([{ check: 'logic:changed', level: 'info' }]);
 });

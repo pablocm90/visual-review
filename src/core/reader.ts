@@ -42,7 +42,8 @@ export type DecisionKind =
   | 'logical'
   | 'catch'
   | 'return'
-  | 'throw';
+  | 'throw'
+  | 'try';
 
 export type Decision = {
   readonly kind: DecisionKind;
