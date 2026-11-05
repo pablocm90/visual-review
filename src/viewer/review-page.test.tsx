@@ -4019,11 +4019,27 @@ test('a changed signature reads as its opener, its members, each gained or lost 
     }),
   ).toEqual([
     'interface Reader {',
-    'name: string',
+    '… 1 member as it wasname: string',
     '− holds(root: string): boolean',
     '+ symbols?: Read',
     '}',
   ]);
+});
+
+test('members as they were fold under a count, one run per gap, a lone one worded for one', async () => {
+  const user = userEvent.setup();
+  await signatureLinesOf({
+    base: 'interface Reader { a: 1; b: 2; c: 3; d: 4; e: 5; }',
+    head: 'interface Reader { a: 1; b: 2; x: 9; c: 3; e: 5; }',
+  });
+  const signature = within(screen.getByRole('list', { name: 'Signature of interface Reader' }));
+  const [two, one, last] = signature.getAllByRole('group');
+  expect(two?.textContent).toBe('… 2 members as they werea: 1b: 2');
+  expect(one?.textContent).toBe('… 1 member as it wasc: 3');
+  expect(last?.textContent).toBe('… 1 member as it wase: 5');
+  expect(two?.hasAttribute('open')).toBe(false);
+  await user.click(signature.getByText('… 2 members as they were'));
+  expect(two?.hasAttribute('open')).toBe(true);
 });
 
 test('a member of one name changed reads as both, base then head', async () => {

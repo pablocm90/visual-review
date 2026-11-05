@@ -4,6 +4,27 @@ import {
   signatureDiff,
 } from '../core/signature-members.ts';
 
+type Fold = { readonly folded: ReadonlyArray<SignatureLine> };
+
+const foldedRuns = (members: ReadonlyArray<SignatureLine>): ReadonlyArray<SignatureLine | Fold> =>
+  members.flatMap((line, index) => {
+    if (line.change !== 'same') return [line];
+    if (members[index - 1]?.change === 'same') return [];
+    const after = members.slice(index);
+    const end = after.findIndex(({ change }) => change !== 'same');
+    return [{ folded: end === -1 ? after : after.slice(0, end) }];
+  });
+
+const rowsOf = ({
+  opener,
+  members,
+  closer,
+}: SignatureDiff): ReadonlyArray<SignatureLine | Fold> => [
+  ...opener,
+  ...foldedRuns(members),
+  ...closer,
+];
+
 const Line = ({ line }: { readonly line: SignatureLine }) => {
   if (line.change === 'added') return <ins>+ {line.text}</ins>;
   if (line.change === 'removed') return <del>− {line.text}</del>;
@@ -16,11 +37,17 @@ const Line = ({ line }: { readonly line: SignatureLine }) => {
   return <code>{line.text}</code>;
 };
 
-const linesOf = ({ opener, members, closer }: SignatureDiff): ReadonlyArray<SignatureLine> => [
-  ...opener,
-  ...members,
-  ...closer,
-];
+const AsTheyWere = ({ folded }: Fold) => (
+  <details>
+    <summary>
+      … {folded.length} {folded.length === 1 ? 'member as it was' : 'members as they were'}
+    </summary>
+    {folded.map((line, index) => (
+      // biome-ignore lint/suspicious/noArrayIndexKey: a signature's lines are fixed and may repeat
+      <Line key={index} line={line} />
+    ))}
+  </details>
+);
 
 export const Signature = ({
   name,
@@ -37,11 +64,9 @@ export const Signature = ({
     </span>
   ) : (
     <ol className="signature signature-lines" aria-label={`Signature of ${name}`}>
-      {linesOf(diff).map((line, index) => (
+      {rowsOf(diff).map((row, index) => (
         // biome-ignore lint/suspicious/noArrayIndexKey: a signature's lines are fixed and may repeat
-        <li key={index}>
-          <Line line={line} />
-        </li>
+        <li key={index}>{'folded' in row ? <AsTheyWere {...row} /> : <Line line={row} />}</li>
       ))}
     </ol>
   );
