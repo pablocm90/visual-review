@@ -5,6 +5,8 @@ import type { Dimension } from './findings.ts';
 const facts = (overrides: Partial<CoverageFacts> = {}): CoverageFacts => ({
   skipped: [],
   symbolsNotRead: [],
+  symbols: [],
+  tests: [],
   ...overrides,
 });
 
@@ -42,3 +44,20 @@ test.for(['logic', 'api', 'tests'] as const)(
     ]);
   },
 );
+
+test.for(['logic', 'api', 'tests'] as const)(
+  '%s names a file whose symbols are unreadable',
+  dimension => {
+    const symbols = [{ stack: 'web', node: 'web/src/broken.ts', unreadable: 'SyntaxError' }];
+
+    expect(notReadIn(dimension, { symbols })).toEqual(['not read for web/src/broken.ts']);
+  },
+);
+
+test('only tests names a test file it could not read', () => {
+  const tests = [{ path: 'web/src/broken.test.ts', stack: 'web', unreadable: 'SyntaxError' }];
+
+  expect(notReadIn('tests', { tests })).toEqual(['not read for web/src/broken.test.ts']);
+  expect(notReadIn('logic', { tests })).toEqual([]);
+  expect(notReadIn('api', { tests })).toEqual([]);
+});
