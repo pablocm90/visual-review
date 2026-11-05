@@ -1,9 +1,27 @@
-import type { RouteRow } from './read-routes.ts';
+import { countedId } from './counted-id.ts';
+import type { RouteRow, UnreadRow } from './read-routes.ts';
 import type { Route } from './routes.ts';
 
 export type RouteLine = { readonly verbs: string; readonly row: RouteRow };
 
-const routeOf = (row: RouteRow): Route => (row.state === 'removed' ? row.base : row.head);
+export const routeOf = (row: RouteRow): Route => (row.state === 'removed' ? row.base : row.head);
+
+export const lineKey = ({ verbs, row }: RouteLine): string => {
+  const { root, path } = routeOf(row);
+  return `${root} ${verbs} ${path}`;
+};
+
+export type KeyedStatement = { readonly key: string; readonly row: UnreadRow };
+
+export const keyedStatements = (rows: ReadonlyArray<UnreadRow>): ReadonlyArray<KeyedStatement> => {
+  const seen = new Map<string, number>();
+  return rows.map(row => {
+    const { text } = row.item;
+    const before = seen.get(text) ?? 0;
+    seen.set(text, before + 1);
+    return { key: countedId(text, before), row };
+  });
+};
 
 const targetsOf = (row: RouteRow): string =>
   JSON.stringify(

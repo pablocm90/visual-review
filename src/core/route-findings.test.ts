@@ -40,10 +40,20 @@ test('a removed route needs a look, opening the patch that explains it', () => {
       dimension: 'routes',
       level: 'look',
       file: 'config/routes/admin.rb',
+      route: expect.any(String),
       title: 'GET /users removed',
       detail: `Was users#index, at ${FILE}:3.`,
     },
   ]);
+});
+
+test.each([
+  ['verb', { verb: 'DELETE' }],
+  ['path', { path: '/people' }],
+])('routes differing only by %s land on rows of their own', (_field, other) => {
+  const lands = routeFindings(reading(removed(), removed(other))).map(({ route }) => route);
+
+  expect(new Set(lands).size).toBe(2);
 });
 
 test('a new target at the same path needs a look', () => {
@@ -54,6 +64,7 @@ test('a new target at the same path needs a look', () => {
       dimension: 'routes',
       level: 'look',
       file: FILE,
+      route: expect.any(String),
       title: 'GET /users now goes to people#index',
       detail: `Was users#index, at ${FILE}:3.`,
     },
@@ -205,6 +216,7 @@ test('what cannot be read needs a look, saying whether it came or went', () => {
       dimension: 'routes',
       level: 'look',
       file: FILE,
+      route: expect.any(String),
       title: 'Added, not read: devise_for :users',
       detail: `devise_for :users, at ${unreadFile}:5. Routes it draws aren't compared.`,
     },
@@ -214,6 +226,7 @@ test('what cannot be read needs a look, saying whether it came or went', () => {
       dimension: 'routes',
       level: 'look',
       file: FILE,
+      route: expect.any(String),
       title: 'Removed, not read: concern :a',
       detail: `concern :a, at ${FILE}:5. Routes it draws aren't compared.`,
     },

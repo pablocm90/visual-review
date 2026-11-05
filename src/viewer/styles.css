@@ -2785,6 +2785,31 @@ main:has(> .review-tray) {
   stroke: currentColor;
 }
 
+.routes-unread {
+  margin: 8px 0 12px;
+  padding: 0;
+  list-style: none;
+  font-size: 12.5px;
+}
+
+.routes-statement {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 10px;
+  padding: 3px 0;
+  overflow-wrap: anywhere;
+}
+
+.routes-where {
+  color: var(--muted);
+}
+
+.schema-rows tr:focus,
+.routes-statement:focus {
+  outline: 2px solid var(--ramp-3);
+  outline-offset: 2px;
+}
+
 .lens-row {
   display: flex;
   flex-wrap: wrap;

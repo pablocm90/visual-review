@@ -67,6 +67,7 @@ import { storedReadMarks, storeReadMarks } from './read-marks.ts';
 import { ReadingOrderList } from './reading-order-list.tsx';
 import { Ref, shortRef } from './ref.tsx';
 import { ReviewTray, verdictLabels } from './review-tray.tsx';
+import { type RoutesLanding, RoutesScreen, routesHold } from './routes-screen.tsx';
 import {
   CommentFieldUnlessSaid,
   CommentOn,
@@ -1185,6 +1186,7 @@ const TABS = {
   metrics: 'Metrics',
   tests: 'Tests',
   schema: 'Schema',
+  routes: 'Routes',
 } as const;
 
 type Tab = keyof typeof TABS;
@@ -1289,11 +1291,12 @@ const useGraphView = (layout: Layout | undefined) => {
   };
 };
 
-const tabsOf = ({ schemas }: Pick<PageData, 'schemas'>): ReadonlyArray<Tab> => [
+const tabsOf = ({ schemas, routes }: Pick<PageData, 'schemas' | 'routes'>): ReadonlyArray<Tab> => [
   'structure',
   'metrics',
   'tests',
   ...(schemas.length === 0 ? [] : (['schema'] as const)),
+  ...(routes.length === 0 ? [] : (['routes'] as const)),
 ];
 
 const tabAt = (review: PageData, hash: string): Tab =>
@@ -1572,10 +1575,16 @@ const Page = ({ review, notes, send }: ReviewPageProps) => {
     showOutside(opener);
   };
   const [schemaLanding, setSchemaLanding] = useState<SchemaLanding>();
-  const showFile = (path: string, opener: HTMLButtonElement, table?: string) => {
+  const [routesLanding, setRoutesLanding] = useState<RoutesLanding>();
+  const showFile = (path: string, opener: HTMLButtonElement, place?: string) => {
     if (review.schemas.some(({ file }) => file === path)) {
-      setSchemaLanding({ file: path, table });
+      setSchemaLanding({ file: path, table: place });
       location.hash = '#schema';
+      return;
+    }
+    if (routesHold(review.routes, path)) {
+      setRoutesLanding({ file: path, route: place });
+      location.hash = '#routes';
       return;
     }
     const holder = deepestHolding(path, review.diff.nodes);
@@ -1811,6 +1820,13 @@ const Page = ({ review, notes, send }: ReviewPageProps) => {
           review={review}
           landing={schemaLanding}
           onLanded={() => setSchemaLanding(undefined)}
+        />
+      )}
+      {tab === 'routes' && (
+        <RoutesScreen
+          review={review}
+          landing={routesLanding}
+          onLanded={() => setRoutesLanding(undefined)}
         />
       )}
       {send && (

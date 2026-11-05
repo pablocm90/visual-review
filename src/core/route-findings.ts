@@ -1,9 +1,10 @@
 import { countedId } from './counted-id.ts';
 import { counted, type Finding } from './findings.ts';
 import type { RoutesReading, UnreadRow } from './read-routes.ts';
-import { type RouteLine, routeLines } from './route-lines.ts';
+import { keyedStatements, lineKey, type RouteLine, routeLines } from './route-lines.ts';
 
-const removalOrNewTarget = ({ verbs, row }: RouteLine): ReadonlyArray<Finding> => {
+const removalOrNewTarget = (routeLine: RouteLine): ReadonlyArray<Finding> => {
+  const { verbs, row } = routeLine;
   if (row.state === 'added') return [];
   const { base, patch } = row;
   const line = `${verbs} ${base.path}`;
@@ -14,6 +15,7 @@ const removalOrNewTarget = ({ verbs, row }: RouteLine): ReadonlyArray<Finding> =
       dimension: 'routes',
       level: 'look',
       file: patch,
+      route: lineKey(routeLine),
       title: row.state === 'removed' ? `${line} removed` : `${line} now goes to ${row.head.target}`,
       detail: `Was ${base.target}, at ${base.file}:${base.line}.`,
     },
@@ -43,18 +45,31 @@ const shortened = (text: string): string =>
 const STATE_WORDS = { added: 'Added', removed: 'Removed' } as const;
 
 const unreadFindings = (rows: ReadonlyArray<UnreadRow>): ReadonlyArray<Finding> =>
-  rows.map(({ state, item: { text, file, line }, patch }, at) => ({
-    id: countedId(
-      `routes:not-read:${file}:${text}`,
-      rows.slice(0, at).filter(({ item }) => item.file === file && item.text === text).length,
-    ),
-    check: 'routes:not-read',
-    dimension: 'routes',
-    level: 'look',
-    file: patch,
-    title: `${STATE_WORDS[state]}, not read: ${shortened(text)}`,
-    detail: `${text}, at ${file}:${line}. Routes it draws aren't compared.`,
-  }));
+  keyedStatements(rows).map(
+    (
+      {
+        key,
+        row: {
+          state,
+          item: { text, file, line },
+          patch,
+        },
+      },
+      at,
+    ) => ({
+      id: countedId(
+        `routes:not-read:${file}:${text}`,
+        rows.slice(0, at).filter(({ item }) => item.file === file && item.text === text).length,
+      ),
+      check: 'routes:not-read',
+      dimension: 'routes',
+      level: 'look',
+      file: patch,
+      route: key,
+      title: `${STATE_WORDS[state]}, not read: ${shortened(text)}`,
+      detail: `${text}, at ${file}:${line}. Routes it draws aren't compared.`,
+    }),
+  );
 
 const findingsOfReading = (reading: RoutesReading): ReadonlyArray<Finding> => {
   if ('notRead' in reading)
