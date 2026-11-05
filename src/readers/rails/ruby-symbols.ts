@@ -374,23 +374,7 @@ const isSingletonBlock = (node: Node): boolean =>
   node.type === 'singleton_class' ||
   (node.type === 'call' && node.childForFieldName('method')?.text === 'class_methods');
 
-const walked = (walk: Walk, node: Node, within: string | undefined): Walk => {
-  const joined = (inner: Walk): Walk => added(walk, inner.symbols, inner.holes);
-  if (node.type === 'identifier' && BODIES.has(node.parent?.type ?? ''))
-    return { ...walk, ...BARE_WORDS.get(node.text) };
-  if (METHODS.has(node.type)) return added(walk, [methodSymbol(node, within, walk)], [node.id]);
-  if (BODIES.has(node.type)) {
-    const inner = walkedChildren({ ...STARTING, singleton: walk.singleton }, node, within);
-    return joined({
-      ...inner,
-      symbols: withoutPrivateConstants({ ...inner, symbols: settledByName(inner, within) }, within),
-    });
-  }
-  if (isSingletonBlock(node))
-    return joined(walkedChildren({ ...STARTING, singleton: true }, node, within));
-  const macro = MACROS.get(node.childForFieldName('method')?.text ?? '');
-  if (macro) return macro(walk, node, within);
-  if (!DEFINITIONS.has(node.type)) return walkedChildren(walk, node, within);
+const walkedDefinition = (walk: Walk, node: Node, within: string | undefined): Walk => {
   const constant = constantWithin(node.childForFieldName('name')?.text ?? '', within);
   const inner = walkedChildren(STARTING, node, constant);
   const holes = new Set(inner.holes);
@@ -406,11 +390,34 @@ const walked = (walk: Walk, node: Node, within: string | undefined): Walk => {
       text: ownText(node, holes),
     }),
   };
-  return {
-    ...walk,
-    symbols: [...walk.symbols, definition, ...inner.symbols],
-    holes: [...walk.holes, node.id],
-  };
+  return added(walk, [definition, ...inner.symbols], [node.id]);
+};
+
+const walkedBody = (walk: Walk, node: Node, within: string | undefined): Walk => {
+  const inner = walkedChildren({ ...STARTING, singleton: walk.singleton }, node, within);
+  return added(
+    walk,
+    withoutPrivateConstants({ ...inner, symbols: settledByName(inner, within) }, within),
+    inner.holes,
+  );
+};
+
+const walkedSingleton = (walk: Walk, node: Node, within: string | undefined): Walk => {
+  const inner = walkedChildren({ ...STARTING, singleton: true }, node, within);
+  return added(walk, inner.symbols, inner.holes);
+};
+
+const isBareWord = (node: Node): boolean =>
+  node.type === 'identifier' && BODIES.has(node.parent?.type ?? '');
+
+const walked = (walk: Walk, node: Node, within: string | undefined): Walk => {
+  if (isBareWord(node)) return { ...walk, ...BARE_WORDS.get(node.text) };
+  if (METHODS.has(node.type)) return added(walk, [methodSymbol(node, within, walk)], [node.id]);
+  if (BODIES.has(node.type)) return walkedBody(walk, node, within);
+  if (isSingletonBlock(node)) return walkedSingleton(walk, node, within);
+  if (DEFINITIONS.has(node.type)) return walkedDefinition(walk, node, within);
+  const macro = MACROS.get(node.childForFieldName('method')?.text ?? '');
+  return macro ? macro(walk, node, within) : walkedChildren(walk, node, within);
 };
 
 const walkedChildren = (walk: Walk, node: Node, within: string | undefined): Walk =>
