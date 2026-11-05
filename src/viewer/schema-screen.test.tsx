@@ -231,6 +231,31 @@ test('a table finding in the rail opens the Schema tab at its card, in its file,
   expect(document.activeElement).toBe(schemaTab);
 });
 
+test('an answer to a table finding goes from the tray to its card, from the Schema tab too', async () => {
+  atHash('#structure');
+  const user = userEvent.setup();
+  render(<ReviewPage review={reviewWithFindings()} send={vi.fn(async () => {})} />);
+
+  await user.click(await screen.findByRole('button', { name: 'Show 2 findings' }));
+  const rail = screen.getByRole('complementary', { name: 'Findings' });
+  const finding = within(rail).getByText('users: 1 column added').closest('li') ?? rail;
+  await user.click(within(finding).getByRole('button', { name: 'Fix this' }));
+  await user.click(tabs().getByRole('link', { name: 'Schema' }));
+  await screen.findByRole('region', { name: 'db/schema.rb' });
+  await user.click(screen.getByRole('button', { name: 'Review' }));
+  await user.click(
+    within(screen.getByRole('list', { name: 'Drafts' })).getByRole('button', {
+      name: 'users: 1 column added',
+    }),
+  );
+
+  expect(document.activeElement).toBe(
+    within(screen.getByRole('region', { name: 'db/queue_schema.rb' })).getByRole('article', {
+      name: 'users, changed',
+    }),
+  );
+});
+
 test("a migration's finding, of the same dimension, still opens its own patch on a review with a schema change", async () => {
   atHash('#structure');
   const user = userEvent.setup();
