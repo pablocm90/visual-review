@@ -41,10 +41,10 @@ const RESOURCE_ACTIONS: ReadonlyArray<Action> = [
   ['DELETE', '', 'destroy'],
 ];
 
-const MOST_STATEMENTS = 10_000;
+const MOST_WRITTEN = 50_000;
 
 type Scope = {
-  readonly budget: { left: number };
+  readonly spend: (cost: number) => void;
   readonly files: ReadonlyMap<string, string>;
   readonly root: string;
   readonly loading: ReadonlyArray<string>;
@@ -421,8 +421,7 @@ const HANDLERS: ReadonlyMap<string, Handler> = new Map<string, Handler>([
 ]);
 
 const routesIn = (statement: Node, scope: Scope): ReadonlyArray<Drawn> => {
-  scope.budget.left -= 1;
-  if (scope.budget.left < 0) throw new Error('Too many routes to read');
+  scope.spend(1 + (statement.childForFieldName('arguments')?.descendantCount ?? 0));
   const handler =
     isBare(statement) || isDraw(statement) ? HANDLERS.get(methodOf(statement)) : undefined;
   return handler?.(statement, scope) ?? [unread(statement, scope)];
@@ -432,16 +431,24 @@ const isRoute = (drawn: Drawn): drawn is Route => 'verb' in drawn;
 
 const START = { path: '', module: '', controller: '', member: '', collection: '' };
 
+const spendingUpTo = (most: number): Scope['spend'] => {
+  let left = most;
+  return cost => {
+    left -= cost;
+    if (left < 0) throw new Error('Too many routes to read');
+  };
+};
+
 export const railsRoutesUpTo = (most: number): RouteReader => ({
   holds: path =>
     ROUTES_FILE.test(path) && !path.split('/').some(folder => NOT_SEARCHED.has(folder)),
   routes: files => {
-    const budget = { left: most };
+    const spend = spendingUpTo(most);
     const drawn = [...files.keys()].flatMap(file => {
       const root = ROOT_FILE.exec(file)?.[1];
       return root === undefined
         ? []
-        : drawnFrom(file, { ...START, budget, files, root, loading: [], file });
+        : drawnFrom(file, { ...START, spend, files, root, loading: [], file });
     });
     return {
       routes: drawn
@@ -452,4 +459,4 @@ export const railsRoutesUpTo = (most: number): RouteReader => ({
   },
 });
 
-export const railsRoutes = railsRoutesUpTo(MOST_STATEMENTS);
+export const railsRoutes = railsRoutesUpTo(MOST_WRITTEN);

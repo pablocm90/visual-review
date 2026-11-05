@@ -778,23 +778,31 @@ const upTo = (most: number, body: string) =>
 const gets = (count: number): string =>
   Array.from({ length: count }, (_, at) => `get "p${at}", to: "a#b"`).join('\n');
 
-test('a reading takes as many statements as its limit, the draw among them', () => {
-  expect(upTo(100, gets(99)).routes).toHaveLength(99);
+const GET_COST = 14;
+
+test('a reading takes statements up to its limit, each costing what its arguments hold', () => {
+  expect(upTo(1 + 99 * GET_COST, gets(99)).routes).toHaveLength(99);
 });
 
 test('a statement past the limit throws', () => {
-  expect(() => upTo(100, gets(100))).toThrow('Too many routes to read');
+  expect(() => upTo(99 * GET_COST, gets(99))).toThrow('Too many routes to read');
+});
+
+test('one call naming more than the limit throws', () => {
+  const names = Array.from({ length: 60 }, (_, at) => `:a${at}`).join(', ');
+  expect(() => upTo(100, `resources ${names}, only: []`)).toThrow('Too many routes to read');
 });
 
 test('every root of a reading spends from one limit', () => {
-  expect(() =>
-    railsRoutesUpTo(100).routes(
-      new Map([
-        ['apps/a/config/routes.rb', drawing(gets(60))],
-        ['apps/b/config/routes.rb', drawing(gets(60))],
-      ]),
-    ),
-  ).toThrow('Too many routes to read');
+  const each = 1 + 60 * GET_COST;
+  const roots = (paths: ReadonlyArray<string>) =>
+    railsRoutesUpTo(each + 60 * GET_COST).routes(
+      new Map(paths.map(path => [path, drawing(gets(60))])),
+    );
+  expect(roots(['apps/a/config/routes.rb']).routes).toHaveLength(60);
+  expect(() => roots(['apps/a/config/routes.rb', 'apps/b/config/routes.rb'])).toThrow(
+    'Too many routes to read',
+  );
 });
 
 test('names multiplying under names throw, rather than read without end', () => {
