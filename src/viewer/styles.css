@@ -2705,3 +2705,18 @@ main:has(> .review-tray) {
   outline: 2px solid var(--ramp-3);
   outline-offset: 2px;
 }
+
+.signature-lines {
+  padding: 0;
+  list-style: none;
+}
+
+.signature-lines .signature-fold-summary {
+  margin-top: 0;
+  font-size: 12px;
+}
+
+.signature-line {
+  display: block;
+  white-space: pre-wrap;
+}

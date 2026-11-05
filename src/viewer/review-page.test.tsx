@@ -3814,10 +3814,12 @@ test('on Kind of change a closed box is named with the strongest kind among the 
 const symbolGroups = () =>
   within(screen.getByRole('tabpanel', { name: 'Symbols' }))
     .getAllByRole('list')
+    .filter(list => !list.getAttribute('aria-label')?.startsWith('Signature of'))
     .map(list => [
       list.getAttribute('aria-label'),
       within(list)
         .getAllByRole('listitem')
+        .filter(item => item.parentElement === list)
         .map(item => item.getAttribute('aria-label')),
     ]);
 
@@ -3912,7 +3914,7 @@ test("a file's Symbols tab lists its API changes first: exported symbols added, 
               kind: 'function',
               exported: exported(true, true),
               change: 'edited',
-              signature: { base: '()', head: '(at: Date)' },
+              signature: { base: 'class Charge extends Base', head: 'class Charge extends Money' },
             },
             { name: 'total', kind: 'function', exported: exported(true, true), change: 'edited' },
             { name: 'old', kind: 'function', exported: exported(true), change: 'removed' },
@@ -3961,8 +3963,8 @@ test("a file's Symbols tab lists its API changes first: exported symbols added, 
     ['Added', ['function helper: added']],
   ]);
   const charge = screen.getByRole('listitem', { name: 'function charge, exported: edited' });
-  expect(within(charge).getByRole('deletion').textContent).toBe('()');
-  expect(within(charge).getByRole('insertion').textContent).toBe('(at: Date)');
+  expect(within(charge).getByRole('deletion').textContent).toBe('class Charge extends Base');
+  expect(within(charge).getByRole('insertion').textContent).toBe('class Charge extends Money');
   const total = screen.getByRole('listitem', { name: 'function total, exported: edited' });
   expect(total.textContent).toBe('function total exported');
   expect(
@@ -3973,6 +3975,77 @@ test("a file's Symbols tab lists its API changes first: exported symbols added, 
     'function helper',
   );
   expect(within(total).queryByRole('deletion')).toBeNull();
+});
+
+const signatureLinesOf = async (signature: { readonly base: string; readonly head: string }) => {
+  const user = userEvent.setup();
+  render(
+    <ReviewPage
+      review={pageWith({
+        range: 'abc123..def456',
+        diff: {
+          nodes: [
+            { id: 'web', kind: 'stack', label: 'web', path: '', state: 'unchanged' },
+            topFile('reader.ts', 'modified'),
+          ],
+          edges: [],
+        },
+        symbols: [
+          symbolsOf('web/file/reader.ts', [
+            {
+              name: 'Reader',
+              kind: 'type',
+              exported: { base: true, head: true },
+              change: 'edited',
+              signature,
+            },
+          ]),
+        ],
+      })}
+    />,
+  );
+  await user.click(await screen.findByRole('button', { name: 'reader.ts: modified' }));
+  await user.click(within(inspector()).getByRole('tab', { name: 'Symbols 1' }));
+  return within(screen.getByRole('list', { name: 'Signature of type Reader' }))
+    .getAllByRole('listitem')
+    .map(line => line.textContent);
+};
+
+test('a changed signature reads as its opener, its members, each gained or lost one marked, and its closer', async () => {
+  expect(
+    await signatureLinesOf({
+      base: 'interface Reader { name: string; holds(root: string): boolean; }',
+      head: 'interface Reader { name: string; symbols?: Read; }',
+    }),
+  ).toEqual([
+    'interface Reader {',
+    '… 1 member as it wasname: string',
+    '− holds(root: string): boolean',
+    '+ symbols?: Read',
+    '}',
+  ]);
+});
+
+test('members as they were fold under a count, one run per gap, a lone one worded for one', async () => {
+  const user = userEvent.setup();
+  await signatureLinesOf({
+    base: 'interface Reader { a: 1; b: 2; c: 3; d: 4; e: 5; }',
+    head: 'interface Reader { a: 1; b: 2; x: 9; c: 3; e: 5; }',
+  });
+  const signature = within(screen.getByRole('list', { name: 'Signature of type Reader' }));
+  const [two, one, last] = signature.getAllByRole('group');
+  expect(two?.textContent).toBe('… 2 members as they werea: 1b: 2');
+  expect(one?.textContent).toBe('… 1 member as it wasc: 3');
+  expect(last?.textContent).toBe('… 1 member as it wase: 5');
+  expect(two?.hasAttribute('open')).toBe(false);
+  await user.click(signature.getByText('… 2 members as they were'));
+  expect(two?.hasAttribute('open')).toBe(true);
+});
+
+test('a member of one name changed reads as both, base then head', async () => {
+  expect(await signatureLinesOf({ base: '(a, b: 1)', head: '(a, b: 2)' })).toContain(
+    '~ b: 1 → b: 2',
+  );
 });
 
 test('a renamed symbol says what it was renamed from, probably when its body changed too', async () => {
