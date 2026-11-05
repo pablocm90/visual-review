@@ -34,3 +34,17 @@ test('an if that returns first but has an else is no guard', () => {
     'guard',
   );
 });
+
+test('an if reads on its own line, and what its branches hold one deeper', () => {
+  expect(decisionsIn('if c {', 'if d { go(); }', '} else {', 'if e { go(); }', '}')).toEqual([
+    { kind: 'if', text: 'if c', depth: 0, line: 2 },
+    { kind: 'if', text: 'if d', depth: 1, line: 3 },
+    { kind: 'if', text: 'if e', depth: 1, line: 5 },
+  ]);
+});
+
+test.for(['let Some(x) = y', 'let Some(x) = y && z'])('an if on %s reads as written', condition => {
+  expect(decisionsIn(`if ${condition} { go(); }`)).toEqual([
+    { kind: 'if', text: `if ${condition}`, depth: 0, line: 2 },
+  ]);
+});

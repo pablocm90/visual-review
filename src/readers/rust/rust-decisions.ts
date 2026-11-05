@@ -1,6 +1,18 @@
 import type { Node } from 'web-tree-sitter';
 import type { Decision } from '../../core/reader.ts';
 
+type Head = Pick<Decision, 'kind' | 'text' | 'foundByName'>;
+
+type Read = Head & { readonly deeper: ReadonlyArray<Node> };
+
+type Walk = { readonly depth: number };
+
+const fieldOf = (node: Node, field: string): Node | undefined =>
+  node.childForFieldName(field) ?? undefined;
+
+const fieldsOf = (node: Node, ...fields: ReadonlyArray<string>): ReadonlyArray<Node> =>
+  fields.flatMap(field => fieldOf(node, field) ?? []);
+
 const exprOf = (statement: Node | undefined): Node | undefined =>
   statement?.type === 'expression_statement' ? statement.namedChildren[0] : statement;
 
@@ -15,24 +27,29 @@ const exitOf = (statement: Node | undefined): Exit | undefined => {
   return macroNameOf(expr) === 'bail' ? { foundByName: true } : undefined;
 };
 
-const decisionsUnder = (nodes: ReadonlyArray<Node>): ReadonlyArray<Decision> =>
+const ifOf = (node: Node): Read => {
+  const condition = `if ${fieldOf(node, 'condition')?.text}`;
+  const exit =
+    fieldOf(node, 'alternative') === undefined
+      ? exitOf(fieldOf(node, 'consequence')?.namedChildren[0])
+      : undefined;
+  return exit === undefined
+    ? { kind: 'if', text: condition, deeper: fieldsOf(node, 'consequence', 'alternative') }
+    : { ...exit, kind: 'guard', text: `${condition} return`, deeper: [] };
+};
+
+const READS = new Map<string, (node: Node) => Read>([['if_expression', ifOf]]);
+
+const decisionsUnder = (walk: Walk, nodes: ReadonlyArray<Node>): ReadonlyArray<Decision> =>
   nodes.flatMap(node => {
-    const exit =
-      node.type === 'if_expression' && node.childForFieldName('alternative') === null
-        ? exitOf(node.childForFieldName('consequence')?.namedChildren[0])
-        : undefined;
-    return exit === undefined
-      ? decisionsUnder(node.namedChildren)
-      : [
-          {
-            ...exit,
-            kind: 'guard' as const,
-            text: `if ${node.childForFieldName('condition')?.text} return`,
-            depth: 0,
-            line: node.startPosition.row + 1,
-          },
-        ];
+    const read = READS.get(node.type)?.(node);
+    if (read === undefined) return decisionsUnder(walk, node.namedChildren);
+    const { deeper, ...head } = read;
+    return [
+      { ...head, depth: walk.depth, line: node.startPosition.row + 1 },
+      ...decisionsUnder({ depth: walk.depth + 1 }, deeper),
+    ];
   });
 
 export const decisionsOfFunction = (item: Node): ReadonlyArray<Decision> =>
-  decisionsUnder([item.childForFieldName('body') ?? []].flat());
+  decisionsUnder({ depth: 0 }, fieldsOf(item, 'body'));
