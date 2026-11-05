@@ -328,6 +328,75 @@ test('labels a skipped, only or todo test or describe block, and marks a test ed
   ]);
 });
 
+const OLD_PAGE = (opener: string) =>
+  [
+    `${opener}('the old page', () => {`,
+    "  it('shows the range', () => {});",
+    "  describe('its header', () => {",
+    "    it('names the head', () => {});",
+    '  });',
+    '});',
+  ].join('\n');
+
+test.each([
+  { move: 'gains a label', before: 'describe', after: 'describe.skip', label: 'skip' },
+  { move: 'loses a label', before: 'describe.skip', after: 'describe', label: undefined },
+  { move: 'swaps a label', before: 'describe.skip', after: 'describe.only', label: 'only' },
+] as const)(
+  'a describe block that $move edits the tests under it, at any depth',
+  ({ before, after, label }) => {
+    expect(
+      testChanges({
+        read: readTypeScriptTests,
+        before: OLD_PAGE(before),
+        after: OLD_PAGE(after),
+      }),
+    ).toEqual([
+      {
+        kind: 'heading',
+        name: 'the old page',
+        label,
+        children: [
+          { kind: 'test', name: 'shows the range', change: 'edited' },
+          {
+            kind: 'heading',
+            name: 'its header',
+            children: [{ kind: 'test', name: 'names the head', change: 'edited' }],
+          },
+        ],
+      },
+    ]);
+  },
+);
+
+test('a test added or removed under a relabelled describe block keeps its own mark', () => {
+  const before = [
+    "describe('the old page', () => {",
+    "  it('stays', () => {});",
+    "  it('goes', () => {});",
+    '});',
+  ].join('\n');
+  const after = [
+    "describe.skip('the old page', () => {",
+    "  it('stays', () => {});",
+    "  it('arrives', () => {});",
+    '});',
+  ].join('\n');
+
+  expect(testChanges({ read: readTypeScriptTests, before, after })).toEqual([
+    {
+      kind: 'heading',
+      name: 'the old page',
+      label: 'skip',
+      children: [
+        { kind: 'test', name: 'stays', change: 'edited' },
+        { kind: 'test', name: 'goes', change: 'removed' },
+        { kind: 'test', name: 'arrives', change: 'added' },
+      ],
+    },
+  ]);
+});
+
 const marked = (name: string, change: 'added' | 'removed' | 'edited'): TestStatement => ({
   kind: 'test',
   name,

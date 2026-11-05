@@ -59,14 +59,25 @@ const allMarked = (
 const sameTest = (one: ReadTest, other: ReadTest): boolean =>
   one.kind === other.kind && one.name === other.name;
 
+const editedWhereUnchanged = (
+  statements: ReadonlyArray<TestStatement>,
+): ReadonlyArray<TestStatement> =>
+  statements.map(statement => {
+    if (statement.kind === 'heading') {
+      return { ...statement, children: editedWhereUnchanged(statement.children) };
+    }
+    return statement.change === 'unchanged' ? { ...statement, change: 'edited' } : statement;
+  });
+
 const comparedPair = (old: ReadTest | undefined, test: ReadTest): ReadonlyArray<TestStatement> => {
   if (old?.kind === 'heading' && test.kind === 'heading') {
+    const children = compared(old.children, test.children);
     return [
       {
         kind: 'heading',
         name: test.name,
         label: test.label,
-        children: compared(old.children, test.children),
+        children: old.label === test.label ? children : editedWhereUnchanged(children),
       },
     ];
   }
