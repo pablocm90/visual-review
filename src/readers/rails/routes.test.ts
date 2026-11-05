@@ -364,6 +364,26 @@ test.for([
     expected: 'GET /users/logs members#logs',
   },
   {
+    reads: 'as: names the param nested under it',
+    written: 'resources :templates, only: [], as: :docs do\n resources :bodies, only: :index\n end',
+    expected: 'GET /templates/:doc_id/bodies bodies#index',
+  },
+  {
+    reads: 'as: names the param beside param:',
+    written: 'resources :a, only: [], as: :z, param: :slug do\n resources :b, only: :index\n end',
+    expected: 'GET /a/:z_slug/b b#index',
+  },
+  {
+    reads: 'as: on a scope names no param',
+    written: 'scope as: :z do\n resources :a, only: [] do\n resources :b, only: :index\n end\n end',
+    expected: 'GET /a/:a_id/b b#index',
+  },
+  {
+    reads: 'as: on a resource names no param',
+    written: 'resource :a, as: :z, only: [] do\n resources :b, only: :index\n end',
+    expected: 'GET /a/b b#index',
+  },
+  {
     reads: 'module: carries under it',
     written: 'resources :users, only: [], module: :staff do\n get "logs", on: :collection\n end',
     expected: 'GET /users/logs staff/users#logs',
@@ -439,6 +459,7 @@ test.for([
     reads: 'a namespace carrying only:',
     written: 'namespace :a, only: :index do\n resources :b\n end',
   },
+  { reads: 'an as: it cannot read', written: 'resources :users, as: NAME' },
   { reads: 'a concern', written: 'concern :commentable do\n resources :comments\n end' },
   { reads: 'a name it cannot read', written: 'resources NAME' },
   { reads: 'a splatted name', written: 'resources(*NAMES)' },

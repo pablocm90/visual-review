@@ -136,7 +136,7 @@ const resourcesOf =
         ...within(call, {
           ...scope,
           module,
-          path: nestedOf(path, name, param),
+          path: nestedOf(path, writtenOr(args, 'as', name), param),
           controller,
           member: memberOf(path, param),
           collection: path,
@@ -293,7 +293,17 @@ const isName = (node: Node): boolean =>
 const isNames = (node: Node): boolean =>
   isName(node) || (isNameList(node) && writtenIn(node).every(isName));
 
-const NAMING_OPTIONS = ['only', 'except', 'path', 'controller', 'param', 'module', 'action', 'via'];
+const NAMING_OPTIONS = [
+  'only',
+  'except',
+  'path',
+  'controller',
+  'param',
+  'module',
+  'action',
+  'via',
+  'as',
+];
 
 const REWRITING_OPTIONS = ['shallow', 'shallow_path', 'shallow_prefix', 'concerns', 'path_names'];
 
