@@ -102,24 +102,29 @@ const changed = (old: Decision, decision: Decision): LogicLine => ({
   line: decision.line,
 });
 
-const pairKey = ({ kind, subject }: Decision): string => `${kind} ${tokensOf(subject ?? '')}`;
+const canPair = (base: Decision, head: Decision): boolean =>
+  base.kind === head.kind &&
+  (base.subject ?? []).every(name => head.subject?.some(held => tokensOf(held) === tokensOf(name)));
+
+type Pairing = {
+  readonly left: ReadonlyArray<Decision>;
+  readonly lines: ReadonlyArray<LogicLine>;
+};
 
 const linesOfGap = ({ base, head }: Sides): ReadonlyArray<LogicLine> => {
-  const baseKeys = base.map(pairKey);
-  const headKeys = head.map(pairKey);
-  const partners = headKeys.map(
-    (key, index) =>
-      base.filter((_, at) => baseKeys[at] === key)[
-        headKeys.slice(0, index).filter(earlier => earlier === key).length
-      ],
+  const paired = head.reduce<Pairing>(
+    ({ left, lines }, decision) => {
+      const partner = left.find(one => canPair(one, decision));
+      return partner === undefined
+        ? { left, lines: [...lines, ofHead('added', decision)] }
+        : {
+            left: left.filter(one => one !== partner),
+            lines: [...lines, changed(partner, decision)],
+          };
+    },
+    { left: base, lines: [] },
   );
-  return [
-    ...base.filter(decision => !partners.includes(decision)).map(removed),
-    ...head.map((decision, index) => {
-      const partner = partners[index];
-      return partner ? changed(partner, decision) : ofHead('added', decision);
-    }),
-  ];
+  return [...paired.left.map(removed), ...paired.lines];
 };
 
 type Walked = { readonly lines: ReadonlyArray<LogicLine>; readonly from: Match };

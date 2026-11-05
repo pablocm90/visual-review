@@ -268,13 +268,12 @@ const NAMES_NOTHING = new Set([
   'call',
 ]);
 
-const subjectOf = (word: string, call: Node): string =>
-  [
-    word,
-    ...statementsOf(fieldOf(call, 'arguments'))
-      .filter(({ type }) => !NAMES_NOTHING.has(type))
-      .map(codeOf),
-  ].join(' ');
+const subjectOf = (word: string, call: Node): ReadonlyArray<string> => [
+  word,
+  ...statementsOf(fieldOf(call, 'arguments'))
+    .filter(({ type }) => !NAMES_NOTHING.has(type))
+    .map(codeOf),
+];
 
 const macroOf = (call: Node): Head | undefined => {
   const word = fieldOf(call, 'receiver') === undefined ? fieldOf(call, 'method')?.text : undefined;

@@ -339,7 +339,7 @@ test.for([
       depth: 0,
       line: 2,
       foundByName: true,
-      subject: expect.any(String),
+      subject: expect.any(Array),
     },
   ]);
 });
@@ -351,7 +351,7 @@ test('rescue_from in a class body reads as a catch on the class, not found by na
       text: 'rescue_from Foo, with: :a',
       depth: 0,
       line: 2,
-      subject: expect.any(String),
+      subject: expect.any(Array),
     },
   ]);
 });
@@ -403,7 +403,7 @@ test('a macro in a nested class reads on that class', () => {
       depth: 0,
       line: 3,
       foundByName: true,
-      subject: expect.any(String),
+      subject: expect.any(Array),
     },
   ]);
 });
@@ -512,6 +512,11 @@ test.for([
   { reason: 'one callback of two', before: 'before_action :a, :b', after: 'before_action :a' },
   { reason: 'another word', before: 'before_action :a', after: 'around_action :a' },
   {
+    reason: 'one callback of two swapped',
+    before: 'before_action :a, :b',
+    after: 'before_action :a, :c',
+  },
+  {
     reason: 'another field',
     before: 'validates :a, presence: true',
     after: 'validates :b, presence: true',
@@ -593,6 +598,26 @@ test.for([
     reason: 'an object edited',
     before: ['before_save Foo.new(1)'],
     after: ['before_save Foo.new(2)'],
+  },
+  {
+    reason: 'a callback added beside it',
+    before: ['before_action :a'],
+    after: ['before_action :a, :b'],
+  },
+  {
+    reason: 'its fields reordered',
+    before: ['validates :a, :b, presence: true'],
+    after: ['validates :b, :a, presence: true'],
+  },
+  {
+    reason: 'a field added',
+    before: ['validates :a, :b, presence: true'],
+    after: ['validates :a, :b, :c, presence: true'],
+  },
+  {
+    reason: 'an error added',
+    before: ['rescue_from Foo, with: :a'],
+    after: ['rescue_from Foo, Bar, with: :a'],
   },
   {
     reason: 'its rescue edited',
