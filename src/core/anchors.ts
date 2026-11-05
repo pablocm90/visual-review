@@ -1,5 +1,5 @@
 import { deepestHolding } from './diff-graphs.ts';
-import type { GraphNode } from './graph.ts';
+import { endsOfId, type GraphNode } from './graph.ts';
 import type { Comment } from './review.ts';
 import type { TestFile } from './test-changes.ts';
 import { nodeOfTests } from './tests-alongside.ts';
@@ -21,7 +21,10 @@ export type TargetsOf = {
   readonly tests: ReadonlyArray<Pick<TestFile, 'path' | 'stack'>>;
 };
 
-export const anchorTarget = (
+export const isHeld = ({ nodes }: Pick<TargetsOf, 'nodes'>, id: string): boolean =>
+  nodes.some(node => node.id === id);
+
+const namedTarget = (
   anchor: Pick<Anchor, 'kind' | 'id'>,
   { nodes, tests }: TargetsOf,
 ): string | undefined => {
@@ -30,4 +33,14 @@ export const anchorTarget = (
   if (anchor.kind !== 'test') return anchor.id;
   const file = tests.find(({ path }) => path === split(anchor.id, '#')[0]);
   return file && nodeOfTests({ nodes, file });
+};
+
+export const anchorTarget = (
+  anchor: Pick<Anchor, 'kind' | 'id'>,
+  targets: TargetsOf,
+): string | undefined => {
+  const target = namedTarget(anchor, targets);
+  return target !== undefined && endsOfId(target).every(end => isHeld(targets, end))
+    ? target
+    : undefined;
 };

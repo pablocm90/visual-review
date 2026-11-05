@@ -1,6 +1,6 @@
 import { z } from 'zod';
 
-const reviewVersion = 5;
+const reviewVersion = 6;
 
 const anchorOn = <Kind extends string>(kind: Kind, id: string) =>
   z.strictObject({ kind: z.literal(kind), id: z.string().describe(id) }).readonly();
@@ -14,32 +14,32 @@ const quotedAnchorOn = <Kind extends string>(kind: Kind, id: string, text: strin
     })
     .readonly();
 
+const CommentAnchorSchema = z.discriminatedUnion('kind', [
+  anchorOn('part', 'A node id'),
+  anchorOn('edge', '`<from> -> <to>`, the node ids at its ends'),
+  anchorOn(
+    'symbol',
+    "`<file node id>#<scope.name>`: a function, method or class in a file, then, from the second on, `#<n>` on the n-th of the file's symbols of that name, as a getter and its setter are, in the page data's `symbols` order",
+  ),
+  quotedAnchorOn(
+    'decision',
+    "`<symbol id>#<text>`: a logic line of a function, the symbol's id with its `#<n>` if it has one, its text the base side's when removed, else the head side's, then, from the second on, `#<n>` on the n-th line of the function whose id reads the same. A removed guard's or catch's id is its `logic:removed:` finding's id without that prefix",
+    "The logic line's text",
+  ),
+  anchorOn(
+    'test',
+    "`<test file>#<heading › … › name>`: a test by its headings and name, then, from the second on, `#<n>` on the n-th of the file's tests with those headings and that name, in the page data's `tests` order",
+  ),
+  quotedAnchorOn(
+    'line',
+    '`<file>@<base|head>:<n>`: a diff line by its side and line number',
+    "The line's text, since its number drifts between rounds",
+  ),
+]);
+
 const CommentSchema = z
   .strictObject({
-    anchor: z
-      .discriminatedUnion('kind', [
-        anchorOn('part', 'A node id'),
-        anchorOn('edge', '`<from> -> <to>`, the node ids at its ends'),
-        anchorOn(
-          'symbol',
-          "`<file node id>#<scope.name>`: a function, method or class in a file, then, from the second on, `#<n>` on the n-th of the file's symbols of that name, as a getter and its setter are, in the page data's `symbols` order",
-        ),
-        quotedAnchorOn(
-          'decision',
-          "`<symbol id>#<text>`: a logic line of a function, the symbol's id with its `#<n>` if it has one, its text the base side's when removed, else the head side's, then, from the second on, `#<n>` on the n-th line of the function whose id reads the same. A removed guard's or catch's id is its `logic:removed:` finding's id without that prefix",
-          "The logic line's text",
-        ),
-        anchorOn(
-          'test',
-          "`<test file>#<heading › … › name>`: a test by its headings and name, then, from the second on, `#<n>` on the n-th of the file's tests with those headings and that name, in the page data's `tests` order",
-        ),
-        quotedAnchorOn(
-          'line',
-          '`<file>@<base|head>:<n>`: a diff line by its side and line number',
-          "The line's text, since its number drifts between rounds",
-        ),
-      ])
-      .describe('What the comment is on'),
+    anchor: CommentAnchorSchema.describe('What the comment is on'),
     kind: z
       .enum(['change', 'question', 'suggestion'])
       .describe('What the comment asks for: a task, an answer, or a thought to weigh'),
@@ -47,14 +47,16 @@ const CommentSchema = z
   })
   .readonly();
 
+const FindingAnchorSchema = z
+  .strictObject({
+    kind: z.literal('finding').describe('An answer to a finding'),
+    id: z.string().describe("The finding's id"),
+  })
+  .readonly();
+
 const AnswerSchema = z
   .strictObject({
-    anchor: z
-      .strictObject({
-        kind: z.literal('finding').describe('An answer to a finding'),
-        id: z.string().describe("The finding's id"),
-      })
-      .readonly(),
+    anchor: FindingAnchorSchema,
     kind: z
       .enum(['fix', 'fine', 'explain'])
       .describe('What the answer asks for: a task, nothing, or an answer'),
@@ -85,6 +87,10 @@ const ReviewSchema = z
       .array(z.string())
       .readonly()
       .describe('The parts the reviewer marked read, by node id, in reading order'),
+    resolved: z
+      .array(z.union([CommentAnchorSchema, FindingAnchorSchema]))
+      .readonly()
+      .describe("The anchors of the last review's comments the reviewer closed, as they were said"),
     comments: z
       .array(z.union([CommentSchema, AnswerSchema]))
       .readonly()

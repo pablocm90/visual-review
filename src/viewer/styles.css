@@ -2581,6 +2581,34 @@ main:has(> .review-tray) {
   border-inline-start: 3px solid var(--stack-line);
 }
 
+.said-resolve {
+  margin-inline-start: 8px;
+  padding: 0 6px;
+  border: 1px solid var(--stack-line);
+  border-radius: 4px;
+  background: transparent;
+  color: var(--muted);
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.said-resolve:hover,
+.said-resolve[aria-pressed="true"] {
+  background: var(--unchanged-fill);
+  color: var(--ink);
+}
+
+.said-resolve:focus-visible {
+  outline: 2px solid var(--ramp-3);
+  outline-offset: 1px;
+}
+
+.changes pre .said-before .comment-on {
+  position: static;
+  opacity: 1;
+}
+
 .schema-screen {
   display: flex;
   flex-direction: column;

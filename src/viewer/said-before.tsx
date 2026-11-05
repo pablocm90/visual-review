@@ -5,7 +5,13 @@ import type { PreviousComment } from '../core/previous-comments.ts';
 import type { Comment } from '../core/review.ts';
 import type { SinceReview } from '../core/since-review.ts';
 import { type PlaceOfLine, placeOfLine } from './anchors.ts';
-import { COMMENT_KINDS } from './comment-field.tsx';
+import {
+  COMMENT_KINDS,
+  CommentField,
+  type CommentFieldProps,
+  CommentOpener,
+  type Comments,
+} from './comment-field.tsx';
 import { ANSWER_KINDS } from './finding-display.tsx';
 import { Ref } from './ref.tsx';
 
@@ -25,6 +31,11 @@ export const saidLabel = (said: Marked): string => {
 };
 
 type Answers = NonNullable<ReviewNotes['answers']>;
+
+const anchorAtHead = ({ anchor, target }: PreviousComment): PreviousComment['anchor'] =>
+  (anchor.kind === 'part' || anchor.kind === 'edge') && target !== undefined
+    ? { kind: anchor.kind, id: target }
+    : anchor;
 
 const SaidOnThisPage = createContext<{
   readonly byAnchor: ReadonlyMap<string, PreviousComment>;
@@ -51,7 +62,61 @@ const ClaudesAnswer = ({ answer }: { readonly answer: Answers[string] }) => (
   </div>
 );
 
-export const Said = (said: Marked) => {
+type Responding = {
+  readonly resolved: ReadonlyArray<PreviousComment>;
+  readonly onResolve: (comment: PreviousComment) => void;
+  readonly comments: Comments;
+  readonly onComment: (comment: Comment) => void;
+};
+
+const RespondingToLastSaid = createContext<Responding | undefined>(undefined);
+
+export const RespondingOnPage = RespondingToLastSaid.Provider;
+
+const sameAnchor = (one: PreviousComment, other: PreviousComment) =>
+  anchorKey(one.anchor) === anchorKey(other.anchor);
+
+export const withResolveToggled = (
+  resolved: ReadonlyArray<PreviousComment>,
+  comment: PreviousComment,
+): ReadonlyArray<PreviousComment> =>
+  resolved.some(each => sameAnchor(each, comment))
+    ? resolved.filter(each => !sameAnchor(each, comment))
+    : [...resolved, comment];
+
+const Resolve = ({ comment }: { readonly comment: PreviousComment }) => {
+  const responding = useContext(RespondingToLastSaid);
+  if (responding === undefined || comment.kind === 'fine') return null;
+  return (
+    <button
+      type="button"
+      className="said-resolve"
+      aria-pressed={responding.resolved.some(each => sameAnchor(each, comment))}
+      onClick={() => responding.onResolve(comment)}
+    >
+      Resolve
+    </button>
+  );
+};
+
+type Landed = { readonly landing?: object | undefined };
+
+const Reply = ({ comment, landing }: Landed & { readonly comment: PreviousComment }) => {
+  const responding = useContext(RespondingToLastSaid);
+  const anchor = anchorAtHead(comment);
+  if (responding === undefined || anchor.kind === 'finding') return null;
+  return (
+    <CommentOpener
+      word="Reply"
+      landing={landing}
+      anchor={anchor}
+      comments={responding.comments}
+      onComment={responding.onComment}
+    />
+  );
+};
+
+export const Said = ({ landing, ...said }: Marked & Landed) => {
   const { kind, text, changedSince = [], anchor } = said.comment;
   const mark = markOf(said);
   const answer = useContext(SaidOnThisPage).answers[anchorKey(anchor)];
@@ -70,16 +135,13 @@ export const Said = (said: Marked) => {
         </ul>
       )}
       {answer !== undefined && <ClaudesAnswer answer={answer} />}
+      <Resolve comment={said.comment} />
+      <Reply comment={said.comment} landing={landing} />
     </>
   );
 };
 
-const keyOf = ({ anchor, target }: PreviousComment) =>
-  anchorKey(
-    (anchor.kind === 'part' || anchor.kind === 'edge') && target !== undefined
-      ? { kind: anchor.kind, id: target }
-      : anchor,
-  );
+const keyOf = (comment: PreviousComment) => anchorKey(anchorAtHead(comment));
 
 type LastSaidOnPageProps = {
   readonly since: SinceReview | undefined;
@@ -101,8 +163,26 @@ export const LastSaidOnPage = ({ since, answers, children }: LastSaidOnPageProps
 
 export const useHasSaid = () => {
   const { byAnchor } = useContext(SaidOnThisPage);
-  return (on: Pick<Comment['anchor'], 'kind' | 'id'>): boolean => byAnchor.has(anchorKey(on));
+  return (on: Pick<Comment['anchor'], 'kind' | 'id'> & { readonly text?: string }): boolean => {
+    const said = byAnchor.get(anchorKey(on))?.anchor;
+    return said !== undefined && (said.kind !== 'line' || said.text === on.text);
+  };
 };
+
+export const useTargetOfSaid = () => {
+  const { byAnchor } = useContext(SaidOnThisPage);
+  return (anchor: Comment['anchor']): string | undefined => byAnchor.get(anchorKey(anchor))?.target;
+};
+
+type CommentOnProps = CommentFieldProps & Landed & { readonly name: string };
+
+export const CommentOn = ({ name, ...opener }: CommentOnProps) =>
+  useHasSaid()(opener.anchor) ? null : (
+    <CommentOpener word="Comment" label={`Comment on ${name}`} {...opener} />
+  );
+
+export const CommentFieldUnlessSaid = (field: CommentFieldProps) =>
+  useHasSaid()(field.anchor) ? null : <CommentField {...field} />;
 
 export const useSaidLinesOf = (
   path: string,
@@ -116,7 +196,8 @@ export const useSaidLinesOf = (
 
 export const SaidBefore = ({
   on,
-}: {
+  landing,
+}: Landed & {
   readonly on: Pick<PreviousComment['anchor'], 'kind' | 'id'>;
 }) => {
   const { byAnchor, compared } = useContext(SaidOnThisPage);
@@ -128,7 +209,7 @@ export const SaidBefore = ({
       className="said-before"
       aria-label={`Last review: ${saidLabel({ comment, compared })}`}
     >
-      <Said comment={comment} compared={compared} />
+      <Said comment={comment} compared={compared} landing={landing} />
     </div>
   );
 };

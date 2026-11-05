@@ -14,7 +14,7 @@ type Draft = Pick<Comment, 'kind' | 'text'>;
 
 const NO_DRAFT: Draft = { kind: 'question', text: '' };
 
-type CommentFieldProps = {
+export type CommentFieldProps = {
   readonly anchor: Comment['anchor'];
   readonly comments: Comments;
   readonly onComment: (comment: Comment) => void;
@@ -47,12 +47,13 @@ export const CommentField = ({ anchor, comments, onComment }: CommentFieldProps)
   );
 };
 
-type CommentOnProps = CommentFieldProps & {
-  readonly name: string;
+type CommentOpenerProps = CommentFieldProps & {
+  readonly word: string;
+  readonly label?: string;
   readonly landing?: object | undefined;
 };
 
-export const CommentOn = ({ name, landing, ...field }: CommentOnProps) => {
+export const CommentOpener = ({ word, label, landing, ...field }: CommentOpenerProps) => {
   const drafted = field.comments[anchorKey(field.anchor)] !== undefined;
   const [open, setOpen] = useState(drafted);
   const [landed, setLanded] = useState(landing);
@@ -66,10 +67,10 @@ export const CommentOn = ({ name, landing, ...field }: CommentOnProps) => {
         type="button"
         className="comment-on"
         aria-expanded={open}
-        aria-label={`Comment on ${name}`}
+        aria-label={label}
         onClick={() => setOpen(!open)}
       >
-        Comment
+        {word}
       </button>
       {open && <CommentField {...field} />}
     </>

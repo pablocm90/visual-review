@@ -40,7 +40,7 @@ import {
 import { anchorName, lineAnchor, placeOfLine, rowOfLine } from './anchors.ts';
 import { ChangedSinceMarks, ChangedSinceTag, useIsChangedSince } from './changed-since.tsx';
 import { ColourBy, type Colouring, ScaleLegend, type Shade, shadeOf } from './colour-by.tsx';
-import { CommentField, CommentOn, type Comments } from './comment-field.tsx';
+import type { Comments } from './comment-field.tsx';
 import {
   AnswerButtons,
   type Answers,
@@ -66,7 +66,15 @@ import { storedReadMarks, storeReadMarks } from './read-marks.ts';
 import { ReadingOrderList } from './reading-order-list.tsx';
 import { Ref, shortRef } from './ref.tsx';
 import { ReviewTray, verdictLabels } from './review-tray.tsx';
-import { LastSaidOnPage, SaidBefore, useSaidLinesOf } from './said-before.tsx';
+import {
+  CommentFieldUnlessSaid,
+  CommentOn,
+  LastSaidOnPage,
+  RespondingOnPage,
+  SaidBefore,
+  useSaidLinesOf,
+  withResolveToggled,
+} from './said-before.tsx';
 import { type SchemaLanding, SchemaScreen } from './schema-screen.tsx';
 import { changedSymbolCount, type LineAt, SymbolsOf, useHasSymbolNews } from './symbols-tab.tsx';
 import { changedCount, TestFiles, TestsScreen } from './tests-screen.tsx';
@@ -509,7 +517,7 @@ const PatchLine = ({
         <Scoped key={index} {...piece} />
       ))}
       {said.map(on => (
-        <SaidBefore key={on.id} on={on} />
+        <SaidBefore key={on.id} on={on} landing={landing} />
       ))}
       {onComment && anchor && (
         <CommentOn
@@ -561,7 +569,7 @@ const Patch = ({
         <ChangedSinceTag marked={marked} />
       </summary>
       {saidAt(undefined).map(on => (
-        <SaidBefore key={on.id} on={on} />
+        <SaidBefore key={on.id} on={on} landing={landed} />
       ))}
       <pre>
         {lines.map((line, index) => (
@@ -804,7 +812,7 @@ const NotePanel = ({
       </ul>
     )}
     <p>{note?.text ?? 'No note'}</p>
-    <SaidBefore on={anchor} />
+    <SaidBefore key={anchorKey(anchor)} on={anchor} />
     {saidInPlace.map(id => (
       <div key={id}>
         <p className="said-edge">{anchorName({ kind: 'edge', id }, nodes)}</p>
@@ -813,7 +821,7 @@ const NotePanel = ({
     ))}
     {onComment &&
       (commentable ? (
-        <CommentField anchor={anchor} comments={comments} onComment={onComment} />
+        <CommentFieldUnlessSaid anchor={anchor} comments={comments} onComment={onComment} />
       ) : (
         <p>Drawn for several edges: open its ends to comment on one of them.</p>
       ))}
@@ -1427,6 +1435,7 @@ const Page = ({ review, notes, send }: ReviewPageProps) => {
   };
   const [comments, setComments] = useState<Comments>({});
   const [answers, setAnswers] = useState<Answers>({});
+  const [resolved, setResolved] = useState<ReadonlyArray<PreviousComment>>([]);
   const answer: AnswerTo | undefined =
     send && ((id, given) => setAnswers(current => withAnswer(current, id, given)));
   const [chosenWidth, setChosenWidth] = useState<number>();
@@ -1606,7 +1615,7 @@ const Page = ({ review, notes, send }: ReviewPageProps) => {
       setFocusTarget(undefined);
     }
   }, [layout, focusTarget, frameElement]);
-  return (
+  const page = (
     <main>
       <Header review={review} tab={tab} />
       {tab === 'structure' && (
@@ -1800,6 +1809,7 @@ const Page = ({ review, notes, send }: ReviewPageProps) => {
             ...(review.pullRequest && { pullRequest: review.pullRequest.number }),
           }}
           read={review.readingOrder.parts.filter(part => read.has(part))}
+          resolved={resolved}
           parts={review.readingOrder.parts}
           comments={comments}
           answers={answers}
@@ -1814,6 +1824,20 @@ const Page = ({ review, notes, send }: ReviewPageProps) => {
         />
       )}
     </main>
+  );
+  return (
+    <RespondingOnPage
+      value={
+        comment && {
+          resolved,
+          onResolve: said => setResolved(current => withResolveToggled(current, said)),
+          comments,
+          onComment: comment,
+        }
+      }
+    >
+      {page}
+    </RespondingOnPage>
   );
 };
 
