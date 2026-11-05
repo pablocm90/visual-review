@@ -204,6 +204,16 @@ const linesOfGap = (
   ];
 };
 
+const memberLines = (from: SplitSignature, to: SplitSignature): ReadonlyArray<SignatureLine> =>
+  aligned({
+    base: from.members.map(memberOf),
+    head: to.members.map(memberOf),
+    same: (one, other) => one.compared === other.compared,
+  }).flatMap(
+    (run): ReadonlyArray<SignatureLine> =>
+      'kept' in run ? [{ change: 'same', text: run.kept.text }] : linesOfGap(run.base, run.head),
+  );
+
 export const LONGEST_SIGNATURE = 10_000;
 
 export const signatureDiff = ({
@@ -218,14 +228,7 @@ export const signatureDiff = ({
   if (from === undefined || to === undefined || from.by !== to.by) return undefined;
   const diff = {
     opener: edge(withoutLeadingBar(from.opener), withoutLeadingBar(to.opener)),
-    members: aligned({
-      base: from.members.map(memberOf),
-      head: to.members.map(memberOf),
-      same: (one, other) => one.compared === other.compared,
-    }).flatMap(
-      (run): ReadonlyArray<SignatureLine> =>
-        'kept' in run ? [{ change: 'same', text: run.kept.text }] : linesOfGap(run.base, run.head),
-    ),
+    members: memberLines(from, to),
     closer: edge(from.closer, to.closer),
   };
   const marked = [...diff.opener, ...diff.members, ...diff.closer].some(
