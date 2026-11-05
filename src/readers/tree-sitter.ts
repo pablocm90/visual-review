@@ -33,11 +33,27 @@ const NO_HOLES: Holes = new Set();
 
 export const isComment = ({ type }: Node): boolean => type.endsWith('comment');
 
+const CLOSERS: ReadonlySet<string> = new Set([')', ']', '}', '>']);
+
+const isOneTuple = ({ type, children }: Node): boolean =>
+  type.startsWith('tuple') && children.filter(child => child.type === ',').length === 1;
+
+const withoutLastComma = (children: ReadonlyArray<Node>): ReadonlyArray<Node> =>
+  children.filter(({ type }, index) => {
+    const next = children[index + 1];
+    return type !== ',' || (next !== undefined && !CLOSERS.has(next.type));
+  });
+
+const writtenChildrenOf = (node: Node): ReadonlyArray<Node> => {
+  const written = node.children.filter(child => !isComment(child));
+  return isOneTuple(node) ? written : withoutLastComma(written);
+};
+
 export const shapeOf = (node: Node, holes: Holes = NO_HOLES): Shape => {
   if (holes.has(node.id)) return [];
   return node.childCount === 0
     ? node.text
-    : node.children.filter(child => !isComment(child)).map(child => shapeOf(child, holes));
+    : writtenChildrenOf(node).map(child => shapeOf(child, holes));
 };
 
 export const hashOf = (shape: Shape): string =>

@@ -59,6 +59,30 @@ test.for([
   { edit: 'a line comment', before: 'fn a() { b(); }', after: 'fn a() {\n  // why\n  b();\n}' },
   { edit: 'a doc attribute', before: 'fn a() {}', after: '#[doc = "why"]\nfn a() {}' },
   { edit: 'spacing', before: 'fn a(x: u8) { b(); }', after: 'fn a( x:u8 ) {\n  b();\n}' },
+  { edit: 'a last comma before )', before: 'fn a(x: u8) {}', after: 'fn a(\n  x: u8,\n) {}' },
+  { edit: 'a last comma before >', before: 'fn a<T>() {}', after: 'fn a<\n  T,\n>() {}' },
+  { edit: 'a last comma before ]', before: 'fn a() { [1, 2]; }', after: 'fn a() { [1, 2,]; }' },
+  { edit: 'a last comma before }', before: 'fn a() { B { c }; }', after: 'fn a() { B { c, }; }' },
+  {
+    edit: 'a where ending in a comma',
+    before: 'fn a() where B: C {}',
+    after: 'fn a() where B: C, {}',
+  },
+  {
+    edit: 'a comma after a last match arm',
+    before: 'fn a() { match b { c => d } }',
+    after: 'fn a() { match b { c => d, } }',
+  },
+  {
+    edit: 'a last comma before a comment',
+    before: 'fn a(x: u8) {}',
+    after: 'fn a(\n  x: u8, // why\n) {}',
+  },
+  {
+    edit: 'a last comma in a tuple of two',
+    before: 'fn a() { (b, c); }',
+    after: 'fn a() { (b, c,); }',
+  },
 ])('$edit reads as formatting', ({ before, after }) => {
   expect(symbolChanges({ before: read(before), after: read(after) }).symbols).toMatchObject([
     { change: 'formatting' },
@@ -75,6 +99,11 @@ test.for([
     after: '#[deprecated = "old"]\nfn a() {}',
   },
   { edit: 'the visibility', before: 'pub(crate) fn a() {}', after: 'pub(super) fn a() {}' },
+  {
+    edit: 'a comma that sits between',
+    before: 'fn a() { b!(c, d); }',
+    after: 'fn a() { b!(c d); }',
+  },
 ])('a change to $edit reads as edited, with the signature as it was', ({ before, after }) => {
   const [change] = symbolChanges({ before: read(before), after: read(after) }).symbols;
   expect(change).toMatchObject({ change: 'edited' });
@@ -87,6 +116,11 @@ test.for([
   { edit: 'a parameter', before: 'fn a(x: u8) {}', after: 'fn a(x: u16) {}' },
   { edit: 'the return', before: 'fn a() -> u8 {}', after: 'fn a() -> u16 {}' },
   { edit: 'the where', before: 'fn a<T>() where T: B {}', after: 'fn a<T>() where T: C {}' },
+  {
+    edit: 'a tuple of one to a bare type',
+    before: 'fn a() -> (u8,) {}',
+    after: 'fn a() -> (u8) {}',
+  },
 ])('a change to $edit reads as a changed signature', ({ before, after }) => {
   const [change] = symbolChanges({ before: read(before), after: read(after) }).symbols;
   expect(change).toMatchObject({ change: 'edited', signature: expect.anything() });
