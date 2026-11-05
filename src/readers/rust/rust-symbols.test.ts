@@ -587,3 +587,28 @@ test.for([
 ])('$written exports $exports', ({ written, exports }) => {
   expect(read(written).exports).toEqual(exports);
 });
+
+test.for([
+  { written: '#[test]\nfn a() {}' },
+  { written: '#[cfg(test)]\npub use a::b;' },
+  { written: '#[cfg(test)]\nimpl Foo {\n  pub fn a() {}\n}' },
+  { written: '#[cfg(test)]\npub mod tests {\n  pub fn a() {}\n}' },
+])('$written reads no symbol and no export', ({ written }) => {
+  expect(read(written)).toMatchObject({ symbols: [], exports: [] });
+});
+
+test.for([
+  { written: 'impl Foo {\n  #[test]\n  fn a() {}\n}' },
+  { written: 'trait Foo {\n  #[cfg(test)]\n  fn a();\n}' },
+])('$written reads no method', ({ written }) => {
+  expect(methodsIn(read(written))).toEqual([]);
+});
+
+test('a file where only inline tests changed reads as logic, with no symbol changed', () => {
+  const changes = symbolChanges({
+    before: read('pub fn a() {}', '#[test]', 'fn b() { x(); }'),
+    after: read('pub fn a() {}', '#[test]', 'fn b() { y(); }'),
+  });
+  expect(changes.kind).toBe('logic');
+  expect(changes.symbols.map(({ change }) => change)).toEqual(['unchanged']);
+});

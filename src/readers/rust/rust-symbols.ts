@@ -2,7 +2,7 @@ import type { Node } from 'web-tree-sitter';
 import type { FileSymbols, ReadSymbol } from '../../core/reader.ts';
 import { isTooBig, TOO_BIG } from '../too-big.ts';
 import { hashesOf, hashOf, isComment, ownText, shapeOf } from '../tree-sitter.ts';
-import { attributesOf, isDocText, parseRust, pathOf } from './rust-syntax.ts';
+import { attributesOf, isDocText, isTestItem, parseRust, pathOf } from './rust-syntax.ts';
 
 const isExactlyPub = (item: Node): boolean => item.namedChildren[0]?.text === 'pub';
 
@@ -68,6 +68,7 @@ const FUNCTIONS: ReadonlySet<string> = new Set(['function_item', 'function_signa
 const functionsIn = (item: Node): ReadonlyArray<ReadSymbol> =>
   (item.childForFieldName('body')?.namedChildren ?? [])
     .filter(({ type }) => FUNCTIONS.has(type))
+    .filter(member => !isTestItem(member))
     .map(functionSymbol);
 
 const typeOfImpl = (item: Node): string => {
@@ -275,9 +276,10 @@ export const symbolsOfRust = (text: string): FileSymbols => {
   if (isTooBig(text)) throw new Error(TOO_BIG);
   const root = parseRust(text);
   if (root === undefined || root.hasError) throw new Error('Rust that does not parse');
+  const items = root.namedChildren.filter(item => !isTestItem(item));
   return {
-    symbols: root.namedChildren.flatMap(symbolsOfItem),
-    exports: root.namedChildren.flatMap(namesExportedBy),
+    symbols: items.flatMap(symbolsOfItem),
+    exports: items.flatMap(namesExportedBy),
     astHash: hashOf(shapeOf(root)),
   };
 };
