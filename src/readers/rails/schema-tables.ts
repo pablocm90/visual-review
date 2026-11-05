@@ -1,5 +1,5 @@
 import type { Node } from 'web-tree-sitter';
-import type { SchemaColumn, SchemaReader, SchemaTable } from '../../core/schema.ts';
+import type { SchemaColumn, SchemaIndex, SchemaReader, SchemaTable } from '../../core/schema.ts';
 import { NOT_SEARCHED } from './reader.ts';
 import {
   argsOf,
@@ -9,6 +9,7 @@ import {
   nameOf,
   parseRuby,
   positional,
+  writtenIn,
 } from './ruby-syntax.ts';
 
 const SCHEMA_FILE = /(?:^|\/)db\/(?:\w+_)?schema\.rb$/;
@@ -19,6 +20,8 @@ const NOT_COLUMNS: ReadonlySet<string> = new Set([
   'foreign_key',
   'unique_constraint',
 ]);
+
+const keyOf = (pair: Node): string => nameOf(pair.childForFieldName('key') ?? undefined);
 
 const written = (options: ReadonlyArray<Node>): string =>
   options.map(({ text }) => text).join(', ');
@@ -32,6 +35,23 @@ const columnsOf = (call: Node): ReadonlyArray<SchemaColumn> => {
   }));
 };
 
+const indexOf = (call: Node): SchemaIndex => {
+  const args = argsOf(call);
+  const [columnsArg] = positional(args);
+  const columns =
+    columnsArg?.type === 'array' ? writtenIn(columnsArg).map(nameOf) : [nameOf(columnsArg)];
+  const options = args.filter(isOption);
+  const name = options.find(pair => keyOf(pair) === 'name');
+  return {
+    name:
+      name === undefined
+        ? columns.join(', ')
+        : nameOf(name.childForFieldName('value') ?? undefined),
+    columns,
+    options: written(options.filter(pair => pair !== name)),
+  };
+};
+
 const tableOf = (createTable: Node): SchemaTable => {
   const [name, ...rest] = argsOf(createTable);
   const parameter = blockParameterOf(createTable);
@@ -41,7 +61,10 @@ const tableOf = (createTable: Node): SchemaTable => {
   return {
     name: nameOf(name),
     options: written(rest.filter(isOption)),
-    columns: calls.filter(call => !NOT_COLUMNS.has(methodOf(call))).flatMap(columnsOf),
+    columns: calls
+      .filter(call => methodOf(call) !== 'index' && !NOT_COLUMNS.has(methodOf(call)))
+      .flatMap(columnsOf),
+    indexes: calls.filter(call => methodOf(call) === 'index').map(indexOf),
   };
 };
 

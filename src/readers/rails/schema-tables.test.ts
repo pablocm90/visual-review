@@ -10,13 +10,15 @@ ${body}
 end
 `;
 
-test('a dumped table reads with its options and its columns', () => {
+test('a dumped table reads with its options, its columns and its indexes', () => {
   expect(
     railsSchema.tables(
       dump(`  create_table "users", id: :uuid, force: :cascade do |t|
     t.string "email", limit: 255, null: false
     t.decimal "balance", precision: 10, scale: 2, default: "0.0"
     t.datetime "created_at"
+    t.index ["account_id", "email"], name: "index_users_on_account_and_email", unique: true, where: "(email IS NOT NULL)"
+    t.index "lower((\\"Email\\")::text)", name: "index_users_on_lower_email"
     t.check_constraint "balance >= 0", name: "balance_positive"
   end`),
     ),
@@ -28,6 +30,18 @@ test('a dumped table reads with its options and its columns', () => {
         { name: 'email', type: 'string', options: 'limit: 255, null: false' },
         { name: 'balance', type: 'decimal', options: 'precision: 10, scale: 2, default: "0.0"' },
         { name: 'created_at', type: 'datetime', options: '' },
+      ],
+      indexes: [
+        {
+          name: 'index_users_on_account_and_email',
+          columns: ['account_id', 'email'],
+          options: 'unique: true, where: "(email IS NOT NULL)"',
+        },
+        {
+          name: 'index_users_on_lower_email',
+          columns: ['lower((\\"Email\\")::text)'],
+          options: '',
+        },
       ],
     },
   ]);
@@ -60,12 +74,25 @@ test('a table without a block has no columns, and each table keeps its own', () 
   end`),
     ),
   ).toStrictEqual([
-    { name: 'empty', options: '', columns: [] },
+    { name: 'empty', options: '', columns: [], indexes: [] },
     {
       name: 'orders',
       options: '',
       columns: [{ name: 'total', type: 'integer', options: '' }],
+      indexes: [],
     },
+  ]);
+});
+
+test('an index written without a name goes by its columns', () => {
+  const [table] = railsSchema.tables(
+    dump(`  create_table "users" do |t|
+    t.index ["account_id", "email"]
+  end`),
+  );
+
+  expect(table?.indexes).toStrictEqual([
+    { name: 'account_id, email', columns: ['account_id', 'email'], options: '' },
   ]);
 });
 
