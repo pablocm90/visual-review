@@ -149,14 +149,13 @@ const ATTRS = new Map<string, ReadonlyArray<'getter' | 'setter'>>([
 
 const memberOf = (
   name: string,
-  rest: Pick<ReadSymbol, 'kind' | 'exported' | 'signature'>,
+  rest: Omit<ReadSymbol, 'name' | 'scope'>,
   within: string | undefined,
   walk: Walk,
 ): ReadSymbol => ({
   name: walk.singleton || walk.moduleFunction ? `self.${name}` : name,
   ...(within === undefined ? {} : { scope: within }),
   ...rest,
-  ...NOT_YET_HASHED,
 });
 
 const attrSymbols = (
@@ -167,7 +166,17 @@ const attrSymbols = (
 ): ReadonlyArray<ReadSymbol> =>
   symbolsNamedIn(call).flatMap(name =>
     kinds.map(kind =>
-      memberOf(name, { kind, exported: walk.exported, signature: '' }, within, walk),
+      memberOf(
+        name,
+        {
+          kind,
+          exported: walk.exported,
+          signature: '',
+          ...hashesOf({ signed: [], body: fieldOf(call, 'method'), text: name }),
+        },
+        within,
+        walk,
+      ),
     ),
   );
 
@@ -202,6 +211,7 @@ const delegateSymbols = (
         kind: 'method',
         exported: walk.exported && optionOf(call, 'private')?.type !== 'true',
         signature: `to: ${optionOf(call, 'to')?.text ?? ''}`,
+        ...NOT_YET_HASHED,
       },
       within,
       walk,
@@ -212,10 +222,12 @@ const scopeSymbols = (call: Node, within: string | undefined): ReadonlyArray<Rea
   const [named, callable] = call.childForFieldName('arguments')?.namedChildren ?? [];
   if (callable === undefined || callable.type === 'pair') return [];
   return [
-    memberOf(writtenName(named), { kind: 'method', exported: true, signature: '' }, within, {
-      ...STARTING,
-      singleton: true,
-    }),
+    memberOf(
+      writtenName(named),
+      { kind: 'method', exported: true, signature: '', ...NOT_YET_HASHED },
+      within,
+      { ...STARTING, singleton: true },
+    ),
   ];
 };
 
@@ -306,7 +318,11 @@ const walked = (walk: Walk, node: Node, within: string | undefined): Walk => {
     return { ...walk, privateConstants: [...walk.privateConstants, ...symbolsNamedIn(node)] };
   const attrs = ATTRS.get(called ?? '');
   if (attrs)
-    return { ...walk, symbols: [...walk.symbols, ...attrSymbols(node, attrs, within, walk)] };
+    return {
+      ...walk,
+      symbols: [...walk.symbols, ...attrSymbols(node, attrs, within, walk)],
+      holes: [...walk.holes, node.id],
+    };
   if (called === 'scope')
     return { ...walk, symbols: [...walk.symbols, ...scopeSymbols(node, within)] };
   if (called === 'delegate')

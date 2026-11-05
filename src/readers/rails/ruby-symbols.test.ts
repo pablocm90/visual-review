@@ -567,6 +567,18 @@ test.for([
     after: ['class Shop', '  include Till', '  def open; 1; end', 'end'],
     expected: ['edited Shop', 'unchanged Shop.open'],
   },
+  {
+    edit: 'a name added to an attr_reader',
+    before: ['class Shop', '  attr_reader :a, :b', 'end'],
+    after: ['class Shop', '  attr_reader :a, :b, :c', 'end'],
+    expected: ['unchanged Shop', 'unchanged Shop.a', 'unchanged Shop.b', 'added Shop.c'],
+  },
+  {
+    edit: 'an attr_reader turned into a def that does nothing',
+    before: ['class Shop', '  attr_reader :a', 'end'],
+    after: ['class Shop', '  def a; end', 'end'],
+    expected: ['unchanged Shop', 'edited Shop.a'],
+  },
 ])('with $edit, a class and what it holds read apart', ({ before, after, expected }) => {
   expect(changesOf(before, after)).toEqual(expected);
 });
