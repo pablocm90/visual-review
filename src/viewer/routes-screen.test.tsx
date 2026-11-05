@@ -153,3 +153,55 @@ test('in a file, what needs a look comes first, and PATCH and PUT of one path ar
       .map(name => name.textContent),
   ).toStrictEqual(['GET /gone', 'GET /moved', 'GET /new', 'PATCH/PUT /both']);
 });
+
+test("statements not read are listed under the file behind them, each with its change, the scope around it and where it's written, in a file with no route change too", async () => {
+  atHash('#routes');
+  render(
+    <ReviewPage
+      review={reviewOf([
+        {
+          routes: [],
+          unread: [
+            {
+              state: 'added',
+              patch: 'config/routes.rb',
+              item: {
+                text: 'devise_for :users',
+                path: '/admin',
+                module: 'staff',
+                root: 'config/routes.rb',
+                file: 'config/routes/auth.rb',
+                line: 9,
+              },
+            },
+            {
+              state: 'removed',
+              patch: 'config/routes.rb',
+              item: {
+                text: 'concern :a',
+                path: '',
+                module: '',
+                root: 'config/routes.rb',
+                file: 'config/routes.rb',
+                line: 3,
+              },
+            },
+          ],
+        },
+      ])}
+    />,
+  );
+
+  const file = await screen.findByRole('region', { name: 'config/routes.rb' });
+  const [added, removed] = within(within(file).getByRole('list', { name: 'Not read' }))
+    .getAllByRole('listitem')
+    .map(item => item.textContent);
+  expect(added).toContain('+');
+  expect(added).toContain('devise_for :users');
+  expect(added).toContain('under /admin');
+  expect(added).toContain('staff');
+  expect(added).toContain('config/routes/auth.rb:9');
+  expect(removed).toContain('−');
+  expect(removed).not.toContain('under');
+  expect(within(file).queryByRole('table')).toBeNull();
+});

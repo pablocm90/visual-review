@@ -1,8 +1,9 @@
 import type { ReactNode } from 'react';
 import type { PageData } from '../core/page.ts';
-import type { RoutesReading } from '../core/read-routes.ts';
+import type { RoutesReading, UnreadRow } from '../core/read-routes.ts';
 import { type RouteLine, routeLines, routeOf } from '../core/route-lines.ts';
-import { ChangeRow, type ChangeState } from './change-row.tsx';
+import type { UnreadRoute } from '../core/routes.ts';
+import { CHANGE_MARKS, ChangeRow, type ChangeState, STATE_NAMES } from './change-row.tsx';
 
 const RouteRow = ({ verbs, row }: RouteLine) => {
   const { path, file, line } = routeOf(row);
@@ -66,21 +67,49 @@ const FIRST: Readonly<Record<ChangeState, number>> = { removed: 0, changed: 1, a
 const lookFirst = (lines: ReadonlyArray<RouteLine>) =>
   lines.toSorted((one, other) => FIRST[one.row.state] - FIRST[other.row.state]);
 
-const filesOf = (reading: RoutesReading) => {
-  if ('notRead' in reading)
+const scopeOf = ({ path, module }: UnreadRoute) => [path, module].filter(Boolean).join(' · ');
+
+const NotRead = ({ rows }: { readonly rows: ReadonlyArray<UnreadRow> }) => (
+  <>
+    <p className="schema-line">Not read, so routes these draw aren't compared:</p>
+    <ul className="routes-unread" aria-label="Not read">
+      {rows.map(({ state, item }, at) => (
+        <li key={`${at} ${item.text}`} data-state={STATE_NAMES[state]}>
+          <span className="schema-mark">{CHANGE_MARKS[state]}</span>
+          <code>{item.text}</code>
+          {scopeOf(item) && <span className="routes-where">under {scopeOf(item)}</span>}
+          <span className="routes-where">
+            {item.file}:{item.line}
+          </span>
+        </li>
+      ))}
+    </ul>
+  </>
+);
+
+const sectionsOf = ({ routes, unread }: Exclude<RoutesReading, { readonly notRead: string }>) => {
+  const linesAt = Map.groupBy(routeLines(routes), ({ row }) => row.patch);
+  const statementsAt = Map.groupBy(unread, ({ patch }) => patch);
+  return [...new Set([...linesAt.keys(), ...statementsAt.keys()])].map(file => {
+    const lines = linesAt.get(file);
+    const statements = statementsAt.get(file);
     return (
-      <RouteFile key={reading.file} file={reading.file}>
-        <p className="schema-line">Not read: {reading.notRead}</p>
+      <RouteFile key={file} file={file}>
+        {statements && <NotRead rows={statements} />}
+        {lines && <RouteTable lines={lookFirst(lines)} />}
       </RouteFile>
     );
-  return [...Map.groupBy(routeLines(reading.routes), ({ row }) => row.patch)].map(
-    ([file, lines]) => (
-      <RouteFile key={file} file={file}>
-        <RouteTable lines={lookFirst(lines)} />
-      </RouteFile>
-    ),
-  );
+  });
 };
+
+const filesOf = (reading: RoutesReading) =>
+  'notRead' in reading ? (
+    <RouteFile key={reading.file} file={reading.file}>
+      <p className="schema-line">Not read: {reading.notRead}</p>
+    </RouteFile>
+  ) : (
+    sectionsOf(reading)
+  );
 
 export const RoutesScreen = ({ review }: { readonly review: Pick<PageData, 'routes'> }) => (
   <div className="schema-screen">{review.routes.map(filesOf)}</div>
