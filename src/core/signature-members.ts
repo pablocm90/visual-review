@@ -148,12 +148,22 @@ const memberOf = (member: string): Member => {
   return { text, name: nameOf(text) };
 };
 
+type Pairing = {
+  readonly next: number;
+  readonly partners: ReadonlyArray<Member | undefined>;
+};
+
 const partnersOf = (base: ReadonlyArray<Member>, head: ReadonlyArray<Member>) =>
-  head.map(({ text, name }, index) => {
-    const before = head.slice(0, index).filter(member => member.name === name).length;
-    const partner = base.filter(member => member.name === name)[before];
-    return name === undefined || partner?.text === text ? undefined : partner;
-  });
+  head.reduce<Pairing>(
+    ({ next, partners }, { name, text }) => {
+      const found = base.findIndex((member, at) => at >= next && member.name === name);
+      const partner = base[found];
+      return name === undefined || partner === undefined || partner.text === text
+        ? { next, partners: [...partners, undefined] }
+        : { next: found + 1, partners: [...partners, partner] };
+    },
+    { next: 0, partners: [] },
+  ).partners;
 
 const linesOfGap = (
   base: ReadonlyArray<Member>,

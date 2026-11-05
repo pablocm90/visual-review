@@ -162,6 +162,30 @@ test('a parameter moved reads removed and added, since order matters in a call',
   ]);
 });
 
+test('a parameter moved and edited still reads removed and added, its order never crossed', () => {
+  expect(signatureDiff({ base: '(a: 1, b: 2)', head: '(b: 3, a: 4)' })?.members).toEqual([
+    { change: 'removed', text: 'a: 1' },
+    { change: 'changed', base: 'b: 2', head: 'b: 3' },
+    { change: 'added', text: 'a: 4' },
+  ]);
+});
+
+test('a pairing far along leaves every member before it unpaired', () => {
+  expect(signatureDiff({ base: '(a: 1, b: 2, c: 3)', head: '(c: 4, b: 5)' })?.members).toEqual([
+    { change: 'removed', text: 'a: 1' },
+    { change: 'removed', text: 'b: 2' },
+    { change: 'changed', base: 'c: 3', head: 'c: 4' },
+    { change: 'added', text: 'b: 5' },
+  ]);
+});
+
+test('a member added ahead of an edited one leaves it to pair', () => {
+  expect(signatureDiff({ base: '(a: 1)', head: '(z: 9, a: 2)' })?.members).toEqual([
+    { change: 'added', text: 'z: 9' },
+    { change: 'changed', base: 'a: 1', head: 'a: 2' },
+  ]);
+});
+
 test('members of one name in one gap read as changed, in order, and the rest added or removed', () => {
   expect(
     signatureDiff({
