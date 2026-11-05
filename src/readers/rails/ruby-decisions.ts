@@ -278,3 +278,25 @@ export const decisionsOfClass = (
   };
   return fieldsOf(definition, 'body').flatMap(under);
 };
+
+const HIDING_CALLS = new Set([
+  'define_method',
+  'send',
+  'public_send',
+  'class_eval',
+  'instance_eval',
+]);
+
+const hidingNameOf = (node: Node): string | undefined => {
+  const called = fieldOf(node, 'method')?.text;
+  if (called !== undefined && HIDING_CALLS.has(called)) return called;
+  return fieldOf(node, 'name')?.text === 'method_missing' ? 'method_missing' : undefined;
+};
+
+export const blindSpotsIn = (node: Node): ReadonlyArray<string> => [
+  ...new Set(
+    node
+      .descendantsOfType(['call', 'method', 'singleton_method'])
+      .flatMap(each => hidingNameOf(each) ?? []),
+  ),
+];

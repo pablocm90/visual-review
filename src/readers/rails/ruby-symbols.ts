@@ -2,7 +2,12 @@ import { createHash } from 'node:crypto';
 import type { Node } from 'web-tree-sitter';
 import type { FileSymbols, ReadSymbol } from '../../core/reader.ts';
 import { isTooBig, TOO_BIG } from '../too-big.ts';
-import { decisionsOfBody, decisionsOfClass, decisionsOfMethod } from './ruby-decisions.ts';
+import {
+  blindSpotsIn,
+  decisionsOfBody,
+  decisionsOfClass,
+  decisionsOfMethod,
+} from './ruby-decisions.ts';
 import { parseRuby } from './ruby-syntax.ts';
 
 const DEFINITIONS = new Set(['class', 'module']);
@@ -459,5 +464,6 @@ export const symbolsOfRuby = (text: string): FileSymbols => {
     symbols: walked(STARTING, program, undefined).symbols,
     exports: [],
     astHash: hashOf(shapeOf(program)),
+    blindSpots: blindSpotsIn(program),
   };
 };

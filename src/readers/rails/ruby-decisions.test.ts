@@ -395,3 +395,41 @@ test('a scope reads what its lambda decides', () => {
   ]);
   expect(symbols?.find(({ name }) => name === 'Shop')?.decisions).toEqual([]);
 });
+
+const blindSpotsIn = (...lines: ReadonlyArray<string>) =>
+  railsReader.symbols?.(lines.join('\n'), 'app/models/shop.rb')?.blindSpots;
+
+test.for([
+  { line: 'define_method(:a) { 1 }', name: 'define_method' },
+  { line: 'def method_missing(name) = super', name: 'method_missing' },
+  { line: 'def self.method_missing(name) = super', name: 'method_missing' },
+  { line: 'send(:a)', name: 'send' },
+  { line: 'order.public_send(:a)', name: 'public_send' },
+  { line: 'Order.class_eval { a }', name: 'class_eval' },
+  { line: 'order.instance_eval do a end', name: 'instance_eval' },
+])('$line is a blind spot, $name', ({ line, name }) => {
+  expect(blindSpotsIn(line)).toEqual([name]);
+});
+
+test('each name that hides logic is listed once, in the order the file first uses it, at any depth', () => {
+  expect(
+    blindSpotsIn(
+      'class Shop',
+      '  def charge',
+      '    send(:a) if x',
+      '    define_method(:b) { send(:c) }',
+      '  end',
+      'end',
+    ),
+  ).toEqual(['send', 'define_method']);
+});
+
+test.for([
+  { reason: 'a name in a comment', line: '# send(:a)' },
+  { reason: 'a name in a string', line: '"define_method"' },
+  { reason: 'a local of that name', line: 'send = 1' },
+  { reason: 'a method defined under a name that is only called', line: 'def send(a) = a' },
+  { reason: 'any other call', line: 'order.map(&:send)' },
+])('$reason is no blind spot', ({ line }) => {
+  expect(blindSpotsIn(line)).toEqual([]);
+});

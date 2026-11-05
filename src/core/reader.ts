@@ -69,6 +69,7 @@ export type FileSymbols = {
   readonly symbols: ReadonlyArray<ReadSymbol>;
   readonly exports: ReadonlyArray<string>;
   readonly astHash: string;
+  readonly blindSpots?: ReadonlyArray<string>;
 };
 
 export type StackOptions = HoldsOptions & {
