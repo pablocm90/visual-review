@@ -2,12 +2,16 @@ export type Route = {
   readonly verb: string;
   readonly path: string;
   readonly target: string;
+  readonly root: string;
   readonly file: string;
   readonly line: number;
 };
 
 export type UnreadRoute = {
   readonly text: string;
+  readonly path: string;
+  readonly module: string;
+  readonly root: string;
   readonly file: string;
   readonly line: number;
 };

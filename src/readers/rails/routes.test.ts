@@ -25,9 +25,15 @@ test('resources draws its seven actions, update under both verbs', () => {
   ]);
 });
 
-test('a route says which file and line drew it', () => {
-  const [route] = read('resources :users').routes;
-  expect(route).toMatchObject({ file: 'config/routes.rb', line: 2 });
+test('a route says which app, file and line drew it', () => {
+  const [route] = railsRoutes.routes(
+    new Map([['apps/shop/config/routes.rb', drawing('resources :users')]]),
+  ).routes;
+  expect(route).toMatchObject({
+    root: 'apps/shop/',
+    file: 'apps/shop/config/routes.rb',
+    line: 2,
+  });
 });
 
 const targets = (body: string) => read(body).routes.map(({ target }) => target);
@@ -426,7 +432,25 @@ test.for([
 test('what is not read keeps its source on one line, its file and its line', () => {
   expect(
     read('resources :users, only: :index\n  if flag\n    get "a"\n  end').unread,
-  ).toStrictEqual([{ text: 'if flag get "a" end', file: 'config/routes.rb', line: 3 }]);
+  ).toStrictEqual([
+    {
+      text: 'if flag get "a" end',
+      root: '',
+      path: '',
+      module: '',
+      file: 'config/routes.rb',
+      line: 3,
+    },
+  ]);
+});
+
+test('what is not read says the app, path and module it sits under', () => {
+  const [item] = railsRoutes.routes(
+    new Map([
+      ['apps/shop/config/routes.rb', drawing('namespace :api do\n devise_for :users\n end')],
+    ]),
+  ).unread;
+  expect(item).toMatchObject({ root: 'apps/shop/', path: '/api', module: 'api/' });
 });
 
 test('a brace block reads as a do block', () => {

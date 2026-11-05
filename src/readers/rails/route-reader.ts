@@ -60,10 +60,17 @@ type Drawn = Route | UnreadRoute;
 
 type Handler = (call: Node, scope: Scope) => ReadonlyArray<Drawn>;
 
-const unread = (statement: Node, { file }: Scope): UnreadRoute => ({
-  text: statement.text.replace(/\s+/g, ' '),
+const placeOf = (statement: Node, { root, file }: Scope) => ({
+  root,
   file,
   line: statement.startPosition.row + 1,
+});
+
+const unread = (statement: Node, scope: Scope): UnreadRoute => ({
+  text: statement.text.replace(/\s+/g, ' '),
+  path: scope.path,
+  module: scope.module,
+  ...placeOf(statement, scope),
 });
 
 const statementsOf = (call: Node): ReadonlyArray<Node> =>
@@ -124,8 +131,7 @@ const resourcesOf =
           verb,
           path: `${path}${suffix.replace(':id', `:${param}`)}`,
           target: inModuleOf(module, writtenOr(args, 'to', `${controller}#${action}`)),
-          file: scope.file,
-          line: call.startPosition.row + 1,
+          ...placeOf(call, scope),
         })),
         ...within(call, {
           ...scope,
@@ -150,8 +156,7 @@ const rooted: Handler = (call, scope) => {
       verb: 'GET',
       path: scope.path,
       target: to.type === 'string' ? inModuleOf(scope.module, nameOf(to)) : to.text,
-      file: scope.file,
-      line: call.startPosition.row + 1,
+      ...placeOf(call, scope),
     },
   ];
 };
@@ -217,8 +222,7 @@ const drawnBy =
             verb,
             path: under(base, nameOf(written ?? arg)),
             target,
-            file: scope.file,
-            line: call.startPosition.row + 1,
+            ...placeOf(call, scope),
           };
     });
   };
@@ -241,8 +245,7 @@ const mounted: Handler = (call, scope) => {
       verb: 'ANY',
       path: under(scope.path, nameOf(path ?? undefined)),
       target: app?.text ?? '',
-      file: scope.file,
-      line: call.startPosition.row + 1,
+      ...placeOf(call, scope),
     },
   ];
 };
