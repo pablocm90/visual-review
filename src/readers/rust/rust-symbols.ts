@@ -145,6 +145,7 @@ const traitSymbol = (item: Node): ReadSymbol => {
       signed: [
         ...written,
         ...present([
+          keywordOf(item),
           item.childForFieldName('type_parameters'),
           item.childForFieldName('bounds'),
           childOfType(item, 'where_clause'),

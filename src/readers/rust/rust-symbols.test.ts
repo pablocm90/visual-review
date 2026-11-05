@@ -303,6 +303,7 @@ test.for([
   { edit: 'its bounds', before: 'trait Tr: A {}', after: 'trait Tr: B {}' },
   { edit: 'its where', before: 'trait Tr where A: B {}', after: 'trait Tr where A: C {}' },
   { edit: 'an attribute', before: 'trait Tr {}', after: '#[async_trait]\ntrait Tr {}' },
+  { edit: 'being unsafe', before: 'trait Tr {}', after: 'unsafe trait Tr {}' },
   {
     edit: "a method's return",
     before: 'trait Tr { fn a() -> u8; }',
