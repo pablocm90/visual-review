@@ -1,7 +1,7 @@
 import type { Node } from 'web-tree-sitter';
 import type { FileMeasures, FunctionMeasures } from '../../core/reader.ts';
-import { codeLines } from '../tree-sitter.ts';
-import { isComment, isTestCode, isTestItem, parseRust } from './rust-syntax.ts';
+import { codeLines, isComment } from '../tree-sitter.ts';
+import { isTestCode, isTestItem, parseRust } from './rust-syntax.ts';
 
 const isTestPart = (node: Node | null): boolean =>
   node !== null &&

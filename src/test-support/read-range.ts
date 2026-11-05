@@ -4,6 +4,7 @@ import {
   type ReviewedHead,
   readRange as readRangeWith,
 } from '../core/read-range.ts';
+import type { Reader } from '../core/reader.ts';
 import { onPath } from '../git/on-path.ts';
 
 type RangeOptions = {
@@ -12,6 +13,7 @@ type RangeOptions = {
   readonly to: string;
   readonly onPath?: (command: string) => boolean;
   readonly reviewed?: ReviewedHead;
+  readonly readers?: ReadonlyArray<Reader>;
 };
 
 export const readRange = (range: RangeOptions): Promise<RangeReading> =>

@@ -143,6 +143,7 @@ test('draws every crate and dependency inside the rust stack with its change sta
 
   const rust = await screen.findByRole('group', { name: 'rust' });
   expect(screen.getAllByRole('group')).toEqual([
+    screen.getByRole('group', { name: 'Lenses' }),
     screen.getByRole('group', { name: 'Colour by' }),
     screen.getByRole('group', { name: 'Show' }),
     screen.getByRole('group', { name: 'Graph' }),
@@ -1701,17 +1702,15 @@ test("a drawn node's or edge's badge names its findings under the worst level, s
   await user.click(screen.getByRole('button', { name: 'application: modified' }));
   expect(within(noteTab()).queryByRole('list', { name: 'Findings' })).toBeNull();
 
-  const structure = () =>
-    within(screen.getByRole('group', { name: 'Triage' })).getByRole('button', {
-      name: /Structure/,
-    });
-  await user.click(structure());
+  const shape = () =>
+    within(screen.getByRole('group', { name: 'Lenses' })).getByRole('button', { name: /Shape/ });
+  await user.click(shape());
   expect(screen.getAllByRole('img', { name: /finding/ }).map(badge => badge.ariaLabel)).toEqual([
     'needs a look, 1 finding: new dependency direction',
-    'for information, 1 finding: lines 900, over 800, outside Structure',
+    'for information, 1 finding: lines 900, over 800, outside Shape',
     'needs a look, 2 findings: cyclomatic 4 → 14, over 10; new entry point',
   ]);
-  await user.click(structure());
+  await user.click(shape());
   expect(
     screen.getByRole('img', { name: 'for information, 1 finding: lines 900, over 800' }),
   ).toBeTruthy();
@@ -1776,7 +1775,18 @@ test('the summary lists its items, not the flagged notes, and an item with a tar
   expect(screen.queryByRole('region', { name: 'Summary' })).toBeNull();
 });
 
-test("the findings rail starts collapsed to their total and how many need a look or are for information, notes' flags among them; opened, it groups them by dimension, each line its title, with its detail if any, and its target, else its detail, and hides again; the triage strip has a chip per dimension with findings, marked when one needs a look, that filters the rail until clicked again, and none without findings", async () => {
+const lensChips = () =>
+  within(screen.getByRole('group', { name: 'Lenses' }))
+    .getAllByRole('button')
+    .map(chip => {
+      const count = (level: string, mark: string) => {
+        const shown = within(chip).queryByRole('img', { name: level })?.parentElement?.textContent;
+        return shown ? ` ${mark}${shown}` : '';
+      };
+      return `${chip.textContent?.replace(/\d/g, '')}${count('for information', '○')}${count('needs a look', '▲')} ${chip.getAttribute('aria-pressed')}`;
+    });
+
+test("the findings rail starts collapsed to their total and how many need a look or are for information, notes' flags among them; opened, it groups them by dimension, each line its title, with its detail if any, and its target, else its detail, and hides again; five lens chips count their dimensions' findings by level, and one picked filters the rail until clicked again", async () => {
   const user = userEvent.setup();
   const { rerender } = render(
     <ReviewPage
@@ -1853,25 +1863,24 @@ test("the findings rail starts collapsed to their total and how many need a look
   ]);
   expect(lines('Routes')).toEqual(['cli-adapter: 2 calls with no route: /api/info, /api/users']);
 
-  const strip = () => within(screen.getByRole('group', { name: 'Triage' }));
-  const chips = () =>
-    strip()
-      .getAllByRole('button')
-      .map(
-        chip =>
-          `${chip.textContent}${within(chip).queryByRole('img', { name: 'needs a look' }) ? ' ▲' : ''} ${chip.getAttribute('aria-pressed')}`,
-      );
-  expect(chips()).toEqual(['Structure 3 ▲ false', 'Metrics 2 ▲ false', 'Routes 1 false']);
+  expect(lensChips()).toEqual([
+    'Behaviour false',
+    'Contract ○1 false',
+    'Risk false',
+    'Shape ○1 ▲2 false',
+    'Context ○1 ▲1 false',
+  ]);
   const headings = () =>
     within(screen.getByRole('complementary', { name: 'Findings' }))
       .getAllByRole('heading', { level: 3 })
       .map(heading => heading.textContent);
-  const metricsChip = () => strip().getByRole('button', { name: /Metrics/ });
-  await user.click(metricsChip());
-  expect(chips()).toEqual(['Structure 3 ▲ false', 'Metrics 2 ▲ true', 'Routes 1 false']);
+  const context = () =>
+    within(screen.getByRole('group', { name: 'Lenses' })).getByRole('button', { name: /Context/ });
+  await user.click(context());
+  expect(lensChips()).toContain('Context ○1 ▲1 true');
   expect(headings()).toEqual(['Metrics']);
-  await user.click(metricsChip());
-  expect(chips()).toEqual(['Structure 3 ▲ false', 'Metrics 2 ▲ false', 'Routes 1 false']);
+  await user.click(context());
+  expect(lensChips()).toContain('Context ○1 ▲1 false');
   expect(headings()).toEqual(['Structure', 'Metrics', 'Routes']);
   await user.click(screen.getByRole('button', { name: 'Hide findings' }));
 
@@ -1886,11 +1895,110 @@ test("the findings rail starts collapsed to their total and how many need a look
   expect(within(rail()).getByRole('button', { name: 'Show 1 finding' })).toBeDefined();
   expect(countBy('needs a look')).toBe('0');
   expect(await groupsShown()).toEqual(['Metrics']);
-  expect(chips()).toEqual(['Metrics 1 false']);
+  expect(lensChips()).toContain('Context ○1 false');
 
   rerender(<ReviewPage review={pageWith({ ...review, findings: [] })} />);
   expect(within(rail()).getByRole('button', { name: 'Show 0 findings' })).toBeDefined();
-  expect(screen.queryByRole('group', { name: 'Triage' })).toBeNull();
+  expect(lensChips()).toEqual([
+    'Behaviour false',
+    'Contract false',
+    'Risk false',
+    'Shape false',
+    'Context false',
+  ]);
+});
+
+test("a lens counts each of its dimensions' findings, a note's flag among them, and picking it leaves only those in Start here and the rail", async () => {
+  const user = userEvent.setup();
+  render(
+    <ReviewPage
+      review={pageWith({
+        ...review,
+        findings: [
+          findingOn('rust/crate/domain', { id: 'one', check: 'logic:changed', dimension: 'logic' }),
+          findingOn('rust/crate/application', {
+            id: 'two',
+            check: 'logic:changed',
+            dimension: 'logic',
+          }),
+          findingOn('rust/crate/application', {
+            id: 'three',
+            check: 'tests:untested-logic',
+            dimension: 'tests',
+            level: 'look',
+            title: 'no test alongside',
+          }),
+          findingOn('rust/crate/cli-adapter', { id: 'outside' }),
+        ],
+      })}
+      notes={{
+        version: 1,
+        tests: '',
+        summary: [],
+        notes: {
+          'rust/crate/cli-adapter': {
+            text: 'Reads a token.',
+            flag: 'reads a token',
+            dimension: 'security',
+          },
+        },
+      }}
+    />,
+  );
+
+  const startHereLines = within(await screen.findByRole('region', { name: 'Start here' }));
+  expect(startHereLines.getByRole('button', { name: /reads a token/ })).toBeDefined();
+  expect(lensChips()).toEqual([
+    'Behaviour ○2 ▲1 false',
+    'Contract false',
+    'Risk ▲1 false',
+    'Shape false',
+    'Context ○1 false',
+  ]);
+
+  await user.click(
+    within(screen.getByRole('group', { name: 'Lenses' })).getByRole('button', {
+      name: /Behaviour/,
+    }),
+  );
+  expect(startHereLines.queryByRole('button', { name: /reads a token/ })).toBeNull();
+  expect(startHereLines.getByRole('button', { name: /no test alongside/ })).toBeDefined();
+  expect(startHereLines.getByRole('button', { name: /^2 / })).toBeDefined();
+  await user.click(screen.getByRole('button', { name: 'All findings' }));
+  const open = screen.getByRole('complementary', { name: 'Findings' });
+  expect(
+    within(open)
+      .getAllByRole('heading', { level: 3 })
+      .map(heading => heading.textContent),
+  ).toEqual(['Logic', 'Tests']);
+  expect(screen.getByRole('button', { name: 'domain: unchanged' })).toBeDefined();
+});
+
+test("a picked lens with nothing to show keeps Start here's band, saying so, with All findings, until it's unpicked", async () => {
+  const user = userEvent.setup();
+  render(
+    <ReviewPage
+      review={pageWith({
+        ...review,
+        findings: [findingOn('rust/crate/domain', { check: 'logic:changed', dimension: 'logic' })],
+      })}
+    />,
+  );
+
+  const band = await screen.findByRole('region', { name: 'Start here' });
+  const risk = within(screen.getByRole('group', { name: 'Lenses' })).getByRole('button', {
+    name: 'Risk',
+  });
+
+  await user.click(risk);
+  const picked = within(screen.getByRole('region', { name: 'Start here' }));
+  expect(picked.getByText('nothing to show in Risk')).toBeDefined();
+  expect(picked.getByRole('button', { name: 'All findings' })).toBeDefined();
+  expect(picked.queryByRole('listitem')).toBeNull();
+
+  await user.click(risk);
+  expect(within(band).queryByText(/nothing to show/)).toBeNull();
+  expect(within(band).getAllByRole('listitem')).toHaveLength(1);
 });
 
 test("a note's or a metric finding in the rail goes to its node or edge as the summary's links do", async () => {
@@ -2420,7 +2528,7 @@ test("J, K and A typed in why it's fine are text, neither walking nor marking", 
   );
 });
 
-test('Start here lists its lines in rank order, in the dimension a triage chip picks, folding to its title, each going to its node, five at most with All findings opening the rail, and is absent with no findings', async () => {
+test('Start here lists its lines in rank order, in the lens a chip picks, folding to its title, each going to its node, five at most with All findings opening the rail, and is absent with no findings', async () => {
   const user = userEvent.setup();
   const flagged = (target: string, overrides: Partial<Finding>) =>
     findingOn(target, { check: 'flag', level: 'look', ...overrides });
@@ -2451,11 +2559,11 @@ test('Start here lists its lines in rank order, in the dimension a triage chip p
     'application: lines 900, over 800',
   ]);
   expect(band().getByText('3 findings need a look')).toBeDefined();
-  const routes = () =>
-    within(screen.getByRole('group', { name: 'Triage' })).getByRole('button', { name: /Routes/ });
-  await user.click(routes());
+  const contract = () =>
+    within(screen.getByRole('group', { name: 'Lenses' })).getByRole('button', { name: /Contract/ });
+  await user.click(contract());
   expect(items()).toEqual(['application: third']);
-  await user.click(routes());
+  await user.click(contract());
   expect(items()).toHaveLength(4);
   const toggle = () => band().getByRole('button', { name: 'Start here' });
   expect(toggle().getAttribute('aria-expanded')).toBe('true');
@@ -2597,6 +2705,38 @@ test("a check's findings read as one line, which opens in place to list them, un
 
   await user.click(signatures());
   expect(band.queryByRole('button', { name: '1.ts: said 1' })).toBeNull();
+});
+
+test("Start here's lines name their lens and dimension, and the findings an opened line lists don't", async () => {
+  const user = userEvent.setup();
+  render(
+    <ReviewPage
+      review={pageWith({
+        ...webFilesReview(2),
+        findings: [
+          ...findingsOnFiles(
+            { count: 2, files: 2 },
+            { check: 'api:signature', dimension: 'api', level: 'look' },
+          ),
+          findingOn('web/file/utils/0.ts', {
+            check: 'flag',
+            id: 'flagged',
+            dimension: 'blast-radius',
+            title: 'reaches far',
+          }),
+        ],
+      })}
+    />,
+  );
+
+  const band = within(await screen.findByRole('region', { name: 'Start here' }));
+  const lineOf = (name: RegExp) => band.getByRole('button', { name }).closest('li');
+  expect(lineOf(/exported signatures changed/)?.textContent).toContain('Contract · api');
+  expect(lineOf(/reaches far/)?.textContent).toContain('Contract · blast radius');
+
+  await user.click(band.getByRole('button', { name: /exported signatures changed/ }));
+  expect(band.getByRole('button', { name: /said 0/ })).toBeDefined();
+  expect(band.getAllByText('Contract · api')).toHaveLength(1);
 });
 
 test("an opened Start here line's finding on a file opens that file's patch", async () => {

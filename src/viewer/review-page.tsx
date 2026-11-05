@@ -14,7 +14,7 @@ import {
 import { anchorKey } from '../core/anchors.ts';
 import type { DiffedNode, FilePatch, GraphDiff } from '../core/diff-graphs.ts';
 import { deepestHolding, isAtOrUnder } from '../core/diff-graphs.ts';
-import { type Dimension, type Finding, findingsAt, findingsOf } from '../core/findings.ts';
+import { type Finding, findingsAt, findingsOf } from '../core/findings.ts';
 import { edgeId } from '../core/graph.ts';
 import { type MetricFinding, metricFindings } from '../core/metric-findings.ts';
 import type { NodeMetrics } from '../core/metrics.ts';
@@ -50,7 +50,7 @@ import {
   LevelMark,
   worstOf,
 } from './finding-display.tsx';
-import { FindingsRail, nameOf, StartHere, TriageStrip } from './findings-rail.tsx';
+import { FindingsRail, LensChips, StartHere } from './findings-rail.tsx';
 import { highlightPatch, type PatchLine as Line, type Piece } from './highlight-patch.ts';
 import { LastReview } from './last-review.tsx';
 import {
@@ -60,6 +60,7 @@ import {
   type PlacedNode,
   type PlacedStack,
 } from './layout.ts';
+import { LENS_OF, type Lens } from './lenses.ts';
 import { MetricsScreen } from './metrics-screen.tsx';
 import { MetricsTable } from './metrics-tab.tsx';
 import { storedReadMarks, storeReadMarks } from './read-marks.ts';
@@ -153,13 +154,14 @@ type FindingsBadgeProps = {
   readonly x: number;
   readonly y: number;
   readonly findings: ReadonlyArray<Finding>;
-  readonly picked: Dimension | undefined;
+  readonly picked: Lens | undefined;
   readonly onPress?: () => void;
 };
 
 const FindingsBadge = ({ x, y, findings, picked, onPress }: FindingsBadgeProps) => {
-  const outside = picked !== undefined && !findings.some(finding => finding.dimension === picked);
-  const name = `${badgeName(findings)}${outside ? `, outside ${nameOf(picked)}` : ''}`;
+  const outside =
+    picked !== undefined && !findings.some(finding => LENS_OF[finding.dimension] === picked);
+  const name = `${badgeName(findings)}${outside ? `, outside ${picked}` : ''}`;
   return (
     <g
       className="flag-badge"
@@ -194,7 +196,7 @@ const ReadingNumber = ({ number, x }: ReadingNumberProps) => (
 type Drawing = {
   readonly findingsOn: (id: string) => ReadonlyArray<Finding>;
   readonly numberOf: (id: string) => number | undefined;
-  readonly picked: Dimension | undefined;
+  readonly picked: Lens | undefined;
   readonly notes: Readonly<Record<string, Note>>;
   readonly onSelect: (id: string) => void;
   readonly register: (id: string, element: SVGElement | null) => void;
@@ -1455,10 +1457,12 @@ const Page = ({ review, notes, send }: ReviewPageProps) => {
   const scopes = useMemo(() => scopesOf(review), [review]);
   const [scope, setScope] = useState(CHANGES_ONLY);
   const [colouring, setColouring] = useState<Colouring>('change');
-  const [picked, setPicked] = useState<Dimension>();
+  const [picked, setPicked] = useState<Lens>();
   const [railOpen, setRailOpen] = useState(false);
   const findings = findingsOf({ data: review, notes });
-  const triaged = findings.filter(finding => picked === undefined || finding.dimension === picked);
+  const inLens = findings.filter(
+    finding => picked === undefined || LENS_OF[finding.dimension] === picked,
+  );
   const since = changedSinceShown(scope, review);
   const unmerged = useMemo(() => unmergedWith(noted, since), [noted, since]);
   const drawn = useMemo(() => {
@@ -1645,7 +1649,7 @@ const Page = ({ review, notes, send }: ReviewPageProps) => {
                 onShowOutside={showOutside}
               />
               <FindingsRail
-                findings={triaged}
+                findings={inLens}
                 open={railOpen}
                 onOpen={setRailOpen}
                 review={review}
@@ -1658,9 +1662,10 @@ const Page = ({ review, notes, send }: ReviewPageProps) => {
             </div>
             <div className="content">
               {notes && notes.summary.length > 0 && <Summary notes={notes} onGoTo={goTo} />}
-              <TriageStrip findings={findings} picked={picked} onPick={setPicked} />
+              <LensChips findings={findings} picked={picked} onPick={setPicked} />
               <StartHere
-                findings={triaged}
+                findings={inLens}
+                picked={picked}
                 onShowAll={() => setRailOpen(true)}
                 review={review}
                 onGoTo={goTo}

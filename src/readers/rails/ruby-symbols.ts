@@ -1,7 +1,7 @@
-import { createHash } from 'node:crypto';
 import type { Node } from 'web-tree-sitter';
 import type { FileSymbols, ReadSymbol } from '../../core/reader.ts';
 import { isTooBig, TOO_BIG } from '../too-big.ts';
+import { hashesOf, hashOf, ownText, shapeOf } from '../tree-sitter.ts';
 import {
   blindSpotsIn,
   decisionsOfBody,
@@ -21,44 +21,6 @@ const constantWithin = (written: string, within: string | undefined): string => 
 
 const signatureOf = (definition: Node): string =>
   definition.childForFieldName('superclass')?.text ?? '';
-
-type Shape = string | ReadonlyArray<Shape>;
-
-type Holes = ReadonlySet<number>;
-
-const NO_HOLES: Holes = new Set();
-
-const shapeOf = (node: Node, holes: Holes = NO_HOLES): Shape => {
-  if (holes.has(node.id)) return [];
-  return node.childCount === 0
-    ? node.text
-    : node.children.filter(({ type }) => type !== 'comment').map(child => shapeOf(child, holes));
-};
-
-const hashOf = (shape: Shape): string =>
-  createHash('sha1').update(JSON.stringify(shape)).digest('hex');
-
-const shapesOf = (nodes: ReadonlyArray<Node>, holes: Holes = NO_HOLES): Shape =>
-  nodes.map(node => shapeOf(node, holes));
-
-const holesIn = (node: Node, holes: Holes): ReadonlyArray<Node> =>
-  holes.has(node.id) ? [node] : node.children.flatMap(child => holesIn(child, holes));
-
-const ownText = (definition: Node, holes: Holes): string => {
-  const start = definition.startIndex;
-  const whole = definition.text;
-  const { kept, from } = holesIn(definition, holes).reduce(
-    (cut, hole) => ({
-      kept: cut.kept + whole.slice(cut.from, hole.startIndex - start),
-      from: hole.endIndex - start,
-    }),
-    { kept: '', from: 0 },
-  );
-  return kept + whole.slice(from);
-};
-
-const tokensOf = (shape: Shape): ReadonlyArray<string> =>
-  typeof shape === 'string' ? [shape] : shape.flatMap(tokensOf);
 
 type ByName = {
   readonly key: string;
@@ -101,23 +63,6 @@ const parameterText = (method: Node): string => {
 const fieldOf = (definition: Node, field: string): ReadonlyArray<Node> => {
   const child = definition.childForFieldName(field);
   return child === null ? [] : [child];
-};
-
-type Hashed = {
-  readonly signed: ReadonlyArray<Node>;
-  readonly body: ReadonlyArray<Node>;
-  readonly holes?: Holes;
-  readonly text: string;
-};
-
-const hashesOf = ({ signed, body, holes, text }: Hashed) => {
-  const shapes = [shapesOf(signed), shapesOf(body, holes)];
-  return {
-    signatureHash: hashOf(shapesOf(signed)),
-    bodyHash: hashOf(shapes),
-    textHash: hashOf(text),
-    bodyTokens: tokensOf(shapes),
-  };
 };
 
 const scopeOf = (within: string | undefined): { readonly scope?: string } =>

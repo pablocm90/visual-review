@@ -12,6 +12,7 @@ type StartHereOptions = {
 export type StartHereLine = {
   readonly key: string;
   readonly level: Finding['level'];
+  readonly dimension: Finding['dimension'];
   readonly title: string;
   readonly findings: ReadonlyArray<Finding>;
   readonly names: ReadonlyArray<string>;
@@ -56,9 +57,10 @@ export const startHere = ({ findings, metrics, nodes }: StartHereOptions) => {
   const keyOf = ({ id, check, level }: Finding) => (check === 'flag' ? id : `${check} ${level}`);
   const lines = [...Map.groupBy(ranked, keyOf)].flatMap(([key, group]) =>
     group.slice(0, 1).map(
-      ({ level, check, title }): StartHereLine => ({
+      ({ level, dimension, check, title }): StartHereLine => ({
         key,
         level,
+        dimension,
         title:
           check === 'flag' || group.length === 1 ? title : `${group.length} ${CHECK_TITLES[check]}`,
         findings: group,
