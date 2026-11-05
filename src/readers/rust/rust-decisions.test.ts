@@ -15,3 +15,16 @@ test('an if that returns first reads as a guard, on its own line', () => {
 test('an if that does something before it returns is no guard', () => {
   expect(decisionsIn('if c { go(); return 1; }')?.map(({ kind }) => kind)).not.toContain('guard');
 });
+
+test.for(['bail!("no");', 'anyhow::bail!("no")'])(
+  'an if that opens with %s reads as a guard, found by name',
+  exit => {
+    expect(decisionsIn(`if c { ${exit} }`)).toEqual([
+      { kind: 'guard', text: 'if c return', foundByName: true, depth: 0, line: 2 },
+    ]);
+  },
+);
+
+test('a macro of another name is no exit', () => {
+  expect(decisionsIn('if c { log!("no"); }')?.map(({ kind }) => kind)).not.toContain('guard');
+});
