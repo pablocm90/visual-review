@@ -42,9 +42,15 @@ The reviewer's mark that they have read a part, kept in their browser for the pa
 _Avoid_: seen, viewed, done
 _In code_: `storedReadMarks` (`src/viewer/read-marks.ts`)
 
-**Look first**:
-The few findings that need a look, ranked so the blind spots come first, then direct dependency changes, risky migrations and removed tables, then what most depends on, then what changes most.
-_Avoid_: top findings, priorities
+**Check**:
+What raised a finding, one of a fixed list, each with its own title for several of them (`exported signatures changed`), so that one check's findings can read as one line. A flag has none: each is Claude's own sentence.
+_Avoid_: rule, kind
+_In code_: `Finding['check']`, `Check` (`src/core/checks.ts`)
+
+**Start here**:
+The few lines to begin with above the graph, at most five, each the findings of one check and level, or one flag. Those that need a look come first; within each level, a line ranks by its best finding: the blind spots, then direct dependency changes, risky migrations and removed tables, then what most depends on, then what changes most.
+_Avoid_: Look first, top findings, priorities
+_In code_: `startHere` (`src/core/start-here.ts`)
 
 **Dependency change**:
 A package added to or removed from a lockfile, or major-bumped, or one that became or stopped being direct at the same version. Major-bumped means its set of compatibility lines differs across the sides: a version's numbers up to the first non-zero one, as `^` and Cargo read them, so `0.2.1` to `0.3.0` counts and `1.4.0` to `1.9.2` doesn't.
@@ -84,7 +90,7 @@ _Avoid_: heuristic, guessed
 _In code_: `Decision['foundByName']`
 
 **Logic not read through**:
-A changed file calls something that hides logic from its reading, such as `send` or `define_method`, which one finding for information names. It isn't one of Look first's blind spots, which are what the review couldn't read at all, though its id says `blind-spot`.
+A changed file calls something that hides logic from its reading, such as `send` or `define_method`, which one finding for information names. It isn't one of Start here's blind spots, which are what the review couldn't read at all, though its id says `blind-spot`.
 _Avoid_: unread logic
 _In code_: `FileSymbols['blindSpots']`, `logic:blind-spot:<node>`
 
@@ -163,7 +169,8 @@ _In code_: `SinceReview['calledFine']`
 - Each **finding** has one **dimension** and one **level**; a **flag** is the only way a note raises one.
 - The **reading order** holds every **part** once; a **finding** whose target is a part marks its row.
 - A **read mark** is on a **part**; the count of parts read counts only the parts in the **reading order**.
-- **Look first** holds only findings whose **level** is "needs a look", leaving out any **called fine**; its group still lists one, tagged.
+- **Start here** leaves out any finding **called fine**, so its line's count drops by one; the rail still lists it, tagged.
+- Each **finding** but a **flag** has one **check**, and one **check** at one **level** is one line of **Start here**.
 - A changed exported **symbol** raises a **finding** in the api dimension, under that symbol's id; a file's **kind of change** raises none of its own.
 - A review holds at most one comment or **finding answer** per **anchor**, and each comment has one **comment kind**; the **suggested verdict** follows the kinds and the answers, and the verdict the reviewer picks overrides it.
 - A **round** after the first compares against the newest review of its pull request at another head; **changed since** is always a subset of what the pull request changes at either head, so a part it has reverted counts; a symbol, logic line, test or file is **changed since** by its own anchor id, a diff line by its file.
