@@ -3,7 +3,7 @@ import type { Route } from './routes.ts';
 
 export type RouteLine = { readonly verbs: string; readonly row: RouteRow };
 
-const routeOf = (row: RouteRow): Route => (row.state === 'removed' ? row.base : row.head);
+export const routeOf = (row: RouteRow): Route => (row.state === 'removed' ? row.base : row.head);
 
 const targetsOf = (row: RouteRow): string =>
   JSON.stringify(

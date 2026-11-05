@@ -1,22 +1,88 @@
+import type { ReactNode } from 'react';
 import type { PageData } from '../core/page.ts';
+import type { RoutesReading } from '../core/read-routes.ts';
+import { type RouteLine, routeLines, routeOf } from '../core/route-lines.ts';
+import { ChangeRow } from './change-row.tsx';
 
-type RoutesScreenProps = {
-  readonly review: Pick<PageData, 'routes'>;
+const RouteRow = ({ verbs, row }: RouteLine) => {
+  const { path, file, line } = routeOf(row);
+  return (
+    <ChangeRow
+      name={`${verbs} ${path}`}
+      state={row.state}
+      base={row.state === 'added' ? '' : row.base.target}
+      head={row.state === 'removed' ? '' : row.head.target}
+    >
+      <td className="schema-side">
+        {file}:{line}
+      </td>
+    </ChangeRow>
+  );
 };
 
-export const RoutesScreen = ({ review }: RoutesScreenProps) => (
-  <div className="schema-screen">
-    {review.routes.flatMap(reading =>
-      'notRead' in reading
-        ? [
-            <section key={reading.file} aria-label={reading.file}>
-              <h2 className="schema-file">
-                <code>{reading.file}</code>
-              </h2>
-              <p className="schema-line">Not read: {reading.notRead}</p>
-            </section>,
-          ]
-        : [],
-    )}
+const lineKey = ({ verbs, row }: RouteLine) => {
+  const { root, path } = routeOf(row);
+  return `${root} ${verbs} ${path}`;
+};
+
+const RouteFile = ({
+  file,
+  children,
+}: {
+  readonly file: string;
+  readonly children: ReactNode;
+}) => (
+  <section aria-label={file}>
+    <h2 className="schema-file">
+      <code>{file}</code>
+    </h2>
+    {children}
+  </section>
+);
+
+const RouteTable = ({ lines }: { readonly lines: ReadonlyArray<RouteLine> }) => (
+  <div className="schema-card">
+    <table className="schema-rows">
+      <thead>
+        <tr>
+          <td className="schema-mark" />
+          <td className="schema-name" />
+          <th scope="col" className="schema-head">
+            Before
+          </th>
+          <th scope="col" className="schema-head">
+            After
+          </th>
+          <th scope="col" className="schema-head">
+            Written at
+          </th>
+        </tr>
+      </thead>
+      <tbody>
+        {lines.map(line => (
+          <RouteRow key={lineKey(line)} {...line} />
+        ))}
+      </tbody>
+    </table>
   </div>
+);
+
+const filesOf = (reading: RoutesReading) => {
+  if ('notRead' in reading)
+    return (
+      <RouteFile key={reading.file} file={reading.file}>
+        <p className="schema-line">Not read: {reading.notRead}</p>
+      </RouteFile>
+    );
+  return [...Map.groupBy(routeLines(reading.routes), ({ row }) => row.patch)].map(
+    ([file, lines]) => (
+      <RouteFile key={file} file={file}>
+        <RouteTable lines={lines} />
+      </RouteFile>
+    ),
+  );
+};
+
+export const RoutesScreen = ({ review }: { readonly review: Pick<PageData, 'routes'> }) => (
+  <div className="schema-screen">{review.routes.map(filesOf)}</div>
 );

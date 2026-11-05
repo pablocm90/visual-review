@@ -2,6 +2,7 @@
 import { render, screen, within } from '@testing-library/react';
 import { expect, onTestFinished, test, vi } from 'vitest';
 import type { PageData } from '../core/page.ts';
+import type { Route } from '../core/routes.ts';
 import { pageWith } from '../test-support/page-data.ts';
 import { ReviewPage } from './review-page.tsx';
 
@@ -53,4 +54,62 @@ test("route files that couldn't be read say so on the Routes tab", async () => {
     within(screen.getByRole('region', { name: 'config/routes.rb' })).getByText(/not read/i)
       .textContent,
   ).toContain('Ruby syntax error');
+});
+
+const route = (overrides: Partial<Route> = {}): Route => ({
+  verb: 'GET',
+  path: '/users',
+  target: 'users#index',
+  root: 'config/routes.rb',
+  file: 'config/routes.rb',
+  line: 1,
+  ...overrides,
+});
+
+const cellsOf = (region: HTMLElement, name: string) =>
+  within(within(region).getByRole('row', { name: new RegExp(`^\\S ${name} `) }))
+    .getAllByRole('cell')
+    .map(cell => cell.textContent);
+
+test('changed routes are rows under the file behind them, each with its target before and after and where it is written', async () => {
+  atHash('#routes');
+  render(
+    <ReviewPage
+      review={reviewOf([
+        {
+          routes: [
+            {
+              state: 'added',
+              patch: 'config/routes/admin.rb',
+              head: route({
+                path: '/admin',
+                target: 'admin#index',
+                file: 'config/routes/admin.rb',
+                line: 4,
+              }),
+            },
+            {
+              state: 'changed',
+              patch: 'config/routes.rb',
+              base: route({ path: '/a', target: 'a#old', line: 2 }),
+              head: route({ path: '/a', target: 'a#new', line: 3 }),
+            },
+            {
+              state: 'removed',
+              patch: 'config/routes.rb',
+              base: route({ verb: 'DELETE', path: '/b', target: 'b#destroy', line: 7 }),
+            },
+          ],
+          unread: [],
+        },
+      ])}
+    />,
+  );
+
+  const main = await screen.findByRole('region', { name: 'config/routes.rb' });
+  expect(cellsOf(main, 'GET /a')).toStrictEqual(['~', 'a#old', 'a#new', 'config/routes.rb:3']);
+  expect(cellsOf(main, 'DELETE /b')).toStrictEqual(['−', 'b#destroy', '', 'config/routes.rb:7']);
+  expect(
+    cellsOf(screen.getByRole('region', { name: 'config/routes/admin.rb' }), 'GET /admin'),
+  ).toStrictEqual(['+', '', 'admin#index', 'config/routes/admin.rb:4']);
 });
