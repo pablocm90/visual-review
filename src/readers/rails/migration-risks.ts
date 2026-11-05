@@ -114,15 +114,20 @@ const addsColumn: Rule = ({ table, args }) =>
 const addsTimestamps: Rule = ({ table, args }) =>
   leavesRowsEmpty(args, 'false') ? [addedRequired(`timestamps of ${table}`)] : [];
 
+const indexAdded = (table: string, columns: string): Risky => ({
+  title: `index on ${table} (${columns}) added, not concurrently`,
+  why: BLOCKS_WRITES,
+});
+
 const addsIndex: Rule = ({ table, args }) =>
   optionOf(args, 'algorithm')?.text === ':concurrently'
     ? []
-    : [
-        {
-          title: `index on ${table} (${namesOf(args[0])}) added, not concurrently`,
-          why: BLOCKS_WRITES,
-        },
-      ];
+    : [indexAdded(table, namesOf(args[0]))];
+
+const addsReference: Rule = call => [
+  ...addsEach('reference')(call),
+  ...positional(call.args).map(name => indexAdded(call.table, `${nameOf(name)}_id`)),
+];
 
 const RULES: ReadonlyMap<string, Rule> = new Map<string, Rule>([
   ['remove_column', ({ table, args }) => [removed('column', table, args[0])]],
@@ -137,8 +142,8 @@ const RULES: ReadonlyMap<string, Rule> = new Map<string, Rule>([
 const RULES_NEEDING_ROWS: ReadonlyMap<string, Rule> = new Map<string, Rule>([
   ['change_column_null', changesNull],
   ['add_column', addsColumn],
-  ['add_reference', addsEach('reference')],
-  ['add_belongs_to', addsEach('reference')],
+  ['add_reference', addsReference],
+  ['add_belongs_to', addsReference],
   ['add_timestamps', addsTimestamps],
   ['add_index', addsIndex],
 ]);

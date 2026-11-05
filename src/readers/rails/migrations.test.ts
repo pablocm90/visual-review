@@ -115,13 +115,18 @@ test.for([
   { written: "add_column :users, :email, :string, null: false, default: ''", expected: [] },
   {
     written: 'add_reference :users, :account, null: false',
-    expected: ['reference users.account added as null: false with no default'],
+    expected: [
+      'reference users.account added as null: false with no default',
+      'index on users (account_id) added, not concurrently',
+    ],
   },
   {
     written: 'add_belongs_to :users, :account, null: false',
-    expected: ['reference users.account added as null: false with no default'],
+    expected: [
+      'reference users.account added as null: false with no default',
+      'index on users (account_id) added, not concurrently',
+    ],
   },
-  { written: 'add_reference :users, :account', expected: [] },
   {
     written: 'add_timestamps :users',
     expected: ['timestamps of users added as null: false with no default'],
@@ -172,6 +177,19 @@ test.for([
 ])('$written is flagged unless built concurrently', ({ written, expected }) => {
   expect(titles(written)).toStrictEqual(expected);
 });
+
+test.for([{ method: 'add_reference' }, { method: 'add_belongs_to' }])(
+  '$method indexes its column, so it blocks writes as add_index does',
+  ({ method }) => {
+    expect(railsMigrations.risks(migration(`${method} :orders, :user`))).toStrictEqual([
+      {
+        title: 'index on orders (user_id) added, not concurrently',
+        why: 'Blocks writes to the table while the index builds.',
+        line: 3,
+      },
+    ]);
+  },
+);
 
 test.for([
   { written: 'create_table :orders\n    add_index :orders, :user_id', expected: [] },
