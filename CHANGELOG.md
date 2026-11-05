@@ -6,7 +6,7 @@ What changed in each release of `@pablocm90/visual-review`, newest first. Versio
 
 ### Added
 
-- A Routes tab, shown when a change holds a route change: added, removed and changed routes under each route file's name, what's removed first, each with its verb and path, its target before and after, and where it's written. `PATCH` and `PUT` of one path read as one line.
+- A Routes tab, shown when a change holds a route change: added, removed and changed routes under each route file's name, what's removed first, each with its verb and path, its target before and after, and where it's written. `PATCH` and `PUT` of one path and target read as one line.
 - The statements not read that were added or removed are listed above a file's routes, with what they sit under, and a route file that couldn't be read says so.
 
 ### Changed
