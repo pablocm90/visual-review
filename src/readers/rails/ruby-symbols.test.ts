@@ -476,3 +476,15 @@ test.for([
 ])('a method with $edit changed reads $change', ({ before, after, change }) => {
   expect(changesOf([before], [after])).toEqual([`${change} open`]);
 });
+
+test("a method's signature change is told apart from its body's, whichever way it is written", () => {
+  const signatureOf = (before: string, after: string) =>
+    changesBetween([before], [after]).symbols[0]?.signature;
+
+  expect(signatureOf('def open(a); 1; end', 'def open(b); 1; end')).toEqual({
+    base: '(a)',
+    head: '(b)',
+  });
+  expect(signatureOf('def open(a); 1; end', 'def open a; 2; end')).toBeUndefined();
+  expect(signatureOf('def open(); 1; end', 'def open; 1; end')).toBeUndefined();
+});

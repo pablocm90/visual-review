@@ -71,6 +71,22 @@ const bodyOf = (definition: Node): ReadonlyArray<Node> => {
   return body === null ? [] : [body];
 };
 
+type Hashed = {
+  readonly signed: ReadonlyArray<Node>;
+  readonly body: ReadonlyArray<Node>;
+  readonly text: string;
+};
+
+const hashesOf = ({ signed, body, text }: Hashed) => {
+  const shapes = [shapesOf(signed), shapesOf(body)];
+  return {
+    signatureHash: hashOf(shapesOf(signed)),
+    bodyHash: hashOf(shapes),
+    textHash: hashOf(text),
+    bodyTokens: [],
+  };
+};
+
 const methodSymbol = (method: Node, within: string | undefined, walk: Walk): ReadSymbol => {
   const name = method.childForFieldName('name');
   const isSetter = name?.type === 'setter';
@@ -87,9 +103,7 @@ const methodSymbol = (method: Node, within: string | undefined, walk: Walk): Rea
         ? !walk.hiddenClassMethod
         : walk.exported || written === 'initialize',
     signature: parameterText(method),
-    ...NOT_YET_HASHED,
-    bodyHash: hashOf([shapesOf(parametersOf(method)), shapesOf(bodyOf(method))]),
-    textHash: hashOf(method.text),
+    ...hashesOf({ signed: parametersOf(method), body: bodyOf(method), text: method.text }),
   };
 };
 
