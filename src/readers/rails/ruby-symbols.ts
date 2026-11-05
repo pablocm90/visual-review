@@ -43,6 +43,16 @@ const STARTING: Walk = {
   symbols: [],
 };
 
+const parametersOf = (method: Node): ReadonlyArray<Node> =>
+  (method.childForFieldName('parameters')?.namedChildren ?? []).filter(
+    ({ type }) => type !== 'comment',
+  );
+
+const parameterText = (method: Node): string => {
+  const written = parametersOf(method).map(({ text }) => text.replace(/\s+/g, ' '));
+  return written.length === 0 ? '' : `(${written.join(', ')})`;
+};
+
 const methodSymbol = (method: Node, within: string | undefined, walk: Walk): ReadSymbol => {
   const name = method.childForFieldName('name');
   const isSetter = name?.type === 'setter';
@@ -58,7 +68,7 @@ const methodSymbol = (method: Node, within: string | undefined, walk: Walk): Rea
       method.type === 'singleton_method'
         ? !walk.hiddenClassMethod
         : walk.exported || written === 'initialize',
-    signature: '',
+    signature: parameterText(method),
     ...NOT_YET_HASHED,
   };
 };

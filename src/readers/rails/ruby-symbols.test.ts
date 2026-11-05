@@ -388,3 +388,22 @@ test('a scope with a callable reads as the public method self.x, a routes scope 
   ]);
   expect(exportedIn(...lines)).toEqual(['self.open', 'self.near']);
 });
+
+test("a method's signature is its parameters, written either way, with no comments", () => {
+  const signatures = read(
+    'class Shop',
+    '  def plain; end',
+    '  def empty(); end',
+    '  def bare a, b = 1',
+    '  end',
+    '  def self.made(*rest, key:, **options, &block); end',
+    '  def wide(a,',
+    '    # why',
+    '    b); end',
+    'end',
+  )
+    .symbols.slice(1)
+    .map(({ signature }) => signature);
+
+  expect(signatures).toEqual(['', '', '(a, b = 1)', '(*rest, key:, **options, &block)', '(a, b)']);
+});
