@@ -1,5 +1,6 @@
 import type { Node } from 'web-tree-sitter';
 import type { Decision } from '../../core/reader.ts';
+import { isComment } from '../tree-sitter.ts';
 
 type Head = Pick<Decision, 'kind' | 'text' | 'foundByName'>;
 
@@ -21,21 +22,24 @@ const macroNameOf = (node: Node | undefined): string | undefined =>
 
 type Exit = Pick<Decision, 'foundByName'>;
 
-const exitOf = (statement: Node | undefined): Exit | undefined => {
-  const expr = exprOf(statement);
+const exitOf = (expr: Node | undefined): Exit | undefined => {
   if (expr?.type === 'return_expression') return {};
   return macroNameOf(expr) === 'bail' ? { foundByName: true } : undefined;
 };
 
+const firstStatementOf = (block: Node | undefined): Node | undefined =>
+  block?.namedChildren.find(node => !isComment(node));
+
 const ifOf = (node: Node): Read => {
   const condition = `if ${fieldOf(node, 'condition')?.text}`;
-  const exit =
+  const first =
     fieldOf(node, 'alternative') === undefined
-      ? exitOf(fieldOf(node, 'consequence')?.namedChildren[0])
+      ? exprOf(firstStatementOf(fieldOf(node, 'consequence')))
       : undefined;
+  const exit = exitOf(first);
   return exit === undefined
     ? { kind: 'if', text: condition, deeper: fieldsOf(node, 'consequence', 'alternative') }
-    : { ...exit, kind: 'guard', text: `${condition} return`, deeper: [] };
+    : { ...exit, kind: 'guard', text: `${condition} return`, deeper: first?.namedChildren ?? [] };
 };
 
 const READS = new Map<string, (node: Node) => Read>([['if_expression', ifOf]]);

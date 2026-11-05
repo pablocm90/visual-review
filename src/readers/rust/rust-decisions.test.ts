@@ -48,3 +48,16 @@ test.for(['let Some(x) = y', 'let Some(x) = y && z'])('an if on %s reads as writ
     { kind: 'if', text: `if ${condition}`, depth: 0, line: 2 },
   ]);
 });
+
+test('an exit after a leading comment is still first', () => {
+  expect(decisionsIn('if c {', '// why', 'return 1;', '}')?.map(({ kind }) => kind)).toEqual([
+    'guard',
+  ]);
+});
+
+test('what the exit itself holds reads one deeper, and what follows it is dead', () => {
+  expect(decisionsIn('if c {', 'return if d { 1 } else { 2 };', 'if e { go(); }', '}')).toEqual([
+    { kind: 'guard', text: 'if c return', depth: 0, line: 2 },
+    { kind: 'if', text: 'if d', depth: 1, line: 3 },
+  ]);
+});
