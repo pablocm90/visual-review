@@ -419,6 +419,26 @@ test.for([
   { reads: 'a call it does not know', written: 'devise_for :users' },
   { reads: 'a verb sent to something else', written: 'Foo.get "a", to: "b#c"' },
   { reads: 'a resources sent to something else', written: 'router.resources :users' },
+  {
+    reads: 'a scope carrying only:',
+    written: 'scope only: :index do\n resources :users\n end',
+  },
+  {
+    reads: 'a scope carrying except:',
+    written: 'scope except: :index do\n resources :users\n end',
+  },
+  {
+    reads: 'a scope carrying action:',
+    written: 'scope action: :z, controller: :x do\n get "b"\n end',
+  },
+  {
+    reads: 'a scope carrying to:',
+    written: 'scope to: "x#y", controller: :z do\n get "a"\n end',
+  },
+  {
+    reads: 'a namespace carrying only:',
+    written: 'namespace :a, only: :index do\n resources :b\n end',
+  },
   { reads: 'a concern', written: 'concern :commentable do\n resources :comments\n end' },
   { reads: 'a name it cannot read', written: 'resources NAME' },
   { reads: 'a splatted name', written: 'resources(*NAMES)' },

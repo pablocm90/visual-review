@@ -320,6 +320,15 @@ const checked =
   (call, scope) =>
     namesWhatItDraws(argsOf(call)) ? handler(call, scope) : [unread(call, scope)];
 
+const CARRIED_TO_ROUTES = ['only', 'except', 'action', 'to'];
+
+const scoping = (handler: Handler): Handler =>
+  checked((call, scope) =>
+    CARRIED_TO_ROUTES.some(key => optionOf(argsOf(call), key) !== undefined)
+      ? [unread(call, scope)]
+      : handler(call, scope),
+  );
+
 const isDraw = (statement: Node): boolean =>
   methodOf(statement) === 'draw' && statement.childForFieldName('block') !== null;
 
@@ -392,8 +401,8 @@ const HANDLERS: ReadonlyMap<string, Handler> = new Map<string, Handler>([
       }),
     ),
   ],
-  ['namespace', checked(namespace)],
-  ['scope', checked(scoped)],
+  ['namespace', scoping(namespace)],
+  ['scope', scoping(scoped)],
   ['root', checked(rooted)],
   ['match', checked(matched)],
   ['mount', mounted],
