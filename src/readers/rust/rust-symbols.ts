@@ -1,5 +1,6 @@
 import type { Node } from 'web-tree-sitter';
 import type { FileSymbols, ReadSymbol } from '../../core/reader.ts';
+import { isTooBig, TOO_BIG } from '../too-big.ts';
 import { hashesOf, hashOf, shapeOf } from '../tree-sitter.ts';
 import { parseRust } from './rust-syntax.ts';
 
@@ -14,8 +15,9 @@ const functionSymbol = (item: Node): ReadSymbol => ({
 });
 
 export const symbolsOfRust = (text: string): FileSymbols => {
+  if (isTooBig(text)) throw new Error(TOO_BIG);
   const root = parseRust(text);
-  if (root === undefined) throw new Error('Rust that does not parse');
+  if (root === undefined || root.hasError) throw new Error('Rust that does not parse');
   return {
     symbols: root.namedChildren.filter(({ type }) => type === 'function_item').map(functionSymbol),
     exports: [],

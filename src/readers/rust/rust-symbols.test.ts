@@ -25,3 +25,8 @@ test('a const, a static, a mod and a use read no symbol', () => {
     read('pub const A: u8 = 1;', 'pub static B: u8 = 1;', 'pub mod c;', 'pub use d::e;').symbols,
   ).toEqual([]);
 });
+
+test('a file that does not parse throws, and so does one too big to read', () => {
+  expect(() => read('pub fn open( {')).toThrow('parse');
+  expect(() => read(`// ${'x'.repeat(1001)}`)).toThrow('too big');
+});
