@@ -21,16 +21,19 @@ const NOT_YET_HASHED = { signatureHash: '', bodyHash: '', textHash: '', bodyToke
 type Walk = {
   readonly exported: boolean;
   readonly singleton: boolean;
+  readonly moduleFunction: boolean;
   readonly symbols: ReadonlyArray<ReadSymbol>;
 };
 
-const STARTING: Walk = { exported: true, singleton: false, symbols: [] };
+const STARTING: Walk = { exported: true, singleton: false, moduleFunction: false, symbols: [] };
 
 const methodSymbol = (method: Node, within: string | undefined, walk: Walk): ReadSymbol => {
   const name = method.childForFieldName('name');
   const isSetter = name?.type === 'setter';
   const written = (isSetter ? name.text.slice(0, -1) : name?.text) ?? '';
-  const object = method.childForFieldName('object')?.text ?? (walk.singleton ? 'self' : undefined);
+  const object =
+    method.childForFieldName('object')?.text ??
+    (walk.singleton || walk.moduleFunction ? 'self' : undefined);
   return {
     name: object === undefined ? written : `${object}.${written}`,
     ...(within === undefined ? {} : { scope: within }),
@@ -41,10 +44,11 @@ const methodSymbol = (method: Node, within: string | undefined, walk: Walk): Rea
   };
 };
 
-const VISIBILITIES = new Map([
-  ['private', false],
-  ['protected', false],
-  ['public', true],
+const BARE_WORDS = new Map([
+  ['private', { exported: false, moduleFunction: false }],
+  ['protected', { exported: false, moduleFunction: false }],
+  ['public', { exported: true, moduleFunction: false }],
+  ['module_function', { exported: true, moduleFunction: true }],
 ]);
 
 const METHODS = new Set(['method', 'singleton_method']);
@@ -56,7 +60,7 @@ const isSingletonBlock = (node: Node): boolean =>
 const walked = (walk: Walk, node: Node, within: string | undefined): Walk => {
   const joined = (inner: Walk): Walk => ({ ...walk, symbols: [...walk.symbols, ...inner.symbols] });
   if (node.type === 'identifier' && BODIES.has(node.parent?.type ?? ''))
-    return { ...walk, exported: VISIBILITIES.get(node.text) ?? walk.exported };
+    return { ...walk, ...BARE_WORDS.get(node.text) };
   if (METHODS.has(node.type))
     return { ...walk, symbols: [...walk.symbols, methodSymbol(node, within, walk)] };
   if (BODIES.has(node.type))

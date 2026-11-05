@@ -157,3 +157,37 @@ test('def self.x, and a def in class << self or class_methods do, is the method 
     ),
   ).toEqual(['self.build', 'self.open', 'self.close']);
 });
+
+test('a bare module_function makes what follows self.x and public, until a visibility word', () => {
+  expect(
+    symbolsIn(
+      'module Prices',
+      '  def plain; end',
+      '  private',
+      '  def hidden; end',
+      '  module_function',
+      '  def round; end',
+      '  private',
+      '  def after; end',
+      'end',
+    ),
+  ).toEqual([
+    'class Prices',
+    'method Prices.plain',
+    'method Prices.hidden',
+    'method Prices.self.round',
+    'method Prices.after',
+  ]);
+  expect(
+    exportedIn(
+      'module Prices',
+      '  private',
+      '  def hidden; end',
+      '  module_function',
+      '  def round; end',
+      '  public',
+      '  def plain; end',
+      'end',
+    ),
+  ).toEqual(['self.round', 'plain']);
+});
