@@ -17,7 +17,7 @@ import { routeFindings } from './route-findings.ts';
 import { schemaFindings } from './schema-findings.ts';
 import { notReadLine, type Skipped } from './skipped.ts';
 import type { SplitSuggestion } from './split-suggestion.ts';
-import { isLogicBlindSpot, symbolFindings } from './symbol-findings.ts';
+import { partsWithLogicToTest, symbolFindings } from './symbol-findings.ts';
 import { anyChanged, type TestFile } from './test-changes.ts';
 import { testsAlongside } from './tests-alongside.ts';
 import { visibleNodeOf } from './visible-diff.ts';
@@ -92,20 +92,16 @@ type RaisedOptions = {
   readonly split: SplitSuggestion | undefined;
 };
 
-type UntestedOptions = Pick<RaisedOptions, 'nodes' | 'tests'>;
+type UntestedOptions = Pick<RaisedOptions, 'nodes' | 'tests' | 'symbols'>;
 
-const withUntestedLogic = (
-  findings: ReadonlyArray<Finding>,
-  { nodes, tests }: UntestedOptions,
-): ReadonlyArray<Finding> => [
-  ...findings,
-  ...nodes
-    .filter(node =>
-      findings.some(
-        finding =>
-          finding.dimension === 'logic' && finding.target === node.id && !isLogicBlindSpot(finding),
-      ),
-    )
+const untestedLogicFindings = ({
+  nodes,
+  tests,
+  symbols,
+}: UntestedOptions): ReadonlyArray<Finding> => {
+  const toTest = partsWithLogicToTest(symbols);
+  return nodes
+    .filter(node => toTest.has(node.id))
     .filter(
       node =>
         !testsAlongside({ nodes, node, tests }).some(
@@ -121,8 +117,8 @@ const withUntestedLogic = (
         target: node.id,
         title: 'logic changed with no test changed alongside',
       }),
-    ),
-];
+    );
+};
 
 const SPLIT_CAVEAT =
   'Read from the edges between parts, so parts tied through an unchanged file, an edge between the boxes holding them, a dynamic import or Ruby metaprogramming can look independent.';
@@ -218,7 +214,8 @@ export const raisedFindings = ({
       title: metricTitle(finding),
     }),
   ),
-  ...withUntestedLogic(symbolFindings({ files: symbols, nodes }), { nodes, tests }),
+  ...symbolFindings({ files: symbols, nodes }),
+  ...untestedLogicFindings({ nodes, tests, symbols }),
   ...symbolsNotRead.map(
     (stack): Finding => ({
       id: `structure:symbols-not-read:${stack}`,

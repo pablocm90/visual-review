@@ -1,0 +1,390 @@
+import { expect, test } from 'vitest';
+import { symbolChanges } from '../../core/symbol-changes.ts';
+import { symbolFindings } from '../../core/symbol-findings.ts';
+import { rustReader } from './reader.ts';
+
+const decisionsIn = (...lines: ReadonlyArray<string>) =>
+  rustReader
+    .symbols?.(['fn charge() {', ...lines, '}'].join('\n'), 'src/shop.rs')
+    ?.symbols.find(({ name }) => name === 'charge')?.decisions;
+
+test('an if that returns first reads as a guard, on its own line', () => {
+  expect(decisionsIn('go();', 'if c { return 1; }')).toEqual([
+    { kind: 'guard', text: 'if c return', depth: 0, line: 3 },
+  ]);
+});
+
+test('an if that does something before it returns is no guard', () => {
+  expect(decisionsIn('if c { go(); return 1; }')?.map(({ kind }) => kind)).not.toContain('guard');
+});
+
+test.for(['bail!("no");', 'anyhow::bail!("no")'])(
+  'an if that opens with %s reads as a guard, found by name',
+  exit => {
+    expect(decisionsIn(`if c { ${exit} }`)).toEqual([
+      { kind: 'guard', text: 'if c return', foundByName: true, depth: 0, line: 2 },
+    ]);
+  },
+);
+
+test('a macro of another name is no exit', () => {
+  expect(decisionsIn('if c { log!("no"); }')?.map(({ kind }) => kind)).not.toContain('guard');
+});
+
+test('an if that returns first but has an else is no guard', () => {
+  expect(decisionsIn('if c { return 1; } else { go(); }')?.map(({ kind }) => kind)).not.toContain(
+    'guard',
+  );
+});
+
+test('an if reads on its own line, and what its branches hold one deeper', () => {
+  expect(decisionsIn('if c {', 'if d { go(); }', '} else {', 'if e { go(); }', '}')).toEqual([
+    { kind: 'if', text: 'if c', depth: 0, line: 2 },
+    { kind: 'if', text: 'if d', depth: 1, line: 3 },
+    { kind: 'if', text: 'if e', depth: 1, line: 5 },
+  ]);
+});
+
+test.for(['let Some(x) = y', 'let Some(x) = y && z'])('an if on %s reads as written', condition => {
+  expect(decisionsIn(`if ${condition} { go(); }`)).toEqual([
+    { kind: 'if', text: `if ${condition}`, depth: 0, line: 2 },
+  ]);
+});
+
+test('an exit after a leading comment is still first', () => {
+  expect(decisionsIn('if c {', '// why', 'return 1;', '}')?.map(({ kind }) => kind)).toEqual([
+    'guard',
+  ]);
+});
+
+test('what the exit itself holds reads one deeper, and what follows it is dead', () => {
+  expect(decisionsIn('if c {', 'return if d { 1 } else { 2 };', 'if e { go(); }', '}')).toEqual([
+    { kind: 'guard', text: 'if c return', depth: 0, line: 2 },
+    { kind: 'if', text: 'if d', depth: 1, line: 3 },
+  ]);
+});
+
+test('a condition reads without its comments, line breaks and spacing, strings as written', () => {
+  expect(
+    decisionsIn('if a', '  .b( /* why */ "x  y",', '  c, )', '{ go(); }')?.map(({ text }) => text),
+  ).toEqual(['if a.b("x  y", c)']);
+});
+
+test('an else if reads as an if at the depth of the if it follows, and is never a guard', () => {
+  expect(
+    decisionsIn('if c {', 'go();', '} else if d {', 'return 1;', '} else {', 'if e { go(); }', '}'),
+  ).toEqual([
+    { kind: 'if', text: 'if c', depth: 0, line: 2 },
+    { kind: 'if', text: 'else if d', depth: 0, line: 4 },
+    { kind: 'return', text: 'return', depth: 1, line: 5 },
+    { kind: 'if', text: 'if e', depth: 1, line: 7 },
+  ]);
+});
+
+test('a last else if that returns first is no guard', () => {
+  expect(decisionsIn('if c { go(); } else if d { return 1; }')?.map(({ kind }) => kind)).toEqual([
+    'if',
+    'if',
+    'return',
+  ]);
+});
+
+test.for(['Err(e)', 'std::result::Result::Err(e)'])('an if let on %s reads as a catch', pattern => {
+  expect(decisionsIn(`if let ${pattern} = x {`, 'if d { go(); }', '}')).toEqual([
+    { kind: 'catch', text: `if let ${pattern} = x`, depth: 0, line: 2 },
+    { kind: 'if', text: 'if d', depth: 1, line: 3 },
+  ]);
+});
+
+test.for(['let Err(e) = x && y', 'let Err(e) | Ok(e) = x', 'let Error(e) = x'])(
+  'an if on %s is no catch',
+  condition => {
+    expect(decisionsIn(`if ${condition} { go(); }`)?.map(({ kind }) => kind)).toEqual(['if']);
+  },
+);
+
+test('an if let on Err that returns first stays a guard', () => {
+  expect(decisionsIn('if let Err(e) = x { return 1; }')).toEqual([
+    { kind: 'guard', text: 'if let Err(e) = x return', depth: 0, line: 2 },
+  ]);
+});
+
+test('a let else reads as a guard, and its block one deeper', () => {
+  expect(decisionsIn('let Some(a) = b else {', 'if d { go(); }', 'return;', '};')).toEqual([
+    { kind: 'guard', text: 'let Some(a) = b else', depth: 0, line: 2 },
+    { kind: 'if', text: 'if d', depth: 1, line: 3 },
+    { kind: 'return', text: 'return', depth: 1, line: 4 },
+  ]);
+});
+
+test('a let else takes in the return that opens its block', () => {
+  expect(decisionsIn('let Some(a) = b else {', 'return if d { 1 } else { 2 };', '};')).toEqual([
+    { kind: 'guard', text: 'let Some(a) = b else', depth: 0, line: 2 },
+    { kind: 'if', text: 'if d', depth: 1, line: 3 },
+  ]);
+});
+
+test('a plain let reads what its value holds', () => {
+  expect(decisionsIn('let a = if d { 1 } else { 2 };')).toEqual([
+    { kind: 'if', text: 'if d', depth: 0, line: 2 },
+  ]);
+});
+
+test.for([
+  { written: 'ensure!(a, "no")', text: 'ensure!(a)' },
+  { written: 'anyhow::ensure!(a)', text: 'ensure!(a)' },
+  { written: 'assert!(f(a, b), "no {}", c)', text: 'assert!(f(a, b))' },
+  { written: 'assert_eq!(a, f(b, c), "no")', text: 'assert_eq!(a, f(b, c))' },
+  { written: 'assert_ne!(a, b)', text: 'assert_ne!(a, b)' },
+  { written: 'assert![a, "no"]', text: 'assert![a]' },
+])('$written reads as a guard found by name, with no message', ({ written, text }) => {
+  expect(decisionsIn(`${written};`)).toEqual([
+    { kind: 'guard', text, foundByName: true, depth: 0, line: 2 },
+  ]);
+});
+
+test('debug_assert! is no guard', () => {
+  expect(decisionsIn('debug_assert!(a);')).toEqual([]);
+});
+
+test('a match arm reads as a case with its guard, what its value holds one deeper', () => {
+  expect(
+    decisionsIn(
+      'match if a { b } else { c } {',
+      'Some(x) if y => if d { 1 } else { 2 },',
+      '_ => 3,',
+      '}',
+    ),
+  ).toEqual([
+    { kind: 'if', text: 'if a', depth: 0, line: 2 },
+    { kind: 'case', text: 'Some(x) if y =>', depth: 0, line: 3 },
+    { kind: 'if', text: 'if d', depth: 1, line: 3 },
+    { kind: 'case', text: '_ =>', depth: 0, line: 4 },
+  ]);
+});
+
+test.for(['Err(e)', 'Err(e) if y', 'Result::Err(e)', 'Err(a) | Err(b) | Ok(c)'])(
+  'an arm on %s reads as a catch',
+  pattern => {
+    expect(decisionsIn('match x {', `${pattern} => 1,`, '}')).toEqual([
+      { kind: 'catch', text: `${pattern} =>`, depth: 0, line: 3 },
+    ]);
+  },
+);
+
+test('an arm whose first pattern is another reads as a case', () => {
+  expect(decisionsIn('match x { Ok(a) | Err(a) => 1 }')?.map(({ kind }) => kind)).toEqual(['case']);
+});
+
+test.for([
+  { head: 'for x in y', text: 'for x in y' },
+  { head: "'a: for  x  in y", text: "'a: for x in y" },
+  { head: 'while c', text: 'while c' },
+  { head: 'while let Some(x) = y', text: 'while let Some(x) = y' },
+  { head: 'loop', text: 'loop' },
+])('$head reads as a loop, what it holds one deeper', ({ head, text }) => {
+  expect(decisionsIn(`${head} {`, 'if d { go(); }', '}')).toEqual([
+    { kind: 'loop', text, depth: 0, line: 2 },
+    { kind: 'if', text: 'if d', depth: 1, line: 3 },
+  ]);
+});
+
+test.for(['&&', '||'])('an outermost %s reads by its left, its right one deeper', operator => {
+  expect(decisionsIn(`let v = a == b ${operator} if d { e } else { f };`)).toEqual([
+    { kind: 'logical', text: `a == b ${operator}`, depth: 0, line: 2 },
+    { kind: 'if', text: 'if d', depth: 1, line: 2 },
+  ]);
+});
+
+test('a chain of logicals reads once, and another operator not at all', () => {
+  expect(decisionsIn('let v = a && b && c;', 'let w = a + b;')).toEqual([
+    { kind: 'logical', text: 'a && b &&', depth: 0, line: 2 },
+  ]);
+});
+
+test('a condition reads no logical of its own', () => {
+  expect(decisionsIn('if a && b { go(); }')?.map(({ kind }) => kind)).toEqual(['if']);
+});
+
+test('a return in a branch reads as a return, what it holds one deeper', () => {
+  expect(decisionsIn('if c {', 'go();', 'return if d { 1 } else { 2 };', '}')).toEqual([
+    { kind: 'if', text: 'if c', depth: 0, line: 2 },
+    { kind: 'return', text: 'return', depth: 1, line: 4 },
+    { kind: 'if', text: 'if d', depth: 2, line: 4 },
+  ]);
+});
+
+test('a return outside any branch is no decision, and what it holds is', () => {
+  expect(decisionsIn('return if d { 1 } else { 2 };')).toEqual([
+    { kind: 'if', text: 'if d', depth: 0, line: 2 },
+  ]);
+});
+
+test.for([
+  { written: 'bail!("no {}", a)', text: 'bail!' },
+  { written: 'anyhow::bail!("no")', text: 'bail!' },
+  { written: 'panic!("no")', text: 'panic!' },
+  { written: 'unreachable!()', text: 'unreachable!' },
+  { written: 'todo!()', text: 'todo!' },
+  { written: 'unimplemented!()', text: 'unimplemented!' },
+])('$written reads as a throw found by name, by its name alone', ({ written, text }) => {
+  expect(decisionsIn(`${written};`)).toEqual([
+    { kind: 'throw', text, foundByName: true, depth: 0, line: 2 },
+  ]);
+});
+
+test('a let else takes in the bail that opens its block', () => {
+  expect(decisionsIn('let Some(a) = b else {', 'bail!("no");', '};')).toEqual([
+    { kind: 'guard', text: 'let Some(a) = b else', depth: 0, line: 2 },
+  ]);
+});
+
+test('a ? reads as a try, the whole expression as written', () => {
+  expect(decisionsIn('let a = b.c(  d )?;')).toEqual([
+    { kind: 'try', text: 'b.c(d)?', depth: 0, line: 2 },
+  ]);
+});
+
+test("a chain of ? reads one line each, the inner first, at one depth, each on its own ?'s row", () => {
+  expect(decisionsIn('a()?', '.b()?;')).toEqual([
+    { kind: 'try', text: 'a()?', depth: 0, line: 2 },
+    { kind: 'try', text: '….b()?', depth: 0, line: 3 },
+  ]);
+});
+
+test.for([
+  { line: 'f(g()?, h)?;', inner: 'g()?', outer: 'f(…, h)?' },
+  { line: 'g()??;', inner: 'g()?', outer: '…?' },
+])(
+  "$line reads the ? inside it on its own line, and leaves it out of the outer's",
+  ({ line, inner, outer }) => {
+    expect(decisionsIn(line)).toEqual([
+      { kind: 'try', text: inner, depth: 0, line: 2 },
+      { kind: 'try', text: outer, depth: 0, line: 2 },
+    ]);
+  },
+);
+
+test.for([
+  { line: 'a.b(|e| e.d())?;', text: 'a.b(|e| …)?' },
+  { line: 'a.b(|e|e.d())?;', text: 'a.b(|e|…)?' },
+  { line: 'a.b(|e| e.d(), f)?;', text: 'a.b(|e| …, f)?' },
+  { line: 'a.b(move |e: E| -> u8 { e.d() })?;', text: 'a.b(move |e: E| -> u8 …)?' },
+])('$line reads with its closure body left out', ({ line, text }) => {
+  expect(decisionsIn(line)).toEqual([{ kind: 'try', text, depth: 0, line: 2 }]);
+});
+
+test("a closure's logic left out of a try's text still reads as its own lines", () => {
+  expect(decisionsIn('a.b(|e| match e { X => y, _ => c.d(|f| f.g())? })?;')).toEqual([
+    { kind: 'case', text: 'X =>', depth: 0, line: 2 },
+    { kind: 'case', text: '_ =>', depth: 0, line: 2 },
+    { kind: 'try', text: 'c.d(|f| …)?', depth: 1, line: 2 },
+    { kind: 'try', text: 'a.b(|e| …)?', depth: 0, line: 2 },
+  ]);
+});
+
+test.for([
+  { line: '(loop { break a; })?;', text: '(loop {…})?' },
+  { line: 'let z = match y { X => a, _ => b }?;', text: 'match y {…}?' },
+  { line: 'g({ x?; y })?;', text: 'g({…})?' },
+  { line: '{ x?; y }.b()?;', text: '{…}.b()?' },
+])(
+  "$line reads with its block left out, each of the block's decisions on its own line",
+  ({ line, text }) => {
+    const decisions = decisionsIn(line) ?? [];
+    expect(decisions.length).toBeGreaterThan(1);
+    expect(decisions.at(-1)).toEqual({ kind: 'try', text, depth: 0, line: 2 });
+  },
+);
+
+test("a condition keeps its closure's body, as nothing else reads it", () => {
+  expect(decisionsIn('if a.b(|e| e.d()) { go(); }')).toEqual([
+    { kind: 'if', text: 'if a.b(|e| e.d())', depth: 0, line: 2 },
+  ]);
+});
+
+const findingsOfChange = (before: string, after: string) => {
+  const read = (body: string) => rustReader.symbols?.(`fn charge() {\n${body}\n}`, 'src/shop.rs');
+  const [baseFile, headFile] = [read(before), read(after)];
+  if (baseFile === undefined || headFile === undefined) throw new Error('not read');
+  const changes = symbolChanges({ before: baseFile, after: headFile });
+  return symbolFindings({ files: [{ stack: 'shop', node: 'shop', ...changes }], nodes: [] });
+};
+
+test('a ? turned into an unwrap is for information, no lost guard', () => {
+  expect(
+    findingsOfChange('a.b()?;', 'a.b().unwrap();').map(({ check, level }) => ({ check, level })),
+  ).toEqual([{ check: 'logic:changed', level: 'info' }]);
+});
+
+test.for([
+  { reason: 'a nested fn', line: 'fn inner() { if d { go(); } }' },
+  { reason: "a nested impl's method", line: 'impl A { fn inner() { if d { go(); } } }' },
+])('$reason reads no line', ({ line }) => {
+  expect(decisionsIn(line)).toEqual([]);
+});
+
+test('a closure is walked', () => {
+  expect(decisionsIn('let f = |a| if a { 1 } else { 2 };')).toEqual([
+    { kind: 'if', text: 'if a', depth: 0, line: 2 },
+  ]);
+});
+
+const blindSpotsIn = (...lines: ReadonlyArray<string>) =>
+  rustReader.symbols?.(lines.join('\n'), 'src/shop.rs')?.blindSpots;
+
+test.for([
+  { line: 'fn a() { println!("{}", b()?); }', name: 'println!' },
+  { line: 'fn a() { let v = vec![if c { 1 } else { 2 }]; }', name: 'vec!' },
+  { line: 'fn a() { foo::bar!(x, (y, { return 1 })); }', name: 'bar!' },
+  { line: 'fn a() { log!(?b, c?); }', name: 'log!' },
+  { line: 'fn a() { log!(b.await?); }', name: 'log!' },
+  { line: 'macro_rules! m { ($($x:expr),*) => { $($x?),* } }', name: 'macro_rules!' },
+])('$line is a blind spot, $name', ({ line, name }) => {
+  expect(blindSpotsIn(line)).toEqual([name]);
+});
+
+test('each macro that hides logic is listed once, in the order the file first uses it', () => {
+  expect(
+    blindSpotsIn('fn a() { vec![b()?]; }', 'impl A { fn c() { log!(d?); vec![e?]; } }'),
+  ).toEqual(['vec!', 'log!']);
+});
+
+test.for([
+  { reason: 'those words in a string', line: 'fn a() { println!("if return ?"); }' },
+  { reason: 'names that only start like them', line: 'fn a() { log!(iff, returning); }' },
+  { reason: 'an if outside any macro', line: 'fn a() { if b { c!(); } }' },
+  { reason: 'a guard macro', line: 'fn a() { ensure!(b()?, "no"); }' },
+  { reason: 'a throw macro', line: 'fn a() { panic!("{}", b()?); }' },
+  { reason: 'a ? sigil opening a macro', line: 'fn a() { error!(?b, "no"); }' },
+  { reason: 'a ? sigil after a comma', line: 'fn a() { error!(c, ?b); }' },
+  { reason: 'a ? sigil after a field name', line: 'fn a() { error!(c = ?b); }' },
+  { reason: 'a ?Sized bound', line: 'fn a() { m!(fn f<T: ?Sized>() {}); }' },
+  { reason: 'a later ?Sized bound', line: "fn a() { m!(fn f<T: 'a + ?Sized>() {}); }" },
+  {
+    reason: 'a macro matcher repeated at most once',
+    line: 'macro_rules! m { ($($x:expr),* $(,)?) => { 1 } }',
+  },
+  {
+    reason: 'a macro transcriber repeated at most once',
+    line: 'macro_rules! m { ($($x:expr),*) => { $(a)? } }',
+  },
+])('$reason is no blind spot', ({ line }) => {
+  expect(blindSpotsIn(line)).toEqual([]);
+});
+
+test('a macro_rules! whose body holds those tokens is a blind spot, as one holding none is not', () => {
+  expect(blindSpotsIn('macro_rules! m { ($x:expr) => { $x? }; }')).toEqual(['macro_rules!']);
+  expect(blindSpotsIn('macro_rules! n { () => { 1 } }')).toEqual([]);
+});
+
+test.for([
+  { reason: 'a test function', lines: ['#[test]', 'fn a() { println!("{}", b()?); }'] },
+  {
+    reason: 'a function in a test module',
+    lines: ['#[cfg(test)]', 'mod tests { fn a() { println!("{}", b()?); } }'],
+  },
+  { reason: 'a test macro_rules!', lines: ['#[cfg(test)]', 'macro_rules! m { () => { a? } }'] },
+])('$reason is no blind spot', ({ lines }) => {
+  expect(blindSpotsIn(...lines)).toEqual([]);
+});
