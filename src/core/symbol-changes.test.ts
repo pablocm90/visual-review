@@ -794,3 +794,84 @@ test('a whole function moved between files gained nothing, so what another lost 
   );
   expect(logicOfIn(files, 'charge')?.map(({ change }) => change)).toEqual(['removed']);
 });
+
+const reopened = (...sources: ReadonlyArray<string>) => ({
+  ...read(),
+  symbols: sources.flatMap(source => read(source).symbols),
+});
+
+test('a decision lost to the second symbol of a new name moved there', () => {
+  const files = symbolChangesOf([
+    {
+      node: 'a',
+      before: read('function charge(a) { if (a.late) warn(); pay(); }'),
+      after: reopened(
+        'function charge(a) { pay(); }',
+        'function check(a) { if (!a) return; }',
+        'function check(a) { if (a.late) warn(); }',
+      ),
+    },
+  ]);
+
+  expect(logicOfIn(files, 'charge')?.map(({ change, movedTo }) => ({ change, movedTo }))).toEqual([
+    { change: 'moved', movedTo: 'check' },
+  ]);
+});
+
+test('a decision the second symbol of a removed name held stays with it, so what another lost stays lost', () => {
+  const files = symbolChangesOf([
+    {
+      node: 'a',
+      before: reopened(
+        'function charge(a) { if (a.late) warn(); pay(); }',
+        'function check(a) { if (!a) return; }',
+        'function check(a) { if (a.late) warn(); }',
+      ),
+      after: read(
+        'function charge(a) { pay(); }',
+        'function verify(order, till) { if (a.late) warn(); open(till); send(order); }',
+      ),
+    },
+  ]);
+
+  expect(logicOfIn(files, 'charge')?.map(({ change }) => change)).toEqual(['removed']);
+});
+
+test('the second symbol of a name moved between files moved alone', () => {
+  const files = symbolChangesOf([
+    {
+      node: 'a',
+      before: reopened('function check(a) { first(a); }', 'function check(a) { second(a); }'),
+      after: none,
+    },
+    { node: 'b', before: none, after: read('function check(a) { second(a); }') },
+  ]);
+
+  expect(files.flatMap(file => file.symbols).map(({ change }) => change)).toEqual([
+    'removed',
+    'moved',
+    'moved',
+  ]);
+});
+
+test('a new symbol with the name and body of one kept in another file is added, not moved', () => {
+  const kept = read('function check(a) { first(a); }');
+  const files = symbolChangesOf([
+    { node: 'a', before: kept, after: kept },
+    { node: 'b', before: none, after: kept },
+  ]);
+
+  expect(files.flatMap(file => file.symbols).map(({ change }) => change)).toEqual([
+    'unchanged',
+    'added',
+  ]);
+});
+
+test("a file's blind spots are its head's", () => {
+  expect(
+    symbolChanges({
+      before: { ...read(), blindSpots: ['send'] },
+      after: { ...read(), blindSpots: ['define_method'] },
+    }).blindSpots,
+  ).toEqual(['define_method']);
+});

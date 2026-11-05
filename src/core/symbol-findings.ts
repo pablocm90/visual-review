@@ -191,7 +191,7 @@ const logicFindings = (node: string, symbol: AnchoredSymbol): ReadonlyArray<Find
               level: 'look' as const,
               target: node,
               title: `${statement.kind} ${name} lost a ${line.kind}`,
-              detail: line.base ?? '',
+              detail: `${line.base ?? ''}${line.foundByName ? ' (found by name)' : ''}`,
             },
           ]
         : [],
@@ -203,6 +203,23 @@ const logicFindings = (node: string, symbol: AnchoredSymbol): ReadonlyArray<Find
     ),
   ];
 };
+
+const BLIND_SPOT = 'logic:blind-spot:';
+
+export const isLogicBlindSpot = ({ id }: Pick<Finding, 'id'>): boolean => id.startsWith(BLIND_SPOT);
+
+const blindSpotFinding = ({ node, blindSpots = [] }: FileSymbolChanges): ReadonlyArray<Finding> =>
+  blindSpots.length === 0
+    ? []
+    : [
+        {
+          id: `${BLIND_SPOT}${node}`,
+          dimension: 'logic',
+          level: 'info',
+          target: node,
+          title: `logic not read through: ${blindSpots.join(', ')}`,
+        },
+      ];
 
 type SymbolFindingsOptions = {
   readonly files: ReadonlyArray<SymbolFile>;
@@ -231,6 +248,7 @@ export const symbolFindings = ({ files, nodes }: SymbolFindingsOptions): Readonl
           ...anchoredSymbols(file.node, file.symbols).flatMap(symbol =>
             logicFindings(file.node, symbol),
           ),
+          ...blindSpotFinding(file),
         ],
   );
 };

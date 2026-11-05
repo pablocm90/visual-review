@@ -2,6 +2,17 @@
 
 What changed in each release of `@pablocm90/visual-review`, newest first. Versions follow [semver](https://semver.org); while it is 0.x, a minor version may change the exported types.
 
+## 0.32.0 — 2026-11-05
+
+### Added
+
+- Rails methods and classes read their logic: guards, ifs, ternaries, loops, cases, logicals, catches, returns in a branch and throws, each added, removed, changed, the same or moved, so a Rails guard or catch removed needs a look and logic changed with no test alongside says so. A class's callbacks and validations read as guards on it, and `rescue_from` as a catch, so one replaced in place by another, or dropping a name it held, is lost and added, while an edit to its options or a name added beside it is a change. What's recognised by a method's name, such as a conditional `render` or an `each` block, carries `foundByName`, and a lost one says so.
+- A changed Rails file naming `define_method`, `method_missing`, `send`, `public_send`, `class_eval` or `instance_eval` raises one finding for information, `logic:blind-spot:<node>`.
+
+### Fixed
+
+- A name repeated in a file, as a reopened Ruby class, goes by its own decisions and body when finding what moved, not its first symbol's.
+
 ## 0.31.0 — 2026-11-05
 
 ### Changed

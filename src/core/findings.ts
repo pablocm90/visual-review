@@ -14,7 +14,7 @@ import type { SchemaReading } from './read-schemas.ts';
 import { schemaFindings } from './schema-findings.ts';
 import { notReadLine, type Skipped } from './skipped.ts';
 import type { SplitSuggestion } from './split-suggestion.ts';
-import { symbolFindings } from './symbol-findings.ts';
+import { isLogicBlindSpot, symbolFindings } from './symbol-findings.ts';
 import { anyChanged, type TestFile } from './test-changes.ts';
 import { testsAlongside } from './tests-alongside.ts';
 import { visibleNodeOf } from './visible-diff.ts';
@@ -95,7 +95,10 @@ const withUntestedLogic = (
   ...findings,
   ...nodes
     .filter(node =>
-      findings.some(({ dimension, target }) => dimension === 'logic' && target === node.id),
+      findings.some(
+        finding =>
+          finding.dimension === 'logic' && finding.target === node.id && !isLogicBlindSpot(finding),
+      ),
     )
     .filter(
       node =>

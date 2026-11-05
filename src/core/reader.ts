@@ -49,6 +49,8 @@ export type Decision = {
   readonly text: string;
   readonly depth: number;
   readonly line: number;
+  readonly foundByName?: true;
+  readonly subject?: ReadonlyArray<string>;
 };
 
 export type ReadSymbol = {
@@ -68,6 +70,7 @@ export type FileSymbols = {
   readonly symbols: ReadonlyArray<ReadSymbol>;
   readonly exports: ReadonlyArray<string>;
   readonly astHash: string;
+  readonly blindSpots?: ReadonlyArray<string>;
 };
 
 export type StackOptions = HoldsOptions & {
@@ -90,7 +93,10 @@ export type StackOptions = HoldsOptions & {
  * measures as `undefined` is left unmeasured. `symbols`, if it has one, reads the symbols of one of
  * its files (functions, methods, classes and types, with their signatures and body hashes) and the
  * names the file exports; it throws on a file it can't parse. A file it reads as `undefined` has no
- * symbols, as every file of a reader without one.
+ * symbols, as every file of a reader without one. A symbol's `decisions` are its logic, each marked
+ * `foundByName` when only a call's name says it is one, and given a `subject`, the names it decides
+ * on, when its text alone says them, so that it reads as changed only where the head holds them all;
+ * `blindSpots` names what the file calls that hides logic from this reading.
  */
 export interface Reader {
   readonly name: ReaderName;

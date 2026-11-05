@@ -1,6 +1,7 @@
 import { rmSync } from 'node:fs';
 import { basename, join } from 'node:path';
 import { expect, test } from 'vitest';
+import { pageData } from '../../core/page.ts';
 import { readRange } from '../../test-support/read-range.ts';
 import { commit, gitRepo } from '../../test-support/repos.ts';
 
@@ -934,5 +935,34 @@ test("a changed class reads its symbols, a parse error is kept as the file's, an
       ],
     },
     { node: `${shop}/class/Broken`, unreadable: expect.any(String) },
+  ]);
+});
+
+test('a guard lost from a Rails class needs a test changed alongside it', async () => {
+  const order = (body: string) => `class Order\n  def total\n${body}    1\n  end\nend\n`;
+  const orderTest = (name: string) => `class OrderTest\n  test "${name}" do\n  end\nend\n`;
+  const lostGuard = async (testFile: string) => {
+    using workspace = gitRepo({
+      ...railsApp,
+      'app/models/order.rb': order('    return if paid\n'),
+      'test/models/order_test.rb': orderTest('totals'),
+    });
+    const { repo, root } = workspace;
+    const head = commit(repo, {
+      'app/models/order.rb': order(''),
+      'test/models/order_test.rb': testFile,
+    });
+    const reading = await readRange({ repo, from: root, to: head });
+    return pageData({ repo: 'shop', reading, range: 'a..b', version: '1.2.3', parsers: {} })
+      .findings.filter(({ target }) => target === `${basename(repo)}/class/Order`)
+      .map(({ id, level }) => ({ id: id.replace(basename(repo), 'shop'), level }));
+  };
+
+  expect(await lostGuard(orderTest('totals'))).toEqual([
+    { id: 'logic:removed:shop/class/Order#Order.total#return if paid', level: 'look' },
+    { id: 'tests:untested-logic:shop/class/Order', level: 'look' },
+  ]);
+  expect(await lostGuard(orderTest('stops once paid'))).toEqual([
+    { id: 'logic:removed:shop/class/Order#Order.total#return if paid', level: 'look' },
   ]);
 });

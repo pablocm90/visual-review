@@ -2,6 +2,12 @@ import { createHash } from 'node:crypto';
 import type { Node } from 'web-tree-sitter';
 import type { FileSymbols, ReadSymbol } from '../../core/reader.ts';
 import { isTooBig, TOO_BIG } from '../too-big.ts';
+import {
+  blindSpotsIn,
+  decisionsOfBody,
+  decisionsOfClass,
+  decisionsOfMethod,
+} from './ruby-decisions.ts';
 import { parseRuby } from './ruby-syntax.ts';
 
 const DEFINITIONS = new Set(['class', 'module']);
@@ -144,6 +150,7 @@ const methodSymbol = (method: Node, within: string | undefined, walk: Walk): Rea
     exported: isMethodExported(method, written, walk),
     signature: parameterText(method),
     ...hashesOf({ signed: parametersOf(method), body: fieldOf(method, 'body'), text: method.text }),
+    decisions: decisionsOfMethod(method),
   };
 };
 
@@ -250,6 +257,7 @@ const delegateSymbols = (
 const scopeSymbols = (call: Node, within: string | undefined): ReadonlyArray<ReadSymbol> => {
   const [named, ...callable] = argumentsOf(call);
   if (callable[0] === undefined || callable[0].type === 'pair') return [];
+  const body = [...fieldOf(call, 'receiver'), ...callable, ...fieldOf(call, 'block')];
   return [
     memberOf(
       writtenName(named),
@@ -257,11 +265,8 @@ const scopeSymbols = (call: Node, within: string | undefined): ReadonlyArray<Rea
         kind: 'method',
         exported: true,
         signature: '',
-        ...hashesOf({
-          signed: [],
-          body: [...fieldOf(call, 'receiver'), ...callable, ...fieldOf(call, 'block')],
-          text: call.text,
-        }),
+        decisions: decisionsOfBody(body),
+        ...hashesOf({ signed: [], body, text: call.text }),
       },
       within,
       { ...STARTING, singleton: true },
@@ -410,6 +415,7 @@ const walkedDefinition = (walk: Walk, node: Node, within: string | undefined): W
     kind: 'class',
     exported: !isNamespace(node),
     signature: signatureOf(node),
+    decisions: decisionsOfClass(node, holes),
     ...hashesOf({
       signed: fieldOf(node, 'superclass'),
       body: fieldOf(node, 'body'),
@@ -458,5 +464,6 @@ export const symbolsOfRuby = (text: string): FileSymbols => {
     symbols: walked(STARTING, program, undefined).symbols,
     exports: [],
     astHash: hashOf(shapeOf(program)),
+    blindSpots: blindSpotsIn(program),
   };
 };

@@ -227,3 +227,63 @@ test.for([
     expect(lines.map(({ change }) => change)).toEqual(changes);
   },
 );
+
+test('a removed line keeps that its decision was found by name', () => {
+  expect(
+    logicDiff({
+      base: [decision({ kind: 'guard', foundByName: true, text: 'render if a' })],
+      head: [],
+    }),
+  ).toEqual([
+    { change: 'removed', kind: 'guard', depth: 0, base: 'render if a', line: 1, foundByName: true },
+  ]);
+});
+
+const macro = (text: string, ...names: ReadonlyArray<string>) =>
+  decision({ kind: 'guard', text, subject: names });
+
+test('a decision pairs with one of its kind whose subject holds all of its own', () => {
+  const before = macro('before_action :a', 'before_action', ':a');
+  const widened = macro('before_action :a, :b', 'before_action', ':a', ':b');
+  const other = macro('before_action :c', 'before_action', ':c');
+
+  expect(logicDiff({ base: [before], head: [widened] }).map(({ change }) => change)).toEqual([
+    'changed',
+  ]);
+  expect(logicDiff({ base: [widened], head: [before] }).map(({ change }) => change)).toEqual([
+    'removed',
+    'added',
+  ]);
+  expect(logicDiff({ base: [before], head: [other] }).map(({ change }) => change)).toEqual([
+    'removed',
+    'added',
+  ]);
+  expect(
+    logicDiff({ base: [before], head: [other, widened] }).map(({ change, head }) => [change, head]),
+  ).toEqual([
+    ['added', 'before_action :c'],
+    ['changed', 'before_action :a, :b'],
+  ]);
+});
+
+test('a base decision pairs with one head decision alone', () => {
+  const before = macro('before_action :a', 'before_action', ':a');
+  const one = macro('before_action :a, :b', 'before_action', ':a', ':b');
+  const another = macro('before_action :a, :c', 'before_action', ':a', ':c');
+
+  expect(
+    logicDiff({ base: [before], head: [one, another] }).map(({ change, head }) => [change, head]),
+  ).toEqual([
+    ['changed', 'before_action :a, :b'],
+    ['added', 'before_action :a, :c'],
+  ]);
+});
+
+test('names of one subject compare as decisions do, with their spacing ignored', () => {
+  const spaced = macro('validates [:a, :b]', 'validates', '[:a, :b]');
+  const packed = macro('validates [:a,:b], on: :x', 'validates', '[:a,:b]');
+
+  expect(logicDiff({ base: [spaced], head: [packed] }).map(({ change }) => change)).toEqual([
+    'changed',
+  ]);
+});

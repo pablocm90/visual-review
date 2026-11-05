@@ -10,6 +10,7 @@ export type LogicLine = {
   readonly line: number;
   readonly movedTo?: string;
   readonly movedToNode?: string;
+  readonly foundByName?: true;
 };
 
 type Sides = {
@@ -46,6 +47,7 @@ const removed = (decision: Decision): LogicLine => ({
   depth: decision.depth,
   base: decision.text,
   line: decision.line,
+  ...(decision.foundByName ? { foundByName: true } : {}),
 });
 
 const ofHead = (change: 'same' | 'added', decision: Decision): LogicLine => ({
@@ -65,21 +67,29 @@ const changed = (old: Decision, decision: Decision): LogicLine => ({
   line: decision.line,
 });
 
-const sameKindBefore = (decisions: ReadonlyArray<Decision>, index: number): number =>
-  decisions.slice(0, index).filter(({ kind }) => kind === decisions[index]?.kind).length;
+const canPair = (base: Decision, head: Decision): boolean =>
+  base.kind === head.kind &&
+  (base.subject ?? []).every(name => head.subject?.some(held => tokensOf(held) === tokensOf(name)));
+
+type Pairing = {
+  readonly left: ReadonlyArray<Decision>;
+  readonly lines: ReadonlyArray<LogicLine>;
+};
 
 const linesOfGap = ({ base, head }: Sides): ReadonlyArray<LogicLine> => {
-  const partners = head.map(
-    (decision, index) =>
-      base.filter(({ kind }) => kind === decision.kind)[sameKindBefore(head, index)],
+  const paired = head.reduce<Pairing>(
+    ({ left, lines }, decision) => {
+      const partner = left.find(one => canPair(one, decision));
+      return partner === undefined
+        ? { left, lines: [...lines, ofHead('added', decision)] }
+        : {
+            left: left.filter(one => one !== partner),
+            lines: [...lines, changed(partner, decision)],
+          };
+    },
+    { left: base, lines: [] },
   );
-  return [
-    ...base.filter(decision => !partners.includes(decision)).map(removed),
-    ...head.map((decision, index) => {
-      const partner = partners[index];
-      return partner ? changed(partner, decision) : ofHead('added', decision);
-    }),
-  ];
+  return [...paired.left.map(removed), ...paired.lines];
 };
 
 export const logicDiff = ({ base, head }: Sides): ReadonlyArray<LogicLine> =>
