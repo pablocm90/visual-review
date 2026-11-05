@@ -430,3 +430,49 @@ test.for([
 ])('a file whose only change is $edit reads kind $kind', ({ before, after, kind }) => {
   expect(changesBetween([before], [after]).kind).toBe(kind);
 });
+
+const changesOf = (before: ReadonlyArray<string>, after: ReadonlyArray<string>) =>
+  changesBetween(before, after).symbols.map(
+    ({ change, scope, name }) => `${change} ${scope === undefined ? '' : `${scope}.`}${name}`,
+  );
+
+test.for([
+  {
+    edit: 'nothing',
+    before: 'def open(a); a; end',
+    after: 'def open(a); a; end',
+    change: 'unchanged',
+  },
+  {
+    edit: 'whitespace',
+    before: 'def open(a); a; end',
+    after: 'def open(a);   a; end',
+    change: 'formatting',
+  },
+  {
+    edit: 'a comment',
+    before: 'def open(a); a; end',
+    after: 'def open(a); a; # why\nend',
+    change: 'formatting',
+  },
+  {
+    edit: 'parentheses',
+    before: 'def open(a); a; end',
+    after: 'def open a; a; end',
+    change: 'formatting',
+  },
+  {
+    edit: 'its body',
+    before: 'def open(a); a; end',
+    after: 'def open(a); a + 1; end',
+    change: 'edited',
+  },
+  {
+    edit: 'a parameter',
+    before: 'def open(a); 1; end',
+    after: 'def open(b); 1; end',
+    change: 'edited',
+  },
+])('a method with $edit changed reads $change', ({ before, after, change }) => {
+  expect(changesOf([before], [after])).toEqual([`${change} open`]);
+});

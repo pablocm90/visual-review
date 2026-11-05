@@ -26,6 +26,8 @@ const shapeOf = (node: Node): Shape =>
 const hashOf = (shape: Shape): string =>
   createHash('sha1').update(JSON.stringify(shape)).digest('hex');
 
+const shapesOf = (nodes: ReadonlyArray<Node>): Shape => nodes.map(shapeOf);
+
 const NOT_YET_HASHED = { signatureHash: '', bodyHash: '', textHash: '', bodyTokens: [] };
 
 type ByName = {
@@ -64,6 +66,11 @@ const parameterText = (method: Node): string => {
   return written.length === 0 ? '' : `(${written.join(', ')})`;
 };
 
+const bodyOf = (definition: Node): ReadonlyArray<Node> => {
+  const body = definition.childForFieldName('body');
+  return body === null ? [] : [body];
+};
+
 const methodSymbol = (method: Node, within: string | undefined, walk: Walk): ReadSymbol => {
   const name = method.childForFieldName('name');
   const isSetter = name?.type === 'setter';
@@ -81,6 +88,8 @@ const methodSymbol = (method: Node, within: string | undefined, walk: Walk): Rea
         : walk.exported || written === 'initialize',
     signature: parameterText(method),
     ...NOT_YET_HASHED,
+    bodyHash: hashOf([shapesOf(parametersOf(method)), shapesOf(bodyOf(method))]),
+    textHash: hashOf(method.text),
   };
 };
 
