@@ -800,19 +800,6 @@ const NotePanel = ({
   onAnswer,
 }: NotePanelProps) => (
   <>
-    {found.length > 0 && (
-      <ul className="note-findings" aria-label="Findings">
-        {found.map(finding => (
-          <li key={finding.id}>
-            <LevelMark level={finding.level} />
-            {findingLine(finding)}
-            {onAnswer && (
-              <AnswerButtons id={finding.id} answer={answers[finding.id]} onAnswer={onAnswer} />
-            )}
-          </li>
-        ))}
-      </ul>
-    )}
     <p>{note?.text ?? 'No note'}</p>
     <SaidBefore key={anchorKey(anchor)} on={anchor} />
     {saidInPlace.map(id => (
@@ -827,6 +814,22 @@ const NotePanel = ({
       ) : (
         <p>Drawn for several edges: open its ends to comment on one of them.</p>
       ))}
+    {found.length > 0 && (
+      <section className="column-section" aria-label="Why look">
+        <h3>Why look</h3>
+        <ul className="note-findings" aria-label="Findings">
+          {found.map(finding => (
+            <li key={finding.id}>
+              <LevelMark level={finding.level} />
+              {findingLine(finding)}
+              {onAnswer && (
+                <AnswerButtons id={finding.id} answer={answers[finding.id]} onAnswer={onAnswer} />
+              )}
+            </li>
+          ))}
+        </ul>
+      </section>
+    )}
   </>
 );
 

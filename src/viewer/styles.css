@@ -2806,3 +2806,9 @@ main:has(> .review-tray) {
 .lens-row-name {
   color: var(--ink);
 }
+
+.column-section h3 {
+  margin: 14px 0 4px;
+  font-size: 12px;
+  font-weight: 600;
+}

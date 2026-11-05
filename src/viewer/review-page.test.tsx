@@ -1696,11 +1696,18 @@ test("a drawn node's or edge's badge names its findings under the worst level, s
   await user.click(entry);
   expect(noteShown()).toBe('A second way in.');
   expect(findingsShown()).toEqual(['cyclomatic 4 → 14, over 10', 'new entry point']);
+  const whyLook = () => within(noteTab()).queryByRole('region', { name: 'Why look' });
+  expect(within(whyLook() ?? noteTab()).getAllByRole('listitem')).toHaveLength(2);
+  expect(
+    within(noteTab())
+      .getByText('A second way in.')
+      .compareDocumentPosition(whyLook() ?? noteTab()) & Node.DOCUMENT_POSITION_FOLLOWING,
+  ).toBeTruthy();
 
   await user.click(screen.getByRole('button', { name: 'domain: unchanged' }));
   expect(findingsShown()).toEqual(['lines 900, over 800']);
   await user.click(screen.getByRole('button', { name: 'application: modified' }));
-  expect(within(noteTab()).queryByRole('list', { name: 'Findings' })).toBeNull();
+  expect(whyLook()).toBeNull();
 
   const shape = () =>
     within(screen.getByRole('group', { name: 'Lenses' })).getByRole('button', { name: /Shape/ });
