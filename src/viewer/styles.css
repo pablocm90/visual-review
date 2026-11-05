@@ -2804,7 +2804,8 @@ main:has(> .review-tray) {
   color: var(--muted);
 }
 
-.schema-rows tr:focus {
+.schema-rows tr:focus,
+.routes-unread li:focus {
   outline: 2px solid var(--ramp-3);
   outline-offset: 2px;
 }
