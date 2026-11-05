@@ -3,7 +3,10 @@ import type { Decision } from '../../core/reader.ts';
 
 type Head = Pick<Decision, 'kind' | 'text' | 'foundByName'>;
 
-type Read = Head & { readonly deeper: ReadonlyArray<Node> };
+type Read = Head & {
+  readonly deeper: ReadonlyArray<Node>;
+  readonly beside?: ReadonlyArray<Node>;
+};
 
 const fieldOf = (node: Node, field: string): Node | undefined =>
   node.childForFieldName(field) ?? undefined;
@@ -131,7 +134,30 @@ const modifierLoop = (node: Node): Read => ({
   deeper: fieldsOf(node, 'body'),
 });
 
-const READS = new Map<string, (node: Node) => Read>([
+const NAMED_LOOPS = new Set([
+  'each',
+  'each_with_index',
+  'each_slice',
+  'find_each',
+  'find_in_batches',
+  'times',
+  'loop',
+]);
+
+const namedLoop = (node: Node): Read | undefined => {
+  const block = fieldOf(node, 'block');
+  const word = fieldOf(node, 'method')?.text;
+  if (block === undefined || word === undefined || !NAMED_LOOPS.has(word)) return undefined;
+  return {
+    kind: 'loop',
+    text: `${codeUpTo(node, block)} do`,
+    foundByName: true,
+    deeper: [block],
+    beside: fieldsOf(node, 'receiver', 'arguments'),
+  };
+};
+
+const READS = new Map<string, (node: Node) => Read | undefined>([
   ['if', blockIf],
   ['unless', blockIf],
   ['if_modifier', modifierIf],
@@ -143,6 +169,7 @@ const READS = new Map<string, (node: Node) => Read>([
   ['for', blockLoop],
   ['while_modifier', modifierLoop],
   ['until_modifier', modifierLoop],
+  ['call', namedLoop],
 ]);
 
 type Walk = { readonly depth: number };
@@ -151,9 +178,10 @@ const decisionsUnder = (walk: Walk, nodes: ReadonlyArray<Node>): ReadonlyArray<D
   nodes.flatMap(node => {
     const read = READS.get(node.type)?.(node);
     if (read === undefined) return decisionsUnder(walk, node.namedChildren);
-    const { deeper, ...head } = read;
+    const { deeper, beside = [], ...head } = read;
     const depth = node.type === 'elsif' ? walk.depth - 1 : walk.depth;
     return [
+      ...decisionsUnder(walk, beside),
       { ...head, depth, line: node.startPosition.row + 1 },
       ...decisionsUnder({ depth: depth + 1 }, deeper),
     ];

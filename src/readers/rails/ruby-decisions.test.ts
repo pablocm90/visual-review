@@ -122,3 +122,37 @@ test.for([
     ['if', 'if y', 1],
   ]);
 });
+
+test.for([
+  { lines: ['orders.each do |o|', '  go if y', 'end'], text: 'orders.each do' },
+  { lines: ['orders.each { |o| go if y }'], text: 'orders.each do' },
+  { lines: ['orders.each_with_index { |o, i| go if y }'], text: 'orders.each_with_index do' },
+  { lines: ['orders.each_slice(10) { |o| go if y }'], text: 'orders.each_slice(10) do' },
+  { lines: ['orders.find_each { |o| go if y }'], text: 'orders.find_each do' },
+  { lines: ['orders.find_in_batches { |o| go if y }'], text: 'orders.find_in_batches do' },
+  { lines: ['3.times { go if y }'], text: '3.times do' },
+  { lines: ['loop { go if y }'], text: 'loop do' },
+  { lines: ['each { go if y }'], text: 'each do' },
+])('$lines reads as the loop $text, found by name, its block one deeper', ({ lines, text }) => {
+  expect(decisionsIn(...lines)).toEqual([
+    { kind: 'loop', text, depth: 0, line: 2, foundByName: true },
+    { kind: 'if', text: 'if y', depth: 1, line: expect.any(Number) },
+  ]);
+});
+
+test.for([
+  { reason: 'a map block', lines: ['orders.map { |o| go if y }'] },
+  { reason: 'an each with no block', lines: ['orders.each(&:go)', 'go if y'] },
+])('$reason is no loop, and what is inside it stays level', ({ lines }) => {
+  expect(decisionsIn(...lines)?.map(({ kind, depth }) => [kind, depth])).toEqual([['if', 0]]);
+});
+
+test.for([
+  { reason: 'its receiver', kind: 'if', lines: ['orders.select { go if y }.each { go }'] },
+  { reason: 'its arguments', kind: 'ternary', lines: ['orders.each_slice(a ? 1 : 2) { go }'] },
+])('what is in $reason reads level with the loop, ahead of it', ({ kind, lines }) => {
+  expect(decisionsIn(...lines)?.map(({ kind, depth }) => [kind, depth])).toEqual([
+    [kind, 0],
+    ['loop', 0],
+  ]);
+});
