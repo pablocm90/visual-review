@@ -51,3 +51,32 @@ test('resources names several, each with its own actions', () => {
     'posts#index',
   ]);
 });
+
+test('resource draws one thing with no index and no id, its controller plural', () => {
+  expect(lines('resource :profile')).toStrictEqual([
+    'POST /profile profiles#create',
+    'GET /profile/new profiles#new',
+    'GET /profile/edit profiles#edit',
+    'GET /profile profiles#show',
+    'PATCH /profile profiles#update',
+    'PUT /profile profiles#update',
+    'DELETE /profile profiles#destroy',
+  ]);
+});
+
+test.for([
+  { written: 'resource :profile, only: :show', expected: ['GET /profile profiles#show'] },
+  { written: 'resource :profile, only: []', expected: [] },
+])('$written keeps its actions as resources does', ({ written, expected }) => {
+  expect(lines(written)).toStrictEqual(expected);
+});
+
+test('namespace prefixes the path and the controller, nesting', () => {
+  expect(
+    lines(`namespace :api do
+      namespace :v1 do
+        resources :users, only: :index
+      end
+    end`),
+  ).toStrictEqual(['GET /api/v1/users api/v1/users#index']);
+});
