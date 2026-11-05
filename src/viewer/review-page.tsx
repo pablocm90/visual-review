@@ -41,15 +41,8 @@ import { anchorName, lineAnchor, placeOfLine, rowOfLine } from './anchors.ts';
 import { ChangedSinceMarks, ChangedSinceTag, useIsChangedSince } from './changed-since.tsx';
 import { ColourBy, type Colouring, ScaleLegend, type Shade, shadeOf } from './colour-by.tsx';
 import type { Comments } from './comment-field.tsx';
-import {
-  AnswerButtons,
-  type Answers,
-  type AnswerTo,
-  findingLine,
-  LEVELS,
-  LevelMark,
-  worstOf,
-} from './finding-display.tsx';
+import { type Answers, type AnswerTo, findingLine, LEVELS, worstOf } from './finding-display.tsx';
+import { FindingRows, type FindingRowsProps } from './finding-rows.tsx';
 import { FindingsRail, LensChips, LensRow, StartHere } from './findings-rail.tsx';
 import { highlightPatch, type PatchLine as Line, type Piece } from './highlight-patch.ts';
 import { LastReview } from './last-review.tsx';
@@ -80,7 +73,7 @@ import {
 } from './said-before.tsx';
 import { type SchemaLanding, SchemaScreen } from './schema-screen.tsx';
 import { scrollInPanel } from './scroll-in-panel.ts';
-import { changedCount, TestFiles, TestsScreen } from './tests-screen.tsx';
+import { changedCount, TestedBy, TestsScreen, useTestsToRead } from './tests-screen.tsx';
 import {
   boxOf,
   centred,
@@ -99,7 +92,6 @@ import {
   type LineAt,
   type RowLanding,
   useFilesWithNews,
-  useRowMarks,
   WhatChanged,
 } from './what-changed.tsx';
 
@@ -651,10 +643,9 @@ type InspectorProps = {
   readonly onClose: () => void;
 };
 
-type InspectorTab = 'note' | 'metrics' | 'diff' | 'tests';
+type InspectorTab = 'note' | 'metrics' | 'diff';
 
 const DRAFT_TABS: Partial<Record<PreviousComment['anchor']['kind'], InspectorTab>> = {
-  test: 'tests',
   line: 'diff',
 };
 
@@ -682,66 +673,36 @@ const INSPECTOR_TABS: Readonly<Record<InspectorTab, string>> = {
   note: 'Note',
   metrics: 'Metrics',
   diff: 'Diff',
-  tests: 'Tests',
 };
 
 type Section = {
   readonly tab: InspectorTab;
-  readonly count?: number;
   readonly panel: ReactNode;
 };
 
-type NodeSectionsOptions = Pick<
-  InspectorProps,
-  'nodes' | 'metrics' | 'findings' | 'tests' | 'comments' | 'onComment'
-> & {
+type MetricsSectionOptions = Pick<InspectorProps, 'metrics' | 'findings'> & {
   readonly node: DiffNode;
 };
 
-const nodeSections = ({
-  nodes,
+const metricsSection = ({
   node,
   metrics,
   findings,
-  tests,
-  comments,
-  onComment,
-}: NodeSectionsOptions): ReadonlyArray<Section> => {
+}: MetricsSectionOptions): ReadonlyArray<Section> => {
   const measured = metrics[node.id];
-  const testsHere = testsAlongside({ nodes, node, tests });
-  return [
-    ...(measured
-      ? [
-          {
-            tab: 'metrics' as const,
-            panel: (
-              <MetricsTable
-                metrics={measured}
-                findings={findings.filter(finding => finding.node === node.id)}
-              />
-            ),
-          },
-        ]
-      : []),
-    ...(testsHere.length > 0
-      ? [
-          {
-            tab: 'tests' as const,
-            count: changedCount(testsHere),
-            panel: (
-              <div className="tests">
-                <TestFiles
-                  files={testsHere}
-                  nodes={nodes}
-                  comments={comments}
-                  onComment={onComment}
-                />
-              </div>
-            ),
-          },
-        ]
-      : []),
-  ];
+  return measured
+    ? [
+        {
+          tab: 'metrics',
+          panel: (
+            <MetricsTable
+              metrics={measured}
+              findings={findings.filter(finding => finding.node === node.id)}
+            />
+          ),
+        },
+      ]
+    : [];
 };
 
 type NotePanelProps = Pick<
@@ -749,6 +710,7 @@ type NotePanelProps = Pick<
   | 'nodes'
   | 'node'
   | 'symbols'
+  | 'tests'
   | 'onGoTo'
   | 'note'
   | 'found'
@@ -764,34 +726,20 @@ type NotePanelProps = Pick<
   readonly onShowLine: (at: LineAt) => void;
 };
 
-const WhyLook = ({
-  found,
-  answers,
-  onAnswer,
-}: Pick<NotePanelProps, 'found' | 'answers' | 'onAnswer'>) => {
-  const marksOf = useRowMarks();
-  return (
-    <section className="column-section" aria-label="Why look">
-      <h3>Why look</h3>
-      <ul className="note-findings" aria-label="Findings">
-        {found.map(finding => (
-          <li key={finding.id} {...marksOf({ kind: 'finding', id: finding.id })}>
-            <LevelMark level={finding.level} />
-            {findingLine(finding)}
-            {onAnswer && (
-              <AnswerButtons id={finding.id} answer={answers[finding.id]} onAnswer={onAnswer} />
-            )}
-          </li>
-        ))}
-      </ul>
-    </section>
-  );
-};
+const WhyLook = (rows: FindingRowsProps) => (
+  <section className="column-section" aria-label="Why look">
+    <h3>Why look</h3>
+    <FindingRows {...rows} />
+  </section>
+);
+
+const isUntestedLogic = ({ check }: Finding) => check === 'tests:untested-logic';
 
 const NotePanel = ({
   nodes,
   node,
   symbols,
+  tests,
   onGoTo,
   onShowLine,
   landing,
@@ -807,9 +755,13 @@ const NotePanel = ({
 }: NotePanelProps) => {
   const filesWithNews = useFilesWithNews(node, symbols, nodes);
   const hasSaid = useHasSaid();
+  const testsToRead = useTestsToRead(node ? testsAlongside({ nodes, node, tests }) : [], comments);
+  const untested = found.filter(isUntestedLogic);
+  const toLookAt = found.filter(finding => !isUntestedLogic(finding));
   const isBare =
     filesWithNews.length === 0 &&
     found.length === 0 &&
+    testsToRead.length === 0 &&
     !hasSaid(anchor) &&
     saidInPlace.length === 0;
   return (
@@ -839,7 +791,18 @@ const NotePanel = ({
           onComment={onComment}
         />
       )}
-      {found.length > 0 && <WhyLook found={found} answers={answers} onAnswer={onAnswer} />}
+      {toLookAt.length > 0 && <WhyLook found={toLookAt} answers={answers} onAnswer={onAnswer} />}
+      {(testsToRead.length > 0 || untested.length > 0) && (
+        <TestedBy
+          drawn={testsToRead}
+          nodes={nodes}
+          comments={comments}
+          onComment={onComment}
+          found={untested}
+          answers={answers}
+          onAnswer={onAnswer}
+        />
+      )}
     </LandedRows>
   );
 };
@@ -888,7 +851,7 @@ const Inspector = ({
           },
         ]
       : []),
-    ...(node ? nodeSections({ ...props, node }) : []),
+    ...(node ? metricsSection({ ...props, node }) : []),
   ].toSorted((a, b) => SECTION_ORDER.indexOf(a.tab) - SECTION_ORDER.indexOf(b.tab));
   const shown = sections.find(({ tab }) => tab === picked) ?? sections[0];
   const column = useRef<HTMLElement>(null);
@@ -905,7 +868,7 @@ const Inspector = ({
       </button>
       {node && <InspectorHead nodes={props.nodes} node={node} />}
       <div className="inspector-tabs" role="tablist" aria-label="Inspector sections">
-        {sections.map(({ tab, count }) => (
+        {sections.map(({ tab }) => (
           <button
             key={tab}
             type="button"
@@ -914,7 +877,6 @@ const Inspector = ({
             onClick={() => onPick(tab)}
           >
             {INSPECTOR_TABS[tab]}
-            {count !== undefined && ` ${count}`}
           </button>
         ))}
       </div>
@@ -1594,7 +1556,7 @@ const Page = ({ review, notes, send }: ReviewPageProps) => {
     const onRow =
       anchor.kind === 'finding'
         ? findings.some(finding => finding.id === anchor.id)
-        : holdsRow(review.symbols, anchor);
+        : holdsRow(review, anchor);
     const place = onRow ? { path: undefined, row: anchorKey(anchor) } : placeOfLine(anchor);
     landOn(id, place ?? { path: undefined });
     goToOnTab(id, tabOfDraft(anchor));

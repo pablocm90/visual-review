@@ -2865,3 +2865,8 @@ main:has(> .review-tray) {
   outline: 2px solid var(--ink);
   outline-offset: 2px;
 }
+
+.tests > .note-findings {
+  margin: 0 0 12px;
+  padding: 0;
+}

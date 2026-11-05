@@ -2,9 +2,11 @@ import { createContext, type ReactNode, useContext, useLayoutEffect, useRef } fr
 import { anchorKey } from '../core/anchors.ts';
 import type { DiffedNode } from '../core/diff-graphs.ts';
 import type { LogicLine } from '../core/logic-diff.ts';
+import type { PageData } from '../core/page.ts';
 import type { PreviousComment } from '../core/previous-comments.ts';
 import type { SymbolFile } from '../core/read-range.ts';
 import type { Comment } from '../core/review.ts';
+import { testAnchorsIn } from '../core/since-review.ts';
 import {
   changesApi,
   isQuiet,
@@ -66,17 +68,21 @@ export const useRowMarks = () => {
     landed === anchorKey(anchor) ? ({ 'aria-current': true, tabIndex: -1 } as const) : {};
 };
 
+type HeldRows = Pick<PageData, 'symbols' | 'tests'>;
+
 export const holdsRow = (
-  files: ReadonlyArray<SymbolFile>,
+  { symbols, tests }: HeldRows,
   { kind, id }: PreviousComment['anchor'],
 ): boolean =>
-  files
-    .flatMap(file => ('symbols' in file ? anchoredSymbols(file.node, file.symbols) : []))
-    .some(symbol =>
-      kind === 'symbol'
-        ? symbol.id === id
-        : kind === 'decision' && decisionsOf(symbol).some(line => line.id === id),
-    );
+  kind === 'test'
+    ? testAnchorsIn(tests).some(test => test.id === id)
+    : symbols
+        .flatMap(file => ('symbols' in file ? anchoredSymbols(file.node, file.symbols) : []))
+        .some(symbol =>
+          kind === 'symbol'
+            ? symbol.id === id
+            : kind === 'decision' && decisionsOf(symbol).some(line => line.id === id),
+        );
 
 const labelOf = (nodes: ReadonlyArray<DiffedNode>, id: string): string | undefined =>
   nodes.find(node => node.id === id)?.label;

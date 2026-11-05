@@ -153,7 +153,7 @@ const testsUnder = (statements: ReadonlyArray<AnchoredStatement>): ReadonlyArray
     statement.kind === 'test' ? [statement] : testsUnder(statement.children),
   );
 
-const testAnchorsIn = (files: ReadonlyArray<TestFile>) =>
+export const testAnchorsIn = (files: ReadonlyArray<TestFile>) =>
   files.flatMap(file =>
     'statements' in file
       ? testsUnder(anchoredTests(file.statements)).map(({ trail, change }) => ({
