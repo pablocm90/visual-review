@@ -896,7 +896,7 @@ const Inspector = ({
   useLayoutEffect(() => {
     if (!column.current || landing?.row !== undefined || landing?.path !== undefined) return;
     column.current.scrollTop = 0;
-  }, [node?.id, landing]);
+  }, [props.anchor.id, landing]);
   return (
     <aside ref={column} className="note" aria-label="Inspector" style={{ width }}>
       <button type="button" className="close" aria-label="Close inspector" onClick={onClose}>

@@ -2258,6 +2258,12 @@ test('the next part opens at the top of the column, which holds its scroll while
   await user.keyboard('j');
   expect(selectedPart()).toBe('cli-adapter');
   expect(inspector().scrollTop).toBe(0);
+
+  const rust = screen.getByRole('group', { name: 'rust' });
+  await user.click(within(rust).getByRole('button', { name: 'application → domain: unchanged' }));
+  inspector().scrollTop = 300;
+  await user.click(within(rust).getByRole('button', { name: 'cli-adapter → application: added' }));
+  expect(inspector().scrollTop).toBe(0);
 });
 
 test('A marks the selected part read, ticking its row and counting it at the head of the reading order, and A again leaves it unread', async () => {
