@@ -18,15 +18,22 @@ const signatureOf = (definition: Node): string =>
 
 type Shape = string | ReadonlyArray<Shape>;
 
-const shapeOf = (node: Node): Shape =>
-  node.childCount === 0
+type Holes = ReadonlySet<number>;
+
+const NO_HOLES: Holes = new Set();
+
+const shapeOf = (node: Node, holes: Holes = NO_HOLES): Shape => {
+  if (holes.has(node.id)) return [];
+  return node.childCount === 0
     ? node.text
-    : node.children.filter(({ type }) => type !== 'comment').map(child => shapeOf(child));
+    : node.children.filter(({ type }) => type !== 'comment').map(child => shapeOf(child, holes));
+};
 
 const hashOf = (shape: Shape): string =>
   createHash('sha1').update(JSON.stringify(shape)).digest('hex');
 
-const shapesOf = (nodes: ReadonlyArray<Node>): Shape => nodes.map(shapeOf);
+const shapesOf = (nodes: ReadonlyArray<Node>, holes: Holes = NO_HOLES): Shape =>
+  nodes.map(node => shapeOf(node, holes));
 
 const tokensOf = (shape: Shape): ReadonlyArray<string> =>
   typeof shape === 'string' ? [shape] : shape.flatMap(tokensOf);
@@ -47,6 +54,7 @@ type Walk = {
   readonly byName: ReadonlyArray<ByName>;
   readonly privateConstants: ReadonlyArray<string>;
   readonly symbols: ReadonlyArray<ReadSymbol>;
+  readonly holes: ReadonlyArray<number>;
 };
 
 const STARTING: Walk = {
@@ -57,6 +65,7 @@ const STARTING: Walk = {
   byName: [],
   privateConstants: [],
   symbols: [],
+  holes: [],
 };
 
 const parametersOf = (method: Node): ReadonlyArray<Node> =>
@@ -69,19 +78,20 @@ const parameterText = (method: Node): string => {
   return written.length === 0 ? '' : `(${written.join(', ')})`;
 };
 
-const bodyOf = (definition: Node): ReadonlyArray<Node> => {
-  const body = definition.childForFieldName('body');
-  return body === null ? [] : [body];
+const fieldOf = (definition: Node, field: string): ReadonlyArray<Node> => {
+  const child = definition.childForFieldName(field);
+  return child === null ? [] : [child];
 };
 
 type Hashed = {
   readonly signed: ReadonlyArray<Node>;
   readonly body: ReadonlyArray<Node>;
+  readonly holes?: Holes;
   readonly text: string;
 };
 
-const hashesOf = ({ signed, body, text }: Hashed) => {
-  const shapes = [shapesOf(signed), shapesOf(body)];
+const hashesOf = ({ signed, body, holes, text }: Hashed) => {
+  const shapes = [shapesOf(signed), shapesOf(body, holes)];
   return {
     signatureHash: hashOf(shapesOf(signed)),
     bodyHash: hashOf(shapes),
@@ -106,7 +116,7 @@ const methodSymbol = (method: Node, within: string | undefined, walk: Walk): Rea
         ? !walk.hiddenClassMethod
         : walk.exported || written === 'initialize',
     signature: parameterText(method),
-    ...hashesOf({ signed: parametersOf(method), body: bodyOf(method), text: method.text }),
+    ...hashesOf({ signed: parametersOf(method), body: fieldOf(method, 'body'), text: method.text }),
   };
 };
 
@@ -253,11 +263,19 @@ const isSingletonBlock = (node: Node): boolean =>
   (node.type === 'call' && node.childForFieldName('method')?.text === 'class_methods');
 
 const walked = (walk: Walk, node: Node, within: string | undefined): Walk => {
-  const joined = (inner: Walk): Walk => ({ ...walk, symbols: [...walk.symbols, ...inner.symbols] });
+  const joined = (inner: Walk): Walk => ({
+    ...walk,
+    symbols: [...walk.symbols, ...inner.symbols],
+    holes: [...walk.holes, ...inner.holes],
+  });
   if (node.type === 'identifier' && BODIES.has(node.parent?.type ?? ''))
     return { ...walk, ...BARE_WORDS.get(node.text) };
   if (METHODS.has(node.type))
-    return { ...walk, symbols: [...walk.symbols, methodSymbol(node, within, walk)] };
+    return {
+      ...walk,
+      symbols: [...walk.symbols, methodSymbol(node, within, walk)],
+      holes: [...walk.holes, node.id],
+    };
   if (BODIES.has(node.type)) {
     const inner = walkedChildren({ ...STARTING, singleton: walk.singleton }, node, within);
     return joined({
@@ -278,24 +296,35 @@ const walked = (walk: Walk, node: Node, within: string | undefined): Walk => {
   if (called === 'delegate')
     return { ...walk, symbols: [...walk.symbols, ...delegateSymbols(node, within, walk)] };
   const held = VISIBILITY_CALLS.get(called ?? '');
-  if (held)
+  if (held) {
+    const inner = walkedChildren({ ...walk, ...held }, node, within);
     return {
       ...walk,
       byName: [...walk.byName, ...namedIn(node, held, walk)],
-      symbols: walkedChildren({ ...walk, ...held }, node, within).symbols,
+      symbols: inner.symbols,
+      holes: inner.holes,
     };
+  }
   if (!DEFINITIONS.has(node.type)) return walkedChildren(walk, node, within);
   const constant = constantWithin(node.childForFieldName('name')?.text ?? '', within);
+  const inner = walkedChildren(STARTING, node, constant);
+  const holes = new Set(inner.holes);
   const definition: ReadSymbol = {
     name: constant,
     kind: 'class',
     exported: true,
     signature: signatureOf(node),
-    ...NOT_YET_HASHED,
+    ...hashesOf({
+      signed: fieldOf(node, 'superclass'),
+      body: fieldOf(node, 'body'),
+      holes,
+      text: node.text,
+    }),
   };
   return {
     ...walk,
-    symbols: [...walk.symbols, definition, ...walkedChildren(STARTING, node, constant).symbols],
+    symbols: [...walk.symbols, definition, ...inner.symbols],
+    holes: [...walk.holes, node.id],
   };
 };
 

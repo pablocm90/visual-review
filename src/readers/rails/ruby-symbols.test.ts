@@ -499,3 +499,32 @@ test('a method with the same body under another name reads renamed, a similar on
     changesBetween([`def open(a); ${body}; end`], [`def shut(a); ${body} + 5; end`]).symbols,
   ).toMatchObject([{ name: 'shut', change: 'renamed', renamedFrom: 'open', probably: true }]);
 });
+
+test.for([
+  {
+    edit: 'a new method',
+    before: ['class Shop', '  def open; 1; end', 'end'],
+    after: ['class Shop', '  def open; 1; end', '  def shut; 1; end', 'end'],
+    expected: ['edited Shop', 'unchanged Shop.open', 'added Shop.shut'],
+  },
+  {
+    edit: 'a comment and an edit to a method in it',
+    before: ['class Shop', '  def open; 1; end', 'end'],
+    after: ['class Shop', '  # why', '  def open; 2; end', 'end'],
+    expected: ['formatting Shop', 'edited Shop.open'],
+  },
+  {
+    edit: 'a line of its own',
+    before: ['class Shop', '  def open; 1; end', 'end'],
+    after: ['class Shop', '  include Till', '  def open; 1; end', 'end'],
+    expected: ['edited Shop', 'unchanged Shop.open'],
+  },
+])('with $edit, a class and what it holds read apart', ({ before, after, expected }) => {
+  expect(changesOf(before, after)).toEqual(expected);
+});
+
+test("a class's superclass is its signature", () => {
+  expect(
+    changesBetween(['class Shop < Base; end'], ['class Shop < Other; end']).symbols,
+  ).toMatchObject([{ change: 'edited', signature: { base: '< Base', head: '< Other' } }]);
+});
