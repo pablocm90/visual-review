@@ -45,6 +45,14 @@ test.for([
       'fn open<\n  T,\n>(\n  // the amount\n  x: T,\n) -> Result<\n  u8,\n  E,\n>\nwhere\n  T: Send,\n{}',
     signature: '<T>(x: T) -> Result< u8, E, > where T: Send',
   },
+  {
+    written: '#[inline]\n#[cfg(unix)]\n/// why\n#[cfg(feature = "a")]\nasync fn open(x: u8) {}',
+    signature: '#[cfg(unix)] #[cfg(feature = "a")] async (x: u8)',
+  },
+  {
+    written: '#[cfg(any(\n  unix,\n  windows,\n))]\nfn open() {}',
+    signature: '#[cfg(any( unix, windows, ))] ()',
+  },
 ])('$written reads the signature $signature', ({ written, signature }) => {
   expect(read(written).symbols).toMatchObject([{ signature }]);
 });
@@ -121,6 +129,7 @@ test.for([
     before: 'fn a() -> (u8,) {}',
     after: 'fn a() -> (u8) {}',
   },
+  { edit: 'a cfg', before: '#[cfg(unix)]\nfn a() {}', after: '#[cfg(windows)]\nfn a() {}' },
 ])('a change to $edit reads as a changed signature', ({ before, after }) => {
   const [change] = symbolChanges({ before: read(before), after: read(after) }).symbols;
   expect(change).toMatchObject({ change: 'edited', signature: expect.anything() });

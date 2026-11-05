@@ -2,7 +2,7 @@ import type { Node } from 'web-tree-sitter';
 import type { FileSymbols, ReadSymbol } from '../../core/reader.ts';
 import { isTooBig, TOO_BIG } from '../too-big.ts';
 import { hashesOf, hashOf, isComment, shapeOf } from '../tree-sitter.ts';
-import { attributesOf, isDocText, parseRust } from './rust-syntax.ts';
+import { attributesOf, isDocText, parseRust, pathOf } from './rust-syntax.ts';
 
 const isExactlyPub = (item: Node): boolean => item.namedChildren[0]?.text === 'pub';
 
@@ -25,9 +25,13 @@ const signedPartsOf = (item: Node) => ({
   bounds: childOfType(item, 'where_clause'),
 });
 
+const cfgsOf = (item: Node): ReadonlyArray<Node> =>
+  attributesOf(item).filter(attribute => pathOf(attribute) === 'cfg');
+
 const signatureOf = (item: Node): string => {
   const { modifiers, generics, parameters, returned, bounds } = signedPartsOf(item);
   return [
+    ...cfgsOf(item).map(({ text }) => collapsed(text)),
     ...(modifiers === null ? [] : [modifiers.text]),
     `${generics === null ? '' : `<${writtenIn(generics)}>`}(${writtenIn(parameters)})`,
     ...(returned === null ? [] : [`-> ${collapsed(returned.text)}`]),
@@ -46,7 +50,7 @@ const functionSymbol = (item: Node): ReadSymbol => {
     exported: isExactlyPub(item),
     signature: signatureOf(item),
     ...hashesOf({
-      signed: present(Object.values(signedPartsOf(item))),
+      signed: [...cfgsOf(item), ...present(Object.values(signedPartsOf(item)))],
       body: [
         ...attributes.filter(attribute => !isDocText(attribute)),
         ...present([childOfType(item, 'visibility_modifier'), item.childForFieldName('body')]),
