@@ -811,7 +811,7 @@ const NotePanel = ({
       </ul>
     )}
     <p>{note?.text ?? 'No note'}</p>
-    <SaidBefore on={anchor} />
+    <SaidBefore key={anchorKey(anchor)} on={anchor} />
     {saidInPlace.map(id => (
       <div key={id}>
         <p className="said-edge">{anchorName({ kind: 'edge', id }, nodes)}</p>

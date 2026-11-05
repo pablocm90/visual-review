@@ -6639,6 +6639,43 @@ test('a part with a last comment takes Reply and no comment field in its Note pa
   expect(within(noteTab()).queryByRole('textbox', { name: 'Your comment' })).toBeNull();
 });
 
+test('the Note panel opens Reply by the part selected: a draft elsewhere shows on going to it, and an open Reply stays with its part', async () => {
+  const user = userEvent.setup();
+  render(
+    <ReviewPage
+      review={pageWith({
+        ...review,
+        sinceReview: {
+          ...sinceReview,
+          comments: [
+            saidOnPart('rust/crate/application'),
+            saidOnPart('rust/crate/cli-adapter'),
+            saidOnPart('rust/crate/domain'),
+          ],
+        },
+      })}
+      send={async () => {}}
+    />,
+  );
+  await screen.findByRole('group', { name: 'rust' });
+  const said = within(within(lastReviewSection()).getByRole('listitem', { name: /^application/ }));
+  await user.click(said.getByRole('button', { name: 'Reply' }));
+  await write(user, said.getByRole('textbox', { name: 'Your comment' }), 'Still?');
+
+  await user.click(screen.getByRole('button', { name: 'cli-adapter: added' }));
+  await user.click(within(noteTab()).getByRole('button', { name: 'Reply' }));
+  expect(within(noteTab()).getByRole('textbox', { name: 'Your comment' })).toBeTruthy();
+
+  await user.click(screen.getByRole('button', { name: 'domain: unchanged' }));
+  expect(within(noteTab()).getByRole('button', { name: 'Reply' })).toBeTruthy();
+  expect(within(noteTab()).queryByRole('textbox', { name: 'Your comment' })).toBeNull();
+
+  await openReview(user);
+  const tray = within(screen.getByRole('region', { name: 'Review tray' }));
+  await user.click(tray.getByRole('button', { name: 'application' }));
+  expect(within(noteTab()).getByRole<HTMLTextAreaElement>('textbox').value).toBe('Still?');
+});
+
 test('a symbol with a last comment takes Reply and no Comment, and the logic line under it keeps its own', async () => {
   const user = userEvent.setup();
   render(
