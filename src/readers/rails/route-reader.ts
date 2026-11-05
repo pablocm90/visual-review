@@ -344,21 +344,6 @@ const isDraw = (statement: Node): boolean =>
 
 const isBare = (statement: Node): boolean => statement.childForFieldName('receiver') === null;
 
-const REPO_PATH = /^[./]/;
-
-const isGemRequire = (statement: Node): boolean => {
-  const [path, ...rest] = argsOf(statement);
-  return (
-    isBare(statement) &&
-    methodOf(statement) === 'require' &&
-    statement.childForFieldName('block') === null &&
-    rest.length === 0 &&
-    path !== undefined &&
-    isName(path) &&
-    !REPO_PATH.test(nameOf(path))
-  );
-};
-
 const programOf = (file: string, text: string): Node => {
   const program = parseRuby(text);
   if (program === undefined || program.hasError) throw new Error(`Ruby syntax error in ${file}`);
@@ -367,11 +352,9 @@ const programOf = (file: string, text: string): Node => {
 
 const drawnFrom = (file: string, scope: Scope): ReadonlyArray<Drawn> => {
   const statements = writtenIn(programOf(file, scope.files.get(file) ?? ''));
-  return statements
-    .filter(statement => !isGemRequire(statement))
-    .flatMap(statement =>
-      routesIn(statement, { ...scope, file, loading: [...scope.loading, file] }),
-    );
+  return statements.flatMap(statement =>
+    routesIn(statement, { ...scope, file, loading: [...scope.loading, file] }),
+  );
 };
 
 const follows =
