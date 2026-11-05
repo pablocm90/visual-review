@@ -4,7 +4,7 @@ import type { FilePatch, GraphDiff } from './diff-graphs.ts';
 import { endsOfId, type GraphNode } from './graph.ts';
 import type { DanglingCall } from './linker.ts';
 import type { MetricFinding } from './metric-findings.ts';
-import { type NodeMetrics, tenths } from './metrics.ts';
+import { tenths } from './metrics.ts';
 import { migrationFindings } from './migration-findings.ts';
 import type { ReviewNotes } from './notes.ts';
 import type { PageData } from './page.ts';
@@ -257,28 +257,6 @@ export const findingsOf = ({ data, notes }: FindingsOfOptions): ReadonlyArray<Fi
         ],
   ),
 ];
-
-type LookFirstOptions = {
-  readonly findings: ReadonlyArray<Finding>;
-  readonly metrics: Readonly<Record<string, NodeMetrics>>;
-};
-
-export const lookFirst = ({ findings, metrics }: LookFirstOptions): ReadonlyArray<Finding> => {
-  const highest = (target: string | undefined, measure: 'fanIn' | 'churn') =>
-    target === undefined
-      ? Number.POSITIVE_INFINITY
-      : Math.max(...endsOfId(target).map(end => metrics[end]?.head?.[measure] ?? 0));
-  const isBlindSpot = ({ target, dimension, id }: Finding) =>
-    target === undefined &&
-    (!(dimension === 'dependencies' || dimension === 'schema') ||
-      id.startsWith(`${dimension}:not-read:`));
-  const before = (one: Finding, other: Finding) =>
-    Number(isBlindSpot(other)) - Number(isBlindSpot(one)) ||
-    highest(other.target, 'fanIn') - highest(one.target, 'fanIn') ||
-    highest(other.target, 'churn') - highest(one.target, 'churn') ||
-    (one.id < other.id ? -1 : 1);
-  return findings.filter(finding => finding.level === 'look').toSorted(before);
-};
 
 type FindingsAtOptions = {
   readonly diff: GraphDiff;

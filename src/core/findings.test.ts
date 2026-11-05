@@ -1,7 +1,7 @@
 import { expect, test } from 'vitest';
 import { findingOn } from '../test-support/page-data.ts';
 import type { GraphDiff } from './diff-graphs.ts';
-import { type Finding, findingsAt, findingsOf, lookFirst } from './findings.ts';
+import { type Finding, findingsAt, findingsOf } from './findings.ts';
 import { parseNotes } from './notes.ts';
 
 const notesWith = (notes: Readonly<Record<string, unknown>>) =>
@@ -45,113 +45,6 @@ test('without notes, the findings are the raised ones', () => {
   expect(findingsOf({ data: { findings: [raised] }, notes: undefined })).toStrictEqual([raised]);
 });
 
-const look = (target: string | undefined, id: string): Finding => ({
-  id,
-  check: 'flag',
-  dimension: 'structure',
-  level: 'look',
-  ...(target !== undefined && { target }),
-  title: id,
-});
-
-const measured = (fanIn: number, churn: number) => ({ head: { fanIn, fanOut: 0, churn } });
-
-test('look first holds the findings to look at: untargeted ones first, then by the fan-in of their target, or of the busier end of an edge, then by its churn, then by id; one with no metrics last', () => {
-  const findings = [
-    findingOn('a', { id: 'info on a' }),
-    look('d', 'on d, unmeasured'),
-    look('a', 'on a'),
-    look('c', 'on c'),
-    look('b', 'on b'),
-    look('d -> b', 'on d -> b'),
-    look('b -> d', 'on b -> d'),
-    look(undefined, 'untargeted z'),
-    look(undefined, 'untargeted y'),
-  ];
-  const metrics = { a: measured(3, 1), b: measured(5, 0), c: measured(3, 4) };
-
-  expect(lookFirst({ findings, metrics }).map(finding => finding.id)).toStrictEqual([
-    'untargeted y',
-    'untargeted z',
-    'on b',
-    'on b -> d',
-    'on d -> b',
-    'on c',
-    'on a',
-    'on d, unmeasured',
-  ]);
-});
-
-test('direct dependency findings rank below other findings with no target and above targeted ones', () => {
-  const findings: ReadonlyArray<Finding> = [
-    look('a', 'on a'),
-    {
-      id: 'dependencies:pnpm-lock.yaml:zod',
-      check: 'dependencies:direct',
-      dimension: 'dependencies',
-      level: 'look',
-      file: 'pnpm-lock.yaml',
-      title: 'zod added at 4.0.0',
-    },
-    {
-      id: 'structure:skipped:rust',
-      check: 'structure:skipped',
-      dimension: 'structure',
-      level: 'look',
-      title: 'Rust skipped',
-    },
-  ];
-
-  expect(lookFirst({ findings, metrics: {} }).map(finding => finding.id)).toStrictEqual([
-    'structure:skipped:rust',
-    'dependencies:pnpm-lock.yaml:zod',
-    'on a',
-  ]);
-});
-
-test('a lockfile not read is a blind spot, ahead of the direct dependencies', () => {
-  const dependency = (id: string): Finding => ({
-    id,
-    check: 'dependencies:direct',
-    dimension: 'dependencies',
-    level: 'look',
-    title: id,
-  });
-
-  expect(
-    lookFirst({
-      findings: [
-        dependency('dependencies:Cargo.lock:anyhow'),
-        dependency('dependencies:not-read:yarn.lock'),
-      ],
-      metrics: {},
-    }).map(finding => finding.id),
-  ).toStrictEqual(['dependencies:not-read:yarn.lock', 'dependencies:Cargo.lock:anyhow']);
-});
-
-test('a migration not read is a blind spot, ahead of the risks of those that were', () => {
-  const migration = (id: string): Finding => ({
-    id,
-    check: 'schema:migration-risk',
-    dimension: 'schema',
-    level: 'look',
-    title: id,
-  });
-
-  expect(
-    lookFirst({
-      findings: [
-        migration('schema:db/migrate/1_a.rb:column users.name removed'),
-        migration('schema:not-read:db/migrate/2_b.rb'),
-      ],
-      metrics: {},
-    }).map(finding => finding.id),
-  ).toStrictEqual([
-    'schema:not-read:db/migrate/2_b.rb',
-    'schema:db/migrate/1_a.rb:column users.name removed',
-  ]);
-});
-
 const boxed = (id: string, parent: string) => ({
   id,
   kind: 'module' as const,
@@ -175,7 +68,13 @@ test('a finding is drawn on its node, or on the closed box holding it, an edge f
   const onHome = findingOn('pages/home');
   const onFormat = findingOn('utils/format');
   const onEdge = findingOn('pages/home -> utils/format', { id: 'edge' });
-  const untargeted = look(undefined, 'untargeted');
+  const untargeted: Finding = {
+    id: 'untargeted',
+    check: 'flag',
+    dimension: 'structure',
+    level: 'look',
+    title: 'untargeted',
+  };
   const findings = [onHome, onFormat, onEdge, untargeted];
 
   expect(findingsAt({ diff, expanded: new Set(['pages']), findings })).toStrictEqual(

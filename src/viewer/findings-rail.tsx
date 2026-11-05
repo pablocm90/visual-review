@@ -4,13 +4,13 @@ import {
   DIMENSIONS,
   type Dimension,
   type Finding,
-  lookFirst,
   skippedFindingId,
 } from '../core/findings.ts';
 import { endsOfId } from '../core/graph.ts';
 import type { PageData } from '../core/page.ts';
 import type { Answer } from '../core/review.ts';
 import { notReadLine } from '../core/skipped.ts';
+import { type StartHereLine, startHere } from '../core/start-here.ts';
 import {
   AnswerButtons,
   type Answers,
@@ -281,48 +281,65 @@ export const TriageStrip = ({ findings, picked, onPick }: TriageStripProps) => {
   );
 };
 
-type LookFirstProps = LineOptions & {
+type StartHereProps = LineOptions & {
   readonly findings: ReadonlyArray<Finding>;
   readonly onShowAll: () => void;
   readonly review: Pick<PageData, 'diff' | 'metrics' | 'sinceReview'>;
 };
 
-const LOOK_FIRST_SHOWN = 7;
+const SeveralFindings = ({ line }: { readonly line: StartHereLine }) => (
+  <li className="finding start-here-several">
+    <LevelMark level={line.level} />
+    <span>
+      {line.title}
+      {line.files > 0 && ` · ${counted(line.files, 'file', 'files')}`}
+    </span>
+    <span className="start-here-names">{line.names.join(', ')}</span>
+  </li>
+);
 
-export const LookFirst = (props: LookFirstProps) => {
+export const StartHere = (props: StartHereProps) => {
   const [open, setOpen] = useState(true);
   const calledFine = props.review.sinceReview?.calledFine ?? [];
-  const ranked = lookFirst({
+  const { lines, look, total } = startHere({
     findings: props.findings.filter(finding => !calledFine.includes(finding.id)),
     metrics: props.review.metrics,
+    nodes: props.review.diff.nodes,
   });
-  if (ranked.length === 0) return null;
+  if (lines.length === 0) return null;
   const lineOf = linesOf(props);
   return (
-    <section className="look-first" aria-label="Look first">
-      <h2 className="look-first-title">
-        <button
-          type="button"
-          className="look-first-toggle"
-          aria-expanded={open}
-          onClick={() => setOpen(!open)}
-        >
-          {`Look first: ${ranked.length}`}
+    <section className="start-here" aria-label="Start here">
+      <div className="start-here-head">
+        <h2 className="start-here-title">
+          <button
+            type="button"
+            className="start-here-toggle"
+            aria-expanded={open}
+            onClick={() => setOpen(!open)}
+          >
+            Start here
+          </button>
+        </h2>
+        <span className="start-here-count">
+          {look > 0
+            ? counted(look, 'finding needs a look', 'findings need a look')
+            : `nothing needs a look · ${counted(total, 'finding', 'findings')}`}
+        </span>
+        <button type="button" className="show-all" onClick={props.onShowAll}>
+          All findings
         </button>
-      </h2>
+      </div>
       {open && (
-        <>
-          <ul>
-            {ranked.slice(0, LOOK_FIRST_SHOWN).map(finding => (
-              <FindingItem key={finding.id} finding={lineOf(finding)} />
-            ))}
-          </ul>
-          {ranked.length > LOOK_FIRST_SHOWN && (
-            <button type="button" className="show-all" onClick={props.onShowAll}>
-              {`Show all ${ranked.length}`}
-            </button>
+        <ul>
+          {lines.map(line =>
+            line.findings.length === 1 ? (
+              line.findings.map(finding => <FindingItem key={line.key} finding={lineOf(finding)} />)
+            ) : (
+              <SeveralFindings key={line.key} line={line} />
+            ),
           )}
-        </>
+        </ul>
       )}
     </section>
   );

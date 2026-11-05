@@ -2419,74 +2419,78 @@ test("J, K and A typed in why it's fine are text, neither walking nor marking", 
   );
 });
 
-test('look first lists the findings to look at in rank order, in the dimension a triage chip picks, collapsing to their count, each going to its node, seven at most and Show all opening the rail past them, and is absent when none needs a look', async () => {
+test('Start here lists its lines in rank order, in the dimension a triage chip picks, folding to its title, each going to its node, five at most with All findings opening the rail, and is absent with no findings', async () => {
   const user = userEvent.setup();
-  const looks = (count: number) =>
-    Array.from({ length: count }, (_, index) =>
-      findingOn('rust/crate/domain', { id: `look ${index}`, level: 'look', title: `${index}` }),
-    );
+  const flagged = (target: string, overrides: Partial<Finding>) =>
+    findingOn(target, { check: 'flag', level: 'look', ...overrides });
   const { rerender } = render(
     <ReviewPage
       review={pageWith({
         ...review,
         findings: [
           findingOn('rust/crate/application'),
-          findingOn('rust/crate/domain', { id: 'b', level: 'look', title: 'second' }),
-          findingOn('rust/crate/cli-adapter', { id: 'a', level: 'look', title: 'first' }),
-          findingOn('rust/crate/application', {
-            id: 'c',
-            dimension: 'routes',
-            level: 'look',
-            title: 'third',
-          }),
+          flagged('rust/crate/domain', { id: 'b', title: 'second' }),
+          flagged('rust/crate/cli-adapter', { id: 'a', title: 'first' }),
+          flagged('rust/crate/application', { id: 'c', dimension: 'routes', title: 'third' }),
         ],
       })}
     />,
   );
 
-  const band = () => within(screen.getByRole('region', { name: 'Look first' }));
-  await screen.findByRole('region', { name: 'Look first' });
+  const band = () => within(screen.getByRole('region', { name: 'Start here' }));
+  await screen.findByRole('region', { name: 'Start here' });
   const items = () =>
     band()
       .getAllByRole('listitem')
       .map(item => within(item).getByRole('button').getAttribute('aria-label'));
-  expect(items()).toEqual(['cli-adapter: first', 'domain: second', 'application: third']);
+  expect(items()).toEqual([
+    'cli-adapter: first',
+    'domain: second',
+    'application: third',
+    'application: lines 900, over 800',
+  ]);
+  expect(band().getByText('3 findings need a look')).toBeDefined();
   const routes = () =>
     within(screen.getByRole('group', { name: 'Triage' })).getByRole('button', { name: /Routes/ });
   await user.click(routes());
   expect(items()).toEqual(['application: third']);
   await user.click(routes());
-  expect(items()).toHaveLength(3);
-  const toggle = () => band().getByRole('button', { name: /^Look first/ });
+  expect(items()).toHaveLength(4);
+  const toggle = () => band().getByRole('button', { name: 'Start here' });
   expect(toggle().getAttribute('aria-expanded')).toBe('true');
   await user.click(toggle());
   expect(band().queryAllByRole('listitem')).toHaveLength(0);
-  expect(toggle().textContent).toBe('Look first: 3');
+  expect(band().getByText('3 findings need a look')).toBeDefined();
   expect(toggle().getAttribute('aria-expanded')).toBe('false');
   await user.click(toggle());
-  expect(items()).toHaveLength(3);
+  expect(items()).toHaveLength(4);
   await user.click(band().getByRole('button', { name: 'domain: second' }));
   await waitFor(() =>
     expect(document.activeElement).toBe(screen.getByRole('button', { name: 'domain: unchanged' })),
   );
 
-  rerender(<ReviewPage review={pageWith({ ...review, findings: looks(7) })} />);
-  expect(items()).toHaveLength(7);
-  const showAll = () => band().queryByRole('button', { name: /^Show all/ });
-  expect(showAll()).toBeNull();
-  rerender(<ReviewPage review={pageWith({ ...review, findings: looks(8) })} />);
-  expect(items()).toEqual(['0', '1', '2', '3', '4', '5', '6'].map(title => `domain: ${title}`));
+  const flags = Array.from({ length: 6 }, (_, index) =>
+    flagged('rust/crate/domain', { id: `look ${index}`, title: `${index}` }),
+  );
+  rerender(<ReviewPage review={pageWith({ ...review, findings: flags })} />);
+  expect(items()).toEqual(['0', '1', '2', '3', '4'].map(title => `domain: ${title}`));
   expect(screen.queryByRole('complementary', { name: 'Findings' })).toBeNull();
-  await user.click(band().getByRole('button', { name: 'Show all 8' }));
+  await user.click(band().getByRole('button', { name: 'All findings' }));
   expect(screen.getByRole('complementary', { name: 'Findings' })).toBeDefined();
   await user.click(screen.getByRole('button', { name: 'Hide findings' }));
 
-  rerender(
-    <ReviewPage
-      review={pageWith({ ...review, findings: [findingOn('rust/crate/application')] })}
-    />,
+  rerender(<ReviewPage review={pageWith({ ...review, findings: [] })} />);
+  expect(screen.queryByRole('region', { name: 'Start here' })).toBeNull();
+});
+
+test('with nothing to look at, Start here says so and still shows what is for information', async () => {
+  render(
+    <ReviewPage review={pageWith({ ...review, findings: [findingOn('rust/crate/domain')] })} />,
   );
-  expect(screen.queryByRole('region', { name: 'Look first' })).toBeNull();
+
+  const band = within(await screen.findByRole('region', { name: 'Start here' }));
+  expect(band.getByText('nothing needs a look · 1 finding')).toBeDefined();
+  expect(band.getByRole('button', { name: 'domain: lines 900, over 800' })).toBeDefined();
 });
 
 const webModule = (label: string, state: Diffed = 'unchanged') => ({
@@ -3144,7 +3148,11 @@ test("the rail's changed files outside the graph open in the inspector at the ch
 
   await user.click(await screen.findByRole('button', { name: 'Show 1 finding' }));
   const outside = 'README.md, docs/a.md: 2 changed files outside the graph';
-  await user.click(screen.getByRole('button', { name: outside }));
+  await user.click(
+    within(screen.getByRole('complementary', { name: 'Findings' })).getByRole('button', {
+      name: outside,
+    }),
+  );
   expect(within(inspector()).getByRole('heading', { level: 2 }).textContent).toBe(
     'Changed files outside the graph',
   );
@@ -3158,7 +3166,10 @@ test("the rail's changed files outside the graph open in the inspector at the ch
   await user.click(await screen.findByRole('button', { name: 'domain: unchanged' }));
   expect(within(inspector()).getByRole('heading', { level: 2 }).textContent).toBe('domain');
 
-  const opener = screen.getByRole('button', { name: outside });
+  const opener = within(screen.getByRole('complementary', { name: 'Findings' })).getByRole(
+    'button',
+    { name: outside },
+  );
   await user.click(opener);
   await user.click(within(inspector()).getByRole('button', { name: 'Close inspector' }));
   expect(screen.queryByRole('complementary', { name: 'Inspector' })).toBeNull();
@@ -5540,7 +5551,9 @@ const pageWithUndrawnFile = () =>
 const openUndrawnFiles = async (user: ReturnType<typeof userEvent.setup>) => {
   await user.click(await screen.findByRole('button', { name: 'Show 1 finding' }));
   await user.click(
-    screen.getByRole('button', { name: 'README.md: 1 changed file outside the graph' }),
+    within(screen.getByRole('complementary', { name: 'Findings' })).getByRole('button', {
+      name: 'README.md: 1 changed file outside the graph',
+    }),
   );
 };
 
@@ -5709,7 +5722,9 @@ test('the tray goes to a draft on a line outside the graph from any screen, open
 
   scrolledIntoView.mockClear();
   await user.click(
-    screen.getByRole('button', { name: 'README.md: 1 changed file outside the graph' }),
+    within(screen.getByRole('complementary', { name: 'Findings' })).getByRole('button', {
+      name: 'README.md: 1 changed file outside the graph',
+    }),
   );
   expect(within(inspector()).getByRole('insertion', { current: false })).toBeDefined();
   expect(scrolledIntoView).not.toHaveBeenCalled();
@@ -7300,7 +7315,7 @@ const pageWithAnAnsweredFinding = (
   });
 };
 
-test('a last answer to a finding shows under it in the rail, not in the Look first band', async () => {
+test('a last answer to a finding shows under it in the rail, not in Start here', async () => {
   const user = userEvent.setup();
   render(
     <ReviewPage
@@ -7320,15 +7335,15 @@ test('a last answer to a finding shows under it in the rail, not in the Look fir
       name: 'Last review: Explain, As it was',
     }),
   ).toBeTruthy();
-  expect(within(screen.getByRole('region', { name: 'Look first' })).queryByRole('note')).toBeNull();
+  expect(within(screen.getByRole('region', { name: 'Start here' })).queryByRole('note')).toBeNull();
   expect(screen.getAllByRole('note', { name: /^Last review/ })).toHaveLength(1);
 });
 
-test('a finding called fine at the last review stays out of Look first and reads so in its group', async () => {
+test('a finding called fine at the last review stays out of Start here and reads so in its group', async () => {
   const user = userEvent.setup();
   render(<ReviewPage review={pageWithAnAnsweredFinding({ calledFine: ['logic:a'] })} />);
 
-  const band = within(await screen.findByRole('region', { name: 'Look first' }));
+  const band = within(await screen.findByRole('region', { name: 'Start here' }));
   expect(band.getByRole('button', { name: /^application: changed a branch/ })).toBeTruthy();
   expect(band.queryByRole('button', { name: /lost a guard/ })).toBeNull();
 

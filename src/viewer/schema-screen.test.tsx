@@ -194,7 +194,7 @@ const reviewWithFindings = (): PageData =>
     ],
   });
 
-test('a table finding in the rail opens the Schema tab at its card, in its file, and one on a whole file from Look first at that file', async () => {
+test('a table finding in the rail opens the Schema tab at its card, in its file, and one on a whole file from Start here at that file', async () => {
   atHash('#structure');
   const user = userEvent.setup();
   render(<ReviewPage review={reviewWithFindings()} />);
@@ -216,7 +216,7 @@ test('a table finding in the rail opens the Schema tab at its card, in its file,
 
   await user.click(tabs().getByRole('link', { name: 'Structure' }));
   await user.click(
-    within(await screen.findByRole('region', { name: 'Look first' })).getByRole('button', {
+    within(await screen.findByRole('region', { name: 'Start here' })).getByRole('button', {
       name: 'db/cache_schema.rb not read: Ruby syntax error',
     }),
   );
