@@ -10,11 +10,11 @@ _Avoid_: issue, warning, alert
 _In code_: `Finding`
 
 **Dimension**:
-What a finding is about, one of a fixed list (structure, logic, api, tests, metrics, routes and the rest), so findings can be grouped and filtered by it.
+What a finding is about, one of a fixed list (structure, logic, api, tests, metrics, routes and the rest), so findings can be grouped by it and each counts under its lens.
 _Avoid_: category, kind
 
 **Lens**:
-One of five groups of dimensions the reader sorts findings by: Behaviour (logic, tests, failure, performance), Contract (api, blast radius, routes, schema), Risk (security, tenancy, deploy, dependencies), Shape (structure, rules, cohesion) and Context (metrics, ownership). Picking one narrows Start here and the rail to it, and dims the other badges. The graph is never filtered.
+One of five groups of dimensions the reader narrows findings to: Behaviour (logic, tests, failure, performance), Contract (api, blast radius, routes, schema), Risk (security, tenancy, deploy, dependencies), Shape (structure, rules, cohesion) and Context (metrics, ownership). Picking one narrows Start here and the rail to it, and dims the other badges; with nothing in it to show, Start here says so. The graph is never filtered.
 _Avoid_: category, group, triage
 _In code_: `Lens`, `LENS_OF` (`src/viewer/lenses.ts`)
 
