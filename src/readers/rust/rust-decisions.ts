@@ -105,8 +105,17 @@ const COMMAS_KEPT = new Map([
   ['assert_ne', 1],
 ]);
 
+const THROWS: ReadonlySet<string> = new Set([
+  'bail',
+  'panic',
+  'unreachable',
+  'todo',
+  'unimplemented',
+]);
+
 const macroOf = (node: Node): Read | undefined => {
   const name = macroNameOf(node) ?? '';
+  if (THROWS.has(name)) return { kind: 'throw', text: `${name}!`, foundByName: true, deeper: [] };
   const kept = COMMAS_KEPT.get(name);
   const tokens = node.lastNamedChild;
   if (kept === undefined || tokens === null) return undefined;

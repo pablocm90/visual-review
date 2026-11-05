@@ -217,3 +217,22 @@ test('a return outside any branch is no decision, and what it holds is', () => {
     { kind: 'if', text: 'if d', depth: 0, line: 2 },
   ]);
 });
+
+test.for([
+  { written: 'bail!("no {}", a)', text: 'bail!' },
+  { written: 'anyhow::bail!("no")', text: 'bail!' },
+  { written: 'panic!("no")', text: 'panic!' },
+  { written: 'unreachable!()', text: 'unreachable!' },
+  { written: 'todo!()', text: 'todo!' },
+  { written: 'unimplemented!()', text: 'unimplemented!' },
+])('$written reads as a throw found by name, by its name alone', ({ written, text }) => {
+  expect(decisionsIn(`${written};`)).toEqual([
+    { kind: 'throw', text, foundByName: true, depth: 0, line: 2 },
+  ]);
+});
+
+test('a let else takes in the bail that opens its block', () => {
+  expect(decisionsIn('let Some(a) = b else {', 'bail!("no");', '};')).toEqual([
+    { kind: 'guard', text: 'let Some(a) = b else', depth: 0, line: 2 },
+  ]);
+});
