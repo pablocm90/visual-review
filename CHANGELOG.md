@@ -10,7 +10,7 @@ What changed in each release of `@pablocm90/visual-review`, newest first. Versio
 
 ### Fixed
 
-- A route file that doesn't parse is the one its finding and section name. With several route files changed, they named the first that changed, whichever had stopped the reading.
+- A changed route file that doesn't parse or is too big to read is the one its finding and section name. With several route files changed, they named the first that changed, whichever had stopped the reading. A file that stops it unchanged has no patch, so those stay at the first that changed, and the message names it.
 
 ## 0.40.0 — 2026-11-05
 
