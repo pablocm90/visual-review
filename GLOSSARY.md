@@ -69,7 +69,7 @@ _Avoid_: change type, severity
 _In code_: `'api' | 'logic' | 'formatting'`
 
 **Decision**:
-A point in a function's own code where its path can fork or end early: a guard, an if, a ternary, a loop, a case, an outermost logical, a catch, a return inside a branch, a throw. Read as its normalised source text.
+A point in a function's own code where its path can fork or end early: a guard, an if, a ternary, a loop, a case, an outermost logical, a catch, a return inside a branch, a throw. In Rails, a class's callbacks, validations and `rescue_from` are decisions of the class. Read as its normalised source text.
 _Avoid_: branch, condition
 _In code_: `Decision`, `DecisionKind`
 
