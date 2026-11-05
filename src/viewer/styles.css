@@ -2804,6 +2804,29 @@ main:has(> .review-tray) {
   color: var(--muted);
 }
 
+.routes-file {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 12px;
+  margin: 0 0 12px;
+}
+
+.routes-file .schema-file {
+  margin: 0;
+}
+
+.routes-patch {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--ramp-3);
+  font: inherit;
+  font-size: 12.5px;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
 .schema-rows tr:focus,
 .routes-statement:focus {
   outline: 2px solid var(--ramp-3);

@@ -34,11 +34,28 @@ const RouteRow = (routeLine: RouteLine) => {
   );
 };
 
-const RouteFile = ({ file, children }: { readonly file: string; readonly children: ReactNode }) => (
+type ShowPatch = (path: string, opener: HTMLButtonElement) => void;
+
+type RouteFileProps = {
+  readonly file: string;
+  readonly onShowPatch: ShowPatch;
+  readonly children: ReactNode;
+};
+
+const RouteFile = ({ file, onShowPatch, children }: RouteFileProps) => (
   <section id={placeId({ file, route: undefined })} tabIndex={-1} aria-label={file}>
-    <h2 className="schema-file">
-      <code>{file}</code>
-    </h2>
+    <div className="routes-file">
+      <h2 className="schema-file">
+        <code>{file}</code>
+      </h2>
+      <button
+        type="button"
+        className="routes-patch"
+        onClick={event => onShowPatch(file, event.currentTarget)}
+      >
+        Show patch
+      </button>
+    </div>
     {children}
   </section>
 );
@@ -101,14 +118,16 @@ const NotRead = ({ rows }: { readonly rows: ReadonlyArray<KeyedStatement> }) => 
   </>
 );
 
-const sectionsOf = ({ routes, unread }: Exclude<RoutesReading, { readonly notRead: string }>) => {
+type ReadRoutes = Exclude<RoutesReading, { readonly notRead: string }>;
+
+const sectionsOf = ({ routes, unread }: ReadRoutes, onShowPatch: ShowPatch) => {
   const linesAt = Map.groupBy(routeLines(routes), ({ row }) => row.patch);
   const statementsAt = Map.groupBy(keyedStatements(unread), ({ row }) => row.patch);
   return [...new Set([...linesAt.keys(), ...statementsAt.keys()])].map(file => {
     const lines = linesAt.get(file);
     const statements = statementsAt.get(file);
     return (
-      <RouteFile key={file} file={file}>
+      <RouteFile key={file} file={file} onShowPatch={onShowPatch}>
         {statements && <NotRead rows={statements} />}
         {lines && <RouteTable lines={lookFirst(lines)} />}
       </RouteFile>
@@ -116,13 +135,13 @@ const sectionsOf = ({ routes, unread }: Exclude<RoutesReading, { readonly notRea
   });
 };
 
-const filesOf = (reading: RoutesReading) =>
+const filesOf = (reading: RoutesReading, onShowPatch: ShowPatch) =>
   'notRead' in reading ? (
-    <RouteFile key={reading.file} file={reading.file}>
+    <RouteFile key={reading.file} file={reading.file} onShowPatch={onShowPatch}>
       <p className="schema-line">Not read: {reading.notRead}</p>
     </RouteFile>
   ) : (
-    sectionsOf(reading)
+    sectionsOf(reading, onShowPatch)
   );
 
 export const routesHold = (routes: PageData['routes'], path: string): boolean =>
@@ -136,13 +155,18 @@ type RoutesScreenProps = {
   readonly review: Pick<PageData, 'routes'>;
   readonly landing: RoutesLanding | undefined;
   readonly onLanded: () => void;
+  readonly onShowPatch: ShowPatch;
 };
 
-export const RoutesScreen = ({ review, landing, onLanded }: RoutesScreenProps) => {
+export const RoutesScreen = ({ review, landing, onLanded, onShowPatch }: RoutesScreenProps) => {
   useEffect(() => {
     if (landing === undefined) return;
     document.getElementById(placeId(landing))?.focus();
     onLanded();
   });
-  return <div className="schema-screen">{review.routes.map(filesOf)}</div>;
+  return (
+    <div className="schema-screen">
+      {review.routes.map(reading => filesOf(reading, onShowPatch))}
+    </div>
+  );
 };

@@ -1576,6 +1576,15 @@ const Page = ({ review, notes, send }: ReviewPageProps) => {
   };
   const [schemaLanding, setSchemaLanding] = useState<SchemaLanding>();
   const [routesLanding, setRoutesLanding] = useState<RoutesLanding>();
+  const showPatch = (path: string, opener: HTMLButtonElement) => {
+    const holder = deepestHolding(path, review.diff.nodes);
+    if (holder === undefined) {
+      showOutsideAt({ path }, opener);
+      return;
+    }
+    landOn(holder.id, { path });
+    goToOnTab(holder.id, 'diff');
+  };
   const showFile = (path: string, opener: HTMLButtonElement, place?: string) => {
     if (review.schemas.some(({ file }) => file === path)) {
       setSchemaLanding({ file: path, table: place });
@@ -1587,13 +1596,7 @@ const Page = ({ review, notes, send }: ReviewPageProps) => {
       location.hash = '#routes';
       return;
     }
-    const holder = deepestHolding(path, review.diff.nodes);
-    if (holder === undefined) {
-      showOutsideAt({ path }, opener);
-      return;
-    }
-    landOn(holder.id, { path });
-    goToOnTab(holder.id, 'diff');
+    showPatch(path, opener);
   };
   const [read, setRead] = useState(() => storedReadMarks(review.range, stillReadIn(review)));
   useEffect(() => storeReadMarks(review.range, read), [review.range, read]);
@@ -1827,6 +1830,7 @@ const Page = ({ review, notes, send }: ReviewPageProps) => {
           review={review}
           landing={routesLanding}
           onLanded={() => setRoutesLanding(undefined)}
+          onShowPatch={showPatch}
         />
       )}
       {send && (
