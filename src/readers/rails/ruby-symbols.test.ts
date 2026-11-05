@@ -108,3 +108,52 @@ test('a bare private or protected holds until public, in its own body only, and 
     ),
   ).toEqual(['first', 'second', 'initialize', 'block', 'inner', 'last']);
 });
+
+test('def self.x, and a def in class << self or class_methods do, is the method self.x, public under a bare private', () => {
+  expect(
+    symbolsIn(
+      'class Shop',
+      '  private',
+      '  def self.build; end',
+      '  def Shop.make; end',
+      '  class << self',
+      '    def open; end',
+      '    class Inner',
+      '      def plain; end',
+      '    end',
+      '    private',
+      '    def hidden; end',
+      '  end',
+      '  class_methods do',
+      '    def close; end',
+      '  end',
+      'end',
+    ),
+  ).toEqual([
+    'class Shop',
+    'method Shop.self.build',
+    'method Shop.Shop.make',
+    'method Shop.self.open',
+    'class Shop::Inner',
+    'method Shop::Inner.plain',
+    'method Shop.self.hidden',
+    'method Shop.self.close',
+  ]);
+  expect(
+    exportedIn(
+      'class Shop',
+      '  private',
+      '  def self.build; end',
+      '  class << self',
+      '    def open; end',
+      '    private',
+      '    def hidden; end',
+      '  end',
+      '  class_methods do',
+      '    def close; end',
+      '  end',
+      '  def own; end',
+      'end',
+    ),
+  ).toEqual(['self.build', 'self.open', 'self.close']);
+});

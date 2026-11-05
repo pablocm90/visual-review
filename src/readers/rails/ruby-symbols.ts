@@ -20,19 +20,22 @@ const NOT_YET_HASHED = { signatureHash: '', bodyHash: '', textHash: '', bodyToke
 
 type Walk = {
   readonly exported: boolean;
+  readonly singleton: boolean;
   readonly symbols: ReadonlyArray<ReadSymbol>;
 };
 
-const STARTING: Walk = { exported: true, symbols: [] };
+const STARTING: Walk = { exported: true, singleton: false, symbols: [] };
 
 const methodSymbol = (method: Node, within: string | undefined, walk: Walk): ReadSymbol => {
   const name = method.childForFieldName('name');
   const isSetter = name?.type === 'setter';
+  const written = (isSetter ? name.text.slice(0, -1) : name?.text) ?? '';
+  const object = method.childForFieldName('object')?.text ?? (walk.singleton ? 'self' : undefined);
   return {
-    name: (isSetter ? name.text.slice(0, -1) : name?.text) ?? '',
+    name: object === undefined ? written : `${object}.${written}`,
     ...(within === undefined ? {} : { scope: within }),
     kind: isSetter ? 'setter' : within === undefined ? 'function' : 'method',
-    exported: walk.exported || name?.text === 'initialize',
+    exported: method.type === 'singleton_method' || walk.exported || written === 'initialize',
     signature: '',
     ...NOT_YET_HASHED,
   };
@@ -44,16 +47,22 @@ const VISIBILITIES = new Map([
   ['public', true],
 ]);
 
+const METHODS = new Set(['method', 'singleton_method']);
+
+const isSingletonBlock = (node: Node): boolean =>
+  node.type === 'singleton_class' ||
+  (node.type === 'call' && node.childForFieldName('method')?.text === 'class_methods');
+
 const walked = (walk: Walk, node: Node, within: string | undefined): Walk => {
+  const joined = (inner: Walk): Walk => ({ ...walk, symbols: [...walk.symbols, ...inner.symbols] });
   if (node.type === 'identifier' && BODIES.has(node.parent?.type ?? ''))
     return { ...walk, exported: VISIBILITIES.get(node.text) ?? walk.exported };
-  if (node.type === 'method')
+  if (METHODS.has(node.type))
     return { ...walk, symbols: [...walk.symbols, methodSymbol(node, within, walk)] };
   if (BODIES.has(node.type))
-    return {
-      ...walk,
-      symbols: [...walk.symbols, ...walkedChildren(STARTING, node, within).symbols],
-    };
+    return joined(walkedChildren({ ...STARTING, singleton: walk.singleton }, node, within));
+  if (isSingletonBlock(node))
+    return joined(walkedChildren({ ...STARTING, singleton: true }, node, within));
   if (!DEFINITIONS.has(node.type)) return walkedChildren(walk, node, within);
   const constant = constantWithin(node, within);
   const definition: ReadSymbol = {
