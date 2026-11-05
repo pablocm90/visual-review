@@ -42,9 +42,9 @@ const RESOURCE_ACTIONS: ReadonlyArray<Action> = [
   ['DELETE', '', 'destroy'],
 ];
 
-const MOST_WRITTEN = 50_000;
+const MOST_WRITTEN = 200_000;
 
-const MOST_IN_A_CALL = 300;
+const MOST_IN_A_CALL = 1000;
 
 type Scope = {
   readonly spend: (cost: number) => void;
@@ -70,12 +70,16 @@ const placeOf = (statement: Node, { root, file }: Scope) => ({
   line: statement.startPosition.row + 1,
 });
 
-const unread = (statement: Node, scope: Scope): UnreadRoute => ({
-  text: statement.text.replace(/\s+/g, ' '),
-  path: scope.path,
-  module: scope.module,
-  ...placeOf(statement, scope),
-});
+const unread = (statement: Node, scope: Scope): UnreadRoute => {
+  const text = statement.text.replace(/\s+/g, ' ');
+  scope.spend(text.length);
+  return {
+    text,
+    path: scope.path,
+    module: scope.module,
+    ...placeOf(statement, scope),
+  };
+};
 
 const statementsOf = (call: Node): ReadonlyArray<Node> =>
   (call.childForFieldName('block')?.childForFieldName('body')?.namedChildren ?? []).filter(
@@ -334,13 +338,15 @@ const namesWhatItDraws = (args: ReadonlyArray<Node>): boolean => {
   );
 };
 
-const writesTooMuch = (call: Node): boolean =>
-  (call.childForFieldName('arguments')?.descendantCount ?? 0) > MOST_IN_A_CALL;
+const writtenBy = (call: Node): number => {
+  const args = call.childForFieldName('arguments');
+  return args === null ? 0 : args.endIndex - args.startIndex;
+};
 
 const checked =
   (handler: Handler): Handler =>
   (call, scope) =>
-    !writesTooMuch(call) && namesWhatItDraws(argsOf(call))
+    writtenBy(call) <= MOST_IN_A_CALL && namesWhatItDraws(argsOf(call))
       ? handler(call, scope)
       : [unread(call, scope)];
 
@@ -436,7 +442,7 @@ const HANDLERS: ReadonlyMap<string, Handler> = new Map<string, Handler>([
 ]);
 
 const routesIn = (statement: Node, scope: Scope): ReadonlyArray<Drawn> => {
-  scope.spend(1 + (statement.childForFieldName('arguments')?.descendantCount ?? 0));
+  scope.spend(1 + writtenBy(statement));
   const handler =
     isBare(statement) || isDraw(statement) ? HANDLERS.get(methodOf(statement)) : undefined;
   return handler?.(statement, scope) ?? [unread(statement, scope)];

@@ -777,14 +777,13 @@ const upTo = (most: number, body: string) =>
   railsRoutesUpTo(most).routes(new Map([['config/routes.rb', drawing(body)]]));
 
 const gets = (count: number): string =>
-  Array.from({ length: count }, (_, at) => `get "p${at}", to: "a#b"`).join('\n');
+  Array.from({ length: count }, (_, at) => `get "p${String(at).padStart(3, '0')}", to: "a#b"`).join(
+    '\n',
+  );
 
-const GET_COST = 14;
+const GET_COST = 18;
 
-const namesOf = (count: number): string =>
-  Array.from({ length: count }, (_, at) => `:a${at}`).join(', ');
-
-test('a reading takes statements up to its limit, each costing what its arguments hold', () => {
+test('a reading takes statements up to its limit, each costing the characters it writes', () => {
   expect(upTo(1 + 99 * GET_COST, gets(99)).routes).toHaveLength(99);
 });
 
@@ -792,8 +791,10 @@ test('a statement past the limit throws', () => {
   expect(() => upTo(99 * GET_COST, gets(99))).toThrow('Too many routes to read');
 });
 
-test('one call naming more than the limit throws', () => {
-  expect(() => upTo(100, `resources ${namesOf(60)}, only: []`)).toThrow('Too many routes to read');
+test('a statement not read also costs its text', () => {
+  const { unread } = upTo(17, 'devise_for :a');
+  expect(unread).toHaveLength(1);
+  expect(() => upTo(16, 'devise_for :a')).toThrow('Too many routes to read');
 });
 
 test('every root of a reading spends from one limit', () => {
@@ -808,12 +809,14 @@ test('every root of a reading spends from one limit', () => {
   );
 });
 
-test('a call writing up to 300 nodes is read', () => {
-  expect(read(`resources ${namesOf(150)}`).routes).toHaveLength(150 * 8);
+const callWriting = (characters: number): string => `resources :a,\n:${'b'.repeat(characters - 5)}`;
+
+test('a call writing up to 1,000 characters is read', () => {
+  expect(read(callWriting(1000)).routes).toHaveLength(2 * 8);
 });
 
-test('a call writing over 300 nodes is not read, rather than slow every name after it', () => {
-  const { routes, unread } = read(`resources ${namesOf(151)}`);
+test('a call writing over 1,000 characters is not read, rather than slow every name in it', () => {
+  const { routes, unread } = read(callWriting(1001));
   expect(routes).toEqual([]);
   expect(unread).toHaveLength(1);
 });
