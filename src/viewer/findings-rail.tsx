@@ -4,13 +4,13 @@ import {
   DIMENSIONS,
   type Dimension,
   type Finding,
-  lookFirst,
   skippedFindingId,
 } from '../core/findings.ts';
 import { endsOfId } from '../core/graph.ts';
 import type { PageData } from '../core/page.ts';
 import type { Answer } from '../core/review.ts';
 import { notReadLine } from '../core/skipped.ts';
+import { type StartHereLine, startHere } from '../core/start-here.ts';
 import {
   AnswerButtons,
   type Answers,
@@ -281,48 +281,91 @@ export const TriageStrip = ({ findings, picked, onPick }: TriageStripProps) => {
   );
 };
 
-type LookFirstProps = LineOptions & {
+type StartHereProps = LineOptions & {
   readonly findings: ReadonlyArray<Finding>;
   readonly onShowAll: () => void;
   readonly review: Pick<PageData, 'diff' | 'metrics' | 'sinceReview'>;
 };
 
-const LOOK_FIRST_SHOWN = 7;
+type SeveralFindingsProps = {
+  readonly line: StartHereLine;
+  readonly lineOf: (finding: Finding) => Line;
+};
 
-export const LookFirst = (props: LookFirstProps) => {
+const SeveralFindings = ({ line, lineOf }: SeveralFindingsProps) => {
+  const [open, setOpen] = useState(false);
+  const heading = `${line.title}${line.files > 0 ? ` · ${counted(line.files, 'file', 'files')}` : ''}`;
+  return (
+    <li className="finding start-here-several">
+      <LevelMark level={line.level} />
+      <button
+        type="button"
+        aria-label={heading}
+        aria-expanded={open}
+        onClick={() => setOpen(!open)}
+      >
+        <span>{heading}</span>
+        <span className="start-here-names">{line.names.join(', ')}</span>
+      </button>
+      {open && (
+        <ul className="start-here-opened">
+          {line.findings.map(finding => (
+            <FindingItem key={finding.id} finding={lineOf(finding)} />
+          ))}
+        </ul>
+      )}
+    </li>
+  );
+};
+
+export const StartHere = (props: StartHereProps) => {
   const [open, setOpen] = useState(true);
   const calledFine = props.review.sinceReview?.calledFine ?? [];
-  const ranked = lookFirst({
+  const { lines, look, total } = startHere({
     findings: props.findings.filter(finding => !calledFine.includes(finding.id)),
     metrics: props.review.metrics,
+    nodes: props.review.diff.nodes,
   });
-  if (ranked.length === 0) return null;
+  if (lines.length === 0) return null;
   const lineOf = linesOf(props);
+  const lineOfOne = (finding: Finding): Line => {
+    const { groups, ...line } = lineOf(finding);
+    return groups ? { ...line, target: '', act: props.onShowAll } : line;
+  };
   return (
-    <section className="look-first" aria-label="Look first">
-      <h2 className="look-first-title">
-        <button
-          type="button"
-          className="look-first-toggle"
-          aria-expanded={open}
-          onClick={() => setOpen(!open)}
-        >
-          {`Look first: ${ranked.length}`}
+    <section className="start-here" aria-label="Start here">
+      <div className="start-here-head">
+        <h2 className="start-here-title">
+          <button
+            type="button"
+            className="start-here-toggle"
+            aria-expanded={open}
+            onClick={() => setOpen(!open)}
+          >
+            Start here
+          </button>
+        </h2>
+        <span className="start-here-count">
+          {look > 0
+            ? counted(look, 'finding needs a look', 'findings need a look')
+            : `nothing needs a look · ${counted(total, 'finding', 'findings')}`}
+        </span>
+        <button type="button" className="show-all" onClick={props.onShowAll}>
+          All findings
         </button>
-      </h2>
+      </div>
       {open && (
-        <>
-          <ul>
-            {ranked.slice(0, LOOK_FIRST_SHOWN).map(finding => (
-              <FindingItem key={finding.id} finding={lineOf(finding)} />
-            ))}
-          </ul>
-          {ranked.length > LOOK_FIRST_SHOWN && (
-            <button type="button" className="show-all" onClick={props.onShowAll}>
-              {`Show all ${ranked.length}`}
-            </button>
+        <ul>
+          {lines.map(line =>
+            line.findings.length === 1 ? (
+              line.findings.map(finding => (
+                <FindingItem key={line.key} finding={lineOfOne(finding)} />
+              ))
+            ) : (
+              <SeveralFindings key={line.key} line={line} lineOf={lineOf} />
+            ),
           )}
-        </>
+        </ul>
       )}
     </section>
   );

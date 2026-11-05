@@ -474,6 +474,7 @@ test.for([
     after: [],
     finding: {
       id: 'logic:removed:shop#Shop#before_action :a',
+      check: 'logic:removed',
       level: 'look',
       title: 'class Shop lost a guard',
       detail: 'before_action :a (found by name)',
@@ -485,6 +486,7 @@ test.for([
     after: [],
     finding: {
       id: 'logic:removed:shop#Shop#validates :a, presence: true',
+      check: 'logic:removed',
       level: 'look',
       title: 'class Shop lost a guard',
       detail: 'validates :a, presence: true (found by name)',
@@ -496,6 +498,7 @@ test.for([
     after: ['skip_before_action :a'],
     finding: {
       id: 'logic:changed:shop#Shop',
+      check: 'logic:changed',
       level: 'info',
       title: 'class Shop changed its logic',
       detail: '1 added',

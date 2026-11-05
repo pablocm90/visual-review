@@ -36,6 +36,7 @@ const titleOf = ({ name, state, options, columns, indexes }: TableChange): strin
 
 const tableFinding = (file: string, table: TableChange): Finding => ({
   id: `schema:${file}:${table.name}`,
+  check: table.state === 'removed' ? 'schema:table-removed' : 'schema:table-changed',
   dimension: 'schema',
   level: table.state === 'removed' ? 'look' : 'info',
   file,
@@ -50,6 +51,7 @@ const findingsOfReading = (reading: SchemaReading): ReadonlyArray<Finding> => {
     return [
       {
         id: `schema:not-read:${file}`,
+        check: 'schema:not-read',
         dimension: 'schema',
         level: 'look',
         file,
@@ -60,6 +62,7 @@ const findingsOfReading = (reading: SchemaReading): ReadonlyArray<Finding> => {
     return [
       {
         id: `schema:${file}`,
+        check: 'schema:whole',
         dimension: 'schema',
         level: 'info',
         file,
