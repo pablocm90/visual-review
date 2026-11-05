@@ -2249,6 +2249,26 @@ const walkedReview = () =>
 
 const selectedPart = () => within(inspector()).getByRole('heading', { level: 2 }).textContent;
 
+const headingOfPart = () => within(inspector()).getByRole('heading', { level: 2 });
+
+test("from the landing, J goes to the first part unread, the graph becomes the map, and focus moves to the part's heading", async () => {
+  const user = userEvent.setup();
+  render(<ReviewPage review={walkedReview()} />);
+  const rust = await screen.findByRole('group', { name: 'rust' });
+  await user.click(within(rust).getByRole('button', { name: 'application: modified' }));
+  await user.keyboard('a');
+  await user.click(screen.getByRole('button', { name: 'Close inspector' }));
+  expect(screen.getByRole('group', { name: 'Graph' })).toBeDefined();
+  expect(screen.queryByRole('group', { name: 'Map' })).toBeNull();
+
+  await user.keyboard('j');
+
+  expect(selectedPart()).toBe('cli-adapter');
+  expect(screen.getByRole('group', { name: 'Map' })).toBeDefined();
+  expect(screen.queryByRole('group', { name: 'Graph' })).toBeNull();
+  await waitFor(() => expect(document.activeElement).toBe(headingOfPart()));
+});
+
 test('J and K walk the reading order from the selected part, starting at its first part, going to each as its row does, and stay put at either end', async () => {
   const user = userEvent.setup();
   render(<ReviewPage review={walkedReview()} />);
@@ -2258,9 +2278,7 @@ test('J and K walk the reading order from the selected part, starting at its fir
   expect(selectedPart()).toBe('application');
   await user.keyboard('j');
   expect(selectedPart()).toBe('cli-adapter');
-  await waitFor(() =>
-    expect(document.activeElement).toBe(screen.getByRole('button', { name: 'cli-adapter: added' })),
-  );
+  await waitFor(() => expect(document.activeElement).toBe(headingOfPart()));
   await user.keyboard('jjj');
   expect(selectedPart()).toBe('legacy');
   await user.keyboard('kkk');
@@ -2726,7 +2744,6 @@ test("C pressed before going to a part has finished drawing keeps the focus in t
 
   await user.keyboard('jc');
   await screen.findByRole('button', { name: 'y.ts: unchanged' });
-  await waitFor(() => expect(scrolledIntoView).toHaveBeenCalled());
   expect(document.activeElement).toBe(
     within(inspector()).getByRole('textbox', { name: 'Your comment' }),
   );

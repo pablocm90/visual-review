@@ -3,6 +3,7 @@ import {
   type MouseEvent,
   type PointerEvent,
   type ReactNode,
+  type RefObject,
   useEffect,
   useEffectEvent,
   useId,
@@ -619,7 +620,9 @@ const InspectorHead = ({
   comments,
   onComment,
   landing,
+  heading,
 }: {
+  readonly heading: RefObject<HTMLHeadingElement | null>;
   readonly nodes: ReadonlyArray<DiffNode>;
   readonly node: DiffNode;
   readonly walking: Walking;
@@ -635,7 +638,9 @@ const InspectorHead = ({
       </span>
       <span data-state={node.state}>{node.state}</span>
     </p>
-    <h2>{node.label}</h2>
+    <h2 ref={heading} tabIndex={-1}>
+      {node.label}
+    </h2>
     <p className="path">
       {node.renamedFrom === undefined
         ? node.path
@@ -694,6 +699,7 @@ type InspectorProps = {
   readonly width: number;
   readonly onClose: () => void;
   readonly walking: Walking;
+  readonly heading: RefObject<HTMLHeadingElement | null>;
 };
 
 type LandingPlace = string | null | undefined;
@@ -877,6 +883,7 @@ const Inspector = ({
   landing,
   onLand,
   walking,
+  heading,
   ...props
 }: InspectorProps) => {
   const showLine = ({ node: at, ...line }: LineAt) =>
@@ -897,6 +904,7 @@ const Inspector = ({
       </button>
       {node && (
         <InspectorHead
+          heading={heading}
           nodes={props.nodes}
           node={node}
           walking={walking}
@@ -976,6 +984,7 @@ type SidePanelProps = {
   readonly read: ReadonlySet<string>;
   readonly onToggleRead: (id: string) => void;
   readonly commentAsked: { readonly on: string } | undefined;
+  readonly heading: RefObject<HTMLHeadingElement | null>;
 };
 
 const partFrom = (parts: ReadonlyArray<string>, selected: string | undefined, step: number) =>
@@ -1004,6 +1013,7 @@ const SidePanel = ({
   read,
   onToggleRead,
   commentAsked,
+  heading,
 }: SidePanelProps) => {
   const patches = outside
     ? review.undrawn
@@ -1064,6 +1074,7 @@ const SidePanel = ({
     >
       {divider}
       <Inspector
+        heading={heading}
         nodes={review.diff.nodes}
         node={node}
         metrics={review.metrics}
@@ -1476,6 +1487,8 @@ const Page = ({ review, notes, send }: ReviewPageProps) => {
   const [commentAsked, setCommentAsked] = useState<{ readonly on: string }>();
   if (commentAsked !== undefined && (commentAsked.on !== selected || tab !== 'structure'))
     setCommentAsked(undefined);
+  const [reading, setReading] = useState(false);
+  const heading = useRef<HTMLHeadingElement>(null);
   const [outside, setOutside] = useState(false);
   const outsideOpener = useRef<HTMLButtonElement>(null);
   const select = (id: string | undefined) => {
@@ -1653,8 +1666,13 @@ const Page = ({ review, notes, send }: ReviewPageProps) => {
   useEffect(() => storeReadMarks(review.range, read), [review.range, read]);
   const toggleRead = (id: string) => setRead(current => toggled(current, id));
   const walk = (step: number) => {
-    const next = partFrom(review.readingOrder.parts, selected, step);
-    if (next !== undefined) goTo(next);
+    const { parts } = review.readingOrder;
+    const next = parts.includes(selected ?? '')
+      ? (partFrom(parts, selected, step) ?? selected)
+      : (parts.find(part => !read.has(part)) ?? parts[0]);
+    if (next === undefined) return;
+    setReading(true);
+    goTo(next);
   };
   useEffect(() => {
     if (tab !== 'structure') return;
@@ -1678,7 +1696,13 @@ const Page = ({ review, notes, send }: ReviewPageProps) => {
     layoutDiff(drawn).then(setLayout);
   }, [drawn]);
   useEffect(() => {
-    if (layout === undefined || focusTarget === undefined) return;
+    if (focusTarget === undefined) return;
+    if (reading) {
+      if (focusTarget.inGraph) heading.current?.focus();
+      setFocusTarget(undefined);
+      return;
+    }
+    if (layout === undefined) return;
     const element = elements.current.get(focusTarget.id);
     if (element) {
       if (focusTarget.inGraph && !typesText(document.activeElement))
@@ -1686,7 +1710,7 @@ const Page = ({ review, notes, send }: ReviewPageProps) => {
       frameElement?.scrollIntoView({ block: 'nearest' });
       setFocusTarget(undefined);
     }
-  }, [layout, focusTarget, frameElement]);
+  }, [layout, focusTarget, frameElement, reading]);
   const page = (
     <main>
       <Header review={review} tab={tab} />
@@ -1779,7 +1803,7 @@ const Page = ({ review, notes, send }: ReviewPageProps) => {
                 <div
                   className="frame"
                   role="group"
-                  aria-label="Graph"
+                  aria-label={reading ? 'Map' : 'Graph'}
                   // biome-ignore lint/a11y/noNoninteractiveTabindex: the frame takes the zoom and pan keys
                   tabIndex={0}
                   {...frameProps}
@@ -1859,6 +1883,7 @@ const Page = ({ review, notes, send }: ReviewPageProps) => {
                 read={read}
                 onToggleRead={toggleRead}
                 commentAsked={commentAsked}
+                heading={heading}
               />
             </ChangedSinceMarks>
           </div>
