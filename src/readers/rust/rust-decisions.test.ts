@@ -74,6 +74,7 @@ test('an else if reads as an if at the depth of the if it follows, and is never 
   ).toEqual([
     { kind: 'if', text: 'if c', depth: 0, line: 2 },
     { kind: 'if', text: 'else if d', depth: 0, line: 4 },
+    { kind: 'return', text: 'return', depth: 1, line: 5 },
     { kind: 'if', text: 'if e', depth: 1, line: 7 },
   ]);
 });
@@ -82,6 +83,7 @@ test('a last else if that returns first is no guard', () => {
   expect(decisionsIn('if c { go(); } else if d { return 1; }')?.map(({ kind }) => kind)).toEqual([
     'if',
     'if',
+    'return',
   ]);
 });
 
@@ -107,6 +109,14 @@ test('an if let on Err that returns first stays a guard', () => {
 
 test('a let else reads as a guard, and its block one deeper', () => {
   expect(decisionsIn('let Some(a) = b else {', 'if d { go(); }', 'return;', '};')).toEqual([
+    { kind: 'guard', text: 'let Some(a) = b else', depth: 0, line: 2 },
+    { kind: 'if', text: 'if d', depth: 1, line: 3 },
+    { kind: 'return', text: 'return', depth: 1, line: 4 },
+  ]);
+});
+
+test('a let else takes in the return that opens its block', () => {
+  expect(decisionsIn('let Some(a) = b else {', 'return if d { 1 } else { 2 };', '};')).toEqual([
     { kind: 'guard', text: 'let Some(a) = b else', depth: 0, line: 2 },
     { kind: 'if', text: 'if d', depth: 1, line: 3 },
   ]);
@@ -192,4 +202,18 @@ test('a chain of logicals reads once, and another operator not at all', () => {
 
 test('a condition reads no logical of its own', () => {
   expect(decisionsIn('if a && b { go(); }')?.map(({ kind }) => kind)).toEqual(['if']);
+});
+
+test('a return in a branch reads as a return, what it holds one deeper', () => {
+  expect(decisionsIn('if c {', 'go();', 'return if d { 1 } else { 2 };', '}')).toEqual([
+    { kind: 'if', text: 'if c', depth: 0, line: 2 },
+    { kind: 'return', text: 'return', depth: 1, line: 4 },
+    { kind: 'if', text: 'if d', depth: 2, line: 4 },
+  ]);
+});
+
+test('a return outside any branch is no decision, and what it holds is', () => {
+  expect(decisionsIn('return if d { 1 } else { 2 };')).toEqual([
+    { kind: 'if', text: 'if d', depth: 0, line: 2 },
+  ]);
 });

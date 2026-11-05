@@ -60,7 +60,7 @@ const letElseOf = (node: Node): Read | undefined => {
   return {
     kind: 'guard',
     text: codeUpTo(node, alternative),
-    deeper: [alternative],
+    deeper: leadingExitOf(alternative)?.deeper ?? [alternative],
   };
 };
 
@@ -95,6 +95,9 @@ const logicalOf = (node: Node): Read | undefined => {
   };
 };
 
+const returnOf = (node: Node, walk: Walk): Read | undefined =>
+  walk.depth > 0 ? { kind: 'return', text: 'return', deeper: node.namedChildren } : undefined;
+
 const COMMAS_KEPT = new Map([
   ['ensure', 0],
   ['assert', 0],
@@ -117,7 +120,7 @@ const macroOf = (node: Node): Read | undefined => {
   };
 };
 
-const READS = new Map<string, (node: Node) => Read | undefined>([
+const READS = new Map<string, (node: Node, walk: Walk) => Read | undefined>([
   ['if_expression', ifOf],
   ['let_declaration', letElseOf],
   ['macro_invocation', macroOf],
@@ -126,11 +129,12 @@ const READS = new Map<string, (node: Node) => Read | undefined>([
   ['while_expression', loopOf],
   ['loop_expression', loopOf],
   ['binary_expression', logicalOf],
+  ['return_expression', returnOf],
 ]);
 
 const decisionsUnder = (walk: Walk, nodes: ReadonlyArray<Node>): ReadonlyArray<Decision> =>
   nodes.flatMap(node => {
-    const read = READS.get(node.type)?.(node);
+    const read = READS.get(node.type)?.(node, walk);
     if (read === undefined) return decisionsUnder(walk, node.namedChildren);
     const { deeper, ...head } = read;
     const depth = isElseIf(node) ? walk.depth - 1 : walk.depth;
