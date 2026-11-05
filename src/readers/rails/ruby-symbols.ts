@@ -389,6 +389,17 @@ const isSingletonBlock = (node: Node): boolean =>
   node.type === 'singleton_class' ||
   (node.type === 'call' && node.childForFieldName('method')?.text === 'class_methods');
 
+const isNamespace = (definition: Node): boolean => {
+  const statements = fieldOf(definition, 'body')
+    .flatMap(({ namedChildren }) => namedChildren)
+    .filter(({ type }) => type !== 'comment');
+  return (
+    definition.type === 'module' &&
+    statements.length > 0 &&
+    statements.every(({ type }) => DEFINITIONS.has(type))
+  );
+};
+
 const walkedDefinition = (walk: Walk, node: Node, within: string | undefined): Walk => {
   const constant = constantWithin(node.childForFieldName('name')?.text ?? '', within);
   const inner = walkedChildren(STARTING, node, constant);
@@ -396,7 +407,7 @@ const walkedDefinition = (walk: Walk, node: Node, within: string | undefined): W
   const definition: ReadSymbol = {
     name: constant,
     kind: 'class',
-    exported: true,
+    exported: !isNamespace(node),
     signature: signatureOf(node),
     ...hashesOf({
       signed: fieldOf(node, 'superclass'),

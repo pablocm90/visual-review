@@ -289,6 +289,46 @@ test('private_constant hides the class, what it scopes and the constants below i
   expect(exported).toEqual(['Shop', 'Shop::Innermost', 'shown', 'own', 'Inner']);
 });
 
+test('a module holding only definitions is a namespace and not exported, unlike a class or a module with anything else', () => {
+  const exported = read(
+    'module Admin',
+    '  class Invoice; end',
+    '  # billing',
+    '  module Deep',
+    '    class Report; end',
+    '  end',
+    'end',
+    'module Plain; end',
+    'module Commented',
+    '  # nothing yet',
+    'end',
+    'module Holder',
+    '  VERSION = 1',
+    '  class Note; end',
+    'end',
+    'module Singleton',
+    '  class << self; end',
+    'end',
+    'class Wrapper',
+    '  class Held; end',
+    'end',
+  )
+    .symbols.filter(symbol => symbol.exported)
+    .map(({ name }) => name);
+
+  expect(exported).toEqual([
+    'Admin::Invoice',
+    'Admin::Deep::Report',
+    'Plain',
+    'Commented',
+    'Holder',
+    'Holder::Note',
+    'Singleton',
+    'Wrapper',
+    'Wrapper::Held',
+  ]);
+});
+
 test('attr_reader, attr_writer and attr_accessor read as a getter and a setter per name, by visibility', () => {
   const lines = [
     'class Shop',
