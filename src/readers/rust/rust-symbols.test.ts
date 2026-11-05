@@ -615,6 +615,8 @@ test.for([
   { written: 'pub use a::{b::*};', exports: ['* from a::b'] },
   { written: 'pub use a::{b::{c::*}};', exports: ['* from a::b::c'] },
   { written: 'pub use {a::*};', exports: ['* from a'] },
+  { written: 'pub use a::{*, b};', exports: ['* from a', 'b'] },
+  { written: 'pub use a::{b::{*}};', exports: ['* from a::b'] },
   { written: 'pub mod a {\n  pub const B: u8 = 1;\n}', exports: ['a', 'a::B'] },
   { written: 'pub mod a {\n  pub use b::c;\n}', exports: ['a', 'a::c'] },
   { written: 'pub mod a {\n  pub use b::*;\n}', exports: ['a', 'a::* from b'] },

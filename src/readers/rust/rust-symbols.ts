@@ -251,7 +251,8 @@ const wholeTypeSymbol = (item: Node): ReadSymbol => {
 
 const WHOLE_TYPES: ReadonlySet<string> = new Set(['enum_item', 'type_item']);
 
-const joined = (path: string, part: string): string => (path === '' ? part : `${path}::${part}`);
+const joined = (...parts: ReadonlyArray<string>): string =>
+  parts.filter(part => part !== '').join('::');
 
 const insideMod =
   (mod: Node) =>
