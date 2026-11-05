@@ -1,6 +1,6 @@
 import { expect, test } from 'vitest';
 import { symbolsOfTypeScript } from '../readers/typescript/typescript-symbols.ts';
-import { symbolChanges, symbolChangesOf } from './symbol-changes.ts';
+import { type FileSymbolChanges, symbolChanges, symbolChangesOf } from './symbol-changes.ts';
 
 const read = (...lines: ReadonlyArray<string>) =>
   symbolsOfTypeScript(lines.join('\n'), 'src/shop.ts');
@@ -590,4 +590,207 @@ test('a getter renamed to an equal-bodied setter is no rename', () => {
     { kind: 'setter', name: 'bar', change: 'added', logic: undefined },
     { kind: 'getter', name: 'foo', change: 'removed', logic: undefined },
   ]);
+});
+
+const logicOfIn = (files: ReadonlyArray<FileSymbolChanges>, name: string) =>
+  files.flatMap(file => file.symbols).find(symbol => symbol.name === name)?.logic;
+
+test('a decision a function lost and a new function of the same file gained moved there', () => {
+  const [before, after] = [
+    read('function ReviewPage(open) {', '  if (!open) return;', '  draw();', '}'),
+    read(
+      'function ReviewPage(open) { return Page(open); }',
+      'function Page(open) {',
+      '  if (!open) return;',
+      '  draw();',
+      '}',
+    ),
+  ];
+
+  expect(logicOfIn(symbolChangesOf([{ node: 'a', before, after }]), 'ReviewPage')).toEqual([
+    {
+      change: 'moved',
+      kind: 'guard',
+      depth: 0,
+      base: 'if (!open) return',
+      line: 2,
+      movedTo: 'Page',
+    },
+  ]);
+});
+
+test('a decision lost to a new function in another changed file moved there too', () => {
+  const files = symbolChangesOf([
+    {
+      node: 'a',
+      before: read('function charge(order) { if (order == null) return; pay(); }'),
+      after: read('function charge(order) { pay(); }'),
+    },
+    {
+      node: 'b',
+      before: none,
+      after: read('class Cart { checked(order) { if (order==null) return; } }'),
+    },
+  ]);
+
+  expect(
+    logicOfIn(files, 'charge')?.map(({ change, movedTo, movedToNode }) => ({
+      change,
+      movedTo,
+      movedToNode,
+    })),
+  ).toEqual([{ change: 'moved', movedTo: 'Cart.checked', movedToNode: 'b' }]);
+});
+
+const lostOf = (base: ReadonlyArray<string>, head: ReadonlyArray<string>, name = 'charge') =>
+  logicOfIn(
+    symbolChangesOf([{ node: 'a', before: read(...base), after: read(...head) }]),
+    name,
+  )?.map(({ change, movedTo }) => ({ change, movedTo }));
+
+test('a decision an edited function gained takes one lost elsewhere; what it already had does not', () => {
+  expect(
+    lostOf(
+      [
+        'function charge(a) { if (!a) return; pay(); }',
+        'function check(a) { if (a.late) warn(); }',
+      ],
+      [
+        'function charge(a) { pay(); }',
+        'function check(a) { if (a.late) warn(); if (!a) return; }',
+      ],
+    ),
+  ).toEqual([{ change: 'moved', movedTo: 'check' }]);
+
+  expect(
+    lostOf(
+      ['function charge(a) { if (!a) return; pay(); }', 'function check(a) { if (!a) return; }'],
+      [
+        'function charge(a) { pay(); }',
+        'function check(a) { if (!a) return; if (a.late) warn(); }',
+      ],
+    ),
+  ).toEqual([{ change: 'removed', movedTo: undefined }]);
+});
+
+test.for([
+  {
+    reason: 'two lost and one gained: the first moved, the second still lost',
+    base: ['function charge(a) { if (!a) return; pay(); if (!a) return; }'],
+    head: ['function charge(a) { pay(); }', 'function check(a) { if (!a) return; }'],
+    lines: [
+      { change: 'moved', movedTo: 'check' },
+      { change: 'removed', movedTo: undefined },
+    ],
+  },
+  {
+    reason: 'a condition reworded on the way',
+    base: ['function charge(a) { if (!a) return; pay(); }'],
+    head: ['function charge(a) { pay(); }', 'function check(a) { if (!a.id) return; }'],
+    lines: [{ change: 'removed', movedTo: undefined }],
+  },
+  {
+    reason: 'a decision it keeps, though another function gained the same',
+    base: ['function charge(a) { if (!a) return; if (b) pay(); }', 'function check(a) { warn(); }'],
+    head: ['function charge(a) { if (!a) return; }', 'function check(a) { if (!a) return; }'],
+    lines: [
+      { change: 'same', movedTo: undefined },
+      { change: 'removed', movedTo: undefined },
+    ],
+  },
+  {
+    reason: 'a decision that only moved inside its own function',
+    base: ['function charge(a) { if (!a) return; if (b) pay(); }'],
+    head: ['function charge(a) { if (b) pay(); if (!a) return; }'],
+    lines: [
+      { change: 'removed', movedTo: undefined },
+      { change: 'same', movedTo: undefined },
+      { change: 'added', movedTo: undefined },
+    ],
+  },
+])('stays as it reads: $reason', ({ base, head, lines }) => {
+  expect(lostOf(base, head)).toEqual(lines);
+});
+
+test('a new function holds what a removed one held: only the rest of it was gained', () => {
+  const base = [
+    'function charge(a) { if (!a) return; pay(); }',
+    'function check(a) { if (!a) return; warn(); }',
+  ];
+  const rewritten = (...guards: ReadonlyArray<string>) => [
+    'function charge(a) { pay(); }',
+    `function verify(b, c, d) { ${guards.join(' ')} log(b); audit(c); notify(d); send(b, c, d); }`,
+  ];
+
+  expect(lostOf(base, rewritten('if (!a) return;'))).toEqual([
+    { change: 'removed', movedTo: undefined },
+  ]);
+  expect(lostOf(base, rewritten('if (!a) return;', 'if (!a) return;'))).toEqual([
+    { change: 'moved', movedTo: 'verify' },
+  ]);
+  expect(
+    lostOf(
+      ['function charge(a) { if (!a) return; pay(); }', 'function check(a) { if (z) warn(); }'],
+      rewritten('if (!a) return;'),
+    ),
+  ).toEqual([{ change: 'moved', movedTo: 'verify' }]);
+});
+
+test('a function moved between files and edited brought its guard, so what another lost stays lost', () => {
+  const files = symbolChangesOf([
+    {
+      node: 'a',
+      before: read(
+        'function charge(a) { if (!a) return; pay(); }',
+        'function check(a) { if (!a) return; }',
+      ),
+      after: read('function charge(a) { pay(); }'),
+    },
+    { node: 'b', before: none, after: read('function check(a) { if (!a) return; warn(); }') },
+  ]);
+
+  expect(logicOfIn(files, 'charge')?.map(({ change }) => change)).toEqual(['removed']);
+});
+
+test('a gained decision of the same text but another kind takes no lost one', () => {
+  const after = read('function charge(a) { pay(); }', 'function check(a) { if (!a) return; }');
+  const files = symbolChangesOf([
+    {
+      node: 'a',
+      before: read('function charge(a) { if (!a) return; pay(); }'),
+      after: {
+        ...after,
+        symbols: after.symbols.map(symbol => ({
+          ...symbol,
+          decisions: (symbol.decisions ?? []).map(decision => ({
+            ...decision,
+            kind: 'if' as const,
+          })),
+        })),
+      },
+    },
+  ]);
+
+  expect(logicOfIn(files, 'charge')?.map(({ change }) => change)).toEqual(['removed']);
+});
+
+test('a whole function moved between files gained nothing, so what another lost stays lost', () => {
+  const moving = 'function check(a) { if (!a) return; }';
+  const files = symbolChangesOf([
+    {
+      node: 'a',
+      before: read('function charge(a) { if (!a) return; pay(); }', moving),
+      after: read('function charge(a) { pay(); }'),
+    },
+    { node: 'b', before: none, after: read(moving) },
+  ]);
+
+  expect(files.flatMap(file => file.symbols).map(({ name, change }) => ({ name, change }))).toEqual(
+    [
+      { name: 'charge', change: 'edited' },
+      { name: 'check', change: 'moved' },
+      { name: 'check', change: 'moved' },
+    ],
+  );
+  expect(logicOfIn(files, 'charge')?.map(({ change }) => change)).toEqual(['removed']);
 });
