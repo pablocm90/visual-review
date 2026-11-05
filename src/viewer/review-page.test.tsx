@@ -2470,6 +2470,52 @@ test('a row of the reading order and Start reading enter reading, Start reading 
   expect(onMap()).toBeDefined();
 });
 
+test('while reading, the reading order narrows to numbered stops: the part current, a tick on what is read, each going to its part, and outside files opening their panel', async () => {
+  const user = userEvent.setup();
+  render(
+    <ReviewPage review={{ ...walkedReview(), undrawn: [{ path: 'README.md', patch: '' }] }} />,
+  );
+  await screen.findByRole('group', { name: 'rust' });
+  const stop = (name: string) => within(readingOrder()).getByRole('button', { name });
+  const currentStops = () =>
+    within(readingOrder())
+      .getAllByRole('button')
+      .filter(button => button.getAttribute('aria-current') !== null)
+      .map(button => [button.textContent, button.getAttribute('aria-current')]);
+  const startReading = () =>
+    within(readingOrder()).queryByRole('button', { name: 'Start reading' });
+  const outsideHeading = () => within(readingOrder()).queryByText('Outside the graph');
+  expect(startReading()).not.toBeNull();
+  expect(outsideHeading()).not.toBeNull();
+  expect(currentStops()).toEqual([]);
+
+  await user.keyboard('j');
+
+  expect(startReading()).toBeNull();
+  expect(outsideHeading()).toBeNull();
+  expect(rowsOf(readingOrder())).toEqual([
+    '1 application',
+    '2 cli-adapter',
+    '3 legacy',
+    '4 README.md',
+  ]);
+  expect(stop('2 cli-adapter').title).toBe('cli-adapter');
+  expect(currentStops()).toEqual([['1 application', 'step']]);
+
+  await user.keyboard('a');
+  expect(readRows()).toEqual(['1 application']);
+
+  await user.click(stop('3 legacy'));
+  expect(selectedPart()).toBe('legacy');
+  expect(currentStops()).toEqual([['3 legacy', 'step']]);
+  expect(screen.getByRole('group', { name: 'Map' })).toBeDefined();
+
+  await user.click(stop('4 README.md'));
+  expect(selectedPart()).toBe('Changed files outside the graph');
+  expect(currentStops()).toEqual([]);
+  expect(screen.getByRole('group', { name: 'Map' })).toBeDefined();
+});
+
 test('J and K walk the reading order from the selected part, starting at its first part, going to each as its row does, and stay put at either end', async () => {
   const user = userEvent.setup();
   render(<ReviewPage review={walkedReview()} />);

@@ -2,6 +2,14 @@ import type { Finding } from '../core/findings.ts';
 import type { PageData } from '../core/page.ts';
 import { LEVELS, LevelMark, worstOf } from './finding-display.tsx';
 
+type ReadingStopsProps = {
+  readonly review: Pick<PageData, 'diff' | 'readingOrder' | 'undrawn'>;
+  readonly read: ReadonlySet<string>;
+  readonly current: string | undefined;
+  readonly onGoTo: (id: string) => void;
+  readonly onShowOutside: (opener: HTMLButtonElement) => void;
+};
+
 type ReadingOrderListProps = {
   readonly review: Pick<PageData, 'diff' | 'readingOrder' | 'undrawn'>;
   readonly findings: ReadonlyArray<Finding>;
@@ -24,6 +32,70 @@ const FindingsMark = ({ findings }: { readonly findings: ReadonlyArray<Finding> 
     <span className="reading-findings" role="img" aria-label={`${LEVELS[level]}, ${count}`}>
       <LevelMark level={level} /> {findings.length}
     </span>
+  );
+};
+
+type StopProps = {
+  readonly number: number;
+  readonly label: string | undefined;
+  readonly read: boolean;
+  readonly current: boolean;
+  readonly onClick: (opener: HTMLButtonElement) => void;
+};
+
+const Stop = ({ number, label, read, current, onClick }: StopProps) => (
+  <li className="reading-stop">
+    <button
+      type="button"
+      title={label}
+      aria-current={current ? 'step' : undefined}
+      onClick={event => onClick(event.currentTarget)}
+    >
+      <span className="reading-number">{number}</span>{' '}
+      <span className="visually-hidden">{label}</span>
+    </button>
+    {read && (
+      <span className="reading-read" role="img" aria-label="read">
+        ✓
+      </span>
+    )}
+  </li>
+);
+
+export const ReadingStops = ({
+  review,
+  read,
+  current,
+  onGoTo,
+  onShowOutside,
+}: ReadingStopsProps) => {
+  const labelOf = new Map(review.diff.nodes.map(node => [node.id, node.label]));
+  const { parts } = review.readingOrder;
+  return (
+    <nav className="reading-stops" aria-label="Reading order">
+      <ol>
+        {parts.map((part, index) => (
+          <Stop
+            key={part}
+            number={index + 1}
+            label={labelOf.get(part)}
+            read={read.has(part)}
+            current={part === current}
+            onClick={() => onGoTo(part)}
+          />
+        ))}
+        {review.undrawn.map(({ path }, index) => (
+          <Stop
+            key={path}
+            number={parts.length + index + 1}
+            label={path}
+            read={false}
+            current={false}
+            onClick={onShowOutside}
+          />
+        ))}
+      </ol>
+    </nav>
   );
 };
 

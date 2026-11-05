@@ -58,7 +58,7 @@ import { LENS_OF, type Lens } from './lenses.ts';
 import { MetricsScreen } from './metrics-screen.tsx';
 import { MetricsTable } from './metrics-tab.tsx';
 import { storedReadMarks, storeReadMarks } from './read-marks.ts';
-import { partsRead, ReadingOrderList } from './reading-order-list.tsx';
+import { partsRead, ReadingOrderList, ReadingStops } from './reading-order-list.tsx';
 import { Ref, shortRef } from './ref.tsx';
 import { ReviewTray, verdictLabels } from './review-tray.tsx';
 import { type RoutesLanding, RoutesScreen, routesHold } from './routes-screen.tsx';
@@ -1936,15 +1936,25 @@ const Page = ({ review, notes, send }: ReviewPageProps) => {
                   onGoToOutside={showOutsideAt}
                 />
               )}
-              <ReadingOrderList
-                review={review}
-                read={read}
-                commentable={send !== undefined}
-                findings={findings}
-                onGoTo={walkTo}
-                onStart={() => walk(1)}
-                onShowOutside={showOutside}
-              />
+              {reading ? (
+                <ReadingStops
+                  review={review}
+                  read={read}
+                  current={selected}
+                  onGoTo={goTo}
+                  onShowOutside={showOutside}
+                />
+              ) : (
+                <ReadingOrderList
+                  review={review}
+                  read={read}
+                  commentable={send !== undefined}
+                  findings={findings}
+                  onGoTo={walkTo}
+                  onStart={() => walk(1)}
+                  onShowOutside={showOutside}
+                />
+              )}
               {!reading && (
                 <FindingsRail
                   findings={inLens}

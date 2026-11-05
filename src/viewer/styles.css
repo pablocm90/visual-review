@@ -2973,3 +2973,53 @@ main:has(> .review-tray) {
   height: 6px;
   vertical-align: middle;
 }
+
+.reading-stops ol {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.reading-stop {
+  position: relative;
+}
+
+.reading-stop button {
+  display: block;
+  width: 100%;
+  height: 32px;
+  padding: 0;
+  border: 1px solid var(--stack-line);
+  border-radius: 6px;
+  background: var(--stack);
+  color: var(--ink);
+  font: inherit;
+  cursor: pointer;
+}
+
+.reading-stop button:hover {
+  background: var(--unchanged-fill);
+}
+
+.reading-stop button[aria-current="step"] {
+  border-color: var(--ink);
+  box-shadow: inset 0 0 0 1px var(--ink);
+  font-weight: 600;
+}
+
+.reading-stop .reading-read {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  margin: 0;
+  color: var(--ink);
+  pointer-events: none;
+}
+
+.reading-stop:has(.reading-read) .reading-number {
+  visibility: hidden;
+}
