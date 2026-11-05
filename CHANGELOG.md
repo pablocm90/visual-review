@@ -2,6 +2,16 @@
 
 What changed in each release of `@pablocm90/visual-review`, newest first. Versions follow [semver](https://semver.org); while it is 0.x, a minor version may change the exported types.
 
+## 0.43.0 — 2026-11-05
+
+### Added
+
+- **Show patch** beside each file's name on the Routes tab opens its patch, so a route file that couldn't be read, or a statement not read, leads to what's left to read.
+
+### Fixed
+
+- A changed route file that doesn't parse or is too big to read is the one its finding and section name. With several route files changed, they named the first that changed, whichever had stopped the reading. A file that stops it unchanged has no patch, so those stay at the first that changed, and the message names it.
+
 ## 0.42.0 — 2026-11-05
 
 ### Added

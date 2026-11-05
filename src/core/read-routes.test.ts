@@ -175,6 +175,96 @@ test('a side the reader cannot read gives the changed file and why, on either si
   expect(await read(repo, broken, fixed)).toStrictEqual([notRead]);
 });
 
+test('a side the reader cannot read gives the file that broke it, among those that changed', async () => {
+  using workspace = gitRepo({
+    [ROUTES]: drawing(USERS),
+    'engines/billing/config/routes.rb': drawing(USERS),
+  });
+  const { repo, root } = workspace;
+  const broken = commit(repo, {
+    [ROUTES]: drawing(`${USERS}\nget "ping", to: "a#b"`),
+    'engines/billing/config/routes.rb': 'Rails.application.routes.draw do\n',
+  });
+
+  expect(await read(repo, root, broken)).toStrictEqual([
+    {
+      file: 'engines/billing/config/routes.rb',
+      notRead: 'Ruby syntax error in engines/billing/config/routes.rb',
+    },
+  ]);
+});
+
+test('a route file too big to read is the file named, among those that changed', async () => {
+  using workspace = gitRepo({
+    [ROUTES]: drawing(USERS),
+    'engines/billing/config/routes.rb': drawing(USERS),
+  });
+  const { repo, root } = workspace;
+  const to = commit(repo, {
+    [ROUTES]: drawing(`${USERS}\nget "ping", to: "a#b"`),
+    'engines/billing/config/routes.rb': `# ${'x'.repeat(1001)}\n`,
+  });
+
+  expect(await read(repo, root, to)).toMatchObject([{ file: 'engines/billing/config/routes.rb' }]);
+});
+
+test('a reading no one file stopped opens at the first file that changed', async () => {
+  using workspace = gitRepo({ [ROUTES]: drawing(USERS) });
+  const { repo, root } = workspace;
+  const to = commit(repo, { [ROUTES]: drawing(`${USERS}\nget "ping", to: "a#b"`) });
+
+  const reading = await readRoutes({
+    repo,
+    base: root,
+    head: to,
+    changes: changesOf(repo, root, to),
+    routes: [
+      {
+        holds: railsRoutes.holds,
+        routes: () => {
+          throw new Error('Too many routes to read');
+        },
+      },
+    ],
+  });
+
+  expect(reading).toStrictEqual([{ file: ROUTES, notRead: 'Too many routes to read' }]);
+});
+
+const MANY_ROUTES = ['a', 'b', 'c', 'd', 'e', 'f']
+  .map(name => `get "${name}", to: "a#b"`)
+  .join('\n');
+
+test('a file broken at the base and renamed gives its new path', async () => {
+  using workspace = gitRepo({
+    [ROUTES]: drawing('draw(:admin)'),
+    [ADMIN_FILE]: `${MANY_ROUTES}\nscope do\n`,
+  });
+  const { repo, root } = workspace;
+  git(repo, 'rm', '-q', ADMIN_FILE);
+  const to = commit(repo, {
+    [ROUTES]: drawing('draw(:staff)'),
+    'config/routes/staff.rb': `${MANY_ROUTES}\n`,
+  });
+
+  expect(await read(repo, root, to)).toStrictEqual([
+    { file: 'config/routes/staff.rb', notRead: `Ruby syntax error in ${ADMIN_FILE}` },
+  ]);
+});
+
+test('a broken file that did not change opens at the file that did', async () => {
+  using workspace = gitRepo({
+    [ROUTES]: drawing('draw(:admin)'),
+    [ADMIN_FILE]: 'scope do\n',
+  });
+  const { repo, root } = workspace;
+  const to = commit(repo, { [ROUTES]: drawing(`draw(:admin)\n${USERS}`) });
+
+  expect(await read(repo, root, to)).toStrictEqual([
+    { file: ROUTES, notRead: `Ruby syntax error in ${ADMIN_FILE}` },
+  ]);
+});
+
 test('a route file broken on both sides and not changed raises nothing', async () => {
   using workspace = gitRepo({ [ROUTES]: 'Rails.application.routes.draw do\n', 'app/a.rb': '' });
   const { repo, root } = workspace;

@@ -1,6 +1,6 @@
 import { gitUntrimmed } from './git.ts';
 import { diffRoutes, type RouteChange, type UnreadChange } from './route-diff.ts';
-import type { RouteReader, RouteTable } from './routes.ts';
+import { RouteFileNotRead, type RouteReader, type RouteTable } from './routes.ts';
 
 export type RouteRow = RouteChange & { readonly patch: string };
 
@@ -69,7 +69,7 @@ export const readRoutes = async ({
     } catch (error) {
       return [
         {
-          file: lastOf(changed[0]),
+          file: error instanceof RouteFileNotRead ? patchOf(error.file) : lastOf(changed[0]),
           notRead: error instanceof Error ? error.message : String(error),
         },
       ];
