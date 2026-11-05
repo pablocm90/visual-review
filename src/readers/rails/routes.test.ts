@@ -1,5 +1,6 @@
 import { expect, test } from 'vitest';
 import type { Route } from '../../core/routes.ts';
+import { TOO_BIG } from '../too-big.ts';
 import { railsRoutes, railsRoutesUpTo } from './route-reader.ts';
 
 const drawing = (body: string) => `Rails.application.routes.draw do
@@ -847,6 +848,17 @@ test('a file drawn thousands of times is parsed and walked once', () => {
     ]),
   );
   expect([routes, unread]).toEqual([[], []]);
+});
+
+test('a file over the size limit is named in why it was not read', () => {
+  expect(() =>
+    railsRoutes.routes(
+      new Map([
+        ['config/routes.rb', drawing('draw :big')],
+        ['config/routes/big.rb', `# ${'x'.repeat(1000)}\n`],
+      ]),
+    ),
+  ).toThrow(`config/routes/big.rb ${TOO_BIG}`);
 });
 
 test('an app of a thousand statements, past the largest seen, still reads', () => {
