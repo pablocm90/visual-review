@@ -279,13 +279,23 @@ const namesUsedIn = (node: Node, path: string): ReadonlyArray<string> => {
   return [(node.childForFieldName('name') ?? node).text];
 };
 
+const namesInMod = (item: Node): ReadonlyArray<string> =>
+  item.type === 'mod_item'
+    ? codeIn(item)
+        .flatMap(namesExportedBy)
+        .map(name => joined(item.childForFieldName('name')?.text ?? '', name))
+    : [];
+
 const namesExportedBy = (item: Node): ReadonlyArray<string> => {
   if (!isExactlyPub(item)) return [];
   const argument = item.childForFieldName('argument');
   if (argument !== null) return namesUsedIn(argument, '');
-  return present([item.childForFieldName('alias') ?? item.childForFieldName('name')]).map(
-    ({ text }) => text,
-  );
+  return [
+    ...present([item.childForFieldName('alias') ?? item.childForFieldName('name')]).map(
+      ({ text }) => text,
+    ),
+    ...namesInMod(item),
+  ];
 };
 
 export const symbolsOfRust = (text: string): FileSymbols => {

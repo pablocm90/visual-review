@@ -606,6 +606,19 @@ test.for([
   { written: 'pub use a::{b::*};', exports: ['* from a::b'] },
   { written: 'pub use a::{b::{c::*}};', exports: ['* from a::b::c'] },
   { written: 'pub use {a::*};', exports: ['* from a'] },
+  { written: 'pub mod a {\n  pub const B: u8 = 1;\n}', exports: ['a', 'a::B'] },
+  { written: 'pub mod a {\n  pub use b::c;\n}', exports: ['a', 'a::c'] },
+  { written: 'pub mod a {\n  pub use b::*;\n}', exports: ['a', 'a::* from b'] },
+  { written: 'pub mod a {\n  const B: u8 = 1;\n}', exports: ['a'] },
+  { written: 'pub struct A {\n  pub b: u8,\n}', exports: ['A'] },
+  { written: 'pub mod a {\n  #[cfg(test)]\n  pub mod tests {}\n}', exports: ['a'] },
+  { written: 'mod a {\n  pub const B: u8 = 1;\n}', exports: [] },
+  { written: 'pub(crate) mod a {\n  pub const B: u8 = 1;\n}', exports: [] },
+  {
+    written: 'pub mod a {\n  pub mod b {\n    pub const C: u8 = 1;\n  }\n}',
+    exports: ['a', 'a::b', 'a::b::C'],
+  },
+  { written: 'pub mod a {\n  mod b {\n    pub const C: u8 = 1;\n  }\n}', exports: ['a'] },
 ])('$written exports $exports', ({ written, exports }) => {
   expect(read(written).exports).toEqual(exports);
 });
