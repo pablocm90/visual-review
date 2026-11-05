@@ -3832,7 +3832,10 @@ const pageWithQuietTests = () =>
       {
         path: 'quiet.test.ts',
         stack: 'web',
-        statements: [{ kind: 'test', name: 'stays', change: 'unchanged' }],
+        statements: [
+          { kind: 'test', name: 'shifts', change: 'edited' },
+          { kind: 'test', name: 'stays', change: 'unchanged' },
+        ],
       },
     ],
   });
@@ -3870,16 +3873,6 @@ test('Tested by lists only changed tests, under the headings that hold one, each
   expect(within(testChanges).getByRole('listitem', { name: 'stays: unchanged' })).toBeTruthy();
 });
 
-test('a part whose test files changed no test draws no Tested by', async () => {
-  const user = userEvent.setup();
-  render(<ReviewPage review={pageWithQuietTests()} />);
-
-  await user.click(await screen.findByRole('button', { name: 'quiet.ts: modified' }));
-
-  expect(screen.queryByRole('region', { name: 'Tested by' })).toBeNull();
-  expect(screen.getByText('No note')).toBeTruthy();
-});
-
 test('an unchanged test with a draft from the Tests screen shows in Tested by, and going to the draft lands on its row', async () => {
   const user = userEvent.setup();
   render(<ReviewPage review={pageWithQuietTests()} send={vi.fn(async () => {})} />);
@@ -3901,7 +3894,7 @@ test('an unchanged test with a draft from the Tests screen shows in Tested by, a
     { name: 'stays: unchanged' },
   );
   await waitFor(() => expect(document.activeElement).toBe(row));
-  expect(testedByRows()).toEqual(['stays: unchanged']);
+  expect(testedByRows()).toEqual(['shifts: edited', 'stays: unchanged']);
 });
 
 test('on a later round an unchanged test stays in Tested by when the last review said something on it or it changed since', async () => {

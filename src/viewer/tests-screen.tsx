@@ -161,21 +161,18 @@ export const useTestsToRead = (
 ): ReadonlyArray<DrawnFile> => {
   const hasSaid = useHasSaid();
   const isChangedSince = useIsChangedSince();
-  return files
-    .map(anchoredIn)
-    .map(({ file, statements }) => ({
-      file,
-      statements: kept(statements, ({ change, trail }) => {
-        const anchor = { kind: 'test', id: testAnchorId(file.path, trail) } as const;
-        return (
-          change !== 'unchanged' ||
-          comments[anchorKey(anchor)] !== undefined ||
-          hasSaid(anchor) ||
-          isChangedSince('tests', anchor.id)
-        );
-      }),
-    }))
-    .filter(({ file, statements }) => 'unreadable' in file || statements.length > 0);
+  return files.map(anchoredIn).map(({ file, statements }) => ({
+    file,
+    statements: kept(statements, ({ change, trail }) => {
+      const anchor = { kind: 'test', id: testAnchorId(file.path, trail) } as const;
+      return (
+        change !== 'unchanged' ||
+        comments[anchorKey(anchor)] !== undefined ||
+        hasSaid(anchor) ||
+        isChangedSince('tests', anchor.id)
+      );
+    }),
+  }));
 };
 
 type TestedByProps = DrawnFilesProps & FindingRowsProps;
