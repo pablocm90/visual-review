@@ -127,6 +127,11 @@ const isMethodExported = (method: Node, written: string, walk: Walk): boolean =>
     ? !walk.hiddenClassMethod
     : walk.exported || written === 'initialize';
 
+const methodKind = (isSetter: boolean, within: string | undefined): ReadSymbol['kind'] => {
+  if (isSetter) return 'setter';
+  return within === undefined ? 'function' : 'method';
+};
+
 const methodSymbol = (method: Node, within: string | undefined, walk: Walk): ReadSymbol => {
   const name = method.childForFieldName('name');
   const isSetter = name?.type === 'setter';
@@ -135,7 +140,7 @@ const methodSymbol = (method: Node, within: string | undefined, walk: Walk): Rea
   return {
     name: object === undefined ? written : `${object}.${written}`,
     ...scopeOf(within),
-    kind: isSetter ? 'setter' : within === undefined ? 'function' : 'method',
+    kind: methodKind(isSetter, within),
     exported: isMethodExported(method, written, walk),
     signature: parameterText(method),
     ...hashesOf({ signed: parametersOf(method), body: fieldOf(method, 'body'), text: method.text }),
