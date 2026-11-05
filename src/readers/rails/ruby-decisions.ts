@@ -249,3 +249,32 @@ const decisionsUnder = (walk: Walk, nodes: ReadonlyArray<Node>): ReadonlyArray<D
 
 export const decisionsOfMethod = (method: Node): ReadonlyArray<Decision> =>
   decisionsUnder({ depth: 0 }, fieldsOf(method, 'body'));
+
+export const decisionsOfBody = (nodes: ReadonlyArray<Node>): ReadonlyArray<Decision> =>
+  decisionsUnder({ depth: 0 }, nodes);
+
+const CALLBACKS = /^((prepend|append|skip)_)?(before_\w+|around_action)$/;
+const VALIDATIONS = /^validates?$|^validates_\w+$/;
+
+const macroOf = (call: Node): Head | undefined => {
+  const word = fieldOf(call, 'receiver') === undefined ? fieldOf(call, 'method')?.text : undefined;
+  if (word === undefined) return undefined;
+  if (word === 'rescue_from') return { kind: 'catch', text: codeOf(call) };
+  return CALLBACKS.test(word) || VALIDATIONS.test(word)
+    ? { kind: 'guard', text: codeOf(call), foundByName: true }
+    : undefined;
+};
+
+export const decisionsOfClass = (
+  definition: Node,
+  holes: ReadonlySet<number>,
+): ReadonlyArray<Decision> => {
+  const under = (node: Node): ReadonlyArray<Decision> => {
+    if (holes.has(node.id)) return [];
+    const macro = macroOf(node);
+    return macro === undefined
+      ? node.namedChildren.flatMap(under)
+      : [{ ...macro, depth: 0, line: node.startPosition.row + 1 }];
+  };
+  return fieldsOf(definition, 'body').flatMap(under);
+};

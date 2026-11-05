@@ -308,3 +308,90 @@ test('an endless method reads its body', () => {
   const symbols = railsReader.symbols?.('def charge = a ? 1 : 2', 'app/models/shop.rb')?.symbols;
   expect(symbols?.[0]?.decisions).toEqual([{ kind: 'ternary', text: 'a ?', depth: 0, line: 1 }]);
 });
+
+const shopDecisions = (...lines: ReadonlyArray<string>) =>
+  railsReader
+    .symbols?.(['class Shop', ...lines, 'end'].join('\n'), 'app/models/shop.rb')
+    ?.symbols.find(({ name }) => name === 'Shop')?.decisions;
+
+test.for([
+  'before_action :a, only: :b',
+  'prepend_before_action :a',
+  'append_before_action :a',
+  'skip_before_action :a',
+  'around_action :a',
+  'prepend_around_action :a',
+  'skip_around_action :a',
+  'before_save :a',
+  'before_validation :a',
+  'before_create :a',
+  'validates :a, presence: true',
+  'validate :a',
+  'validates_presence_of :a',
+])('%s in a class body reads as a guard on the class, found by name', line => {
+  expect(shopDecisions(line)).toEqual([
+    { kind: 'guard', text: line, depth: 0, line: 2, foundByName: true },
+  ]);
+});
+
+test('rescue_from in a class body reads as a catch on the class, not found by name', () => {
+  expect(shopDecisions('rescue_from Foo, with: :a')).toEqual([
+    { kind: 'catch', text: 'rescue_from Foo, with: :a', depth: 0, line: 2 },
+  ]);
+});
+
+test('a macro reads on one line', () => {
+  expect(shopDecisions('before_action :a,', '  # why', '  only: :b')?.[0]?.text).toBe(
+    'before_action :a, only: :b',
+  );
+});
+
+test.for([
+  { reason: 'included', lines: ['included do', '  before_action :a', 'end'] },
+  { reason: 'with_options', lines: ['with_options if: :b do', '  before_action :a', 'end'] },
+])('a macro in a $reason block reads on the class', ({ lines }) => {
+  expect(shopDecisions(...lines)?.map(({ kind, text }) => [kind, text])).toEqual([
+    ['guard', 'before_action :a'],
+  ]);
+});
+
+test.for([
+  { reason: 'a macro on a receiver', lines: ['config.before_action :a'] },
+  { reason: 'an after callback', lines: ['after_action :a', 'after_save :a'] },
+  { reason: 'a validate of another name', lines: ['validate_group :a'] },
+  { reason: 'a callback word inside a longer name', lines: ['not_before_action :a'] },
+  { reason: 'a callback word opening a longer name', lines: ['around_action_log :a'] },
+  { reason: 'an if of its own', lines: ['if b', '  go', 'end'] },
+  { reason: 'what a method holds', lines: ['def go', '  before_action :a', 'end'] },
+  { reason: 'what a nested class holds', lines: ['class Other', '  validates :a', 'end'] },
+  { reason: 'a bare word', lines: ['before_action'] },
+])('$reason reads nothing on the class', ({ lines }) => {
+  expect(shopDecisions(...lines)).toEqual([]);
+});
+
+test('nothing inside a macro reads', () => {
+  expect(shopDecisions('before_create { validates :a }')?.map(({ kind }) => kind)).toEqual([
+    'guard',
+  ]);
+});
+
+test('a macro in a nested class reads on that class', () => {
+  const symbols = railsReader.symbols?.(
+    ['class Shop', '  class Other', '    validates :a', '  end', 'end'].join('\n'),
+    'app/models/shop.rb',
+  )?.symbols;
+  expect(symbols?.find(({ name }) => name === 'Shop::Other')?.decisions).toEqual([
+    { kind: 'guard', text: 'validates :a', depth: 0, line: 3, foundByName: true },
+  ]);
+});
+
+test('a scope reads what its lambda decides', () => {
+  const symbols = railsReader.symbols?.(
+    ['class Shop', '  scope :a, -> { b ? c : d }', 'end'].join('\n'),
+    'app/models/shop.rb',
+  )?.symbols;
+  expect(symbols?.find(({ name }) => name === 'self.a')?.decisions).toEqual([
+    { kind: 'ternary', text: 'b ?', depth: 0, line: 2 },
+  ]);
+  expect(symbols?.find(({ name }) => name === 'Shop')?.decisions).toEqual([]);
+});
