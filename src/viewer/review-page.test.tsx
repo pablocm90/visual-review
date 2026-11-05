@@ -466,6 +466,7 @@ test('a split finding has a button per group in the rail, naming its size and go
         findings: [
           {
             id: 'cohesion:split',
+            check: 'cohesion:split',
             dimension: 'cohesion',
             level: 'info',
             title: 'may be 2 independent changes',
@@ -725,6 +726,7 @@ test("the open tray lists the finding answers after the comments, each named by 
   const user = userEvent.setup();
   const undrawn: Finding = {
     id: 'structure:undrawn',
+    check: 'structure:undrawn',
     dimension: 'structure',
     level: 'info',
     title: '1 changed file outside the graph',
@@ -1793,6 +1795,7 @@ test("the findings rail starts collapsed to their total and how many need a look
           }),
           {
             id: 'structure:undrawn',
+            check: 'structure:undrawn',
             dimension: 'structure',
             level: 'info',
             title: '1 changed file outside the graph',
@@ -3128,6 +3131,7 @@ test("the rail's changed files outside the graph open in the inspector at the ch
         findings: [
           {
             id: 'structure:undrawn',
+            check: 'structure:undrawn',
             dimension: 'structure',
             level: 'info',
             title: '2 changed files outside the graph',
@@ -5524,6 +5528,7 @@ const pageWithUndrawnFile = () =>
     findings: [
       {
         id: 'structure:undrawn',
+        check: 'structure:undrawn',
         dimension: 'structure',
         level: 'info',
         title: '1 changed file outside the graph',
@@ -5546,6 +5551,7 @@ const pageWithLockfile = (place: 'undrawn' | 'patches', path: string) =>
     findings: [
       {
         id: `dependencies:${path}:zod`,
+        check: 'dependencies:direct',
         dimension: 'dependencies',
         level: 'look',
         file: path,
@@ -5554,6 +5560,7 @@ const pageWithLockfile = (place: 'undrawn' | 'patches', path: string) =>
       },
       {
         id: `dependencies:not-read:${path}`,
+        check: 'dependencies:not-read',
         dimension: 'dependencies',
         level: 'look',
         file: path,
@@ -6285,6 +6292,7 @@ test('a last answer to a finding is listed by its title, going to its target; on
   const user = userEvent.setup();
   const raised: Finding = {
     id: 'metrics:look:rust/crate/application',
+    check: 'metrics:lines',
     dimension: 'metrics',
     level: 'look',
     title: 'application got harder',
@@ -7278,6 +7286,7 @@ const pageWithAnAnsweredFinding = (
 ) => {
   const finding = (id: string, title: string): Finding => ({
     id,
+    check: 'logic:changed',
     dimension: 'logic',
     level: 'look',
     target: 'rust/crate/application',

@@ -175,6 +175,7 @@ const reviewWithFindings = (): PageData =>
     findings: [
       {
         id: 'schema:db/queue_schema.rb:users',
+        check: 'schema:table-changed',
         dimension: 'schema',
         level: 'info',
         file: 'db/queue_schema.rb',
@@ -184,6 +185,7 @@ const reviewWithFindings = (): PageData =>
       },
       {
         id: 'schema:not-read:db/cache_schema.rb',
+        check: 'schema:not-read',
         dimension: 'schema',
         level: 'look',
         file: 'db/cache_schema.rb',
@@ -268,6 +270,7 @@ test("a migration's finding, of the same dimension, still opens its own patch on
         findings: [
           {
             id: `schema:${path}:1`,
+            check: 'schema:migration-risk',
             dimension: 'schema',
             level: 'look',
             file: path,

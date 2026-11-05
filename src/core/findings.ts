@@ -44,7 +44,7 @@ export type Dimension = (typeof DIMENSIONS)[number];
 
 export type Finding = {
   readonly id: string;
-  readonly check?: Check;
+  readonly check: Check | 'flag';
   readonly dimension: Dimension;
   readonly level: 'look' | 'info';
   readonly target?: string;
@@ -245,7 +245,16 @@ export const findingsOf = ({ data, notes }: FindingsOfOptions): ReadonlyArray<Fi
   ...Object.entries(notes?.notes ?? {}).flatMap(([id, { flag, dimension = 'structure' }]) =>
     flag === undefined
       ? []
-      : [{ id: `${NOTE_FLAG}${id}`, dimension, level: 'look' as const, target: id, title: flag }],
+      : [
+          {
+            id: `${NOTE_FLAG}${id}`,
+            check: 'flag' as const,
+            dimension,
+            level: 'look' as const,
+            target: id,
+            title: flag,
+          },
+        ],
   ),
 ];
 

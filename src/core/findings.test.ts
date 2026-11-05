@@ -22,6 +22,7 @@ test("a flagged note is a finding to look at on the note's id, in the dimension 
     raised,
     {
       id: 'notes:web/file/a.ts',
+      check: 'flag',
       dimension: 'failure',
       level: 'look',
       target: 'web/file/a.ts',
@@ -29,6 +30,7 @@ test("a flagged note is a finding to look at on the note's id, in the dimension 
     },
     {
       id: 'notes:web -> api',
+      check: 'flag',
       dimension: 'structure',
       level: 'look',
       target: 'web -> api',
@@ -45,6 +47,7 @@ test('without notes, the findings are the raised ones', () => {
 
 const look = (target: string | undefined, id: string): Finding => ({
   id,
+  check: 'flag',
   dimension: 'structure',
   level: 'look',
   ...(target !== undefined && { target }),
@@ -84,12 +87,19 @@ test('direct dependency findings rank below other findings with no target and ab
     look('a', 'on a'),
     {
       id: 'dependencies:pnpm-lock.yaml:zod',
+      check: 'dependencies:direct',
       dimension: 'dependencies',
       level: 'look',
       file: 'pnpm-lock.yaml',
       title: 'zod added at 4.0.0',
     },
-    { id: 'structure:skipped:rust', dimension: 'structure', level: 'look', title: 'Rust skipped' },
+    {
+      id: 'structure:skipped:rust',
+      check: 'structure:skipped',
+      dimension: 'structure',
+      level: 'look',
+      title: 'Rust skipped',
+    },
   ];
 
   expect(lookFirst({ findings, metrics: {} }).map(finding => finding.id)).toStrictEqual([
@@ -102,6 +112,7 @@ test('direct dependency findings rank below other findings with no target and ab
 test('a lockfile not read is a blind spot, ahead of the direct dependencies', () => {
   const dependency = (id: string): Finding => ({
     id,
+    check: 'dependencies:direct',
     dimension: 'dependencies',
     level: 'look',
     title: id,
@@ -121,6 +132,7 @@ test('a lockfile not read is a blind spot, ahead of the direct dependencies', ()
 test('a migration not read is a blind spot, ahead of the risks of those that were', () => {
   const migration = (id: string): Finding => ({
     id,
+    check: 'schema:migration-risk',
     dimension: 'schema',
     level: 'look',
     title: id,
