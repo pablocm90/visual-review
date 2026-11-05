@@ -9,7 +9,9 @@ export const nameOf = (node: Node | undefined): string =>
 export const writtenIn = ({ namedChildren }: Node): ReadonlyArray<Node> =>
   namedChildren.filter(({ type }) => type !== 'comment');
 
-export const isOption = ({ type }: Node): boolean => type === 'pair' || type === 'hash';
+const OPTIONS: ReadonlySet<string> = new Set(['pair', 'hash', 'hash_splat_argument']);
+
+export const isOption = ({ type }: Node): boolean => OPTIONS.has(type);
 
 export const positional = (args: ReadonlyArray<Node>): ReadonlyArray<Node> =>
   args.filter(arg => !isOption(arg));

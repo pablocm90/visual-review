@@ -187,6 +187,10 @@ test.for([{ method: 'add_reference' }, { method: 'add_belongs_to' }])(
 );
 
 test.for([
+  {
+    written: 'add_reference :orders, :user, **options',
+    expected: ['index on orders (user_id) added, not concurrently'],
+  },
   { written: 'add_reference :orders, :user, index: false', expected: [] },
   { written: 'add_reference :orders, :user, :index => false', expected: [] },
   { written: 'add_reference :orders, :user, index: nil', expected: [] },
