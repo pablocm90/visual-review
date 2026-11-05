@@ -67,6 +67,7 @@ import { storedReadMarks, storeReadMarks } from './read-marks.ts';
 import { ReadingOrderList } from './reading-order-list.tsx';
 import { Ref, shortRef } from './ref.tsx';
 import { ReviewTray, verdictLabels } from './review-tray.tsx';
+import { RoutesScreen } from './routes-screen.tsx';
 import {
   CommentFieldUnlessSaid,
   CommentOn,
@@ -1185,6 +1186,7 @@ const TABS = {
   metrics: 'Metrics',
   tests: 'Tests',
   schema: 'Schema',
+  routes: 'Routes',
 } as const;
 
 type Tab = keyof typeof TABS;
@@ -1289,11 +1291,12 @@ const useGraphView = (layout: Layout | undefined) => {
   };
 };
 
-const tabsOf = ({ schemas }: Pick<PageData, 'schemas'>): ReadonlyArray<Tab> => [
+const tabsOf = ({ schemas, routes }: Pick<PageData, 'schemas' | 'routes'>): ReadonlyArray<Tab> => [
   'structure',
   'metrics',
   'tests',
   ...(schemas.length === 0 ? [] : (['schema'] as const)),
+  ...(routes.length === 0 ? [] : (['routes'] as const)),
 ];
 
 const tabAt = (review: PageData, hash: string): Tab =>
@@ -1808,6 +1811,7 @@ const Page = ({ review, notes, send }: ReviewPageProps) => {
           onLanded={() => setSchemaLanding(undefined)}
         />
       )}
+      {tab === 'routes' && <RoutesScreen review={review} />}
       {send && (
         <ReviewTray
           reviewed={{
