@@ -81,10 +81,10 @@ const statementsOf = (call: Node): ReadonlyArray<Node> =>
 const kept = (actions: ReadonlyArray<Action>, args: ReadonlyArray<Node>): ReadonlyArray<Action> => {
   const only = optionOf(args, 'only');
   const except = optionOf(args, 'except');
-  return actions.filter(([, , action]) =>
-    only === undefined
-      ? !(except !== undefined && namesIn(except).includes(action))
-      : namesIn(only).includes(action),
+  return actions.filter(
+    ([, , action]) =>
+      (only === undefined || namesIn(only).includes(action)) &&
+      (except === undefined || !namesIn(except).includes(action)),
   );
 };
 

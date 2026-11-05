@@ -48,6 +48,11 @@ test.for([
     expected: ['users#index', 'users#create'],
   },
   { written: 'resources :users, :only => :index', expected: ['users#index'] },
+  { written: 'resources :users, except: :index, only: [:index, :show]', expected: ['users#show'] },
+  {
+    written: 'resources :users, except: [:index, :new, :edit, :update, :destroy]',
+    expected: ['users#create', 'users#show'],
+  },
 ])('$written keeps only the actions it names', ({ written, expected }) => {
   expect(targets(written)).toStrictEqual(expected);
 });
