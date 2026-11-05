@@ -67,6 +67,7 @@ import { ReadingOrderList } from './reading-order-list.tsx';
 import { Ref, shortRef } from './ref.tsx';
 import { ReviewTray, verdictLabels } from './review-tray.tsx';
 import { LastSaidOnPage, SaidBefore, useSaidLinesOf } from './said-before.tsx';
+import { SchemaScreen } from './schema-screen.tsx';
 import { changedSymbolCount, type LineAt, SymbolsOf, useHasSymbolNews } from './symbols-tab.tsx';
 import { changedCount, TestFiles, TestsScreen } from './tests-screen.tsx';
 import {
@@ -1169,7 +1170,12 @@ const viewOn = ({ layout, frame, chosen }: ViewOnOptions): View => {
   return from && to ? pinned({ graph: layout, frame, view: chosen.view, from, to }) : fit;
 };
 
-const TABS = { structure: 'Structure', metrics: 'Metrics', tests: 'Tests' } as const;
+const TABS = {
+  structure: 'Structure',
+  metrics: 'Metrics',
+  tests: 'Tests',
+  schema: 'Schema',
+} as const;
 
 type Tab = keyof typeof TABS;
 
@@ -1273,17 +1279,22 @@ const useGraphView = (layout: Layout | undefined) => {
   };
 };
 
-const TAB_ORDER: ReadonlyArray<Tab> = ['structure', 'metrics', 'tests'];
+const tabsOf = ({ schemas }: Pick<PageData, 'schemas'>): ReadonlyArray<Tab> => [
+  'structure',
+  'metrics',
+  'tests',
+  ...(schemas.length === 0 ? [] : (['schema'] as const)),
+];
 
-const tabAt = (hash: string): Tab => TAB_ORDER.find(tab => `#${tab}` === hash) ?? 'structure';
-
-const useTab = (): Tab => {
+const useTab = (review: PageData): Tab => {
+  const tabAt = (hash: string): Tab =>
+    tabsOf(review).find(tab => `#${tab}` === hash) ?? 'structure';
   const [tab, setTab] = useState(() => tabAt(location.hash));
   useEffect(() => {
     const follow = () => setTab(tabAt(location.hash));
     addEventListener('hashchange', follow);
     return () => removeEventListener('hashchange', follow);
-  }, []);
+  });
   return tab;
 };
 
@@ -1345,7 +1356,7 @@ const Header = ({ review, tab }: HeaderProps) => {
         )}
       </div>
       <nav aria-label="Review">
-        {TAB_ORDER.map(shown => (
+        {tabsOf(review).map(shown => (
           <a key={shown} href={`#${shown}`} aria-current={shown === tab ? 'page' : undefined}>
             {TABS[shown]}
             {shown === 'tests' && changed > 0 && (
@@ -1403,7 +1414,7 @@ const GraphCaveat = ({ since, nothingDrawn }: GraphCaveatProps) => {
 };
 
 const Page = ({ review, notes, send }: ReviewPageProps) => {
-  const tab = useTab();
+  const tab = useTab(review);
   const [layout, setLayout] = useState<Layout>();
   const { frameElement, placed, frameProps, zoomAtCentre, fitToFrame, centre, pin } =
     useGraphView(layout);
@@ -1769,6 +1780,7 @@ const Page = ({ review, notes, send }: ReviewPageProps) => {
           />
         </ChangedSinceMarks>
       )}
+      {tab === 'schema' && <SchemaScreen review={review} />}
       {send && (
         <ReviewTray
           reviewed={{
