@@ -30,3 +30,20 @@ test('a file that does not parse throws, and so does one too big to read', () =>
   expect(() => read('pub fn open( {')).toThrow('parse');
   expect(() => read(`// ${'x'.repeat(1001)}`)).toThrow('too big');
 });
+
+test.for([
+  { written: 'fn open() {}', signature: '()' },
+  {
+    written:
+      'pub async unsafe extern "C" fn open<T: Clone, U>(mut x: T, y: &str) -> u32 where T: Send, U: Copy, {}',
+    signature:
+      'async unsafe extern "C" <T: Clone, U>(mut x: T, y: &str) -> u32 where T: Send, U: Copy',
+  },
+  {
+    written:
+      'fn open<\n  T,\n>(\n  // the amount\n  x: T,\n) -> Result<\n  u8,\n  E,\n>\nwhere\n  T: Send,\n{}',
+    signature: '<T>(x: T) -> Result< u8, E, > where T: Send',
+  },
+])('$written reads the signature $signature', ({ written, signature }) => {
+  expect(read(written).symbols).toMatchObject([{ signature }]);
+});
