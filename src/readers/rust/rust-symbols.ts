@@ -4,6 +4,10 @@ import { isTooBig, TOO_BIG } from '../too-big.ts';
 import { hashesOf, hashOf, isComment, ownText, shapeOf } from '../tree-sitter.ts';
 import { attributesOf, isDocText, isTestItem, parseRust, pathOf } from './rust-syntax.ts';
 
+const textOf = (node: Node | null | undefined): string => node?.text ?? '';
+
+const nameOf = (item: Node): string => textOf(item.childForFieldName('name'));
+
 const isExactlyPub = (item: Node): boolean => item.namedChildren[0]?.text === 'pub';
 
 const collapsed = (text: string): string => text.replace(/\s+/g, ' ');
@@ -49,7 +53,7 @@ const present = (nodes: ReadonlyArray<Node | null>): ReadonlyArray<Node> =>
   nodes.filter(node => node !== null);
 
 const functionSymbol = (item: Node): ReadSymbol => ({
-  name: item.childForFieldName('name')?.text ?? '',
+  name: nameOf(item),
   kind: 'function',
   exported: isExactlyPub(item),
   signature: signatureOf(item),
@@ -80,7 +84,7 @@ const typeOfImpl = (item: Node): string => {
 
 const isPubBeside = (item: Node, name: string): boolean =>
   (item.parent?.namedChildren ?? []).some(
-    sibling => sibling.childForFieldName('name')?.text === name && isExactlyPub(sibling),
+    sibling => nameOf(sibling) === name && isExactlyPub(sibling),
   );
 
 const methodsOfImpl = (item: Node): ReadonlyArray<ReadSymbol> => {
@@ -97,12 +101,12 @@ const methodsOfTrait = (item: Node): ReadonlyArray<ReadSymbol> =>
   functionsIn(item).map(method => ({
     ...method,
     kind: 'method',
-    scope: item.childForFieldName('name')?.text ?? '',
+    scope: nameOf(item),
     exported: isExactlyPub(item),
   }));
 
 const typeNamed = (item: Node): Pick<ReadSymbol, 'name' | 'kind' | 'exported'> => ({
-  name: item.childForFieldName('name')?.text ?? '',
+  name: nameOf(item),
   kind: 'type',
   exported: isExactlyPub(item),
 });
@@ -115,6 +119,12 @@ const signedPartsOfMember = (member: Node): ReadonlyArray<Node> =>
 const idsOf = (nodes: ReadonlyArray<Node | null>): ReadonlySet<number> =>
   new Set(present(nodes).map(({ id }) => id));
 
+const commentsIn = (item: Node): ReadonlyArray<Node> =>
+  item.descendantsOfType(['line_comment', 'block_comment']);
+
+const saidOnOneLine = (attributes: ReadonlyArray<Node>, own: string): string =>
+  collapsed([...attributes.map(({ text }) => text), own.trim()].join(' ')).replace(/\s+;/g, ';');
+
 const traitSymbol = (item: Node): ReadSymbol => {
   const attributes = attributesOf(item);
   const written = writtenAttributesOf(item);
@@ -125,14 +135,12 @@ const traitSymbol = (item: Node): ReadSymbol => {
   const unsaid = new Set([
     ...defaults,
     ...idsOf([childOfType(item, 'visibility_modifier')]),
-    ...idsOf(item.descendantsOfType(['line_comment', 'block_comment'])),
+    ...idsOf(commentsIn(item)),
   ]);
   const own = ownText(item, unsaid, ({ id }) => (defaults.has(id) ? ';' : ''));
   return {
     ...typeNamed(item),
-    signature: collapsed(
-      [...written.map(({ text }) => text), own.trim()].join(' ').replace(/\s+;/g, ';'),
-    ),
+    signature: saidOnOneLine(written, own),
     ...hashesOf({
       signed: [
         ...written,
@@ -172,7 +180,7 @@ const structSignature = (item: Node): string => {
   const generics = item.childForFieldName('type_parameters');
   const fields = item.childForFieldName('body');
   const bounds = childOfType(item, 'where_clause');
-  const opener = `${keywordOf(item)?.text} ${item.childForFieldName('name')?.text}${generics === null ? '' : `<${writtenIn(generics)}>`}`;
+  const opener = `${keywordOf(item)?.text} ${nameOf(item)}${generics === null ? '' : `<${writtenIn(generics)}>`}`;
   const where = bounds === null ? '' : ` where ${writtenIn(bounds)}`;
   const written = pubFieldsWritten(fields);
   return [
@@ -215,18 +223,11 @@ const wholeTypeSymbol = (item: Node): ReadSymbol => {
   const left = idsOf([item.childForFieldName('name'), body, ...visibility]);
   const said = ownText(
     item,
-    idsOf([
-      ...visibility,
-      ...members.filter(isDocText),
-      ...item.descendantsOfType(['line_comment', 'block_comment']),
-    ]),
+    idsOf([...visibility, ...members.filter(isDocText), ...commentsIn(item)]),
   );
   return {
     ...typeNamed(item),
-    signature: collapsed([...written.map(({ text }) => text), said.trim()].join(' ')).replace(
-      /\s+;/g,
-      ';',
-    ),
+    signature: saidOnOneLine(written, said),
     ...hashesOf({
       signed: [
         ...written,
@@ -246,7 +247,7 @@ const joined = (path: string, part: string): string => (path === '' ? part : `${
 const insideMod =
   (mod: Node) =>
   (symbol: ReadSymbol): ReadSymbol => {
-    const name = mod.childForFieldName('name')?.text ?? '';
+    const name = nameOf(mod);
     const exported = symbol.exported && isExactlyPub(mod);
     return symbol.scope === undefined
       ? { ...symbol, exported, name: joined(name, symbol.name) }
@@ -283,7 +284,7 @@ const namesInMod = (item: Node): ReadonlyArray<string> =>
   item.type === 'mod_item'
     ? codeIn(item)
         .flatMap(namesExportedBy)
-        .map(name => joined(item.childForFieldName('name')?.text ?? '', name))
+        .map(name => joined(nameOf(item), name))
     : [];
 
 const namesExportedBy = (item: Node): ReadonlyArray<string> => {
