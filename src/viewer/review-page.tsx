@@ -1881,6 +1881,12 @@ const OtherScreen = ({
   </>
 );
 
+const useCommentAsked = (selected: string | undefined, tab: Tab) => {
+  const [asked, setAsked] = useState<{ readonly on: string }>();
+  if (asked !== undefined && (asked.on !== selected || tab !== 'structure')) setAsked(undefined);
+  return [asked, setAsked] as const;
+};
+
 const Page = ({ review, notes, send }: ReviewPageProps) => {
   const tab = useTab(review);
   const [layout, setLayout] = useState<Layout>();
@@ -1890,9 +1896,7 @@ const Page = ({ review, notes, send }: ReviewPageProps) => {
     reading,
   );
   const [selected, setSelected] = useState<string>();
-  const [commentAsked, setCommentAsked] = useState<{ readonly on: string }>();
-  if (commentAsked !== undefined && (commentAsked.on !== selected || tab !== 'structure'))
-    setCommentAsked(undefined);
+  const [commentAsked, setCommentAsked] = useCommentAsked(selected, tab);
   const heading = useRef<HTMLHeadingElement>(null);
   const [outside, setOutside] = useState(false);
   const outsideOpener = useRef<HTMLButtonElement>(null);
