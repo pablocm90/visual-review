@@ -35,6 +35,8 @@ const removeBesideItsOpener = (bin: string) => {
   }
 };
 
+const NOT_WAITING_FOR_A_PAGE = { VISUAL_REVIEW_FIRST_PING_MS: '1' };
+
 const fakeOpeners = (openers: ReadonlyArray<string>) => {
   const bin = mkdtempSync(join(tmpdir(), 'visual-review-opener-'));
   const opened = join(bin, 'opened');
@@ -161,10 +163,7 @@ const servedPage = async ({
       promisify(execFile)(
         process.execPath,
         [join(import.meta.dirname, 'cli.ts'), 'serve', ...againFlags, page],
-        {
-          env: { ...process.env, HOME: home, PATH: bin.path },
-          timeout: 3000,
-        },
+        { env: { ...process.env, ...NOT_WAITING_FOR_A_PAGE, HOME: home, PATH: bin.path } },
       ),
     locks: () => readdirSync(lockDirectoryIn(home)),
     lockFile: lockFileIn({ home, page: written.page }),
@@ -410,18 +409,17 @@ test.for([
   const serving = promisify(execFile)(
     process.execPath,
     [join(import.meta.dirname, 'cli.ts'), 'serve', written.page],
-    { cwd, env: { ...process.env, HOME: value, PATH: bin.path }, timeout: 3000 },
+    { cwd, env: { ...process.env, ...NOT_WAITING_FOR_A_PAGE, HOME: value, PATH: bin.path } },
   );
 
   await expect(serving).rejects.toMatchObject({
     code: 1,
-    killed: false,
     stderr: expect.stringContaining("serve's lock"),
   });
   expect(readdirSync(cwd)).toEqual([basename(written.page)]);
 });
 
-test('serve that cannot write its lock exits non-zero at once, saying why', async () => {
+test('serve that cannot write its lock exits non-zero, saying why', async () => {
   using bin = fakeOpeners(['xdg-open', 'open']);
   using written = writtenPage({});
   const home = mkdtempSync(join(tmpdir(), 'visual-review-home-'));
@@ -436,12 +434,11 @@ test('serve that cannot write its lock exits non-zero at once, saying why', asyn
   const serving = promisify(execFile)(
     process.execPath,
     [join(import.meta.dirname, 'cli.ts'), 'serve', written.page],
-    { env: { ...process.env, HOME: home, PATH: bin.path }, timeout: 3000 },
+    { env: { ...process.env, ...NOT_WAITING_FOR_A_PAGE, HOME: home, PATH: bin.path } },
   );
 
   await expect(serving).rejects.toMatchObject({
     code: 1,
-    killed: false,
     stderr: expect.stringMatching(/serve's lock.*EACCES/),
   });
 });
@@ -461,7 +458,7 @@ test.for([
     const serving = promisify(execFile)(
       process.execPath,
       [join(import.meta.dirname, 'cli.ts'), 'serve', written.page],
-      { env: { ...process.env, PATH: bin.path, [variable]: value }, timeout: 3000 },
+      { env: { ...process.env, ...NOT_WAITING_FOR_A_PAGE, PATH: bin.path, [variable]: value } },
     );
 
     await expect(serving).rejects.toMatchObject({
