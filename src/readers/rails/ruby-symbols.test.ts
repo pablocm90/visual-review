@@ -210,3 +210,54 @@ test('a visibility call with a def in it sets that def alone, and private_class_
   expect(exportedIn(...lines)).toEqual(['plain', 'self.open', 'shown', 'self.round']);
   expect(symbolsIn(...lines)).toContain('method Shop.still_hidden');
 });
+
+test('a visibility call naming a method sets it wherever the def stands in that body, the last call winning', () => {
+  expect(
+    exportedIn(
+      'class Shop',
+      '  def hidden; end',
+      '  def price=(value); end',
+      '  def price; end',
+      '  def guarded; end',
+      '  def again; end',
+      '  def self.secret; end',
+      '  def self.open; end',
+      '  class << self',
+      '    def made; end',
+      '    def tucked; end',
+      '    def kept; end',
+      '    private :tucked',
+      '  end',
+      '  class Inner',
+      '    def hidden; end',
+      '  end',
+      '  private :hidden, :price=',
+      '  protected :guarded',
+      '  private :again',
+      '  public :again',
+      '  private_class_method :secret, :made',
+      '  private',
+      '  def back; end',
+      '  public :back',
+      'end',
+    ),
+  ).toEqual(['price', 'again', 'self.open', 'self.kept', 'hidden', 'back']);
+});
+
+test('module_function naming a method makes it self.x and public', () => {
+  const lines = [
+    'module Prices',
+    '  private',
+    '  def round; end',
+    '  def plain; end',
+    '  module_function :round',
+    'end',
+  ];
+
+  expect(symbolsIn(...lines)).toEqual([
+    'class Prices',
+    'method Prices.self.round',
+    'method Prices.plain',
+  ]);
+  expect(exportedIn(...lines)).toEqual(['self.round']);
+});

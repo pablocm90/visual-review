@@ -18,11 +18,18 @@ const signatureOf = (definition: Node): string =>
 
 const NOT_YET_HASHED = { signatureHash: '', bodyHash: '', textHash: '', bodyTokens: [] };
 
+type ByName = {
+  readonly key: string;
+  readonly exported: boolean;
+  readonly toSingleton: boolean;
+};
+
 type Walk = {
   readonly exported: boolean;
   readonly singleton: boolean;
   readonly moduleFunction: boolean;
   readonly hiddenClassMethod: boolean;
+  readonly byName: ReadonlyArray<ByName>;
   readonly symbols: ReadonlyArray<ReadSymbol>;
 };
 
@@ -31,6 +38,7 @@ const STARTING: Walk = {
   singleton: false,
   moduleFunction: false,
   hiddenClassMethod: false,
+  byName: [],
   symbols: [],
 };
 
@@ -61,10 +69,38 @@ const BARE_WORDS = new Map([
   ['module_function', { exported: true, moduleFunction: true }],
 ]);
 
-const CALLS_WITH_A_DEF = new Map<string, Partial<Walk>>([
+const VISIBILITY_CALLS = new Map<string, Partial<Walk> & Pick<Walk, 'exported'>>([
   ...BARE_WORDS,
-  ['private_class_method', { hiddenClassMethod: true }],
+  ['private_class_method', { exported: false, hiddenClassMethod: true }],
 ]);
+
+const namedIn = (
+  call: Node,
+  held: Partial<Walk> & Pick<Walk, 'exported'>,
+  walk: Walk,
+): ReadonlyArray<ByName> =>
+  (call.childForFieldName('arguments')?.namedChildren ?? [])
+    .filter(({ type }) => type === 'simple_symbol')
+    .map(({ text }) => ({
+      key: `${walk.singleton || held.hiddenClassMethod ? 'self.' : ''}${text.slice(1)}`,
+      exported: held.exported,
+      toSingleton: held.moduleFunction === true,
+    }));
+
+const keyOf = ({ kind, name }: ReadSymbol): string => (kind === 'setter' ? `${name}=` : name);
+
+const settledByName = (inner: Walk, within: string | undefined): ReadonlyArray<ReadSymbol> => {
+  const last = new Map(inner.byName.map(named => [named.key, named]));
+  return inner.symbols.map(symbol => {
+    const named = symbol.scope === within ? last.get(keyOf(symbol)) : undefined;
+    if (named === undefined) return symbol;
+    return {
+      ...symbol,
+      exported: named.exported,
+      name: named.toSingleton ? `self.${symbol.name}` : symbol.name,
+    };
+  });
+};
 
 const METHODS = new Set(['method', 'singleton_method']);
 
@@ -78,12 +114,19 @@ const walked = (walk: Walk, node: Node, within: string | undefined): Walk => {
     return { ...walk, ...BARE_WORDS.get(node.text) };
   if (METHODS.has(node.type))
     return { ...walk, symbols: [...walk.symbols, methodSymbol(node, within, walk)] };
-  if (BODIES.has(node.type))
-    return joined(walkedChildren({ ...STARTING, singleton: walk.singleton }, node, within));
+  if (BODIES.has(node.type)) {
+    const inner = walkedChildren({ ...STARTING, singleton: walk.singleton }, node, within);
+    return joined({ ...inner, symbols: settledByName(inner, within) });
+  }
   if (isSingletonBlock(node))
     return joined(walkedChildren({ ...STARTING, singleton: true }, node, within));
-  const held = CALLS_WITH_A_DEF.get(node.childForFieldName('method')?.text ?? '');
-  if (held) return { ...walk, symbols: walkedChildren({ ...walk, ...held }, node, within).symbols };
+  const held = VISIBILITY_CALLS.get(node.childForFieldName('method')?.text ?? '');
+  if (held)
+    return {
+      ...walk,
+      byName: [...walk.byName, ...namedIn(node, held, walk)],
+      symbols: walkedChildren({ ...walk, ...held }, node, within).symbols,
+    };
   if (!DEFINITIONS.has(node.type)) return walkedChildren(walk, node, within);
   const constant = constantWithin(node, within);
   const definition: ReadSymbol = {
