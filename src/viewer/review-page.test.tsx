@@ -2332,7 +2332,7 @@ test("Open map and Escape outside a field return to the landing with the part st
   expect(screen.queryByRole('complementary', { name: 'Inspector' })).toBeNull();
 });
 
-test('the map draws the graph fitted and takes no zoom, pan or toggle, and Open map brings back the graph on the part', async () => {
+test('the map draws the graph fitted and takes no zoom or pan, and Open map brings back the graph on the part', async () => {
   const user = userEvent.setup();
   const graph = await layoutDiff(review.diff);
   const width = graph.width / 2;
@@ -2392,6 +2392,38 @@ test('on the map the current part is marked, a click on a node goes to it as J d
   expect(legacy().getAttribute('aria-current')).toBe('true');
   await waitFor(() => expect(document.activeElement).toBe(headingOfPart()));
   expect(screen.getByRole('group', { name: 'Map' })).toBeDefined();
+});
+
+test('on the map no box takes a toggle, and a part whose box stands open is marked as a closed one is', async () => {
+  const user = userEvent.setup();
+  render(
+    <ReviewPage
+      review={pageWith({
+        range: `walk-${crypto.randomUUID()}`,
+        diff: {
+          nodes: [
+            { id: 'web', kind: 'stack', label: 'web', path: '', state: 'unchanged' },
+            webModule('utils', 'modified'),
+            webFile('utils', 'y.ts'),
+          ],
+          edges: [],
+        },
+        readingOrder: { parts: ['web/module/utils'], cycles: [] },
+      })}
+    />,
+  );
+  await screen.findByRole('group', { name: 'web' });
+  await showEverything(user);
+  await user.click(await screen.findByRole('button', { name: 'Expand utils' }));
+  const box = await screen.findByRole('group', { name: 'utils' });
+  expect(box.getAttribute('aria-current')).toBeNull();
+  expect(screen.getByRole('button', { name: 'Collapse utils' })).toBeDefined();
+
+  await user.keyboard('j');
+
+  expect(selectedPart()).toBe('utils');
+  expect(screen.getByRole('group', { name: 'utils' }).getAttribute('aria-current')).toBe('true');
+  expect(screen.queryByRole('button', { name: 'Collapse utils' })).toBeNull();
 });
 
 test('J and K walk the reading order from the selected part, starting at its first part, going to each as its row does, and stay put at either end', async () => {

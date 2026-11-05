@@ -99,6 +99,8 @@ import {
 
 const STATES = ['added', 'removed', 'modified', 'unchanged'] as const;
 
+const NOTHING_EXPANDABLE: ReadonlySet<string> = new Set();
+
 const NOTE_WIDTH = 360;
 const CHANGES_WIDTH = 600;
 const PANEL_MIN = 280;
@@ -253,11 +255,15 @@ const NodeView = ({ node, drawing }: { readonly node: PlacedNode; readonly drawi
         <g
           role="group"
           aria-label={node.label}
+          aria-current={node.id === drawing.current || undefined}
           className="module"
           data-state={node.state}
           transform={`translate(${node.x} ${node.y})`}
         >
           <rect className="module-box" width={node.width} height={node.height} rx={8} />
+          {node.id === drawing.current && (
+            <rect className="current-ring" width={node.width} height={node.height} rx={8} />
+          )}
           <text className="module-label" x={16} y={26}>
             {node.label}
             {node.formerLabel !== undefined && (
@@ -1576,7 +1582,7 @@ const Page = ({ review, notes, send }: ReviewPageProps) => {
     notes: shown,
     onSelect: (id: string) => (reading ? goTo(id) : select(id)),
     register,
-    expandable,
+    expandable: reading ? NOTHING_EXPANDABLE : expandable,
     expanded,
     onToggle: toggle,
     inMap: reading,
