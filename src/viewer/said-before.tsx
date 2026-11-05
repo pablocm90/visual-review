@@ -163,7 +163,10 @@ export const LastSaidOnPage = ({ since, answers, children }: LastSaidOnPageProps
 
 export const useHasSaid = () => {
   const { byAnchor } = useContext(SaidOnThisPage);
-  return (on: Pick<Comment['anchor'], 'kind' | 'id'>): boolean => byAnchor.has(anchorKey(on));
+  return (on: Pick<Comment['anchor'], 'kind' | 'id'> & { readonly text?: string }): boolean => {
+    const said = byAnchor.get(anchorKey(on))?.anchor;
+    return said !== undefined && (said.kind !== 'line' || said.text === on.text);
+  };
 };
 
 type CommentOnProps = CommentFieldProps & Landed & { readonly name: string };

@@ -6702,6 +6702,37 @@ test('a diff line with a last comment takes Reply and no Comment, while a row a 
   ).toEqual(['Comment on x.ts:21 "const x = 2;"']);
 });
 
+test('a row at a drifted comment\'s old number, reading otherwise, keeps its Comment', async () => {
+  const user = userEvent.setup();
+  render(
+    <ReviewPage
+      review={{
+        ...pageWithPatch('@@ -12,1 +20,2 @@', ' const y = 0;', '+const x = 2;'),
+        sinceReview: {
+          ...sinceReview,
+          comments: [
+            {
+              anchor: { kind: 'line', id: 'web/src/x.ts@head:20', text: 'const x = 2;' },
+              kind: 'question',
+              text: 'Why?',
+            },
+          ],
+        },
+      }}
+      send={async () => {}}
+    />,
+  );
+
+  await user.click(await screen.findByRole('button', { name: 'x.ts: modified' }));
+  await user.click(within(inspector()).getByRole('tab', { name: 'Diff' }));
+
+  expect(
+    within(diffTab())
+      .getAllByRole('button', { name: /^Comment on/ })
+      .map(button => button.getAttribute('aria-label')),
+  ).toEqual(['Comment on x.ts:20 "const y = 0;"', 'Comment on x.ts:21 "const x = 2;"']);
+});
+
 test.for([
   { where: 'at its row', said: 'const y = 0;' },
   { where: 'atop the patch, no row reading the same', said: 'vanished();' },
