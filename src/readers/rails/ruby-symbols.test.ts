@@ -619,6 +619,12 @@ test.for([
     expected: ['unchanged Shop', 'edited Shop.self.a'],
   },
   {
+    edit: "a scope's receiver",
+    before: ['class Shop', '  One.scope :a, -> { all }', 'end'],
+    after: ['class Shop', '  Two.scope :a, -> { all }', 'end'],
+    expected: ['unchanged Shop', 'edited Shop.self.a'],
+  },
+  {
     edit: 'whitespace in a scope',
     before: ['class Shop', '  scope :a, -> { all }', 'end'],
     after: ['class Shop', '  scope :a, -> {  all }', 'end'],

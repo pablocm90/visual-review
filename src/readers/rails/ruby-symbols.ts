@@ -247,7 +247,7 @@ const scopeSymbols = (call: Node, within: string | undefined): ReadonlyArray<Rea
         signature: '',
         ...hashesOf({
           signed: [],
-          body: [...callable, ...fieldOf(call, 'block')],
+          body: [...fieldOf(call, 'receiver'), ...callable, ...fieldOf(call, 'block')],
           text: call.text,
         }),
       },
