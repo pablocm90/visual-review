@@ -19,11 +19,15 @@ const leavesOf = (node: Node): ReadonlyArray<Node> => {
 const OPENERS = new Set(['(', '[', '{']);
 const CLOSERS = new Set([')', ']', '}']);
 
+const SENDS = new Set(['.', '&.']);
+
 const isGapped = (leaf: Node, before: Node | undefined): boolean =>
   before !== undefined &&
   leaf.startIndex > before.endIndex &&
   !OPENERS.has(before.text) &&
-  !CLOSERS.has(leaf.text);
+  !CLOSERS.has(leaf.text) &&
+  !SENDS.has(leaf.text) &&
+  !SENDS.has(before.text);
 
 const codeFrom = (leaves: ReadonlyArray<Node>): string => {
   const kept = leaves.filter(

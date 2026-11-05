@@ -24,6 +24,8 @@ test.for([
   { lines: ['return if a &&', '  # why', '  b'], text: 'return if a && b' },
   { lines: ['return if foo(', '  a,', '  b,', ')'], text: 'return if foo(a, b)' },
   { lines: ['raise build(', '  1', ') if y'], text: 'raise build(1) if y' },
+  { lines: ['return if orders', '  .paid', '  &.any?'], text: 'return if orders.paid&.any?' },
+  { lines: ['return if orders.', '  any?'], text: 'return if orders.any?' },
 ])('$lines reads as the guard $text', ({ lines, text }) => {
   expect(decisionsIn(...lines)).toEqual([{ kind: 'guard', text, depth: 0, line: 2 }]);
 });
