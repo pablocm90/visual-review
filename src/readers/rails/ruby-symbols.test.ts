@@ -321,6 +321,18 @@ test('attr_reader, attr_writer and attr_accessor read as a getter and a setter p
   expect(exportedIn(...lines)).toEqual(['open', 'close', 'price', 'rent', 'rent', 'self.count']);
 });
 
+test('a visibility word sent to another object leaves this class alone', () => {
+  expect(
+    exportedIn(
+      'class Shop',
+      '  def open; end',
+      '  logger.private :open',
+      '  logger.private def close; end',
+      'end',
+    ),
+  ).toEqual(['open', 'close']);
+});
+
 test('delegate reads as a method per name, its prefix applied, signed by its target, by visibility', () => {
   const lines = [
     'class Shop',

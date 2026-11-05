@@ -362,6 +362,7 @@ const privateConstantMacro: Macro = (walk, call) => ({
 const visibilityMacro =
   (held: Partial<Walk> & Pick<Walk, 'exported'>): Macro =>
   (walk, call, within) => {
+    if (call.childForFieldName('receiver') !== null) return walkedChildren(walk, call, within);
     const inner = walkedChildren({ ...walk, ...held }, call, within);
     return {
       ...walk,
