@@ -7269,7 +7269,7 @@ const at = (top: number, bottom: number): DOMRect => ({
   toJSON: () => ({}),
 });
 
-test('landing on a row the review tray covers lifts the page just clear of it, and one it leaves clear moves nothing', async () => {
+test('landing on a row the review tray covers lifts the page just clear of it, one above the window brings it back, and one in view moves nothing', async () => {
   const user = userEvent.setup();
   render(<ReviewPage review={pageWithUndrawnFile()} send={vi.fn(async () => {})} />);
   const name = 'README.md:1 "new"';
@@ -7297,6 +7297,11 @@ test('landing on a row the review tray covers lifts the page just clear of it, a
   rowAt.mockReturnValue(at(300, 464));
   await landOnDraft();
   expect(scrolledBy).not.toHaveBeenCalled();
+
+  scrolledBy.mockClear();
+  rowAt.mockReturnValue(at(-120, -20));
+  await landOnDraft();
+  expect(scrolledBy.mock.calls).toEqual([[0, -120]]);
 });
 
 test("going to a line's draft shows its hidden field, and leaves hidden the one on the row it left", async () => {
