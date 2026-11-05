@@ -1881,6 +1881,13 @@ const OtherScreen = ({
   </>
 );
 
+const notesIn = (notes: ReviewPageProps['notes']) => notes?.notes ?? {};
+
+const reviewedIn = ({ range, pullRequest }: PageData) => ({
+  range,
+  ...(pullRequest && { pullRequest: pullRequest.number }),
+});
+
 const useCommentAsked = (selected: string | undefined, tab: Tab) => {
   const [asked, setAsked] = useState<{ readonly on: string }>();
   if (asked !== undefined && (asked.on !== selected || tab !== 'structure')) setAsked(undefined);
@@ -1921,7 +1928,7 @@ const Page = ({ review, notes, send }: ReviewPageProps) => {
   );
   const visible = useMemo(() => visibleDiff({ diff: review.diff, expanded }), [review, expanded]);
   const [allEdges, setAllEdges] = useState(false);
-  const noted = useMemo(() => new Set(Object.keys(notes?.notes ?? {})), [notes]);
+  const noted = useMemo(() => new Set(Object.keys(notesIn(notes))), [notes]);
   const scopes = useMemo(() => scopesOf(review), [review]);
   const [scope, setScope] = useState(CHANGES_ONLY);
   const [colouring, setColouring] = useState<Colouring>('change');
@@ -1945,7 +1952,7 @@ const Page = ({ review, notes, send }: ReviewPageProps) => {
     return keep({ diff: review.diff, expanded, drawn: atExpansion });
   }, [review, expanded, unmerged, allEdges, scope]);
   const shown = useMemo(
-    () => visibleNotes({ diff: review.diff, expanded, notes: notes?.notes ?? {} }),
+    () => visibleNotes({ diff: review.diff, expanded, notes: notesIn(notes) }),
     [review, notes, expanded],
   );
   const toggle = (id: string) => {
@@ -2292,10 +2299,7 @@ const Page = ({ review, notes, send }: ReviewPageProps) => {
       />
       {send && (
         <ReviewTray
-          reviewed={{
-            range: review.range,
-            ...(review.pullRequest && { pullRequest: review.pullRequest.number }),
-          }}
+          reviewed={reviewedIn(review)}
           read={review.readingOrder.parts.filter(part => read.has(part))}
           resolved={resolved}
           parts={review.readingOrder.parts}
