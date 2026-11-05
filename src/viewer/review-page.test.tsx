@@ -4026,6 +4026,12 @@ test('a changed signature reads as its opener, its members, each gained or lost 
   ]);
 });
 
+test('a member of one name changed reads as both, base then head', async () => {
+  expect(await signatureLinesOf({ base: '(a, b: 1)', head: '(a, b: 2)' })).toContain(
+    '~ b: 1 → b: 2',
+  );
+});
+
 test('a renamed symbol says what it was renamed from, probably when its body changed too', async () => {
   const user = userEvent.setup();
   render(

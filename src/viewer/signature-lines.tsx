@@ -7,6 +7,12 @@ import {
 const Line = ({ line }: { readonly line: SignatureLine }) => {
   if (line.change === 'added') return <ins>+ {line.text}</ins>;
   if (line.change === 'removed') return <del>− {line.text}</del>;
+  if (line.change === 'changed')
+    return (
+      <>
+        ~ <del>{line.base}</del> → <ins>{line.head}</ins>
+      </>
+    );
   return <code>{line.text}</code>;
 };
 
