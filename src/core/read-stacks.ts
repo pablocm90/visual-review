@@ -208,21 +208,25 @@ export const readStacks = async (options: ReadStacksOptions): Promise<StacksRead
     .flatMap(graph => graph.nodes)
     .map(node => ({ ...node, label: stackSettings(config, node.id).label ?? node.label }));
   const stackOf = stackOfIn(nodes);
-  const linkedBy = (reader: Reader['name'], only: ReadonlyArray<string> | undefined) =>
-    kept
+  const atEnd = (reader: Reader['name'], only: ReadonlyArray<string> | undefined) =>
+    stacks
       .filter(drawn => drawn.reader.name === reader && (only?.includes(drawn.stack) ?? true))
-      .map(({ stack }) => ({ stack, nodes: nodes.filter(({ id }) => stackOf(id) === stack) }));
+      .map(({ stack }) => stack);
+  const linked = (ends: ReadonlyArray<string>) =>
+    ends
+      .filter(stack => config.stacks[stack] !== false)
+      .map(stack => ({ stack, nodes: nodes.filter(({ id }) => stackOf(id) === stack) }));
   const skippedStacks = skipped.flatMap(({ stacks: names }) => names);
   const links = await Promise.all(
     linkers.map(async (linker): Promise<Links> => {
       const settings = config.linkers[linker.name] ?? {};
       if (settings === false) return { edges: [], dangling: [], notRead: 'turned off' };
-      const from = linkedBy(linker.from, settings.from);
-      const to = linkedBy(linker.to, settings.to);
-      const read = await linker.link({ directory, from, to });
-      const empty = [...from, ...to]
-        .map(({ stack }) => stack)
-        .filter(stack => skippedStacks.includes(stack));
+      const fromEnd = atEnd(linker.from, settings.from);
+      const toEnd = atEnd(linker.to, settings.to);
+      const read = await linker.link({ directory, from: linked(fromEnd), to: linked(toEnd) });
+      const empty = [...fromEnd, ...toEnd].filter(
+        stack => skippedStacks.includes(stack) || config.stacks[stack] === false,
+      );
       return empty.length === 0 ? read : { ...read, notRead: `not read for ${empty.join(', ')}` };
     }),
   );

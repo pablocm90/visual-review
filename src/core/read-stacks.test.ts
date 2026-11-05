@@ -331,6 +331,20 @@ test.for([
     onPath: false,
     notRead: ['not read for web, jobs'],
   },
+  {
+    reason: 'naming a stack at its end the config drops, over its own',
+    config: { stacks: { api: false } },
+    says: 'no axum crate',
+    onPath: true,
+    notRead: ['not read for api'],
+  },
+  {
+    reason: 'with its own when the stack the config drops is at no end of it',
+    config: { stacks: { api: false }, linkers: { 'fetch-axum': { to: ['jobs'] } } },
+    says: 'no axum crate',
+    onPath: true,
+    notRead: ['no axum crate'],
+  },
 ])('a linker says why it read nothing $reason', async ({ config, says, onPath, notRead }) => {
   const side = await readSide({
     config: JSON.stringify(config),
