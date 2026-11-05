@@ -1665,6 +1665,7 @@ const Page = ({ review, notes, send }: ReviewPageProps) => {
               <LensChips findings={findings} picked={picked} onPick={setPicked} />
               <StartHere
                 findings={inLens}
+                picked={picked}
                 onShowAll={() => setRailOpen(true)}
                 review={review}
                 onGoTo={goTo}

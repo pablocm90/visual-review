@@ -308,6 +308,7 @@ export const LensChips = ({ findings, picked, onPick }: LensChipsProps) => (
 type StartHereProps = LineOptions & {
   readonly findings: ReadonlyArray<Finding>;
   readonly onShowAll: () => void;
+  readonly picked: Lens | undefined;
   readonly review: Pick<PageData, 'diff' | 'metrics' | 'sinceReview'>;
 };
 
@@ -343,6 +344,11 @@ const SeveralFindings = ({ line, lineOf }: SeveralFindingsProps) => {
   );
 };
 
+const startHereCount = (look: number, total: number) =>
+  look > 0
+    ? counted(look, 'finding needs a look', 'findings need a look')
+    : `nothing needs a look · ${counted(total, 'finding', 'findings')}`;
+
 export const StartHere = (props: StartHereProps) => {
   const [open, setOpen] = useState(true);
   const calledFine = props.review.sinceReview?.calledFine ?? [];
@@ -351,7 +357,7 @@ export const StartHere = (props: StartHereProps) => {
     metrics: props.review.metrics,
     nodes: props.review.diff.nodes,
   });
-  if (lines.length === 0) return null;
+  if (lines.length === 0 && props.picked === undefined) return null;
   const lineOf = linesOf(props);
   const lineOfOne = (finding: Finding): Line => {
     const { groups, ...line } = lineOf(finding);
@@ -371,9 +377,7 @@ export const StartHere = (props: StartHereProps) => {
           </button>
         </h2>
         <span className="start-here-count">
-          {look > 0
-            ? counted(look, 'finding needs a look', 'findings need a look')
-            : `nothing needs a look · ${counted(total, 'finding', 'findings')}`}
+          {lines.length === 0 ? `nothing to show in ${props.picked}` : startHereCount(look, total)}
         </span>
         <button type="button" className="show-all" onClick={props.onShowAll}>
           All findings
