@@ -546,6 +546,41 @@ test.for([
   expect(table.unread).toStrictEqual([]);
 });
 
+test.for([
+  { reads: 'a condition', beside: 'if flag\n draw_more\nend' },
+  { reads: 'a loop', beside: 'Dir.glob("x").each { |file| load file }' },
+  { reads: 'a draw under a modifier', beside: 'Rails.application.routes.draw { } if flag' },
+  { reads: 'another way to add routes', beside: 'Rails.application.routes.append do\nend' },
+  { reads: 'a call beside it', beside: 'draw_more' },
+])('$reads beside a draw is not read, rather than dropped', ({ beside }) => {
+  const { routes, unread } = railsRoutes.routes(
+    new Map([['config/routes.rb', `${drawing('get "a", to: "b#c"')}${beside}\n`]]),
+  );
+  expect(routes).toHaveLength(1);
+  expect(unread.map(({ text }) => text)).toStrictEqual([beside.replace(/\s+/g, ' ')]);
+});
+
+test('a load beside a draw joins its file in', () => {
+  const table = readFiles([
+    [
+      'config/routes.rb',
+      `${drawing('get "a", to: "b#c"')}load Rails.root.join("config/routes/admin.rb")\n`,
+    ],
+    ['config/routes/admin.rb', drawing('get "d", to: "e#f"')],
+  ]);
+  expect(linesOf(table)).toStrictEqual(['GET /a b#c', 'GET /d e#f']);
+});
+
+test.for([
+  { reads: 'beside a draw', file: `require "sidekiq/web"\n${drawing('get "a", to: "b#c"')}` },
+  { reads: 'relative', file: `require_relative "x"\n${drawing('get "a", to: "b#c"')}` },
+  { reads: 'with no draw at all', file: 'require "sidekiq/web"\nget "a", to: "b#c"\n' },
+])('a require $reads draws nothing and hides nothing', ({ file }) => {
+  const table = railsRoutes.routes(new Map([['config/routes.rb', file]]));
+  expect(linesOf(table)).toStrictEqual(['GET /a b#c']);
+  expect(table.unread).toStrictEqual([]);
+});
+
 test('a followed file takes the prefix it was drawn under, and names its own lines', () => {
   const { routes } = readFiles([
     ['config/routes.rb', drawing('namespace :api do\n draw :admin\n end')],

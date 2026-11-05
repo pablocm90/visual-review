@@ -323,6 +323,10 @@ const checked =
 const isDraw = (statement: Node): boolean =>
   methodOf(statement) === 'draw' && statement.childForFieldName('block') !== null;
 
+const REQUIRES: ReadonlySet<string> = new Set(['require', 'require_relative']);
+
+const isRequire = (statement: Node): boolean => REQUIRES.has(methodOf(statement));
+
 const programOf = (text: string): Node => {
   const program = parseRuby(text);
   if (program === undefined || program.hasError) throw new Error('Ruby syntax error');
@@ -331,10 +335,11 @@ const programOf = (text: string): Node => {
 
 const drawnFrom = (file: string, scope: Scope): ReadonlyArray<Drawn> => {
   const statements = writtenIn(programOf(scope.files.get(file) ?? ''));
-  const draws = statements.filter(isDraw);
-  return (draws.length === 0 ? statements : draws).flatMap(statement =>
-    routesIn(statement, { ...scope, file, loading: [...scope.loading, file] }),
-  );
+  return statements
+    .filter(statement => !isRequire(statement))
+    .flatMap(statement =>
+      routesIn(statement, { ...scope, file, loading: [...scope.loading, file] }),
+    );
 };
 
 const follows =
