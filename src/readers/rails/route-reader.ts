@@ -90,6 +90,9 @@ const under = (base: string, name: string): string => {
   return segment === '' ? base : `${base}/${segment}`;
 };
 
+const inModuleOf = (module: string, written: string): string =>
+  written.startsWith('/') ? written.slice(1) : `${module}${written}`;
+
 const writtenOr = (args: ReadonlyArray<Node>, key: string, fallback: string): string => {
   const option = optionOf(args, key);
   return option === undefined ? fallback : nameOf(option);
@@ -117,7 +120,7 @@ const resourcesOf =
         ...kept(actions, args).map(([verb, suffix, action]) => ({
           verb,
           path: `${path}${suffix.replace(':id', `:${param}`)}`,
-          target: `${module}${controller}#${action}`,
+          target: inModuleOf(module, writtenOr(args, 'to', `${controller}#${action}`)),
           file: scope.file,
           line: call.startPosition.row + 1,
         })),
@@ -143,7 +146,7 @@ const rooted: Handler = (call, scope) => {
     {
       verb: 'GET',
       path: scope.path,
-      target: to.type === 'string' ? `${scope.module}${nameOf(to)}` : to.text,
+      target: to.type === 'string' ? inModuleOf(scope.module, nameOf(to)) : to.text,
       file: scope.file,
       line: call.startPosition.row + 1,
     },
@@ -166,7 +169,7 @@ const toOf = (args: ReadonlyArray<Node>): Node | undefined =>
   optionOf(args, 'to') ?? pairedTo(args)?.childForFieldName('value') ?? undefined;
 
 const shorthandFor = (name: string, args: ReadonlyArray<Node>): string | undefined =>
-  toOf(args) === undefined && optionOf(args, 'controller') === undefined && SHORTHAND.test(name)
+  toOf(args) === undefined && optionOf(args, 'action') === undefined && SHORTHAND.test(name)
     ? actionWord(name.replace(/^\//, '').replace(/\/([^/]*)$/, '#$1'))
     : undefined;
 
@@ -192,7 +195,7 @@ const targetOf = (name: string, args: ReadonlyArray<Node>, scope: Scope): string
   const to = toOf(args);
   if (to !== undefined && to.type !== 'string') return to.text;
   const target = shorthandFor(name, args) ?? namedTarget(name, args, scope);
-  return target === undefined ? undefined : `${scope.module}${target}`;
+  return target === undefined ? undefined : inModuleOf(scope.module, target);
 };
 
 const drawnBy =

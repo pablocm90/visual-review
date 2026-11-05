@@ -548,3 +548,34 @@ test.for([
 ])('holds $path: $holds', ({ path, holds }) => {
   expect(railsRoutes.holds(path)).toBe(holds);
 });
+
+test.for([
+  {
+    reads: 'a controller: beside a two-part path, which the path overrides',
+    written: 'get "reports/monthly", controller: "other"',
+    expected: 'GET /reports/monthly reports#monthly',
+  },
+  {
+    reads: 'an action: stopping the two-part shorthand',
+    written: 'get "reports/monthly", controller: "other", action: :list',
+    expected: 'GET /reports/monthly other#list',
+  },
+  {
+    reads: 'a leading slash in to:, leaving the module out',
+    written: 'namespace :api do\n get "a", to: "/private/hooks#run"\n end',
+    expected: 'GET /api/a private/hooks#run',
+  },
+  {
+    reads: 'a leading slash in a controller:, leaving the module out',
+    written: 'namespace :api do\n resources :a, only: :index, controller: "/private/hooks"\n end',
+    expected: 'GET /api/a private/hooks#index',
+  },
+  {
+    reads: 'to: on a resource, for its target',
+    written:
+      'namespace :api do\n resource :document, only: :create, to: "companies#document"\n end',
+    expected: 'POST /api/document api/companies#document',
+  },
+])('a route reads $reads', ({ written, expected }) => {
+  expect(lines(written)).toStrictEqual([expected]);
+});
