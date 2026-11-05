@@ -9,11 +9,13 @@ const SENDS: ReadonlySet<string> = new Set(['.']);
 
 const { codeOf, codeUpTo } = codeReaderOf(SENDS);
 
-const isClosureBody = (node: Node): boolean =>
-  node.parent?.type === 'closure_expression' &&
-  node.parent.childForFieldName('body')?.id === node.id;
+const isWalkedBody = (node: Node): boolean =>
+  node.type === 'block' ||
+  node.type === 'match_block' ||
+  (node.parent?.type === 'closure_expression' &&
+    node.parent.childForFieldName('body')?.id === node.id);
 
-const { codeOf: codeWithoutClosures } = codeReaderOf(SENDS, isClosureBody);
+const { codeOf: codeWithoutBodies } = codeReaderOf(SENDS, isWalkedBody);
 
 type Read = Head & {
   readonly deeper: ReadonlyArray<Node>;
@@ -112,7 +114,7 @@ const returnOf = (node: Node, walk: Walk): Read | undefined =>
 
 const tryOf = (node: Node): Read => ({
   kind: 'try',
-  text: codeWithoutClosures(node),
+  text: codeWithoutBodies(node),
   deeper: [],
   beside: node.namedChildren,
 });

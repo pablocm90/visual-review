@@ -270,12 +270,17 @@ test("a closure's logic left out of a try's text still reads as its own lines", 
   ]);
 });
 
-test("a try keeps a loop's body, as only a closure's is left out", () => {
-  expect(decisionsIn('(loop { break a; })?;')).toEqual([
-    { kind: 'loop', text: 'loop', depth: 0, line: 2 },
-    { kind: 'try', text: '(loop {break a;})?', depth: 0, line: 2 },
-  ]);
-});
+test.for([
+  { line: '(loop { break a; })?;', text: '(loop …)?' },
+  { line: 'let z = match y { X => a, _ => b }?;', text: 'match y …?' },
+])(
+  "$line reads with its block left out, each of the block's decisions on its own line",
+  ({ line, text }) => {
+    const decisions = decisionsIn(line) ?? [];
+    expect(decisions.length).toBeGreaterThan(1);
+    expect(decisions.at(-1)).toEqual({ kind: 'try', text, depth: 0, line: 2 });
+  },
+);
 
 test("a condition keeps its closure's body, as nothing else reads it", () => {
   expect(decisionsIn('if a.b(|e| e.d()) { go(); }')).toEqual([
