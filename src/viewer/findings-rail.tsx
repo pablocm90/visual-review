@@ -287,14 +287,20 @@ const LensCount = ({
 
 type LensChipsProps = {
   readonly findings: ReadonlyArray<Finding>;
+  readonly coverage: PageData['coverage'];
   readonly picked: Lens | undefined;
   readonly onPick: (lens: Lens | undefined) => void;
 };
 
-export const LensChips = ({ findings, picked, onPick }: LensChipsProps) => (
+export const LensChips = ({ findings, coverage, picked, onPick }: LensChipsProps) => (
   <div className="lenses" role="group" aria-label="Lenses">
     {LENSES.map(lens => {
       const found = findings.filter(finding => LENS_OF[finding.dimension] === lens);
+      const checked =
+        found.length === 0 &&
+        coverage.every(
+          ({ dimension, notRead }) => LENS_OF[dimension] !== lens || notRead.length === 0,
+        );
       return (
         <button
           key={lens}
@@ -303,7 +309,7 @@ export const LensChips = ({ findings, picked, onPick }: LensChipsProps) => (
           aria-pressed={lens === picked}
           onClick={() => onPick(lens === picked ? undefined : lens)}
         >
-          {lens}
+          {checked ? `${lens} · checked, nothing found` : lens}
           <LensCount findings={found} level="info" />
           <LensCount findings={found} level="look" />
         </button>

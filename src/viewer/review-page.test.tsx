@@ -1863,9 +1863,9 @@ test("the findings rail starts collapsed to their total and how many need a look
   expect(lines('Routes')).toEqual(['cli-adapter: 2 calls with no route: /api/info, /api/users']);
 
   expect(lensChips()).toEqual([
-    'Behaviour false',
+    'Behaviour · checked, nothing found false',
     'Contract ○1 false',
-    'Risk false',
+    'Risk · checked, nothing found false',
     'Shape ○1 ▲2 false',
     'Context ○1 ▲1 false',
   ]);
@@ -1899,11 +1899,11 @@ test("the findings rail starts collapsed to their total and how many need a look
   rerender(<ReviewPage review={pageWith({ ...review, findings: [] })} />);
   expect(within(rail()).getByRole('button', { name: 'Show 0 findings' })).toBeDefined();
   expect(lensChips()).toEqual([
-    'Behaviour false',
-    'Contract false',
-    'Risk false',
-    'Shape false',
-    'Context false',
+    'Behaviour · checked, nothing found false',
+    'Contract · checked, nothing found false',
+    'Risk · checked, nothing found false',
+    'Shape · checked, nothing found false',
+    'Context · checked, nothing found false',
   ]);
 });
 
@@ -1949,9 +1949,9 @@ test("a lens counts each of its dimensions' findings, a note's flag among them, 
   expect(startHereLines.getByRole('button', { name: /reads a token/ })).toBeDefined();
   expect(lensChips()).toEqual([
     'Behaviour ○2 ▲1 false',
-    'Contract false',
+    'Contract · checked, nothing found false',
     'Risk ▲1 false',
-    'Shape false',
+    'Shape · checked, nothing found false',
     'Context ○1 false',
   ]);
 
@@ -2007,7 +2007,7 @@ test("a picked lens lists its dimensions under the chips, each with its counts, 
           }),
         ],
         coverage: [
-          { dimension: 'structure', notRead: [] },
+          { dimension: 'structure', notRead: ['crates not read'] },
           { dimension: 'logic', notRead: ['not read for crates'] },
           { dimension: 'api', notRead: [] },
           { dimension: 'tests', notRead: ['not read for crates', 'not read for web/a.test.ts'] },
@@ -2022,6 +2022,13 @@ test("a picked lens lists its dimensions under the chips, each with its counts, 
   );
 
   const lenses = within(await screen.findByRole('group', { name: 'Lenses' }));
+  expect(lensChips()).toEqual([
+    'Behaviour ○1 ▲1 false',
+    'Contract ○1 false',
+    'Risk ▲1 false',
+    'Shape false',
+    'Context · checked, nothing found false',
+  ]);
   expect(screen.queryByRole('list', { name: /dimensions/ })).toBeNull();
 
   await user.click(lenses.getByRole('button', { name: /Behaviour/ }));
@@ -2053,7 +2060,7 @@ test("a picked lens with nothing to show keeps Start here's band, saying so, wit
 
   const band = await screen.findByRole('region', { name: 'Start here' });
   const risk = within(screen.getByRole('group', { name: 'Lenses' })).getByRole('button', {
-    name: 'Risk',
+    name: /Risk/,
   });
 
   await user.click(risk);

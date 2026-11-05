@@ -1662,7 +1662,12 @@ const Page = ({ review, notes, send }: ReviewPageProps) => {
             </div>
             <div className="content">
               {notes && notes.summary.length > 0 && <Summary notes={notes} onGoTo={goTo} />}
-              <LensChips findings={findings} picked={picked} onPick={setPicked} />
+              <LensChips
+                findings={findings}
+                coverage={review.coverage}
+                picked={picked}
+                onPick={setPicked}
+              />
               {picked && <LensRow lens={picked} findings={findings} coverage={review.coverage} />}
               <StartHere
                 findings={inLens}
