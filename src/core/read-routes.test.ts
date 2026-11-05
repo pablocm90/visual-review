@@ -170,7 +170,7 @@ test('a side the reader cannot read gives the changed file and why, on either si
   const broken = commit(repo, { [ROUTES]: 'Rails.application.routes.draw do\n' });
   const fixed = commit(repo, { [ROUTES]: drawing(USERS) });
 
-  const notRead = { file: ROUTES, notRead: 'Ruby syntax error' };
+  const notRead = { file: ROUTES, notRead: `Ruby syntax error in ${ROUTES}` };
   expect(await read(repo, root, broken)).toStrictEqual([notRead]);
   expect(await read(repo, broken, fixed)).toStrictEqual([notRead]);
 });

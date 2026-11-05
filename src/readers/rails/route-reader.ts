@@ -349,14 +349,14 @@ const isBare = (statement: Node): boolean => statement.childForFieldName('receiv
 const isRequire = (statement: Node): boolean =>
   isBare(statement) && REQUIRES.has(methodOf(statement));
 
-const programOf = (text: string): Node => {
+const programOf = (file: string, text: string): Node => {
   const program = parseRuby(text);
-  if (program === undefined || program.hasError) throw new Error('Ruby syntax error');
+  if (program === undefined || program.hasError) throw new Error(`Ruby syntax error in ${file}`);
   return program;
 };
 
 const drawnFrom = (file: string, scope: Scope): ReadonlyArray<Drawn> => {
-  const statements = writtenIn(programOf(scope.files.get(file) ?? ''));
+  const statements = writtenIn(programOf(file, scope.files.get(file) ?? ''));
   return statements
     .filter(statement => !isRequire(statement))
     .flatMap(statement =>

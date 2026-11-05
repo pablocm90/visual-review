@@ -694,6 +694,15 @@ test('a file that does not parse throws, so it is reported rather than read as n
   expect(() => read('resources :users,')).toThrow('Ruby syntax error');
 });
 
+test('a file that does not parse is named, since it may not be the one that changed', () => {
+  expect(() =>
+    readFiles([
+      ['config/routes.rb', drawing('draw :admin')],
+      ['config/routes/admin.rb', 'resources :users,'],
+    ]),
+  ).toThrow('Ruby syntax error in config/routes/admin.rb');
+});
+
 test.for([
   { path: 'config/routes.rb', holds: true },
   { path: 'apps/a/config/routes.rb', holds: true },
