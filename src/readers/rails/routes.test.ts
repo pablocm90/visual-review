@@ -64,6 +64,13 @@ test('resources names several, each with its own actions', () => {
   ]);
 });
 
+test('resource names several, each with its own actions', () => {
+  expect(lines('resource :profile, :account, only: :show')).toStrictEqual([
+    'GET /profile profiles#show',
+    'GET /account accounts#show',
+  ]);
+});
+
 test('resource draws one thing with no index and no id, its controller plural', () => {
   expect(lines('resource :profile')).toStrictEqual([
     'POST /profile profiles#create',
@@ -465,6 +472,9 @@ test.for([
     written: 'namespace :a, only: :index do\n resources :b\n end',
   },
   { reads: 'an as: it cannot read', written: 'resources :users, as: NAME' },
+  { reads: 'unless', written: 'unless flag\n get "a", to: "b#c"\n end' },
+  { reads: 'a shallow block', written: 'shallow do\n resources :a\n end' },
+  { reads: 'concerns called alone', written: 'concerns :commentable' },
   { reads: 'a concern', written: 'concern :commentable do\n resources :comments\n end' },
   { reads: 'a name it cannot read', written: 'resources NAME' },
   { reads: 'a splatted name', written: 'resources(*NAMES)' },
