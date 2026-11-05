@@ -80,6 +80,7 @@ import {
   centred,
   fitted,
   frameHeight,
+  mapHeight,
   panned,
   pinned,
   resized,
@@ -133,13 +134,14 @@ type SelectableOptions = {
   readonly note: Note | undefined;
   readonly onSelect: (id: string) => void;
   readonly register: (id: string, element: SVGElement | null) => void;
+  readonly inMap: boolean;
 };
 
-const selectable = ({ id, name, note, onSelect, register }: SelectableOptions) => ({
+const selectable = ({ id, name, note, onSelect, register, inMap }: SelectableOptions) => ({
   ...pressable(() => onSelect(id)),
   ref: (element: SVGElement | null) => register(id, element),
   role: 'button',
-  tabIndex: 0,
+  tabIndex: inMap ? -1 : 0,
   'aria-label': note?.flag ? `${name}, flagged: ${note.flag}` : name,
 });
 
@@ -209,6 +211,8 @@ type Drawing = {
   readonly onToggle: (id: string) => void;
   readonly unroutedOf: (id: string) => ReadonlyArray<string>;
   readonly shadeOf: (node: DiffedNode) => Shade | undefined;
+  readonly inMap: boolean;
+  readonly current: string | undefined;
 };
 
 type ToggleProps = {
@@ -233,7 +237,7 @@ const Toggle = ({ node, expanded, onToggle }: ToggleProps) => (
 );
 
 const NodeView = ({ node, drawing }: { readonly node: PlacedNode; readonly drawing: Drawing }) => {
-  const { notes, onSelect, register, expandable, expanded, onToggle, unroutedOf, shadeOf } =
+  const { notes, onSelect, register, expandable, expanded, onToggle, unroutedOf, shadeOf, inMap } =
     drawing;
   const unrouted = unroutedOf(node.id);
   const shade = shadeOf(node);
@@ -286,7 +290,9 @@ const NodeView = ({ node, drawing }: { readonly node: PlacedNode; readonly drawi
           note: notes[node.id],
           onSelect,
           register,
+          inMap,
         })}
+        aria-current={node.id === drawing.current || undefined}
         className="node"
         data-state={node.state}
         data-step={shade?.step}
@@ -296,6 +302,9 @@ const NodeView = ({ node, drawing }: { readonly node: PlacedNode; readonly drawi
           {`${node.path} — ${[node.state, ...(shade === undefined ? [] : [shade.name])].join(', ')}`}
         </title>
         <rect width={node.width} height={node.height} rx={6} />
+        {node.id === drawing.current && (
+          <rect className="current-ring" width={node.width} height={node.height} rx={6} />
+        )}
         <text x={node.width / 2} y={node.height / 2}>
           {node.formerLabel === undefined ? (
             node.label
@@ -330,14 +339,14 @@ type EdgeViewProps = {
 };
 
 const EdgeView = ({ edge, name, drawing }: EdgeViewProps) => {
-  const { notes, onSelect, register, findingsOn } = drawing;
+  const { notes, onSelect, register, findingsOn, inMap } = drawing;
   const id = edgeId(edge);
   const note = notes[id];
   const found = findingsOn(id);
   return (
     <>
       <path
-        {...selectable({ id, name, note, onSelect, register })}
+        {...selectable({ id, name, note, onSelect, register, inMap })}
         className={edge.via ? 'edge call' : 'edge'}
         data-state={edge.state}
         d={edgePath(edge.points)}
@@ -1245,7 +1254,7 @@ const TABS = {
 
 type Tab = keyof typeof TABS;
 
-const useGraphView = (layout: Layout | undefined) => {
+const useGraphView = (layout: Layout | undefined, map: boolean) => {
   const [frameElement, setFrameElement] = useState<HTMLDivElement | null>(null);
   const [frameWidth, setFrameWidth] = useState<number>();
   useEffect(() => {
@@ -1258,11 +1267,14 @@ const useGraphView = (layout: Layout | undefined) => {
     layout && frameWidth !== undefined
       ? {
           width: frameWidth,
-          height: frameHeight({ graph: layout, frameWidth, windowHeight: window.innerHeight }),
+          height: map
+            ? mapHeight({ graph: layout, frameWidth })
+            : frameHeight({ graph: layout, frameWidth, windowHeight: window.innerHeight }),
         }
       : undefined;
   const [chosen, setChosen] = useState<Chosen>();
-  const view = layout && frame && viewOn({ layout, frame, chosen });
+  const view =
+    layout && frame && (map ? fitted({ graph: layout, frame }) : viewOn({ layout, frame, chosen }));
   const placed = layout && frame && view && { graph: layout, frame, view };
   const choose = (next: (on: NonNullable<typeof placed>) => View, pin?: string) => {
     if (placed) setChosen({ of: placed.graph, view: next(placed), in: placed.frame, pin });
@@ -1270,7 +1282,7 @@ const useGraphView = (layout: Layout | undefined) => {
   const dragged = useRef(false);
   const pan = (down: PointerEvent<HTMLDivElement>) => {
     dragged.current = false;
-    if (down.button !== 0) return;
+    if (map || down.button !== 0) return;
     const follow = (move: globalThis.PointerEvent) => {
       const by = { x: move.clientX - down.clientX, y: move.clientY - down.clientY };
       dragged.current ||= Math.hypot(by.x, by.y) >= LEAST_DRAG;
@@ -1286,7 +1298,7 @@ const useGraphView = (layout: Layout | undefined) => {
     choose(on => zoomed({ ...on, scale, at: { x: on.frame.width / 2, y: on.frame.height / 2 } }));
   const fitToFrame = () => setChosen(undefined);
   const keyed = (event: KeyboardEvent) => {
-    if (!view || event.ctrlKey || event.metaKey || event.altKey) return;
+    if (map || !view || event.ctrlKey || event.metaKey || event.altKey) return;
     const panBy = (x: number, y: number) => () => choose(on => panned({ ...on, by: { x, y } }));
     const act = {
       '+': () => zoomAtCentre(view.scale * ZOOM_STEP),
@@ -1304,7 +1316,7 @@ const useGraphView = (layout: Layout | undefined) => {
     act();
   };
   const wheel = useEffectEvent((event: WheelEvent) => {
-    if (!frameElement || !placed) return;
+    if (map || !frameElement || !placed) return;
     const bounds = frameElement.getBoundingClientRect();
     const at = { x: event.clientX - bounds.left, y: event.clientY - bounds.top };
     const by = { x: -event.deltaX, y: -event.deltaY };
@@ -1484,13 +1496,15 @@ const GraphCaveat = ({ since, nothingDrawn }: GraphCaveatProps) => {
 const Page = ({ review, notes, send }: ReviewPageProps) => {
   const tab = useTab(review);
   const [layout, setLayout] = useState<Layout>();
-  const { frameElement, placed, frameProps, zoomAtCentre, fitToFrame, centre, pin } =
-    useGraphView(layout);
+  const [reading, setReading] = useState(false);
+  const { frameElement, placed, frameProps, zoomAtCentre, fitToFrame, centre, pin } = useGraphView(
+    layout,
+    reading,
+  );
   const [selected, setSelected] = useState<string>();
   const [commentAsked, setCommentAsked] = useState<{ readonly on: string }>();
   if (commentAsked !== undefined && (commentAsked.on !== selected || tab !== 'structure'))
     setCommentAsked(undefined);
-  const [reading, setReading] = useState(false);
   const heading = useRef<HTMLHeadingElement>(null);
   const [outside, setOutside] = useState(false);
   const outsideOpener = useRef<HTMLButtonElement>(null);
@@ -1560,11 +1574,13 @@ const Page = ({ review, notes, send }: ReviewPageProps) => {
     numberOf: (id: string) => numbers.get(id),
     picked,
     notes: shown,
-    onSelect: select,
+    onSelect: (id: string) => (reading ? goTo(id) : select(id)),
     register,
     expandable,
     expanded,
     onToggle: toggle,
+    inMap: reading,
+    current: reading ? selected : undefined,
     unroutedOf: (id: string) =>
       dangling.filter(call => visibleOf(call.from) === id).map(call => call.path),
     shadeOf: ({ id, state }: DiffedNode) =>
@@ -1777,8 +1793,7 @@ const Page = ({ review, notes, send }: ReviewPageProps) => {
           className="frame"
           role="group"
           aria-label={reading ? 'Map' : 'Graph'}
-          // biome-ignore lint/a11y/noNoninteractiveTabindex: the frame takes the zoom and pan keys
-          tabIndex={0}
+          tabIndex={reading ? -1 : 0}
           {...frameProps}
         >
           {placed && (

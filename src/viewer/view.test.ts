@@ -1,6 +1,16 @@
 import { expect, test } from 'vitest';
 import type { Layout, PlacedNode } from './layout.ts';
-import { boxOf, centred, fitted, frameHeight, panned, pinned, resized, zoomed } from './view.ts';
+import {
+  boxOf,
+  centred,
+  fitted,
+  frameHeight,
+  mapHeight,
+  panned,
+  pinned,
+  resized,
+  zoomed,
+} from './view.ts';
 
 test.for([
   {
@@ -40,6 +50,26 @@ test.for([
   },
 ])('the frame for a graph $graphIs', ({ graph, height }) => {
   expect(frameHeight({ graph, frameWidth: 1000, windowHeight: 700 })).toBe(height);
+});
+
+test.for([
+  {
+    graphIs: 'wider than the frame shrinks with the graph',
+    graph: { width: 2000, height: 400 },
+    height: 64,
+  },
+  {
+    graphIs: 'smaller than the frame keeps its height',
+    graph: { width: 200, height: 100 },
+    height: 100,
+  },
+  {
+    graphIs: "taller than the frame stops at the map's tallest",
+    graph: { width: 500, height: 1200 },
+    height: 320,
+  },
+])('the map for a graph $graphIs', ({ graph, height }) => {
+  expect(mapHeight({ graph, frameWidth: 320 })).toBe(height);
 });
 
 const big = { graph: { width: 2000, height: 2000 }, frame: { width: 1000, height: 1000 } };

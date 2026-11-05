@@ -16,6 +16,7 @@ import { symbolFindings } from '../core/symbol-findings.ts';
 import { findingOn, measured, pageWith } from '../test-support/page-data.ts';
 import { layoutDiff } from './layout.ts';
 import { ReviewPage } from './review-page.tsx';
+import { boxOf, centred, frameHeight, mapHeight } from './view.ts';
 
 const frameOfWidth = (width: number) => {
   const observing: { report?: (width: number) => void } = {};
@@ -2329,6 +2330,68 @@ test("Open map and Escape outside a field return to the landing with the part st
   await user.click(screen.getByRole('button', { name: 'Close inspector' }));
   expect(screen.getByRole('group', { name: 'Graph' })).toBeDefined();
   expect(screen.queryByRole('complementary', { name: 'Inspector' })).toBeNull();
+});
+
+test('the map draws the graph fitted and takes no zoom, pan or toggle, and Open map brings back the graph on the part', async () => {
+  const user = userEvent.setup();
+  const graph = await layoutDiff(review.diff);
+  const width = graph.width / 2;
+  renderInFrame(walkedReview(), { width, windowHeight: 10_000 });
+  const rust = await screen.findByRole('group', { name: 'rust' });
+  const box = boxOf({ layout: graph, id: 'rust/crate/application' });
+  if (box === undefined) throw new Error('no box for application');
+  const onThePart = centred({
+    graph,
+    frame: { width, height: frameHeight({ graph, frameWidth: width, windowHeight: 10_000 }) },
+    box,
+  });
+
+  await user.keyboard('j');
+
+  const map = screen.getByRole('group', { name: 'Map' });
+  const fittedView = 'translate(0 0) scale(0.5)';
+  expect(viewOf(rust)).toBe(fittedView);
+  expect(map.style.height).toBe(`${mapHeight({ graph, frameWidth: width })}px`);
+  expect(map.tabIndex).toBe(-1);
+  expect(screen.queryByRole('toolbar', { name: 'View' })).toBeNull();
+
+  fireEvent.keyDown(map, { key: '+' });
+  expect(fireEvent.keyDown(map, { key: 'ArrowLeft' })).toBe(true);
+  expect(fireEvent.wheel(map, { ctrlKey: true, deltaY: -100 })).toBe(true);
+  expect(fireEvent.wheel(map, { deltaY: 40 })).toBe(true);
+  fireEvent.pointerDown(map, { button: 0, clientX: 100, clientY: 100 });
+  fireEvent.pointerMove(window, { clientX: 60, clientY: 60 });
+  fireEvent.pointerUp(window);
+  expect(viewOf(rust)).toBe(fittedView);
+  expect(selectedPart()).toBe('application');
+
+  await user.click(screen.getByRole('button', { name: 'Open map' }));
+  expect(viewOf(rust)).toBe(`translate(${onThePart.x} ${onThePart.y}) scale(${onThePart.scale})`);
+});
+
+test('on the map the current part is marked, a click on a node goes to it as J does, and nothing on it takes a tab stop', async () => {
+  const user = userEvent.setup();
+  render(<ReviewPage review={walkedReview()} />);
+  const rust = await screen.findByRole('group', { name: 'rust' });
+  const node = (name: string) => within(rust).getByRole('button', { name });
+  const application = () => node('application: modified');
+  const legacy = () => node('legacy: removed');
+  await user.click(application());
+  expect(application().getAttribute('aria-current')).toBeNull();
+  expect(application().tabIndex).toBe(0);
+
+  await user.keyboard('j');
+  expect(selectedPart()).toBe('cli-adapter');
+  expect(node('cli-adapter: added').getAttribute('aria-current')).toBe('true');
+  expect(application().getAttribute('aria-current')).toBeNull();
+  expect(application().tabIndex).toBe(-1);
+  expect(node('application → domain: unchanged').tabIndex).toBe(-1);
+
+  await user.click(legacy());
+  expect(selectedPart()).toBe('legacy');
+  expect(legacy().getAttribute('aria-current')).toBe('true');
+  await waitFor(() => expect(document.activeElement).toBe(headingOfPart()));
+  expect(screen.getByRole('group', { name: 'Map' })).toBeDefined();
 });
 
 test('J and K walk the reading order from the selected part, starting at its first part, going to each as its row does, and stay put at either end', async () => {

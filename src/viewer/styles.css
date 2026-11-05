@@ -2955,3 +2955,15 @@ main:has(> .review-tray) {
 .open-map:hover {
   background: var(--unchanged-fill);
 }
+
+.columns.reading .frame {
+  cursor: default;
+}
+
+.current-ring {
+  fill: none;
+  stroke: var(--ink);
+  stroke-width: 3px;
+  vector-effect: non-scaling-stroke;
+  pointer-events: none;
+}
