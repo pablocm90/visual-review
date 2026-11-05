@@ -1,3 +1,4 @@
+import { useEffect } from 'react';
 import { counted } from '../core/findings.ts';
 import type { PageData } from '../core/page.ts';
 import type { SchemaReading } from '../core/read-schemas.ts';
@@ -55,8 +56,17 @@ const rowOf =
     );
   };
 
-const TableCard = ({ table }: { readonly table: TableChange }) => (
-  <article className="schema-card" aria-label={`${table.name}, ${table.state}`}>
+export type SchemaLanding = { readonly file: string; readonly table: string | undefined };
+
+const placeId = ({ file, table }: SchemaLanding) => `schema:${file}:${table ?? ''}`;
+
+const TableCard = ({ file, table }: { readonly file: string; readonly table: TableChange }) => (
+  <article
+    id={placeId({ file, table: table.name })}
+    tabIndex={-1}
+    className="schema-card"
+    aria-label={`${table.name}, ${table.state}`}
+  >
     <h3 className="schema-table" data-state={STATE_NAMES[table.state]}>
       {table.name} <span className="schema-table-state">{table.state}</span>
     </h3>
@@ -91,17 +101,37 @@ const WholeFile = ({ reading }: { readonly reading: SchemaReading }) => {
   return null;
 };
 
-export const SchemaScreen = ({ review }: { readonly review: Pick<PageData, 'schemas'> }) => (
-  <div className="schema-screen">
-    {review.schemas.map(reading => (
-      <section key={reading.file} aria-label={reading.file}>
-        <h2 className="schema-file">
-          <code>{reading.file}</code>
-        </h2>
-        <WholeFile reading={reading} />
-        {'tables' in reading &&
-          reading.tables.map(table => <TableCard key={table.name} table={table} />)}
-      </section>
-    ))}
-  </div>
-);
+type SchemaScreenProps = {
+  readonly review: Pick<PageData, 'schemas'>;
+  readonly landing: SchemaLanding | undefined;
+  readonly onLanded: () => void;
+};
+
+export const SchemaScreen = ({ review, landing, onLanded }: SchemaScreenProps) => {
+  useEffect(() => {
+    if (landing === undefined) return;
+    document.getElementById(placeId(landing))?.focus();
+    onLanded();
+  });
+  return (
+    <div className="schema-screen">
+      {review.schemas.map(reading => (
+        <section
+          key={reading.file}
+          id={placeId({ file: reading.file, table: undefined })}
+          tabIndex={-1}
+          aria-label={reading.file}
+        >
+          <h2 className="schema-file">
+            <code>{reading.file}</code>
+          </h2>
+          <WholeFile reading={reading} />
+          {'tables' in reading &&
+            reading.tables.map(table => (
+              <TableCard key={table.name} file={reading.file} table={table} />
+            ))}
+        </section>
+      ))}
+    </div>
+  );
+};

@@ -67,7 +67,7 @@ import { ReadingOrderList } from './reading-order-list.tsx';
 import { Ref, shortRef } from './ref.tsx';
 import { ReviewTray, verdictLabels } from './review-tray.tsx';
 import { LastSaidOnPage, SaidBefore, useSaidLinesOf } from './said-before.tsx';
-import { SchemaScreen } from './schema-screen.tsx';
+import { type SchemaLanding, SchemaScreen } from './schema-screen.tsx';
 import { changedSymbolCount, type LineAt, SymbolsOf, useHasSymbolNews } from './symbols-tab.tsx';
 import { changedCount, TestFiles, TestsScreen } from './tests-screen.tsx';
 import {
@@ -1557,8 +1557,10 @@ const Page = ({ review, notes, send }: ReviewPageProps) => {
     location.hash = '#structure';
     showOutside(opener);
   };
-  const showFile = (path: string, opener: HTMLButtonElement) => {
+  const [schemaLanding, setSchemaLanding] = useState<SchemaLanding>();
+  const showFile = (path: string, opener: HTMLButtonElement, table?: string) => {
     if (review.schemas.some(({ file }) => file === path)) {
+      setSchemaLanding({ file: path, table });
       location.hash = '#schema';
       return;
     }
@@ -1784,7 +1786,13 @@ const Page = ({ review, notes, send }: ReviewPageProps) => {
           />
         </ChangedSinceMarks>
       )}
-      {tab === 'schema' && <SchemaScreen review={review} />}
+      {tab === 'schema' && (
+        <SchemaScreen
+          review={review}
+          landing={schemaLanding}
+          onLanded={() => setSchemaLanding(undefined)}
+        />
+      )}
       {send && (
         <ReviewTray
           reviewed={{

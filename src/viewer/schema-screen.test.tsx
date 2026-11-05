@@ -168,10 +168,7 @@ const reviewWithFindings = (): PageData =>
       },
       {
         file: 'db/queue_schema.rb',
-        tables: [
-          table({ name: 'jobs', columns: [{ state: 'added', head: column('run', 'boolean') }] }),
-          table({ columns: [{ state: 'added', head: column('queue', 'string') }] }),
-        ],
+        tables: [table({ columns: [{ state: 'added', head: column('queue', 'string') }] })],
       },
       { file: 'db/cache_schema.rb', notRead: 'Ruby syntax error' },
     ]),
@@ -195,7 +192,7 @@ const reviewWithFindings = (): PageData =>
     ],
   });
 
-test('a schema finding in the rail opens the Schema tab', async () => {
+test('a table finding in the rail opens the Schema tab at its card, in its file, and one on a whole file from Look first at that file', async () => {
   atHash('#structure');
   const user = userEvent.setup();
   render(<ReviewPage review={reviewWithFindings()} />);
@@ -208,8 +205,30 @@ test('a schema finding in the rail opens the Schema tab', async () => {
   );
 
   await waitFor(() =>
-    expect(tabs().getByRole('link', { name: 'Schema' }).getAttribute('aria-current')).toBe('page'),
+    expect(document.activeElement).toBe(
+      within(screen.getByRole('region', { name: 'db/queue_schema.rb' })).getByRole('article', {
+        name: 'users, changed',
+      }),
+    ),
   );
+
+  await user.click(tabs().getByRole('link', { name: 'Structure' }));
+  await user.click(
+    within(await screen.findByRole('region', { name: 'Look first' })).getByRole('button', {
+      name: 'db/cache_schema.rb not read: Ruby syntax error',
+    }),
+  );
+
+  await waitFor(() =>
+    expect(document.activeElement).toBe(screen.getByRole('region', { name: 'db/cache_schema.rb' })),
+  );
+  expect(tabs().getByRole('link', { name: 'Schema' }).getAttribute('aria-current')).toBe('page');
+
+  await user.click(tabs().getByRole('link', { name: 'Structure' }));
+  const schemaTab = tabs().getByRole('link', { name: 'Schema' });
+  await user.click(schemaTab);
+  await screen.findByRole('region', { name: 'db/cache_schema.rb' });
+  expect(document.activeElement).toBe(schemaTab);
 });
 
 test("a migration's finding, of the same dimension, still opens its own patch on a review with a schema change", async () => {
