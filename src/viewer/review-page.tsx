@@ -1571,6 +1571,7 @@ const Page = ({ review, notes, send }: ReviewPageProps) => {
   const [colouring, setColouring] = useState<Colouring>('change');
   const [picked, setPicked] = useState<Lens>();
   const [railOpen, setRailOpen] = useState(false);
+  const [startHereOpen, setStartHereOpen] = useState(true);
   const findings = findingsOf({ data: review, notes });
   const inLens = findings.filter(
     finding => picked === undefined || LENS_OF[finding.dimension] === picked,
@@ -1798,6 +1799,8 @@ const Page = ({ review, notes, send }: ReviewPageProps) => {
           <StartHere
             findings={inLens}
             onShowAll={() => setRailOpen(true)}
+            open={startHereOpen}
+            onOpen={setStartHereOpen}
             review={review}
             onGoTo={goTo}
             onGoToFinding={goToFinding}

@@ -2702,6 +2702,23 @@ test('reading holds across Metrics and Tests: the map, the part and the column a
   expect(rowsOf(readingOrder())).toHaveLength(3);
 });
 
+test('Start here left collapsed is still collapsed after reading', async () => {
+  const user = userEvent.setup();
+  render(<ReviewPage review={{ ...walkedReview(), findings: [findingOn('rust/crate/domain')] }} />);
+  await screen.findByRole('group', { name: 'rust' });
+  const toggle = () =>
+    within(screen.getByRole('region', { name: 'Start here' })).getByRole('button', {
+      name: 'Start here',
+    });
+  await user.click(toggle());
+  expect(toggle().getAttribute('aria-expanded')).toBe('false');
+
+  await user.keyboard('j');
+  await user.keyboard('{Escape}');
+
+  expect(toggle().getAttribute('aria-expanded')).toBe('false');
+});
+
 test("going to a part from another tab while reading lands focus on the part's heading", async () => {
   const user = userEvent.setup();
   render(<ReviewPage review={walkedReview()} />);
