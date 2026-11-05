@@ -46,6 +46,7 @@ test.for([
   { what: 'a closer that opens nothing', text: ') (a: 1)' },
   { what: 'a bracket left open after the members', text: '(a: 1): { b: 2' },
   { what: 'a lone quote', text: "type A = { a: ' };" },
+  { what: 'overloads', text: '(a: 1): X; (b: 2): Y' },
 ])('leaves $what unsplit', ({ text }) => {
   expect(splitSignature(text)).toBeUndefined();
 });

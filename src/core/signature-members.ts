@@ -41,6 +41,7 @@ export const splitSignature = (text: string): SplitSignature | undefined => {
   const marks = marksOf(text);
   if (marks === undefined) return undefined;
   const top = marks.filter(({ depth }) => depth === 0);
+  if (top.some(({ token, at }) => token === ';' && at < text.length - 1)) return undefined;
   const open = top.find(({ token }) => token === '(' || token === '{');
   const close = open && top[top.indexOf(open) + 1];
   if (open === undefined || close === undefined) return undefined;
