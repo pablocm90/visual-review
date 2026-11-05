@@ -2589,6 +2589,50 @@ test('All findings, while reading, returns to the landing with every finding ope
   ).toBeDefined();
 });
 
+test('reading holds across Metrics and Tests: the map, the part and the column are as they were left', async () => {
+  const user = userEvent.setup();
+  render(<ReviewPage review={walkedReview()} />);
+  await screen.findByRole('group', { name: 'rust' });
+  await user.keyboard('jj');
+  expect(selectedPart()).toBe('cli-adapter');
+
+  await user.click(screen.getByRole('link', { name: 'Metrics' }));
+  expect(screen.queryByRole('group', { name: 'Map' })).toBeNull();
+  await user.click(screen.getByRole('link', { name: /Tests/ }));
+  await user.click(screen.getByRole('link', { name: 'Structure' }));
+
+  expect(await screen.findByRole('group', { name: 'Map' })).toBeDefined();
+  expect(selectedPart()).toBe('cli-adapter');
+  expect(rowsOf(readingOrder())).toHaveLength(3);
+});
+
+test('going from Next to it to a neighbour Show hides widens Show, and the map rings it', async () => {
+  const user = userEvent.setup();
+  render(
+    <ReviewPage
+      review={{
+        ...walkedReview(),
+        diff: { ...review.diff, edges: [dependency('application', 'domain', 'unchanged')] },
+      }}
+    />,
+  );
+  await screen.findByRole('group', { name: 'rust' });
+  await user.keyboard('j');
+  const map = () => within(screen.getByRole('group', { name: 'Map' }));
+  await waitFor(() =>
+    expect(map().getByRole('button', { name: 'application: modified' })).toHaveProperty(
+      'ariaCurrent',
+      'true',
+    ),
+  );
+  expect(map().queryByRole('button', { name: 'domain: unchanged' })).toBeNull();
+
+  await user.click(screen.getByRole('button', { name: 'imports domain' }));
+
+  const domain = await map().findByRole('button', { name: 'domain: unchanged' });
+  expect(domain.getAttribute('aria-current')).toBe('true');
+});
+
 test('J and K walk the reading order from the selected part, starting at its first part, going to each as its row does, and stay put at either end', async () => {
   const user = userEvent.setup();
   render(<ReviewPage review={walkedReview()} />);
@@ -3055,15 +3099,23 @@ test("C pressed before going to a part has finished drawing keeps the focus in t
           ],
           edges: [],
         },
-        readingOrder: { parts: ['web/file/utils/y.ts'], cycles: [] },
       })}
+      notes={{
+        version: 1,
+        tests: '',
+        summary: [{ text: 'Check y.ts', target: 'web/file/utils/y.ts' }],
+        notes: {},
+      }}
       send={async () => {}}
     />,
   );
   await screen.findByRole('group', { name: 'web' });
+  scrolledIntoView.mockClear();
 
-  await user.keyboard('jc');
+  await user.click(screen.getByRole('button', { name: 'Check y.ts' }));
+  await user.keyboard('c');
   await screen.findByRole('button', { name: 'y.ts: unchanged' });
+  await waitFor(() => expect(scrolledIntoView).toHaveBeenCalled());
   expect(document.activeElement).toBe(
     within(inspector()).getByRole('textbox', { name: 'Your comment' }),
   );
