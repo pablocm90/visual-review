@@ -2620,6 +2620,7 @@ main:has(> .review-tray) {
 }
 
 .schema-file {
+  overflow-wrap: anywhere;
   margin: 0 0 12px;
   font-size: 14px;
   font-weight: 600;
@@ -2641,6 +2642,7 @@ main:has(> .review-tray) {
 }
 
 .schema-table {
+  overflow-wrap: anywhere;
   margin: 0 0 8px;
   padding: 0;
   border: 0;
@@ -2661,6 +2663,7 @@ main:has(> .review-tray) {
 .schema-rows {
   width: 100%;
   border-collapse: collapse;
+  table-layout: fixed;
   font-size: 12.5px;
 }
 
@@ -2683,18 +2686,17 @@ main:has(> .review-tray) {
 }
 
 .schema-mark {
-  width: 14px;
+  width: 22px;
   color: var(--line);
   font-weight: 600;
 }
 
 .schema-name {
-  white-space: nowrap;
+  width: 34%;
   font-family: ui-monospace, monospace;
 }
 
 .schema-side {
-  width: 40%;
   font-family: ui-monospace, monospace;
 }
 

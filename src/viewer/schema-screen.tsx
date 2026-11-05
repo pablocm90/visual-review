@@ -73,8 +73,8 @@ const TableCard = ({ file, table }: { readonly file: string; readonly table: Tab
     <table className="schema-rows">
       <thead>
         <tr>
-          <td />
-          <td />
+          <td className="schema-mark" />
+          <td className="schema-name" />
           <th scope="col" className="schema-head">
             Before
           </th>
