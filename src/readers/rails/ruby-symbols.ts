@@ -74,6 +74,18 @@ const ATTRS = new Map<string, ReadonlyArray<'getter' | 'setter'>>([
   ['attr_accessor', ['getter', 'setter']],
 ]);
 
+const memberOf = (
+  name: string,
+  rest: Pick<ReadSymbol, 'kind' | 'exported' | 'signature'>,
+  within: string | undefined,
+  walk: Walk,
+): ReadSymbol => ({
+  name: walk.singleton || walk.moduleFunction ? `self.${name}` : name,
+  ...(within === undefined ? {} : { scope: within }),
+  ...rest,
+  ...NOT_YET_HASHED,
+});
+
 const attrSymbols = (
   call: Node,
   kinds: ReadonlyArray<'getter' | 'setter'>,
@@ -81,14 +93,46 @@ const attrSymbols = (
   walk: Walk,
 ): ReadonlyArray<ReadSymbol> =>
   symbolsNamedIn(call).flatMap(name =>
-    kinds.map(kind => ({
-      name: walk.singleton || walk.moduleFunction ? `self.${name}` : name,
-      ...(within === undefined ? {} : { scope: within }),
-      kind,
-      exported: walk.exported,
-      signature: '',
-      ...NOT_YET_HASHED,
-    })),
+    kinds.map(kind =>
+      memberOf(name, { kind, exported: walk.exported, signature: '' }, within, walk),
+    ),
+  );
+
+const optionOf = (call: Node, option: string): Node | undefined =>
+  call
+    .childForFieldName('arguments')
+    ?.namedChildren.find(child =>
+      [option, `:${option}`].includes(child.childForFieldName('key')?.text ?? ''),
+    )
+    ?.childForFieldName('value') ?? undefined;
+
+const writtenName = (value: Node | undefined): string => {
+  if (value?.type === 'simple_symbol') return value.text.slice(1);
+  return value?.namedChildren[0]?.text ?? '';
+};
+
+const delegatePrefix = (call: Node): string => {
+  const prefix = optionOf(call, 'prefix');
+  if (prefix === undefined || prefix.type === 'false') return '';
+  return `${writtenName(prefix.type === 'true' ? optionOf(call, 'to') : prefix)}_`;
+};
+
+const delegateSymbols = (
+  call: Node,
+  within: string | undefined,
+  walk: Walk,
+): ReadonlyArray<ReadSymbol> =>
+  symbolsNamedIn(call).map(name =>
+    memberOf(
+      `${delegatePrefix(call)}${name}`,
+      {
+        kind: 'method',
+        exported: walk.exported && optionOf(call, 'private')?.type !== 'true',
+        signature: `to: ${optionOf(call, 'to')?.text ?? ''}`,
+      },
+      within,
+      walk,
+    ),
   );
 
 const BARE_WORDS = new Map([
@@ -171,6 +215,8 @@ const walked = (walk: Walk, node: Node, within: string | undefined): Walk => {
   const attrs = ATTRS.get(called ?? '');
   if (attrs)
     return { ...walk, symbols: [...walk.symbols, ...attrSymbols(node, attrs, within, walk)] };
+  if (called === 'delegate')
+    return { ...walk, symbols: [...walk.symbols, ...delegateSymbols(node, within, walk)] };
   const held = VISIBILITY_CALLS.get(called ?? '');
   if (held)
     return {

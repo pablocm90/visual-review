@@ -316,3 +316,51 @@ test('attr_reader, attr_writer and attr_accessor read as a getter and a setter p
   ]);
   expect(exportedIn(...lines)).toEqual(['open', 'close', 'price', 'rent', 'rent', 'self.count']);
 });
+
+test('delegate reads as a method per name, its prefix applied, signed by its target, by visibility', () => {
+  const lines = [
+    'class Shop',
+    '  delegate :open, :close, to: :door',
+    '  delegate :rent, :to => :lease',
+    "  delegate :name, to: 'owner', prefix: true",
+    '  delegate :cost, to: :lease, prefix: :monthly',
+    "  delegate :size, to: :lease, prefix: 'floor'",
+    '  delegate :term, to: :lease, prefix: false',
+    '  delegate :fee, to: :lease, private: true',
+    '  delegate :tax, to: :lease, private: false',
+    '  private delegate :key, to: :door',
+    '  class << self',
+    '    delegate :count, to: :all',
+    '  end',
+    'end',
+  ];
+
+  expect(
+    read(...lines)
+      .symbols.slice(1)
+      .map(({ name, kind, signature }) => `${kind} ${name} ${signature}`),
+  ).toEqual([
+    'method open to: :door',
+    'method close to: :door',
+    'method rent to: :lease',
+    "method owner_name to: 'owner'",
+    'method monthly_cost to: :lease',
+    'method floor_size to: :lease',
+    'method term to: :lease',
+    'method fee to: :lease',
+    'method tax to: :lease',
+    'method key to: :door',
+    'method self.count to: :all',
+  ]);
+  expect(exportedIn(...lines)).toEqual([
+    'open',
+    'close',
+    'rent',
+    'owner_name',
+    'monthly_cost',
+    'floor_size',
+    'term',
+    'tax',
+    'self.count',
+  ]);
+});
