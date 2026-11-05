@@ -5535,7 +5535,7 @@ test('the inspector holds its tab through an edge selected between two parts', a
   expect(within(inspector()).getByRole('tab', { selected: true }).textContent).toBe('Metrics');
 });
 
-test('going to a finding answer in the open tray opens Note, where the answer is, whatever tab was up', async () => {
+test('going to a finding answer in the open tray opens Note, where the answer is, whatever tab was up, landing on its row', async () => {
   const user = userEvent.setup();
   render(
     <ReviewPage
@@ -5562,6 +5562,13 @@ test('going to a finding answer in the open tray opens Note, where the answer is
   await user.click(screen.getByRole('button', { name: 'lines 900, over 800' }));
 
   expect(within(inspector()).getByRole('tab', { selected: true }).textContent).toBe('Note');
+  const row = within(within(noteTab()).getByRole('list', { name: 'Findings' })).getByRole(
+    'listitem',
+    { current: true },
+  );
+  expect(within(row).getByRole('button', { name: 'Fix this' })).toBeDefined();
+  expect(document.activeElement).toBe(row);
+  expect(scrolledIntoView.mock.contexts).toContain(row);
 });
 
 const pageWithAnUnchangedSymbol = () =>
@@ -6837,7 +6844,7 @@ test.for([
   ).toBeTruthy();
 });
 
-test('a last answer to a finding is listed by its title, going to its target; one no longer raised reads changed, naming no commit, with nowhere to go', async () => {
+test('a last answer to a finding is listed by its title, going to its row at its target; one no longer raised reads changed, naming no commit, with nowhere to go', async () => {
   const user = userEvent.setup();
   const raised: Finding = {
     id: 'metrics:look:rust/crate/application',
@@ -6880,8 +6887,11 @@ test('a last answer to a finding is listed by its title, going to its target; on
 
   await user.click(last.getByRole('button', { name: 'application got harder' }));
 
+  expect(selectedPart()).toBe('application');
   expect(document.activeElement).toBe(
-    screen.getByRole('button', { name: 'application: modified' }),
+    within(within(noteTab()).getByRole('region', { name: 'Why look' })).getByRole('listitem', {
+      current: true,
+    }),
   );
 });
 

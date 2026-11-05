@@ -26,7 +26,7 @@ type ReviewTrayProps = {
   readonly nodes: Nodes;
   readonly tests: TargetsOf['tests'];
   readonly onGoTo: (id: string) => void;
-  readonly onGoToDraft: (id: string, anchor: Comment['anchor']) => void;
+  readonly onGoToDraft: (id: string, anchor: PreviousComment['anchor']) => void;
   readonly onGoToOutside: (place: PlaceOfLine, opener: HTMLButtonElement) => void;
   readonly onGoToFile: (path: string, opener: HTMLButtonElement, place?: string) => void;
   readonly send: (review: Review) => Promise<void>;
@@ -147,8 +147,7 @@ type DraftListProps = {
   readonly findings: ReadonlyArray<Finding>;
   readonly nodes: Nodes;
   readonly targetOf: TargetOf;
-  readonly onGoTo: (id: string) => void;
-  readonly onGoToDraft: (id: string, anchor: Comment['anchor']) => void;
+  readonly onGoToDraft: (id: string, anchor: PreviousComment['anchor']) => void;
   readonly onGoToOutside: (place: PlaceOfLine, opener: HTMLButtonElement) => void;
   readonly onGoToFile: (path: string, opener: HTMLButtonElement, place?: string) => void;
 };
@@ -159,7 +158,6 @@ const DraftList = ({
   findings,
   nodes,
   targetOf,
-  onGoTo,
   onGoToDraft,
   onGoToOutside,
   onGoToFile,
@@ -188,7 +186,7 @@ const DraftList = ({
             name={title}
             onGo={
               target !== undefined
-                ? () => onGoTo(target)
+                ? () => onGoToDraft(target, anchor)
                 : file !== undefined
                   ? opener => onGoToFile(file, opener, table ?? route)
                   : undefined
@@ -291,7 +289,6 @@ export const ReviewTray = ({
                   findings={findings}
                   nodes={nodes}
                   targetOf={targetOf}
-                  onGoTo={onGoTo}
                   onGoToDraft={onGoToDraft}
                   onGoToOutside={onGoToOutside}
                   onGoToFile={onGoToFile}

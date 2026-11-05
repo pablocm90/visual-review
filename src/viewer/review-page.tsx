@@ -95,9 +95,11 @@ import {
 } from './view.ts';
 import {
   holdsRow,
+  LandedRows,
   type LineAt,
   type RowLanding,
   useFilesWithNews,
+  useRowMarks,
   WhatChanged,
 } from './what-changed.tsx';
 
@@ -651,12 +653,13 @@ type InspectorProps = {
 
 type InspectorTab = 'note' | 'metrics' | 'diff' | 'tests';
 
-const DRAFT_TABS: Partial<Record<Comment['anchor']['kind'], InspectorTab>> = {
+const DRAFT_TABS: Partial<Record<PreviousComment['anchor']['kind'], InspectorTab>> = {
   test: 'tests',
   line: 'diff',
 };
 
-const tabOfDraft = ({ kind }: Comment['anchor']): InspectorTab => DRAFT_TABS[kind] ?? 'note';
+const tabOfDraft = ({ kind }: PreviousComment['anchor']): InspectorTab =>
+  DRAFT_TABS[kind] ?? 'note';
 
 type LandingPlace = string | null | undefined;
 
@@ -761,6 +764,30 @@ type NotePanelProps = Pick<
   readonly onShowLine: (at: LineAt) => void;
 };
 
+const WhyLook = ({
+  found,
+  answers,
+  onAnswer,
+}: Pick<NotePanelProps, 'found' | 'answers' | 'onAnswer'>) => {
+  const marksOf = useRowMarks();
+  return (
+    <section className="column-section" aria-label="Why look">
+      <h3>Why look</h3>
+      <ul className="note-findings" aria-label="Findings">
+        {found.map(finding => (
+          <li key={finding.id} {...marksOf({ kind: 'finding', id: finding.id })}>
+            <LevelMark level={finding.level} />
+            {findingLine(finding)}
+            {onAnswer && (
+              <AnswerButtons id={finding.id} answer={answers[finding.id]} onAnswer={onAnswer} />
+            )}
+          </li>
+        ))}
+      </ul>
+    </section>
+  );
+};
+
 const NotePanel = ({
   nodes,
   node,
@@ -786,7 +813,7 @@ const NotePanel = ({
     !hasSaid(anchor) &&
     saidInPlace.length === 0;
   return (
-    <>
+    <LandedRows landing={landing}>
       {note ? <p>{note.text}</p> : isBare && <p>No note</p>}
       <SaidBefore key={anchorKey(anchor)} on={anchor} />
       {saidInPlace.map(id => (
@@ -808,28 +835,12 @@ const NotePanel = ({
           nodes={nodes}
           onGoTo={onGoTo}
           onShowLine={onShowLine}
-          landing={landing}
           comments={comments}
           onComment={onComment}
         />
       )}
-      {found.length > 0 && (
-        <section className="column-section" aria-label="Why look">
-          <h3>Why look</h3>
-          <ul className="note-findings" aria-label="Findings">
-            {found.map(finding => (
-              <li key={finding.id}>
-                <LevelMark level={finding.level} />
-                {findingLine(finding)}
-                {onAnswer && (
-                  <AnswerButtons id={finding.id} answer={answers[finding.id]} onAnswer={onAnswer} />
-                )}
-              </li>
-            ))}
-          </ul>
-        </section>
-      )}
-    </>
+      {found.length > 0 && <WhyLook found={found} answers={answers} onAnswer={onAnswer} />}
+    </LandedRows>
   );
 };
 
@@ -1578,7 +1589,7 @@ const Page = ({ review, notes, send }: ReviewPageProps) => {
     setInspectorTab(inspect);
     goToOnStructure(id);
   };
-  const goToDraft = (id: string, anchor: Comment['anchor']) => {
+  const goToDraft = (id: string, anchor: PreviousComment['anchor']) => {
     const onRow = holdsRow(review.symbols, anchor);
     const place = onRow ? { path: undefined, row: anchorKey(anchor) } : placeOfLine(anchor);
     landOn(id, place ?? { path: undefined });

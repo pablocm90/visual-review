@@ -2,7 +2,6 @@ import type { Finding } from '../core/findings.ts';
 import type { GraphNode } from '../core/graph.ts';
 import type { ReviewNotes } from '../core/notes.ts';
 import type { PreviousComment } from '../core/previous-comments.ts';
-import type { Comment } from '../core/review.ts';
 import type { SinceReview } from '../core/since-review.ts';
 import { anchorName, type PlaceOfLine, placeOfLine } from './anchors.ts';
 import { Said, saidLabel } from './said-before.tsx';
@@ -14,18 +13,18 @@ type Going = {
   readonly nodes: ReadonlyArray<Pick<GraphNode, 'id' | 'label' | 'path'>>;
   readonly findings: ReadonlyArray<Finding>;
   readonly onGoTo: (id: string) => void;
-  readonly onGoToDraft: (id: string, anchor: Comment['anchor']) => void;
+  readonly onGoToDraft: (id: string, anchor: PreviousComment['anchor']) => void;
   readonly onGoToOutside: (place: PlaceOfLine, opener: HTMLButtonElement) => void;
 };
 
 export const whereOf = (
   { anchor, target }: PreviousComment,
-  { nodes, findings, onGoTo, onGoToDraft, onGoToOutside }: Going,
+  { nodes, findings, onGoToDraft, onGoToOutside }: Going,
 ) => {
   if (anchor.kind === 'finding')
     return {
       name: findings.find(({ id }) => id === anchor.id)?.title ?? anchor.id,
-      onGo: target === undefined ? undefined : () => onGoTo(target),
+      onGo: target === undefined ? undefined : () => onGoToDraft(target, anchor),
     };
   const place = placeOfLine(anchor);
   const goOutside = place && ((opener: HTMLButtonElement) => onGoToOutside(place, opener));

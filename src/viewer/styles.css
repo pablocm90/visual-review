@@ -2861,7 +2861,7 @@ main:has(> .review-tray) {
   font-weight: 600;
 }
 
-.symbols li[aria-current="true"] {
+.column-section li[aria-current="true"] {
   outline: 2px solid var(--ink);
   outline-offset: 2px;
 }

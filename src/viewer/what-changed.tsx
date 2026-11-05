@@ -1,7 +1,8 @@
-import { createContext, useContext, useLayoutEffect, useRef } from 'react';
+import { createContext, type ReactNode, useContext, useLayoutEffect, useRef } from 'react';
 import { anchorKey } from '../core/anchors.ts';
 import type { DiffedNode } from '../core/diff-graphs.ts';
 import type { LogicLine } from '../core/logic-diff.ts';
+import type { PreviousComment } from '../core/previous-comments.ts';
 import type { SymbolFile } from '../core/read-range.ts';
 import type { Comment } from '../core/review.ts';
 import {
@@ -59,16 +60,17 @@ export type RowLanding = { readonly row?: string };
 
 const RowLanded = createContext<string | undefined>(undefined);
 
-const useRowMarks = () => {
+export const useRowMarks = () => {
   const landed = useContext(RowLanded);
-  return (anchor: Pick<Comment['anchor'], 'kind' | 'id'>) =>
+  return (anchor: Pick<PreviousComment['anchor'], 'kind' | 'id'>) =>
     landed === anchorKey(anchor) ? ({ 'aria-current': true, tabIndex: -1 } as const) : {};
 };
 
 export const holdsRow = (
   files: ReadonlyArray<SymbolFile>,
-  { kind, id }: Comment['anchor'],
+  { kind, id }: PreviousComment['anchor'],
 ): boolean =>
+  kind === 'finding' ||
   files
     .flatMap(file => ('symbols' in file ? anchoredSymbols(file.node, file.symbols) : []))
     .some(symbol =>
@@ -370,33 +372,43 @@ export const useFilesWithNews = (
   return here.some(hasSymbolNews) ? here : [];
 };
 
-export const WhatChanged = ({
-  node,
-  files,
+export const LandedRows = ({
   landing,
-  ...places
-}: Places & {
-  readonly node: DiffedNode;
-  readonly files: ReadonlyArray<SymbolFile>;
+  children,
+}: {
   readonly landing: RowLanding | undefined;
+  readonly children: ReactNode;
 }) => {
-  const section = useRef<HTMLElement>(null);
+  const rows = useRef<HTMLDivElement>(null);
   useLayoutEffect(() => {
     if (landing?.row === undefined) return;
-    const row = section.current?.querySelector<HTMLElement>('[aria-current]');
+    const row = rows.current?.querySelector<HTMLElement>('[aria-current]');
     if (!row) return;
     const fold = row.closest('details');
     if (fold) fold.open = true;
     scrollInPanel(row, 'center');
     row.focus({ preventScroll: true });
   }, [landing]);
+  return (
+    <div ref={rows}>
+      <RowLanded.Provider value={landing?.row}>{children}</RowLanded.Provider>
+    </div>
+  );
+};
+
+export const WhatChanged = ({
+  node,
+  files,
+  ...places
+}: Places & {
+  readonly node: DiffedNode;
+  readonly files: ReadonlyArray<SymbolFile>;
+}) => {
   const count = changedSymbolCount(files);
   return (
-    <section ref={section} className="column-section symbols" aria-label="What changed">
+    <section className="column-section symbols" aria-label="What changed">
       <h3>What changed{count > 0 && ` ${count}`}</h3>
-      <RowLanded.Provider value={landing?.row}>
-        <SymbolsOf node={node} files={files} {...places} />
-      </RowLanded.Provider>
+      <SymbolsOf node={node} files={files} {...places} />
     </section>
   );
 };
