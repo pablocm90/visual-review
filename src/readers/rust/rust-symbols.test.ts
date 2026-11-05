@@ -1,0 +1,27 @@
+import { expect, test } from 'vitest';
+import type { FileSymbols } from '../../core/reader.ts';
+import { rustReader } from './reader.ts';
+
+const source = (...lines: ReadonlyArray<string>) => lines.join('\n');
+
+const read = (...lines: ReadonlyArray<string>): FileSymbols => {
+  const file = rustReader.symbols?.(source(...lines), 'src/shop.rs');
+  if (file === undefined) throw new Error('read no symbols');
+  return file;
+};
+
+test.for([
+  { written: 'pub fn open() {}', exported: true },
+  { written: 'fn open() {}', exported: false },
+  { written: 'pub(crate) fn open() {}', exported: false },
+  { written: 'pub(super) fn open() {}', exported: false },
+  { written: 'pub(in crate::a) fn open() {}', exported: false },
+])('$written is a function, exported: $exported', ({ written, exported }) => {
+  expect(read(written).symbols).toMatchObject([{ kind: 'function', name: 'open', exported }]);
+});
+
+test('a const, a static, a mod and a use read no symbol', () => {
+  expect(
+    read('pub const A: u8 = 1;', 'pub static B: u8 = 1;', 'pub mod c;', 'pub use d::e;').symbols,
+  ).toEqual([]);
+});

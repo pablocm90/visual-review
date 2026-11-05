@@ -1,6 +1,7 @@
-import { rmSync } from 'node:fs';
+import { existsSync, rmSync } from 'node:fs';
 import { basename, join } from 'node:path';
 import { expect, test, vi } from 'vitest';
+import { fakeReader } from '../test-support/fakes.ts';
 import { readRange } from '../test-support/read-range.ts';
 import {
   cargoWorkspace,
@@ -527,9 +528,9 @@ test('a file its reader fails to measure is left unmeasured, and the range is st
   expect(range.measures.after).toEqual({});
 });
 
-test("each changed file of a stack whose reader reads symbols comes with its symbols' changes across the sides, a renamed file read at its former path, a file absent from one side having none there, and a stack whose reader doesn't is listed as not read", async () => {
-  using workspace = cargoWorkspace();
-  const { repo } = workspace;
+test("each changed file of a stack whose reader reads symbols comes with its symbols' changes across the sides, a renamed file read at its former path, a file absent from one side having none there", async () => {
+  using repository = gitRepo({ 'README.md': 'a shop\n' });
+  const { repo } = repository;
   const base = commit(repo, {
     ...rootPackage,
     'src/index.ts': "import { a } from './a.ts';\n",
@@ -540,8 +541,6 @@ test("each changed file of a stack whose reader reads symbols comes with its sym
   const head = commit(repo, {
     'src/a.ts': 'export const b = () => 1;\n',
     'src/c.ts': 'export function c() {}\n',
-    'crates/core/src/lib.rs': 'mod x;\npub fn a() {}\n',
-    'crates/core/src/x.rs': 'pub fn x() {}\n',
   });
 
   const range = await readRange({ repo, from: base, to: head });
@@ -585,7 +584,38 @@ test("each changed file of a stack whose reader reads symbols comes with its sym
       kind: 'formatting',
     },
   ]);
-  expect(range.symbolsNotRead).toEqual(['rust']);
+  expect(range.symbolsNotRead).toEqual([]);
+});
+
+test('a changed file of a stack whose reader reads no symbols lists that stack as not read', async () => {
+  using repository = gitRepo({ 'README.md': 'a shop\n' });
+  const { repo, root } = repository;
+  const head = commit(repo, { 'a.txt': 'a long enough line\n' });
+  const reader = fakeReader({
+    roots: [{ root: '.', name: 'shop' }],
+    graph: async ({ directory, stack }) => ({
+      nodes: [
+        { id: stack, kind: 'stack', label: stack, path: '' },
+        ...(existsSync(join(directory, 'a.txt'))
+          ? [
+              {
+                id: `${stack}/file/a`,
+                kind: 'file' as const,
+                label: 'a',
+                path: 'a.txt',
+                parent: stack,
+              },
+            ]
+          : []),
+      ],
+      edges: [],
+    }),
+  });
+
+  const range = await readRange({ repo, from: root, to: head, readers: [reader] });
+
+  expect(range.symbols).toEqual([]);
+  expect(range.symbolsNotRead).toEqual(['shop']);
 });
 
 test('a changed file whose symbols do not parse is listed with the parser message', async () => {
@@ -982,13 +1012,13 @@ test('a reviewed head reads as a side of its own, diffed plainly against the new
       'docs/new.md',
     ],
     renames: [{ from: 'docs/old.md', to: 'docs/new.md' }],
-    symbols: [],
+    symbols: [expect.objectContaining({ node: 'rust/mod/dropped/lib.rs', symbols: [] })],
     tests: [],
     pullRequest: {
       before: range.before,
       changedPaths: ['crates/dropped/Cargo.toml', 'crates/dropped/src/lib.rs', 'docs/old.md'],
       renames: [],
-      symbols: [],
+      symbols: [expect.objectContaining({ node: 'rust/mod/dropped/lib.rs', symbols: [] })],
       tests: [],
     },
   });
