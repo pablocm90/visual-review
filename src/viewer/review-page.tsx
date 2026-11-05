@@ -1529,7 +1529,8 @@ const Page = ({ review, notes, send }: ReviewPageProps) => {
     setOutside(true);
   };
   const closeOutside = () => {
-    outsideOpener.current?.focus();
+    const opener = outsideOpener.current;
+    (opener?.isConnected ? opener : frameElement)?.focus();
     setOutside(false);
   };
   const closeInspector = (id: string) => {

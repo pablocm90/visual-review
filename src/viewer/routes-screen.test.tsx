@@ -94,6 +94,9 @@ test("a route file's patch opens from its section, among the files outside the g
     false,
   );
   expect(tabs().getByRole('link', { name: 'Structure' }).getAttribute('aria-current')).toBe('page');
+
+  await user.click(within(inspector).getByRole('button', { name: 'Close inspector' }));
+  expect(document.activeElement).toBe(screen.getByRole('group', { name: 'Graph' }));
 });
 
 test("a route file's patch opens on the Diff tab of the node holding it", async () => {
