@@ -1,7 +1,7 @@
 import type { Node } from 'web-tree-sitter';
 import type { FileSymbols, ReadSymbol } from '../../core/reader.ts';
 import { isTooBig, TOO_BIG } from '../too-big.ts';
-import { hashesOf, hashOf, isComment, shapeOf } from '../tree-sitter.ts';
+import { hashesOf, hashOf, isComment, ownText, shapeOf } from '../tree-sitter.ts';
 import { attributesOf, isDocText, parseRust, pathOf } from './rust-syntax.ts';
 
 const isExactlyPub = (item: Node): boolean => item.namedChildren[0]?.text === 'pub';
@@ -95,9 +95,36 @@ const methodsOfTrait = (item: Node): ReadonlyArray<ReadSymbol> =>
     exported: isExactlyPub(item),
   }));
 
+const idsOf = (nodes: ReadonlyArray<Node | null>): ReadonlySet<number> =>
+  new Set(present(nodes).map(({ id }) => id));
+
+const traitSymbol = (item: Node): ReadSymbol => {
+  const attributes = attributesOf(item);
+  const written = attributes.filter(attribute => !isDocText(attribute));
+  const members = item.childForFieldName('body')?.namedChildren ?? [];
+  const defaults = idsOf(
+    members.filter(({ type }) => FUNCTIONS.has(type)).map(m => m.childForFieldName('body')),
+  );
+  const unsaid = new Set([
+    ...defaults,
+    ...idsOf([childOfType(item, 'visibility_modifier')]),
+    ...idsOf(item.descendantsOfType(['line_comment', 'block_comment'])),
+  ]);
+  const own = ownText(item, unsaid, ({ id }) => (defaults.has(id) ? ';' : ''));
+  return {
+    name: item.childForFieldName('name')?.text ?? '',
+    kind: 'type',
+    exported: isExactlyPub(item),
+    signature: collapsed(
+      [...written.map(({ text }) => text), own.trim()].join(' ').replace(/\s+;/g, ';'),
+    ),
+    ...hashesOf({ signed: [], body: [item], text: item.text }),
+  };
+};
+
 const symbolsOfItem = (item: Node): ReadonlyArray<ReadSymbol> => {
   if (item.type === 'function_item') return [functionSymbol(item)];
-  if (item.type === 'trait_item') return methodsOfTrait(item);
+  if (item.type === 'trait_item') return [traitSymbol(item), ...methodsOfTrait(item)];
   return item.type === 'impl_item' ? methodsOfImpl(item) : [];
 };
 

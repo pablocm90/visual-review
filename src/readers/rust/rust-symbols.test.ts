@@ -234,3 +234,39 @@ test.for([
     { name: 'b', scope: 'Tr', exported, signature: '(&self)' },
   ]);
 });
+
+const traitOf = ({ symbols }: FileSymbols) => symbols.filter(({ kind }) => kind === 'type');
+
+test.for([
+  { written: 'pub trait Tr {}', exported: true },
+  { written: 'trait Tr {}', exported: false },
+  { written: 'pub(crate) trait Tr {}', exported: false },
+])('$written is a type, exported: $exported', ({ written, exported }) => {
+  expect(traitOf(read(written))).toMatchObject([{ name: 'Tr', exported }]);
+});
+
+test('a trait with no attribute reads from its keyword', () => {
+  expect(traitOf(read('pub trait Tr {}'))).toMatchObject([{ signature: 'trait Tr {}' }]);
+});
+
+test('a trait reads as its text with no visibility, comments, doc or default bodies', () => {
+  const written = [
+    '/// top',
+    '#[doc = "top"]',
+    '#[async_trait]',
+    'pub trait Tr<T>: Send where T: Copy {',
+    '  /// doc',
+    '  #[inline]',
+    '  fn a(&self) -> u8;',
+    '  // plain',
+    '  fn b(&self) { c(); }',
+    '  type D;',
+    '}',
+  ];
+  expect(traitOf(read(...written))).toMatchObject([
+    {
+      signature:
+        '#[async_trait] trait Tr<T>: Send where T: Copy { #[inline] fn a(&self) -> u8; fn b(&self); type D; }',
+    },
+  ]);
+});

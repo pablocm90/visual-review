@@ -65,12 +65,16 @@ const shapesOf = (nodes: ReadonlyArray<Node>, holes: Holes = NO_HOLES): Shape =>
 const holesIn = (node: Node, holes: Holes): ReadonlyArray<Node> =>
   holes.has(node.id) ? [node] : node.children.flatMap(child => holesIn(child, holes));
 
-export const ownText = (definition: Node, holes: Holes): string => {
+export const ownText = (
+  definition: Node,
+  holes: Holes,
+  readAs: (hole: Node) => string = () => '',
+): string => {
   const start = definition.startIndex;
   const whole = definition.text;
   const { kept, from } = holesIn(definition, holes).reduce(
     (cut, hole) => ({
-      kept: cut.kept + whole.slice(cut.from, hole.startIndex - start),
+      kept: cut.kept + whole.slice(cut.from, hole.startIndex - start) + readAs(hole),
       from: hole.endIndex - start,
     }),
     { kept: '', from: 0 },
