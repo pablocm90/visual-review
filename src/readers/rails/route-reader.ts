@@ -236,20 +236,18 @@ const matched: Handler = (call, scope) => {
 
 const isSplat = ({ type }: Node): boolean => type === 'hash_splat_argument';
 
+const pairOf = ([first]: ReadonlyArray<Node>): Node | undefined =>
+  first?.type === 'pair' ? first : undefined;
+
+const isFixedMount = (args: ReadonlyArray<Node>, path: Node | undefined): path is Node =>
+  path !== undefined && isName(path) && optionOf(args, 'via') === undefined && !args.some(isSplat);
+
 const mounted: Handler = (call, scope) => {
   const args = argsOf(call);
-  const [first] = args;
-  const pair = first?.type === 'pair' ? first : undefined;
+  const pair = pairOf(args);
   const path = pair?.childForFieldName('value') ?? optionOf(args, 'at');
-  const app = pair?.childForFieldName('key') ?? first;
-  if (
-    app === undefined ||
-    path === undefined ||
-    !isName(path) ||
-    optionOf(args, 'via') !== undefined ||
-    args.some(isSplat)
-  )
-    return [unread(call, scope)];
+  const app = pair?.childForFieldName('key') ?? args[0];
+  if (app === undefined || !isFixedMount(args, path)) return [unread(call, scope)];
   return [
     {
       verb: 'ANY',
