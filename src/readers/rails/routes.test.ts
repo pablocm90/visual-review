@@ -247,3 +247,105 @@ test.for([
 ])('a verb reads $reads', ({ written, expected }) => {
   expect(lines(written)).toStrictEqual([expected]);
 });
+
+test.for([
+  {
+    written: 'scope "/:locale", locale: /en|fr/ do\n resources :users, only: :index\n end',
+    expected: 'GET /:locale/users users#index',
+  },
+  {
+    written: 'scope "terms/:terms_id" do\n resources :users, only: :index\n end',
+    expected: 'GET /terms/:terms_id/users users#index',
+  },
+  {
+    written: 'scope path: "admin" do\n resources :users, only: :index\n end',
+    expected: 'GET /admin/users users#index',
+  },
+  {
+    written: 'scope module: :backoffice do\n resources :users, only: :index\n end',
+    expected: 'GET /users backoffice/users#index',
+  },
+  {
+    written: 'scope "health", controller: :checks do\n get :sleeping, path: "slow"\n end',
+    expected: 'GET /health/slow checks#sleeping',
+  },
+  {
+    written: 'scope as: :admin do\n resources :users, only: :index\n end',
+    expected: 'GET /users users#index',
+  },
+  {
+    written: 'namespace :admin, path: "back" do\n resources :users, only: :index\n end',
+    expected: 'GET /back/users admin/users#index',
+  },
+  {
+    written: 'namespace :admin, module: :staff do\n resources :users, only: :index\n end',
+    expected: 'GET /admin/users staff/users#index',
+  },
+  {
+    written:
+      'namespace :api, defaults: { format: :json } do\n resources :users, only: :index\n end',
+    expected: 'GET /api/users api/users#index',
+  },
+  {
+    written: 'resources :users, only: :index, path: "people/all"',
+    expected: 'GET /people/all users#index',
+  },
+  {
+    written: 'resources :users, only: :index, controller: "members"',
+    expected: 'GET /users members#index',
+  },
+  {
+    written: 'resource :profile, only: :show, controller: "profile"',
+    expected: 'GET /profile profile#show',
+  },
+  {
+    written: 'resources :users, only: :index, module: :staff',
+    expected: 'GET /users staff/users#index',
+  },
+  {
+    written: 'resources :views, only: :show, param: :view_type',
+    expected: 'GET /views/:view_type views#show',
+  },
+])('$written reads its options', ({ written, expected }) => {
+  expect(lines(written)).toStrictEqual([expected]);
+});
+
+test.for([
+  {
+    reads: 'a nested one named after param:',
+    inner: 'resources :posts, only: :index',
+    expected: 'GET /views/:view_view_type/posts posts#index',
+  },
+  {
+    reads: 'a member verb named by param:',
+    inner: 'get "logs", on: :member',
+    expected: 'GET /views/:view_type/logs views#logs',
+  },
+])('param: gives $reads', ({ inner, expected }) => {
+  expect(
+    lines(`resources :views, only: [], param: :view_type do
+      ${inner}
+    end`),
+  ).toStrictEqual([expected]);
+});
+
+test.for([
+  {
+    reads: 'path: carries under it',
+    written: 'resources :users, only: [], path: "people" do\n get "logs", on: :collection\n end',
+    expected: 'GET /people/logs users#logs',
+  },
+  {
+    reads: 'controller: carries under it',
+    written:
+      'resources :users, only: [], controller: "members" do\n get "logs", on: :collection\n end',
+    expected: 'GET /users/logs members#logs',
+  },
+  {
+    reads: 'module: carries under it',
+    written: 'resources :users, only: [], module: :staff do\n get "logs", on: :collection\n end',
+    expected: 'GET /users/logs staff/users#logs',
+  },
+])('$reads', ({ written, expected }) => {
+  expect(lines(written)).toStrictEqual([expected]);
+});

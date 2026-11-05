@@ -65,8 +65,20 @@ const kept = (actions: ReadonlyArray<Action>, args: ReadonlyArray<Node>): Readon
 type Resourceful = {
   readonly actions: ReadonlyArray<Action>;
   readonly controllerOf: (name: string) => string;
-  readonly memberOf: (path: string) => string;
-  readonly nestedOf: (path: string, name: string) => string;
+  readonly memberOf: (path: string, param: string) => string;
+  readonly nestedOf: (path: string, name: string, param: string) => string;
+};
+
+const under = (base: string, name: string): string => `${base}/${name.replace(/^\//, '')}`;
+
+const writtenOr = (args: ReadonlyArray<Node>, key: string, fallback: string): string => {
+  const option = optionOf(args, key);
+  return option === undefined ? fallback : nameOf(option);
+};
+
+const inModule = (args: ReadonlyArray<Node>, module: string): string => {
+  const option = optionOf(args, 'module');
+  return option === undefined ? module : `${module}${nameOf(option)}/`;
 };
 
 const within = (call: Node, scope: Scope): ReadonlyArray<Route> =>
@@ -76,23 +88,26 @@ const resourcesOf =
   ({ actions, controllerOf, memberOf, nestedOf }: Resourceful): Handler =>
   (call, scope) => {
     const args = argsOf(call);
+    const param = writtenOr(args, 'param', 'id');
+    const module = inModule(args, scope.module);
     return positional(args).flatMap(arg => {
       const name = nameOf(arg);
-      const path = `${scope.path}/${name}`;
-      const controller = controllerOf(name);
+      const path = under(scope.path, writtenOr(args, 'path', name));
+      const controller = writtenOr(args, 'controller', controllerOf(name));
       return [
         ...kept(actions, args).map(([verb, suffix, action]) => ({
           verb,
-          path: `${path}${suffix}`,
-          target: `${scope.module}${controller}#${action}`,
+          path: `${path}${suffix.replace(':id', `:${param}`)}`,
+          target: `${module}${controller}#${action}`,
           file: scope.file,
           line: call.startPosition.row + 1,
         })),
         ...within(call, {
           ...scope,
-          path: nestedOf(path, name),
+          module,
+          path: nestedOf(path, name, param),
           controller,
-          member: memberOf(path),
+          member: memberOf(path, param),
           collection: path,
         }),
       ];
@@ -136,8 +151,6 @@ const targetOf = (name: string, args: ReadonlyArray<Node>, scope: Scope): string
   return `${scope.module}${shorthandFor(name, args) ?? namedTarget(name, args, scope)}`;
 };
 
-const under = (base: string, name: string): string => `${base}/${name.replace(/^\//, '')}`;
-
 const drawnBy =
   (verb: string): Handler =>
   (call, scope) => {
@@ -156,11 +169,24 @@ const drawnBy =
   };
 
 const namespace: Handler = (call, scope) => {
-  const name = nameOf(argsOf(call)[0]);
+  const args = argsOf(call);
+  const name = nameOf(args[0]);
   return within(call, {
     ...scope,
-    path: `${scope.path}/${name}`,
-    module: `${scope.module}${name}/`,
+    path: under(scope.path, writtenOr(args, 'path', name)),
+    module: `${scope.module}${writtenOr(args, 'module', name)}/`,
+  });
+};
+
+const scoped: Handler = (call, scope) => {
+  const args = argsOf(call);
+  const named = positional(args);
+  const written = named.length === 0 ? writtenOr(args, 'path', '') : named.map(nameOf).join('/');
+  return within(call, {
+    ...scope,
+    path: written === '' ? scope.path : under(scope.path, written),
+    module: inModule(args, scope.module),
+    controller: writtenOr(args, 'controller', scope.controller),
   });
 };
 
@@ -171,8 +197,8 @@ const HANDLERS: ReadonlyMap<string, Handler> = new Map<string, Handler>([
     resourcesOf({
       actions: RESOURCES_ACTIONS,
       controllerOf: name => name,
-      memberOf: path => `${path}/:id`,
-      nestedOf: (path, name) => `${path}/:${singular(name)}_id`,
+      memberOf: (path, param) => `${path}/:${param}`,
+      nestedOf: (path, name, param) => `${path}/:${singular(name)}_${param}`,
     }),
   ],
   [
@@ -185,6 +211,7 @@ const HANDLERS: ReadonlyMap<string, Handler> = new Map<string, Handler>([
     }),
   ],
   ['namespace', namespace],
+  ['scope', scoped],
   ['member', (call, scope) => within(call, { ...scope, path: scope.member })],
   ['collection', (call, scope) => within(call, { ...scope, path: scope.collection })],
   ['get', drawnBy('GET')],
