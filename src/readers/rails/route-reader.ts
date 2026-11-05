@@ -80,10 +80,9 @@ const drawnAt = (
 };
 
 const unread = (statement: Node, scope: Scope): UnreadRoute => {
-  const text = statement.text.replace(/\s+/g, ' ');
-  scope.spend(text.length);
+  scope.spend(statement.endIndex - statement.startIndex + scope.path.length + scope.module.length);
   return {
-    text,
+    text: statement.text.replace(/\s+/g, ' '),
     path: scope.path,
     module: scope.module,
     ...placeOf(statement, scope),

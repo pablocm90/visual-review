@@ -791,10 +791,17 @@ test('a statement past the limit throws', () => {
   expect(() => upTo(99 * GET_COST, gets(99))).toThrow('Too many routes to read');
 });
 
-test('a statement not read also costs its text', () => {
-  const { unread } = upTo(17, 'devise_for :a');
-  expect(unread).toHaveLength(1);
-  expect(() => upTo(16, 'devise_for :a')).toThrow('Too many routes to read');
+test.for([
+  { reason: 'its text', statement: 'devise_for :a', cost: 17 },
+  { reason: 'its text as written', statement: 'devise_for :a,     x: 1', cost: 37 },
+  {
+    reason: 'the path and module it is listed under',
+    statement: 'scope "abc", module: "m" do\ndevise_for :a\nend',
+    cost: 42,
+  },
+])('a statement not read also costs $reason', ({ statement, cost }) => {
+  expect(upTo(cost, statement).unread).toHaveLength(1);
+  expect(() => upTo(cost - 1, statement)).toThrow('Too many routes to read');
 });
 
 test.for([
