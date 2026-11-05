@@ -78,13 +78,6 @@ import {
 } from './said-before.tsx';
 import { type SchemaLanding, SchemaScreen } from './schema-screen.tsx';
 import { scrollInPanel } from './scroll-in-panel.ts';
-import {
-  holdsRow,
-  type LineAt,
-  type RowLanding,
-  useFilesWithNews,
-  WhatChanged,
-} from './symbols-tab.tsx';
 import { changedCount, TestFiles, TestsScreen } from './tests-screen.tsx';
 import {
   boxOf,
@@ -98,6 +91,13 @@ import {
   type View,
   zoomed,
 } from './view.ts';
+import {
+  holdsRow,
+  type LineAt,
+  type RowLanding,
+  useFilesWithNews,
+  WhatChanged,
+} from './what-changed.tsx';
 
 const STATES = ['added', 'removed', 'modified', 'unchanged'] as const;
 
