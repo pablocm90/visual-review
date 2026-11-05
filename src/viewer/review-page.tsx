@@ -1702,6 +1702,63 @@ const LeftColumn = ({
   </div>
 );
 
+type OtherScreenProps = {
+  readonly tab: Tab;
+  readonly review: PageData;
+  readonly notes: ReviewPageProps['notes'];
+  readonly selected: DiffNode | undefined;
+  readonly comments: Comments;
+  readonly onComment: ((comment: Comment) => void) | undefined;
+  readonly onGoTo: (id: string) => void;
+  readonly schemaLanding: SchemaLanding | undefined;
+  readonly onSchemaLanded: () => void;
+  readonly routesLanding: RoutesLanding | undefined;
+  readonly onRoutesLanded: () => void;
+  readonly onShowPatch: (path: string, opener: HTMLButtonElement) => void;
+};
+
+const OtherScreen = ({
+  tab,
+  review,
+  notes,
+  selected,
+  comments,
+  onComment,
+  onGoTo,
+  schemaLanding,
+  onSchemaLanded,
+  routesLanding,
+  onRoutesLanded,
+  onShowPatch,
+}: OtherScreenProps) => (
+  <>
+    {tab === 'metrics' && <MetricsScreen review={review} onGoTo={onGoTo} />}
+    {tab === 'tests' && (
+      <ChangedSinceMarks value={changedSinceIn(review)}>
+        <TestsScreen
+          review={review}
+          notes={notes}
+          selected={selected}
+          onGoTo={onGoTo}
+          comments={comments}
+          onComment={onComment}
+        />
+      </ChangedSinceMarks>
+    )}
+    {tab === 'schema' && (
+      <SchemaScreen review={review} landing={schemaLanding} onLanded={onSchemaLanded} />
+    )}
+    {tab === 'routes' && (
+      <RoutesScreen
+        review={review}
+        landing={routesLanding}
+        onLanded={onRoutesLanded}
+        onShowPatch={onShowPatch}
+      />
+    )}
+  </>
+);
+
 const Page = ({ review, notes, send }: ReviewPageProps) => {
   const tab = useTab(review);
   const [layout, setLayout] = useState<Layout>();
@@ -2110,34 +2167,20 @@ const Page = ({ review, notes, send }: ReviewPageProps) => {
           </div>
         </>
       )}
-      {tab === 'metrics' && <MetricsScreen review={review} onGoTo={goToOnStructure} />}
-      {tab === 'tests' && (
-        <ChangedSinceMarks value={changedSinceIn(review)}>
-          <TestsScreen
-            review={review}
-            notes={notes}
-            selected={selectedNode}
-            onGoTo={goToOnStructure}
-            comments={comments}
-            onComment={comment}
-          />
-        </ChangedSinceMarks>
-      )}
-      {tab === 'schema' && (
-        <SchemaScreen
-          review={review}
-          landing={schemaLanding}
-          onLanded={() => setSchemaLanding(undefined)}
-        />
-      )}
-      {tab === 'routes' && (
-        <RoutesScreen
-          review={review}
-          landing={routesLanding}
-          onLanded={() => setRoutesLanding(undefined)}
-          onShowPatch={showPatch}
-        />
-      )}
+      <OtherScreen
+        tab={tab}
+        review={review}
+        notes={notes}
+        selected={selectedNode}
+        comments={comments}
+        onComment={comment}
+        onGoTo={goToOnStructure}
+        schemaLanding={schemaLanding}
+        onSchemaLanded={() => setSchemaLanding(undefined)}
+        routesLanding={routesLanding}
+        onRoutesLanded={() => setRoutesLanding(undefined)}
+        onShowPatch={showPatch}
+      />
       {send && (
         <ReviewTray
           reviewed={{
