@@ -40,7 +40,7 @@ import {
 import { anchorName, lineAnchor, placeOfLine, rowOfLine } from './anchors.ts';
 import { ChangedSinceMarks, ChangedSinceTag, useIsChangedSince } from './changed-since.tsx';
 import { ColourBy, type Colouring, ScaleLegend, type Shade, shadeOf } from './colour-by.tsx';
-import { CommentField, CommentOn, type Comments } from './comment-field.tsx';
+import type { Comments } from './comment-field.tsx';
 import {
   AnswerButtons,
   type Answers,
@@ -67,6 +67,8 @@ import { ReadingOrderList } from './reading-order-list.tsx';
 import { Ref, shortRef } from './ref.tsx';
 import { ReviewTray, verdictLabels } from './review-tray.tsx';
 import {
+  CommentFieldUnlessSaid,
+  CommentOn,
   LastSaidOnPage,
   RespondingOnPage,
   SaidBefore,
@@ -818,7 +820,7 @@ const NotePanel = ({
     ))}
     {onComment &&
       (commentable ? (
-        <CommentField anchor={anchor} comments={comments} onComment={onComment} />
+        <CommentFieldUnlessSaid anchor={anchor} comments={comments} onComment={onComment} />
       ) : (
         <p>Drawn for several edges: open its ends to comment on one of them.</p>
       ))}

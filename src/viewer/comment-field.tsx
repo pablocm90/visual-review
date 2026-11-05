@@ -14,7 +14,7 @@ type Draft = Pick<Comment, 'kind' | 'text'>;
 
 const NO_DRAFT: Draft = { kind: 'question', text: '' };
 
-type CommentFieldProps = {
+export type CommentFieldProps = {
   readonly anchor: Comment['anchor'];
   readonly comments: Comments;
   readonly onComment: (comment: Comment) => void;
@@ -76,12 +76,3 @@ export const CommentOpener = ({ word, label, landing, ...field }: CommentOpenerP
     </>
   );
 };
-
-type CommentOnProps = CommentFieldProps & {
-  readonly name: string;
-  readonly landing?: object | undefined;
-};
-
-export const CommentOn = ({ name, ...opener }: CommentOnProps) => (
-  <CommentOpener word="Comment" label={`Comment on ${name}`} {...opener} />
-);

@@ -5,7 +5,13 @@ import type { PreviousComment } from '../core/previous-comments.ts';
 import type { Comment } from '../core/review.ts';
 import type { SinceReview } from '../core/since-review.ts';
 import { type PlaceOfLine, placeOfLine } from './anchors.ts';
-import { COMMENT_KINDS, CommentOpener, type Comments } from './comment-field.tsx';
+import {
+  COMMENT_KINDS,
+  CommentField,
+  type CommentFieldProps,
+  CommentOpener,
+  type Comments,
+} from './comment-field.tsx';
 import { ANSWER_KINDS } from './finding-display.tsx';
 import { Ref } from './ref.tsx';
 
@@ -156,6 +162,19 @@ export const useHasSaid = () => {
   const { byAnchor } = useContext(SaidOnThisPage);
   return (on: Pick<Comment['anchor'], 'kind' | 'id'>): boolean => byAnchor.has(anchorKey(on));
 };
+
+type CommentOnProps = CommentFieldProps & {
+  readonly name: string;
+  readonly landing?: object | undefined;
+};
+
+export const CommentOn = ({ name, ...opener }: CommentOnProps) =>
+  useHasSaid()(opener.anchor) ? null : (
+    <CommentOpener word="Comment" label={`Comment on ${name}`} {...opener} />
+  );
+
+export const CommentFieldUnlessSaid = (field: CommentFieldProps) =>
+  useHasSaid()(field.anchor) ? null : <CommentField {...field} />;
 
 export const useSaidLinesOf = (
   path: string,

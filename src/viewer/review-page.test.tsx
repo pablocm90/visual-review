@@ -6541,6 +6541,89 @@ test('a last comment takes a reply on its anchor at the head, beside a resolve o
   );
 });
 
+test('a part with a last comment takes Reply and no comment field in its Note panel; one with none keeps the field', async () => {
+  const user = userEvent.setup();
+  render(
+    <ReviewPage
+      review={pageWith({
+        ...review,
+        sinceReview: { ...sinceReview, comments: [saidOnPart('rust/crate/application')] },
+      })}
+      send={async () => {}}
+    />,
+  );
+
+  await user.click(await screen.findByRole('button', { name: 'domain: unchanged' }));
+  expect(within(noteTab()).getByRole('textbox', { name: 'Your comment' })).toBeTruthy();
+
+  await user.click(screen.getByRole('button', { name: 'application: modified' }));
+  expect(within(noteTab()).getByRole('button', { name: 'Reply' })).toBeTruthy();
+  expect(within(noteTab()).queryByRole('textbox', { name: 'Your comment' })).toBeNull();
+});
+
+test('a symbol with a last comment takes Reply and no Comment, and the logic line under it keeps its own', async () => {
+  const user = userEvent.setup();
+  render(
+    <ReviewPage
+      review={{
+        ...pageWithAnUnchangedSymbol(),
+        sinceReview: {
+          ...sinceReview,
+          comments: [
+            {
+              anchor: { kind: 'symbol', id: 'web/file/tax.ts#tax' },
+              kind: 'question',
+              text: 'Why?',
+            },
+          ],
+        },
+      }}
+      send={async () => {}}
+    />,
+  );
+
+  await user.click(await screen.findByRole('button', { name: 'tax.ts: modified' }));
+  await user.click(within(inspector()).getByRole('tab', { name: /^Symbols/ }));
+
+  const symbol = within(symbolsTab()).getByRole('listitem', { name: /^function tax: edited/ });
+  expect(within(symbol).getByRole('button', { name: 'Reply' })).toBeTruthy();
+  expect(within(symbol).queryByRole('button', { name: 'Comment on function tax' })).toBeNull();
+  expect(
+    within(symbol).getByRole('button', { name: 'Comment on added guard: if (!rate) return' }),
+  ).toBeTruthy();
+});
+
+test('a diff line with a last comment takes Reply and no Comment, while a row a drifted comment shows at keeps its own, a different anchor', async () => {
+  const user = userEvent.setup();
+  const onHead = (line: number, text: string): PreviousComment => ({
+    anchor: { kind: 'line', id: `web/src/x.ts@head:${line}`, text },
+    kind: 'question',
+    text: 'Why?',
+  });
+  render(
+    <ReviewPage
+      review={{
+        ...pageWithPatch('@@ -12,1 +20,2 @@', ' const y = 0;', '+const x = 2;'),
+        sinceReview: {
+          ...sinceReview,
+          comments: [onHead(20, 'const y = 0;'), onHead(5, 'const x = 2;')],
+        },
+      }}
+      send={async () => {}}
+    />,
+  );
+
+  await user.click(await screen.findByRole('button', { name: 'x.ts: modified' }));
+  await user.click(within(inspector()).getByRole('tab', { name: 'Diff' }));
+
+  expect(within(diffTab()).getAllByRole('button', { name: 'Reply' })).toHaveLength(2);
+  expect(
+    within(diffTab())
+      .getAllByRole('button', { name: /^Comment on/ })
+      .map(button => button.getAttribute('aria-label')),
+  ).toEqual(['Comment on x.ts:21 "const x = 2;"']);
+});
+
 test('a comment that asks for something offers Resolve, a comment and not a finding answer offers Reply, and only on a served page', async () => {
   const comments: ReadonlyArray<PreviousComment> = [
     saidOnPart('rust/crate/application'),

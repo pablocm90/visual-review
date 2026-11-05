@@ -12,8 +12,8 @@ import {
 } from '../core/symbol-changes.ts';
 import { type AnchoredSymbol, anchoredSymbols, decisionsOf } from '../core/symbol-findings.ts';
 import { ChangedSinceTag, sinceLabel, useIsChangedSince } from './changed-since.tsx';
-import { CommentOn, type Comments } from './comment-field.tsx';
-import { SaidBefore, useHasSaid } from './said-before.tsx';
+import type { Comments } from './comment-field.tsx';
+import { CommentOn, SaidBefore, useHasSaid } from './said-before.tsx';
 
 type Group = readonly [string, (symbol: SymbolStatement) => boolean];
 

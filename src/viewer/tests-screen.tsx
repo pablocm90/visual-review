@@ -16,9 +16,9 @@ import {
 } from '../core/test-changes.ts';
 import { testsAlongside } from '../core/tests-alongside.ts';
 import { ChangedSinceTag, sinceLabel, useIsChangedSince } from './changed-since.tsx';
-import { CommentOn, type Comments } from './comment-field.tsx';
+import type { Comments } from './comment-field.tsx';
 import { LevelMark } from './finding-display.tsx';
-import { SaidBefore } from './said-before.tsx';
+import { CommentOn, SaidBefore } from './said-before.tsx';
 
 const TEST_MARKS: Readonly<Record<TestChange, string>> = {
   added: '+',
