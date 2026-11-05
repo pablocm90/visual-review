@@ -2741,3 +2741,12 @@ main:has(> .review-tray) {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+
+.start-here-several {
+  flex-wrap: wrap;
+}
+
+.start-here-opened {
+  flex-basis: 100%;
+  padding-left: 20px;
+}
