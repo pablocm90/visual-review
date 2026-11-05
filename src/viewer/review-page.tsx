@@ -1529,6 +1529,86 @@ const GraphCaveat = ({ since, nothingDrawn }: GraphCaveatProps) => {
   );
 };
 
+type GraphFrameProps = Pick<ReturnType<typeof useGraphView>, 'placed' | 'frameProps'> & {
+  readonly layout: Layout;
+  readonly reading: boolean;
+  readonly drawing: Drawing;
+  readonly colouring: Colouring;
+  readonly range: string;
+  readonly labelOf: ReadonlyMap<string, string>;
+  readonly onOpenMap: () => void;
+  readonly onZoom: (scale: number) => void;
+  readonly onFit: () => void;
+};
+
+const GraphFrame = ({
+  layout,
+  placed,
+  frameProps,
+  reading,
+  drawing,
+  colouring,
+  range,
+  labelOf,
+  onOpenMap,
+  onZoom,
+  onFit,
+}: GraphFrameProps) => (
+  <div
+    className="frame"
+    role="group"
+    aria-label={reading ? 'Map' : 'Graph'}
+    tabIndex={reading ? -1 : 0}
+    {...frameProps}
+  >
+    {placed && (
+      <>
+        {reading ? (
+          <button type="button" className="open-map" onClick={onOpenMap}>
+            Open map
+          </button>
+        ) : (
+          <Zoom scale={placed.view.scale} onZoom={onZoom} onFit={onFit} />
+        )}
+        <svg className="graph" data-colouring={colouring}>
+          <title>{`Structure ${shortRange(range)}`}</title>
+          <defs>
+            {STATES.map(state => (
+              <marker
+                key={state}
+                id={`arrow-${state}`}
+                className="arrow"
+                data-state={state}
+                viewBox="0 0 10 10"
+                refX={9}
+                refY={5}
+                markerWidth={7}
+                markerHeight={7}
+                orient="auto-start-reverse"
+              >
+                <path d="M 0 0 L 10 5 L 0 10 z" />
+              </marker>
+            ))}
+          </defs>
+          <g transform={`translate(${placed.view.x} ${placed.view.y}) scale(${placed.view.scale})`}>
+            {layout.stacks.map(stack => (
+              <Stack key={stack.id} stack={stack} drawing={drawing} />
+            ))}
+            {layout.calls.map(edge => (
+              <EdgeView
+                key={edgeId(edge)}
+                edge={edge}
+                name={`${labelOf.get(edge.from)} ⇢ ${labelOf.get(edge.to)}: ${edge.state} (${edge.via?.join(', ')})`}
+                drawing={drawing}
+              />
+            ))}
+          </g>
+        </svg>
+      </>
+    )}
+  </div>
+);
+
 const Page = ({ review, notes, send }: ReviewPageProps) => {
   const tab = useTab(review);
   const [layout, setLayout] = useState<Layout>();
@@ -1838,61 +1918,19 @@ const Page = ({ review, notes, send }: ReviewPageProps) => {
         </>
       )}
       {layout && (
-        <div
-          className="frame"
-          role="group"
-          aria-label={reading ? 'Map' : 'Graph'}
-          tabIndex={reading ? -1 : 0}
-          {...frameProps}
-        >
-          {placed && (
-            <>
-              {reading ? (
-                <button type="button" className="open-map" onClick={openMap}>
-                  Open map
-                </button>
-              ) : (
-                <Zoom scale={placed.view.scale} onZoom={zoomAtCentre} onFit={fitToFrame} />
-              )}
-              <svg className="graph" data-colouring={colouring}>
-                <title>{`Structure ${shortRange(review.range)}`}</title>
-                <defs>
-                  {STATES.map(state => (
-                    <marker
-                      key={state}
-                      id={`arrow-${state}`}
-                      className="arrow"
-                      data-state={state}
-                      viewBox="0 0 10 10"
-                      refX={9}
-                      refY={5}
-                      markerWidth={7}
-                      markerHeight={7}
-                      orient="auto-start-reverse"
-                    >
-                      <path d="M 0 0 L 10 5 L 0 10 z" />
-                    </marker>
-                  ))}
-                </defs>
-                <g
-                  transform={`translate(${placed.view.x} ${placed.view.y}) scale(${placed.view.scale})`}
-                >
-                  {layout.stacks.map(stack => (
-                    <Stack key={stack.id} stack={stack} drawing={drawing} />
-                  ))}
-                  {layout.calls.map(edge => (
-                    <EdgeView
-                      key={edgeId(edge)}
-                      edge={edge}
-                      name={`${labelOf.get(edge.from)} ⇢ ${labelOf.get(edge.to)}: ${edge.state} (${edge.via?.join(', ')})`}
-                      drawing={drawing}
-                    />
-                  ))}
-                </g>
-              </svg>
-            </>
-          )}
-        </div>
+        <GraphFrame
+          layout={layout}
+          placed={placed}
+          frameProps={frameProps}
+          reading={reading}
+          drawing={drawing}
+          colouring={colouring}
+          range={review.range}
+          labelOf={labelOf}
+          onOpenMap={openMap}
+          onZoom={zoomAtCentre}
+          onFit={fitToFrame}
+        />
       )}
       {reading && selectedNode && (
         <NextToIt diff={review.diff} part={selectedNode.id} read={read} onGoTo={goTo} />
