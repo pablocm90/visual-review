@@ -11,14 +11,14 @@ const QUIET_TITLE = 'Changed since, no comment';
 const UNASKED_TITLE = 'Claude also changed';
 
 type Going = {
-  readonly nodes: ReadonlyArray<GraphNode>;
+  readonly nodes: ReadonlyArray<Pick<GraphNode, 'id' | 'label' | 'path'>>;
   readonly findings: ReadonlyArray<Finding>;
   readonly onGoTo: (id: string) => void;
   readonly onGoToDraft: (id: string, anchor: Comment['anchor']) => void;
   readonly onGoToOutside: (place: PlaceOfLine, opener: HTMLButtonElement) => void;
 };
 
-const whereOf = (
+export const whereOf = (
   { anchor, target }: PreviousComment,
   { nodes, findings, onGoTo, onGoToDraft, onGoToOutside }: Going,
 ) => {

@@ -112,10 +112,11 @@ const write = async (user: ReturnType<typeof userEvent.setup>, box: HTMLElement,
 };
 
 const sentReview = (sent: Partial<Review>): Review => ({
-  version: 5,
+  version: 6,
   verdict: 'comment',
   reviewed: { range: review.range },
   read: [],
+  resolved: [],
   comments: [],
   ...sent,
 });
@@ -6491,6 +6492,408 @@ test("Claude's answer shows under its comment, in the last review and under the 
   expect(
     within(within(said).getByRole('note', { name: 'Claude: Done' })).getByText('Split in two.'),
   ).toBeTruthy();
+});
+
+test('a last comment is resolved from the last review or under its anchor, sent as it was said, and pressing Resolve again takes it back', async () => {
+  const user = userEvent.setup();
+  const sent = vi.fn(async () => {});
+  render(
+    <ReviewPage
+      review={pageWith({
+        ...review,
+        sinceReview: {
+          ...sinceReview,
+          comments: [
+            saidOnPart('rust/crate/old-name', { target: 'rust/crate/application' }),
+            saidOnPart('rust/crate/cli-adapter'),
+            saidOnPart('rust/crate/domain'),
+          ],
+        },
+      })}
+      send={sent}
+    />,
+  );
+  await screen.findByRole('group', { name: 'rust' });
+  const resolveIn = (name: RegExp) =>
+    within(within(lastReviewSection()).getByRole('listitem', { name })).getByRole('button', {
+      name: 'Resolve',
+    });
+
+  await user.click(resolveIn(/^application/));
+  await user.click(resolveIn(/^domain/));
+  await user.click(screen.getByRole('button', { name: 'cli-adapter: added' }));
+  const underAnchor = within(
+    within(inspector()).getByRole('note', { name: /^Last review/ }),
+  ).getByRole('button', { name: 'Resolve' });
+  await user.click(underAnchor);
+  expect(underAnchor.getAttribute('aria-pressed')).toBe('true');
+  expect(resolveIn(/^cli-adapter/).getAttribute('aria-pressed')).toBe('true');
+  await user.click(resolveIn(/^domain/));
+  expect(resolveIn(/^domain/).getAttribute('aria-pressed')).toBe('false');
+
+  await openReview(user);
+  const tray = within(screen.getByRole('region', { name: 'Review tray' }));
+  expect(tray.getByText(/drafted/).textContent).toBe('Nothing drafted · 2 resolved');
+  const listed = within(tray.getByRole('list', { name: 'Resolved' }));
+  expect(listed.getAllByRole('listitem').map(item => item.textContent)).toEqual([
+    'application Resolved',
+    'cli-adapter Resolved',
+  ]);
+  expect(tray.getByLabelText('What Claude gets').textContent).toContain(
+    'resolved  application\nresolved  cli-adapter',
+  );
+  await user.click(listed.getByRole('button', { name: 'application' }));
+  expect(document.activeElement).toBe(
+    screen.getByRole('button', { name: 'application: modified' }),
+  );
+
+  await user.click(screen.getByRole('button', { name: 'Send to Claude' }));
+
+  expect(sent).toHaveBeenCalledExactlyOnceWith(
+    sentReview({
+      verdict: 'approve',
+      resolved: [
+        { kind: 'part', id: 'rust/crate/old-name' },
+        { kind: 'part', id: 'rust/crate/cli-adapter' },
+      ],
+    }),
+  );
+});
+
+test('a last comment takes a reply on its anchor at the head, beside a resolve of the same anchor, and holds its draft under the anchor', async () => {
+  const user = userEvent.setup();
+  const sent = vi.fn(async () => {});
+  render(
+    <ReviewPage
+      review={pageWith({
+        ...review,
+        sinceReview: {
+          ...sinceReview,
+          comments: [
+            saidOnPart('rust/crate/old-name', { target: 'rust/crate/application' }),
+            saidOnPart('rust/crate/cli-adapter'),
+            saidOnPart('rust/crate/domain'),
+          ],
+        },
+      })}
+      send={sent}
+    />,
+  );
+  await screen.findByRole('group', { name: 'rust' });
+  const said = (name: RegExp) =>
+    within(within(lastReviewSection()).getByRole('listitem', { name }));
+
+  const reply = said(/^application/).getByRole('button', { name: 'Reply' });
+  expect(reply.getAttribute('aria-expanded')).toBe('false');
+  expect(said(/^application/).queryByRole('textbox', { name: 'Your comment' })).toBeNull();
+  await user.click(reply);
+  expect(reply.getAttribute('aria-expanded')).toBe('true');
+  await write(user, said(/^application/).getByRole('textbox', { name: 'Your comment' }), 'Still?');
+  await user.click(said(/^application/).getByRole('button', { name: 'Resolve' }));
+  await user.click(said(/^domain/).getByRole('button', { name: 'Resolve' }));
+
+  await user.click(screen.getByRole('button', { name: 'application: modified' }));
+  const underAnchor = within(within(inspector()).getByRole('note', { name: /^Last review/ }));
+  expect(underAnchor.getByRole('button', { name: 'Reply' }).getAttribute('aria-expanded')).toBe(
+    'true',
+  );
+  expect(underAnchor.getByRole<HTMLTextAreaElement>('textbox').value).toBe('Still?');
+
+  await openReview(user);
+  await user.click(screen.getByRole('button', { name: 'Send to Claude' }));
+
+  expect(sent).toHaveBeenCalledExactlyOnceWith(
+    sentReview({
+      resolved: [
+        { kind: 'part', id: 'rust/crate/old-name' },
+        { kind: 'part', id: 'rust/crate/domain' },
+      ],
+      comments: [
+        {
+          anchor: { kind: 'part', id: 'rust/crate/application' },
+          kind: 'question',
+          text: 'Still?',
+        },
+      ],
+    }),
+  );
+});
+
+test('a part with a last comment takes Reply and no comment field in its Note panel; one with none keeps the field', async () => {
+  const user = userEvent.setup();
+  render(
+    <ReviewPage
+      review={pageWith({
+        ...review,
+        sinceReview: { ...sinceReview, comments: [saidOnPart('rust/crate/application')] },
+      })}
+      send={async () => {}}
+    />,
+  );
+
+  await user.click(await screen.findByRole('button', { name: 'domain: unchanged' }));
+  expect(within(noteTab()).getByRole('textbox', { name: 'Your comment' })).toBeTruthy();
+
+  await user.click(screen.getByRole('button', { name: 'application: modified' }));
+  expect(within(noteTab()).getByRole('button', { name: 'Reply' })).toBeTruthy();
+  expect(within(noteTab()).queryByRole('textbox', { name: 'Your comment' })).toBeNull();
+});
+
+test('the Note panel opens Reply by the part selected: a draft elsewhere shows on going to it, and an open Reply stays with its part', async () => {
+  const user = userEvent.setup();
+  render(
+    <ReviewPage
+      review={pageWith({
+        ...review,
+        sinceReview: {
+          ...sinceReview,
+          comments: [
+            saidOnPart('rust/crate/application'),
+            saidOnPart('rust/crate/cli-adapter'),
+            saidOnPart('rust/crate/domain'),
+          ],
+        },
+      })}
+      send={async () => {}}
+    />,
+  );
+  await screen.findByRole('group', { name: 'rust' });
+  const said = within(within(lastReviewSection()).getByRole('listitem', { name: /^application/ }));
+  await user.click(said.getByRole('button', { name: 'Reply' }));
+  await write(user, said.getByRole('textbox', { name: 'Your comment' }), 'Still?');
+
+  await user.click(screen.getByRole('button', { name: 'cli-adapter: added' }));
+  await user.click(within(noteTab()).getByRole('button', { name: 'Reply' }));
+  expect(within(noteTab()).getByRole('textbox', { name: 'Your comment' })).toBeTruthy();
+
+  await user.click(screen.getByRole('button', { name: 'domain: unchanged' }));
+  expect(within(noteTab()).getByRole('button', { name: 'Reply' })).toBeTruthy();
+  expect(within(noteTab()).queryByRole('textbox', { name: 'Your comment' })).toBeNull();
+
+  await openReview(user);
+  const tray = within(screen.getByRole('region', { name: 'Review tray' }));
+  await user.click(tray.getByRole('button', { name: 'application' }));
+  expect(within(noteTab()).getByRole<HTMLTextAreaElement>('textbox').value).toBe('Still?');
+});
+
+test("a reply on a symbol whose file was renamed since takes its comment's target: a button, its rank, and its part no longer read with nothing to say", async () => {
+  const user = userEvent.setup();
+  const goneSince = 'rust/crate/old-name#tax';
+  render(
+    <ReviewPage
+      review={pageWith({
+        ...review,
+        readingOrder: { parts: ['rust/crate/application', 'rust/crate/domain'], cycles: [] },
+        sinceReview: {
+          ...sinceReview,
+          comments: [
+            saidOnPart('rust/crate/domain'),
+            {
+              anchor: { kind: 'symbol', id: goneSince },
+              kind: 'question',
+              text: 'Why?',
+              target: 'rust/crate/application',
+            },
+          ],
+        },
+      })}
+      send={async () => {}}
+    />,
+  );
+  await screen.findByRole('group', { name: 'rust' });
+  const said = (name: RegExp) =>
+    within(within(lastReviewSection()).getByRole('listitem', { name }));
+  const replyOn = async (name: RegExp) => {
+    await user.click(said(name).getByRole('button', { name: 'Reply' }));
+    await write(user, said(name).getByRole('textbox', { name: 'Your comment' }), 'Still?');
+  };
+  await replyOn(/^domain/);
+  await replyOn(/tax/);
+  await user.click(screen.getByRole('button', { name: 'application: modified' }));
+  await user.keyboard('a');
+
+  await openReview(user);
+  const drafts = within(screen.getByRole('list', { name: 'Drafts' }));
+  expect(drafts.getAllByRole('listitem').map(item => item.textContent)).toEqual([
+    expect.stringMatching(/tax/),
+    expect.stringMatching(/^domain/),
+  ]);
+  expect(screen.getByLabelText('What Claude gets').textContent).toContain('read 1 of 2');
+  expect(
+    within(screen.getByRole('list', { name: 'Read, nothing to say' })).queryAllByRole('listitem'),
+  ).toEqual([]);
+
+  await user.click(screen.getByRole('button', { name: 'domain: unchanged' }));
+  await user.click(drafts.getByRole('button', { name: /tax/ }));
+  expect(document.activeElement).toBe(
+    screen.getByRole('button', { name: 'application: modified' }),
+  );
+});
+
+test('a symbol with a last comment takes Reply and no Comment, and the logic line under it keeps its own', async () => {
+  const user = userEvent.setup();
+  render(
+    <ReviewPage
+      review={{
+        ...pageWithAnUnchangedSymbol(),
+        sinceReview: {
+          ...sinceReview,
+          comments: [
+            {
+              anchor: { kind: 'symbol', id: 'web/file/tax.ts#tax' },
+              kind: 'question',
+              text: 'Why?',
+            },
+          ],
+        },
+      }}
+      send={async () => {}}
+    />,
+  );
+
+  await user.click(await screen.findByRole('button', { name: 'tax.ts: modified' }));
+  await user.click(within(inspector()).getByRole('tab', { name: /^Symbols/ }));
+
+  const symbol = within(symbolsTab()).getByRole('listitem', { name: /^function tax: edited/ });
+  expect(within(symbol).getByRole('button', { name: 'Reply' })).toBeTruthy();
+  expect(within(symbol).queryByRole('button', { name: 'Comment on function tax' })).toBeNull();
+  expect(
+    within(symbol).getByRole('button', { name: 'Comment on added guard: if (!rate) return' }),
+  ).toBeTruthy();
+});
+
+test('a diff line with a last comment takes Reply and no Comment, while a row a drifted comment shows at keeps its own, a different anchor', async () => {
+  const user = userEvent.setup();
+  const onHead = (line: number, text: string): PreviousComment => ({
+    anchor: { kind: 'line', id: `web/src/x.ts@head:${line}`, text },
+    kind: 'question',
+    text: 'Why?',
+  });
+  render(
+    <ReviewPage
+      review={{
+        ...pageWithPatch('@@ -12,1 +20,2 @@', ' const y = 0;', '+const x = 2;'),
+        sinceReview: {
+          ...sinceReview,
+          comments: [onHead(20, 'const y = 0;'), onHead(5, 'const x = 2;')],
+        },
+      }}
+      send={async () => {}}
+    />,
+  );
+
+  await user.click(await screen.findByRole('button', { name: 'x.ts: modified' }));
+  await user.click(within(inspector()).getByRole('tab', { name: 'Diff' }));
+
+  expect(within(diffTab()).getAllByRole('button', { name: 'Reply' })).toHaveLength(2);
+  expect(
+    within(diffTab())
+      .getAllByRole('button', { name: /^Comment on/ })
+      .map(button => button.getAttribute('aria-label')),
+  ).toEqual(['Comment on x.ts:21 "const x = 2;"']);
+});
+
+test("a row at a drifted comment's old number, reading otherwise, keeps its Comment", async () => {
+  const user = userEvent.setup();
+  render(
+    <ReviewPage
+      review={{
+        ...pageWithPatch('@@ -12,1 +20,2 @@', ' const y = 0;', '+const x = 2;'),
+        sinceReview: {
+          ...sinceReview,
+          comments: [
+            {
+              anchor: { kind: 'line', id: 'web/src/x.ts@head:20', text: 'const x = 2;' },
+              kind: 'question',
+              text: 'Why?',
+            },
+          ],
+        },
+      }}
+      send={async () => {}}
+    />,
+  );
+
+  await user.click(await screen.findByRole('button', { name: 'x.ts: modified' }));
+  await user.click(within(inspector()).getByRole('tab', { name: 'Diff' }));
+
+  expect(
+    within(diffTab())
+      .getAllByRole('button', { name: /^Comment on/ })
+      .map(button => button.getAttribute('aria-label')),
+  ).toEqual(['Comment on x.ts:20 "const y = 0;"', 'Comment on x.ts:21 "const x = 2;"']);
+});
+
+test.for([
+  { where: 'at its row', said: 'const y = 0;' },
+  { where: 'atop the patch, no row reading the same', said: 'vanished();' },
+])('going from the tray to a reply on a diff line opens it $where', async ({ said }) => {
+  const user = userEvent.setup();
+  render(
+    <ReviewPage
+      review={{
+        ...pageWithPatch('@@ -12,1 +20,2 @@', ' const y = 0;', '+const x = 2;'),
+        sinceReview: {
+          ...sinceReview,
+          comments: [
+            {
+              anchor: { kind: 'line', id: 'web/src/x.ts@head:20', text: said },
+              kind: 'question',
+              text: 'Why?',
+            },
+          ],
+        },
+      }}
+      send={async () => {}}
+    />,
+  );
+
+  await user.click(await screen.findByRole('button', { name: 'x.ts: modified' }));
+  await user.click(within(inspector()).getByRole('tab', { name: 'Diff' }));
+  const reply = within(diffTab()).getByRole('button', { name: 'Reply' });
+  await user.click(reply);
+  await write(user, within(diffTab()).getByRole('textbox', { name: 'Your comment' }), 'Because.');
+  await user.click(reply);
+  expect(within(diffTab()).queryByRole('textbox', { name: 'Your comment' })).toBeNull();
+
+  await openReview(user);
+  await user.click(
+    within(screen.getByRole('list', { name: 'Drafts' })).getByRole('button', {
+      name: `x.ts:20 "${said}"`,
+    }),
+  );
+
+  expect(within(diffTab()).getByRole('textbox', { name: 'Your comment' })).toHaveProperty(
+    'value',
+    'Because.',
+  );
+});
+
+test('a comment that asks for something offers Resolve, a comment and not a finding answer offers Reply, and only on a served page', async () => {
+  const comments: ReadonlyArray<PreviousComment> = [
+    saidOnPart('rust/crate/application'),
+    { anchor: { kind: 'finding', id: 'metrics:fine' }, kind: 'fine' },
+    { anchor: { kind: 'finding', id: 'metrics:fix' }, kind: 'fix' },
+  ];
+  const page = pageWith({ ...review, sinceReview: { ...sinceReview, comments } });
+  const { unmount } = render(<ReviewPage review={page} send={async () => {}} />);
+  await screen.findByRole('group', { name: 'rust' });
+  const offering = (name: string) =>
+    within(lastReviewSection())
+      .queryAllByRole('button', { name })
+      .map(button => button.closest('li')?.getAttribute('aria-label'));
+
+  expect(offering('Resolve')).toEqual([
+    'application: Question, As it was',
+    'metrics:fix: Fix this, As it was',
+  ]);
+  expect(offering('Reply')).toEqual(['application: Question, As it was']);
+  unmount();
+
+  render(<ReviewPage review={page} />);
+  await screen.findByRole('group', { name: 'rust' });
+  expect(offering('Resolve')).toEqual([]);
+  expect(offering('Reply')).toEqual([]);
 });
 
 test('a last comment on an edge shows on the arrow drawn in its place, closed box or merged, named by its edge, unless its edge is drawn apart', async () => {
