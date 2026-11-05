@@ -271,7 +271,7 @@ test('a trait reads as its text with no visibility, comments, doc or default bod
   ]);
 });
 
-const traitChange = (before: string, after: string) =>
+const typeChange = (before: string, after: string) =>
   symbolChanges({ before: read(before), after: read(after) }).symbols.find(
     ({ kind }) => kind === 'type',
   );
@@ -299,7 +299,7 @@ test.for([
     after: 'trait Tr { #[inline] fn a(); }',
   },
 ])('a change to $edit reads as a changed signature on the trait', ({ before, after }) => {
-  expect(traitChange(before, after)).toMatchObject({
+  expect(typeChange(before, after)).toMatchObject({
     change: 'edited',
     signature: expect.anything(),
   });
@@ -347,17 +347,17 @@ test.for([
     after: 'trait Tr {\n  // why\n  fn a() { c(); }\n}',
   },
 ])('$edit on a trait reads as formatting', ({ before, after }) => {
-  expect(traitChange(before, after)).toMatchObject({ change: 'formatting' });
+  expect(typeChange(before, after)).toMatchObject({ change: 'formatting' });
 });
 
 test('a change of visibility reads as edited, with the signature as it was', () => {
-  const change = traitChange('pub(crate) trait Tr {}', 'pub(super) trait Tr {}');
+  const change = typeChange('pub(crate) trait Tr {}', 'pub(super) trait Tr {}');
   expect(change).toMatchObject({ change: 'edited' });
   expect(change).not.toHaveProperty('signature');
 });
 
 test('a trait under another name reads as renamed', () => {
-  expect(traitChange('trait Tr { type A; }', 'trait Ur { type A; }')).toMatchObject({
+  expect(typeChange('trait Tr { type A; }', 'trait Ur { type A; }')).toMatchObject({
     name: 'Ur',
     change: 'renamed',
     renamedFrom: 'Tr',
@@ -402,4 +402,78 @@ test.for([
   },
 ])('$written reads the signature $signature', ({ written, signature }) => {
   expect(typesIn(read(written))).toMatchObject([{ signature }]);
+});
+
+test.for([
+  { edit: 'a derive', before: 'struct A;', after: '#[derive(Debug)]\nstruct A;' },
+  { edit: 'the generics', before: 'struct A<T>;', after: 'struct A<U>;' },
+  { edit: 'the where', before: 'struct A<T> where T: B {}', after: 'struct A<T> where T: C {}' },
+  {
+    edit: "a pub field's type",
+    before: 'struct A { pub b: u8 }',
+    after: 'struct A { pub b: u16 }',
+  },
+  { edit: 'a field made pub', before: 'struct A { b: u8 }', after: 'struct A { pub b: u8 }' },
+  { edit: "a tuple's pub field", before: 'struct A(pub u8);', after: 'struct A(pub u16);' },
+  { edit: 'a tuple field made pub', before: 'struct A(u8);', after: 'struct A(pub u8);' },
+  { edit: 'the keyword', before: 'struct A { b: u8 }', after: 'union A { b: u8 }' },
+])('a change to $edit reads as a changed signature on the struct', ({ before, after }) => {
+  expect(typeChange(before, after)).toMatchObject({
+    change: 'edited',
+    signature: expect.anything(),
+  });
+});
+
+test.for([
+  { edit: 'its visibility', before: 'pub(crate) struct A;', after: 'pub(super) struct A;' },
+  { edit: 'a private field', before: 'struct A { b: u8 }', after: 'struct A { b: u16 }' },
+  {
+    edit: 'a private field added',
+    before: 'struct A { pub b: u8 }',
+    after: 'struct A { pub b: u8, c: u8 }',
+  },
+  {
+    edit: "a field's restriction",
+    before: 'struct A { pub(crate) b: u8 }',
+    after: 'struct A { pub(super) b: u8 }',
+  },
+  { edit: "a tuple's private field", before: 'struct A(u8);', after: 'struct A(u16);' },
+  {
+    edit: "a field's attribute",
+    before: 'struct A { pub b: u8 }',
+    after: 'struct A { #[serde(skip)] pub b: u8 }',
+  },
+  { edit: 'a unit to no fields', before: 'struct A;', after: 'struct A {}' },
+  { edit: 'a tuple to named fields', before: 'struct A();', after: 'struct A {}' },
+])('a change to $edit reads as edited, with the signature as it was', ({ before, after }) => {
+  const change = typeChange(before, after);
+  expect(change).toMatchObject({ change: 'edited' });
+  expect(change).not.toHaveProperty('signature');
+});
+
+test.for([
+  { edit: 'a comment', before: 'struct A { b: u8 }', after: 'struct A {\n  // why\n  b: u8,\n}' },
+  {
+    edit: 'a line of docs',
+    before: 'struct A { pub b: u8 }',
+    after: 'struct A {\n  /// why\n  pub b: u8,\n}',
+  },
+  {
+    edit: "a field's doc",
+    before: 'struct A { b: u8 }',
+    after: 'struct A { #[doc = "why"] b: u8 }',
+  },
+  { edit: 'its doc', before: 'struct A;', after: '#[doc = "why"]\nstruct A;' },
+  { edit: 'a last comma', before: 'struct A { pub b: u8 }', after: 'struct A { pub b: u8, }' },
+  { edit: "a tuple's last comma", before: 'struct A(pub u8);', after: 'struct A(pub u8,);' },
+])('$edit on a struct reads as formatting', ({ before, after }) => {
+  expect(typeChange(before, after)).toMatchObject({ change: 'formatting' });
+});
+
+test('a struct under another name reads as renamed', () => {
+  expect(typeChange('struct A { pub b: u8 }', 'struct C { pub b: u8 }')).toMatchObject({
+    name: 'C',
+    change: 'renamed',
+    renamedFrom: 'A',
+  });
 });

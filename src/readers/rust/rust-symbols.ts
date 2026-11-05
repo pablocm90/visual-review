@@ -28,6 +28,9 @@ const signedPartsOf = (item: Node) => ({
 const cfgsOf = (item: Node): ReadonlyArray<Node> =>
   attributesOf(item).filter(attribute => pathOf(attribute) === 'cfg');
 
+const writtenAttributesOf = (item: Node): ReadonlyArray<Node> =>
+  attributesOf(item).filter(attribute => !isDocText(attribute));
+
 const signatureOf = (item: Node): string => {
   const { modifiers, generics, parameters, returned, bounds } = signedPartsOf(item);
   return [
@@ -42,23 +45,20 @@ const signatureOf = (item: Node): string => {
 const present = (nodes: ReadonlyArray<Node | null>): ReadonlyArray<Node> =>
   nodes.filter(node => node !== null);
 
-const functionSymbol = (item: Node): ReadSymbol => {
-  const attributes = attributesOf(item);
-  return {
-    name: item.childForFieldName('name')?.text ?? '',
-    kind: 'function',
-    exported: isExactlyPub(item),
-    signature: signatureOf(item),
-    ...hashesOf({
-      signed: [...cfgsOf(item), ...present(Object.values(signedPartsOf(item)))],
-      body: [
-        ...attributes.filter(attribute => !isDocText(attribute)),
-        ...present([childOfType(item, 'visibility_modifier'), item.childForFieldName('body')]),
-      ],
-      text: [...attributes, item].map(({ text }) => text).join('\n'),
-    }),
-  };
-};
+const functionSymbol = (item: Node): ReadSymbol => ({
+  name: item.childForFieldName('name')?.text ?? '',
+  kind: 'function',
+  exported: isExactlyPub(item),
+  signature: signatureOf(item),
+  ...hashesOf({
+    signed: [...cfgsOf(item), ...present(Object.values(signedPartsOf(item)))],
+    body: [
+      ...writtenAttributesOf(item),
+      ...present([childOfType(item, 'visibility_modifier'), item.childForFieldName('body')]),
+    ],
+    text: [...attributesOf(item), item].map(({ text }) => text).join('\n'),
+  }),
+});
 
 const FUNCTIONS: ReadonlySet<string> = new Set(['function_item', 'function_signature_item']);
 
@@ -105,7 +105,7 @@ const idsOf = (nodes: ReadonlyArray<Node | null>): ReadonlySet<number> =>
 
 const traitSymbol = (item: Node): ReadSymbol => {
   const attributes = attributesOf(item);
-  const written = attributes.filter(attribute => !isDocText(attribute));
+  const written = writtenAttributesOf(item);
   const members = item.childForFieldName('body')?.namedChildren ?? [];
   const defaults = idsOf(
     members.filter(({ type }) => FUNCTIONS.has(type)).map(m => m.childForFieldName('body')),
@@ -155,30 +155,49 @@ const pubFieldsWritten = (fields: Node | null): string => {
     : `(${written.map(type => `pub ${type}`).join(', ')})`;
 };
 
+const keywordOf = (item: Node): Node | null =>
+  item.children.find(({ isNamed }) => !isNamed) ?? null;
+
 const structSignature = (item: Node): string => {
   const generics = item.childForFieldName('type_parameters');
   const fields = item.childForFieldName('body');
   const bounds = childOfType(item, 'where_clause');
-  const opener = `${item.type === 'union_item' ? 'union' : 'struct'} ${item.childForFieldName('name')?.text}${generics === null ? '' : `<${writtenIn(generics)}>`}`;
+  const opener = `${keywordOf(item)?.text} ${item.childForFieldName('name')?.text}${generics === null ? '' : `<${writtenIn(generics)}>`}`;
   const where = bounds === null ? '' : ` where ${writtenIn(bounds)}`;
   const written = pubFieldsWritten(fields);
   return [
-    ...attributesOf(item)
-      .filter(attribute => !isDocText(attribute))
-      .map(({ text }) => collapsed(text)),
+    ...writtenAttributesOf(item).map(({ text }) => collapsed(text)),
     fields?.type === 'ordered_field_declaration_list'
       ? `${opener}${written}${where}`
       : `${opener}${where}${written}`,
   ].join(' ');
 };
 
-const structSymbol = (item: Node): ReadSymbol => ({
-  name: item.childForFieldName('name')?.text ?? '',
-  kind: 'type',
-  exported: isExactlyPub(item),
-  signature: structSignature(item),
-  ...hashesOf({ signed: [], body: [item], text: item.text }),
-});
+const structSymbol = (item: Node): ReadSymbol => {
+  const fields = item.childForFieldName('body');
+  return {
+    name: item.childForFieldName('name')?.text ?? '',
+    kind: 'type',
+    exported: isExactlyPub(item),
+    signature: structSignature(item),
+    ...hashesOf({
+      signed: [
+        ...writtenAttributesOf(item),
+        ...present([
+          keywordOf(item),
+          item.childForFieldName('type_parameters'),
+          childOfType(item, 'where_clause'),
+        ]),
+        ...pubFieldsOf(fields),
+      ],
+      body: [
+        ...present([childOfType(item, 'visibility_modifier'), fields?.firstChild ?? null]),
+        ...(fields?.namedChildren ?? []).filter(field => !isComment(field) && !isDocText(field)),
+      ],
+      text: [...attributesOf(item), item].map(({ text }) => text).join('\n'),
+    }),
+  };
+};
 
 const symbolsOfItem = (item: Node): ReadonlyArray<ReadSymbol> => {
   if (item.type === 'function_item') return [functionSymbol(item)];
