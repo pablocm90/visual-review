@@ -35,6 +35,22 @@ const hashOf = (shape: Shape): string =>
 const shapesOf = (nodes: ReadonlyArray<Node>, holes: Holes = NO_HOLES): Shape =>
   nodes.map(node => shapeOf(node, holes));
 
+const holesIn = (node: Node, holes: Holes): ReadonlyArray<Node> =>
+  holes.has(node.id) ? [node] : node.children.flatMap(child => holesIn(child, holes));
+
+const ownText = (definition: Node, holes: Holes): string => {
+  const start = definition.startIndex;
+  const whole = definition.text;
+  const { kept, from } = holesIn(definition, holes).reduce(
+    (cut, hole) => ({
+      kept: cut.kept + whole.slice(cut.from, hole.startIndex - start),
+      from: hole.endIndex - start,
+    }),
+    { kept: '', from: 0 },
+  );
+  return kept + whole.slice(from);
+};
+
 const tokensOf = (shape: Shape): ReadonlyArray<string> =>
   typeof shape === 'string' ? [shape] : shape.flatMap(tokensOf);
 
@@ -318,7 +334,7 @@ const walked = (walk: Walk, node: Node, within: string | undefined): Walk => {
       signed: fieldOf(node, 'superclass'),
       body: fieldOf(node, 'body'),
       holes,
-      text: node.text,
+      text: ownText(node, holes),
     }),
   };
   return {

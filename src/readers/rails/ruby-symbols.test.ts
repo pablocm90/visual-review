@@ -502,16 +502,64 @@ test('a method with the same body under another name reads renamed, a similar on
 
 test.for([
   {
+    edit: 'an edit to a method in it',
+    before: ['class Shop', '  NAME = "é"', '  def open; 1; end', 'end'],
+    after: ['class Shop', '  NAME = "é"', '  def open; 2; end', 'end'],
+    expected: ['unchanged Shop', 'edited Shop.open'],
+  },
+  {
+    edit: 'an edit to a class in it',
+    before: ['class Shop', '  class Till; X = 1; end', 'end'],
+    after: ['class Shop', '  class Till; X = 2; end', 'end'],
+    expected: ['unchanged Shop', 'edited Shop::Till'],
+  },
+  {
+    edit: 'an edit to a method under private def',
+    before: ['class Shop', '  private def open; 1; end', 'end'],
+    after: ['class Shop', '  private def open; 2; end', 'end'],
+    expected: ['unchanged Shop', 'edited Shop.open'],
+  },
+  {
+    edit: 'an edit to a method in class << self',
+    before: ['class Shop', '  class << self', '    def open; 1; end', '  end', 'end'],
+    after: ['class Shop', '  class << self', '    def open; 2; end', '  end', 'end'],
+    expected: ['unchanged Shop', 'edited Shop.self.open'],
+  },
+  {
     edit: 'a new method',
     before: ['class Shop', '  def open; 1; end', 'end'],
     after: ['class Shop', '  def open; 1; end', '  def shut; 1; end', 'end'],
     expected: ['edited Shop', 'unchanged Shop.open', 'added Shop.shut'],
   },
   {
+    edit: 'a comment before its methods',
+    before: ['class Shop', '  def open; 1; end', '  def shut; 1; end', 'end'],
+    after: ['class Shop', '  # why', '  def open; 1; end', '  def shut; 1; end', 'end'],
+    expected: ['formatting Shop', 'unchanged Shop.open', 'unchanged Shop.shut'],
+  },
+  {
     edit: 'a comment and an edit to a method in it',
     before: ['class Shop', '  def open; 1; end', 'end'],
     after: ['class Shop', '  # why', '  def open; 2; end', 'end'],
     expected: ['formatting Shop', 'edited Shop.open'],
+  },
+  {
+    edit: 'an edit to a method, well into the file',
+    before: ['# A long comment above the class', 'class Shop', '  def open; 1; end', 'end'],
+    after: ['# A long comment above the class', 'class Shop', '  def open; 2; end', 'end'],
+    expected: ['unchanged Shop', 'edited Shop.open'],
+  },
+  {
+    edit: 'a comment after its method, well into the file',
+    before: ['# A long comment above the class', 'class Shop', '  def open; 1; end', 'end'],
+    after: [
+      '# A long comment above the class',
+      'class Shop',
+      '  def open; 1; end',
+      '  # why',
+      'end',
+    ],
+    expected: ['formatting Shop', 'unchanged Shop.open'],
   },
   {
     edit: 'a line of its own',
