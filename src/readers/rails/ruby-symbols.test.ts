@@ -579,6 +579,24 @@ test.for([
     after: ['class Shop', '  def a; end', 'end'],
     expected: ['unchanged Shop', 'edited Shop.a'],
   },
+  {
+    edit: 'a name added to a delegate',
+    before: ['class Shop', '  delegate :a, to: :door', 'end'],
+    after: ['class Shop', '  delegate :a, :c, to: :door', 'end'],
+    expected: ['unchanged Shop', 'unchanged Shop.a', 'added Shop.c'],
+  },
+  {
+    edit: 'an option added to a delegate',
+    before: ['class Shop', '  delegate :a, to: :door', 'end'],
+    after: ['class Shop', '  delegate :a, to: :door, allow_nil: true', 'end'],
+    expected: ['unchanged Shop', 'edited Shop.a'],
+  },
+  {
+    edit: 'whitespace in a delegate',
+    before: ['class Shop', '  delegate :a, to: :door', 'end'],
+    after: ['class Shop', '  delegate :a, to:  :door', 'end'],
+    expected: ['unchanged Shop', 'formatting Shop.a'],
+  },
 ])('with $edit, a class and what it holds read apart', ({ before, after, expected }) => {
   expect(changesOf(before, after)).toEqual(expected);
 });
@@ -587,4 +605,17 @@ test("a class's superclass is its signature", () => {
   expect(
     changesBetween(['class Shop < Base; end'], ['class Shop < Other; end']).symbols,
   ).toMatchObject([{ change: 'edited', signature: { base: '< Base', head: '< Other' } }]);
+});
+
+test("a delegate's target is its signature", () => {
+  const signatureOf = (before: string, after: string) =>
+    changesBetween([before], [after]).symbols[0]?.signature;
+
+  expect(signatureOf('delegate :a, to: :door', 'delegate :a, to: :gate')).toEqual({
+    base: 'to: :door',
+    head: 'to: :gate',
+  });
+  expect(
+    signatureOf('delegate :a, to: :door', 'delegate :a, to: :door, prefix: false'),
+  ).toBeUndefined();
 });

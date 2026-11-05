@@ -203,20 +203,30 @@ const delegateSymbols = (
   call: Node,
   within: string | undefined,
   walk: Walk,
-): ReadonlyArray<ReadSymbol> =>
-  symbolsNamedIn(call).map(name =>
+): ReadonlyArray<ReadSymbol> => {
+  const to = optionOf(call, 'to');
+  const pairs = (call.childForFieldName('arguments')?.namedChildren ?? []).filter(
+    ({ type }) => type === 'pair',
+  );
+  const hashes = hashesOf({
+    signed: to === undefined ? [] : [to],
+    body: pairs,
+    text: pairs.map(({ text }) => text).join(' '),
+  });
+  return symbolsNamedIn(call).map(name =>
     memberOf(
       `${delegatePrefix(call)}${name}`,
       {
         kind: 'method',
         exported: walk.exported && optionOf(call, 'private')?.type !== 'true',
-        signature: `to: ${optionOf(call, 'to')?.text ?? ''}`,
-        ...NOT_YET_HASHED,
+        signature: `to: ${to?.text ?? ''}`,
+        ...hashes,
       },
       within,
       walk,
     ),
   );
+};
 
 const scopeSymbols = (call: Node, within: string | undefined): ReadonlyArray<ReadSymbol> => {
   const [named, callable] = call.childForFieldName('arguments')?.namedChildren ?? [];
@@ -326,7 +336,11 @@ const walked = (walk: Walk, node: Node, within: string | undefined): Walk => {
   if (called === 'scope')
     return { ...walk, symbols: [...walk.symbols, ...scopeSymbols(node, within)] };
   if (called === 'delegate')
-    return { ...walk, symbols: [...walk.symbols, ...delegateSymbols(node, within, walk)] };
+    return {
+      ...walk,
+      symbols: [...walk.symbols, ...delegateSymbols(node, within, walk)],
+      holes: [...walk.holes, node.id],
+    };
   const held = VISIBILITY_CALLS.get(called ?? '');
   if (held) {
     const inner = walkedChildren({ ...walk, ...held }, node, within);
