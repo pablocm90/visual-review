@@ -60,16 +60,26 @@ const functionSymbol = (item: Node): ReadSymbol => {
   };
 };
 
-const scopeOfImpl = (item: Node): string => {
+const typeOfImpl = (item: Node): string => {
   const type = item.childForFieldName('type');
   return (type?.childForFieldName('type') ?? type)?.text ?? '';
 };
 
+const isPubBeside = (item: Node, name: string): boolean =>
+  (item.parent?.namedChildren ?? []).some(
+    sibling => sibling.childForFieldName('name')?.text === name && isExactlyPub(sibling),
+  );
+
 const methodsOfImpl = (item: Node): ReadonlyArray<ReadSymbol> => {
-  const scope = scopeOfImpl(item);
+  const type = typeOfImpl(item);
+  const trait = item.childForFieldName('trait');
+  const place =
+    trait === null
+      ? { scope: type }
+      : { scope: collapsed(`${type} as ${trait.text}`), exported: isPubBeside(item, type) };
   return (item.childForFieldName('body')?.namedChildren ?? [])
-    .filter(({ type }) => type === 'function_item')
-    .map(method => ({ ...functionSymbol(method), kind: 'method', scope }));
+    .filter(child => child.type === 'function_item')
+    .map(method => ({ ...functionSymbol(method), kind: 'method', ...place }));
 };
 
 const symbolsOfItem = (item: Node): ReadonlyArray<ReadSymbol> => {

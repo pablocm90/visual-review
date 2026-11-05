@@ -183,3 +183,38 @@ test('a method changed in an impl reads as edited, its scope kept', () => {
     }).symbols,
   ).toMatchObject([{ scope: 'Foo', name: 'a', kind: 'method', change: 'edited' }]);
 });
+
+test.for([
+  { impl: 'impl Tr for Foo', scope: 'Foo as Tr' },
+  { impl: 'impl<T> Tr<T> for Foo<T>', scope: 'Foo as Tr<T>' },
+  { impl: 'impl From<A> for a::Foo', scope: 'a::Foo as From<A>' },
+  { impl: 'impl Tr<\n  A,\n> for (\n  B,\n  C,\n)', scope: '( B, C, ) as Tr< A, >' },
+])('$impl scopes its methods to $scope', ({ impl, scope }) => {
+  expect(read(`${impl} {\n  fn open() {}\n}`).symbols).toMatchObject([
+    { kind: 'method', scope, name: 'open' },
+  ]);
+});
+
+test.for([
+  { type: 'pub struct Foo;', exported: true },
+  { type: 'pub struct Foo<T>(T);', exported: true },
+  { type: 'struct Foo;', exported: false },
+  { type: 'pub(crate) struct Foo;', exported: false },
+  { type: 'pub struct Bar;', exported: false },
+])('a trait method on Foo beside $type has exported: $exported', ({ type, exported }) => {
+  expect(read(type, 'impl Tr for Foo<u8> {\n  fn open() {}\n}').symbols).toMatchObject([
+    { name: 'open', exported },
+  ]);
+});
+
+test('a type with both Display and Debug has each fmt read, and changed, apart', () => {
+  const impls = (debug: string) =>
+    read(
+      'impl fmt::Display for Foo {\n  fn fmt() { a(); }\n}',
+      `impl fmt::Debug for Foo {\n  fn fmt() { ${debug}; }\n}`,
+    );
+  expect(symbolChanges({ before: impls('b()'), after: impls('c()') }).symbols).toMatchObject([
+    { scope: 'Foo as fmt::Display', name: 'fmt', change: 'unchanged' },
+    { scope: 'Foo as fmt::Debug', name: 'fmt', change: 'edited' },
+  ]);
+});
