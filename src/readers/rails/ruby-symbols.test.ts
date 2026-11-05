@@ -400,10 +400,19 @@ test("a method's signature is its parameters, written either way, with no commen
     '  def wide(a,',
     '    # why',
     '    b); end',
+    '  def spread(a = [1,',
+    '    2]); end',
     'end',
   )
     .symbols.slice(1)
     .map(({ signature }) => signature);
 
-  expect(signatures).toEqual(['', '', '(a, b = 1)', '(*rest, key:, **options, &block)', '(a, b)']);
+  expect(signatures).toEqual([
+    '',
+    '',
+    '(a, b = 1)',
+    '(*rest, key:, **options, &block)',
+    '(a, b)',
+    '(a = [1, 2])',
+  ]);
 });
