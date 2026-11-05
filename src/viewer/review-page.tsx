@@ -1609,6 +1609,101 @@ const GraphFrame = ({
   </div>
 );
 
+type GraphControlsProps = {
+  readonly colouring: Colouring;
+  readonly onColouring: (colouring: Colouring) => void;
+  readonly scopes: ReadonlyArray<Scope>;
+  readonly scope: Scope;
+  readonly onScope: (scope: Scope) => void;
+  readonly allEdges: boolean;
+  readonly onAllEdges: (allEdges: boolean) => void;
+};
+
+const GraphControls = ({
+  colouring,
+  onColouring,
+  scopes,
+  scope,
+  onScope,
+  allEdges,
+  onAllEdges,
+}: GraphControlsProps) => (
+  <>
+    <div className="graph-controls">
+      <ColourBy colouring={colouring} onPick={onColouring} />
+      <div className="graph-filters">
+        <Show scopes={scopes} scope={scope} onPick={onScope} />
+        <label className="near-only">
+          <input
+            type="checkbox"
+            checked={allEdges}
+            onChange={event => onAllEdges(event.target.checked)}
+          />
+          All edges
+        </label>
+      </div>
+    </div>
+    <div className="graph-key">
+      {colouring === 'change' ? <Legend /> : <ScaleLegend colouring={colouring} />}
+    </div>
+  </>
+);
+
+type LandingHeadProps = GraphControlsProps &
+  GraphCaveatProps & {
+    readonly review: PageData;
+    readonly notes: ReviewPageProps['notes'];
+    readonly findings: ReadonlyArray<Finding>;
+    readonly inLens: ReadonlyArray<Finding>;
+    readonly picked: Lens | undefined;
+    readonly onPick: (lens: Lens | undefined) => void;
+    readonly onShowAll: () => void;
+    readonly startHereOpen: boolean;
+    readonly onStartHereOpen: (open: boolean) => void;
+    readonly onGoTo: (id: string) => void;
+    readonly onGoToFinding: (id: string, finding: string) => void;
+    readonly onShowOutside: (opener: HTMLButtonElement) => void;
+    readonly onShowFile: (path: string, opener: HTMLButtonElement, place?: string) => void;
+  };
+
+const LandingHead = ({
+  review,
+  notes,
+  findings,
+  inLens,
+  picked,
+  onPick,
+  onShowAll,
+  startHereOpen,
+  onStartHereOpen,
+  onGoTo,
+  onGoToFinding,
+  onShowOutside,
+  onShowFile,
+  since,
+  nothingDrawn,
+  ...controls
+}: LandingHeadProps) => (
+  <>
+    {notes && notes.summary.length > 0 && <Summary notes={notes} onGoTo={onGoTo} />}
+    <LensChips findings={findings} coverage={review.coverage} picked={picked} onPick={onPick} />
+    <LensRow picked={picked} findings={findings} coverage={review.coverage} />
+    <StartHere
+      findings={inLens}
+      onShowAll={onShowAll}
+      open={startHereOpen}
+      onOpen={onStartHereOpen}
+      review={review}
+      onGoTo={onGoTo}
+      onGoToFinding={onGoToFinding}
+      onShowOutside={onShowOutside}
+      onShowFile={onShowFile}
+    />
+    <GraphControls {...controls} />
+    <GraphCaveat since={since} nothingDrawn={nothingDrawn} />
+  </>
+);
+
 type LeftColumnProps = {
   readonly review: PageData;
   readonly notes: ReviewPageProps['notes'];
@@ -2017,55 +2112,36 @@ const Page = ({ review, notes, send }: ReviewPageProps) => {
   const content = (
     <div key="content" className="content">
       {!reading && (
-        <>
-          {notes && notes.summary.length > 0 && <Summary notes={notes} onGoTo={goTo} />}
-          <LensChips
-            findings={findings}
-            coverage={review.coverage}
-            picked={picked}
-            onPick={setPicked}
-          />
-          <LensRow picked={picked} findings={findings} coverage={review.coverage} />
-          <StartHere
-            findings={inLens}
-            onShowAll={() => setRailOpen(true)}
-            open={startHereOpen}
-            onOpen={setStartHereOpen}
-            review={review}
-            onGoTo={goTo}
-            onGoToFinding={goToFinding}
-            onShowOutside={showOutside}
-            onShowFile={showFile}
-          />
-          <div className="graph-controls">
-            <ColourBy colouring={colouring} onPick={setColouring} />
-            <div className="graph-filters">
-              <Show
-                scopes={scopes}
-                scope={scope}
-                onPick={next => {
-                  fitToFrame();
-                  setScope(next);
-                }}
-              />
-              <label className="near-only">
-                <input
-                  type="checkbox"
-                  checked={allEdges}
-                  onChange={event => {
-                    fitToFrame();
-                    setAllEdges(event.target.checked);
-                  }}
-                />
-                All edges
-              </label>
-            </div>
-          </div>
-          <div className="graph-key">
-            {colouring === 'change' ? <Legend /> : <ScaleLegend colouring={colouring} />}
-          </div>
-          <GraphCaveat since={since} nothingDrawn={drawn.nodes.length === 0} />
-        </>
+        <LandingHead
+          review={review}
+          notes={notes}
+          findings={findings}
+          inLens={inLens}
+          picked={picked}
+          onPick={setPicked}
+          onShowAll={() => setRailOpen(true)}
+          startHereOpen={startHereOpen}
+          onStartHereOpen={setStartHereOpen}
+          onGoTo={goTo}
+          onGoToFinding={goToFinding}
+          onShowOutside={showOutside}
+          onShowFile={showFile}
+          colouring={colouring}
+          onColouring={setColouring}
+          scopes={scopes}
+          scope={scope}
+          onScope={next => {
+            fitToFrame();
+            setScope(next);
+          }}
+          allEdges={allEdges}
+          onAllEdges={next => {
+            fitToFrame();
+            setAllEdges(next);
+          }}
+          since={since}
+          nothingDrawn={drawn.nodes.length === 0}
+        />
       )}
       {layout && (
         <GraphFrame
