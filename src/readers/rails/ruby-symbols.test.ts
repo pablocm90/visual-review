@@ -345,6 +345,7 @@ test('delegate reads as a method per name, its prefix applied, signed by its tar
     '  delegate :fee, to: :lease, private: true',
     '  delegate :tax, to: :lease, private: false',
     '  private delegate :key, to: :door',
+    '  delegate :rate, to: :lease, prefix: chosen',
     '  class << self',
     '    delegate :count, to: :all',
     '  end',
@@ -366,6 +367,7 @@ test('delegate reads as a method per name, its prefix applied, signed by its tar
     'method fee to: :lease',
     'method tax to: :lease',
     'method key to: :door',
+    'method chosen_rate to: :lease',
     'method self.count to: :all',
   ]);
   expect(exportedIn(...lines)).toEqual([
@@ -377,6 +379,7 @@ test('delegate reads as a method per name, its prefix applied, signed by its tar
     'floor_size',
     'term',
     'tax',
+    'chosen_rate',
     'self.count',
   ]);
 });
