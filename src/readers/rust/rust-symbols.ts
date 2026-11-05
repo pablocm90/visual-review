@@ -65,10 +65,12 @@ const functionSymbol = (item: Node): ReadSymbol => ({
 
 const FUNCTIONS: ReadonlySet<string> = new Set(['function_item', 'function_signature_item']);
 
+const codeIn = (item: Node): ReadonlyArray<Node> =>
+  (item.childForFieldName('body')?.namedChildren ?? []).filter(member => !isTestItem(member));
+
 const functionsIn = (item: Node): ReadonlyArray<ReadSymbol> =>
-  (item.childForFieldName('body')?.namedChildren ?? [])
+  codeIn(item)
     .filter(({ type }) => FUNCTIONS.has(type))
-    .filter(member => !isTestItem(member))
     .map(functionSymbol);
 
 const typeOfImpl = (item: Node): string => {
@@ -252,9 +254,7 @@ const insideMod =
   };
 
 const symbolsOfMod = (item: Node): ReadonlyArray<ReadSymbol> =>
-  (item.childForFieldName('body')?.namedChildren ?? [])
-    .flatMap(symbolsOfItem)
-    .map(insideMod(item));
+  codeIn(item).flatMap(symbolsOfItem).map(insideMod(item));
 
 const symbolsOfItem = (item: Node): ReadonlyArray<ReadSymbol> => {
   if (item.type === 'mod_item') return symbolsOfMod(item);

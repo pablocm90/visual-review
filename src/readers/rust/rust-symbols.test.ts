@@ -25,12 +25,7 @@ test.for([
 
 test('a const, a static, a mod and a use read no symbol', () => {
   expect(
-    read(
-      'pub const A: u8 = 1;',
-      'pub static B: u8 = 1;',
-      'pub mod c;',
-      'pub use f::g;',
-    ).symbols,
+    read('pub const A: u8 = 1;', 'pub static B: u8 = 1;', 'pub mod c;', 'pub use f::g;').symbols,
   ).toEqual([]);
 });
 
@@ -620,6 +615,8 @@ test.for([
   { written: '#[cfg(test)]\npub use a::b;' },
   { written: '#[cfg(test)]\nimpl Foo {\n  pub fn a() {}\n}' },
   { written: '#[cfg(test)]\npub mod tests {\n  pub fn a() {}\n}' },
+  { written: 'mod a {\n  #[test]\n  fn b() {}\n}' },
+  { written: 'mod a {\n  #[cfg(test)]\n  mod tests {\n    fn b() {}\n  }\n}' },
 ])('$written reads no symbol and no export', ({ written }) => {
   expect(read(written)).toMatchObject({ symbols: [], exports: [] });
 });
