@@ -74,7 +74,7 @@ export const readSchemas = async ({
       } catch (error) {
         return [
           {
-            file: paths.at(-1) ?? '',
+            file: paths.findLast(reader.holds) ?? '',
             notRead: error instanceof Error ? error.message : String(error),
           },
         ];

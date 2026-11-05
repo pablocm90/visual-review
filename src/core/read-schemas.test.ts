@@ -241,6 +241,20 @@ test('a new schema with a syntax error is listed as not read', async () => {
   expect(schemas).toStrictEqual([{ file: FILE, notRead: 'Ruby syntax error' }]);
 });
 
+test.for([
+  { to: 'db/old.rb', file: FILE },
+  { to: 'db/primary_schema.rb', file: 'db/primary_schema.rb' },
+])('a broken schema renamed to $to is listed as not read at $file', async ({ to: path, file }) => {
+  using workspace = gitRepo({ [FILE]: 'create_table "users" do |t|\n', 'README.md': 'app' });
+  const { repo, root } = workspace;
+  git(repo, 'mv', FILE, path);
+  const to = commit(repo, { 'README.md': 'still an app' });
+
+  const { schemas } = await readRange({ repo, from: root, to });
+
+  expect(schemas).toStrictEqual([{ file, notRead: 'Ruby syntax error' }]);
+});
+
 test('a file renamed into the paths held counts as added, under its last path', async () => {
   using workspace = gitRepo({ 'db/old.rb': dump(USERS), 'README.md': 'app' });
   const { repo, root } = workspace;
