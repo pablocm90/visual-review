@@ -267,6 +267,24 @@ export const FindingsRail = (props: FindingsRailProps) => {
   );
 };
 
+const LensCount = ({
+  findings,
+  level,
+}: {
+  readonly findings: ReadonlyArray<Finding>;
+  readonly level: Level;
+}) => {
+  const shown = findings.filter(finding => finding.level === level).length;
+  return (
+    shown > 0 && (
+      <span className="lens-count">
+        <LevelMark level={level} />
+        {shown}
+      </span>
+    )
+  );
+};
+
 type LensChipsProps = {
   readonly findings: ReadonlyArray<Finding>;
   readonly picked: Lens | undefined;
@@ -277,17 +295,6 @@ export const LensChips = ({ findings, picked, onPick }: LensChipsProps) => (
   <div className="lenses" role="group" aria-label="Lenses">
     {LENSES.map(lens => {
       const found = findings.filter(finding => LENS_OF[finding.dimension] === lens);
-      const count = (level: Level) => {
-        const shown = found.filter(finding => finding.level === level).length;
-        return (
-          shown > 0 && (
-            <span className="lens-count">
-              <LevelMark level={level} />
-              {shown}
-            </span>
-          )
-        );
-      };
       return (
         <button
           key={lens}
@@ -297,12 +304,38 @@ export const LensChips = ({ findings, picked, onPick }: LensChipsProps) => (
           onClick={() => onPick(lens === picked ? undefined : lens)}
         >
           {lens}
-          {count('info')}
-          {count('look')}
+          <LensCount findings={found} level="info" />
+          <LensCount findings={found} level="look" />
         </button>
       );
     })}
   </div>
+);
+
+type LensRowProps = {
+  readonly lens: Lens;
+  readonly findings: ReadonlyArray<Finding>;
+  readonly coverage: PageData['coverage'];
+};
+
+export const LensRow = ({ lens, findings, coverage }: LensRowProps) => (
+  <ul className="lens-row" aria-label={`${lens} dimensions`}>
+    {DIMENSIONS.filter(dimension => LENS_OF[dimension] === lens).flatMap(dimension => {
+      const found = findings.filter(finding => finding.dimension === dimension);
+      const entry = coverage.find(covered => covered.dimension === dimension);
+      if (entry === undefined && found.length === 0) return [];
+      const notRead = (entry?.notRead ?? []).join(' · ');
+      return [
+        <li key={dimension}>
+          <span className="lens-row-name">{nameOf(dimension)}</span>
+          <LensCount findings={found} level="info" />
+          <LensCount findings={found} level="look" />
+          {found.length === 0 && (notRead || 'checked, none')}
+          {found.length > 0 && notRead && `· ${notRead}`}
+        </li>,
+      ];
+    })}
+  </ul>
 );
 
 type StartHereProps = LineOptions & {
