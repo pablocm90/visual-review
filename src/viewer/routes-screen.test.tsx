@@ -3,6 +3,7 @@ import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { expect, onTestFinished, test, vi } from 'vitest';
 import type { PageData } from '../core/page.ts';
+import type { UnreadRow } from '../core/read-routes.ts';
 import { routeFindings } from '../core/route-findings.ts';
 import type { Route } from '../core/routes.ts';
 import { pageWith } from '../test-support/page-data.ts';
@@ -322,4 +323,40 @@ test("an answer to a route's finding goes from the tray to its row", async () =>
   await waitFor(() =>
     expect(document.activeElement).toBe(screen.getByRole('row', { name: /GET \/gone/ })),
   );
+});
+
+test("a statement's finding lands on its line of the list, among one statement drawn twice", async () => {
+  atHash('#structure');
+  const user = userEvent.setup();
+  const statement = (path: string): UnreadRow => ({
+    state: 'added',
+    patch: 'config/routes.rb',
+    item: {
+      text: 'devise_for :users',
+      path,
+      module: '',
+      root: 'config/routes.rb',
+      file: 'config/routes/auth.rb',
+      line: 9,
+    },
+  });
+  const routes: PageData['routes'] = [
+    { routes: [], unread: [statement('/admin'), statement('/staff')] },
+  ];
+  render(
+    <ReviewPage review={pageWith({ ...reviewOf(routes), findings: routeFindings(routes) })} />,
+  );
+
+  await user.click(await screen.findByRole('button', { name: 'Show 2 findings' }));
+  const [, second] = within(screen.getByRole('complementary', { name: 'Findings' })).getAllByRole(
+    'button',
+    { name: /Added, not read: devise_for :users/ },
+  );
+  await user.click(second ?? document.body);
+
+  const [, line] = within(await screen.findByRole('list', { name: 'Not read' })).getAllByRole(
+    'listitem',
+  );
+  await waitFor(() => expect(document.activeElement).toBe(line));
+  expect(line?.textContent).toContain('under /staff');
 });

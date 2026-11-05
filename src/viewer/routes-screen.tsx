@@ -1,7 +1,14 @@
 import { type ReactNode, useEffect } from 'react';
 import type { PageData } from '../core/page.ts';
-import type { RoutesReading, UnreadRow } from '../core/read-routes.ts';
-import { lineKey, type RouteLine, routeLines, routeOf } from '../core/route-lines.ts';
+import type { RoutesReading } from '../core/read-routes.ts';
+import {
+  type KeyedStatement,
+  keyedStatements,
+  lineKey,
+  type RouteLine,
+  routeLines,
+  routeOf,
+} from '../core/route-lines.ts';
 import type { UnreadRoute } from '../core/routes.ts';
 import { CHANGE_MARKS, ChangeRow, type ChangeState, STATE_NAMES } from './change-row.tsx';
 
@@ -70,12 +77,17 @@ const lookFirst = (lines: ReadonlyArray<RouteLine>) =>
 
 const scopeOf = ({ path, module }: UnreadRoute) => [path, module].filter(Boolean).join(' · ');
 
-const NotRead = ({ rows }: { readonly rows: ReadonlyArray<UnreadRow> }) => (
+const NotRead = ({ rows }: { readonly rows: ReadonlyArray<KeyedStatement> }) => (
   <>
     <p className="schema-line">Not read, so routes these draw aren't compared:</p>
     <ul className="routes-unread" aria-label="Not read">
-      {rows.map(({ state, item }, at) => (
-        <li key={`${at} ${item.text}`} data-state={STATE_NAMES[state]}>
+      {rows.map(({ key, row: { state, item, patch } }) => (
+        <li
+          key={key}
+          id={placeId({ file: patch, route: key })}
+          tabIndex={-1}
+          data-state={STATE_NAMES[state]}
+        >
           <span className="schema-mark">{CHANGE_MARKS[state]}</span>
           <code>{item.text}</code>
           {scopeOf(item) && <span className="routes-where">under {scopeOf(item)}</span>}
@@ -90,7 +102,7 @@ const NotRead = ({ rows }: { readonly rows: ReadonlyArray<UnreadRow> }) => (
 
 const sectionsOf = ({ routes, unread }: Exclude<RoutesReading, { readonly notRead: string }>) => {
   const linesAt = Map.groupBy(routeLines(routes), ({ row }) => row.patch);
-  const statementsAt = Map.groupBy(unread, ({ patch }) => patch);
+  const statementsAt = Map.groupBy(keyedStatements(unread), ({ row }) => row.patch);
   return [...new Set([...linesAt.keys(), ...statementsAt.keys()])].map(file => {
     const lines = linesAt.get(file);
     const statements = statementsAt.get(file);
