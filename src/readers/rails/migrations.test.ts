@@ -377,13 +377,25 @@ test.for([
     expected: ['column users.email added as null: false with no default'],
   },
   {
-    written: 't.references :account, null: false',
+    written: 't.references :account, null: false, index: false',
     expected: ['reference users.account added as null: false with no default'],
   },
   {
-    written: 't.belongs_to :account, null: false',
+    written: 't.belongs_to :account, null: false, index: false',
     expected: ['reference users.account added as null: false with no default'],
   },
+  {
+    written: 't.references :account',
+    expected: ['index on users (account_id) added, not concurrently'],
+  },
+  {
+    written: 't.belongs_to :account, :plan',
+    expected: [
+      'index on users (account_id) added, not concurrently',
+      'index on users (plan_id) added, not concurrently',
+    ],
+  },
+  { written: 't.references :account, index: false', expected: [] },
   {
     written: 't.timestamps',
     expected: ['timestamps of users added as null: false with no default'],
@@ -402,6 +414,7 @@ test.for([
 test.for([
   { written: 't.index :email', expected: [] },
   { written: 't.string :email, null: false', expected: [] },
+  { written: 't.references :account', expected: [] },
   { written: 't.remove :name', expected: ['column users.name removed'] },
 ])('change_table on a table created alongside: $written', ({ written, expected }) => {
   expect(

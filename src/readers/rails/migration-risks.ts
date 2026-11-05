@@ -176,8 +176,8 @@ const CHANGE_TABLE_RULES: ReadonlyMap<string, Rule> = new Map<string, Rule>([
 const CHANGE_TABLE_RULES_NEEDING_ROWS: ReadonlyMap<string, Rule> = new Map<string, Rule>([
   ['change_null', changesNull],
   ['column', addsColumn],
-  ['references', addsEach('reference')],
-  ['belongs_to', addsEach('reference')],
+  ['references', addsReference],
+  ['belongs_to', addsReference],
   ['timestamps', addsTimestamps],
   ['index', addsIndex],
 ]);
