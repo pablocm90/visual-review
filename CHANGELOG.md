@@ -2,6 +2,14 @@
 
 What changed in each release of `@pablocm90/visual-review`, newest first. Versions follow [semver](https://semver.org); while it is 0.x, a minor version may change the exported types.
 
+## 0.36.0 — 2026-11-05
+
+### Added
+
+- A changed Rust file reads its symbols: its functions, the methods of its `impl`s and traits, and its structs, enums, unions, traits and type aliases as types, inside an inline `mod` too. So it gets a Symbols tab, a place in Colour by Kind of change and `api` findings, where it used to say "symbols not read".
+- A Rust symbol is exported only when exactly `pub`, not `pub(crate)` or `pub(super)`; a trait impl's methods when their type is `pub` in the file. A private field, a doc or a comment isn't a signature change. A file's exports also list its `pub` consts, statics, mods and `pub use` names.
+- Rust test code (`#[test]`, `#[cfg(test)]`) reads no symbols, though a file whose inline tests alone changed reads as a logic change, overstated rather than hidden. A file that doesn't parse says so, as a TS or Rails file does.
+
 ## 0.34.0 — 2026-11-05
 
 ### Changed
