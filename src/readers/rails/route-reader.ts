@@ -189,34 +189,37 @@ const pairedTo = (args: ReadonlyArray<Node>): Node | undefined =>
 const toOf = (args: ReadonlyArray<Node>): Node | undefined =>
   optionOf(args, 'to') ?? pairedTo(args)?.childForFieldName('value') ?? undefined;
 
-const twoPartTarget = (name: string, args: ReadonlyArray<Node>): string | undefined =>
-  toOf(args) === undefined && optionOf(args, 'action') === undefined && TWO_PART_PATH.test(name)
+type Targeting = {
+  readonly to: Node | undefined;
+  readonly action: Node | undefined;
+  readonly controller: string;
+};
+
+const twoPartTarget = (name: string, { to, action }: Targeting): string | undefined =>
+  to === undefined && action === undefined && TWO_PART_PATH.test(name)
     ? underscored(name.replace(/^\//, '').replace(/\/([^/]*)$/, '#$1'))
     : undefined;
 
 const PLAIN_NAME = /^[-\w]+$/;
 
-const actionOf = (name: string, args: ReadonlyArray<Node>): string | undefined => {
-  const to = toOf(args);
+const actionOf = (name: string, { to, action }: Targeting): string | undefined => {
   if (to !== undefined) return nameOf(to);
-  const action = optionOf(args, 'action');
   if (action !== undefined) return nameOf(action);
   return PLAIN_NAME.test(name) ? underscored(name) : undefined;
 };
 
-const namedTarget = (name: string, args: ReadonlyArray<Node>, scope: Scope): string | undefined => {
-  const to = toOf(args);
+const namedTarget = (name: string, targeting: Targeting): string | undefined => {
+  const { to, controller } = targeting;
   if (to !== undefined && nameOf(to).includes('#')) return nameOf(to);
-  const controller = writtenOr(args, 'controller', scope.controller);
-  const action = actionOf(name, args);
+  const action = actionOf(name, targeting);
   return controller === '' || action === undefined ? undefined : `${controller}#${action}`;
 };
 
-const targetOf = (name: string, args: ReadonlyArray<Node>, scope: Scope): string | undefined => {
-  const to = toOf(args);
+const targetOf = (name: string, targeting: Targeting, module: string): string | undefined => {
+  const { to } = targeting;
   if (to !== undefined && to.type !== 'string') return to.text;
-  const target = twoPartTarget(name, args) ?? namedTarget(name, args, scope);
-  return target === undefined ? undefined : inModuleOf(scope.module, target);
+  const target = twoPartTarget(name, targeting) ?? namedTarget(name, targeting);
+  return target === undefined ? undefined : inModuleOf(module, target);
 };
 
 const drawnBy =
@@ -227,8 +230,13 @@ const drawnBy =
     const base = placedAt(on && nameOf(on), scope);
     const written = optionOf(args, 'path');
     const key = pairedTo(args)?.childForFieldName('key');
+    const targeting = {
+      to: toOf(args),
+      action: optionOf(args, 'action'),
+      controller: writtenOr(args, 'controller', scope.controller),
+    };
     return (key ? [key] : positional(args)).map(arg => {
-      const target = targetOf(nameOf(arg), args, scope);
+      const target = targetOf(nameOf(arg), targeting, scope.module);
       return target === undefined
         ? unread(call, scope)
         : {
