@@ -2128,6 +2128,11 @@ test("a note's or a metric finding in the rail goes to its node or edge as the s
   expect(scrolledIntoView.mock.contexts).toContain(row);
 });
 
+const rowsOf = (order: HTMLElement) =>
+  within(order)
+    .getAllByRole('listitem')
+    .map(row => within(row).getByRole('button').textContent);
+
 test("the reading order numbers the changed parts in its order, on the graph too, each marked with its findings' worst level and count, a cycle's first part saying it is one, and going to its part as the summary's links do", async () => {
   const user = userEvent.setup();
   render(
@@ -2162,11 +2167,13 @@ test("the reading order numbers the changed parts in its order, on the graph too
   expect(numberOn('domain: unchanged')).toEqual([]);
 
   const order = screen.getByRole('navigation', { name: 'Reading order' });
-  expect(
-    within(order)
-      .getAllByRole('button')
-      .map(item => item.textContent),
-  ).toEqual(['1 application', '2 cli-adapter', '3 legacy', '4 README.md', '5 docs/a.md']);
+  expect(rowsOf(order)).toEqual([
+    '1 application',
+    '2 cli-adapter',
+    '3 legacy',
+    '4 README.md',
+    '5 docs/a.md',
+  ]);
   expect(within(order).getByRole('heading', { name: 'Outside the graph' })).toBeDefined();
   await user.click(within(order).getByRole('button', { name: '5 docs/a.md' }));
   expect(within(inspector()).getByRole('heading', { level: 2 }).textContent).toBe(
@@ -2184,7 +2191,6 @@ test("the reading order numbers the changed parts in its order, on the graph too
     within(first ?? order).getByText('3 parts depend on each other: read in name order'),
   ]);
   await user.click(within(order).getByRole('button', { name: '2 cli-adapter' }));
-  expect(document.activeElement).toBe(screen.getByRole('button', { name: 'cli-adapter: added' }));
   expect(within(inspector()).getByRole('heading', { level: 2 }).textContent).toBe('cli-adapter');
 });
 
@@ -2200,21 +2206,15 @@ test('the reading order shows no outside heading when every changed file is draw
   await screen.findByRole('group', { name: 'rust' });
 
   const order = screen.getByRole('navigation', { name: 'Reading order' });
-  expect(
-    within(order)
-      .getAllByRole('button')
-      .map(row => row.textContent),
-  ).toEqual(['1 application']);
+  expect(rowsOf(order)).toEqual(['1 application']);
   expect(within(order).queryByRole('heading', { name: 'Outside the graph' })).toBeNull();
 
   rerender(
     <ReviewPage review={pageWith({ ...review, undrawn: [{ path: 'README.md', patch: '' }] })} />,
   );
-  expect(
-    within(screen.getByRole('navigation', { name: 'Reading order' }))
-      .getAllByRole('button')
-      .map(row => row.textContent),
-  ).toEqual(['1 README.md']);
+  expect(rowsOf(screen.getByRole('navigation', { name: 'Reading order' }))).toEqual([
+    '1 README.md',
+  ]);
 
   rerender(<ReviewPage review={pageWith(review)} />);
   expect(screen.queryByRole('navigation', { name: 'Reading order' })).toBeNull();
@@ -2426,6 +2426,37 @@ test('on the map no box takes a toggle, and a part whose box stands open is mark
   expect(screen.queryByRole('button', { name: 'Collapse utils' })).toBeNull();
 });
 
+test('a row of the reading order and Start reading enter reading, Start reading as J goes; a click in the graph and a finding keep the graph whole', async () => {
+  const user = userEvent.setup();
+  render(<ReviewPage review={{ ...walkedReview(), findings: [findingOn('rust/crate/domain')] }} />);
+  await screen.findByRole('group', { name: 'rust' });
+  const row = (part: string) =>
+    within(readingOrder()).getByRole('button', { name: new RegExp(part) });
+  const inGraph = () => screen.getByRole('group', { name: 'Graph' });
+  const onMap = () => screen.getByRole('group', { name: 'Map' });
+
+  await user.click(screen.getByRole('button', { name: 'domain: unchanged' }));
+  expect(inGraph()).toBeDefined();
+  await user.click(screen.getByRole('button', { name: 'Show 1 finding' }));
+  await user.click(
+    within(screen.getByRole('complementary', { name: 'Findings' })).getByRole('button', {
+      name: 'domain: lines 900, over 800',
+    }),
+  );
+  expect(inGraph()).toBeDefined();
+
+  await user.click(row('legacy'));
+  expect(selectedPart()).toBe('legacy');
+  expect(onMap()).toBeDefined();
+  await waitFor(() => expect(document.activeElement).toBe(headingOfPart()));
+
+  await user.click(screen.getByRole('button', { name: 'Open map' }));
+  await user.click(screen.getByRole('button', { name: 'Close inspector' }));
+  await user.click(within(readingOrder()).getByRole('button', { name: 'Start reading' }));
+  expect(selectedPart()).toBe('application');
+  expect(onMap()).toBeDefined();
+});
+
 test('J and K walk the reading order from the selected part, starting at its first part, going to each as its row does, and stay put at either end', async () => {
   const user = userEvent.setup();
   render(<ReviewPage review={walkedReview()} />);
@@ -2464,8 +2495,10 @@ test("a part's head marks it read and goes to the next part, as A and J do, even
   await user.click(within(rust).getByRole('button', { name: 'domain: unchanged' }));
   expect(head().queryByRole('button', { name: 'Mark read' })).toBeNull();
 
+  expect(screen.getByRole('group', { name: 'Graph' })).toBeDefined();
   await goNext('application');
   expect(selectedPart()).toBe('application');
+  expect(screen.getByRole('group', { name: 'Map' })).toBeDefined();
   expect(markRead().getAttribute('aria-pressed')).toBe('false');
 
   await user.click(markRead());
@@ -2476,9 +2509,7 @@ test("a part's head marks it read and goes to the next part, as A and J do, even
 
   await goNext('cli-adapter');
   expect(selectedPart()).toBe('cli-adapter');
-  await waitFor(() =>
-    expect(document.activeElement).toBe(screen.getByRole('button', { name: 'cli-adapter: added' })),
-  );
+  await waitFor(() => expect(document.activeElement).toBe(headingOfPart()));
   await goNext('legacy');
   expect(selectedPart()).toBe('legacy');
   expect(markRead()).not.toBeNull();

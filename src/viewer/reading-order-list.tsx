@@ -8,6 +8,7 @@ type ReadingOrderListProps = {
   readonly read: ReadonlySet<string>;
   readonly commentable: boolean;
   readonly onGoTo: (id: string) => void;
+  readonly onStart: () => void;
   readonly onShowOutside: (opener: HTMLButtonElement) => void;
 };
 
@@ -32,6 +33,7 @@ export const ReadingOrderList = ({
   read,
   commentable,
   onGoTo,
+  onStart,
   onShowOutside,
 }: ReadingOrderListProps) => {
   if (review.readingOrder.parts.length === 0 && review.undrawn.length === 0) return null;
@@ -49,6 +51,9 @@ export const ReadingOrderList = ({
               parts: review.readingOrder.parts.length,
             })}
           </p>
+          <button type="button" className="start-reading" onClick={onStart}>
+            Start reading
+          </button>
           <p className="reading-keys">
             <kbd>J</kbd> / <kbd>K</kbd> next or previous, <kbd>A</kbd> mark read
             {commentable && (

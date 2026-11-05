@@ -994,6 +994,7 @@ type SidePanelProps = {
   readonly onCloseOutside: () => void;
   readonly onCloseInspector: (id: string) => void;
   readonly onGoTo: (id: string) => void;
+  readonly onWalkTo: (id: string) => void;
   readonly landing: LandingIn | undefined;
   readonly onLand: (landing: LandingIn) => void;
   readonly read: ReadonlySet<string>;
@@ -1024,6 +1025,7 @@ const SidePanel = ({
   onCloseOutside,
   onCloseInspector,
   onGoTo,
+  onWalkTo,
   landing,
   onLand,
   read,
@@ -1120,7 +1122,7 @@ const SidePanel = ({
           read: parts.includes(selected) ? read.has(selected) : undefined,
           onToggleRead: () => onToggleRead(selected),
           next: review.diff.nodes.find(({ id }) => id === nextId),
-          onGoTo,
+          onGoTo: onWalkTo,
         }}
       />
     </CommentAsked.Provider>
@@ -1692,14 +1694,16 @@ const Page = ({ review, notes, send }: ReviewPageProps) => {
   const [read, setRead] = useState(() => storedReadMarks(review.range, stillReadIn(review)));
   useEffect(() => storeReadMarks(review.range, read), [review.range, read]);
   const toggleRead = (id: string) => setRead(current => toggled(current, id));
+  const walkTo = (id: string) => {
+    setReading(true);
+    goTo(id);
+  };
   const walk = (step: number) => {
     const { parts } = review.readingOrder;
     const next = parts.includes(selected ?? '')
       ? (partFrom(parts, selected, step) ?? selected)
       : (parts.find(part => !read.has(part)) ?? parts[0]);
-    if (next === undefined) return;
-    setReading(true);
-    goTo(next);
+    if (next !== undefined) walkTo(next);
   };
   const openMap = () => {
     setReading(false);
@@ -1880,6 +1884,7 @@ const Page = ({ review, notes, send }: ReviewPageProps) => {
         onCloseOutside={closeOutside}
         onCloseInspector={closeInspector}
         onGoTo={goTo}
+        onWalkTo={walkTo}
         landing={landing}
         onLand={line => landOn(selected, line)}
         read={read}
@@ -1918,7 +1923,8 @@ const Page = ({ review, notes, send }: ReviewPageProps) => {
                 read={read}
                 commentable={send !== undefined}
                 findings={findings}
-                onGoTo={goTo}
+                onGoTo={walkTo}
+                onStart={() => walk(1)}
                 onShowOutside={showOutside}
               />
               {!reading && (
