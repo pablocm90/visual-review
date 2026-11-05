@@ -612,3 +612,17 @@ test('a file where only inline tests changed reads as logic, with no symbol chan
   expect(changes.kind).toBe('logic');
   expect(changes.symbols.map(({ change }) => change)).toEqual(['unchanged']);
 });
+
+test.for([
+  { path: 'README.md' },
+  { path: 'tests/orders.rs' },
+  { path: 'crates/shop/tests/orders.rs' },
+])('$path reads no symbols', ({ path }) => {
+  expect(rustReader.symbols?.('pub fn open() {}', path)).toBeUndefined();
+});
+
+test('a file whose name only holds the word tests reads its symbols', () => {
+  expect(rustReader.symbols?.('pub fn open() {}', 'src/my_tests/orders.rs')).toMatchObject({
+    symbols: [{ name: 'open' }],
+  });
+});

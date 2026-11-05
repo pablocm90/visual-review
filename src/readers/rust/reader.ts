@@ -13,6 +13,8 @@ import { readRustTests } from './rust-tests.ts';
 
 const run = promisify(execFile);
 
+const TEST_FOLDER = /(^|\/)tests\//;
+
 const reviewersToolchain = (outside: string): Promise<NodeJS.ProcessEnv> =>
   run('rustup', ['show', 'active-toolchain'], { cwd: outside }).then(
     ({ stdout }) => ({ ...process.env, RUSTUP_TOOLCHAIN: stdout.split(' ')[0] }),
@@ -63,5 +65,6 @@ export const rustReader: Reader = {
   isTestFile: path => path.endsWith('.rs'),
   readTests: readRustTests,
   measure: measureRust,
-  symbols: symbolsOfRust,
+  symbols: (text, path) =>
+    path.endsWith('.rs') && !TEST_FOLDER.test(path) ? symbolsOfRust(text) : undefined,
 };
