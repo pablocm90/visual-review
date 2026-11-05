@@ -904,3 +904,35 @@ test('a test_ method is a test named by the method, so renaming it removes one t
     },
   ]);
 });
+
+test("a changed class reads its symbols, a parse error is kept as the file's, and a changed test file is not read", async () => {
+  using workspace = gitRepo({
+    ...railsApp,
+    'app/models/order.rb': 'class Order\n  def total; 1; end\nend\n',
+    'app/models/broken.rb': 'class Broken\nend\n',
+    'test/models/order_test.rb': 'class OrderTest\n  test "a" do\n  end\nend\n',
+  });
+  const { repo, root } = workspace;
+  const shop = basename(repo);
+  const head = commit(repo, {
+    'app/models/order.rb': 'class Order\n  def total; 2; end\nend\n',
+    'app/models/broken.rb': 'class Broken\n  def (\nend\n',
+    'test/models/order_test.rb': 'class OrderTest\n  test "b" do\n  end\nend\n',
+  });
+
+  const range = await readRange({ repo, from: root, to: head });
+
+  expect(range.symbolsNotRead).toEqual([]);
+  expect(range.symbols).toMatchObject([
+    {
+      node: `${shop}/class/Order`,
+      stack: shop,
+      kind: 'logic',
+      symbols: [
+        { name: 'Order', kind: 'class', change: 'unchanged' },
+        { name: 'total', scope: 'Order', kind: 'method', change: 'edited' },
+      ],
+    },
+    { node: `${shop}/class/Broken`, unreadable: expect.any(String) },
+  ]);
+});

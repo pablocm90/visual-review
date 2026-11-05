@@ -148,12 +148,20 @@ const turnedSymbols = (
     }, []),
   );
 
+const namedAlike = (symbol: ReadSymbol, { symbols }: FileSymbols): ReadonlyArray<ReadSymbol> =>
+  symbols.filter(candidate => sameSymbol(candidate, symbol));
+
+const counterpart = (
+  symbol: ReadSymbol,
+  from: FileSymbols,
+  to: FileSymbols,
+): ReadSymbol | undefined => namedAlike(symbol, to)[namedAlike(symbol, from).indexOf(symbol)];
+
 export const symbolChanges = ({ before, after }: SymbolChangesOptions): SymbolChanges => {
   const unpaired = before.symbols.filter(
-    symbol => !after.symbols.some(candidate => sameSymbol(candidate, symbol)),
+    symbol => counterpart(symbol, before, after) === undefined,
   );
-  const keptFrom = (symbol: ReadSymbol) =>
-    before.symbols.find(candidate => sameSymbol(candidate, symbol));
+  const keptFrom = (symbol: ReadSymbol) => counterpart(symbol, after, before);
   const turned = turnedSymbols(
     unpaired,
     after.symbols.filter(symbol => keptFrom(symbol) === undefined),

@@ -1,10 +1,10 @@
 import type { Node } from '@babel/types';
 import type { FileMeasures } from '../../core/reader.ts';
+import { isTooBig } from '../too-big.ts';
 import {
   childrenOf,
   isFunction,
   isOverload,
-  isTooBig,
   parseTypeScript,
   symbolsIn,
 } from './typescript-syntax.ts';
