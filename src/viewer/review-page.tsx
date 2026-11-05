@@ -85,6 +85,7 @@ import {
   panned,
   pinned,
   resized,
+  ringAround,
   type Size,
   type View,
   zoomed,
@@ -216,7 +217,19 @@ type Drawing = {
   readonly shadeOf: (node: DiffedNode) => Shade | undefined;
   readonly inMap: boolean;
   readonly current: string | undefined;
+  readonly scale: number;
 };
+
+type CurrentRingProps = {
+  readonly node: PlacedNode;
+  readonly drawing: Drawing;
+  readonly rx: number;
+};
+
+const CurrentRing = ({ node, drawing, rx }: CurrentRingProps) =>
+  node.id === drawing.current && (
+    <rect className="current-ring" {...ringAround({ node, scale: drawing.scale })} rx={rx} />
+  );
 
 type ToggleProps = {
   readonly node: PlacedNode;
@@ -262,9 +275,7 @@ const NodeView = ({ node, drawing }: { readonly node: PlacedNode; readonly drawi
           transform={`translate(${node.x} ${node.y})`}
         >
           <rect className="module-box" width={node.width} height={node.height} rx={8} />
-          {node.id === drawing.current && (
-            <rect className="current-ring" width={node.width} height={node.height} rx={8} />
-          )}
+          <CurrentRing node={node} drawing={drawing} rx={8} />
           <text className="module-label" x={16} y={26}>
             {node.label}
             {node.formerLabel !== undefined && (
@@ -309,9 +320,7 @@ const NodeView = ({ node, drawing }: { readonly node: PlacedNode; readonly drawi
           {`${node.path} — ${[node.state, ...(shade === undefined ? [] : [shade.name])].join(', ')}`}
         </title>
         <rect width={node.width} height={node.height} rx={6} />
-        {node.id === drawing.current && (
-          <rect className="current-ring" width={node.width} height={node.height} rx={6} />
-        )}
+        <CurrentRing node={node} drawing={drawing} rx={6} />
         <text x={node.width / 2} y={node.height / 2}>
           {node.formerLabel === undefined ? (
             node.label
@@ -1608,6 +1617,7 @@ const Page = ({ review, notes, send }: ReviewPageProps) => {
     onToggle: toggle,
     inMap: reading,
     current: reading ? selected : undefined,
+    scale: placed?.view.scale ?? 1,
     unroutedOf: (id: string) =>
       dangling.filter(call => visibleOf(call.from) === id).map(call => call.path),
     shadeOf: ({ id, state }: DiffedNode) =>

@@ -9,6 +9,7 @@ import {
   panned,
   pinned,
   resized,
+  ringAround,
   zoomed,
 } from './view.ts';
 
@@ -70,6 +71,29 @@ test.for([
   },
 ])('the map for a graph $graphIs', ({ graph, height }) => {
   expect(mapHeight({ graph, frameWidth: 320 })).toBe(height);
+});
+
+test.for([
+  {
+    nodeIs: 'wide enough on screen, ringed as it is',
+    node: { width: 200, height: 100 },
+    scale: 1,
+    ring: { x: 0, y: 0, width: 200, height: 100 },
+  },
+  {
+    nodeIs: 'too small on screen, ringed at the smallest a ring reads, around its centre',
+    node: { width: 100, height: 40 },
+    scale: 0.02,
+    ring: { x: -450, y: -480, width: 1000, height: 1000 },
+  },
+  {
+    nodeIs: 'too short alone, ringed taller only',
+    node: { width: 200, height: 10 },
+    scale: 1,
+    ring: { x: 0, y: -5, width: 200, height: 20 },
+  },
+])('a node $nodeIs', ({ node, scale, ring }) => {
+  expect(ringAround({ node, scale })).toEqual(ring);
 });
 
 const big = { graph: { width: 2000, height: 2000 }, frame: { width: 1000, height: 1000 } };

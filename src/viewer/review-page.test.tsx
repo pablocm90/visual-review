@@ -2446,6 +2446,20 @@ test('on the map no box takes a toggle, and a part whose box stands open is mark
   expect(screen.queryByRole('button', { name: 'Collapse utils' })).toBeNull();
 });
 
+test('on a map fitted too small to see a part, the ring around the current one stays big enough to find', async () => {
+  const user = userEvent.setup();
+  renderInFrame(walkedReview(), { width: 20, windowHeight: 800 });
+  await screen.findByRole('group', { name: 'rust' });
+
+  await user.keyboard('j');
+
+  await waitFor(() => expect(document.querySelector('.current-ring')).not.toBeNull());
+  const ring = document.querySelector('.current-ring');
+  const widthOf = (element: Element | null | undefined) =>
+    Number(element?.getAttribute('width'));
+  expect(widthOf(ring)).toBeGreaterThan(widthOf(ring?.previousElementSibling));
+});
+
 test('a row of the reading order and Start reading enter reading, Start reading as J goes; a click in the graph and a finding keep the graph whole', async () => {
   const user = userEvent.setup();
   render(<ReviewPage review={{ ...walkedReview(), findings: [findingOn('rust/crate/domain')] }} />);
