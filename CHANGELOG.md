@@ -2,6 +2,17 @@
 
 What changed in each release of `@pablocm90/visual-review`, newest first. Versions follow [semver](https://semver.org); while it is 0.x, a minor version may change the exported types.
 
+## 0.40.0 — 2026-11-05
+
+### Added
+
+- A Routes tab, shown when a change holds a route change: added, removed and changed routes under each route file's name, what's removed first, each with its verb and path, its target before and after, and where it's written. `PATCH` and `PUT` of one path read as one line.
+- The statements not read that were added or removed are listed above a file's routes, with what they sit under, and a route file that couldn't be read says so.
+
+### Changed
+
+- A route's finding opens the Routes tab, where it opened the file's patch, from the rail, Start here and the review tray: a removed route or a new target at its row, a statement not read at its line, and a file's added routes at its section. The review `.json`'s findings carry `route`, naming the row.
+
 ## 0.39.0 — 2026-11-05
 
 ### Added
