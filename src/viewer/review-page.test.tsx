@@ -2349,15 +2349,20 @@ test('the map draws the graph fitted and takes no zoom or pan, and Open map brin
   const user = userEvent.setup();
   const graph = await layoutDiff(review.diff);
   const width = graph.width / 2;
-  renderInFrame(walkedReview(), { width, windowHeight: 10_000 });
+  renderInFrame(walkedReview(), { width, windowHeight: 100 });
   const rust = await screen.findByRole('group', { name: 'rust' });
   const box = boxOf({ layout: graph, id: 'rust/crate/application' });
   if (box === undefined) throw new Error('no box for application');
   const onThePart = centred({
     graph,
-    frame: { width, height: frameHeight({ graph, frameWidth: width, windowHeight: 10_000 }) },
+    frame: { width, height: frameHeight({ graph, frameWidth: width, windowHeight: 100 }) },
     box,
   });
+  const whole = viewOf(rust);
+
+  await user.click(within(rust).getByRole('button', { name: 'domain: unchanged' }));
+  expect(screen.getByRole('group', { name: 'Graph' })).toBeDefined();
+  expect(viewOf(rust)).toBe(whole);
 
   await user.keyboard('j');
 
@@ -2646,6 +2651,23 @@ test('J and K walk the reading order from the selected part, starting at its fir
   await user.keyboard('jjj');
   expect(selectedPart()).toBe('legacy');
   await user.keyboard('kkk');
+  expect(selectedPart()).toBe('application');
+});
+
+test('J at the last part selected in the graph enters reading on it, and with every part read goes from the landing to the first', async () => {
+  const user = userEvent.setup();
+  render(<ReviewPage review={walkedReview()} />);
+  const rust = await screen.findByRole('group', { name: 'rust' });
+
+  await user.click(within(rust).getByRole('button', { name: 'legacy: removed' }));
+  expect(screen.getByRole('group', { name: 'Graph' })).toBeDefined();
+  await user.keyboard('j');
+  expect(selectedPart()).toBe('legacy');
+  expect(screen.getByRole('group', { name: 'Map' })).toBeDefined();
+
+  await user.keyboard('akakak');
+  await user.click(screen.getByRole('button', { name: 'Close inspector' }));
+  await user.keyboard('j');
   expect(selectedPart()).toBe('application');
 });
 
