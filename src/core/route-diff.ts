@@ -43,16 +43,27 @@ const routeChanges = ({ base, head }: Sides): ReadonlyArray<RouteChange> => {
 const unreadKey = ({ root, path, module, text }: UnreadRoute) =>
   JSON.stringify([root, path, module, text]);
 
+const countsOf = (items: ReadonlyArray<UnreadRoute>): ReadonlyMap<string, number> => {
+  const counts = new Map<string, number>();
+  for (const item of items) {
+    const key = unreadKey(item);
+    counts.set(key, (counts.get(key) ?? 0) + 1);
+  }
+  return counts;
+};
+
 const beyond = (
   items: ReadonlyArray<UnreadRoute>,
   others: ReadonlyArray<UnreadRoute>,
 ): ReadonlyArray<UnreadRoute> => {
-  const matching = (list: ReadonlyArray<UnreadRoute>, key: string) =>
-    list.filter(item => unreadKey(item) === key).length;
-  return items.filter(
-    (item, at) =>
-      matching(items.slice(0, at), unreadKey(item)) >= matching(others, unreadKey(item)),
-  );
+  const inOthers = countsOf(others);
+  const seen = new Map<string, number>();
+  return items.filter(item => {
+    const key = unreadKey(item);
+    const before = seen.get(key) ?? 0;
+    seen.set(key, before + 1);
+    return before >= (inOthers.get(key) ?? 0);
+  });
 };
 
 export const diffRoutes = ({ base, head }: Sides): RoutesDiff => ({

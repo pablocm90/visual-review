@@ -124,3 +124,13 @@ test('a second copy of an item not read counts, added or removed', () => {
     { state: 'removed', item: copy },
   ]);
 });
+
+test('thousands of statements not read compare without slowing the review', () => {
+  const items = Array.from({ length: 20_000 }, (_, at) => anUnread({ text: `a${at}` }));
+  expect(diffOfUnread(items, items)).toEqual([]);
+});
+
+test('the same statement written twice and then three times is one added', () => {
+  const item = anUnread();
+  expect(diffOfUnread([item, item], [item, item, item])).toStrictEqual([{ state: 'added', item }]);
+});
