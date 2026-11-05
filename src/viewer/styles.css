@@ -2940,6 +2940,10 @@ main:has(> .review-tray) {
     grid-column: 2;
     max-height: none;
   }
+
+  .columns.reading > .note {
+    position: static;
+  }
 }
 
 .open-map {
