@@ -19,7 +19,7 @@ _Avoid_: category, group, triage
 _In code_: `Lens`, `LENS_OF` (`src/viewer/lenses.ts`)
 
 **Coverage**:
-What the review could say about a dimension a check raises: it was checked, or it wasn't read, or was read only in part, and why. So "checked, none" is said only where it's true.
+What the review could say about a dimension a check raises, across the drawn stacks: it was checked, or it wasn't read, or was read only in part, and why. A changed file outside the graph is read by none of them, and has its own finding.
 _Avoid_: support, status
 _In code_: `Coverage`, `PageData.coverage` (`src/core/coverage.ts`)
 
