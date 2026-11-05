@@ -53,6 +53,7 @@ const readingWith = (overrides: Partial<RangeReading>): RangeReading => ({
   patches: [],
   dependencyChanges: [],
   migrations: [],
+  schemas: [],
   tests: [],
   symbols: [],
   symbolsNotRead: [],
