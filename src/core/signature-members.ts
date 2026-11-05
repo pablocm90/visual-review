@@ -125,14 +125,12 @@ const comparable = (member: string): string =>
     .replace(/[,;|]$/, '')
     .trimEnd();
 
+const lineOf = (change: 'same' | 'added' | 'removed', text: string) =>
+  text === '' ? [] : [{ change, text }];
+
 const edge = (base: string, head: string): ReadonlyArray<SignatureLine> => {
   const [from, to] = [base.trim(), head.trim()];
-  return from === to
-    ? [{ change: 'same', text: to }]
-    : [
-        { change: 'removed', text: from },
-        { change: 'added', text: to },
-      ];
+  return from === to ? lineOf('same', to) : [...lineOf('removed', from), ...lineOf('added', to)];
 };
 
 type Member = { readonly text: string; readonly name: string | undefined };

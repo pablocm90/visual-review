@@ -131,6 +131,16 @@ test('a heading changing alone marks only the opener', () => {
   });
 });
 
+test('an edge with nothing on a side reads no line for it', () => {
+  expect(signatureDiff({ base: 'type A = X | Y', head: 'type A = X | Z' })?.closer).toEqual([]);
+  expect(signatureDiff({ base: 'type A = X | Y;', head: 'type A = X | Y' })?.closer).toEqual([
+    { change: 'removed', text: ';' },
+  ]);
+  expect(signatureDiff({ base: 'type A = X | Y', head: 'type A = X | Y;' })?.closer).toEqual([
+    { change: 'added', text: ';' },
+  ]);
+});
+
 test('an alternative last on one side and not on the other is the same alternative', () => {
   expect(signatureDiff({ base: 'type A = X | Y;', head: 'type A = X | Y | Z;' })?.members).toEqual([
     { change: 'same', text: 'X' },
