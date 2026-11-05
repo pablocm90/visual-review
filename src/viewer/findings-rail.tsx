@@ -18,6 +18,7 @@ import {
   findingLine,
   LevelMark,
 } from './finding-display.tsx';
+import { LENS_OF, LENSES, type Lens } from './lenses.ts';
 import { SaidBefore } from './said-before.tsx';
 
 type FindingsRailProps = {
@@ -52,7 +53,7 @@ type Group = {
   readonly findings: ReadonlyArray<Line>;
 };
 
-export const nameOf = (dimension: Dimension) => {
+const nameOf = (dimension: Dimension) => {
   if (dimension === 'api') return 'API';
   const words = dimension.replace('-', ' ');
   return `${words.charAt(0).toUpperCase()}${words.slice(1)}`;
@@ -251,35 +252,43 @@ export const FindingsRail = (props: FindingsRailProps) => {
   );
 };
 
-type TriageStripProps = {
+type LensChipsProps = {
   readonly findings: ReadonlyArray<Finding>;
-  readonly picked: Dimension | undefined;
-  readonly onPick: (dimension: Dimension | undefined) => void;
+  readonly picked: Lens | undefined;
+  readonly onPick: (lens: Lens | undefined) => void;
 };
 
-export const TriageStrip = ({ findings, picked, onPick }: TriageStripProps) => {
-  const chips = DIMENSIONS.map(dimension => ({
-    dimension,
-    found: findings.filter(finding => finding.dimension === dimension),
-  })).filter(({ found }) => found.length > 0);
-  if (chips.length === 0) return null;
-  return (
-    <div className="triage" role="group" aria-label="Triage">
-      {chips.map(({ dimension, found }) => (
+export const LensChips = ({ findings, picked, onPick }: LensChipsProps) => (
+  <div className="lenses" role="group" aria-label="Lenses">
+    {LENSES.map(lens => {
+      const found = findings.filter(finding => LENS_OF[finding.dimension] === lens);
+      const count = (level: Level) => {
+        const shown = found.filter(finding => finding.level === level).length;
+        return (
+          shown > 0 && (
+            <span className="lens-count">
+              <LevelMark level={level} />
+              {shown}
+            </span>
+          )
+        );
+      };
+      return (
         <button
-          key={dimension}
-          className="chip"
+          key={lens}
+          className={found.length > 0 ? 'chip' : 'chip chip-quiet'}
           type="button"
-          aria-pressed={dimension === picked}
-          onClick={() => onPick(dimension === picked ? undefined : dimension)}
+          aria-pressed={lens === picked}
+          onClick={() => onPick(lens === picked ? undefined : lens)}
         >
-          {found.some(finding => finding.level === 'look') && <LevelMark level="look" />}
-          {`${nameOf(dimension)} ${found.length}`}
+          {lens}
+          {count('info')}
+          {count('look')}
         </button>
-      ))}
-    </div>
-  );
-};
+      );
+    })}
+  </div>
+);
 
 type StartHereProps = LineOptions & {
   readonly findings: ReadonlyArray<Finding>;

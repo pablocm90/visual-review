@@ -1003,7 +1003,7 @@ pre .hljs-emphasis {
   font-size: 12px;
 }
 
-.triage {
+.lenses {
   display: flex;
   flex-wrap: wrap;
   gap: 6px;
@@ -1747,7 +1747,7 @@ pre .hljs-emphasis {
   resize: vertical;
 }
 
-.triage {
+.lenses {
   margin-bottom: 8px;
 }
 
@@ -2750,4 +2750,21 @@ main:has(> .review-tray) {
 .start-here .start-here-opened {
   flex-basis: 100%;
   padding-left: 20px;
+}
+
+.lens-count {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  color: var(--muted);
+}
+
+.chip[aria-pressed="true"] .lens-count {
+  color: inherit;
+}
+
+.chip-quiet[aria-pressed="false"] {
+  border-style: dashed;
+  background: transparent;
+  color: var(--muted);
 }
