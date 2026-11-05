@@ -2447,6 +2447,36 @@ test('on the map no box takes a toggle, and a part whose box stands open is mark
   expect(screen.queryByRole('button', { name: 'Collapse utils' })).toBeNull();
 });
 
+test('while reading, going to a draft on a diff line keeps the column on its row, where a walk lets the heading bring the window to it', async () => {
+  const user = userEvent.setup();
+  const page = pageWithPatch('@@ -1 +1 @@', '-const x = 1;', '+const x = 2;');
+  render(
+    <ReviewPage
+      review={{ ...page, readingOrder: { parts: ['web/file/x.ts'], cycles: [] } }}
+      send={vi.fn(async () => {})}
+    />,
+  );
+  const name = 'x.ts:1 "const x = 1;"';
+  await screen.findByRole('button', { name: 'x.ts: modified' });
+  const focused = vi.spyOn(HTMLElement.prototype, 'focus');
+  onTestFinished(() => focused.mockRestore());
+
+  await user.keyboard('j');
+  await waitFor(() => expect(document.activeElement).toBe(headingOfPart()));
+  expect(focused.mock.lastCall).toEqual([{ preventScroll: false }]);
+
+  await openFold(user, 'Full diff');
+  await user.click(within(diffTab()).getByRole('button', { name: `Comment on ${name}` }));
+  await write(user, within(diffTab()).getByRole('textbox', { name: 'Your comment' }), 'Why?');
+  await openReview(user);
+  await user.click(
+    within(screen.getByRole('list', { name: 'Drafts' })).getByRole('button', { name }),
+  );
+
+  await waitFor(() => expect(document.activeElement).toBe(headingOfPart()));
+  expect(focused.mock.lastCall).toEqual([{ preventScroll: true }]);
+});
+
 test('walking brings the current stop into view in its list, and marking it read leaves the list where it is', async () => {
   const user = userEvent.setup();
   render(<ReviewPage review={walkedReview()} />);

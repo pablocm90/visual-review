@@ -1769,7 +1769,7 @@ const Page = ({ review, notes, send }: ReviewPageProps) => {
   useEffect(() => {
     if (focusTarget === undefined) return;
     if (reading) {
-      if (focusTarget.inGraph) heading.current?.focus();
+      if (focusTarget.inGraph) heading.current?.focus({ preventScroll: landing !== undefined });
       setFocusTarget(undefined);
       return;
     }
@@ -1781,7 +1781,7 @@ const Page = ({ review, notes, send }: ReviewPageProps) => {
       frameElement?.scrollIntoView({ block: 'nearest' });
       setFocusTarget(undefined);
     }
-  }, [layout, focusTarget, frameElement, reading]);
+  }, [layout, focusTarget, frameElement, reading, landing]);
   const content = (
     <div key="content" className="content">
       {!reading && (
