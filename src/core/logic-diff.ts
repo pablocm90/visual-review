@@ -102,14 +102,15 @@ const changed = (old: Decision, decision: Decision): LogicLine => ({
   line: decision.line,
 });
 
-const canPair = (one: Decision, other: Decision): boolean =>
-  one.kind === other.kind && one.subject === other.subject;
+const pairKey = ({ kind, subject }: Decision): string => `${kind} ${tokensOf(subject ?? '')}`;
 
 const linesOfGap = ({ base, head }: Sides): ReadonlyArray<LogicLine> => {
-  const partners = head.map(
-    (decision, index) =>
-      base.filter(one => canPair(one, decision))[
-        head.slice(0, index).filter(one => canPair(one, decision)).length
+  const baseKeys = base.map(pairKey);
+  const headKeys = head.map(pairKey);
+  const partners = headKeys.map(
+    (key, index) =>
+      base.filter((_, at) => baseKeys[at] === key)[
+        headKeys.slice(0, index).filter(earlier => earlier === key).length
       ],
   );
   return [

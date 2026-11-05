@@ -575,6 +575,11 @@ test.for([
     after: ['before_action foo(:a), only: :b'],
   },
   {
+    reason: 'a space added inside its argument',
+    before: ['before_action foo(:a,:b), only: :x'],
+    after: ['before_action foo(:a, :b), only: :y'],
+  },
+  {
     reason: 'its rescue edited',
     before: ['rescue_from Foo, with: :a'],
     after: ['rescue_from Foo, with: :b'],
