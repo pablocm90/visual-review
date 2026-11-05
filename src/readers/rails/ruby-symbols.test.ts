@@ -1,5 +1,6 @@
 import { expect, test } from 'vitest';
 import type { FileSymbols } from '../../core/reader.ts';
+import { symbolChanges } from '../../core/symbol-changes.ts';
 import { railsReader } from './reader.ts';
 
 const source = (...lines: ReadonlyArray<string>) => lines.join('\n');
@@ -14,6 +15,9 @@ const symbolsIn = (...lines: ReadonlyArray<string>) =>
   read(...lines).symbols.map(
     ({ kind, scope, name }) => `${kind} ${scope === undefined ? '' : `${scope}.`}${name}`,
   );
+
+const changesBetween = (before: ReadonlyArray<string>, after: ReadonlyArray<string>) =>
+  symbolChanges({ before: read(...before), after: read(...after) });
 
 test('a class or module is a symbol named by its full constant, with no scope', () => {
   expect(
@@ -415,4 +419,14 @@ test("a method's signature is its parameters, written either way, with no commen
     '(a, b)',
     '(a = [1, 2])',
   ]);
+});
+
+test.for([
+  { edit: 'a comment', before: 'x = 1', after: '# why\nx = 1', kind: 'formatting' },
+  { edit: 'whitespace', before: 'x = 1', after: 'x  =  1\n', kind: 'formatting' },
+  { edit: 'a value', before: 'x = 1', after: 'x = 2', kind: 'logic' },
+  { edit: 'a line break that ends a call', before: 'puts x', after: 'puts\nx', kind: 'logic' },
+  { edit: 'the text of a string', before: 'x = "a b"', after: 'x = "a  b"', kind: 'logic' },
+])('a file whose only change is $edit reads kind $kind', ({ before, after, kind }) => {
+  expect(changesBetween([before], [after]).kind).toBe(kind);
 });

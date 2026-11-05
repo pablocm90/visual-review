@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import type { Node } from 'web-tree-sitter';
 import type { FileSymbols, ReadSymbol } from '../../core/reader.ts';
 import { isTooBig, TOO_BIG } from '../too-big.ts';
@@ -14,6 +15,16 @@ const constantWithin = (written: string, within: string | undefined): string => 
 
 const signatureOf = (definition: Node): string =>
   definition.childForFieldName('superclass')?.text ?? '';
+
+type Shape = string | ReadonlyArray<Shape>;
+
+const shapeOf = (node: Node): Shape =>
+  node.childCount === 0
+    ? node.text
+    : node.children.filter(({ type }) => type !== 'comment').map(child => shapeOf(child));
+
+const hashOf = (shape: Shape): string =>
+  createHash('sha1').update(JSON.stringify(shape)).digest('hex');
 
 const NOT_YET_HASHED = { signatureHash: '', bodyHash: '', textHash: '', bodyTokens: [] };
 
@@ -269,5 +280,9 @@ export const symbolsOfRuby = (text: string): FileSymbols => {
   if (isTooBig(text)) throw new Error(TOO_BIG);
   const program = parseRuby(text);
   if (program === undefined || program.hasError) throw new Error('Ruby that does not parse');
-  return { symbols: walked(STARTING, program, undefined).symbols, exports: [], astHash: '' };
+  return {
+    symbols: walked(STARTING, program, undefined).symbols,
+    exports: [],
+    astHash: hashOf(shapeOf(program)),
+  };
 };
