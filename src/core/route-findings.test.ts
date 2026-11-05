@@ -36,6 +36,7 @@ test('a removed route needs a look, opening the patch that explains it', () => {
   expect(routeFindings(reading(removed({}, 'config/routes/admin.rb')))).toStrictEqual([
     {
       id: 'routes:removed::GET /users',
+      check: 'routes:removed',
       dimension: 'routes',
       level: 'look',
       file: 'config/routes/admin.rb',
@@ -49,6 +50,7 @@ test('a new target at the same path needs a look', () => {
   expect(routeFindings(reading(changed()))).toStrictEqual([
     {
       id: 'routes:changed::GET /users',
+      check: 'routes:changed',
       dimension: 'routes',
       level: 'look',
       file: FILE,
@@ -149,6 +151,7 @@ test('added routes are one finding for information per file, with the count', ()
   ).toStrictEqual([
     {
       id: `routes:added:${FILE}`,
+      check: 'routes:added',
       dimension: 'routes',
       level: 'info',
       file: FILE,
@@ -156,6 +159,7 @@ test('added routes are one finding for information per file, with the count', ()
     },
     {
       id: `routes:added:${admin}`,
+      check: 'routes:added',
       dimension: 'routes',
       level: 'info',
       file: admin,
@@ -197,6 +201,7 @@ test('what cannot be read needs a look, saying whether it came or went', () => {
   ).toStrictEqual([
     {
       id: `routes:not-read:${unreadFile}:devise_for :users`,
+      check: 'routes:not-read',
       dimension: 'routes',
       level: 'look',
       file: FILE,
@@ -205,6 +210,7 @@ test('what cannot be read needs a look, saying whether it came or went', () => {
     },
     {
       id: `routes:not-read:${FILE}:concern :a`,
+      check: 'routes:not-read',
       dimension: 'routes',
       level: 'look',
       file: FILE,
@@ -257,6 +263,7 @@ test('route files that could not be read are one finding that needs a look', () 
   expect(routeFindings([{ file: FILE, notRead: 'Ruby syntax error' }])).toStrictEqual([
     {
       id: `routes:not-read:${FILE}`,
+      check: 'routes:not-read',
       dimension: 'routes',
       level: 'look',
       file: FILE,

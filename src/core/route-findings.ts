@@ -10,6 +10,7 @@ const removalOrNewTarget = ({ verbs, row }: RouteLine): ReadonlyArray<Finding> =
   return [
     {
       id: `routes:${row.state}:${base.root}:${line}`,
+      check: `routes:${row.state}`,
       dimension: 'routes',
       level: 'look',
       file: patch,
@@ -27,6 +28,7 @@ const addedPerFile = (lines: ReadonlyArray<RouteLine>): ReadonlyArray<Finding> =
     ),
   ].map(([file, added]) => ({
     id: `routes:added:${file}`,
+    check: 'routes:added',
     dimension: 'routes',
     level: 'info',
     file,
@@ -46,6 +48,7 @@ const unreadFindings = (rows: ReadonlyArray<UnreadRow>): ReadonlyArray<Finding> 
       `routes:not-read:${file}:${text}`,
       rows.slice(0, at).filter(({ item }) => item.file === file && item.text === text).length,
     ),
+    check: 'routes:not-read',
     dimension: 'routes',
     level: 'look',
     file: patch,
@@ -58,6 +61,7 @@ const findingsOfReading = (reading: RoutesReading): ReadonlyArray<Finding> => {
     return [
       {
         id: `routes:not-read:${reading.file}`,
+        check: 'routes:not-read',
         dimension: 'routes',
         level: 'look',
         file: reading.file,
