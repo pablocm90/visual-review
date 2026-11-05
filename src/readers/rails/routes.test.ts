@@ -611,6 +611,12 @@ test.for([
   { reads: 'another way to add routes', beside: 'Rails.application.routes.append do\nend' },
   { reads: 'a call beside it', beside: 'draw_more' },
   { reads: 'a require sent to something else', beside: 'Foo.require "x"' },
+  { reads: 'a require_relative, whose file can draw', beside: 'require_relative "more"' },
+  { reads: 'a require of a relative path', beside: 'require "./more"' },
+  { reads: 'a require of an absolute path', beside: 'require "/app/more"' },
+  { reads: 'a require of what it cannot read', beside: 'require Rails.root.join("more")' },
+  { reads: 'a require with a block', beside: 'require("x") { draw_more }' },
+  { reads: 'a require of two', beside: 'require "x", "y"' },
 ])('$reads beside a draw is not read, rather than dropped', ({ beside }) => {
   const { routes, unread } = railsRoutes.routes(
     new Map([['config/routes.rb', `${drawing('get "a", to: "b#c"')}${beside}\n`]]),
@@ -632,7 +638,6 @@ test('a load beside a draw joins its file in', () => {
 
 test.for([
   { reads: 'beside a draw', file: `require "sidekiq/web"\n${drawing('get "a", to: "b#c"')}` },
-  { reads: 'relative', file: `require_relative "x"\n${drawing('get "a", to: "b#c"')}` },
   { reads: 'with no draw at all', file: 'require "sidekiq/web"\nget "a", to: "b#c"\n' },
 ])('a require $reads draws nothing and hides nothing', ({ file }) => {
   const table = railsRoutes.routes(new Map([['config/routes.rb', file]]));

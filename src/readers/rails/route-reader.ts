@@ -342,12 +342,22 @@ const scoping = (handler: Handler): Handler =>
 const isDraw = (statement: Node): boolean =>
   methodOf(statement) === 'draw' && statement.childForFieldName('block') !== null;
 
-const REQUIRES: ReadonlySet<string> = new Set(['require', 'require_relative']);
-
 const isBare = (statement: Node): boolean => statement.childForFieldName('receiver') === null;
 
-const isRequire = (statement: Node): boolean =>
-  isBare(statement) && REQUIRES.has(methodOf(statement));
+const REPO_PATH = /^[./]/;
+
+const isGemRequire = (statement: Node): boolean => {
+  const [path, ...rest] = argsOf(statement);
+  return (
+    isBare(statement) &&
+    methodOf(statement) === 'require' &&
+    statement.childForFieldName('block') === null &&
+    rest.length === 0 &&
+    path !== undefined &&
+    isName(path) &&
+    !REPO_PATH.test(nameOf(path))
+  );
+};
 
 const programOf = (file: string, text: string): Node => {
   const program = parseRuby(text);
@@ -358,7 +368,7 @@ const programOf = (file: string, text: string): Node => {
 const drawnFrom = (file: string, scope: Scope): ReadonlyArray<Drawn> => {
   const statements = writtenIn(programOf(file, scope.files.get(file) ?? ''));
   return statements
-    .filter(statement => !isRequire(statement))
+    .filter(statement => !isGemRequire(statement))
     .flatMap(statement =>
       routesIn(statement, { ...scope, file, loading: [...scope.loading, file] }),
     );
