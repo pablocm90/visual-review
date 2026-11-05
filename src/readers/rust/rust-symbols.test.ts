@@ -556,3 +556,34 @@ test.for([
     renamedFrom: 'A',
   });
 });
+
+test.for([
+  { written: 'pub fn a() {}', exports: ['a'] },
+  { written: 'fn a() {}', exports: [] },
+  { written: 'pub(crate) fn a() {}', exports: [] },
+  {
+    written:
+      'pub struct A;\npub enum B {}\npub union C { d: u8 }\npub trait E {}\npub type F = u8;\npub const G: u8 = 1;\npub static H: u8 = 1;\npub mod i;\npub mod j {}',
+    exports: ['A', 'B', 'C', 'E', 'F', 'G', 'H', 'i', 'j'],
+  },
+  { written: 'pub extern crate a as b;', exports: ['b'] },
+  { written: 'pub extern "C" { fn a(); }', exports: [] },
+  { written: 'use a::b;', exports: [] },
+  { written: 'pub(crate) use a::b;', exports: [] },
+  { written: 'pub use b;', exports: ['b'] },
+  { written: 'pub use a::b;', exports: ['b'] },
+  { written: 'pub use a::b as c;', exports: ['c'] },
+  { written: 'pub use a::{d, e as f, g::{h}};', exports: ['d', 'f', 'h'] },
+  { written: 'pub use {a, b::c};', exports: ['a', 'c'] },
+  { written: 'pub use a::{b, /* c */ d};', exports: ['b', 'd'] },
+  { written: 'pub use a::{self};', exports: ['a'] },
+  { written: 'pub use a::b::{self};', exports: ['b'] },
+  { written: 'pub use a::{b::{self}};', exports: ['b'] },
+  { written: 'pub use a::{self as c};', exports: ['c'] },
+  { written: 'pub use a::*;', exports: ['* from a'] },
+  { written: 'pub use a::{b::*};', exports: ['* from a::b'] },
+  { written: 'pub use a::{b::{c::*}};', exports: ['* from a::b::c'] },
+  { written: 'pub use {a::*};', exports: ['* from a'] },
+])('$written exports $exports', ({ written, exports }) => {
+  expect(read(written).exports).toEqual(exports);
+});

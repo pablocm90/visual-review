@@ -246,13 +246,38 @@ const symbolsOfItem = (item: Node): ReadonlyArray<ReadSymbol> => {
   return item.type === 'impl_item' ? methodsOfImpl(item) : [];
 };
 
+const joined = (path: string, part: string): string => (path === '' ? part : `${path}::${part}`);
+
+const namesUsedIn = (node: Node, path: string): ReadonlyArray<string> => {
+  if (isComment(node)) return [];
+  if (node.type === 'use_wildcard')
+    return [`* from ${joined(path, node.namedChildren[0]?.text ?? '')}`];
+  if (node.type === 'use_as_clause') return [node.childForFieldName('alias')?.text ?? ''];
+  if (node.type === 'self') return [path.split('::').at(-1) ?? ''];
+  if (node.type === 'use_list')
+    return node.namedChildren.flatMap(child => namesUsedIn(child, path));
+  const list = node.childForFieldName('list');
+  if (list !== null)
+    return namesUsedIn(list, joined(path, node.childForFieldName('path')?.text ?? ''));
+  return [(node.childForFieldName('name') ?? node).text];
+};
+
+const namesExportedBy = (item: Node): ReadonlyArray<string> => {
+  if (!isExactlyPub(item)) return [];
+  const argument = item.childForFieldName('argument');
+  if (argument !== null) return namesUsedIn(argument, '');
+  return present([item.childForFieldName('alias') ?? item.childForFieldName('name')]).map(
+    ({ text }) => text,
+  );
+};
+
 export const symbolsOfRust = (text: string): FileSymbols => {
   if (isTooBig(text)) throw new Error(TOO_BIG);
   const root = parseRust(text);
   if (root === undefined || root.hasError) throw new Error('Rust that does not parse');
   return {
     symbols: root.namedChildren.flatMap(symbolsOfItem),
-    exports: [],
+    exports: root.namedChildren.flatMap(namesExportedBy),
     astHash: hashOf(shapeOf(root)),
   };
 };
