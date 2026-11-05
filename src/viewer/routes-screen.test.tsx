@@ -96,6 +96,40 @@ test("a route file's patch opens from its section, among the files outside the g
   expect(tabs().getByRole('link', { name: 'Structure' }).getAttribute('aria-current')).toBe('page');
 });
 
+test("a route file's patch opens on the Diff tab of the node holding it", async () => {
+  atHash('#routes');
+  const user = userEvent.setup();
+  const path = 'config/routes.rb';
+  render(
+    <ReviewPage
+      review={pageWith({
+        ...reviewOf([{ file: path, notRead: 'Ruby syntax error' }]),
+        diff: {
+          nodes: [
+            { id: 'config', kind: 'module', label: 'config', path: 'config', state: 'modified' },
+          ],
+          edges: [],
+        },
+        patches: [{ path, patch: `--- a/${path}\n+++ b/${path}\n@@ -1 +1 @@\n-old\n+new` }],
+      })}
+    />,
+  );
+
+  await user.click(
+    within(await screen.findByRole('region', { name: path })).getByRole('button', {
+      name: 'Show patch',
+    }),
+  );
+
+  const inspector = await screen.findByRole('complementary', { name: 'Inspector' });
+  expect(within(inspector).getByRole('heading', { level: 2 }).textContent).toBe('config');
+  expect(within(inspector).getByRole('tab', { name: 'Diff' }).getAttribute('aria-selected')).toBe(
+    'true',
+  );
+  expect(within(inspector).getByRole('group', { name: path }).hasAttribute('open')).toBe(true);
+  expect(tabs().getByRole('link', { name: 'Structure' }).getAttribute('aria-current')).toBe('page');
+});
+
 const route = (overrides: Partial<Route> = {}): Route => ({
   verb: 'GET',
   path: '/users',
