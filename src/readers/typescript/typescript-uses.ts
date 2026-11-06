@@ -66,69 +66,87 @@ const aliasesIn = (text: string, program: Program): ReadonlyArray<Alias> =>
     );
   });
 
-const usesInFile = ({ path, text, target }: Read): FileUses => {
-  const { program, tokens } = parseTypeScript(text, path);
+type Scan = { readonly text: string; readonly code: ReadonlyArray<Token> };
+
+const scanOf = (text: string, { program, tokens }: ReturnType<typeof parseTypeScript>): Scan => {
   const imports = program.body.filter(statement => statement.type === 'ImportDeclaration');
   const outsideImports = (token: Token) =>
     !imports.some(
       statement => startOf(token) >= startOf(statement) && endOf(token) <= endOf(statement),
     );
-  const code = (tokens ?? []).filter(isToken).filter(isCode).filter(outsideImports);
-  const tokenText = (token: Token | undefined) =>
-    token === undefined ? '' : text.slice(startOf(token), endOf(token));
-  const readsOf = (local: string) =>
-    code.flatMap((token, index) =>
-      tokenText(token) === local && !ACCESSES.has(tokenText(code[index - 1]))
-        ? [
-            {
-              token,
-              member: ACCESSES.has(tokenText(code[index + 1]))
-                ? tokenText(code[index + 2])
-                : undefined,
-            },
-          ]
-        : [],
-    );
-  const placeOf = (range: Token | Node) => placeAt(path, text, startOf(range));
-  const loads = code.filter(
-    (token, index) =>
-      LOADERS.has(tokenText(token)) &&
-      !ACCESSES.has(tokenText(code[index - 1])) &&
-      namesFile(tokenText(code[index + 2]).slice(1, -1), path, target),
-  );
-  const exportsFrom = program.body.flatMap(statement =>
-    statement.type === 'ExportNamedDeclaration' &&
-    statement.source &&
-    namesFile(statement.source.value, path, target)
-      ? statement.specifiers.map(specifier => ({ statement, specifier }))
-      : [],
-  );
-  const reexports = exportsFrom.flatMap(({ statement, specifier }) =>
-    specifier.type === 'ExportSpecifier'
+  return { text, code: (tokens ?? []).filter(isToken).filter(isCode).filter(outsideImports) };
+};
+
+const textOf = ({ text }: Scan, token: Token | undefined) =>
+  token === undefined ? '' : text.slice(startOf(token), endOf(token));
+
+const readsOf = (scan: Scan, local: string) =>
+  scan.code.flatMap((token, index) =>
+    textOf(scan, token) === local && !ACCESSES.has(textOf(scan, scan.code[index - 1]))
       ? [
           {
-            statement,
-            from: nameOf(text, specifier.local),
-            to: nameOf(text, specifier.exported),
+            token,
+            member: ACCESSES.has(textOf(scan, scan.code[index + 1]))
+              ? textOf(scan, scan.code[index + 2])
+              : undefined,
           },
         ]
       : [],
   );
-  const namespaceExports = exportsFrom.flatMap(({ statement, specifier }) =>
-    specifier.type === 'ExportNamespaceSpecifier' ? [statement] : [],
+
+type Names = (specifier: string) => boolean;
+
+const loadsOf = (scan: Scan, names: Names) =>
+  scan.code.filter(
+    (token, index) =>
+      LOADERS.has(textOf(scan, token)) &&
+      !ACCESSES.has(textOf(scan, scan.code[index - 1])) &&
+      names(textOf(scan, scan.code[index + 2]).slice(1, -1)),
   );
+
+const exportsFrom = (text: string, program: Program, names: Names) => {
+  const specifiers = program.body.flatMap(statement =>
+    statement.type === 'ExportNamedDeclaration' && statement.source && names(statement.source.value)
+      ? statement.specifiers.map(specifier => ({ statement, specifier }))
+      : [],
+  );
+  return {
+    reexports: specifiers.flatMap(({ statement, specifier }) =>
+      specifier.type === 'ExportSpecifier'
+        ? [
+            {
+              statement,
+              from: nameOf(text, specifier.local),
+              to: nameOf(text, specifier.exported),
+            },
+          ]
+        : [],
+    ),
+    namespaceExports: specifiers.flatMap(({ statement, specifier }) =>
+      specifier.type === 'ExportNamespaceSpecifier' ? [statement] : [],
+    ),
+  };
+};
+
+const usesInFile = ({ path, text, target }: Read): FileUses => {
+  const parsed = parseTypeScript(text, path);
+  const { program } = parsed;
+  const scan = scanOf(text, parsed);
+  const names: Names = specifier => namesFile(specifier, path, target);
+  const placeOf = (range: Token | Node) => placeAt(path, text, startOf(range));
+  const { reexports, namespaceExports } = exportsFrom(text, program, names);
   const aliases = aliasesIn(text, program);
-  const specifiers = imports
-    .filter(statement => namesFile(statement.source.value, path, target))
-    .flatMap(statement => statement.specifiers.map(specifier => ({ statement, specifier })));
+  const specifiers = program.body.flatMap(statement =>
+    statement.type === 'ImportDeclaration' && names(statement.source.value)
+      ? statement.specifiers.map(specifier => ({ statement, specifier }))
+      : [],
+  );
   const namespaceReads = specifiers.flatMap(({ specifier }) =>
-    specifier.type === 'ImportNamespaceSpecifier' ? readsOf(specifier.local.name) : [],
+    specifier.type === 'ImportNamespaceSpecifier' ? readsOf(scan, specifier.local.name) : [],
   );
   const imported = specifiers.flatMap(({ statement, specifier }) => {
     const name = importedName(text, specifier);
-    return name === undefined
-      ? []
-      : [[name, placeOf(readsOf(specifier.local.name)[0]?.token ?? statement)] as const];
+    return name === undefined ? [] : [{ statement, name, local: specifier.local.name }];
   });
   const members = namespaceReads.flatMap(({ token, member }) =>
     member === undefined ? [] : [[member, placeOf(token)] as const],
@@ -136,29 +154,27 @@ const usesInFile = ({ path, text, target }: Read): FileUses => {
   return {
     named: new Map([
       ...reexports.map(({ statement, from }) => [from, placeOf(statement)] as const),
-      ...imported,
+      ...imported.map(
+        ({ statement, name, local }) =>
+          [name, placeOf(readsOf(scan, local)[0]?.token ?? statement)] as const,
+      ),
       ...members.toReversed(),
     ]),
     unfollowed: [
       ...namespaceReads.filter(({ member }) => member === undefined).map(({ token }) => token),
-      ...loads,
+      ...loadsOf(scan, names),
       ...namespaceExports,
     ].map(range => ({ ...placeOf(range), unfollowed: true })),
     forwards: [
-      ...reexports.map(({ from, to }) => ({ from, to })),
-      ...specifiers.flatMap(({ specifier }) => {
-        const from = importedName(text, specifier);
-        return from === undefined
-          ? []
-          : aliases
-              .filter(({ local }) => local === specifier.local.name)
-              .map(({ exported }) => ({ from, to: exported }));
-      }),
+      ...reexports,
+      ...imported.flatMap(({ name, local }) =>
+        aliases
+          .filter(alias => alias.local === local)
+          .map(({ exported }) => ({ from: name, to: exported })),
+      ),
     ],
     forwardsAll: program.body.some(
-      statement =>
-        statement.type === 'ExportAllDeclaration' &&
-        namesFile(statement.source.value, path, target),
+      statement => statement.type === 'ExportAllDeclaration' && names(statement.source.value),
     ),
   };
 };
