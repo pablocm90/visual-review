@@ -1,5 +1,5 @@
 import { readFile } from 'node:fs/promises';
-import { join } from 'node:path';
+import { basename, dirname, join, posix } from 'node:path';
 import type { GraphNode } from '../../core/graph.ts';
 import type { SymbolUse, UsesAsked, UsesReading } from '../../core/reader.ts';
 import { endOf, isCode, isToken, startOf, type Token } from './typescript-symbols.ts';
@@ -12,9 +12,21 @@ const placeAt = (path: string, text: string, offset: number): SymbolUse => {
 
 const ACCESSES = new Set(['.', '?.']);
 
-type Read = { readonly path: string; readonly text: string };
+const moduleOf = (path: string): string => {
+  const stem = path.replace(/\.[cm]?[jt]sx?$/, '');
+  return basename(stem) === 'index' ? dirname(stem) : stem;
+};
 
-const usesInFile = ({ path, text }: Read): ReadonlyMap<string, SymbolUse> => {
+const namesFile = (specifier: string, importer: string, file: string): boolean => {
+  const target = moduleOf(posix.resolve('/', file));
+  return specifier.startsWith('.')
+    ? moduleOf(posix.resolve('/', dirname(importer), specifier)) === target
+    : basename(moduleOf(specifier)) === basename(target);
+};
+
+type Read = { readonly path: string; readonly text: string; readonly target: string };
+
+const usesInFile = ({ path, text, target }: Read): ReadonlyMap<string, SymbolUse> => {
   const { program, tokens } = parseTypeScript(text, path);
   const imports = program.body.filter(statement => statement.type === 'ImportDeclaration');
   const outsideImports = (token: Token) =>
@@ -29,18 +41,20 @@ const usesInFile = ({ path, text }: Read): ReadonlyMap<string, SymbolUse> => {
       (token, index) => tokenText(token) === local && !ACCESSES.has(tokenText(code[index - 1])),
     );
   return new Map(
-    imports.flatMap(statement =>
-      statement.specifiers.flatMap(specifier =>
-        specifier.type === 'ImportSpecifier'
-          ? [
-              [
-                sourceOf(text, specifier.imported),
-                placeAt(path, text, startOf(firstUse(specifier.local.name) ?? statement)),
-              ] as const,
-            ]
-          : [],
+    imports
+      .filter(statement => namesFile(statement.source.value, path, target))
+      .flatMap(statement =>
+        statement.specifiers.flatMap(specifier =>
+          specifier.type === 'ImportSpecifier'
+            ? [
+                [
+                  sourceOf(text, specifier.imported),
+                  placeAt(path, text, startOf(firstUse(specifier.local.name) ?? statement)),
+                ] as const,
+              ]
+            : [],
+        ),
       ),
-    ),
   );
 };
 
@@ -55,9 +69,13 @@ export const usesOfTypeScript = async ({
     .filter(({ to }) => to === node)
     .flatMap(({ from }) => nodes.get(from) ?? []);
   const read = await Promise.all(
-    importers.map(async ({ path }) =>
-      usesInFile({ path, text: await readFile(join(head, path), 'utf8') }),
-    ),
+    graph.nodes
+      .filter(({ id }) => id === node)
+      .flatMap(({ path: target }) =>
+        importers.map(async ({ path }) =>
+          usesInFile({ path, text: await readFile(join(head, path), 'utf8'), target }),
+        ),
+      ),
   );
   return {
     uses: Object.fromEntries(names.map(name => [name, read.flatMap(file => file.get(name) ?? [])])),

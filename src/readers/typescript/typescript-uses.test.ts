@@ -20,9 +20,10 @@ type Scene = {
   readonly files: Readonly<Record<string, string>>;
   readonly edges: ReadonlyArray<string>;
   readonly names: ReadonlyArray<string>;
+  readonly target?: string;
 };
 
-const usesIn = async ({ files, edges, names }: Scene) => {
+const usesIn = async ({ files, edges, names, target = 'a.ts' }: Scene) => {
   const directory = mkdtempSync(join(tmpdir(), 'visual-review-uses-'));
   try {
     writeFiles(
@@ -33,7 +34,7 @@ const usesIn = async ({ files, edges, names }: Scene) => {
       base: directory,
       head: directory,
       graph: graphOf(Object.keys(files), edges),
-      node: idOf('a.ts'),
+      node: idOf(target),
       names,
     });
   } finally {
@@ -61,3 +62,35 @@ test('a file importing a name uses it where it first calls it, or at the import 
     baz: [],
   });
 });
+
+test.for([
+  { specifier: './other', importer: 'b.ts', target: 'a.ts', counts: false },
+  { specifier: '../a', importer: 'sub/b.ts', target: 'a.ts', counts: true },
+  { specifier: './a', importer: 'sub/b.ts', target: 'a.ts', counts: false },
+  { specifier: './a.js', importer: 'b.ts', target: 'a.ts', counts: true },
+  { specifier: './lib', importer: 'b.ts', target: 'lib/index.ts', counts: true },
+  { specifier: './lib/index', importer: 'b.ts', target: 'lib/index.ts', counts: true },
+  { specifier: './', importer: 'lib/b.ts', target: 'lib/index.ts', counts: true },
+  { specifier: '.', importer: 'b.ts', target: 'index.ts', counts: true },
+  { specifier: '@/lib/a', importer: 'b.ts', target: 'a.ts', counts: true },
+  { specifier: '@/lib/a.js', importer: 'b.ts', target: 'a.ts', counts: true },
+  { specifier: '@/lib/other', importer: 'b.ts', target: 'a.ts', counts: false },
+  { specifier: '@/lib', importer: 'b.ts', target: 'lib/index.ts', counts: true },
+])(
+  '$specifier in $importer is $target: $counts',
+  async ({ specifier, importer, target, counts }) => {
+    const reading = await usesIn({
+      files: {
+        'other.ts': 'export const foo = 2;\n',
+        [target]: 'export const foo = 1;\n',
+        [importer]: `import { foo } from '${specifier}';\n`,
+      },
+      edges: [`${importer} -> ${target}`],
+      names: ['foo'],
+      target,
+    });
+    expect(reading?.uses['foo']?.map(({ path }) => path)).toEqual(
+      counts ? [`src/${importer}`] : [],
+    );
+  },
+);
