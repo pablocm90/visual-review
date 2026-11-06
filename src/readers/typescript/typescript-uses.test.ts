@@ -34,6 +34,7 @@ type Scene = {
   readonly names: ReadonlyArray<string>;
   readonly target?: string;
   readonly elsewhere?: ReadonlyArray<string>;
+  readonly outside?: Readonly<Record<string, string>>;
 };
 
 const usesIn = async ({
@@ -43,6 +44,7 @@ const usesIn = async ({
   names,
   target = 'a.ts',
   elsewhere = [],
+  outside = {},
 }: Scene) => {
   const base = mkdtempSync(join(tmpdir(), 'visual-review-uses-base-'));
   const head = mkdtempSync(join(tmpdir(), 'visual-review-uses-head-'));
@@ -50,7 +52,7 @@ const usesIn = async ({
     Object.fromEntries(Object.entries(tree).map(([path, text]) => [`src/${path}`, text]));
   try {
     writeFiles(base, { ...under({ ...files, ...atBase }), 'package.json': '{"name":"@acme/lib"}' });
-    writeFiles(head, under(files));
+    writeFiles(head, { ...under(files), ...outside });
     return await typeScriptReader.uses?.({
       base,
       head,
@@ -567,3 +569,75 @@ test('a file gone at the head has no uses and is not named', async () => {
   });
   expect(reading).toEqual({ uses: { foo: [] }, notRead: [], notFollowed: [NOT_DRAWN] });
 });
+
+test('a file outside the source root, with no node, uses a name as a drawn one does', async () => {
+  const reading = await usesIn({
+    files: { 'a.ts': 'export const foo = 1;\n' },
+    outside: {
+      'package.json': '{"name":"web"}',
+      'test/a.test.ts': "import { foo } from '../src/a';\nfoo();\n",
+    },
+    edges: [],
+    names: ['foo'],
+  });
+
+  expect(reading?.uses).toEqual({
+    foo: [{ path: 'test/a.test.ts', line: 2, text: 'foo();' }],
+  });
+});
+
+test('an outside barrel is followed to the files importing it, by the name it gives', async () => {
+  const reading = await usesIn({
+    files: { 'a.ts': 'export const foo = 1;\n' },
+    outside: {
+      'test/helpers/index.ts': "export { foo as bar } from '../../src/a';\n",
+      'test/b.test.ts': "import { bar } from './helpers';\nbar();\n",
+    },
+    edges: [],
+    names: ['foo'],
+  });
+
+  expect(reading?.uses).toEqual({
+    foo: [
+      expect.objectContaining({ path: 'test/helpers/index.ts' }),
+      expect.objectContaining({ path: 'test/b.test.ts' }),
+    ],
+  });
+});
+
+test.for([
+  { place: 'a nested package', path: 'packages/x/y.ts', own: 'packages/x/package.json' },
+  { place: 'node_modules', path: 'node_modules/x/y.ts', own: 'node_modules/x/z.txt' },
+])("a file in $place isn't this stack's, so it isn't read", async ({ path, own }) => {
+  const reading = await usesIn({
+    files: { 'a.ts': 'export const foo = 1;\n' },
+    outside: { [own]: '{}', [path]: "import { foo } from '/src/a';\nimport * from ;\n" },
+    edges: [],
+    names: ['foo'],
+  });
+
+  expect(reading).toMatchObject({ uses: { foo: [] }, notRead: [] });
+});
+
+test.for([
+  { alias: './lib/*', rootAlias: './src/*', paths: [] },
+  { alias: '../src/*', rootAlias: './lib/*', paths: ['app/z.ts'] },
+])(
+  "a file in another stack's root is read with that stack's aliases: $alias",
+  async ({ alias, rootAlias, paths }) => {
+    const reading = await usesIn({
+      files: { 'a.ts': 'export const foo = 1;\n' },
+      outside: {
+        'tsconfig.json': `{"compilerOptions":{"paths":{"@/*":["${rootAlias}"]}}}`,
+        'app/tsconfig.json': `{"compilerOptions":{"paths":{"@/*":["${alias}"]}}}`,
+        'app/z.ts': "import { foo } from '@/a';\nfoo();\n",
+      },
+      edges: [],
+      names: ['foo'],
+    });
+
+    expect(reading?.uses).toEqual({
+      foo: paths.map(path => expect.objectContaining({ path })),
+    });
+  },
+);

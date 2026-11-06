@@ -2566,7 +2566,7 @@ test('an import through a tsconfig path names only the first place holding a fil
   expect(range.reaches).toEqual([]);
 });
 
-test('what asks a name says what the graph holds no edge for, which reads no row: a type-only re-export, a test outside the source root', async () => {
+test('a type-only re-export and a test outside the source root reach what they name, unless the PR changes them', async () => {
   using repository = gitRepo({ 'README.md': 'a shop\n' });
   const { repo } = repository;
   const base = commit(repo, {
@@ -2574,11 +2574,24 @@ test('what asks a name says what the graph holds no edge for, which reads no row
     'src/a.ts': 'export function foo() {}\nexport type Foo = number;\nexport const kept = 1;\n',
     'src/types.ts': "export type { Foo } from './a.ts';\n",
     'test/a.test.ts': "import { foo } from '../src/a.ts';\nfoo();\n",
+    'test/b.test.ts': "import { foo } from '../src/a.ts';\nfoo();\n",
   });
-  const head = commit(repo, { 'src/a.ts': 'export const kept = 1;\n' });
+  const head = commit(repo, {
+    'src/a.ts': 'export const kept = 1;\n',
+    'test/b.test.ts': 'export const b = 1;\n',
+  });
 
   const range = await readRange({ repo, from: base, to: head });
 
-  expect(range.reaches).toEqual([]);
+  expect(range.reaches.map(({ label, uses }) => ({ label, uses }))).toEqual([
+    {
+      label: 'function foo',
+      uses: [{ path: 'test/a.test.ts', line: 2, text: 'foo();', test: true }],
+    },
+    {
+      label: 'type Foo',
+      uses: [{ path: 'src/types.ts', line: 1, text: "export type { Foo } from './a.ts';" }],
+    },
+  ]);
   expect(range.reachesNotRead).toEqual([NOT_DRAWN]);
 });

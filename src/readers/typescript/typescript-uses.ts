@@ -12,6 +12,7 @@ import {
   type Resolution,
   resolutionIn,
 } from './typescript-config.ts';
+import { scriptsOfStack } from './typescript-outside.ts';
 import {
   defaultExported,
   endOf,
@@ -375,7 +376,21 @@ export const usesOfTypeScript = async ({
   node,
   names,
 }: UsesAsked): Promise<UsesReading> => {
-  const nodes = new Map<string, GraphNode>(graph.nodes.map(each => [each.id, each]));
+  const drawnPaths = new Set(graph.nodes.map(({ path }) => path));
+  const outside: ReadonlyArray<GraphNode> = [...stacks].flatMap(([root, stack]) =>
+    scriptsOfStack({ head, root, roots: [...stacks.keys()] })
+      .filter(path => !drawnPaths.has(path))
+      .map(path => ({
+        id: `${stack}/outside/${path}`,
+        kind: 'file' as const,
+        label: path,
+        parent: stack,
+        path,
+      })),
+  );
+  const nodes = new Map<string, GraphNode>(
+    [...graph.nodes, ...outside].map(each => [each.id, each]),
+  );
   const baseText = await readFile(join(base, node.path), 'utf8');
   const aliases = aliasesIn(baseText, parseTypeScript(baseText, node.path).program);
   const stackOf = (id: string): string => {
@@ -393,7 +408,9 @@ export const usesOfTypeScript = async ({
     return resolution;
   };
   const drawn = new Set(
-    graph.nodes.filter(({ kind }) => kind === 'file').map(({ path }) => moduleAt(head, path)),
+    [...graph.nodes, ...outside]
+      .filter(({ kind }) => kind === 'file')
+      .map(({ path }) => moduleAt(head, path)),
   );
   const visits = await walked({
     hops: names.flatMap(asked => {
@@ -404,10 +421,12 @@ export const usesOfTypeScript = async ({
       ].map(exported => ({ node, exported, asked }));
     }),
     seen: new Set(),
-    importersOf: ({ id }) =>
-      graph.edges
+    importersOf: ({ id }) => [
+      ...graph.edges
         .filter(({ to }) => to === id || to === stackOf(id))
         .flatMap(({ from }) => nodes.get(from) ?? []),
+      ...outside,
+    ],
     read: ({ id, path }, target) =>
       fileUsesAt(
         {
