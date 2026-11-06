@@ -3,6 +3,7 @@ import type { DiffedEdge, DiffedNode, GraphDiff } from './diff-graphs.ts';
 import {
   changesOnly,
   expandedToShow,
+  logicOnly,
   mergedDiff,
   nearChanges,
   sinceLastReview,
@@ -373,4 +374,17 @@ test.for([
   const only = sinceLastReview({ diff, expanded: open, drawn, changed: since });
 
   expect(only.nodes.map(({ id }) => id)).toEqual(kept);
+});
+
+test('logic only keeps the files named with their open boxes and every edge between them, whatever its state, at any expansion', () => {
+  const diff = nested([
+    { from: 'a1', to: 'b1', state: 'unchanged' },
+    { from: 'a2', to: 'b1', state: 'added' },
+    { from: 'a2', to: 'root', state: 'added' },
+  ]);
+
+  const only = logicOnly({ diff, files: ['a1', 'b1'] });
+
+  expect(only.nodes.map(({ id }) => id)).toEqual(['web', 'A', 'B', 'a1', 'b1']);
+  expect(only.edges).toEqual([{ from: 'a1', to: 'b1', state: 'unchanged' }]);
 });
