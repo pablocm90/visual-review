@@ -4,10 +4,11 @@ import { tmpdir } from 'node:os';
 import { basename, join, relative } from 'node:path';
 import { CONFIG_FILE, type Config, parseConfig, type ReaderName } from './config.ts';
 import { diffGraphs, type FilePatch, type GraphDiff, type Rename } from './diff-graphs.ts';
+import { readFileThatEnds } from './file-that-ends.ts';
 import { git } from './git.ts';
 import { type Graph, stackOfIn } from './graph.ts';
 import type { DanglingCall } from './linker.ts';
-import { dropLinksLeaving, resolvesInside } from './links-leaving.ts';
+import { dropLinksLeaving } from './links-leaving.ts';
 import type { Lockfile } from './lockfile.ts';
 import { type MeasuredNode, measuredNodes } from './metrics.ts';
 import type { MigrationReader } from './migration.ts';
@@ -208,9 +209,8 @@ const testsIn = async ({
 const configAt = async (repo: string, revision: string): Promise<Config> => {
   if ((await git(repo, 'ls-tree', '--name-only', revision, '--', CONFIG_FILE)) !== '')
     return parseConfig(await git(repo, 'show', `${revision}:${CONFIG_FILE}`));
-  if (existsSync(join(repo, CONFIG_FILE)) && !(await resolvesInside(repo, CONFIG_FILE)))
-    throw new Error(`${CONFIG_FILE}: a link leaving the repo is not read`);
-  return parseConfig((await textIn(repo, CONFIG_FILE)) ?? '{}');
+  const inWorkingTree = join(repo, CONFIG_FILE);
+  return parseConfig(existsSync(inWorkingTree) ? await readFileThatEnds(inWorkingTree) : '{}');
 };
 
 type ChurnOptions = {

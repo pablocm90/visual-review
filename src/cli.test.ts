@@ -368,25 +368,32 @@ test('a link a sparse checkout leaves out of the checkout does not stop the revi
   expect(run).toMatchObject({ code: 0 });
 }, 30_000);
 
-test('a config link in the working tree leaving the repo stops the review, naming the file', async () => {
+test.each([
+  { name: 'a device', target: '/dev/stdin' },
+  { name: 'a file with no end the system calls regular', target: '/proc/self/pagemap' },
+  { name: 'a folder', target: './src' },
+])(
+  'a config link in the working tree to $name stops the review, naming the file',
+  async ({ target }) => {
+    using workspace = webRepo();
+    const { repo } = workspace;
+    commit(repo, { 'src/a.ts': 'export const a = 2;\n' });
+    symlinkSync(target, join(repo, 'visual-review.config.json'));
+
+    const run = await runCliOnBoundedMemory(repo, 'HEAD~1..HEAD');
+
+    expect(run.code).toBe(1);
+    expect(run.stderr).toContain('visual-review.config.json: not a regular file with contents');
+  },
+  30_000,
+);
+
+test('a config link in the working tree to a file outside the repo applies', async () => {
   using workspace = webRepo();
   const { repo } = workspace;
   commit(repo, { 'src/a.ts': 'export const a = 2;\n' });
-  symlinkSync('/dev/zero', join(repo, 'visual-review.config.json'));
-  commit(repo, { 'src/a.ts': 'export const a = 3;\n' });
-
-  const run = await runCliOnBoundedMemory(repo, 'HEAD~2..HEAD~1');
-
-  expect(run.code).toBe(1);
-  expect(run.stderr).toContain('visual-review.config.json: a link leaving the repo is not read');
-}, 30_000);
-
-test('a config link in the working tree staying in the repo applies', async () => {
-  using workspace = webRepo();
-  const { repo } = workspace;
-  commit(repo, { 'src/a.ts': 'export const a = 2;\n' });
-  writeFileSync(join(repo, 'mine.json'), '{"stacks":{"web":false}}');
-  symlinkSync('./mine.json', join(repo, 'visual-review.config.json'));
+  using elsewhere = gitRepo({ 'shared.json': '{"stacks":{"web":false}}' });
+  symlinkSync(join(elsewhere.repo, 'shared.json'), join(repo, 'visual-review.config.json'));
 
   const run = await runCliOnBoundedMemory(repo, 'HEAD~1..HEAD');
 
