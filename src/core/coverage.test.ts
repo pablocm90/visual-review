@@ -14,6 +14,7 @@ const facts = (overrides: Partial<CoverageFacts> = {}): CoverageFacts => ({
   readers: ['rails'],
   linksNotRead: [],
   routes: [],
+  reachesNotRead: [],
   ...overrides,
 });
 
@@ -30,8 +31,16 @@ test('with nothing unread, each dimension a check raises is listed as checked, a
     { dimension: 'dependencies', notRead: [] },
     { dimension: 'schema', notRead: [] },
     { dimension: 'routes', notRead: [] },
+    { dimension: 'blast-radius', notRead: [] },
     { dimension: 'cohesion', notRead: [] },
   ]);
+});
+
+test("blast radius names what its reading couldn't, unless no stack was drawn", () => {
+  const reachesNotRead = ['not read: web/src/broken.ts'];
+
+  expect(notReadIn('blast-radius', { reachesNotRead })).toEqual(reachesNotRead);
+  expect(notReadIn('blast-radius', { reachesNotRead, readers: [] })).toEqual(['no stack drawn']);
 });
 
 test('structure names a skipped stack, and cohesion stays checked', () => {
@@ -43,7 +52,7 @@ test('structure names a skipped stack, and cohesion stays checked', () => {
   expect(notReadIn('cohesion', { skipped })).toEqual([]);
 });
 
-test.for(['logic', 'api', 'tests'] as const)(
+test.for(['logic', 'api', 'tests', 'blast-radius'] as const)(
   '%s names, once each, the skipped stacks and those whose reader reads no symbols',
   dimension => {
     const skipped = [{ reader: 'rust' as const, tool: 'cargo', stacks: ['api', 'worker'] }];
@@ -56,7 +65,7 @@ test.for(['logic', 'api', 'tests'] as const)(
   },
 );
 
-test.for(['logic', 'api', 'tests'] as const)(
+test.for(['logic', 'api', 'tests', 'blast-radius'] as const)(
   '%s names a file whose symbols are unreadable',
   dimension => {
     const symbols = [{ stack: 'web', node: 'web/src/broken.ts', unreadable: 'SyntaxError' }];

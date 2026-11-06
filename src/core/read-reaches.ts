@@ -1,5 +1,5 @@
 import type { MeasuredNode } from './metrics.ts';
-import type { SymbolFile } from './read-range.ts';
+import type { RangeReading, SymbolFile } from './read-range.ts';
 import type { StacksReading } from './read-stacks.ts';
 import type { SymbolUse } from './reader.ts';
 import { anchoredSymbols, removalOf, unbackedExports } from './symbol-findings.ts';
@@ -56,6 +56,10 @@ type ReadReachesOptions = {
   readonly pathOf: (id: string) => string;
 };
 
+type FileReaches = Pick<RangeReading, 'reaches' | 'reachesNotRead'>;
+
+const NOTHING_READ: FileReaches = { reaches: [], reachesNotRead: [] };
+
 export const readReaches = async ({
   sides,
   before,
@@ -63,11 +67,11 @@ export const readReaches = async ({
   measured,
   changedPaths,
   pathOf,
-}: ReadReachesOptions): Promise<ReadonlyArray<Reach>> => {
+}: ReadReachesOptions): Promise<FileReaches> => {
   const changed = new Set(changedPaths);
   const read = await Promise.all(
-    symbols.map(async (file): Promise<ReadonlyArray<Reach>> => {
-      if ('unreadable' in file) return [];
+    symbols.map(async (file): Promise<FileReaches> => {
+      if ('unreadable' in file) return NOTHING_READ;
       const reader = before.stacks.find(({ stack }) => stack === file.stack)?.reader;
       const basePath = measured.find(({ id }) => id === file.node)?.basePath;
       const node = before.graph.nodes.find(({ path }) => path === basePath);
@@ -78,8 +82,8 @@ export const readReaches = async ({
         node === undefined ||
         symbolsAsked.length + exportsAsked.length === 0
       )
-        return [];
-      const { uses } = await reader.uses({
+        return NOTHING_READ;
+      const { uses, notRead } = await reader.uses({
         base: sides.before,
         head: sides.after,
         graph: before.graph,
@@ -99,16 +103,22 @@ export const readReaches = async ({
         rows.length === 0 ? [] : [{ node: file.node, ...reach, uses: rows }];
       const symbolReaches = symbolsAsked.flatMap(asked => reachOf(asked, rowsOf(asked.name)));
       const reached = new Set(symbolReaches.flatMap(({ uses }) => uses.map(placeOf)));
-      return [
-        ...symbolReaches,
-        ...exportsAsked.flatMap(asked =>
-          reachOf(
-            asked,
-            rowsOf(asked.name).filter(use => !reached.has(placeOf(use))),
+      return {
+        reaches: [
+          ...symbolReaches,
+          ...exportsAsked.flatMap(asked =>
+            reachOf(
+              asked,
+              rowsOf(asked.name).filter(use => !reached.has(placeOf(use))),
+            ),
           ),
-        ),
-      ];
+        ],
+        reachesNotRead: notRead.filter(path => !changed.has(path)).map(path => `not read: ${path}`),
+      };
     }),
   );
-  return read.flat();
+  return {
+    reaches: read.flatMap(({ reaches }) => reaches),
+    reachesNotRead: [...new Set(read.flatMap(({ reachesNotRead }) => reachesNotRead))],
+  };
 };

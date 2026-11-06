@@ -1443,6 +1443,32 @@ test("a renamed file's removed export reaches through its name at the base", asy
   ]);
 });
 
+test("an unchanged candidate that can't be read is named once, the other rows still there, and a changed one isn't", async () => {
+  using repository = gitRepo({ 'README.md': 'a shop\n' });
+  const { repo } = repository;
+  const tooLong = `// ${'x'.repeat(1001)}\n`;
+  const base = commit(repo, {
+    ...rootPackage,
+    'src/a.ts': 'export function foo() {}\nexport function bar() {}\nexport const kept = 2;\n',
+    'src/b.ts': 'export function baz() {}\nexport const kept = 2;\n',
+    'src/huge.ts': `import { foo } from './a.ts';\nimport { baz } from './b.ts';\n${tooLong}`,
+    'src/uses.ts': "import { foo } from './a.ts';\nfoo();\n",
+    'src/fixed.ts': "import { bar } from './a.ts';\nbar();\n",
+  });
+  const head = commit(repo, {
+    'src/a.ts': 'export const kept = 2;\n',
+    'src/b.ts': 'export const kept = 2;\n',
+    'src/fixed.ts': `import { bar } from './a.ts';\n${tooLong}`,
+  });
+
+  const range = await readRange({ repo, from: base, to: head });
+
+  expect(range.reaches.flatMap(({ uses }) => uses.map(({ path }) => path))).toEqual([
+    'src/uses.ts',
+  ]);
+  expect(range.reachesNotRead).toEqual(['not read: src/huge.ts']);
+});
+
 test('a file renamed from what its reader cannot parse has nothing to ask, so is not read for its names', async () => {
   using repository = gitRepo({ 'README.md': 'a shop\n' });
   const { repo } = repository;

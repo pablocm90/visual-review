@@ -85,6 +85,7 @@ export type RangeReading = {
   readonly symbols: ReadonlyArray<SymbolFile>;
   readonly symbolsNotRead: ReadonlyArray<string>;
   readonly reaches: ReadonlyArray<Reach>;
+  readonly reachesNotRead: ReadonlyArray<string>;
   readonly dependencyChanges: ReadonlyArray<DependencyChanges>;
   readonly migrations: ReadonlyArray<MigrationReading>;
   readonly schemas: ReadonlyArray<SchemaReading>;
@@ -576,14 +577,14 @@ export const readRange = async ({
       measures,
       measuresNotRead,
       ...anchors,
-      reaches: await readReaches({
+      ...(await readReaches({
         sides,
         before,
         symbols: anchors.symbols,
         measured,
         changedPaths,
         pathOf: id => diff.nodes.find(node => node.id === id)?.path ?? id,
-      }),
+      })),
       dependencyChanges: await readLockfiles({ repo, base, head: toCommit, changes, lockfiles }),
       migrations: await readMigrations({ repo, base, head: toCommit, changes, migrations }),
       schemas: await readSchemas({ repo, base, head: toCommit, changes, schemas }),
