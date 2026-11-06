@@ -32,7 +32,7 @@ const TsconfigSchema = z.object({
 });
 
 const tsconfigAt = (tsconfig: string): z.infer<typeof TsconfigSchema> =>
-  existsSync(tsconfig)
+  existsSync(tsconfig) && statSync(tsconfig).isFile()
     ? (TsconfigSchema.safeParse(parse(readFileSync(tsconfig, 'utf8'))).data ?? {})
     : {};
 
@@ -146,11 +146,16 @@ const withExtension = (config: string): string =>
 
 const laterWins = (earlier: Aliases, later: Aliases): Aliases => ({ ...earlier, ...later });
 
-const aliasesAt = (
-  directory: string,
-  config: string,
-  known: Map<string, Aliases> = new Map(),
-): Aliases => {
+const RELATIVE_NAME = /^\.\.?\//;
+
+type AliasReading = {
+  readonly directory: string;
+  readonly stays: (place: string) => boolean;
+  readonly known: Map<string, Aliases>;
+};
+
+const aliasesAt = (reading: AliasReading, config: string): Aliases => {
+  const { directory, stays, known } = reading;
   const already = known.get(config);
   if (already !== undefined) return already;
   known.set(config, {});
@@ -160,7 +165,10 @@ const aliasesAt = (
   const aliases = {
     ...[extended]
       .flat()
-      .map(entry => aliasesAt(directory, withExtension(join(from, entry)), known))
+      .filter(entry => RELATIVE_NAME.test(entry))
+      .map(entry => withExtension(join(from, entry)))
+      .filter(stays)
+      .map(entry => aliasesAt(reading, entry))
       .reduce(laterWins, {}),
     ...(baseUrl === undefined || isAbsolute(baseUrl) ? {} : { baseUrl: join(from, baseUrl) }),
     ...(paths === undefined ? {} : { paths: { places: paths, from } }),
@@ -172,7 +180,10 @@ const aliasesAt = (
 const resolutionIn = ({ checkout, root }: RootOptions) => {
   const directory = join(checkout, root);
   const stays = staysInCheckout(root);
-  const { baseUrl, paths: pathsSaid } = aliasesAt(directory, 'tsconfig.json');
+  const { baseUrl, paths: pathsSaid } = aliasesAt(
+    { directory, stays, known: new Map() },
+    'tsconfig.json',
+  );
   const { places: paths = {}, from = '.' } = pathsSaid ?? {};
   const base = baseUrl !== undefined && stays(baseUrl) ? baseUrl : undefined;
   const placesOf = (places: ReadonlyArray<string>) =>

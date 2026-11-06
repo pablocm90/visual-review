@@ -479,6 +479,14 @@ test.for([
     },
   },
   {
+    how: 'a climb that stays in the checkout',
+    configs: {
+      'tsconfig.json': { extends: './config/one' },
+      'config/one.json': { extends: '../base' },
+      'base.json': aliasTo('./src/*'),
+    },
+  },
+  {
     how: 'places relative to an inherited baseUrl',
     configs: {
       'tsconfig.json': { extends: './config/base', ...aliasTo('./*') },
@@ -535,6 +543,47 @@ test.for([
   const range = await readRange({ repo, from: root, to: root });
 
   expect(range.after.edges).toEqual([{ from: 'shop/file/b.ts', to: 'shop/file/lib/a.ts' }]);
+});
+
+test.for([
+  { how: 'an absolute name', name: () => '/outside.json' },
+  {
+    how: 'a climb out of the checkout',
+    name: (repo: string) => `${'../'.repeat(30)}${repo}/outside.json`,
+  },
+  { how: 'a package', name: () => 'outside' },
+  { how: 'a package whose name climbs', name: () => 'package/../outside' },
+])('a tsconfig extending $how reads nothing from it', async ({ name }) => {
+  using workspace = gitRepo({
+    'package.json': '{ "name": "shop" }\n',
+    'mine.json': JSON.stringify(aliasTo('./src/*')),
+    'outside.json': JSON.stringify({ compilerOptions: { paths: { '~/*': ['./src/*'] } } }),
+    'src/a.ts': 'export const a = 1;\n',
+    'src/b.ts': "import { a } from '@/a';\nexport const b = a;\n",
+  });
+  const { repo, root } = workspace;
+  const head = commit(repo, {
+    'tsconfig.json': JSON.stringify({ extends: ['./mine.json', name(repo)] }),
+  });
+
+  const range = await readRange({ repo, from: root, to: head });
+
+  expect(range.after.edges).toEqual([{ from: 'shop/file/b.ts', to: 'shop/file/a.ts' }]);
+});
+
+test('a tsconfig extending a directory still reads its own paths', async () => {
+  using workspace = gitRepo({
+    'package.json': '{ "name": "shop" }\n',
+    'tsconfig.json': JSON.stringify({ extends: './config.json', ...aliasTo('./src/*') }),
+    'config.json/keep': '',
+    'src/a.ts': 'export const a = 1;\n',
+    'src/b.ts': "import { a } from '@/a';\nexport const b = a;\n",
+  });
+  const { repo, root } = workspace;
+
+  const range = await readRange({ repo, from: root, to: root });
+
+  expect(range.after.edges).toEqual([{ from: 'shop/file/b.ts', to: 'shop/file/a.ts' }]);
 });
 
 test('the nearest tsconfig paths replace what it extends wholly', async () => {
