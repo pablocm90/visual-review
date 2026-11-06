@@ -2,7 +2,8 @@ import type { MeasuredNode } from './metrics.ts';
 import type { RangeReading, SymbolFile } from './read-range.ts';
 import type { StacksReading } from './read-stacks.ts';
 import type { SymbolUse } from './reader.ts';
-import { anchoredSymbols, removalOf, unbackedExports } from './symbol-findings.ts';
+import type { SymbolStatement } from './symbol-changes.ts';
+import { anchoredSymbols, removalOf, unbackedExports, unheld } from './symbol-findings.ts';
 
 export type ReachingUse = SymbolUse & { readonly test?: true };
 
@@ -23,19 +24,30 @@ type Asked = {
 
 type Readable = Exclude<SymbolFile, { readonly unreadable: string }>;
 
+const askOf = (
+  item: SymbolStatement,
+  pathOf: (id: string) => string,
+): Omit<Asked, 'id'> | undefined => {
+  const removal = removalOf(item, pathOf);
+  if (removal !== undefined)
+    return { label: `${item.kind} ${removal.former}`, how: removal.how, name: removal.former };
+  return item.signature !== undefined && item.exported.base === true
+    ? { label: `${item.kind} ${item.name}`, how: 'signature changed', name: item.name }
+    : undefined;
+};
+
 const askedOf = (file: Readable, pathOf: (id: string) => string): ReadonlyArray<Asked> =>
   anchoredSymbols(file.node, file.symbols)
     .filter(({ item }) => item.scope === undefined)
     .flatMap(({ item, id }) => {
-      const removal = removalOf(item, pathOf);
-      if (removal !== undefined)
-        return [
-          { id, label: `${item.kind} ${removal.former}`, how: removal.how, name: removal.former },
-        ];
-      return item.signature !== undefined && item.exported.base === true
-        ? [{ id, label: `${item.kind} ${item.name}`, how: 'signature changed', name: item.name }]
-        : [];
+      const ask = askOf(item, pathOf);
+      return ask === undefined ? [] : [{ id, ...ask }];
     });
+
+const methodsAskedIn = (file: Readable, pathOf: (id: string) => string): boolean =>
+  unheld(anchoredSymbols(file.node, file.symbols)).some(
+    ({ item }) => item.scope !== undefined && askOf(item, pathOf) !== undefined,
+  );
 
 const unbackedAsked = (file: Readable): ReadonlyArray<Asked> =>
   unbackedExports(file).removed.map(name => ({
@@ -79,12 +91,10 @@ export const readReaches = async ({
       const node = before.graph.nodes.find(({ path }) => path === basePath);
       const symbolsAsked = askedOf(file, pathOf);
       const exportsAsked = unbackedAsked(file);
-      if (
-        reader?.uses === undefined ||
-        node === undefined ||
-        symbolsAsked.length + exportsAsked.length === 0
-      )
-        return NOTHING_READ;
+      const methods = methodsAskedIn(file, pathOf) ? ['methods not followed'] : [];
+      if (reader?.uses === undefined || node === undefined) return NOTHING_READ;
+      if (symbolsAsked.length + exportsAsked.length === 0)
+        return { reaches: [], reachesNotRead: methods };
       const { uses, notRead } = await reader.uses({
         base: sides.before,
         head: sides.after,
@@ -115,7 +125,10 @@ export const readReaches = async ({
             ),
           ),
         ],
-        reachesNotRead: notRead.filter(path => !changed.has(path)).map(path => `not read: ${path}`),
+        reachesNotRead: [
+          ...methods,
+          ...notRead.filter(path => !changed.has(path)).map(path => `not read: ${path}`),
+        ],
       };
     }),
   );

@@ -1503,6 +1503,49 @@ test("a removed method isn't asked about by itself", async () => {
   const range = await readRange({ repo, from: base, to: head });
 
   expect(range.reaches).toEqual([]);
+  expect(range.reachesNotRead).toEqual(['methods not followed']);
+});
+
+test('a removed method beside a removed function still says methods are not followed', async () => {
+  using repository = gitRepo({ 'README.md': 'a shop\n' });
+  const { repo } = repository;
+  const base = commit(repo, {
+    ...rootPackage,
+    'src/a.ts': 'export class Foo {\n  bar() {}\n  baz() {}\n}\nexport function gone() {}\n',
+  });
+  const head = commit(repo, { 'src/a.ts': 'export class Foo {\n  baz() {}\n}\n' });
+
+  const range = await readRange({ repo, from: base, to: head });
+
+  expect(range.reachesNotRead).toEqual(['methods not followed']);
+});
+
+test.for([
+  {
+    reason: 'a method whose body changed',
+    a: 'export class Foo {\n  bar() {\n    return 2;\n  }\n}\n',
+  },
+  {
+    reason: 'a method of a class never exported',
+    from: 'class Foo {\n  bar() {}\n  baz() {}\n}\nexport const f = Foo;\n',
+    a: 'class Foo {\n  baz() {}\n}\nexport const f = Foo;\n',
+  },
+  {
+    reason: 'a class removed whole, which is followed by its own name',
+    a: 'export const other = 1;\n',
+  },
+])('$reason leaves methods out of what blast radius lacks', async ({ from, a }) => {
+  using repository = gitRepo({ 'README.md': 'a shop\n' });
+  const { repo } = repository;
+  const base = commit(repo, {
+    ...rootPackage,
+    'src/a.ts': from ?? 'export class Foo {\n  bar() {\n    return 1;\n  }\n}\n',
+  });
+  const head = commit(repo, { 'src/a.ts': a });
+
+  const range = await readRange({ repo, from: base, to: head });
+
+  expect(range.reachesNotRead).toEqual([]);
 });
 
 test("a changed file of a stack whose reader follows no uses says so, and a stack the base doesn't hold has nothing to follow", async () => {

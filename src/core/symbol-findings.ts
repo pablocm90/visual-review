@@ -43,7 +43,7 @@ const isAddedExport = ({ exported }: SymbolStatement): boolean =>
 const raisesItsOwn = (statement: SymbolStatement): boolean =>
   removalOf(statement, id => id) !== undefined || isAddedExport(statement);
 
-const unheld = (symbols: ReadonlyArray<AnchoredSymbol>): ReadonlyArray<AnchoredSymbol> => {
+export const unheld = (symbols: ReadonlyArray<AnchoredSymbol>): ReadonlyArray<AnchoredSymbol> => {
   const holders = new Set(
     symbols
       .map(({ item }) => item)
