@@ -3,7 +3,7 @@ import type { MeasuredNode } from './metrics.ts';
 import type { RangeReading, SymbolFile } from './read-range.ts';
 import type { StacksReading } from './read-stacks.ts';
 import type { Reader, SymbolUse, UsesReading } from './reader.ts';
-import type { SymbolStatement } from './symbol-changes.ts';
+import { qualified, type SymbolStatement } from './symbol-changes.ts';
 import { anchoredSymbols, removalOf, unbackedExports, unheld } from './symbol-findings.ts';
 
 export type ReachingUse = SymbolUse & { readonly test?: true };
@@ -32,23 +32,17 @@ const askOf = (
   const removal = removalOf(item, pathOf);
   if (removal !== undefined)
     return { label: `${item.kind} ${removal.former}`, how: removal.how, name: removal.former };
+  const name = qualified(item);
   return item.signature !== undefined && item.exported.base === true
-    ? { label: `${item.kind} ${item.name}`, how: 'signature changed', name: item.name }
+    ? { label: `${item.kind} ${name}`, how: 'signature changed', name }
     : undefined;
 };
 
 const askedOf = (file: Readable, pathOf: (id: string) => string): ReadonlyArray<Asked> =>
-  anchoredSymbols(file.node, file.symbols)
-    .filter(({ item }) => item.scope === undefined)
-    .flatMap(({ item, id }) => {
-      const ask = askOf(item, pathOf);
-      return ask === undefined ? [] : [{ id, ...ask }];
-    });
-
-const methodsAskedIn = (file: Readable, pathOf: (id: string) => string): boolean =>
-  unheld(anchoredSymbols(file.node, file.symbols)).some(
-    ({ item }) => item.scope !== undefined && askOf(item, pathOf) !== undefined,
-  );
+  unheld(anchoredSymbols(file.node, file.symbols)).flatMap(({ item, id }) => {
+    const ask = askOf(item, pathOf);
+    return ask === undefined ? [] : [{ id, ...ask }];
+  });
 
 const unbackedAsked = (file: Readable): ReadonlyArray<Asked> =>
   unbackedExports(file).removed.map(name => ({
@@ -124,23 +118,24 @@ type Asking = {
   readonly file: Readable;
   readonly reader: Reader;
   readonly ask: NonNullable<Reader['uses']>;
-  readonly root: string;
   readonly node: GraphNode;
 };
 
 const askReader = async (
   { sides, before, changedPaths, pathOf }: ReadReachesOptions,
-  { file, reader, ask, root, node }: Asking,
+  { file, reader, ask, node }: Asking,
 ): Promise<FileReaches> => {
   const symbolsAsked = askedOf(file, pathOf);
   const exportsAsked = unbackedAsked(file);
-  const methods = methodsAskedIn(file, pathOf) ? ['methods not followed'] : [];
-  if (symbolsAsked.length + exportsAsked.length === 0)
-    return { reaches: [], reachesNotRead: methods };
+  if (symbolsAsked.length + exportsAsked.length === 0) return NOTHING_READ;
   const { uses, notRead, notFollowed } = await ask({
     base: sides.before,
     head: sides.after,
-    root,
+    stacks: new Map(
+      before.stacks
+        .filter(drawn => drawn.reader === reader)
+        .map(({ root, stack }) => [root, stack]),
+    ),
     graph: before.graph,
     node,
     names: [...symbolsAsked, ...exportsAsked].map(({ name }) => name),
@@ -153,10 +148,6 @@ const askReader = async (
       rowsOf: rowsOfIn({ reader, uses, changedPaths }),
     }),
     reachesNotRead: [
-      ...methods,
-      ...(before.roots.filter(root => root.reader === reader).length > 1
-        ? ['other stacks not followed']
-        : []),
       ...notRead.filter(path => !changedPaths.includes(path)).map(path => `not read: ${path}`),
       ...notFollowed,
     ],
@@ -176,7 +167,6 @@ const readFile = async (options: ReadReachesOptions, file: Readable): Promise<Fi
         file,
         reader: drawn.reader,
         ask: drawn.reader.uses,
-        root: drawn.root,
         node,
       }).catch((error: unknown) => ({
         reaches: [],

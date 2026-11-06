@@ -1,11 +1,10 @@
-import { existsSync, globSync, readFileSync, statSync } from 'node:fs';
+import { existsSync, globSync, statSync } from 'node:fs';
 import { basename, dirname, join, relative } from 'node:path';
 import { cruise } from 'dependency-cruiser';
-import { parse } from 'jsonc-parser';
-import { z } from 'zod';
 import { folderOf, type StackSettings } from '../../core/config.ts';
 import type { CandidateRoot, Reader } from '../../core/reader.ts';
 import {
+  packageNameIn,
   type RootOptions,
   resolutionIn,
   staysInCheckout,
@@ -40,15 +39,6 @@ const sourceRootOf = ({ checkout, root }: RootOptions): string => {
   const rootDir = compilerOptions?.rootDir;
   if (rootDir !== undefined && stays(rootDir)) return folderOf(rootDir);
   return folder !== undefined && others.length === 0 ? folder : 'src';
-};
-
-const PackageSchema = z.object({ name: z.string().optional() });
-
-const packageNameIn = (directory: string): string | undefined => {
-  const manifest = join(directory, 'package.json');
-  return existsSync(manifest)
-    ? PackageSchema.safeParse(parse(readFileSync(manifest, 'utf8'))).data?.name
-    : undefined;
 };
 
 const sourceRootIn = (options: RootOptions, { sourceRoot }: StackSettings): string =>
