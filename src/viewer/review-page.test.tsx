@@ -10122,6 +10122,39 @@ test("on 'Logic only' a file's card counts its changed decisions and exits and i
   );
 });
 
+test("on 'Logic only' a tick selects its file and lands on its row in What changed; in the reading map it only goes to its part", async () => {
+  const user = userEvent.setup();
+  render(
+    <ReviewPage
+      review={{
+        ...pageOfLogic(),
+        readingOrder: { parts: ['web/file/refund.ts', 'web/file/cart.ts'], cycles: [] },
+      }}
+    />,
+  );
+  await user.click(await screen.findByRole('button', { name: 'Logic only' }));
+  const tickOn = (file: string, name: string) =>
+    within(screen.getByRole('button', { name: new RegExp(`^${file}: modified`) })).findByRole(
+      'button',
+      { name },
+    );
+  const landedRows = () => whatChanged().querySelectorAll('li[aria-current="true"]');
+
+  await user.click(await tickOn('cart\\.ts', 'added if: if (empty)'));
+
+  expect(landedRows()).toHaveLength(1);
+  expect(landedRows()[0]?.getAttribute('aria-label')).toBe('added if: if (empty)');
+
+  await user.keyboard('k');
+  await screen.findByRole('button', { name: 'Open map' });
+  await user.click(await tickOn('cart\\.ts', 'added if: if (empty)'));
+
+  expect(
+    await within(whatChanged()).findByRole('listitem', { name: 'added if: if (empty)' }),
+  ).toBeTruthy();
+  expect(landedRows()).toHaveLength(0);
+});
+
 test("on 'Logic only', going to a part it holds stays, and to one it doesn't goes to 'Changes only' and wider", async () => {
   const user = userEvent.setup();
   render(

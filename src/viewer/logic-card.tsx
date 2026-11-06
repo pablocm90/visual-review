@@ -114,7 +114,17 @@ const markOf = (line: LogicLine): { readonly y: number; readonly height: number 
 const boxPath = (x: number, y: number, width: number, height: number): string =>
   `M${x} ${y}h${width}v${height}h${-width}z`;
 
-const Tick = ({ decision, x }: { readonly decision: StripRow; readonly x: number }) => {
+type OnTick = ((decision: string) => void) | undefined;
+
+const Tick = ({
+  decision,
+  x,
+  onTick,
+}: {
+  readonly decision: StripRow;
+  readonly x: number;
+  readonly onTick: OnTick;
+}) => {
   const { y, height } = markOf(decision.line);
   return (
     <g
@@ -123,6 +133,7 @@ const Tick = ({ decision, x }: { readonly decision: StripRow; readonly x: number
       tabIndex={-1}
       aria-label={decision.label}
       transform={`translate(${x} ${(ROW_HEIGHT - TICK_AREA) / 2})`}
+      {...(onTick && { onClick: () => onTick(decision.id) })}
     >
       <title>{decision.label}</title>
       <path className="card-tick-hit" d={boxPath(-1, 0, TICK_PITCH, TICK_AREA)} />
@@ -138,10 +149,12 @@ const Row = ({
   row: { name, shownName, count, decisions },
   index,
   nameWidth,
+  onTick,
 }: {
   readonly row: CardRow;
   readonly index: number;
   readonly nameWidth: number;
+  readonly onTick: OnTick;
 }) => {
   const stripX = nameWidth + GAP;
   return (
@@ -154,7 +167,12 @@ const Row = ({
         {shownName}
       </text>
       {decisions.map((decision, tick) => (
-        <Tick key={decision.id} decision={decision} x={stripX + tick * TICK_PITCH} />
+        <Tick
+          key={decision.id}
+          decision={decision}
+          x={stripX + tick * TICK_PITCH}
+          onTick={onTick}
+        />
       ))}
       <text
         className="card-count"
@@ -172,11 +190,13 @@ export const LogicCardBody = ({
   label,
   formerLabel,
   width,
+  onTick,
 }: {
   readonly card: LogicCard;
   readonly label: string;
   readonly formerLabel: string | undefined;
   readonly width: number;
+  readonly onTick: OnTick;
 }) => {
   const middle = PADDING_Y + HEADER_HEIGHT / 2;
   return (
@@ -193,7 +213,7 @@ export const LogicCardBody = ({
         {card.count}
       </text>
       {card.rows.map((row, index) => (
-        <Row key={row.id} row={row} index={index} nameWidth={card.nameWidth} />
+        <Row key={row.id} row={row} index={index} nameWidth={card.nameWidth} onTick={onTick} />
       ))}
     </>
   );

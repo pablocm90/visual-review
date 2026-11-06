@@ -231,6 +231,7 @@ type Drawing = {
   readonly current: string | undefined;
   readonly scale: number;
   readonly cards: ReadonlyMap<string, LogicCard>;
+  readonly onTick: (node: string, decision: string) => void;
 };
 
 type CurrentRingProps = {
@@ -341,6 +342,7 @@ const NodeView = ({ node, drawing }: { readonly node: PlacedNode; readonly drawi
             label={node.label}
             formerLabel={node.formerLabel}
             width={node.width}
+            onTick={inMap ? undefined : decision => drawing.onTick(node.id, decision)}
           />
         ) : (
           <text x={node.width / 2} y={node.height / 2}>
@@ -2003,6 +2005,8 @@ const Page = ({ review, notes, send }: ReviewPageProps) => {
     current: reading ? selected : undefined,
     scale: placed?.view.scale ?? 1,
     cards,
+    onTick: (node: string, decision: string) =>
+      goToRow(node, anchorKey({ kind: 'decision', id: decision })),
     unroutedOf: (id: string) =>
       dangling.filter(call => visibleOf(call.from) === id).map(call => call.path),
     shadeOf: ({ id, state }: DiffedNode) =>
@@ -2073,10 +2077,12 @@ const Page = ({ review, notes, send }: ReviewPageProps) => {
     goToOnStructure(id);
     if (onRow) setFocusTarget({ id, inGraph: false });
   };
-  const goToFinding = (id: string, finding: string) => {
-    landOn(id, { path: undefined, row: anchorKey({ kind: 'finding', id: finding }) });
+  const goToRow = (id: string, row: string) => {
+    landOn(id, { path: undefined, row });
     goTo(id);
   };
+  const goToFinding = (id: string, finding: string) =>
+    goToRow(id, anchorKey({ kind: 'finding', id: finding }));
   const showOutsideAt = (place: LandingIn, opener: HTMLButtonElement) => {
     landOn(null, place);
     location.hash = '#structure';
