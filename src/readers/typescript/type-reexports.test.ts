@@ -119,6 +119,20 @@ test('a type re-export writing its extension draws to that file, though another 
   expect(edges).toEqual([{ from: 'web/file/types.ts', to: 'web/file/x.tsx' }]);
 });
 
+test('a type re-export naming a folder that looks like a script draws nothing', async () => {
+  const { nodes, edges } = await graphIn({
+    'tsconfig.json': '{"compilerOptions":{"baseUrl":"src"}}',
+    'src/chart.js/setup.ts': 'export type C = string;\n',
+    'src/b.ts': "export type { C } from 'chart.js';\n",
+  });
+
+  expect(nodes.map(({ id }) => id).filter(id => id.includes('/file/'))).toEqual([
+    'web/file/b.ts',
+    'web/file/chart.js/setup.ts',
+  ]);
+  expect(edges).toEqual([]);
+});
+
 test('a type re-export of a file the cruise holds and no script ending names draws its edge', async () => {
   const edges = await edgesIn({
     'src/a.ts': "import C from './c.vue';\nexport const y = C;\n",

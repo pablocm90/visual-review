@@ -1,4 +1,4 @@
-import { existsSync, readFileSync } from 'node:fs';
+import { existsSync, readFileSync, statSync } from 'node:fs';
 import { join, relative } from 'node:path';
 import { isTooBig } from '../too-big.ts';
 import { moduleAt, moduleOf, modulesNamedBy, type Resolution } from './typescript-config.ts';
@@ -30,7 +30,7 @@ const scriptAt = (place: string, written: string): string | undefined =>
     ...(written === '' ? [] : [`${place}${written}`]),
     ...SCRIPT_ENDINGS.map(ending => `${place}${ending}`),
     ...SCRIPT_ENDINGS.map(ending => join(place, `index${ending}`)),
-  ].find(file => existsSync(file));
+  ].find(file => existsSync(file) && statSync(file).isFile());
 
 type TypeReexportsOptions = {
   readonly cruiseJson: string;
