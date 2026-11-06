@@ -183,3 +183,37 @@ test.for([
   });
   expect(reading?.uses['a']).toEqual([]);
 });
+
+test('a namespace import uses a name where it first reads it off the namespace', async () => {
+  const reading = await usesIn({
+    files: {
+      'a.ts': 'export const foo = 1;\nexport const bar = 2;\nexport const baz = 3;\n',
+      'b.ts': "import * as all from './a';\nother.all;\nall.foo(1);\nall.foo(2);\nall?.bar;\n",
+    },
+    edges: ['b.ts -> a.ts'],
+    names: ['foo', 'bar', 'baz'],
+  });
+  expect(reading?.uses).toEqual({
+    foo: [{ path: 'src/b.ts', line: 3, text: 'all.foo(1);' }],
+    bar: [{ path: 'src/b.ts', line: 5, text: 'all?.bar;' }],
+    baz: [],
+  });
+});
+
+test.for([
+  { reason: 'passes it along', statement: 'pass(all);' },
+  { reason: 'indexes it', statement: 'all[key];' },
+])('a file that $reason may use any name, not followed', async ({ statement }) => {
+  const reading = await usesIn({
+    files: {
+      'a.ts': 'export const foo = 1;\nexport const bar = 2;\n',
+      'b.ts': `import * as all from './a';\nall.foo;\n${statement}\n`,
+    },
+    edges: ['b.ts -> a.ts'],
+    names: ['foo', 'bar'],
+  });
+  expect(reading?.uses).toEqual({
+    foo: [{ path: 'src/b.ts', line: 2, text: 'all.foo;' }],
+    bar: [{ path: 'src/b.ts', line: 3, text: statement, unfollowed: true }],
+  });
+});

@@ -1,6 +1,6 @@
 import { readFile } from 'node:fs/promises';
 import { basename, dirname, join, posix } from 'node:path';
-import type { ImportDeclaration } from '@babel/types';
+import type { ImportDeclaration, Node } from '@babel/types';
 import type { GraphNode } from '../../core/graph.ts';
 import type { SymbolUse, UsesAsked, UsesReading } from '../../core/reader.ts';
 import {
@@ -39,7 +39,12 @@ const importedName = (text: string, specifier: ImportDeclaration['specifiers'][n
 
 type Read = { readonly path: string; readonly text: string; readonly target: string };
 
-const usesInFile = ({ path, text, target }: Read): ReadonlyMap<string, SymbolUse> => {
+type FileUses = {
+  readonly named: ReadonlyMap<string, SymbolUse>;
+  readonly unfollowed: ReadonlyArray<SymbolUse>;
+};
+
+const usesInFile = ({ path, text, target }: Read): FileUses => {
   const { program, tokens } = parseTypeScript(text, path);
   const imports = program.body.filter(statement => statement.type === 'ImportDeclaration');
   const outsideImports = (token: Token) =>
@@ -49,27 +54,41 @@ const usesInFile = ({ path, text, target }: Read): ReadonlyMap<string, SymbolUse
   const code = (tokens ?? []).filter(isToken).filter(isCode).filter(outsideImports);
   const tokenText = (token: Token | undefined) =>
     token === undefined ? '' : text.slice(startOf(token), endOf(token));
-  const firstUse = (local: string) =>
-    code.find(
-      (token, index) => tokenText(token) === local && !ACCESSES.has(tokenText(code[index - 1])),
+  const readsOf = (local: string) =>
+    code.flatMap((token, index) =>
+      tokenText(token) === local && !ACCESSES.has(tokenText(code[index - 1]))
+        ? [
+            {
+              token,
+              member: ACCESSES.has(tokenText(code[index + 1]))
+                ? tokenText(code[index + 2])
+                : undefined,
+            },
+          ]
+        : [],
     );
-  return new Map(
-    imports
-      .filter(statement => namesFile(statement.source.value, path, target))
-      .flatMap(statement =>
-        statement.specifiers.flatMap(specifier => {
-          const imported = importedName(text, specifier);
-          return imported === undefined
-            ? []
-            : [
-                [
-                  imported,
-                  placeAt(path, text, startOf(firstUse(specifier.local.name) ?? statement)),
-                ] as const,
-              ];
-        }),
-      ),
+  const useAt = (range: Token | Node) => placeAt(path, text, startOf(range));
+  const specifiers = imports
+    .filter(statement => namesFile(statement.source.value, path, target))
+    .flatMap(statement => statement.specifiers.map(specifier => ({ statement, specifier })));
+  const namespaceReads = specifiers.flatMap(({ specifier }) =>
+    specifier.type === 'ImportNamespaceSpecifier' ? readsOf(specifier.local.name) : [],
   );
+  const imported = specifiers.flatMap(({ statement, specifier }) => {
+    const name = importedName(text, specifier);
+    return name === undefined
+      ? []
+      : [[name, useAt(readsOf(specifier.local.name)[0]?.token ?? statement)] as const];
+  });
+  const members = namespaceReads.flatMap(({ token, member }) =>
+    member === undefined ? [] : [[member, useAt(token)] as const],
+  );
+  return {
+    named: new Map([...imported, ...members.toReversed()]),
+    unfollowed: namespaceReads
+      .filter(({ member }) => member === undefined)
+      .map(({ token }) => ({ ...useAt(token), unfollowed: true })),
+  };
 };
 
 type Alias = { readonly local: string; readonly exported: string };
@@ -114,10 +133,8 @@ export const usesOfTypeScript = async ({
     uses: Object.fromEntries(
       names.map(name => [
         name,
-        read.flatMap(file =>
-          importedAs(name)
-            .flatMap(each => file.get(each) ?? [])
-            .slice(0, 1),
+        read.flatMap(({ named, unfollowed }) =>
+          [...importedAs(name).flatMap(each => named.get(each) ?? []), ...unfollowed].slice(0, 1),
         ),
       ]),
     ),

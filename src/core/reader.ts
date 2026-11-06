@@ -81,6 +81,7 @@ export type SymbolUse = {
   readonly path: string;
   readonly line: number;
   readonly text: string;
+  readonly unfollowed?: true;
 };
 
 export type UsesAsked = {
