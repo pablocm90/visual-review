@@ -123,12 +123,15 @@ type GraphOptions = {
 
 const MATCHES_RELATIVE_IMPORTS = /^[*.]/;
 
+const prefixLength = (name: string): number => name.replace(/\*.*/, '').length;
+
 const resolutionIn = (directory: string) => {
   const paths = tsconfigIn(directory).compilerOptions?.paths ?? {};
   return {
     alias: Object.fromEntries(
       Object.entries(paths)
         .filter(([name]) => !MATCHES_RELATIVE_IMPORTS.test(name))
+        .toSorted(([one], [other]) => prefixLength(other) - prefixLength(one))
         .map(([name, places]) => [name, places.map(place => join(directory, place))]),
     ),
     modules: [

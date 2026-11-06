@@ -224,6 +224,28 @@ test.for([
 });
 
 test.for([
+  { order: 'shorter first', paths: { '@/*': ['./src/*'], '@/lib/*': ['./src/vendored/*'] } },
+  { order: 'longer first', paths: { '@/lib/*': ['./src/vendored/*'], '@/*': ['./src/*'] } },
+  {
+    order: 'an exact name after the wildcard it also matches',
+    paths: { '@/lib/*': ['./src/lib/*'], '@/lib/a': ['./src/vendored/a.ts'] },
+  },
+])('the longest tsconfig path prefix wins, written $order', async ({ paths }) => {
+  using workspace = gitRepo({
+    'package.json': '{ "name": "shop" }\n',
+    'tsconfig.json': `${JSON.stringify({ compilerOptions: { paths } })}\n`,
+    'src/lib/a.ts': 'export const a = 1;\n',
+    'src/vendored/a.ts': 'export const a = 2;\n',
+    'src/b.ts': "import { a } from '@/lib/a';\nexport const b = a;\n",
+  });
+  const { repo, root } = workspace;
+
+  const range = await readRange({ repo, from: root, to: root });
+
+  expect(range.after.edges).toEqual([{ from: 'shop/file/b.ts', to: 'shop/file/vendored/a.ts' }]);
+});
+
+test.for([
   { how: 'a catch-all', paths: { '*': ['./src/*'] }, imported: './a' },
   { how: 'a pattern with no prefix', paths: { '*.js': ['./src/*.ts'] }, imported: './a.js' },
   { how: 'a relative pattern', paths: { './*': ['./src/*'] }, imported: './a' },
