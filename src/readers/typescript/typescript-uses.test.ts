@@ -13,12 +13,13 @@ const graphOf = (
   files: ReadonlyArray<string>,
   edges: ReadonlyArray<string>,
   elsewhere: ReadonlyArray<string>,
+  anotherReaders: ReadonlyArray<string>,
 ): Graph => ({
   nodes: files.map(path => ({
     id: idOf(path),
     kind: 'file',
     label: path,
-    parent: elsewhere.includes(path) ? 'app' : 'web',
+    parent: anotherReaders.includes(path) ? 'rails' : elsewhere.includes(path) ? 'app' : 'web',
     path: `src/${path}`,
   })),
   edges: edges.map(edge => {
@@ -34,6 +35,7 @@ type Scene = {
   readonly names: ReadonlyArray<string>;
   readonly target?: string;
   readonly elsewhere?: ReadonlyArray<string>;
+  readonly anotherReaders?: ReadonlyArray<string>;
   readonly outside?: Readonly<Record<string, string>>;
 };
 
@@ -44,6 +46,7 @@ const usesIn = async ({
   names,
   target = 'a.ts',
   elsewhere = [],
+  anotherReaders = [],
   outside = {},
 }: Scene) => {
   const base = mkdtempSync(join(tmpdir(), 'visual-review-uses-base-'));
@@ -60,7 +63,7 @@ const usesIn = async ({
         ['.', 'web'],
         ['app', 'app'],
       ]),
-      graph: graphOf(Object.keys({ ...files, ...atBase }), edges, elsewhere),
+      graph: graphOf(Object.keys({ ...files, ...atBase }), edges, elsewhere, anotherReaders),
       node: { id: idOf(target), path: `src/${target}` },
       names,
     });
@@ -603,6 +606,47 @@ test('an outside barrel is followed to the files importing it, by the name it gi
       expect.objectContaining({ path: 'test/b.test.ts' }),
     ],
   });
+});
+
+test('an outside barrel is followed to a drawn file importing it', async () => {
+  const reading = await usesIn({
+    files: {
+      'a.ts': 'export const foo = 1;\n',
+      'b.ts': "import { foo } from '../test/helpers';\nfoo();\n",
+    },
+    outside: { 'test/helpers/index.ts': "export { foo } from '../../src/a';\n" },
+    edges: [],
+    names: ['foo'],
+  });
+
+  expect(reading?.uses).toEqual({
+    foo: [
+      expect.objectContaining({ path: 'test/helpers/index.ts' }),
+      { path: 'src/b.ts', line: 2, text: 'foo();' },
+    ],
+  });
+});
+
+test('a drawn file with no edge to a drawn target is not read', async () => {
+  const reading = await usesIn({
+    files: { 'a.ts': 'export const foo = 1;\n', 'broken.ts': 'const = ;\n' },
+    edges: [],
+    names: ['foo'],
+  });
+
+  expect(reading?.notRead).toEqual([]);
+});
+
+test("an outside barrel's importers are this reader's files, not another reader's", async () => {
+  const reading = await usesIn({
+    files: { 'a.ts': 'export const foo = 1;\n', 'b.rb': 'class B; end\n' },
+    anotherReaders: ['b.rb'],
+    outside: { 'test/helpers/index.ts': "export { foo } from '../../src/a';\n" },
+    edges: [],
+    names: ['foo'],
+  });
+
+  expect(reading?.notRead).toEqual([]);
 });
 
 test.for([
