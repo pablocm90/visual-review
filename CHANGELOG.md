@@ -2,6 +2,16 @@
 
 What changed in each release of `@pablocm90/visual-review`, newest first. Versions follow [semver](https://semver.org); while it is 0.x, a minor version may change the exported types.
 
+## Unreleased
+
+### Added
+
+- **Reaches** and the `blast-radius` findings follow a changed TypeScript export into sibling stacks, through an import of the package's name or of a path under it, by name: coverage no longer says other stacks aren't followed.
+
+### Changed
+
+- `UsesAsked`, what `Reader.uses` is given, carries `stacks`, each root's stack id, in place of `root`.
+
 ## 0.50.0 — 2026-11-06
 
 ### Added

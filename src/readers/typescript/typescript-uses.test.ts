@@ -10,7 +10,13 @@ import { NOT_DRAWN } from './typescript-uses.ts';
 const idOf = (path: string) => `web/file/${path}`;
 
 const graphOf = (files: ReadonlyArray<string>, edges: ReadonlyArray<string>): Graph => ({
-  nodes: files.map(path => ({ id: idOf(path), kind: 'file', label: path, path: `src/${path}` })),
+  nodes: files.map(path => ({
+    id: idOf(path),
+    kind: 'file',
+    label: path,
+    parent: 'web',
+    path: `src/${path}`,
+  })),
   edges: edges.map(edge => {
     const [from = '', to = ''] = edge.split(' -> ');
     return { from: idOf(from), to: idOf(to) };
@@ -31,12 +37,12 @@ const usesIn = async ({ files, atBase = {}, edges, names, target = 'a.ts' }: Sce
   const under = (tree: Readonly<Record<string, string>>) =>
     Object.fromEntries(Object.entries(tree).map(([path, text]) => [`src/${path}`, text]));
   try {
-    writeFiles(base, under({ ...files, ...atBase }));
+    writeFiles(base, { ...under({ ...files, ...atBase }), 'package.json': '{"name":"@acme/lib"}' });
     writeFiles(head, under(files));
     return await typeScriptReader.uses?.({
       base,
       head,
-      root: '.',
+      stacks: new Map([['.', 'web']]),
       graph: graphOf(Object.keys({ ...files, ...atBase }), edges),
       node: { id: idOf(target), path: `src/${target}` },
       names,
@@ -79,6 +85,9 @@ test.for([
   { specifier: '.', importer: 'b.ts', target: 'index.ts', counts: true },
   { specifier: './types', importer: 'b.ts', target: 'types.d.ts', counts: true },
   { specifier: 'date-fns/a', importer: 'b.ts', target: 'a.ts', counts: false },
+  { specifier: '@acme/lib', importer: 'b.ts', target: 'a.ts', counts: true },
+  { specifier: '@acme/lib/sub', importer: 'b.ts', target: 'a.ts', counts: true },
+  { specifier: '@acme/lib-two', importer: 'b.ts', target: 'a.ts', counts: false },
 ])(
   '$specifier in $importer is $target: $counts',
   async ({ specifier, importer, target, counts }) => {

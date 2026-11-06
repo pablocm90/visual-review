@@ -4,7 +4,12 @@ import type { ImportDeclaration, Node, Program } from '@babel/types';
 import type { GraphNode } from '../../core/graph.ts';
 import type { SymbolUse, UsesAsked, UsesReading } from '../../core/reader.ts';
 import { isTooBig } from '../too-big.ts';
-import { placesNamedBy, type Resolution, resolutionIn } from './typescript-config.ts';
+import {
+  packageNameIn,
+  placesNamedBy,
+  type Resolution,
+  resolutionIn,
+} from './typescript-config.ts';
 import {
   defaultExported,
   endOf,
@@ -34,13 +39,22 @@ type Stack = {
   readonly head: string;
   readonly resolution: Resolution;
   readonly drawn: ReadonlySet<string>;
+  readonly packageName: string | undefined;
 };
 
 type Naming = { readonly specifier: string; readonly importer: string; readonly file: string };
 
 const moduleAt = (...path: ReadonlyArray<string>): string => moduleOf(resolve(...path));
 
-const namesFile = ({ head, resolution, drawn }: Stack, { specifier, importer, file }: Naming) => {
+const namesPackage = (packageName: string | undefined, specifier: string) =>
+  packageName !== undefined &&
+  (specifier === packageName || specifier.startsWith(`${packageName}/`));
+
+const namesFile = (
+  { head, resolution, drawn, packageName }: Stack,
+  { specifier, importer, file }: Naming,
+) => {
+  if (namesPackage(packageName, specifier)) return true;
   const places = specifier.startsWith('.')
     ? [join(head, dirname(importer), specifier)]
     : placesNamedBy(resolution, specifier);
@@ -285,7 +299,7 @@ const onePerFile = (uses: ReadonlyArray<SymbolUse>): ReadonlyArray<SymbolUse> =>
 export const usesOfTypeScript = async ({
   base,
   head,
-  root,
+  stacks,
   graph,
   node,
   names,
@@ -293,9 +307,15 @@ export const usesOfTypeScript = async ({
   const nodes = new Map<string, GraphNode>(graph.nodes.map(each => [each.id, each]));
   const baseText = await readFile(join(base, node.path), 'utf8');
   const aliases = aliasesIn(baseText, parseTypeScript(baseText, node.path).program);
-  const stack: Stack = {
+  const stackOf = (id: string): string => {
+    const parent = nodes.get(id)?.parent;
+    return parent === undefined ? id : stackOf(parent);
+  };
+  const rootOf = (id: string): string =>
+    [...stacks].find(([, stack]) => stack === stackOf(id))?.[0] ?? '.';
+  const stack: Omit<Stack, 'packageName'> = {
     head,
-    resolution: resolutionIn({ checkout: head, root }),
+    resolution: resolutionIn({ checkout: head, root: rootOf(node.id) }),
     drawn: new Set(
       graph.nodes.filter(({ kind }) => kind === 'file').map(({ path }) => moduleAt(head, path)),
     ),
@@ -309,8 +329,15 @@ export const usesOfTypeScript = async ({
     ),
     seen: new Set(),
     importersOf: ({ id }) =>
-      graph.edges.filter(({ to }) => to === id).flatMap(({ from }) => nodes.get(from) ?? []),
-    read: ({ path }, target) => fileUsesAt(stack, path, target.path),
+      graph.edges
+        .filter(({ to }) => to === id || to === stackOf(id))
+        .flatMap(({ from }) => nodes.get(from) ?? []),
+    read: ({ path }, target) =>
+      fileUsesAt(
+        { ...stack, packageName: packageNameIn(join(base, rootOf(target.id))) },
+        path,
+        target.path,
+      ),
   });
   return {
     uses: Object.fromEntries(

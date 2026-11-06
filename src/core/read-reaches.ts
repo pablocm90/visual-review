@@ -124,13 +124,12 @@ type Asking = {
   readonly file: Readable;
   readonly reader: Reader;
   readonly ask: NonNullable<Reader['uses']>;
-  readonly root: string;
   readonly node: GraphNode;
 };
 
 const askReader = async (
   { sides, before, changedPaths, pathOf }: ReadReachesOptions,
-  { file, reader, ask, root, node }: Asking,
+  { file, reader, ask, node }: Asking,
 ): Promise<FileReaches> => {
   const symbolsAsked = askedOf(file, pathOf);
   const exportsAsked = unbackedAsked(file);
@@ -140,7 +139,7 @@ const askReader = async (
   const { uses, notRead, notFollowed } = await ask({
     base: sides.before,
     head: sides.after,
-    root,
+    stacks: new Map(before.stacks.map(({ root, stack }) => [root, stack])),
     graph: before.graph,
     node,
     names: [...symbolsAsked, ...exportsAsked].map(({ name }) => name),
@@ -154,9 +153,6 @@ const askReader = async (
     }),
     reachesNotRead: [
       ...methods,
-      ...(before.roots.filter(root => root.reader === reader).length > 1
-        ? ['other stacks not followed']
-        : []),
       ...notRead.filter(path => !changedPaths.includes(path)).map(path => `not read: ${path}`),
       ...notFollowed,
     ],
@@ -176,7 +172,6 @@ const readFile = async (options: ReadReachesOptions, file: Readable): Promise<Fi
         file,
         reader: drawn.reader,
         ask: drawn.reader.uses,
-        root: drawn.root,
         node,
       }).catch((error: unknown) => ({
         reaches: [],
