@@ -2028,6 +2028,7 @@ const Page = ({ review, notes, send }: ReviewPageProps) => {
       shadeOf(colouring, {
         metrics: review.metrics[id],
         changed: state !== 'unchanged',
+        decisions: logicTotalsOf(review.symbols.filter(file => file.node === id)).decisions,
         kinds: review.symbols.flatMap(file =>
           (file.node === id || boxesAbove(file.node).includes(id)) && 'kind' in file
             ? [file.kind]

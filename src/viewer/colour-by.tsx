@@ -2,21 +2,29 @@ import { useId } from 'react';
 import type { NodeMetrics } from '../core/metrics.ts';
 import type { KindOfChange } from '../core/symbol-changes.ts';
 
-export type Colouring = 'change' | 'churn' | 'complexity' | 'kind';
+export type Colouring = 'change' | 'churn' | 'complexity' | 'kind' | 'logic';
 
 const COLOURINGS = [
   ['change', 'Change'],
   ['churn', 'Churn'],
   ['complexity', 'Complexity'],
   ['kind', 'Kind of change'],
+  ['logic', 'Logic'],
 ] as const satisfies ReadonlyArray<readonly [Colouring, string]>;
+
+type Shading = {
+  readonly metrics: NodeMetrics | undefined;
+  readonly kinds: ReadonlyArray<KindOfChange>;
+  readonly changed: boolean;
+  readonly decisions: number;
+};
 
 type Scale = {
   readonly title: string;
   readonly measure: string;
   readonly cuts: ReadonlyArray<number>;
   readonly steps: ReadonlyArray<string>;
-  readonly read: (metrics: NodeMetrics) => number | undefined;
+  readonly read: (shading: Shading) => number | undefined;
 };
 
 type Scaled = Exclude<Colouring, 'change' | 'kind'>;
@@ -27,14 +35,22 @@ const SCALES: Readonly<Record<Scaled, Scale>> = {
     measure: 'churn',
     cuts: [3, 6, 9],
     steps: ['0–2', '3–5', '6–8', '9+'],
-    read: ({ head, base }) => (head ?? base)?.churn,
+    read: ({ metrics }) => (metrics?.head ?? metrics?.base)?.churn,
   },
   complexity: {
     title: 'Cyclomatic of its most complex function, at the head',
     measure: 'cyclomatic',
     cuts: [5, 8, 11],
     steps: ['0–4', '5–7', '8–10', '11+'],
-    read: ({ head }) => (head && 'lines' in head ? head.cyclomatic.highest : undefined),
+    read: ({ metrics }) =>
+      metrics?.head && 'lines' in metrics.head ? metrics.head.cyclomatic.highest : undefined,
+  },
+  logic: {
+    title: 'Logic: decisions changed in it',
+    measure: 'decisions',
+    cuts: [1, 4, 10],
+    steps: ['0', '1–3', '4–9', '10+'],
+    read: ({ decisions, changed }) => (changed ? decisions : undefined),
   },
 };
 
@@ -48,12 +64,6 @@ const KINDS: Readonly<Record<KindOfChange, Shade>> = {
 
 const NOT_READ: Shade = { step: 3, name: 'symbols not read' };
 
-type Shading = {
-  readonly metrics: NodeMetrics | undefined;
-  readonly kinds: ReadonlyArray<KindOfChange>;
-  readonly changed: boolean;
-};
-
 const kindShadeOf = ({ kinds, changed }: Shading): Shade | undefined => {
   const [strongest] = kinds
     .map(kind => KINDS[kind])
@@ -63,11 +73,10 @@ const kindShadeOf = ({ kinds, changed }: Shading): Shade | undefined => {
 };
 
 export const shadeOf = (colouring: Colouring, shading: Shading): Shade | undefined => {
-  const { metrics } = shading;
   if (colouring === 'kind') return kindShadeOf(shading);
-  if (colouring === 'change' || metrics === undefined) return undefined;
+  if (colouring === 'change') return undefined;
   const { measure, cuts, steps, read } = SCALES[colouring];
-  const value = read(metrics);
+  const value = read(shading);
   if (value === undefined) return undefined;
   const step = cuts.filter(cut => value >= cut).length;
   return { step, name: `${measure} ${value} (${steps[step]})` };

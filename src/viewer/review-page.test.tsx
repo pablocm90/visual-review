@@ -10410,7 +10410,7 @@ test("What changed's heading sums the logic of the files it lists: a box's acros
   );
 });
 
-test("What changed holds the legend of marks when a strip shows, and not on a file with no logic", async () => {
+test('What changed holds the legend of marks when a strip shows, and not on a file with no logic', async () => {
   const user = userEvent.setup();
   render(
     <ReviewPage
@@ -10453,4 +10453,53 @@ test("the legend of marks sits above the graph on 'Logic only', and leaves on an
 
   await user.click(shown('Changes only'));
   expect(legend()).toBeNull();
+});
+
+const decisionsIn = (file: string, count: number) =>
+  symbolsOf(`web/file/${file}`, [addedIfs(file, count)]);
+
+test('Colour by Logic names each changed file with its changed decisions and the step holding them, cut at 1, 4 and 10; an unchanged one with nothing', async () => {
+  const user = userEvent.setup();
+  render(
+    <ReviewPage
+      review={{
+        ...pageOfLogic(),
+        diff: {
+          nodes: [
+            { id: 'web', kind: 'stack', label: 'web', path: '', state: 'unchanged' },
+            ...['none.ts', 'one.ts', 'three.ts', 'four.ts', 'nine.ts', 'ten.ts'].map(file =>
+              topFile(file, 'modified'),
+            ),
+            topFile('quiet.ts', 'unchanged'),
+          ],
+          edges: [],
+        },
+        symbols: [
+          decisionsIn('one.ts', 1),
+          decisionsIn('three.ts', 3),
+          decisionsIn('four.ts', 4),
+          decisionsIn('nine.ts', 9),
+          decisionsIn('ten.ts', 10),
+        ],
+      }}
+    />,
+  );
+  const web = await screen.findByRole('group', { name: 'web' });
+
+  await user.click(colourBy('Logic'));
+  await user.click(shown('Everything'));
+
+  expect(colourBy('Logic').getAttribute('aria-pressed')).toBe('true');
+  expect(scaleSteps()).toEqual(['0', '1–3', '4–9', '10+']);
+  await waitFor(() =>
+    expect(buttonsIn(web)).toEqual([
+      'none.ts: modified, decisions 0 (0)',
+      'one.ts: modified, decisions 1 (1–3)',
+      'three.ts: modified, decisions 3 (1–3)',
+      'four.ts: modified, decisions 4 (4–9)',
+      'nine.ts: modified, decisions 9 (4–9)',
+      'ten.ts: modified, decisions 10 (10+)',
+      'quiet.ts: unchanged',
+    ]),
+  );
 });
