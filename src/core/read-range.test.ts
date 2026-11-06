@@ -1,6 +1,7 @@
 import { existsSync, rmSync } from 'node:fs';
 import { basename, join } from 'node:path';
 import { expect, test, vi } from 'vitest';
+import { typeScriptReader } from '../readers/typescript/reader.ts';
 import { NOT_DRAWN } from '../readers/typescript/typescript-uses.ts';
 import { fakeReader } from '../test-support/fakes.ts';
 import { readRange } from '../test-support/read-range.ts';
@@ -1622,6 +1623,29 @@ test("a removed star re-export says it isn't followed, as its names can't be tol
 
   expect(range.reaches).toEqual([]);
   expect(range.reachesNotRead).toEqual([NOT_DRAWN, 'removed export * not followed']);
+});
+
+test("a reader's uses that throws is kept as not read, and the review goes on", async () => {
+  using repository = gitRepo({ 'README.md': 'a shop\n' });
+  const { repo } = repository;
+  const base = commit(repo, {
+    ...rootPackage,
+    'src/a.ts': 'export function foo() {}\nexport const kept = 1;\n',
+  });
+  const head = commit(repo, { 'src/a.ts': 'export const kept = 1;\n' });
+  const uses = async () => {
+    throw new Error('boom');
+  };
+
+  const range = await readRange({
+    repo,
+    from: base,
+    to: head,
+    readers: [{ ...typeScriptReader, uses }],
+  });
+
+  expect(range.reaches).toEqual([]);
+  expect(range.reachesNotRead).toEqual([`not read for ${basename(repo)}: Error: boom`]);
 });
 
 test('another stack of a reader that reads another language is no stack to follow', async () => {

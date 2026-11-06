@@ -170,7 +170,10 @@ const readFile = async (options: ReadReachesOptions, file: Readable): Promise<Fi
   const node = before.graph.nodes.find(({ path }) => path === basePath);
   return reader?.uses === undefined || node === undefined
     ? NOTHING_READ
-    : askReader(options, { file, reader, ask: reader.uses, node });
+    : askReader(options, { file, reader, ask: reader.uses, node }).catch((error: unknown) => ({
+        reaches: [],
+        reachesNotRead: [`not read for ${file.stack}: ${String(error)}`],
+      }));
 };
 
 export const readReaches = async (options: ReadReachesOptions): Promise<FileReaches> => {
