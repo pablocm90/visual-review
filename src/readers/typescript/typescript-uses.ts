@@ -25,7 +25,8 @@ const placeAt = (path: string, text: string, offset: number): SymbolUse => {
   return { path, line, text: (text.split('\n')[line - 1] ?? '').trim() };
 };
 
-export const NOT_DRAWN = 'not followed: type-only re-exports, files outside the source root';
+export const NOT_DRAWN =
+  'not followed: type-only re-exports, files outside the source root, a package imported under another name';
 
 const ACCESSES = new Set(['.', '?.']);
 const LOADERS = new Set(['import', 'require']);
@@ -404,7 +405,7 @@ export const usesOfTypeScript = async ({
     notFollowed: [
       NOT_DRAWN,
       ...(names.some(name => !isUnbackedAll(name) && name.includes('.'))
-        ? ['not followed: a method read without importing its class']
+        ? ['not followed: a method read other than by `.name`, or without importing its class']
         : []),
       ...(names.some(isUnbackedAll) ? ['removed export * not followed'] : []),
     ],
