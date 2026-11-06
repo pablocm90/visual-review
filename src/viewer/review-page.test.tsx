@@ -4866,6 +4866,56 @@ test("a part's reach findings sit above their own rows in Reaches, with answers,
   expect(barRow().getAttribute('aria-current')).toBe('true');
 });
 
+test("a box's Reaches lists those of the files inside it, with their finding only while the box holds it", async () => {
+  const user = userEvent.setup();
+  render(
+    <ReviewPage
+      review={pageWith({
+        range: review.range,
+        diff: {
+          nodes: [
+            { id: 'web', kind: 'stack', label: 'web', path: '', state: 'unchanged' },
+            webModule('orders', 'modified'),
+            webFile('orders', 'refund.ts', 'modified'),
+            webModule('billing', 'modified'),
+            webFile('billing', 'tax.ts', 'modified'),
+          ],
+          edges: [],
+        },
+        reaches: [
+          reachOf('web/file/orders/refund.ts', 'foo', [
+            { path: 'web/src/b.ts', line: 41, text: 'foo(raw);' },
+          ]),
+        ],
+        findings: [
+          findingOn('web/file/orders/refund.ts', {
+            id: 'blast-radius:reaches:web/file/orders/refund.ts#foo',
+            check: 'blast-radius:reaches',
+            dimension: 'blast-radius',
+            level: 'look',
+            title: 'function foo reaches 1 unchanged file',
+          }),
+        ],
+      })}
+    />,
+  );
+
+  await user.click(await screen.findByRole('button', { name: /^billing: modified/ }));
+  expect(reachesRegion()).toBeNull();
+
+  await user.click(screen.getByRole('button', { name: /^orders: modified/ }));
+  const region = () => reachesRegion() ?? inspector();
+  expect(
+    within(within(region()).getByRole('list', { name: 'Findings' })).getByText(/function foo/),
+  ).toBeTruthy();
+  expect(within(region()).getByText('web/src/b.ts:41')).toBeTruthy();
+
+  await user.click(screen.getByRole('button', { name: 'Expand orders' }));
+  expect(await screen.findByRole('button', { name: 'Collapse orders' })).toBeTruthy();
+  expect(within(region()).queryByRole('list', { name: 'Findings' })).toBeNull();
+  expect(within(region()).getByText('web/src/b.ts:41')).toBeTruthy();
+});
+
 test("a node's Tested by also lists the test files named after a file inside it, wherever they sit in its stack", async () => {
   const user = userEvent.setup();
   render(

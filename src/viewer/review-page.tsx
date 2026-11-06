@@ -781,7 +781,10 @@ const NotePanel = ({
   const filesWithNews = useFilesWithNews(node, symbols, nodes);
   const hasSaid = useHasSaid();
   const testsToRead = useTestsToRead(node ? testsAlongside({ nodes, node, tests }) : [], comments);
-  const reachesHere = reaches.filter(reach => reach.node === node?.id);
+  const boxesAbove = boxesAboveIn(nodes);
+  const reachesHere = node
+    ? reaches.filter(reach => reach.node === node.id || boxesAbove(reach.node).includes(node.id))
+    : [];
   const untested = found.filter(isUntestedLogic);
   const toLookAt = found.filter(finding => !isUntestedLogic(finding) && !isReachFinding(finding));
   const isBare =

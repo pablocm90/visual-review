@@ -27,31 +27,32 @@ export const Reaches = ({ reaches, nodes, onGoTo, found, answers, onAnswer }: Re
   return (
     <section className="column-section reaches" aria-label="Reaches">
       <h3>Reaches {counted(files.size, 'unchanged file', 'unchanged files')}</h3>
-      {reaches.map(reach => (
-        <div key={reach.id}>
-          <FindingRows
-            found={found.filter(({ id }) => id === reachFindingId(reach))}
-            answers={answers}
-            onAnswer={onAnswer}
-          />
-          <ul className="reach-uses">
-            {reach.uses.map(use => {
-              const at = nodeAt(use.path);
-              return (
-                <li key={`${use.path}:${use.line}`}>
-                  {at === undefined ? (
-                    <UseLine {...use} />
-                  ) : (
-                    <button type="button" className="reach-go" onClick={() => onGoTo(at.id)}>
+      {reaches.map(reach => {
+        const itsFinding = found.filter(({ id }) => id === reachFindingId(reach));
+        return (
+          <div key={reach.id}>
+            {itsFinding.length > 0 && (
+              <FindingRows found={itsFinding} answers={answers} onAnswer={onAnswer} />
+            )}
+            <ul className="reach-uses">
+              {reach.uses.map(use => {
+                const at = nodeAt(use.path);
+                return (
+                  <li key={`${use.path}:${use.line}`}>
+                    {at === undefined ? (
                       <UseLine {...use} />
-                    </button>
-                  )}
-                </li>
-              );
-            })}
-          </ul>
-        </div>
-      ))}
+                    ) : (
+                      <button type="button" className="reach-go" onClick={() => onGoTo(at.id)}>
+                        <UseLine {...use} />
+                      </button>
+                    )}
+                  </li>
+                );
+              })}
+            </ul>
+          </div>
+        );
+      })}
     </section>
   );
 };
