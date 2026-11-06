@@ -1,4 +1,4 @@
-import { mkdtempSync, rmSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { expect, test } from 'vitest';
@@ -9,9 +9,10 @@ type Scene = {
   readonly files: Readonly<Record<string, string>>;
   readonly target: string;
   readonly names: ReadonlyArray<string>;
+  readonly changeHead?: (checkout: string) => void;
 };
 
-const usesIn = async ({ files, target, names }: Scene) => {
+const usesIn = async ({ files, target, names, changeHead }: Scene) => {
   const checkout = mkdtempSync(join(tmpdir(), 'visual-review-ruby-uses-'));
   try {
     writeFiles(checkout, files);
@@ -24,6 +25,7 @@ const usesIn = async ({ files, target, names }: Scene) => {
     });
     const node = graph.nodes.find(({ path }) => path === target);
     if (node === undefined) throw new Error(`no node at ${target}`);
+    changeHead?.(checkout);
     return await railsReader.uses?.({
       base: checkout,
       head: checkout,
@@ -300,4 +302,64 @@ test('a use found in the file wins over a send that may be one, and a send of an
       { path: 'app/services/named.rb', line: 2, text: 'Order' },
     ],
   });
+});
+
+const CALLER = 'app/services/caller.rb';
+
+const readingWhenCaller = (change: (file: string) => void) =>
+  usesIn({
+    files: {
+      'app/models/order.rb': ORDER,
+      [CALLER]: 'class Caller\n  Order\nend\n',
+      'app/services/other.rb': 'class Other\n  Order\nend\n',
+    },
+    target: 'app/models/order.rb',
+    names: ['Order', 'Order.total'],
+    changeHead: checkout => change(join(checkout, CALLER)),
+  });
+
+const OTHER_ROW = { path: 'app/services/other.rb', line: 2, text: 'Order' };
+
+test.each([
+  {
+    how: 'does not parse',
+    change: (file: string) => writeFileSync(file, 'class Caller\n  Order\n  def (\n'),
+  },
+  {
+    how: 'has a line too long to read',
+    change: (file: string) =>
+      writeFileSync(file, `class Caller\n  Order\n  # ${'x'.repeat(1000)}\nend\n`),
+  },
+  {
+    how: 'cannot be opened',
+    change: (file: string) => {
+      rmSync(file);
+      symlinkSync(file, file);
+    },
+  },
+])(
+  'a file naming the class that $how is named once as not read, the others still read',
+  async ({ change }) => {
+    const reading = await readingWhenCaller(change);
+
+    expect(reading).toMatchObject({
+      uses: { Order: [OTHER_ROW], 'Order.total': [] },
+      notRead: [CALLER],
+    });
+  },
+);
+
+test.each([
+  { how: 'is gone', change: (file: string) => rmSync(file) },
+  {
+    how: 'is a folder',
+    change: (file: string) => {
+      rmSync(file);
+      mkdirSync(file);
+    },
+  },
+])('a file that $how at the head holds no use, and nothing to say', async ({ change }) => {
+  const reading = await readingWhenCaller(change);
+
+  expect(reading).toMatchObject({ uses: { Order: [OTHER_ROW] }, notRead: [] });
 });

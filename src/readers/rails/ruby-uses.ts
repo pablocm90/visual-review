@@ -1,8 +1,9 @@
-import { readFile } from 'node:fs/promises';
+import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import type { Node } from 'web-tree-sitter';
-import type { GraphNode } from '../../core/graph.ts';
 import type { SymbolUse, UsesAsked, UsesReading } from '../../core/reader.ts';
+import { isNoFile } from '../no-file.ts';
+import { isTooBig } from '../too-big.ts';
 import { classesOf, namingsIn } from './rails-graph.ts';
 import { argsOf, methodOf, nameOf, parseRuby } from './ruby-syntax.ts';
 
@@ -57,39 +58,68 @@ const firstOpenSendIn = (program: Node | undefined): Node | undefined =>
     );
   });
 
+type Read = { readonly text: string; readonly program: Node } | { readonly notRead: true };
+
+const NOT_READ: Read = { notRead: true };
+
+const readRuby = (file: string): Read | undefined => {
+  try {
+    const text = readFileSync(file, 'utf8');
+    if (isTooBig(text)) return NOT_READ;
+    const program = parseRuby(text);
+    return program === undefined || program.hasError ? NOT_READ : { text, program };
+  } catch (error) {
+    return isNoFile(error) ? undefined : NOT_READ;
+  }
+};
+
+type Importer = {
+  readonly path: string;
+  readonly text: string;
+  readonly program: Node;
+  readonly namings: ReadonlyArray<{ readonly at: Node; readonly named: string }>;
+};
+
+const rowsIn = (
+  { path, text, program, namings }: Importer,
+  name: string,
+): ReadonlyArray<SymbolUse> => {
+  const { owner, member } = askedOf(name);
+  const naming = namings.find(({ named }) => named === owner);
+  if (naming === undefined) return [];
+  const rowAt = (at: Node): SymbolUse => {
+    const row = at.startPosition.row;
+    return { path, line: row + 1, text: (text.split('\n')[row] ?? '').trim() };
+  };
+  if (member === undefined || member === 'initialize') return [rowAt(naming.at)];
+  const use = firstUseIn(program, member);
+  if (use !== undefined) return [rowAt(use)];
+  const open = firstOpenSendIn(program);
+  return open === undefined ? [] : [{ ...rowAt(open), unfollowed: true }];
+};
+
 export const usesOfRuby = async ({ head, graph, node, names }: UsesAsked): Promise<UsesReading> => {
   const stack = node.id.slice(0, node.id.lastIndexOf(CLASS) + CLASS.length);
   const classes = classesOf([
     ...graph.nodes.filter(({ id }) => id.startsWith(stack)).map(({ id }) => constantIn(id)),
     ...names.map(name => askedOf(name).owner).filter(owner => STARTS_AS_CONSTANT.test(owner)),
   ]);
-  const importers = graph.edges
+  const reads = graph.edges
     .filter(({ to }) => to === node.id)
-    .flatMap(({ from }) => graph.nodes.find(({ id }) => id === from) ?? []);
-  const rowsOf = async (
-    { id, path }: GraphNode,
-    name: string,
-  ): Promise<ReadonlyArray<SymbolUse>> => {
-    const { owner, member } = askedOf(name);
-    const text = await readFile(join(head, path), 'utf8');
-    const program = parseRuby(text);
-    const naming = namingsIn(program, constantIn(id), classes).find(({ named }) => named === owner);
-    if (naming === undefined) return [];
-    const rowAt = (at: Node): SymbolUse => {
-      const row = at.startPosition.row;
-      return { path, line: row + 1, text: (text.split('\n')[row] ?? '').trim() };
-    };
-    if (member === undefined || member === 'initialize') return [rowAt(naming.at)];
-    const use = firstUseIn(program, member);
-    if (use !== undefined) return [rowAt(use)];
-    const open = firstOpenSendIn(program);
-    return open === undefined ? [] : [{ ...rowAt(open), unfollowed: true }];
-  };
-  const entries = await Promise.all(
-    names.map(async name => [
-      name,
-      (await Promise.all(importers.map(importer => rowsOf(importer, name)))).flat(),
-    ]),
+    .flatMap(({ from }) => graph.nodes.find(({ id }) => id === from) ?? [])
+    .map(({ id, path }) => ({ id, path, read: readRuby(join(head, path)) }));
+  const importers = reads.flatMap(({ id, path, read }) =>
+    read === undefined || 'notRead' in read
+      ? []
+      : [{ path, ...read, namings: namingsIn(read.program, constantIn(id), classes) }],
   );
-  return { uses: Object.fromEntries(entries), notRead: [], notFollowed: [] };
+  return {
+    uses: Object.fromEntries(
+      names.map(name => [name, importers.flatMap(importer => rowsIn(importer, name))]),
+    ),
+    notRead: reads.flatMap(({ path, read }) =>
+      read !== undefined && 'notRead' in read ? [path] : [],
+    ),
+    notFollowed: [],
+  };
 };

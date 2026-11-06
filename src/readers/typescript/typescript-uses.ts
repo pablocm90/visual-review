@@ -4,6 +4,7 @@ import { join } from 'node:path';
 import type { ImportDeclaration, Node, Program } from '@babel/types';
 import type { GraphNode } from '../../core/graph.ts';
 import type { SymbolUse, UsesAsked, UsesReading } from '../../core/reader.ts';
+import { isNoFile } from '../no-file.ts';
 import { isTooBig } from '../too-big.ts';
 import { moduleAt, modulesNamedBy, packageNameIn, resolutionIn } from './typescript-config.ts';
 import { filesOutside } from './typescript-outside.ts';
@@ -311,11 +312,6 @@ const walked = ({ hops, seen, importersOf, read }: Walk): ReadonlyArray<Visit> =
 };
 
 type Read = FileFacts | { readonly notRead: true } | undefined;
-
-const NO_FILE: ReadonlyArray<unknown> = ['ENOENT', 'ENOTDIR', 'EISDIR'];
-
-const isNoFile = (error: unknown): boolean =>
-  error instanceof Error && 'code' in error && NO_FILE.includes(error.code);
 
 const readFacts = (path: string, file: string): Read => {
   try {
