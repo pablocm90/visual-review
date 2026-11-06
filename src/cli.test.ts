@@ -524,6 +524,50 @@ test('a link in the range resolving to the repo root keeps the edge drawn throug
   ]);
 }, 30_000);
 
+test('a review in .reviews linked to a device is passed over', async () => {
+  using workspace = webRepo();
+  const { repo } = workspace;
+  commit(repo, { 'src/a.ts': 'export const a = 2;\n' });
+  mkdirSync(join(repo, '.reviews'));
+  writeFileSync(join(repo, '.reviews', '.gitignore'), '*\n');
+  symlinkSync('/dev/stdin', join(repo, '.reviews', 'old.review.json'));
+
+  const run = await runCliOnBoundedMemory(repo, 'HEAD~1..HEAD');
+
+  expect(run.code).toBe(0);
+}, 30_000);
+
+test('--notes on a page linked to a device says there is no page', async () => {
+  using workspace = webRepo();
+  const { repo } = workspace;
+  commit(repo, { 'src/a.ts': 'export const a = 2;\n' });
+  mkdirSync(join(repo, '.reviews'));
+  symlinkSync('/dev/stdin', join(repo, '.reviews', 'HEAD~1..HEAD.html'));
+  writeFileSync(join(repo, 'notes.json'), '{"version":1,"summary":[],"tests":"None.","notes":{}}');
+
+  const run = await runCliOnBoundedMemory(
+    repo,
+    'HEAD~1..HEAD',
+    '--notes',
+    join(repo, 'notes.json'),
+  );
+
+  expect(run.code).toBe(1);
+  expect(run.stderr).toContain('No page for HEAD~1..HEAD yet');
+}, 30_000);
+
+test('serve of a page linked to a device exits non-zero, naming it', async () => {
+  using workspace = webRepo();
+  const { repo } = workspace;
+  const page = join(repo, 'linked.html');
+  symlinkSync('/dev/zero', page);
+
+  const run = await runCliOnBoundedMemory(repo, 'serve', '--no-open', page);
+
+  expect(run.code).toBe(1);
+  expect(run.stderr).toContain('linked.html: not a regular file with contents');
+}, 30_000);
+
 test('--notes replaces a link standing at the page with the noted page, what it points at left as it was', async () => {
   using workspace = cargoWorkspace();
   const { repo } = workspace;
