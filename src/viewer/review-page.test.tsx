@@ -10368,3 +10368,217 @@ test('Start here has no logic line with no changed decision', async () => {
   const band = within(await screen.findByRole('region', { name: 'Start here' }));
   expect(band.getAllByRole('listitem')).toHaveLength(1);
 });
+
+test("What changed's heading sums the logic of the files it lists: a box's across them, a file's its own, with no exits clause when it has none", async () => {
+  const user = userEvent.setup();
+  const line = { kind: 'if', depth: 0, line: 2 } as const;
+  const logic: SymbolStatement['logic'] = [
+    { ...line, change: 'added', head: 'if (late)' },
+    { ...line, change: 'added', kind: 'throw', head: 'throw late' },
+    { ...line, change: 'removed', kind: 'return', base: 'return early' },
+  ];
+  render(
+    <ReviewPage
+      review={{
+        ...pageOfLogic(),
+        diff: {
+          nodes: [
+            { id: 'web', kind: 'stack', label: 'web', path: '', state: 'unchanged' },
+            webModule('orders', 'modified'),
+            webFile('orders', 'refund.ts', 'modified'),
+            webFile('orders', 'cart.ts', 'modified'),
+          ],
+          edges: [],
+        },
+        symbols: [
+          symbolsOf('web/file/orders/refund.ts', [{ ...decisionIn('refund', ''), logic }]),
+          symbolsOf('web/file/orders/cart.ts', [decisionIn('total', 'if (empty)')]),
+        ],
+      }}
+    />,
+  );
+
+  await user.click(await screen.findByRole('button', { name: 'orders: modified' }));
+  expect(within(whatChanged()).getAllByRole('heading', { level: 3 })[0]?.textContent).toBe(
+    'What changed 2 · 2 functions decide differently, 4 decisions, 2 exits',
+  );
+
+  await user.click(await screen.findByRole('button', { name: 'Expand orders' }));
+  await user.click(await screen.findByRole('button', { name: 'cart.ts: modified' }));
+  expect(within(whatChanged()).getByRole('heading', { level: 3 }).textContent).toBe(
+    'What changed 1 · 1 function decides differently, 1 decision',
+  );
+});
+
+test('What changed holds the legend of marks when a strip shows, and not on a file with no logic', async () => {
+  const user = userEvent.setup();
+  render(
+    <ReviewPage
+      review={{
+        ...pageOfLogic(),
+        symbols: [
+          symbolsOf('web/file/cart.ts', [decisionIn('total', 'if (empty)')]),
+          symbolsOf('web/file/styles.ts', [
+            {
+              name: 'tidy',
+              kind: 'function',
+              lines: {},
+              exported: { base: false, head: false },
+              change: 'edited',
+            },
+          ]),
+        ],
+      }}
+    />,
+  );
+  const legend = () => within(whatChanged()).queryByRole('list', { name: 'Marks' });
+
+  await user.click(await screen.findByRole('button', { name: 'cart.ts: modified' }));
+  expect(legend()).not.toBeNull();
+
+  await user.click(screen.getByRole('button', { name: 'styles.ts: modified' }));
+  expect(within(whatChanged()).getByRole('listitem', { name: /tidy/ })).toBeTruthy();
+  expect(legend()).toBeNull();
+});
+
+test("the legend of marks sits above the graph on 'Logic only', and leaves on another Show choice", async () => {
+  const user = userEvent.setup();
+  render(<ReviewPage review={pageOfLogic()} />);
+  await screen.findByRole('group', { name: 'web' });
+  const legend = () => screen.queryByRole('list', { name: 'Marks' });
+  expect(legend()).toBeNull();
+
+  await user.click(shown('Logic only'));
+  expect(legend()).not.toBeNull();
+
+  await user.click(shown('Changes only'));
+  expect(legend()).toBeNull();
+});
+
+const decisionsIn = (file: string, count: number) =>
+  symbolsOf(`web/file/${file}`, [addedIfs(file, count)]);
+
+test('Colour by Logic names each changed file with its changed decisions and the step holding them, cut at 1, 4 and 10; an unchanged one, or one whose symbols were not read, with nothing', async () => {
+  const user = userEvent.setup();
+  render(
+    <ReviewPage
+      review={{
+        ...pageOfLogic(),
+        diff: {
+          nodes: [
+            { id: 'web', kind: 'stack', label: 'web', path: '', state: 'unchanged' },
+            ...['none.ts', 'one.ts', 'three.ts', 'four.ts', 'nine.ts', 'ten.ts'].map(file =>
+              topFile(file, 'modified'),
+            ),
+            topFile('quiet.ts', 'unchanged'),
+            topFile('unread.ts', 'modified'),
+          ],
+          edges: [],
+        },
+        symbols: [
+          decisionsIn('none.ts', 0),
+          decisionsIn('one.ts', 1),
+          decisionsIn('three.ts', 3),
+          decisionsIn('four.ts', 4),
+          decisionsIn('nine.ts', 9),
+          decisionsIn('ten.ts', 10),
+        ],
+      }}
+    />,
+  );
+  const web = await screen.findByRole('group', { name: 'web' });
+
+  await user.click(colourBy('Logic'));
+  await user.click(shown('Everything'));
+
+  expect(colourBy('Logic').getAttribute('aria-pressed')).toBe('true');
+  expect(scaleSteps()).toEqual(['0', '1–3', '4–9', '10+']);
+  await waitFor(() =>
+    expect(buttonsIn(web)).toEqual([
+      'none.ts: modified, decisions 0 (0)',
+      'one.ts: modified, decisions 1 (1–3)',
+      'three.ts: modified, decisions 3 (1–3)',
+      'four.ts: modified, decisions 4 (4–9)',
+      'nine.ts: modified, decisions 9 (4–9)',
+      'ten.ts: modified, decisions 10 (10+)',
+      'quiet.ts: unchanged',
+      'unread.ts: modified',
+    ]),
+  );
+});
+
+test('Colour by Logic leaves an added or a removed part neutral, its decisions not being counted as changed', async () => {
+  const user = userEvent.setup();
+  render(
+    <ReviewPage
+      review={{
+        ...pageOfLogic(),
+        diff: {
+          nodes: [
+            { id: 'web', kind: 'stack', label: 'web', path: '', state: 'modified' },
+            topFile('kept.ts', 'modified'),
+            topFile('new.ts', 'added'),
+            topFile('gone.ts', 'removed'),
+          ],
+          edges: [],
+        },
+        symbols: [decisionsIn('kept.ts', 1), decisionsIn('new.ts', 0), decisionsIn('gone.ts', 0)],
+      }}
+    />,
+  );
+  const web = await screen.findByRole('group', { name: 'web' });
+
+  await user.click(colourBy('Logic'));
+  await user.click(shown('Everything'));
+
+  await waitFor(() =>
+    expect(buttonsIn(web)).toEqual([
+      'kept.ts: modified, decisions 1 (1–3)',
+      'new.ts: added',
+      'gone.ts: removed',
+    ]),
+  );
+});
+
+test('Colour by offers Logic only on a page with a changed decision', async () => {
+  const offered = () =>
+    within(screen.getByRole('group', { name: 'Colour by' }))
+      .getAllByRole('button')
+      .map(button => button.textContent);
+  const page = render(<ReviewPage review={pageWith(review)} />);
+  await screen.findByRole('group', { name: 'rust' });
+  expect(offered()).toEqual(['Change', 'Churn', 'Complexity', 'Kind of change']);
+  page.unmount();
+
+  render(<ReviewPage review={pageOfLogic()} />);
+  await screen.findByRole('group', { name: 'web' });
+  expect(offered()).toEqual(['Change', 'Churn', 'Complexity', 'Kind of change', 'Logic']);
+});
+
+test('Colour by Logic gives a closed box the sum of the decisions inside it, not their highest', async () => {
+  const user = userEvent.setup();
+  render(
+    <ReviewPage
+      review={{
+        ...pageOfLogic(),
+        diff: {
+          nodes: [
+            { id: 'web', kind: 'stack', label: 'web', path: '', state: 'modified' },
+            webModule('lib', 'modified'),
+            webFile('lib', 'two.ts', 'modified'),
+            webFile('lib', 'three.ts', 'modified'),
+          ],
+          edges: [],
+        },
+        symbols: [decisionsIn('lib/two.ts', 2), decisionsIn('lib/three.ts', 3)],
+      }}
+    />,
+  );
+  const web = await screen.findByRole('group', { name: 'web' });
+
+  await user.click(colourBy('Logic'));
+
+  await waitFor(() =>
+    expect(buttonsIn(web)).toEqual(['lib: modified, decisions 5 (4–9)', 'Expand lib']),
+  );
+});
