@@ -52,6 +52,8 @@ const namesInCall = (call: Node): ReadonlyArray<Node> => {
   return method;
 };
 
+const SETTER_END = /(?<=[\p{L}\p{N}_])=$/u;
+
 const firstUsesIn = (program: Node): ReadonlyMap<string, Node> =>
   new Map(
     program
@@ -62,7 +64,7 @@ const firstUsesIn = (program: Node): ReadonlyMap<string, Node> =>
           : namesInCall(node),
       )
       .toSorted((one, other) => other.startIndex - one.startIndex)
-      .map(named => [nameOf(named), named]),
+      .map(named => [nameOf(named).replace(SETTER_END, ''), named]),
   );
 
 const firstOpenSendIn = (program: Node): Node | undefined =>

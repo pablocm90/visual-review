@@ -185,6 +185,9 @@ test.each([
   { how: 'public_send', written: 'found.public_send(:total)' },
   { how: '__send__', written: 'found.__send__(:total)' },
   { how: 'try', written: 'found.try(:total)' },
+  { how: 'send of its setter', written: 'found.send(:total=, 1)' },
+  { how: 'public_send of its setter, by a string', written: 'found.public_send("total=", 1)' },
+  { how: 'delegate of its setter', written: 'delegate :total=, to: :order' },
   { how: 'delegate', written: 'delegate :total, to: :order' },
   { how: 'delegate, among others', written: 'delegate :price, :total, to: :order' },
 ])('$how names a method', async ({ written }) => {
@@ -253,6 +256,8 @@ test.each([
   { asked: 'send', written: 'found.send("+33", "hi")' },
   { asked: 'public_send', written: 'found.public_send(:deliver)' },
   { asked: 'try', written: 'found.try' },
+  { asked: '==', written: 'found.send(:==, 1)' },
+  { asked: '<=', written: 'found.send(:<=, 1)' },
 ])('a method itself named $asked is used by $written', async ({ asked, written }) => {
   const name = `Order.${asked}`;
   const reading = await usesIn({
