@@ -11,6 +11,11 @@ What changed in each release of `@pablocm90/visual-review`, newest first. Versio
 - `blast-radius` is listed in coverage, naming a stack not read and a file that wouldn't parse. When something was asked, it says what isn't followed: class methods, other stacks, a removed `export *`, tsconfig aliases, type-only re-exports and files outside the source root.
 - The review data carries `reaches`, and `Reader` takes an optional `uses`.
 
+### Fixed
+
+- A link in a reviewed revision that leaves the repo, or points nowhere, is no longer followed: one to `/dev/zero`, `/dev/stdin` or `/proc/self/pagemap` used to hang the CLI or run it out of memory. Its change still shows among the files outside the graph, the patch naming the target.
+- A `visual-review.config.json` in the working tree that links out of the repo stops the review, naming the file.
+
 ## 0.48.0 — 2026-11-06
 
 ### Added
