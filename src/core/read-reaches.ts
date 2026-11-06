@@ -1,7 +1,7 @@
 import type { MeasuredNode } from './metrics.ts';
 import type { RangeReading, SymbolFile } from './read-range.ts';
 import type { StacksReading } from './read-stacks.ts';
-import type { SymbolUse } from './reader.ts';
+import type { Reader, SymbolUse, UsesReading } from './reader.ts';
 import type { SymbolStatement } from './symbol-changes.ts';
 import { anchoredSymbols, removalOf, unbackedExports, unheld } from './symbol-findings.ts';
 
@@ -72,68 +72,95 @@ type FileReaches = Pick<RangeReading, 'reaches' | 'reachesNotRead'>;
 
 const NOTHING_READ: FileReaches = { reaches: [], reachesNotRead: [] };
 
-export const readReaches = async ({
-  sides,
-  before,
-  symbols,
-  measured,
-  changedPaths,
-  pathOf,
-}: ReadReachesOptions): Promise<FileReaches> => {
-  const changed = new Set(changedPaths);
-  const read = await Promise.all(
-    symbols.map(async (file): Promise<FileReaches> => {
-      if ('unreadable' in file) return NOTHING_READ;
-      const reader = before.stacks.find(({ stack }) => stack === file.stack)?.reader;
-      if (reader !== undefined && reader.uses === undefined)
-        return { reaches: [], reachesNotRead: [`not read for ${file.stack}`] };
-      const basePath = measured.find(({ id }) => id === file.node)?.basePath;
-      const node = before.graph.nodes.find(({ path }) => path === basePath);
-      const symbolsAsked = askedOf(file, pathOf);
-      const exportsAsked = unbackedAsked(file);
-      const methods = methodsAskedIn(file, pathOf) ? ['methods not followed'] : [];
-      if (reader?.uses === undefined || node === undefined) return NOTHING_READ;
-      if (symbolsAsked.length + exportsAsked.length === 0)
-        return { reaches: [], reachesNotRead: methods };
-      const { uses, notRead } = await reader.uses({
-        base: sides.before,
-        head: sides.after,
-        graph: before.graph,
-        node,
-        names: [...symbolsAsked, ...exportsAsked].map(({ name }) => name),
-      });
-      const isTest = ({ path }: SymbolUse) => reader.isTestFile(path);
-      const rowsOf = (name: string): ReadonlyArray<ReachingUse> =>
-        (uses[name] ?? [])
-          .filter(({ path }) => !changed.has(path))
-          .toSorted(
-            (one, other) =>
-              Number(isTest(one)) - Number(isTest(other)) || one.path.localeCompare(other.path),
-          )
-          .map(use => (isTest(use) ? { ...use, test: true as const } : use));
-      const reachOf = ({ name, ...reach }: Asked, rows: ReadonlyArray<ReachingUse>) =>
-        rows.length === 0 ? [] : [{ node: file.node, ...reach, uses: rows }];
-      const symbolReaches = symbolsAsked.flatMap(asked => reachOf(asked, rowsOf(asked.name)));
-      const reached = new Set(symbolReaches.flatMap(({ uses }) => uses.map(placeOf)));
-      return {
-        reaches: [
-          ...symbolReaches,
-          ...exportsAsked.flatMap(asked =>
-            reachOf(
-              asked,
-              rowsOf(asked.name).filter(use => !reached.has(placeOf(use))),
-            ),
-          ),
-        ],
-        reachesNotRead: [
-          ...methods,
-          ...(before.roots.filter(root => root.reader === reader).length > 1
-            ? ['other stacks not followed']
-            : []),
-          ...notRead.filter(path => !changed.has(path)).map(path => `not read: ${path}`),
-        ],
-      };
+type RowsOfOptions = {
+  readonly reader: Reader;
+  readonly uses: UsesReading['uses'];
+  readonly changedPaths: ReadonlyArray<string>;
+};
+
+const rowsOfIn =
+  ({ reader, uses, changedPaths }: RowsOfOptions) =>
+  (name: string): ReadonlyArray<ReachingUse> => {
+    const isTest = ({ path }: SymbolUse) => reader.isTestFile(path);
+    return (uses[name] ?? [])
+      .filter(({ path }) => !changedPaths.includes(path))
+      .toSorted(
+        (one, other) =>
+          Number(isTest(one)) - Number(isTest(other)) || one.path.localeCompare(other.path),
+      )
+      .map(use => (isTest(use) ? { ...use, test: true as const } : use));
+  };
+
+type ReachesInOptions = {
+  readonly node: string;
+  readonly symbolsAsked: ReadonlyArray<Asked>;
+  readonly exportsAsked: ReadonlyArray<Asked>;
+  readonly rowsOf: (name: string) => ReadonlyArray<ReachingUse>;
+};
+
+const reachesIn = ({
+  node,
+  symbolsAsked,
+  exportsAsked,
+  rowsOf,
+}: ReachesInOptions): ReadonlyArray<Reach> => {
+  const reachOf = ({ name, ...reach }: Asked, rows: ReadonlyArray<ReachingUse>) =>
+    rows.length === 0 ? [] : [{ node, ...reach, uses: rows }];
+  const symbolReaches = symbolsAsked.flatMap(asked => reachOf(asked, rowsOf(asked.name)));
+  const reached = new Set(symbolReaches.flatMap(({ uses }) => uses.map(placeOf)));
+  return [
+    ...symbolReaches,
+    ...exportsAsked.flatMap(asked =>
+      reachOf(
+        asked,
+        rowsOf(asked.name).filter(use => !reached.has(placeOf(use))),
+      ),
+    ),
+  ];
+};
+
+const readFile = async (
+  { sides, before, measured, changedPaths, pathOf }: ReadReachesOptions,
+  file: Readable,
+): Promise<FileReaches> => {
+  const reader = before.stacks.find(({ stack }) => stack === file.stack)?.reader;
+  if (reader !== undefined && reader.uses === undefined)
+    return { reaches: [], reachesNotRead: [`not read for ${file.stack}`] };
+  const basePath = measured.find(({ id }) => id === file.node)?.basePath;
+  const node = before.graph.nodes.find(({ path }) => path === basePath);
+  if (reader?.uses === undefined || node === undefined) return NOTHING_READ;
+  const symbolsAsked = askedOf(file, pathOf);
+  const exportsAsked = unbackedAsked(file);
+  const methods = methodsAskedIn(file, pathOf) ? ['methods not followed'] : [];
+  if (symbolsAsked.length + exportsAsked.length === 0)
+    return { reaches: [], reachesNotRead: methods };
+  const { uses, notRead } = await reader.uses({
+    base: sides.before,
+    head: sides.after,
+    graph: before.graph,
+    node,
+    names: [...symbolsAsked, ...exportsAsked].map(({ name }) => name),
+  });
+  return {
+    reaches: reachesIn({
+      node: file.node,
+      symbolsAsked,
+      exportsAsked,
+      rowsOf: rowsOfIn({ reader, uses, changedPaths }),
     }),
+    reachesNotRead: [
+      ...methods,
+      ...(before.roots.filter(root => root.reader === reader).length > 1
+        ? ['other stacks not followed']
+        : []),
+      ...notRead.filter(path => !changedPaths.includes(path)).map(path => `not read: ${path}`),
+    ],
+  };
+};
+
+export const readReaches = async (options: ReadReachesOptions): Promise<FileReaches> => {
+  const read = await Promise.all(
+    options.symbols.map(file => ('unreadable' in file ? NOTHING_READ : readFile(options, file))),
   );
   return {
     reaches: read.flatMap(({ reaches }) => reaches),
