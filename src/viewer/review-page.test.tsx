@@ -10300,3 +10300,71 @@ test("on 'Logic only' a last comment on an edge stays on its own arrow, not on t
   expect(within(inspector()).getByText('Why the cart?')).toBeTruthy();
   expect(within(inspector()).getByText('The cart bills.')).toBeTruthy();
 });
+
+test("Start here opens with what the range's logic did, counting only the kinds there are, and going to it shows Logic only", async () => {
+  const user = userEvent.setup();
+  const line = { kind: 'if', depth: 0, line: 2 } as const;
+  const logic: SymbolStatement['logic'] = [
+    { ...line, change: 'added', head: 'if (late)' },
+    { ...line, change: 'added', kind: 'throw', head: 'throw late' },
+    { ...line, change: 'removed', base: 'if (early)' },
+  ];
+  render(
+    <ReviewPage
+      review={{
+        ...pageOfLogic(),
+        symbols: [
+          symbolsOf('web/file/refund.ts', [{ ...decisionIn('refund', ''), logic }]),
+          symbolsOf('web/file/cart.ts', [
+            decisionIn('total', 'if (empty)'),
+            decisionIn('count', 'if (none)'),
+          ]),
+        ],
+        findings: [findingOn('web/file/refund.ts')],
+      }}
+    />,
+  );
+  await screen.findByRole('group', { name: 'web' });
+
+  const band = within(screen.getByRole('region', { name: 'Start here' }));
+  const [first] = band.getAllByRole('listitem');
+  expect(first?.textContent).toBe(
+    'Behaviour · logic5 decisions changed in 3 functions, 2 files1 exit · 4 added · 1 removed',
+  );
+  expect(shown('Logic only').getAttribute('aria-pressed')).toBe('false');
+
+  await user.click(band.getByRole('button', { name: /^5 decisions changed/ }));
+
+  expect(shown('Logic only').getAttribute('aria-pressed')).toBe('true');
+  await screen.findByRole('button', { name: 'added throw: throw late' });
+});
+
+test("Start here's logic line shows with no findings, and goes with a lens other than Behaviour", async () => {
+  const user = userEvent.setup();
+  render(<ReviewPage review={pageOfLogic()} />);
+  await screen.findByRole('group', { name: 'web' });
+  const logicLine = () =>
+    within(screen.getByRole('region', { name: 'Start here' })).getByRole('listitem').textContent;
+  const line = 'Behaviour · logic2 decisions changed in 2 functions, 2 files2 added';
+  expect(logicLine()).toBe(line);
+
+  await user.click(screen.getByRole('button', { name: /^Behaviour/ }));
+  expect(logicLine()).toBe(line);
+
+  await user.click(screen.getByRole('button', { name: /^Contract/ }));
+  expect(screen.queryByRole('region', { name: 'Start here' })).toBeNull();
+});
+
+test('Start here has no logic line with no changed decision', async () => {
+  render(
+    <ReviewPage
+      review={{
+        ...pageOfLogic(),
+        symbols: [symbolsOf('web/file/styles.ts', [])],
+        findings: [findingOn('web/file/styles.ts')],
+      }}
+    />,
+  );
+  const band = within(await screen.findByRole('region', { name: 'Start here' }));
+  expect(band.getAllByRole('listitem')).toHaveLength(1);
+});

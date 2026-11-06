@@ -17,7 +17,7 @@ import type { DiffedNode, FilePatch, GraphDiff } from '../core/diff-graphs.ts';
 import { deepestHolding, isAtOrUnder } from '../core/diff-graphs.ts';
 import { type Finding, findingsAt, findingsOf } from '../core/findings.ts';
 import { edgeId } from '../core/graph.ts';
-import { nodesWithChangedLogic } from '../core/logic-strip.ts';
+import { logicTotalsOf, nodesWithChangedLogic } from '../core/logic-strip.ts';
 import { type MetricFinding, metricFindings } from '../core/metric-findings.ts';
 import type { NodeMetrics } from '../core/metrics.ts';
 import { type Note, type ReviewNotes, visibleNotes } from '../core/notes.ts';
@@ -1674,6 +1674,18 @@ type LandingHeadProps = GraphControlsProps &
     readonly onShowFile: (path: string, opener: HTMLButtonElement, place?: string) => void;
   };
 
+const logicLineOf = ({
+  review,
+  picked,
+  scopes,
+  onScope,
+}: Pick<LandingHeadProps, 'review' | 'picked' | 'scopes' | 'onScope'>) => {
+  const logicOnly = scopes.find(([name]) => name === LOGIC_ONLY);
+  return logicOnly && (picked === undefined || picked === LENS_OF.logic)
+    ? { totals: logicTotalsOf(review.symbols), onShow: () => onScope(logicOnly) }
+    : undefined;
+};
+
 const LandingHead = ({
   review,
   notes,
@@ -1706,6 +1718,7 @@ const LandingHead = ({
       onGoToFinding={onGoToFinding}
       onShowOutside={onShowOutside}
       onShowFile={onShowFile}
+      logic={logicLineOf({ review, picked, ...controls })}
     />
     <GraphControls {...controls} />
     <GraphCaveat since={since} nothingDrawn={nothingDrawn} />
