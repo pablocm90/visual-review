@@ -136,7 +136,7 @@ const askReader = async (
   const methods = methodsAskedIn(file, pathOf) ? ['methods not followed'] : [];
   if (symbolsAsked.length + exportsAsked.length === 0)
     return { reaches: [], reachesNotRead: methods };
-  const { uses, notRead } = await ask({
+  const { uses, notRead, notFollowed } = await ask({
     base: sides.before,
     head: sides.after,
     graph: before.graph,
@@ -156,6 +156,7 @@ const askReader = async (
         ? ['other stacks not followed']
         : []),
       ...notRead.filter(path => !changedPaths.includes(path)).map(path => `not read: ${path}`),
+      ...notFollowed,
     ],
   };
 };

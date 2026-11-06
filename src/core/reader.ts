@@ -95,6 +95,7 @@ export type UsesAsked = {
 export type UsesReading = {
   readonly uses: Readonly<Record<string, ReadonlyArray<SymbolUse>>>;
   readonly notRead: ReadonlyArray<string>;
+  readonly notFollowed: ReadonlyArray<string>;
 };
 
 export type StackOptions = HoldsOptions & {

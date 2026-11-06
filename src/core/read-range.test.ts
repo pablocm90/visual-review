@@ -1,6 +1,7 @@
 import { existsSync, rmSync } from 'node:fs';
 import { basename, join } from 'node:path';
 import { expect, test, vi } from 'vitest';
+import { NOT_DRAWN } from '../readers/typescript/typescript-uses.ts';
 import { fakeReader } from '../test-support/fakes.ts';
 import { readRange } from '../test-support/read-range.ts';
 import {
@@ -1466,7 +1467,7 @@ test("an unchanged candidate that can't be read is named once, the other rows st
   expect(range.reaches.flatMap(({ uses }) => uses.map(({ path }) => path))).toEqual([
     'src/uses.ts',
   ]);
-  expect(range.reachesNotRead).toEqual(['not read: src/huge.ts']);
+  expect(range.reachesNotRead).toEqual(['not read: src/huge.ts', NOT_DRAWN]);
 });
 
 test('a file renamed from what its reader cannot parse has nothing to ask, so is not read for its names', async () => {
@@ -1517,7 +1518,7 @@ test('a removed method beside a removed function still says methods are not foll
 
   const range = await readRange({ repo, from: base, to: head });
 
-  expect(range.reachesNotRead).toEqual(['methods not followed']);
+  expect(range.reachesNotRead).toEqual(['methods not followed', NOT_DRAWN]);
 });
 
 test.for([
@@ -1533,8 +1534,9 @@ test.for([
   {
     reason: 'a class removed whole, which is followed by its own name',
     a: 'export const other = 1;\n',
+    lacks: [NOT_DRAWN],
   },
-])('$reason leaves methods out of what blast radius lacks', async ({ from, a }) => {
+])('$reason leaves methods out of what blast radius lacks', async ({ from, a, lacks }) => {
   using repository = gitRepo({ 'README.md': 'a shop\n' });
   const { repo } = repository;
   const base = commit(repo, {
@@ -1545,7 +1547,7 @@ test.for([
 
   const range = await readRange({ repo, from: base, to: head });
 
-  expect(range.reachesNotRead).toEqual([]);
+  expect(range.reachesNotRead).toEqual(lacks ?? []);
 });
 
 test("a changed file of a stack whose reader follows no uses says so, and a stack the base doesn't hold has nothing to follow", async () => {
@@ -1579,7 +1581,7 @@ test("a name asked in a repo of several stacks says other stacks aren't followed
 
   const range = await readRange({ repo, from: root, to: head });
 
-  expect(range.reachesNotRead).toEqual(['other stacks not followed']);
+  expect(range.reachesNotRead).toEqual(['other stacks not followed', NOT_DRAWN]);
 });
 
 test.for([
@@ -1587,20 +1589,22 @@ test.for([
     reason: 'nothing asked',
     files: { 'web/src/a.ts': 'export function foo() {}\nexport function kept() { return 1; }\n' },
     config: {},
+    lacks: [],
   },
   {
     reason: 'the other stack dropped',
     files: { 'web/src/a.ts': 'export function kept() {}\n' },
     config: { 'visual-review.config.json': '{"stacks":{"lib":false}}\n' },
+    lacks: [NOT_DRAWN],
   },
-])('$reason says no other stack is left to follow', async ({ files, config }) => {
+])('$reason says no other stack is left to follow', async ({ files, config, lacks }) => {
   using repository = gitRepo({ ...twoStacks, ...config });
   const { repo, root } = repository;
   const head = commit(repo, files);
 
   const range = await readRange({ repo, from: root, to: head });
 
-  expect(range.reachesNotRead).toEqual([]);
+  expect(range.reachesNotRead).toEqual(lacks);
 });
 
 test('another stack of a reader that reads another language is no stack to follow', async () => {
@@ -1615,5 +1619,24 @@ test('another stack of a reader that reads another language is no stack to follo
 
   const range = await readRange({ repo, from: root, to: head });
 
-  expect(range.reachesNotRead).toEqual([]);
+  expect(range.reachesNotRead).toEqual([NOT_DRAWN]);
+});
+
+test('what asks a name says what the graph holds no edge for, which reads no row: an alias, a type-only re-export, a test outside the source root', async () => {
+  using repository = gitRepo({ 'README.md': 'a shop\n' });
+  const { repo } = repository;
+  const base = commit(repo, {
+    ...rootPackage,
+    'tsconfig.json': '{"compilerOptions":{"paths":{"@/*":["src/*"]}}}\n',
+    'src/a.ts': 'export function foo() {}\nexport type Foo = number;\nexport const kept = 1;\n',
+    'src/aliased.ts': "import { foo } from '@/a';\nfoo();\n",
+    'src/types.ts': "export type { Foo } from './a.ts';\n",
+    'test/a.test.ts': "import { foo } from '../src/a.ts';\nfoo();\n",
+  });
+  const head = commit(repo, { 'src/a.ts': 'export const kept = 1;\n' });
+
+  const range = await readRange({ repo, from: base, to: head });
+
+  expect(range.reaches).toEqual([]);
+  expect(range.reachesNotRead).toEqual([NOT_DRAWN]);
 });

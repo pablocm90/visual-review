@@ -5,6 +5,7 @@ import { expect, test } from 'vitest';
 import type { Graph } from '../../core/graph.ts';
 import { writeFiles } from '../../test-support/repos.ts';
 import { typeScriptReader } from './reader.ts';
+import { NOT_DRAWN } from './typescript-uses.ts';
 
 const idOf = (path: string) => `web/file/${path}`;
 
@@ -377,6 +378,7 @@ test.for([
   expect(reading).toEqual({
     uses: { foo: [{ path: 'src/c.ts', line: 2, text: 'foo();' }] },
     notRead: ['src/broken.ts'],
+    notFollowed: [NOT_DRAWN],
   });
 });
 
@@ -401,5 +403,5 @@ test('a file gone at the head has no uses and is not named', async () => {
     edges: ['b.ts -> a.ts'],
     names: ['foo'],
   });
-  expect(reading).toEqual({ uses: { foo: [] }, notRead: [] });
+  expect(reading).toEqual({ uses: { foo: [] }, notRead: [], notFollowed: [NOT_DRAWN] });
 });

@@ -19,6 +19,9 @@ const placeAt = (path: string, text: string, offset: number): SymbolUse => {
   return { path, line, text: (text.split('\n')[line - 1] ?? '').trim() };
 };
 
+export const NOT_DRAWN =
+  'not followed: tsconfig aliases, type-only re-exports, files outside the source root';
+
 const ACCESSES = new Set(['.', '?.']);
 const LOADERS = new Set(['import', 'require']);
 
@@ -282,5 +285,6 @@ export const usesOfTypeScript = async ({
       ]),
     ),
     notRead: [...new Set(visits.flatMap(({ uses }) => uses.notRead ?? []))],
+    notFollowed: [NOT_DRAWN],
   };
 };
