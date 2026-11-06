@@ -59,7 +59,7 @@ import {
   type PlacedStack,
 } from './layout.ts';
 import { LENS_OF, type Lens } from './lenses.ts';
-import { type LogicCard, LogicCardRows, logicCardsOf } from './logic-card.tsx';
+import { type LogicCard, LogicCardBody, logicCardsOf } from './logic-card.tsx';
 import { MetricsTable } from './metrics-tab.tsx';
 import { NextToIt } from './next-to-it.tsx';
 import {
@@ -335,21 +335,29 @@ const NodeView = ({ node, drawing }: { readonly node: PlacedNode; readonly drawi
         </title>
         <rect width={node.width} height={node.height} rx={6} />
         <CurrentRing node={node} drawing={drawing} rx={6} />
-        {card && <LogicCardRows card={card} />}
-        <text x={node.width / 2} y={node.height / 2}>
-          {node.formerLabel === undefined ? (
-            node.label
-          ) : (
-            <>
-              <tspan x={node.width / 2} dy="-0.6em">
-                {node.label}
-              </tspan>
-              <tspan className="former" x={node.width / 2} dy="1.3em">
-                was {node.formerLabel}
-              </tspan>
-            </>
-          )}
-        </text>
+        {card ? (
+          <LogicCardBody
+            card={card}
+            label={node.label}
+            formerLabel={node.formerLabel}
+            width={node.width}
+          />
+        ) : (
+          <text x={node.width / 2} y={node.height / 2}>
+            {node.formerLabel === undefined ? (
+              node.label
+            ) : (
+              <>
+                <tspan x={node.width / 2} dy="-0.6em">
+                  {node.label}
+                </tspan>
+                <tspan className="former" x={node.width / 2} dy="1.3em">
+                  was {node.formerLabel}
+                </tspan>
+              </>
+            )}
+          </text>
+        )}
         {found.length > 0 && (
           <FindingsBadge x={node.width} y={0} findings={found} picked={drawing.picked} />
         )}
@@ -2142,8 +2150,8 @@ const Page = ({ review, notes, send }: ReviewPageProps) => {
     return () => document.removeEventListener('keydown', keyed);
   });
   useEffect(() => {
-    layoutDiff(drawn).then(setLayout);
-  }, [drawn]);
+    layoutDiff(drawn, { sizes: cards }).then(setLayout);
+  }, [drawn, cards]);
   useEffect(() => {
     if (focusTarget === undefined || tab !== 'structure') return;
     if (reading) {

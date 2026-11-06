@@ -10081,6 +10081,47 @@ test("on 'Logic only' a file holds a row per function with a changed decision, e
   ).toEqual(['same guard: if (ok) return', 'added if: if (late)']);
 });
 
+test("on 'Logic only' a file's card counts its changed decisions and exits and is as big as its rows", async () => {
+  const user = userEvent.setup();
+  const exit = { change: 'removed', kind: 'throw', depth: 0, base: 'throw oops', line: 4 } as const;
+  const same = { change: 'same', kind: 'if', depth: 0, head: 'if (ok)', line: 9 } as const;
+  render(
+    <ReviewPage
+      review={{
+        ...pageOfLogic(),
+        symbols: [
+          symbolsOf('web/file/refund.ts', [
+            {
+              ...addedIfs('refund', 2),
+              logic: [same, ...(addedIfs('refund', 2).logic ?? []), exit],
+            },
+            addedIfs('tidy', 1),
+          ]),
+          symbolsOf('web/file/cart.ts', [addedIfs('total', 20)]),
+        ],
+      }}
+    />,
+  );
+
+  await user.click(await screen.findByRole('button', { name: 'Logic only' }));
+
+  const web = await screen.findByRole('group', { name: 'web' });
+  const refund = await within(web).findByRole('button', { name: /^refund\.ts: modified/ });
+  const cart = within(web).getByRole('button', { name: /^cart\.ts: modified/ });
+  expect(within(refund).getByText('refund.ts')).toBeTruthy();
+  expect(within(refund).getByText('4 · 1 exit')).toBeTruthy();
+  expect(within(refund).getByText('3 of 4')).toBeTruthy();
+  const sizeOf = (node: HTMLElement) => node.querySelector('rect');
+  await waitFor(() =>
+    expect(Number(sizeOf(refund)?.getAttribute('height'))).toBeGreaterThan(
+      Number(sizeOf(cart)?.getAttribute('height')),
+    ),
+  );
+  expect(Number(sizeOf(cart)?.getAttribute('width'))).toBeGreaterThan(
+    Number(sizeOf(refund)?.getAttribute('width')),
+  );
+});
+
 test("on 'Logic only', going to a part it holds stays, and to one it doesn't goes to 'Changes only' and wider", async () => {
   const user = userEvent.setup();
   render(
