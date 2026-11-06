@@ -17,9 +17,26 @@ import {
 } from './typescript-symbols.ts';
 import { isScript, nameOf, parseTypeScript, sourceOf } from './typescript-syntax.ts';
 
-const placeAt = (path: string, text: string, offset: number): SymbolUse => {
-  const line = text.slice(0, offset).split('\n').length;
-  return { path, line, text: (text.split('\n')[line - 1] ?? '').trim() };
+const lineHolding = (
+  starts: ReadonlyArray<number>,
+  offset: number,
+  low: number,
+  high: number,
+): number => {
+  if (low >= high) return low;
+  const middle = Math.ceil((low + high) / 2);
+  return (starts[middle] ?? 0) <= offset
+    ? lineHolding(starts, offset, middle, high)
+    : lineHolding(starts, offset, low, middle - 1);
+};
+
+const placesIn = (path: string, text: string) => {
+  const lines = text.split('\n');
+  const starts = [0, ...Array.from(text.matchAll(/\n/g), ({ index }) => index + 1)];
+  return (offset: number): SymbolUse => {
+    const line = lineHolding(starts, offset, 0, starts.length - 1);
+    return { path, line: line + 1, text: (lines[line] ?? '').trim() };
+  };
 };
 
 export const NOT_DRAWN =
@@ -165,7 +182,8 @@ const factsOf = (path: string, text: string): FileFacts => {
   const parsed = parseTypeScript(text, path);
   const { program } = parsed;
   const scan = scanOf(text, parsed);
-  const placeOf: PlaceOf = range => placeAt(path, text, startOf(range));
+  const placeAt = placesIn(path, text);
+  const placeOf: PlaceOf = range => placeAt(startOf(range));
   const specifiers = program.body.flatMap(statement => {
     if (statement.type !== 'ImportDeclaration') return [];
     const source = statement.source.value;
