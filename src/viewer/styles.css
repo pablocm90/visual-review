@@ -2896,3 +2896,73 @@ main:has(> .review-tray) {
   color: var(--muted);
   font-size: 11px;
 }
+
+.strip-of-logic {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 2px 10px;
+  margin: 4px 0;
+}
+
+.strip-ticks {
+  display: inline-flex;
+  flex-wrap: wrap;
+  row-gap: 2px;
+}
+
+.strip-tick {
+  position: relative;
+  flex: none;
+  width: 8px;
+  height: 30px;
+  padding: 0;
+  border: 0;
+  background: none;
+  cursor: pointer;
+}
+
+.strip-tick::before {
+  content: "";
+  position: absolute;
+  left: 1px;
+  bottom: 15px;
+  width: 6px;
+  height: 8px;
+  box-sizing: border-box;
+}
+
+.tick-added::before {
+  background: var(--added);
+}
+
+.tick-changed::before {
+  background: var(--modified);
+}
+
+.tick-removed::before {
+  top: 15px;
+  bottom: auto;
+  background: var(--removed);
+}
+
+.tick-moved::before {
+  border: 1px solid var(--muted);
+}
+
+.tick-exit::before {
+  height: 14px;
+}
+
+.tick-same::before {
+  bottom: 14px;
+  height: 2px;
+  background: var(--muted);
+  opacity: 0.55;
+}
+
+.strip-count {
+  color: var(--muted);
+  font-size: 12px;
+  white-space: nowrap;
+}

@@ -25,6 +25,7 @@ import { type AnchoredSymbol, anchoredSymbols, decisionsOf } from '../core/symbo
 import { boxesAboveIn } from '../core/visible-diff.ts';
 import { ChangedSinceTag, sinceLabel, useIsChangedSince } from './changed-since.tsx';
 import type { Comments } from './comment-field.tsx';
+import { LogicStrip } from './logic-strip.tsx';
 import { CommentOn, SaidBefore, useHasSaid } from './said-before.tsx';
 import { scrollInPanel } from './scroll-in-panel.ts';
 import { Signature } from './signature-lines.tsx';
@@ -202,15 +203,16 @@ const LogicLines = ({
 }) => {
   const isChangedSince = useIsChangedSince();
   const marksOf = useRowMarks();
+  const name = `${symbol.item.kind} ${qualified(symbol.item)}`;
+  const rows = decisionsOf(symbol).map(decision => {
+    const marked = isChangedSince('decisions', decision.id);
+    return { ...decision, marked, label: sinceLabel(logicLabel(decision.line, nodes), marked) };
+  });
   return (
-    <ul
-      className="logic-lines"
-      aria-label={`Logic of ${symbol.item.kind} ${qualified(symbol.item)}`}
-    >
-      {decisionsOf(symbol).map(({ line, id, text }) => {
-        const marked = isChangedSince('decisions', id);
-        const label = sinceLabel(logicLabel(line, nodes), marked);
-        return (
+    <>
+      <LogicStrip name={name} rows={rows} />
+      <ul className="logic-lines" aria-label={`Logic of ${name}`}>
+        {rows.map(({ line, id, text, marked, label }) => (
           <li
             key={id}
             className={`logic-${line.change}`}
@@ -243,9 +245,9 @@ const LogicLines = ({
               />
             )}
           </li>
-        );
-      })}
-    </ul>
+        ))}
+      </ul>
+    </>
   );
 };
 
@@ -398,6 +400,7 @@ const SymbolFiles = ({ file, ...places }: Places & { readonly file: SymbolFile }
       {quiet.length > 0 && (
         <details
           className="symbol-group"
+          aria-label="Unchanged symbols"
           open={quiet.some(
             ({ id }) =>
               places.comments[anchorKey({ kind: 'symbol', id })] !== undefined ||

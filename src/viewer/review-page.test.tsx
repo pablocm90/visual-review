@@ -5785,7 +5785,7 @@ test("a box's What changed lists each file inside it with symbol changes, each w
   ]);
 
   await user.click(
-    within(screen.getByRole('region', { name: 'What changed' })).getByRole('button', {
+    within(screen.getByRole('list', { name: 'Logic of function refund' })).getByRole('button', {
       name: /^added throw/,
     }),
   );
@@ -5803,7 +5803,7 @@ test("a box's What changed lists each file inside it with symbol changes, each w
   ).toEqual(['+  throw new Late();']);
 
   await user.click(
-    within(screen.getByRole('region', { name: 'What changed' })).getByRole('button', {
+    within(screen.getByRole('list', { name: 'Logic of function refund' })).getByRole('button', {
       name: /^added return/,
     }),
   );
@@ -5814,7 +5814,7 @@ test("a box's What changed lists each file inside it with symbol changes, each w
   expect(document.querySelectorAll('[aria-current="true"]')).toHaveLength(0);
 
   await user.click(
-    within(screen.getByRole('region', { name: 'What changed' })).getByRole('button', {
+    within(screen.getByRole('list', { name: 'Logic of function refund' })).getByRole('button', {
       name: /^added throw/,
     }),
   );
@@ -5914,6 +5914,20 @@ test("an edited function's logic lines show under it in What changed, each with 
     'changed if: if (a > 0) → if (a >= 0)',
     'added throw: throw new Late',
   ]);
+  const strip = within(screen.getByRole('region', { name: 'What changed' })).getByRole('group', {
+    name: 'Marks of function refund',
+  });
+  expect(
+    within(strip)
+      .getAllByRole('button')
+      .map(tick => tick.getAttribute('aria-label')),
+  ).toEqual([
+    'removed guard: if (!paid) return',
+    'same loop: for (const line of lines)',
+    'changed if: if (a > 0) → if (a >= 0)',
+    'added throw: throw new Late',
+  ]);
+  expect(screen.getByText('3 of 4 · 2 exits')).toBeTruthy();
   const landed = () => {
     const row = scrolledIntoView.mock.contexts.at(-1);
     return row instanceof HTMLElement ? [row.textContent, row.getAttribute('aria-current')] : [];
@@ -5922,11 +5936,7 @@ test("an edited function's logic lines show under it in What changed, each with 
   await user.click(within(logic).getByRole('button', { name: /^changed if/ }));
   expect(fullDiffOpen()).toBe(true);
   expect(landed()).toEqual(['+    if (a >= 0) {', 'true']);
-  await user.click(
-    within(screen.getByRole('region', { name: 'What changed' })).getByRole('button', {
-      name: /^removed guard/,
-    }),
-  );
+  await user.click(within(logic).getByRole('button', { name: /^removed guard/ }));
   expect(landed()).toEqual(['-  if (!paid) return;', 'true']);
 });
 
@@ -5990,7 +6000,7 @@ test('a moved logic line names the symbol it moved to, and opens Full diff on it
   );
 
   await user.click(await screen.findByRole('button', { name: 'refund.ts: modified' }));
-  const panel = within(screen.getByRole('region', { name: 'What changed' }));
+  const panel = within(screen.getByRole('list', { name: 'Logic of function refund' }));
   const line = panel.getByRole('button', {
     name: 'moved guard: if (!paid) return, moved to checked',
   });
@@ -7148,7 +7158,8 @@ const pageWithAnUnchangedSymbol = () =>
     ],
   });
 
-const unchangedSymbols = () => within(whatChanged()).getByRole('group');
+const unchangedSymbols = () =>
+  within(whatChanged()).getByRole('group', { name: 'Unchanged symbols' });
 
 const draftOnTheUnchangedSymbol = async (user: ReturnType<typeof userEvent.setup>) => {
   await user.click(within(whatChanged()).getByText('1 unchanged'));
