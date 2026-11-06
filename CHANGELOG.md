@@ -2,6 +2,15 @@
 
 What changed in each release of `@pablocm90/visual-review`, newest first. Versions follow [semver](https://semver.org); while it is 0.x, a minor version may change the exported types.
 
+## 0.49.0 — 2026-11-06
+
+### Added
+
+- A changed export that unchanged files still use raises a finding to look at in the `blast-radius` dimension, such as `function parseOrder reaches 2 unchanged files`, for TypeScript inside a stack. It counts named, default, namespace and type imports, and follows barrels.
+- **Reaches**, in the reading column after **Tested by**, lists those files with each one's first use and its line of source, each going to its file, a test file marked `test` and last. A dynamic import, a `require` or a namespace passed along reads `may use it, not followed`.
+- `blast-radius` is listed in coverage, naming a stack not read and a file that wouldn't parse, and saying when class methods or other stacks weren't followed.
+- The review data carries `reaches`, and `Reader` takes an optional `uses`.
+
 ## 0.48.0 — 2026-11-06
 
 ### Added
