@@ -13,7 +13,7 @@ What changed in each release of `@pablocm90/visual-review`, newest first. Versio
 - **Show** offers **Logic only** when a decision changed: the files holding one, their boxes open, with every arrow between them, each a card with a strip of marks per function that changed. A tick opens its row. Start here's first line counts the range's changed decisions, by kind of change and exits, and goes there.
 
 - **What changed**'s heading sums the logic it lists, such as `14 functions decide differently, 45 decisions, 6 exits`, and a legend of the strip's marks sits under it when a strip shows. The same legend sits under Start here on **Logic only**.
-- **Colour by Logic**, offered when a decision changed, shades each changed part by the decisions changed in it (0, 1–3, 4–9, 10+), a box by the sum inside it.
+- **Colour by Logic**, offered when a decision changed, shades each modified part by the decisions changed in it (0, 1–3, 4–9, 10+), a box by the sum inside it. An added or removed part, or one whose symbols weren't read, stays neutral.
 
 ### Changed
 

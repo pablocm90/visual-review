@@ -10507,6 +10507,39 @@ test('Colour by Logic names each changed file with its changed decisions and the
   );
 });
 
+test('Colour by Logic leaves an added or a removed part neutral, its decisions not being counted as changed', async () => {
+  const user = userEvent.setup();
+  render(
+    <ReviewPage
+      review={{
+        ...pageOfLogic(),
+        diff: {
+          nodes: [
+            { id: 'web', kind: 'stack', label: 'web', path: '', state: 'modified' },
+            topFile('kept.ts', 'modified'),
+            topFile('new.ts', 'added'),
+            topFile('gone.ts', 'removed'),
+          ],
+          edges: [],
+        },
+        symbols: [decisionsIn('kept.ts', 1), decisionsIn('new.ts', 0), decisionsIn('gone.ts', 0)],
+      }}
+    />,
+  );
+  const web = await screen.findByRole('group', { name: 'web' });
+
+  await user.click(colourBy('Logic'));
+  await user.click(shown('Everything'));
+
+  await waitFor(() =>
+    expect(buttonsIn(web)).toEqual([
+      'kept.ts: modified, decisions 1 (1–3)',
+      'new.ts: added',
+      'gone.ts: removed',
+    ]),
+  );
+});
+
 test('Colour by offers Logic only on a page with a changed decision', async () => {
   const offered = () =>
     within(screen.getByRole('group', { name: 'Colour by' }))

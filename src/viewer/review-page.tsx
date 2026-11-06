@@ -2036,7 +2036,8 @@ const Page = ({ review, notes, send }: ReviewPageProps) => {
       return shadeOf(colouring, {
         metrics: review.metrics[id],
         changed: state !== 'unchanged',
-        decisions: kinds.length > 0 ? logicTotalsOf(inside).decisions : undefined,
+        decisions:
+          state === 'modified' && kinds.length > 0 ? logicTotalsOf(inside).decisions : undefined,
         kinds,
       });
     },
