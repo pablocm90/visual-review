@@ -1607,6 +1607,23 @@ test.for([
   expect(range.reachesNotRead).toEqual(lacks);
 });
 
+test("a removed star re-export says it isn't followed, as its names can't be told", async () => {
+  using repository = gitRepo({ 'README.md': 'a shop\n' });
+  const { repo } = repository;
+  const base = commit(repo, {
+    ...rootPackage,
+    'src/x.ts': 'export const fromX = 1;\n',
+    'src/barrel.ts': "export * from './x.ts';\nexport const kept = 1;\n",
+    'src/user.ts': "import { fromX } from './barrel.ts';\nfromX;\n",
+  });
+  const head = commit(repo, { 'src/barrel.ts': 'export const kept = 1;\n' });
+
+  const range = await readRange({ repo, from: base, to: head });
+
+  expect(range.reaches).toEqual([]);
+  expect(range.reachesNotRead).toEqual([NOT_DRAWN, 'removed export * not followed']);
+});
+
 test('another stack of a reader that reads another language is no stack to follow', async () => {
   using repository = gitRepo({
     'web/package.json': twoStacks['web/package.json'],

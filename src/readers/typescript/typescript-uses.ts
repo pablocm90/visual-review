@@ -285,6 +285,9 @@ export const usesOfTypeScript = async ({
       ]),
     ),
     notRead: [...new Set(visits.flatMap(({ uses }) => uses.notRead ?? []))],
-    notFollowed: [NOT_DRAWN],
+    notFollowed: [
+      NOT_DRAWN,
+      ...(names.some(name => name.startsWith('* from ')) ? ['removed export * not followed'] : []),
+    ],
   };
 };
