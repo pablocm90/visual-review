@@ -54,7 +54,7 @@ export const withTypeReexports = ({
   };
   const fileNamedBy = (specifier: string, importer: string): string | undefined =>
     modulesNamedBy({ head: directory, resolution }, { specifier, importer }).flatMap(
-      place => sourceAt.get(place) ?? fileAt(place) ?? [],
+      place => fileAt(place) ?? sourceAt.get(place) ?? [],
     )[0];
   const read = files.map(module => ({
     module,

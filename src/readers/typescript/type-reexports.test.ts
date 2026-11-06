@@ -99,6 +99,29 @@ test.for([
   expect(edges).toEqual([{ from: 'web/file/types.ts', to: 'lib' }]);
 });
 
+test('a type re-export of a name both a file and a folder hold draws to the file, as an import does', async () => {
+  const edges = await edgesIn({
+    'src/x.ts': 'export type Foo = string;\n',
+    'src/x/index.ts': 'export type Foo = number;\n',
+    'src/types.ts': "export type { Foo } from './x';\n",
+  });
+
+  expect(edges).toEqual([{ from: 'web/file/types.ts', to: 'web/file/x.ts' }]);
+});
+
+test('a type re-export of a file the cruise holds and no script ending names draws its edge', async () => {
+  const edges = await edgesIn({
+    'src/a.ts': "import C from './c.vue';\nexport const y = C;\n",
+    'src/c.vue': '<template />\n',
+    'src/types.ts': "export type { Props } from './c.vue';\n",
+  });
+
+  expect(edges).toEqual([
+    { from: 'web/file/a.ts', to: 'web/file/c.vue' },
+    { from: 'web/file/types.ts', to: 'web/file/c.vue' },
+  ]);
+});
+
 test('a package name an import left unresolved still reaches its sibling, from both files', async () => {
   const edges = await edgesIn(
     {
