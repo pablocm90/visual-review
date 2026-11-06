@@ -470,6 +470,11 @@ test.for([
     edges: [{ from: 'shop/file/b.ts', to: 'packages/lib' }],
   },
   {
+    how: 'the deepest root holding it, of one letter',
+    place: './p/src/*',
+    edges: [{ from: 'shop/file/b.ts', to: 'p' }],
+  },
+  {
     how: 'no root its folder name only begins like',
     place: './packages/library/src/*',
     edges: [],
@@ -482,6 +487,8 @@ test.for([
     'packages/lib/package.json': '{}\n',
     'packages/lib/src/x.ts': 'export const x = 1;\n',
     'packages/library/src/x.ts': 'export const x = 1;\n',
+    'p/package.json': '{}\n',
+    'p/src/x.ts': 'export const x = 1;\n',
   });
   const { repo, root } = workspace;
 

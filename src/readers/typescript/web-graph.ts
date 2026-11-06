@@ -81,7 +81,7 @@ const isUnder = (folder: string, path: string): boolean =>
 const stackHolding = (path: string, stacks: ReadonlyMap<string, string>): string | undefined =>
   [...stacks]
     .filter(([root]) => isUnder(root, path))
-    .toSorted(([one], [other]) => other.length - one.length)
+    .toSorted(([one], [other]) => relative(one, path).length - relative(other, path).length)
     .at(0)?.[1];
 
 export const webGraph = ({
