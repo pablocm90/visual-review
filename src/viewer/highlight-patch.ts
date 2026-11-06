@@ -14,6 +14,7 @@ import type { FilePatch } from '../core/diff-graphs.ts';
 const LANGUAGE_BY_NAME: Readonly<Record<string, string>> = {
   'Cargo.lock': 'ini',
   '.editorconfig': 'ini',
+  'config.ru': 'ruby',
   Gemfile: 'ruby',
   Rakefile: 'ruby',
 };
@@ -23,7 +24,6 @@ const LANGUAGE_BY_EXTENSION: Readonly<Record<string, string>> = {
   rb: 'ruby',
   rake: 'ruby',
   gemspec: 'ruby',
-  ru: 'ruby',
   ts: 'typescript',
   tsx: 'typescript',
   cjs: 'javascript',

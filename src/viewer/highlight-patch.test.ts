@@ -65,6 +65,7 @@ test.for([
   { path: 'web/index.html', language: 'xml' },
   { path: 'tools/visual-review/src/viewer/styles.css', language: 'css' },
   { path: 'web/.env.development', language: undefined },
+  { path: 'locales/messages.ru', language: undefined },
 ])('$path is coloured as $language', ({ path, language }) => {
   expect(languageOf(path)).toBe(language);
 });
