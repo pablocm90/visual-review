@@ -1,5 +1,6 @@
 import { existsSync, readFileSync } from 'node:fs';
 import { join, relative } from 'node:path';
+import { isTooBig } from '../too-big.ts';
 import { moduleAt, modulesNamedBy, type Resolution } from './typescript-config.ts';
 import { parseTypeScript } from './typescript-syntax.ts';
 import { CruiseOutputSchema, isUnder } from './web-graph.ts';
@@ -9,7 +10,7 @@ const MAY_REEXPORT_TYPES = /\bexport\s+type\s*[{*]/;
 const typeSourcesIn = (path: string, file: string): ReadonlyArray<string> => {
   try {
     const text = readFileSync(file, 'utf8');
-    if (!MAY_REEXPORT_TYPES.test(text)) return [];
+    if (!MAY_REEXPORT_TYPES.test(text) || isTooBig(text)) return [];
     return parseTypeScript(text, path).program.body.flatMap(statement =>
       (statement.type === 'ExportNamedDeclaration' || statement.type === 'ExportAllDeclaration') &&
       statement.exportKind === 'type' &&

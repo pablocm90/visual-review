@@ -122,6 +122,15 @@ test('a file that does not parse draws no type edge, and the rest of the graph i
   expect(edges).toEqual([{ from: 'web/file/types.ts', to: 'web/file/a.ts' }]);
 });
 
+test('a file over the size limit is not parsed for its type re-exports', async () => {
+  const edges = await edgesIn({
+    'src/a.ts': 'export type Foo = string;\n',
+    'src/big.ts': `export type { Foo } from './a';\n${'// filler\n'.repeat(200_000)}`,
+  });
+
+  expect(edges).toEqual([]);
+});
+
 test('an inline type re-export and a local one draw what they did', async () => {
   const edges = await edgesIn({
     'src/a.ts': 'export type Foo = string;\n',
