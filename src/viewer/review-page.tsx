@@ -703,9 +703,13 @@ const FullDiff = ({
   ...commenting
 }: FullDiffProps) => {
   const [closedAt, setClosedAt] = useState<{ readonly landing: LandingIn | undefined }>();
+  const [landedOn, setLandedOn] = useState(false);
   const onAPatch = landing?.path === undefined ? undefined : landing;
+  if (onAPatch !== undefined && !landedOn) setLandedOn(true);
   const wanted =
-    onAPatch !== undefined || patches.some(({ path }) => holdsLineDraft(commenting.comments, path));
+    onAPatch !== undefined ||
+    landedOn ||
+    patches.some(({ path }) => holdsLineDraft(commenting.comments, path));
   const closed =
     closedAt !== undefined && (onAPatch === undefined || closedAt.landing === onAPatch);
   const open = (held || wanted) && !closed;

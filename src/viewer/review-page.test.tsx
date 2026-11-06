@@ -8303,6 +8303,68 @@ test('a tick opens its function and its run at its row, ringed in the strip and 
   expect(whatChanged().querySelectorAll('[aria-current="true"]')).toHaveLength(2);
 });
 
+test('a tick leaves the Full diff a logic line opened as it is, open, or closed by hand', async () => {
+  const user = userEvent.setup();
+  render(
+    <ReviewPage
+      review={{
+        ...pageWithUnchangedRuns(),
+        patches: [
+          {
+            path: 'web/src/runs.ts',
+            patch: [
+              'diff --git a/web/src/runs.ts b/web/src/runs.ts',
+              '@@ -1 +1,2 @@',
+              ' if (a) {',
+              '+if (c) {',
+            ].join('\n'),
+          },
+        ],
+      }}
+    />,
+  );
+  await user.click(await screen.findByRole('button', { name: 'runs.ts: modified' }));
+  const logic = within(whatChanged()).getByRole('list', { name: 'Logic of function runs' });
+
+  await user.click(within(logic).getByRole('button', { name: 'added if: if (c)' }));
+  expect(fullDiffOpen()).toBe(true);
+
+  const tick = (name: string) =>
+    user.click(
+      within(
+        within(whatChanged()).getByRole('group', { name: 'Marks of function runs' }),
+      ).getByRole('button', { name }),
+    );
+  await tick('same if: if (a)');
+  expect(fullDiffOpen()).toBe(true);
+
+  await user.click(within(inspector()).getByRole('button', { name: 'Full diff' }));
+  expect(fullDiffOpen()).toBe(false);
+  await tick('added if: if (c)');
+  expect(fullDiffOpen()).toBe(false);
+});
+
+test('the tray goes to a draft on a decision, ringing its tick', async () => {
+  const user = userEvent.setup();
+  render(<ReviewPage review={pageWithUnchangedRuns()} send={vi.fn(async () => {})} />);
+  await user.click(await screen.findByRole('button', { name: 'runs.ts: modified' }));
+  await user.click(
+    within(whatChanged()).getByRole('button', { name: 'Comment on added if: if (c)' }),
+  );
+  await write(user, within(whatChanged()).getByRole('textbox', { name: 'Your comment' }), 'Why?');
+  await openReview(user);
+
+  await user.click(
+    within(screen.getByRole('list', { name: 'Drafts' })).getByRole('button', { name: 'if (c)' }),
+  );
+
+  const marks = within(whatChanged()).getByRole('group', { name: 'Marks of function runs' });
+  expect(
+    within(marks).getByRole('button', { name: 'added if: if (c)' }).getAttribute('aria-current'),
+  ).toBe('true');
+  expect(marks.querySelectorAll('[aria-current="true"]')).toHaveLength(1);
+});
+
 test("C on a logic row, landed on by its tick or focused through its line, opens that row's comment, not the part's", async () => {
   const user = userEvent.setup();
   render(<ReviewPage review={pageWithUnchangedRuns()} send={vi.fn(async () => {})} />);
