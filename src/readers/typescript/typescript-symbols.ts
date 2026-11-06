@@ -6,7 +6,7 @@ import type {
   TSDeclareFunction,
   TSDeclareMethod,
 } from '@babel/types';
-import type { FileSymbols } from '../../core/reader.ts';
+import type { FileSymbols, LineRange } from '../../core/reader.ts';
 import { isTooBig, TOO_BIG } from '../too-big.ts';
 import { decisionsIn } from './typescript-decisions.ts';
 import {
@@ -210,6 +210,14 @@ const tokensOf = (
     .map(token => text.slice(startOf(token), endOf(token)));
 };
 
+const linesOf = ({
+  declaration,
+  heads,
+}: WalkedSymbol & { readonly heads: ReadonlyArray<Node> }): LineRange => ({
+  start: Math.min(...[declaration, ...heads].map(node => node.loc?.start.line ?? 0)),
+  end: declaration.loc?.end.line ?? 0,
+});
+
 export const symbolsOfTypeScript = (text: string, path: string): FileSymbols => {
   if (isTooBig(text)) throw new Error(TOO_BIG);
   const { program, tokens } = parseTypeScript(text, path);
@@ -221,6 +229,7 @@ export const symbolsOfTypeScript = (text: string, path: string): FileSymbols => 
   return {
     symbols: walk.map(walked => ({
       ...walked.symbol,
+      lines: linesOf(walked),
       exported: isExported(names, walked),
       signature: walked.heads.map(head => signatureOf(text, head)).join('; '),
       signatureHash: hashOf(walked.heads.map(signatureNodesOf), asIs),

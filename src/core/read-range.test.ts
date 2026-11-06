@@ -554,6 +554,7 @@ test("each changed file of a stack whose reader reads symbols comes with its sym
         {
           name: 'b',
           kind: 'function',
+          lines: { base: { start: 1, end: 1 }, head: { start: 1, end: 1 } },
           exported: { base: true, head: true },
           change: 'renamed',
           renamedFrom: 'a',
@@ -565,7 +566,15 @@ test("each changed file of a stack whose reader reads symbols comes with its sym
     {
       node: `${stack}/file/c.ts`,
       stack,
-      symbols: [{ name: 'c', kind: 'function', exported: { head: true }, change: 'added' }],
+      symbols: [
+        {
+          name: 'c',
+          kind: 'function',
+          lines: { head: { start: 1, end: 1 } },
+          exported: { head: true },
+          change: 'added',
+        },
+      ],
       exports: { added: ['c'], removed: [] },
       kind: 'api',
     },
@@ -576,6 +585,7 @@ test("each changed file of a stack whose reader reads symbols comes with its sym
         {
           name: 'kept',
           kind: 'function',
+          lines: { base: { start: 1, end: 1 }, head: { start: 1, end: 1 } },
           exported: { base: true, head: true },
           change: 'unchanged',
         },
@@ -666,14 +676,30 @@ test('the files of a stack only one side has are read on that side', async () =>
     {
       node: 'shop/file/y.ts',
       stack: 'shop',
-      symbols: [{ name: 'Y', kind: 'type', exported: { head: true }, change: 'added' }],
+      symbols: [
+        {
+          name: 'Y',
+          kind: 'type',
+          lines: { head: { start: 1, end: 1 } },
+          exported: { head: true },
+          change: 'added',
+        },
+      ],
       exports: { added: ['Y'], removed: [] },
       kind: 'api',
     },
     {
       node: 'admin/file/x.ts',
       stack: 'admin',
-      symbols: [{ name: 'X', kind: 'type', exported: { base: true }, change: 'removed' }],
+      symbols: [
+        {
+          name: 'X',
+          kind: 'type',
+          lines: { base: { start: 1, end: 1 } },
+          exported: { base: true },
+          change: 'removed',
+        },
+      ],
       exports: { added: [], removed: ['X'] },
       kind: 'api',
     },

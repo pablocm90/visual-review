@@ -5051,10 +5051,13 @@ const topFile = (label: string, state: Diffed = 'unchanged') => ({
   state,
 });
 
-const symbolsOf = (node: string, symbols: ReadonlyArray<SymbolStatement>): SymbolFile => ({
+const symbolsOf = (
+  node: string,
+  symbols: ReadonlyArray<Omit<SymbolStatement, 'lines'> & Partial<Pick<SymbolStatement, 'lines'>>>,
+): SymbolFile => ({
   node,
   stack: 'web',
-  symbols,
+  symbols: symbols.map(symbol => ({ lines: {}, ...symbol })),
   exports: { added: [], removed: [] },
   kind: 'logic',
 });
@@ -5485,6 +5488,7 @@ test("a box's What changed lists each file inside it with symbol changes, each w
   });
   const symbol = (name: string, change: SymbolStatement['change']): SymbolStatement => ({
     name,
+    lines: {},
     kind: 'function',
     exported: { base: false, head: false },
     change,
@@ -5793,6 +5797,329 @@ test('a moved logic line names the symbol it moved to, and opens Full diff on it
   await user.click(line);
   const row = scrolledIntoView.mock.contexts.at(-1);
   expect(row instanceof HTMLElement ? row.textContent : undefined).toBe('-  if (!paid) return;');
+});
+
+const twoFunctionsPatch = () =>
+  patchOf(
+    'web/src/two.ts',
+    '@@ -1,6 +1,6 @@',
+    ' function a() {',
+    '-  return 1;',
+    '+  return 2;',
+    ' }',
+    ' function b() {',
+    '-  return 3;',
+    '+  return 4;',
+    ' }',
+  );
+
+const editedAt = (name: string, start: number, end: number) => ({
+  name,
+  kind: 'function' as const,
+  exported: { base: false, head: false },
+  change: 'edited' as const,
+  lines: { base: { start, end }, head: { start, end } },
+});
+
+const symbolDiffToggles = () =>
+  within(whatChanged())
+    .queryAllByRole('button', { name: /^Diff of/ })
+    .map(toggle => [toggle.getAttribute('aria-label'), toggle.getAttribute('aria-expanded')]);
+
+const toggleSymbolDiff = (user: ReturnType<typeof userEvent.setup>, name: string) =>
+  user.click(within(whatChanged()).getByRole('button', { name: `Diff of function ${name}` }));
+
+const symbolDiffRows = (role: 'insertion' | 'deletion') =>
+  within(whatChanged())
+    .queryAllByRole(role)
+    .map(row => row.textContent);
+
+test("a changed symbol's toggle opens only its own lines of the file's patch, in place and closed at first; an unchanged symbol has no toggle, nor has a symbol of a file with no patch", async () => {
+  const user = userEvent.setup();
+  render(
+    <ReviewPage
+      review={pageWith({
+        range: 'abc123..def456',
+        diff: {
+          nodes: [
+            { id: 'web', kind: 'stack', label: 'web', path: '', state: 'unchanged' },
+            topFile('two.ts', 'modified'),
+            topFile('nopatch.ts', 'modified'),
+          ],
+          edges: [],
+        },
+        symbols: [
+          symbolsOf('web/file/two.ts', [
+            editedAt('a', 1, 3),
+            editedAt('b', 4, 6),
+            { ...editedAt('still', 7, 9), change: 'unchanged' },
+          ]),
+          symbolsOf('web/file/nopatch.ts', [editedAt('c', 1, 3)]),
+        ],
+        patches: [twoFunctionsPatch()],
+      })}
+    />,
+  );
+
+  await user.click(await screen.findByRole('button', { name: 'two.ts: modified' }));
+  expect(symbolDiffToggles()).toStrictEqual([
+    ['Diff of function a', 'false'],
+    ['Diff of function b', 'false'],
+  ]);
+  expect(symbolDiffRows('insertion')).toStrictEqual([]);
+
+  await toggleSymbolDiff(user, 'a');
+  expect(symbolDiffToggles()).toStrictEqual([
+    ['Diff of function a', 'true'],
+    ['Diff of function b', 'false'],
+  ]);
+  expect(symbolDiffRows('deletion')).toStrictEqual(['-  return 1;']);
+  expect(symbolDiffRows('insertion')).toStrictEqual(['+  return 2;']);
+
+  await toggleSymbolDiff(user, 'a');
+  expect(symbolDiffRows('insertion')).toStrictEqual([]);
+
+  await user.click(screen.getByRole('button', { name: 'nopatch.ts: modified' }));
+  expect(within(whatChanged()).getByText('c')).toBeTruthy();
+  expect(symbolDiffToggles()).toStrictEqual([]);
+});
+
+test("in a box's What changed a symbol's toggle opens its own file's patch", async () => {
+  const user = userEvent.setup();
+  const patchOfBilling = (file: string, text: string) =>
+    patchOf(`web/src/billing/${file}`, '@@ -1 +1 @@', `-${text}`, `+${text}!`);
+  render(
+    <ReviewPage
+      review={pageWith({
+        range: 'abc123..def456',
+        diff: {
+          nodes: [
+            { id: 'web', kind: 'stack', label: 'web', path: '', state: 'unchanged' },
+            webModule('billing', 'modified'),
+            webFile('billing', 'a.ts', 'modified'),
+            webFile('billing', 'b.ts', 'modified'),
+          ],
+          edges: [],
+        },
+        symbols: [
+          symbolsOf('web/file/billing/a.ts', [editedAt('a', 1, 1)]),
+          symbolsOf('web/file/billing/b.ts', [editedAt('b', 1, 1)]),
+        ],
+        patches: [patchOfBilling('a.ts', 'in a'), patchOfBilling('b.ts', 'in b')],
+      })}
+    />,
+  );
+
+  await user.click(await screen.findByRole('button', { name: 'billing: modified' }));
+  await toggleSymbolDiff(user, 'b');
+  expect(symbolDiffRows('insertion')).toStrictEqual(['+in b!']);
+});
+
+test('an opened symbol says so when its diff holds no changed line of its own, and when the rows leave out its first line', async () => {
+  const user = userEvent.setup();
+  render(
+    <ReviewPage
+      review={pageWith({
+        range: 'abc123..def456',
+        diff: {
+          nodes: [
+            { id: 'web', kind: 'stack', label: 'web', path: '', state: 'unchanged' },
+            topFile('three.ts', 'modified'),
+          ],
+          edges: [],
+        },
+        symbols: [
+          symbolsOf('web/file/three.ts', [
+            editedAt('deep', 1, 20),
+            editedAt('whole', 21, 23),
+            editedAt('elsewhere', 40, 42),
+          ]),
+        ],
+        patches: [
+          patchOf(
+            'web/src/three.ts',
+            '@@ -9,3 +9,3 @@',
+            ' const before = 1;',
+            '-const inner = 1;',
+            '+const inner = 2;',
+            '@@ -21,3 +21,3 @@',
+            ' function whole() {',
+            '-  return 1;',
+            '+  return 2;',
+          ),
+        ],
+      })}
+    />,
+  );
+  const note = (name: string) =>
+    within(screen.getByRole('listitem', { name: new RegExp(`function ${name}`) })).queryByRole(
+      'note',
+    )?.textContent;
+
+  await user.click(await screen.findByRole('button', { name: 'three.ts: modified' }));
+  await toggleSymbolDiff(user, 'deep');
+  expect(note('deep')).toBe('Only its changed lines.');
+  await toggleSymbolDiff(user, 'whole');
+  expect(note('whole')).toBeUndefined();
+  await toggleSymbolDiff(user, 'elsewhere');
+  expect(note('elsewhere')).toBe('No line of its own changed.');
+});
+
+test("a last comment on a line shows under its own symbol's diff, not under another's line of the same text", async () => {
+  const user = userEvent.setup();
+  render(
+    <ReviewPage
+      review={{
+        ...pageWith({
+          range: review.range,
+          diff: {
+            nodes: [
+              { id: 'web', kind: 'stack', label: 'web', path: '', state: 'unchanged' },
+              topFile('two.ts', 'modified'),
+            ],
+            edges: [],
+          },
+          symbols: [symbolsOf('web/file/two.ts', [editedAt('a', 1, 3), editedAt('b', 4, 6)])],
+          patches: [
+            patchOf(
+              'web/src/two.ts',
+              '@@ -1,6 +1,6 @@',
+              ' function a() {',
+              '-  return 1;',
+              '+  return null;',
+              ' }',
+              ' function b() {',
+              '-  return 1;',
+              '+  return null;',
+              ' }',
+            ),
+          ],
+        }),
+        sinceReview: {
+          ...sinceReview,
+          comments: [
+            {
+              anchor: { kind: 'line', id: 'web/src/two.ts@head:5', text: '  return null;' },
+              kind: 'question',
+              text: 'Why null here?',
+            },
+          ],
+        },
+      }}
+    />,
+  );
+  const symbol = (name: string) =>
+    within(whatChanged()).getByRole('listitem', { name: new RegExp(`^function ${name}`) });
+
+  await user.click(await screen.findByRole('button', { name: 'two.ts: modified' }));
+  await toggleSymbolDiff(user, 'a');
+  await toggleSymbolDiff(user, 'b');
+
+  expect(within(symbol('b')).getByText('Why null here?')).toBeTruthy();
+  expect(within(symbol('a')).queryByText('Why null here?')).toBeNull();
+});
+
+test("a comment on a line of a symbol's diff shows in Full diff too, and the tray goes to it there", async () => {
+  const user = userEvent.setup();
+  render(
+    <ReviewPage
+      review={pageWith({
+        range: review.range,
+        diff: {
+          nodes: [
+            { id: 'web', kind: 'stack', label: 'web', path: '', state: 'unchanged' },
+            topFile('two.ts', 'modified'),
+          ],
+          edges: [],
+        },
+        symbols: [symbolsOf('web/file/two.ts', [editedAt('a', 1, 3), editedAt('b', 4, 6)])],
+        patches: [twoFunctionsPatch()],
+      })}
+      send={vi.fn(async () => {})}
+    />,
+  );
+  const name = 'two.ts:2 "return 2;"';
+
+  await user.click(await screen.findByRole('button', { name: 'two.ts: modified' }));
+  await toggleSymbolDiff(user, 'a');
+  await user.click(within(whatChanged()).getByRole('button', { name: `Comment on ${name}` }));
+  await write(user, within(whatChanged()).getByRole('textbox', { name: 'Your comment' }), 'Why 2?');
+  const inFullDiff = screen.getByRole('region', { name: 'Full diff' });
+  expect(within(inFullDiff).getByRole('textbox', { name: 'Your comment' })).toHaveProperty(
+    'value',
+    'Why 2?',
+  );
+
+  await openReview(user);
+  await user.click(
+    within(screen.getByRole('list', { name: 'Drafts' })).getByRole('button', { name }),
+  );
+  const row = within(screen.getByRole('region', { name: 'Full diff' })).getByRole('insertion', {
+    current: true,
+  });
+  expect(within(row).getByRole('textbox', { name: 'Your comment' })).toHaveProperty(
+    'value',
+    'Why 2?',
+  );
+});
+
+test('a symbol moved between files opens its lines from both, each named by its file, the one it left first, from either end', async () => {
+  const user = userEvent.setup();
+  const moved = {
+    name: 'f',
+    kind: 'function' as const,
+    exported: { base: false, head: false },
+    change: 'moved' as const,
+  };
+  render(
+    <ReviewPage
+      review={pageWith({
+        range: 'abc123..def456',
+        diff: {
+          nodes: [
+            { id: 'web', kind: 'stack', label: 'web', path: '', state: 'unchanged' },
+            topFile('from.ts', 'modified'),
+            topFile('to.ts', 'modified'),
+          ],
+          edges: [],
+        },
+        symbols: [
+          symbolsOf('web/file/from.ts', [
+            { ...moved, movedTo: 'web/file/to.ts', lines: { base: { start: 1, end: 2 } } },
+          ]),
+          symbolsOf('web/file/to.ts', [
+            { ...moved, movedFrom: 'web/file/from.ts', lines: { head: { start: 5, end: 6 } } },
+          ]),
+        ],
+        patches: [
+          patchOf('web/src/from.ts', '@@ -1,3 +1 @@', '-function f() {', '-}', ' const kept = 1;'),
+          patchOf('web/src/to.ts', '@@ -4 +4,3 @@', ' const before = 1;', '+function f() {', '+}'),
+        ],
+      })}
+    />,
+  );
+  const sides = () =>
+    within(whatChanged())
+      .getAllByRole('region', { name: /^Lines in/ })
+      .map(side => [
+        side.getAttribute('aria-label'),
+        ...within(side)
+          .queryAllByRole('deletion')
+          .concat(within(side).queryAllByRole('insertion'))
+          .map(row => row.textContent),
+      ]);
+  const expected = [
+    ['Lines in web/src/from.ts', '-function f() {', '-}'],
+    ['Lines in web/src/to.ts', '+function f() {', '+}'],
+  ];
+
+  await user.click(await screen.findByRole('button', { name: 'from.ts: modified' }));
+  await toggleSymbolDiff(user, 'f');
+  expect(sides()).toStrictEqual(expected);
+
+  await user.click(screen.getByRole('button', { name: 'to.ts: modified' }));
+  await toggleSymbolDiff(user, 'f');
+  expect(sides()).toStrictEqual(expected);
 });
 
 test("a file whose symbols wouldn't parse shows the parse error in its What changed, and in its box's", async () => {
@@ -7811,6 +8138,7 @@ test('a box shows a file whose only news is a symbol changed since the last revi
   });
   const unchanged = (name: string): SymbolStatement => ({
     name,
+    lines: {},
     kind: 'function',
     exported: { base: false, head: false },
     change: 'unchanged',

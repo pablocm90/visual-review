@@ -795,3 +795,31 @@ test("a delegate's target is its signature", () => {
     signatureOf('delegate :a, to: :door', 'delegate :a, to: :door, prefix: false'),
   ).toBeUndefined();
 });
+
+test('a symbol knows the lines it spans, leaving out the comment above it', () => {
+  const { symbols } = read(
+    '# A shop.',
+    'class Shop',
+    '  attr_reader :id,',
+    '    :name',
+    '  delegate :city,',
+    '    to: :owner',
+    '  scope :open, -> {',
+    '    where(open: true)',
+    '  }',
+    '  # Closes it.',
+    '  def close',
+    '  end',
+    'end',
+  );
+  expect(
+    symbols.map(({ kind, name, lines }) => [`${kind} ${name}`, lines.start, lines.end]),
+  ).toEqual([
+    ['class Shop', 2, 13],
+    ['getter id', 3, 4],
+    ['getter name', 3, 4],
+    ['method city', 5, 6],
+    ['method self.open', 7, 9],
+    ['method close', 11, 12],
+  ]);
+});

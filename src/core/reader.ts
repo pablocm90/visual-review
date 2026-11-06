@@ -54,10 +54,13 @@ export type Decision = {
   readonly subject?: ReadonlyArray<string>;
 };
 
+export type LineRange = { readonly start: number; readonly end: number };
+
 export type ReadSymbol = {
   readonly name: string;
   readonly scope?: string;
   readonly kind: SymbolKind;
+  readonly lines: LineRange;
   readonly exported: boolean;
   readonly signature: string;
   readonly signatureHash: string;

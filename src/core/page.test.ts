@@ -342,10 +342,12 @@ test('each stack with changed files whose reader reads no symbols is a structure
   ]);
 });
 
-const symbolFile = (symbols: ReadonlyArray<SymbolStatement>): SymbolFile => ({
+type Stated = Omit<SymbolStatement, 'lines'>;
+
+const symbolFile = (symbols: ReadonlyArray<Stated>): SymbolFile => ({
   node: 'web/file/a.ts',
   stack: 'web',
-  symbols,
+  symbols: symbols.map(symbol => ({ lines: {}, ...symbol })),
   exports: { added: [], removed: [] },
   kind: 'api',
 });
@@ -496,6 +498,7 @@ test.for([
   ({ change, prefix }) => {
     const accessor = (kind: 'getter' | 'setter'): SymbolStatement => ({
       name: 'x',
+      lines: {},
       scope: 'C',
       kind,
       ...change,
@@ -696,7 +699,7 @@ test("a class's methods raise no api finding of their own when the class itself 
     scope: string,
     exported: SymbolStatement['exported'],
     change: SymbolStatement['change'],
-  ): SymbolStatement => ({ name: 'charge', scope, kind: 'method', exported, change });
+  ): SymbolStatement => ({ name: 'charge', scope, kind: 'method', lines: {}, exported, change });
   const symbols = [
     symbolFile([
       { name: 'Orders', kind: 'class', exported: { base: true }, change: 'removed' },
@@ -948,6 +951,7 @@ test("a moved guard or catch needs no look: it counts in its function's logic fi
 test('two accessors of one name each changing their logic are two findings, the later id counting the symbol and each title naming its kind', () => {
   const accessor = (kind: 'getter' | 'setter'): SymbolStatement => ({
     name: 'x',
+    lines: {},
     scope: 'C',
     kind,
     exported: { base: false, head: false },
@@ -968,6 +972,7 @@ test('two accessors of one name each changing their logic are two findings, the 
 test("a file whose logic changed, with no test added, removed or edited alongside it, is a tests finding to look at on it; a test file alongside that wouldn't parse counts as changed", () => {
   const edited = (name: string): SymbolStatement => ({
     name,
+    lines: {},
     kind: 'function',
     exported: { base: false, head: false },
     change: 'edited',
@@ -2576,7 +2581,7 @@ const fn = (
   name: string,
   change: SymbolStatement['change'],
   more: Partial<SymbolStatement> = {},
-): SymbolStatement => ({ name, kind: 'function', exported: {}, change, ...more });
+): SymbolStatement => ({ name, kind: 'function', lines: {}, exported: {}, change, ...more });
 
 test.for([
   {

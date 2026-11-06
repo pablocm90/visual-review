@@ -1,7 +1,7 @@
 import type { Node } from 'web-tree-sitter';
-import type { FileSymbols, ReadSymbol } from '../../core/reader.ts';
+import type { FileSymbols, LineRange, ReadSymbol } from '../../core/reader.ts';
 import { isTooBig, TOO_BIG } from '../too-big.ts';
-import { hashesOf, hashOf, isComment, ownText, shapeOf } from '../tree-sitter.ts';
+import { hashesOf, hashOf, isComment, linesOf, ownText, shapeOf } from '../tree-sitter.ts';
 import { blindSpotsIn, decisionsOfFunction } from './rust-decisions.ts';
 import { attributesOf, isDocText, isTestItem, parseRust, pathOf } from './rust-syntax.ts';
 
@@ -53,9 +53,15 @@ const writtenWhole = (item: Node): string =>
 const present = (nodes: ReadonlyArray<Node | null>): ReadonlyArray<Node> =>
   nodes.filter(node => node !== null);
 
+const linesOfItem = (item: Node): LineRange => ({
+  start: linesOf(attributesOf(item)[0] ?? item).start,
+  end: linesOf(item).end,
+});
+
 const functionSymbol = (item: Node): ReadSymbol => ({
   name: nameOf(item),
   kind: 'function',
+  lines: linesOfItem(item),
   exported: isExactlyPub(item),
   signature: signatureOf(item),
   ...hashesOf({
@@ -115,9 +121,10 @@ const methodsOfTrait = (item: Node): ReadonlyArray<ReadSymbol> =>
     exported: isExactlyPub(item),
   }));
 
-const typeNamed = (item: Node): Pick<ReadSymbol, 'name' | 'kind' | 'exported'> => ({
+const typeNamed = (item: Node): Pick<ReadSymbol, 'name' | 'kind' | 'lines' | 'exported'> => ({
   name: nameOf(item),
   kind: 'type',
+  lines: linesOfItem(item),
   exported: isExactlyPub(item),
 });
 
