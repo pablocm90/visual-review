@@ -388,3 +388,11 @@ test('logic only keeps the files named with their open boxes and every edge betw
   expect(only.nodes.map(({ id }) => id)).toEqual(['web', 'A', 'B', 'a1', 'b1']);
   expect(only.edges).toEqual([{ from: 'a1', to: 'b1', state: 'unchanged' }]);
 });
+
+test('logic only keeps an edge between the open boxes of its files, the only kind a Rust crate has', () => {
+  const diff = nested([{ from: 'A', to: 'B', state: 'unchanged' }]);
+
+  const only = logicOnly({ diff, files: ['a1', 'b1'] });
+
+  expect(only.edges).toEqual([{ from: 'A', to: 'B', state: 'unchanged' }]);
+});
