@@ -85,13 +85,13 @@ const PatchLine = ({
   return <span {...marks}>{code}</span>;
 };
 
-type SaidAt = (row: number | undefined) => ReadonlyArray<PreviousComment['anchor']>;
+type SaidAt = (row: Line | undefined) => ReadonlyArray<PreviousComment['anchor']>;
 
 export const useSaidAt = (path: string, lines: ReadonlyArray<Line>): SaidAt => {
-  const placed = useSaidLinesOf(path).map(({ anchor, place }) => ({
-    anchor,
-    row: rowOfLine(lines, place),
-  }));
+  const placed = useSaidLinesOf(path).map(({ anchor, place }) => {
+    const row = rowOfLine(lines, place);
+    return { anchor, row: row === undefined ? undefined : lines[row] };
+  });
   return row => placed.filter(said => said.row === row).map(({ anchor }) => anchor);
 };
 
@@ -116,7 +116,7 @@ export const PatchRows = ({
         key={index}
         path={path}
         line={line}
-        said={saidAt(index)}
+        said={saidAt(line)}
         landing={index === landedRow ? landed : undefined}
         {...commenting}
       />

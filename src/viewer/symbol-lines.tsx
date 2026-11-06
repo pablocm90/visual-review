@@ -12,11 +12,9 @@ type LinesProps = LineComments & {
 };
 
 const LinesOfFile = ({ patch: { path, patch }, lines, inFile, ...commenting }: LinesProps) => {
-  const rows = useMemo(
-    () => rowsOfSymbol({ rows: highlightPatch({ path, patch }), lines, inFile }),
-    [path, patch, lines, inFile],
-  );
-  const saidAt = useSaidAt(path, rows);
+  const whole = useMemo(() => highlightPatch({ path, patch }), [path, patch]);
+  const rows = useMemo(() => rowsOfSymbol({ rows: whole, lines, inFile }), [whole, lines, inFile]);
+  const saidAt = useSaidAt(path, whole);
   if (rows.length === 0)
     return (
       <p role="note" className="symbol-lines-note">

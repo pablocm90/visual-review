@@ -5965,6 +5965,60 @@ test('an opened symbol says so when its diff holds no changed line of its own, a
   expect(note('elsewhere')).toBe('No line of its own changed.');
 });
 
+test("a last comment on a line shows under its own symbol's diff, not under another's line of the same text", async () => {
+  const user = userEvent.setup();
+  render(
+    <ReviewPage
+      review={{
+        ...pageWith({
+          range: review.range,
+          diff: {
+            nodes: [
+              { id: 'web', kind: 'stack', label: 'web', path: '', state: 'unchanged' },
+              topFile('two.ts', 'modified'),
+            ],
+            edges: [],
+          },
+          symbols: [symbolsOf('web/file/two.ts', [editedAt('a', 1, 3), editedAt('b', 4, 6)])],
+          patches: [
+            patchOf(
+              'web/src/two.ts',
+              '@@ -1,6 +1,6 @@',
+              ' function a() {',
+              '-  return 1;',
+              '+  return null;',
+              ' }',
+              ' function b() {',
+              '-  return 1;',
+              '+  return null;',
+              ' }',
+            ),
+          ],
+        }),
+        sinceReview: {
+          ...sinceReview,
+          comments: [
+            {
+              anchor: { kind: 'line', id: 'web/src/two.ts@head:5', text: '  return null;' },
+              kind: 'question',
+              text: 'Why null here?',
+            },
+          ],
+        },
+      }}
+    />,
+  );
+  const symbol = (name: string) =>
+    within(whatChanged()).getByRole('listitem', { name: new RegExp(`^function ${name}`) });
+
+  await user.click(await screen.findByRole('button', { name: 'two.ts: modified' }));
+  await toggleSymbolDiff(user, 'a');
+  await toggleSymbolDiff(user, 'b');
+
+  expect(within(symbol('b')).getByText('Why null here?')).toBeTruthy();
+  expect(within(symbol('a')).queryByText('Why null here?')).toBeNull();
+});
+
 test("a comment on a line of a symbol's diff shows in Full diff too, and the tray goes to it there", async () => {
   const user = userEvent.setup();
   render(
