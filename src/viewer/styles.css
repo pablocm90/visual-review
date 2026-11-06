@@ -1331,316 +1331,6 @@ pre .hljs-emphasis {
   }
 }
 
-.metrics-screen {
-  display: grid;
-  grid-template-areas:
-    "totals totals"
-    "controls controls"
-    "table chart";
-  grid-template-columns: minmax(0, 1fr) minmax(300px, 400px);
-  gap: 20px;
-  align-items: start;
-  width: 100%;
-  max-width: 1400px;
-  margin: 0 auto;
-  padding: 20px 24px 32px;
-}
-
-.metric-totals {
-  display: grid;
-  grid-area: totals;
-  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-  gap: 12px;
-}
-
-.metric-tile {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  padding: 14px 16px;
-  border: 1px solid var(--stack-line);
-  border-radius: 10px;
-  background: var(--stack);
-}
-
-.metric-tile-name {
-  margin: 0;
-  color: var(--muted);
-  font-size: 12.5px;
-  font-weight: 400;
-}
-
-.metric-tile-value {
-  margin: 0;
-  font-size: 24px;
-  font-weight: 600;
-  font-variant-numeric: tabular-nums;
-}
-
-.metric-tile-caption {
-  margin: 0;
-  font-size: 12.5px;
-}
-
-.metric-controls {
-  display: flex;
-  flex-wrap: wrap;
-  grid-area: controls;
-  align-items: center;
-  gap: 10px 16px;
-}
-
-.metric-pick {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  font-size: 13px;
-}
-
-.metric-select {
-  min-height: 36px;
-  padding: 0 8px;
-  border: 1px solid var(--stack-line);
-  border-radius: 8px;
-  background: var(--stack);
-  color: var(--ink);
-  font: inherit;
-}
-
-.metric-panel {
-  min-width: 0;
-  border: 1px solid var(--stack-line);
-  border-radius: 10px;
-  background: var(--stack);
-}
-
-.metric-table-panel {
-  grid-area: table;
-  overflow-x: auto;
-}
-
-.metric-table {
-  width: 100%;
-  min-width: 760px;
-  border-collapse: collapse;
-  font-size: 13px;
-  font-variant-numeric: tabular-nums;
-}
-
-.metric-table-caption {
-  caption-side: bottom;
-  padding: 12px 16px 0;
-  color: var(--muted);
-  font-size: 12.5px;
-  text-align: left;
-}
-
-.metric-table-panel thead th {
-  padding: 12px 10px;
-  border-bottom: 1px solid var(--stack-line);
-  color: var(--muted);
-  font-size: 11.5px;
-  font-weight: 600;
-  letter-spacing: 0.04em;
-  text-align: right;
-  text-transform: uppercase;
-}
-
-.metric-table-panel thead th:first-child {
-  padding-left: 16px;
-  text-align: left;
-}
-
-.metric-node {
-  padding: 10px 16px;
-  border-bottom: 1px solid var(--unchanged-fill);
-  font-weight: 400;
-  text-align: left;
-  white-space: nowrap;
-}
-
-.metric-node-name {
-  padding: 0;
-  border: 0;
-  background: none;
-  color: var(--ink);
-  font: inherit;
-  font-weight: 500;
-  text-decoration: underline;
-  text-decoration-color: var(--muted);
-  text-underline-offset: 3px;
-  cursor: pointer;
-}
-
-.metric-node-stack {
-  margin-left: 8px;
-  padding: 0 6px;
-  border: 1px solid var(--stack-line);
-  border-radius: 4px;
-  color: var(--muted);
-  font-size: 11.5px;
-}
-
-.change-mark {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 18px;
-  height: 18px;
-  margin-right: 8px;
-  border: 2px solid var(--line);
-  border-radius: 4px;
-  background: var(--fill);
-  font-size: 12px;
-  font-weight: 700;
-  line-height: 1;
-}
-
-.metric-node[data-state="removed"] .change-mark {
-  border-style: dashed;
-}
-
-.metric-cell {
-  padding: 10px;
-  border-bottom: 1px solid var(--unchanged-fill);
-  text-align: right;
-  vertical-align: top;
-  white-space: nowrap;
-}
-
-.metric-delta {
-  display: block;
-  color: var(--muted);
-  font-size: 12px;
-}
-
-.metric-empty {
-  grid-area: table;
-  margin: 0;
-  color: var(--muted);
-}
-
-.hotspot-chart {
-  display: flex;
-  flex-direction: column;
-  grid-area: chart;
-  gap: 12px;
-  padding: 16px;
-}
-
-.hotspot-title {
-  margin: 0;
-  font-size: 15px;
-  font-weight: 600;
-}
-
-.hotspot-caption {
-  margin: 0;
-  color: var(--muted);
-  font-size: 12.5px;
-}
-
-.hotspot-plot {
-  width: 100%;
-  max-width: 420px;
-  font-size: 10.5px;
-}
-
-.hotspot-corner {
-  fill: var(--unchanged-fill);
-}
-
-.hotspot-note {
-  fill: var(--muted);
-}
-
-.hotspot-tick {
-  fill: var(--muted);
-  font-size: 10px;
-}
-
-.hotspot-axes {
-  fill: none;
-  stroke: var(--unchanged);
-}
-
-.hotspot-threshold {
-  stroke: var(--ink);
-  stroke-dasharray: 3 3;
-}
-
-.hotspot-path {
-  stroke: var(--ink);
-  stroke-width: 1.5;
-}
-
-.hotspot-base {
-  fill: var(--stack);
-  stroke: var(--muted);
-  stroke-width: 1.5;
-}
-
-.hotspot-head {
-  fill: var(--ink);
-}
-
-.hotspot-label {
-  fill: var(--ink);
-  font-weight: 600;
-}
-
-.hotspot-moves {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  margin: 0;
-  padding-left: 20px;
-  font-size: 13px;
-}
-
-.hotspot-move-node {
-  font-size: 12.5px;
-  font-weight: 600;
-}
-
-.metric-legend {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
-  gap: 6px 24px;
-  margin: 0;
-  padding: 8px 16px 14px;
-  font-size: 12.5px;
-}
-
-.metric-legend-entry {
-  display: flex;
-  align-items: baseline;
-  gap: 8px;
-}
-
-.metric-legend-term {
-  flex: none;
-  min-width: 72px;
-  font-weight: 600;
-}
-
-.metric-legend-meaning {
-  margin: 0;
-  color: var(--muted);
-}
-
-@media (max-width: 900px) {
-  .metrics-screen {
-    grid-template-areas:
-      "totals"
-      "controls"
-      "table"
-      "chart";
-    grid-template-columns: minmax(0, 1fr);
-    padding: 16px;
-  }
-}
-
 .comment {
   display: grid;
   gap: 6px;
@@ -3205,4 +2895,213 @@ main:has(> .review-tray) {
   margin: 2px 6px 0 0;
   color: var(--muted);
   font-size: 11px;
+}
+
+.strip-of-logic {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 2px 10px;
+  margin: 4px 0;
+}
+
+.strip-ticks {
+  display: inline-flex;
+  flex-wrap: wrap;
+  row-gap: 2px;
+}
+
+.strip-tick {
+  position: relative;
+  flex: none;
+  width: 8px;
+  height: 30px;
+  padding: 0;
+  border: 0;
+  background: none;
+  cursor: pointer;
+}
+
+.strip-tick::before {
+  content: "";
+  position: absolute;
+  left: 1px;
+  bottom: 15px;
+  width: 6px;
+  height: 8px;
+  box-sizing: border-box;
+}
+
+.tick-added::before {
+  background: var(--added);
+}
+
+.tick-changed::before {
+  background: var(--modified);
+}
+
+.tick-removed::before {
+  top: 15px;
+  bottom: auto;
+  background: var(--removed);
+}
+
+.tick-moved::before {
+  border: 1px solid var(--muted);
+}
+
+.tick-exit::before {
+  height: 14px;
+}
+
+.tick-same::before {
+  bottom: 14px;
+  height: 2px;
+  background: var(--muted);
+  opacity: 0.55;
+}
+
+.strip-count {
+  color: var(--muted);
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.logic-rows > summary {
+  margin-top: 0;
+  cursor: pointer;
+}
+
+.logic-rows > summary .strip-of-logic {
+  display: inline-flex;
+  vertical-align: middle;
+}
+
+.logic-run {
+  list-style: none;
+}
+
+.logic-run > details > summary {
+  margin-top: 0;
+  width: fit-content;
+  color: var(--muted);
+  font-size: 12px;
+  cursor: pointer;
+  list-style: none;
+}
+
+.logic-run > details > summary::-webkit-details-marker {
+  display: none;
+}
+
+.logic-run-show {
+  text-decoration: underline;
+}
+
+.logic-run > details[open] .logic-run-show {
+  display: none;
+}
+
+.logic-run > details > ul {
+  margin: 0;
+  padding: 0;
+}
+
+.strip-tick[aria-current="true"] {
+  outline: 2px solid var(--ink);
+  outline-offset: -1px;
+}
+
+.logic-comment-on {
+  opacity: 0;
+}
+
+.logic-row:hover > .logic-comment-on,
+.logic-row:focus-within > .logic-comment-on,
+.logic-comment-on[aria-expanded="true"] {
+  opacity: 1;
+}
+
+@media (hover: none) {
+  .logic-comment-on {
+    opacity: 1;
+  }
+}
+
+.logic-line {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.logic-row {
+  padding-block: 1px;
+  border-radius: 4px;
+}
+
+.logic-row .mark {
+  display: inline-block;
+  width: 1.4em;
+  font-weight: 600;
+  text-align: center;
+}
+
+.logic-added {
+  background: var(--added-fill);
+}
+
+.logic-added .mark {
+  color: var(--added);
+}
+
+.logic-removed {
+  background: var(--removed-fill);
+}
+
+.logic-removed .mark {
+  color: var(--removed);
+}
+
+.logic-changed {
+  background: var(--unchanged-fill);
+}
+
+.logic-changed .mark {
+  color: var(--modified);
+}
+
+.logic-moved .mark,
+.logic-same {
+  color: var(--muted);
+}
+
+.logic-row del,
+.logic-row ins {
+  padding: 0 2px;
+  border-radius: 3px;
+  font:
+    12.5px ui-monospace,
+    "SF Mono",
+    Menlo,
+    monospace;
+}
+
+.logic-row del {
+  background: var(--removed-fill);
+  color: var(--removed);
+}
+
+.logic-row ins {
+  background: var(--added-fill);
+  color: var(--added);
+  text-decoration: none;
+}
+
+.logic-line:hover code,
+.logic-line:hover ins {
+  text-decoration: underline;
 }
