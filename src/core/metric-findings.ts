@@ -1,7 +1,7 @@
 import type { NodeMeasures, NodeMetrics } from './metrics.ts';
 import type { RangeReading } from './read-range.ts';
 
-export type Hotspot = RangeReading['thresholds']['hotspot'];
+type Hotspot = RangeReading['thresholds']['hotspot'];
 
 type Finding<Metric, Value> = {
   readonly node: string;
@@ -41,7 +41,7 @@ const measureOf = (metric: Over, measures: NodeMeasures | undefined): number | u
   return metric === 'cyclomatic' ? measures.cyclomatic.highest : measures[metric];
 };
 
-export const hotspotOf = (measures: NodeMeasures | undefined): Hotspot | undefined => {
+const hotspotOf = (measures: NodeMeasures | undefined): Hotspot | undefined => {
   const cyclomatic = measureOf('cyclomatic', measures);
   return measures === undefined || cyclomatic === undefined
     ? undefined
@@ -61,7 +61,7 @@ const overFindings = (
   return [finding({ node, metric, base: baseValue, head: headValue, threshold, look })];
 };
 
-export const inHotspot = (point: Hotspot | undefined, cut: Hotspot): boolean =>
+const inHotspot = (point: Hotspot | undefined, cut: Hotspot): boolean =>
   point !== undefined && point.churn >= cut.churn && point.cyclomatic >= cut.cyclomatic;
 
 const hotspotFindings = (

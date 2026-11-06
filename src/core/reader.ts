@@ -89,6 +89,7 @@ export type UsesAsked = {
   readonly head: string;
   readonly stacks: ReadonlyMap<string, string>;
   readonly graph: Graph;
+  readonly graphAtHead: Graph;
   readonly node: Pick<GraphNode, 'id' | 'path'>;
   readonly names: ReadonlyArray<string>;
 };

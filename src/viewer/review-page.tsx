@@ -57,7 +57,6 @@ import {
   type PlacedStack,
 } from './layout.ts';
 import { LENS_OF, type Lens } from './lenses.ts';
-import { MetricsScreen } from './metrics-screen.tsx';
 import { MetricsTable } from './metrics-tab.tsx';
 import { NextToIt } from './next-to-it.tsx';
 import {
@@ -663,6 +662,8 @@ type InspectorProps = {
 
 type LandingPlace = string | null | undefined;
 
+type CommentAskedOn = { readonly on: string; readonly row: string | undefined };
+
 const useLanding = (place: LandingPlace) => {
   const [landed, setLanded] = useState<LandingIn & { readonly on: LandingPlace }>();
   if (landed !== undefined && landed.on !== place) setLanded(undefined);
@@ -702,9 +703,13 @@ const FullDiff = ({
   ...commenting
 }: FullDiffProps) => {
   const [closedAt, setClosedAt] = useState<{ readonly landing: LandingIn | undefined }>();
+  const [landedOn, setLandedOn] = useState(false);
   const onAPatch = landing?.path === undefined ? undefined : landing;
+  if (onAPatch !== undefined && !landedOn) setLandedOn(true);
   const wanted =
-    onAPatch !== undefined || patches.some(({ path }) => holdsLineDraft(commenting.comments, path));
+    onAPatch !== undefined ||
+    landedOn ||
+    patches.some(({ path }) => holdsLineDraft(commenting.comments, path));
   const closed =
     closedAt !== undefined && (onAPatch === undefined || closedAt.landing === onAPatch);
   const open = (held || wanted) && !closed;
@@ -747,6 +752,7 @@ type NotePanelProps = Pick<
   | 'reviewPatches'
 > & {
   readonly onShowLine: (at: LineAt) => void;
+  readonly onShowRow: (row: string) => void;
 };
 
 const WhyLook = (rows: FindingRowsProps) => (
@@ -767,6 +773,7 @@ const NotePanel = ({
   tests,
   onGoTo,
   onShowLine,
+  onShowRow,
   landing,
   note,
   found,
@@ -825,6 +832,7 @@ const NotePanel = ({
           allFiles={symbols}
           onGoTo={onGoTo}
           onShowLine={onShowLine}
+          onShowRow={onShowRow}
           comments={comments}
           onComment={onComment}
         />
@@ -894,7 +902,13 @@ const Inspector = ({
           landing={landing}
         />
       )}
-      <NotePanel {...props} node={node} onShowLine={showLine} landing={landing} />
+      <NotePanel
+        {...props}
+        node={node}
+        onShowLine={showLine}
+        onShowRow={row => onLand({ path: undefined, row })}
+        landing={landing}
+      />
       {node && measured && (
         <Fold title="Metrics" open={metricsOpen} onToggle={() => setMetricsOpen(!metricsOpen)}>
           <MetricsTable
@@ -964,7 +978,7 @@ type SidePanelProps = {
   readonly onLand: (landing: LandingIn) => void;
   readonly read: ReadonlySet<string>;
   readonly onToggleRead: (id: string) => void;
-  readonly commentAsked: { readonly on: string } | undefined;
+  readonly commentAsked: CommentAskedOn | undefined;
   readonly heading: RefObject<HTMLHeadingElement | null>;
   readonly reading: boolean;
 };
@@ -1055,7 +1069,9 @@ const SidePanel = ({
   const nextId = partFrom(parts, selected, 1);
   return (
     <CommentAsked.Provider
-      value={commentAsked && { anchor: anchorKey(anchor), request: commentAsked }}
+      value={
+        commentAsked && { anchor: commentAsked.row ?? anchorKey(anchor), request: commentAsked }
+      }
     >
       {divider}
       <Inspector
@@ -1221,7 +1237,6 @@ const viewOn = ({ layout, frame, chosen }: ViewOnOptions): View => {
 
 const TABS = {
   structure: 'Structure',
-  metrics: 'Metrics',
   tests: 'Tests',
   schema: 'Schema',
   routes: 'Routes',
@@ -1334,7 +1349,6 @@ const useGraphView = (layout: Layout | undefined, map: boolean) => {
 
 const tabsOf = ({ schemas, routes }: Pick<PageData, 'schemas' | 'routes'>): ReadonlyArray<Tab> => [
   'structure',
-  'metrics',
   'tests',
   ...(schemas.length === 0 ? [] : (['schema'] as const)),
   ...(routes.length === 0 ? [] : (['routes'] as const)),
@@ -1811,7 +1825,6 @@ const OtherScreen = ({
   onShowPatch,
 }: OtherScreenProps) => (
   <>
-    {tab === 'metrics' && <MetricsScreen review={review} onGoTo={onGoTo} />}
     {tab === 'tests' && (
       <ChangedSinceMarks value={changedSinceIn(review)}>
         <TestsScreen
@@ -1845,8 +1858,13 @@ const reviewedIn = ({ range, pullRequest }: PageData) => ({
   ...(pullRequest && { pullRequest: pullRequest.number }),
 });
 
+const rowCommentedFrom = (target: EventTarget | null): string | undefined =>
+  target instanceof Element
+    ? (target.closest('[data-comment-anchor]')?.getAttribute('data-comment-anchor') ?? undefined)
+    : undefined;
+
 const useCommentAsked = (selected: string | undefined, tab: Tab) => {
-  const [asked, setAsked] = useState<{ readonly on: string }>();
+  const [asked, setAsked] = useState<CommentAskedOn>();
   if (asked !== undefined && (asked.on !== selected || tab !== 'structure')) setAsked(undefined);
   return [asked, setAsked] as const;
 };
@@ -2077,7 +2095,7 @@ const Page = ({ review, notes, send }: ReviewPageProps) => {
       if (key === 'k') walk(-1);
       if (key === 'c' && selected !== undefined) {
         event.preventDefault();
-        setCommentAsked({ on: selected });
+        setCommentAsked({ on: selected, row: rowCommentedFrom(event.target) });
       }
       if (key === 'a' && selected !== undefined && review.readingOrder.parts.includes(selected))
         toggleRead(selected);
