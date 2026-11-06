@@ -40,9 +40,12 @@ const importedName = (text: string, specifier: ImportDeclaration['specifiers'][n
 
 type Read = { readonly path: string; readonly text: string; readonly target: string };
 
+type Forward = { readonly from: string; readonly to: string };
+
 type FileUses = {
   readonly named: ReadonlyMap<string, SymbolUse>;
   readonly unfollowed: ReadonlyArray<SymbolUse>;
+  readonly forwards: ReadonlyArray<Forward>;
 };
 
 const usesInFile = ({ path, text, target }: Read): FileUses => {
@@ -75,13 +78,26 @@ const usesInFile = ({ path, text, target }: Read): FileUses => {
       !ACCESSES.has(tokenText(code[index - 1])) &&
       namesFile(tokenText(code[index + 2]).slice(1, -1), path, target),
   );
-  const namespaceExports = program.body.flatMap(statement =>
+  const exportsFrom = program.body.flatMap(statement =>
     statement.type === 'ExportNamedDeclaration' &&
     statement.source &&
-    namesFile(statement.source.value, path, target) &&
-    statement.specifiers.some(({ type }) => type === 'ExportNamespaceSpecifier')
-      ? [statement]
+    namesFile(statement.source.value, path, target)
+      ? statement.specifiers.map(specifier => ({ statement, specifier }))
       : [],
+  );
+  const reexports = exportsFrom.flatMap(({ statement, specifier }) =>
+    specifier.type === 'ExportSpecifier'
+      ? [
+          {
+            statement,
+            from: nameOf(text, specifier.local),
+            to: nameOf(text, specifier.exported),
+          },
+        ]
+      : [],
+  );
+  const namespaceExports = exportsFrom.flatMap(({ statement, specifier }) =>
+    specifier.type === 'ExportNamespaceSpecifier' ? [statement] : [],
   );
   const specifiers = imports
     .filter(statement => namesFile(statement.source.value, path, target))
@@ -99,12 +115,17 @@ const usesInFile = ({ path, text, target }: Read): FileUses => {
     member === undefined ? [] : [[member, placeOf(token)] as const],
   );
   return {
-    named: new Map([...imported, ...members.toReversed()]),
+    named: new Map([
+      ...reexports.map(({ statement, from }) => [from, placeOf(statement)] as const),
+      ...imported,
+      ...members.toReversed(),
+    ]),
     unfollowed: [
       ...namespaceReads.filter(({ member }) => member === undefined).map(({ token }) => token),
       ...loads,
       ...namespaceExports,
     ].map(range => ({ ...placeOf(range), unfollowed: true })),
+    forwards: reexports.map(({ from, to }) => ({ from, to })),
   };
 };
 
@@ -125,6 +146,66 @@ const aliasesIn = (text: string, path: string): ReadonlyArray<Alias> =>
     );
   });
 
+type Target = Pick<GraphNode, 'id' | 'path'>;
+
+type Hop = { readonly node: Target; readonly exported: string; readonly asked: string };
+
+type Walk = {
+  readonly hops: ReadonlyArray<Hop>;
+  readonly seen: ReadonlySet<string>;
+  readonly importersOf: (node: Target) => ReadonlyArray<Target>;
+  readonly read: (importer: Target, target: Target) => Promise<FileUses>;
+};
+
+type Row = { readonly asked: string; readonly use: SymbolUse };
+
+const keyOf = ({ node, exported, asked }: Hop) => JSON.stringify([node.id, exported, asked]);
+
+const walked = async ({ hops, seen, importersOf, read }: Walk): Promise<ReadonlyArray<Row>> => {
+  const fresh = [...new Map(hops.map(hop => [keyOf(hop), hop])).entries()].filter(
+    ([key]) => !seen.has(key),
+  );
+  if (fresh.length === 0) return [];
+  const targets = [...new Map(fresh.map(([, { node }]) => [node.id, node])).values()];
+  const visits = await Promise.all(
+    targets.flatMap(target =>
+      importersOf(target).map(async importer => ({
+        target,
+        importer,
+        uses: await read(importer, target),
+      })),
+    ),
+  );
+  const met = visits.flatMap(({ target, importer, uses }) =>
+    fresh.flatMap(([, hop]) => (hop.node.id === target.id ? [{ hop, importer, uses }] : [])),
+  );
+  const rows = met.flatMap(({ hop, uses }) => {
+    const use = uses.named.get(hop.exported) ?? uses.unfollowed[0];
+    return use === undefined ? [] : [{ asked: hop.asked, use }];
+  });
+  const next = met.flatMap(({ hop, importer, uses }) =>
+    uses.forwards
+      .filter(({ from }) => from === hop.exported)
+      .map(({ to }) => ({ node: importer, exported: to, asked: hop.asked })),
+  );
+  return [
+    ...rows,
+    ...(await walked({
+      hops: next,
+      seen: new Set([...seen, ...fresh.map(([key]) => key)]),
+      importersOf,
+      read,
+    })),
+  ];
+};
+
+const onePerFile = (uses: ReadonlyArray<SymbolUse>): ReadonlyArray<SymbolUse> => {
+  const ordered = [...uses.filter(use => !use.unfollowed), ...uses.filter(use => use.unfollowed)];
+  return ordered.filter(
+    (use, index) => ordered.findIndex(({ path }) => path === use.path) === index,
+  );
+};
+
 export const usesOfTypeScript = async ({
   base,
   head,
@@ -133,26 +214,25 @@ export const usesOfTypeScript = async ({
   names,
 }: UsesAsked): Promise<UsesReading> => {
   const nodes = new Map<string, GraphNode>(graph.nodes.map(each => [each.id, each]));
-  const importers = graph.edges
-    .filter(({ to }) => to === node.id)
-    .flatMap(({ from }) => nodes.get(from) ?? []);
-  const read = await Promise.all(
-    importers.map(async ({ path }) =>
-      usesInFile({ path, text: await readFile(join(head, path), 'utf8'), target: node.path }),
-    ),
-  );
   const aliases = aliasesIn(await readFile(join(base, node.path), 'utf8'), node.path);
-  const importedAs = (name: string) => [
-    name,
-    ...aliases.filter(({ local }) => local === name).map(({ exported }) => exported),
-  ];
+  const rows = await walked({
+    hops: names.flatMap(asked =>
+      [
+        asked,
+        ...aliases.filter(({ local }) => local === asked).map(({ exported }) => exported),
+      ].map(exported => ({ node, exported, asked })),
+    ),
+    seen: new Set(),
+    importersOf: ({ id }) =>
+      graph.edges.filter(({ to }) => to === id).flatMap(({ from }) => nodes.get(from) ?? []),
+    read: async ({ path }, target) =>
+      usesInFile({ path, text: await readFile(join(head, path), 'utf8'), target: target.path }),
+  });
   return {
     uses: Object.fromEntries(
       names.map(name => [
         name,
-        read.flatMap(({ named, unfollowed }) =>
-          [...importedAs(name).flatMap(each => named.get(each) ?? []), ...unfollowed].slice(0, 1),
-        ),
+        onePerFile(rows.filter(({ asked }) => asked === name).map(({ use }) => use)),
       ]),
     ),
   };

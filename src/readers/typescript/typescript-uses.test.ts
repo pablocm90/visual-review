@@ -155,6 +155,13 @@ test.for([
     importer: "import Thing, { App } from './a';\nApp();\nThing();\n",
     line: 2,
   },
+  {
+    reason: 'a use by a name it was exported under beats a namespace passed along',
+    base: 'export default function App() {}\n',
+    asked: 'App',
+    importer: "import * as all from './a';\nimport Thing from './a';\npass(all);\nThing();\n",
+    line: 4,
+  },
 ])('$reason', async ({ base, asked, importer, line }) => {
   const reading = await usesIn({
     files: { 'b.ts': importer },
@@ -239,6 +246,7 @@ test.for([
   { statement: "require('./other');" },
   { statement: "export * as all from './other';" },
   { statement: "export { bar } from './a';" },
+  { statement: "export { foo } from './other';" },
   { statement: "thing.require('./a');" },
   { statement: "require.resolve('./a');" },
   { statement: 'import.meta.url;' },
@@ -249,4 +257,36 @@ test.for([
     names: ['foo'],
   });
   expect(reading?.uses).toEqual({ foo: [] });
+});
+
+test('a named re-export is a use at its statement, and its importers use the name it gives', async () => {
+  const reading = await usesIn({
+    files: {
+      'a.ts': 'export const foo = 1;\n',
+      'index.ts':
+        "run();\nexport { foo as baz } from './a';\nexport { bar as other } from './a';\n",
+      'g.ts': "import { other } from './index';\nother();\n",
+      'outer.ts': "export { baz as qux } from './index';\n",
+      'd.ts': "import { baz } from './index';\nbaz();\n",
+      'e.ts': "import { foo } from './index';\nfoo();\n",
+      'f.ts': "import { qux } from './outer';\nqux();\n",
+    },
+    edges: [
+      'index.ts -> a.ts',
+      'outer.ts -> index.ts',
+      'd.ts -> index.ts',
+      'e.ts -> index.ts',
+      'g.ts -> index.ts',
+      'f.ts -> outer.ts',
+    ],
+    names: ['foo'],
+  });
+  expect(reading?.uses).toEqual({
+    foo: [
+      { path: 'src/index.ts', line: 2, text: "export { foo as baz } from './a';" },
+      { path: 'src/outer.ts', line: 1, text: "export { baz as qux } from './index';" },
+      { path: 'src/d.ts', line: 2, text: 'baz();' },
+      { path: 'src/f.ts', line: 2, text: 'qux();' },
+    ],
+  });
 });
