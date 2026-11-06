@@ -5799,6 +5799,122 @@ test('a moved logic line names the symbol it moved to, and opens Full diff on it
   expect(row instanceof HTMLElement ? row.textContent : undefined).toBe('-  if (!paid) return;');
 });
 
+const twoFunctionsPatch = () =>
+  patchOf(
+    'web/src/two.ts',
+    '@@ -1,6 +1,6 @@',
+    ' function a() {',
+    '-  return 1;',
+    '+  return 2;',
+    ' }',
+    ' function b() {',
+    '-  return 3;',
+    '+  return 4;',
+    ' }',
+  );
+
+const editedAt = (name: string, start: number, end: number) => ({
+  name,
+  kind: 'function' as const,
+  exported: { base: false, head: false },
+  change: 'edited' as const,
+  lines: { base: { start, end }, head: { start, end } },
+});
+
+const symbolDiffToggles = () =>
+  within(whatChanged())
+    .queryAllByRole('button', { name: /^Diff of/ })
+    .map(toggle => [toggle.getAttribute('aria-label'), toggle.getAttribute('aria-expanded')]);
+
+const toggleSymbolDiff = (user: ReturnType<typeof userEvent.setup>, name: string) =>
+  user.click(within(whatChanged()).getByRole('button', { name: `Diff of function ${name}` }));
+
+const symbolDiffRows = (role: 'insertion' | 'deletion') =>
+  within(whatChanged())
+    .queryAllByRole(role)
+    .map(row => row.textContent);
+
+test("a changed symbol's toggle opens only its own lines of the file's patch, in place and closed at first; an unchanged symbol has no toggle, nor has a symbol of a file with no patch", async () => {
+  const user = userEvent.setup();
+  render(
+    <ReviewPage
+      review={pageWith({
+        range: 'abc123..def456',
+        diff: {
+          nodes: [
+            { id: 'web', kind: 'stack', label: 'web', path: '', state: 'unchanged' },
+            topFile('two.ts', 'modified'),
+            topFile('nopatch.ts', 'modified'),
+          ],
+          edges: [],
+        },
+        symbols: [
+          symbolsOf('web/file/two.ts', [
+            editedAt('a', 1, 3),
+            editedAt('b', 4, 6),
+            { ...editedAt('still', 7, 9), change: 'unchanged' },
+          ]),
+          symbolsOf('web/file/nopatch.ts', [editedAt('c', 1, 3)]),
+        ],
+        patches: [twoFunctionsPatch()],
+      })}
+    />,
+  );
+
+  await user.click(await screen.findByRole('button', { name: 'two.ts: modified' }));
+  expect(symbolDiffToggles()).toStrictEqual([
+    ['Diff of function a', 'false'],
+    ['Diff of function b', 'false'],
+  ]);
+  expect(symbolDiffRows('insertion')).toStrictEqual([]);
+
+  await toggleSymbolDiff(user, 'a');
+  expect(symbolDiffToggles()).toStrictEqual([
+    ['Diff of function a', 'true'],
+    ['Diff of function b', 'false'],
+  ]);
+  expect(symbolDiffRows('deletion')).toStrictEqual(['-  return 1;']);
+  expect(symbolDiffRows('insertion')).toStrictEqual(['+  return 2;']);
+
+  await toggleSymbolDiff(user, 'a');
+  expect(symbolDiffRows('insertion')).toStrictEqual([]);
+
+  await user.click(screen.getByRole('button', { name: 'nopatch.ts: modified' }));
+  expect(within(whatChanged()).getByText('c')).toBeTruthy();
+  expect(symbolDiffToggles()).toStrictEqual([]);
+});
+
+test("in a box's What changed a symbol's toggle opens its own file's patch", async () => {
+  const user = userEvent.setup();
+  const patchOfBilling = (file: string, text: string) =>
+    patchOf(`web/src/billing/${file}`, '@@ -1 +1 @@', `-${text}`, `+${text}!`);
+  render(
+    <ReviewPage
+      review={pageWith({
+        range: 'abc123..def456',
+        diff: {
+          nodes: [
+            { id: 'web', kind: 'stack', label: 'web', path: '', state: 'unchanged' },
+            webModule('billing', 'modified'),
+            webFile('billing', 'a.ts', 'modified'),
+            webFile('billing', 'b.ts', 'modified'),
+          ],
+          edges: [],
+        },
+        symbols: [
+          symbolsOf('web/file/billing/a.ts', [editedAt('a', 1, 1)]),
+          symbolsOf('web/file/billing/b.ts', [editedAt('b', 1, 1)]),
+        ],
+        patches: [patchOfBilling('a.ts', 'in a'), patchOfBilling('b.ts', 'in b')],
+      })}
+    />,
+  );
+
+  await user.click(await screen.findByRole('button', { name: 'billing: modified' }));
+  await toggleSymbolDiff(user, 'b');
+  expect(symbolDiffRows('insertion')).toStrictEqual(['+in b!']);
+});
+
 test("a file whose symbols wouldn't parse shows the parse error in its What changed, and in its box's", async () => {
   const user = userEvent.setup();
   render(

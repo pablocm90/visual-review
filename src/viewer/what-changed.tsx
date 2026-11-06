@@ -1,6 +1,13 @@
-import { createContext, type ReactNode, useContext, useLayoutEffect, useRef } from 'react';
+import {
+  createContext,
+  type ReactNode,
+  useContext,
+  useLayoutEffect,
+  useRef,
+  useState,
+} from 'react';
 import { anchorKey } from '../core/anchors.ts';
-import type { DiffedNode } from '../core/diff-graphs.ts';
+import type { DiffedNode, FilePatch } from '../core/diff-graphs.ts';
 import type { LogicLine } from '../core/logic-diff.ts';
 import type { PageData } from '../core/page.ts';
 import type { PreviousComment } from '../core/previous-comments.ts';
@@ -21,6 +28,7 @@ import type { Comments } from './comment-field.tsx';
 import { CommentOn, SaidBefore, useHasSaid } from './said-before.tsx';
 import { scrollInPanel } from './scroll-in-panel.ts';
 import { Signature } from './signature-lines.tsx';
+import { SymbolLines } from './symbol-lines.tsx';
 
 type Group = readonly [string, (symbol: SymbolStatement) => boolean];
 
@@ -52,6 +60,7 @@ export type LineAt = {
 
 type Places = {
   readonly nodes: ReadonlyArray<DiffedNode>;
+  readonly patches: ReadonlyArray<FilePatch>;
   readonly onGoTo: (id: string) => void;
   readonly onShowLine: (at: LineAt) => void;
   readonly comments: Comments;
@@ -249,65 +258,105 @@ const useHasSymbolNews = () => {
     );
 };
 
-const SymbolList = ({
-  node,
-  title,
-  symbols,
-  ...places
-}: Places & {
+type InItsFile = {
   readonly node: string;
-  readonly title: string;
-  readonly symbols: ReadonlyArray<AnchoredSymbol>;
-}) => {
+  readonly patch: FilePatch | undefined;
+  readonly inFile: ReadonlyArray<SymbolStatement>;
+};
+
+const SymbolRow = ({
+  anchored: { item: symbol, id },
+  node,
+  patch,
+  inFile,
+  ...places
+}: Places & InItsFile & { readonly anchored: AnchoredSymbol }) => {
   const isChangedSince = useIsChangedSince();
   const marksOf = useRowMarks();
+  const [diffOpen, setDiffOpen] = useState(false);
+  const name = `${symbol.kind} ${qualified(symbol)}`;
+  const diffable = patch !== undefined && !isQuiet(symbol);
   return (
-    <ul aria-label={title}>
-      {symbols.map(({ item: symbol, id }) => (
-        <li
-          key={id}
-          aria-label={sinceLabel(
-            `${nameOf(symbol)}: ${symbol.change}`,
-            isChangedSince('symbols', id),
-          )}
-          {...marksOf({ kind: 'symbol', id })}
+    <li
+      aria-label={sinceLabel(`${nameOf(symbol)}: ${symbol.change}`, isChangedSince('symbols', id))}
+      {...marksOf({ kind: 'symbol', id })}
+    >
+      <span className="kind">{symbol.kind}</span> <code>{qualified(symbol)}</code>
+      {exportMarkOf(symbol) !== undefined && (
+        <span className="export-mark"> {exportMarkOf(symbol)}</span>
+      )}
+      <ChangedSinceTag marked={isChangedSince('symbols', id)} />
+      <Origin symbol={symbol} {...places} />
+      {diffable && (
+        <button
+          type="button"
+          className="symbol-diff"
+          aria-label={`Diff of ${name}`}
+          aria-expanded={diffOpen}
+          onClick={() => setDiffOpen(!diffOpen)}
         >
-          <span className="kind">{symbol.kind}</span> <code>{qualified(symbol)}</code>
-          {exportMarkOf(symbol) !== undefined && (
-            <span className="export-mark"> {exportMarkOf(symbol)}</span>
-          )}
-          <ChangedSinceTag marked={isChangedSince('symbols', id)} />
-          <Origin symbol={symbol} {...places} />
-          {symbol.signature && (
-            <Signature name={`${symbol.kind} ${qualified(symbol)}`} signature={symbol.signature} />
-          )}
-          <SaidBefore on={{ kind: 'symbol', id }} />
-          {places.onComment && (
-            <CommentOn
-              name={`${symbol.kind} ${qualified(symbol)}`}
-              anchor={{ kind: 'symbol', id }}
-              comments={places.comments}
-              onComment={places.onComment}
-            />
-          )}
-          {symbol.logic !== undefined && (
-            <LogicLines
-              symbol={{ item: symbol, id }}
-              onShowLine={at => places.onShowLine({ node, ...at })}
-              nodes={places.nodes}
-              comments={places.comments}
-              onComment={places.onComment}
-            />
-          )}
-        </li>
-      ))}
-    </ul>
+          Diff
+        </button>
+      )}
+      {symbol.signature && <Signature name={name} signature={symbol.signature} />}
+      <SaidBefore on={{ kind: 'symbol', id }} />
+      {places.onComment && (
+        <CommentOn
+          name={name}
+          anchor={{ kind: 'symbol', id }}
+          comments={places.comments}
+          onComment={places.onComment}
+        />
+      )}
+      {symbol.logic !== undefined && (
+        <LogicLines
+          symbol={{ item: symbol, id }}
+          onShowLine={at => places.onShowLine({ node, ...at })}
+          nodes={places.nodes}
+          comments={places.comments}
+          onComment={places.onComment}
+        />
+      )}
+      {diffable && diffOpen && (
+        <SymbolLines
+          patch={patch}
+          lines={symbol.lines}
+          inFile={inFile}
+          nodes={places.nodes}
+          comments={places.comments}
+          onComment={places.onComment}
+        />
+      )}
+    </li>
   );
 };
 
+const SymbolList = ({
+  title,
+  symbols,
+  ...row
+}: Places &
+  InItsFile & {
+    readonly title: string;
+    readonly symbols: ReadonlyArray<AnchoredSymbol>;
+  }) => (
+  <ul aria-label={title}>
+    {symbols.map(anchored => (
+      <SymbolRow key={anchored.id} anchored={anchored} {...row} />
+    ))}
+  </ul>
+);
+
 const SymbolFiles = ({ file, ...places }: Places & { readonly file: SymbolFile }) => {
-  const symbols = 'symbols' in file ? anchoredSymbols(file.node, file.symbols) : [];
+  const inFile = 'symbols' in file ? file.symbols : [];
+  const symbols = anchoredSymbols(file.node, inFile);
   const quiet = symbols.filter(({ item }) => isQuiet(item));
+  const path = places.nodes.find(({ id }) => id === file.node)?.path;
+  const inItsFile = {
+    node: file.node,
+    patch: places.patches.find(patch => patch.path === path),
+    inFile,
+  };
   const isChangedSince = useIsChangedSince();
   const hasSaid = useHasSaid();
   return (
@@ -322,7 +371,7 @@ const SymbolFiles = ({ file, ...places }: Places & { readonly file: SymbolFile }
           : [
               <section key={title} className="symbol-group">
                 <h4>{title}</h4>
-                <SymbolList node={file.node} title={title} symbols={grouped} {...places} />
+                <SymbolList title={title} symbols={grouped} {...inItsFile} {...places} />
               </section>,
             ];
       })}
@@ -337,7 +386,7 @@ const SymbolFiles = ({ file, ...places }: Places & { readonly file: SymbolFile }
           )}
         >
           <summary>{quiet.length} unchanged</summary>
-          <SymbolList node={file.node} title="Unchanged" symbols={quiet} {...places} />
+          <SymbolList title="Unchanged" symbols={quiet} {...inItsFile} {...places} />
         </details>
       )}
     </>

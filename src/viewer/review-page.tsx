@@ -738,6 +738,7 @@ type NotePanelProps = Pick<
   | 'answers'
   | 'onAnswer'
   | 'landing'
+  | 'patches'
 > & {
   readonly onShowLine: (at: LineAt) => void;
 };
@@ -754,6 +755,7 @@ const isUntestedLogic = ({ check }: Finding) => check === 'tests:untested-logic'
 const NotePanel = ({
   nodes,
   node,
+  patches,
   symbols,
   tests,
   onGoTo,
@@ -807,6 +809,7 @@ const NotePanel = ({
           node={node}
           files={filesWithNews}
           nodes={nodes}
+          patches={patches}
           onGoTo={onGoTo}
           onShowLine={onShowLine}
           comments={comments}
@@ -868,7 +871,7 @@ const Inspector = ({
           landing={landing}
         />
       )}
-      <NotePanel {...props} node={node} onShowLine={showLine} landing={landing} />
+      <NotePanel {...props} node={node} patches={patches} onShowLine={showLine} landing={landing} />
       {node && measured && (
         <Fold title="Metrics" open={metricsOpen} onToggle={() => setMetricsOpen(!metricsOpen)}>
           <MetricsTable

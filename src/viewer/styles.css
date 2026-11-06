@@ -3113,3 +3113,25 @@ main:has(> .review-tray) {
 .start-reading:hover {
   opacity: 0.85;
 }
+
+.symbol-diff {
+  margin-inline-start: 8px;
+  padding: 0 6px;
+  border: 1px solid var(--stack-line);
+  border-radius: 4px;
+  background: transparent;
+  color: var(--muted);
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.symbol-diff:hover,
+.symbol-diff[aria-expanded="true"] {
+  background: var(--unchanged-fill);
+  color: var(--ink);
+}
+
+.symbol-lines {
+  margin-top: 4px;
+}
