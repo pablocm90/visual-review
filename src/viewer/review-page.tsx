@@ -38,14 +38,14 @@ import {
   visibleDiff,
   visibleNodeOf,
 } from '../core/visible-diff.ts';
-import { anchorName, lineAnchor, placeOfLine, rowOfLine } from './anchors.ts';
+import { anchorName, placeOfLine } from './anchors.ts';
 import { ChangedSinceMarks, ChangedSinceTag, useIsChangedSince } from './changed-since.tsx';
 import { ColourBy, type Colouring, ScaleLegend, type Shade, shadeOf } from './colour-by.tsx';
 import { CommentAsked, type Comments } from './comment-field.tsx';
 import { type Answers, type AnswerTo, findingLine, LEVELS, worstOf } from './finding-display.tsx';
 import { FindingRows, type FindingRowsProps } from './finding-rows.tsx';
 import { FindingsRail, LensChips, LensRow, StartHere } from './findings-rail.tsx';
-import { highlightPatch, type PatchLine as Line, type Piece } from './highlight-patch.ts';
+import { highlightPatch } from './highlight-patch.ts';
 import { LastReview } from './last-review.tsx';
 import {
   type Layout,
@@ -58,6 +58,13 @@ import { LENS_OF, type Lens } from './lenses.ts';
 import { MetricsScreen } from './metrics-screen.tsx';
 import { MetricsTable } from './metrics-tab.tsx';
 import { NextToIt } from './next-to-it.tsx';
+import {
+  type LineComments,
+  type LineLanding,
+  PatchRows,
+  rowLandedOn,
+  useSaidAt,
+} from './patch-rows.tsx';
 import { storedReadMarks, storeReadMarks } from './read-marks.ts';
 import { partsRead, ReadingOrderList, ReadingStops } from './reading-order-list.tsx';
 import { Ref, shortRef } from './ref.tsx';
@@ -487,81 +494,10 @@ const Legend = () => (
   </ul>
 );
 
-const Scoped = ({ scopes: [scope, ...inner], text }: Piece) =>
-  scope === undefined ? (
-    text
-  ) : (
-    <span className={scope}>
-      <Scoped scopes={inner} text={text} />
-    </span>
-  );
-
-type Landing = Omit<LineAt, 'node'> & { readonly text?: string };
-
-type LandingIn = Partial<Landing> & { readonly path: string | undefined } & RowLanding;
+type LandingIn = Partial<LineLanding> & { readonly path: string | undefined } & RowLanding;
 
 const onThePart = (landing: LandingIn | undefined) =>
   landing?.path === undefined && landing?.row === undefined ? landing : undefined;
-
-const rowLandedOn = (
-  lines: ReadonlyArray<Line>,
-  path: string,
-  { side, line, text }: Partial<Landing>,
-) => {
-  if (side === undefined || line === undefined) return undefined;
-  return text === undefined
-    ? lines.findIndex(row => row[side] === line)
-    : rowOfLine(lines, { path, side, line, text });
-};
-
-type LineComments = {
-  readonly nodes: ReadonlyArray<DiffNode>;
-  readonly comments: Comments;
-  readonly onComment: ((comment: Comment) => void) | undefined;
-};
-
-const PatchLine = ({
-  path,
-  line,
-  said,
-  landing,
-  nodes,
-  comments,
-  onComment,
-}: LineComments & {
-  readonly path: string;
-  readonly line: Line;
-  readonly said: ReadonlyArray<PreviousComment['anchor']>;
-  readonly landing: Partial<Landing> | undefined;
-}) => {
-  const { kind, prefix, pieces } = line;
-  const anchor = lineAnchor({ path, line });
-  const marks = { 'aria-current': landing !== undefined || undefined };
-  const code = (
-    <>
-      {prefix}
-      {pieces.map((piece, index) => (
-        // biome-ignore lint/suspicious/noArrayIndexKey: a line's pieces are fixed and may repeat
-        <Scoped key={index} {...piece} />
-      ))}
-      {said.map(on => (
-        <SaidBefore key={on.id} on={on} landing={landing} />
-      ))}
-      {onComment && anchor && (
-        <CommentOn
-          anchor={anchor}
-          name={anchorName(anchor, nodes)}
-          comments={comments}
-          onComment={onComment}
-          landing={landing}
-        />
-      )}
-    </>
-  );
-  if (kind === 'added') return <ins {...marks}>{code}</ins>;
-  if (kind === 'removed') return <del {...marks}>{code}</del>;
-  return <span {...marks}>{code}</span>;
-};
 
 const holdsLineDraft = (comments: Comments, path: string) =>
   Object.values(comments).some(({ anchor }) => placeOfLine(anchor)?.path === path);
@@ -577,11 +513,9 @@ const Patch = ({
   const lines = useMemo(() => highlightPatch({ path, patch }), [path, patch]);
   const marked = useIsChangedSince()('files', path);
   const saidLines = useSaidLinesOf(path);
-  const placed = saidLines.map(({ anchor, place }) => ({ anchor, row: rowOfLine(lines, place) }));
-  const saidAt = (row: number | undefined) =>
-    placed.filter(said => said.row === row).map(({ anchor }) => anchor);
+  const saidAt = useSaidAt(path, lines);
   const landed = landing?.path === path ? landing : undefined;
-  const landedRow = landed && rowLandedOn(lines, path, landed);
+  const landedRow = landed && rowLandedOn({ lines, path, landing: landed });
   const top = useRef<HTMLDetailsElement>(null);
   useLayoutEffect(() => {
     if (!top.current || landed === undefined) return;
@@ -600,19 +534,14 @@ const Patch = ({
       {saidAt(undefined).map(on => (
         <SaidBefore key={on.id} on={on} landing={landed} />
       ))}
-      <pre>
-        {lines.map((line, index) => (
-          <PatchLine
-            // biome-ignore lint/suspicious/noArrayIndexKey: a patch's lines are fixed and may repeat
-            key={index}
-            path={path}
-            line={line}
-            said={saidAt(index)}
-            landing={index === landedRow ? landed : undefined}
-            {...commenting}
-          />
-        ))}
-      </pre>
+      <PatchRows
+        path={path}
+        lines={lines}
+        saidAt={saidAt}
+        landedRow={landedRow}
+        landed={landed}
+        {...commenting}
+      />
     </details>
   );
 };
