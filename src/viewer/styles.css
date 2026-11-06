@@ -3159,7 +3159,7 @@ main:has(> .review-tray) {
   opacity: 0.55;
 }
 
-.start-here-logic {
+.start-here .start-here-logic {
   padding-left: 27px;
 }
 
