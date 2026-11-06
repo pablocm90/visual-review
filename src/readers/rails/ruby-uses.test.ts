@@ -207,8 +207,6 @@ test.each([
   { how: 'send on nothing', written: 'send(:total)' },
   { how: 'send on self', written: 'self.send(:total)' },
   { how: 'a block argument of that name', written: 'lines.map(&total)' },
-  { how: 'a word of that name sent', written: 'found.send(total)' },
-  { how: 'a string building that name', written: 'found.send("total#{suffix}")' },
   { how: 'another method taking that symbol', written: 'found.call(:total)' },
 ])('$how names no method', async ({ written }) => {
   const reading = await usesIn({
@@ -259,5 +257,47 @@ test('the constructor counts where the class is named, as nothing calls initiali
 
   expect(reading?.uses).toEqual({
     'Order.initialize': [{ path: 'app/services/caller.rb', line: 3, text: 'Order.new(1)' }],
+  });
+});
+
+test.each([
+  { how: 'a word', written: 'found.send(name)' },
+  { how: 'a built string', written: 'found.public_send("to_#{kind}")' },
+  { how: 'a built symbol', written: 'found.__send__(:"to_#{kind}")' },
+  { how: 'a splat', written: 'found.try(*asked)' },
+])('a send of $how may use the method, in a file naming its class', async ({ written }) => {
+  const reading = await usesIn({
+    files: {
+      'app/models/order.rb': ORDER,
+      'app/services/caller.rb': `class Caller\n  Order\n  ${written}\nend\n`,
+      'app/services/other.rb': `class Other\n  ${written}\nend\n`,
+    },
+    target: 'app/models/order.rb',
+    names: ['Order.total'],
+  });
+
+  expect(reading?.uses).toEqual({
+    'Order.total': [{ path: 'app/services/caller.rb', line: 3, text: written, unfollowed: true }],
+  });
+});
+
+test('a use found in the file wins over a send that may be one, and a send of another name is none', async () => {
+  const reading = await usesIn({
+    files: {
+      'app/models/order.rb': ORDER,
+      'app/services/caller.rb': 'class Caller\n  Order\n  found.send(name)\n  found.total\nend\n',
+      'app/services/named.rb':
+        'class Named\n  Order\n  found.send(:price)\n  send(name)\n  self.send(name)\n  found.send\n  found.try(&:price)\n  found.call(name)\nend\n',
+    },
+    target: 'app/models/order.rb',
+    names: ['Order.total', 'Order'],
+  });
+
+  expect(reading?.uses).toEqual({
+    'Order.total': [{ path: 'app/services/caller.rb', line: 4, text: 'found.total' }],
+    Order: [
+      { path: 'app/services/caller.rb', line: 2, text: 'Order' },
+      { path: 'app/services/named.rb', line: 2, text: 'Order' },
+    ],
   });
 });

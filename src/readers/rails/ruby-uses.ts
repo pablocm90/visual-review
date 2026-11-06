@@ -21,7 +21,13 @@ const LITERAL_NAMES: ReadonlySet<string> = new Set(['simple_symbol', 'delimited_
 
 const SENDERS: ReadonlySet<string> = new Set(['send', 'public_send', '__send__', 'try']);
 
-const isLiteralName = ({ type }: Node): boolean => LITERAL_NAMES.has(type);
+const isLiteralName = ({ type, namedChildren }: Node): boolean =>
+  LITERAL_NAMES.has(type) && !namedChildren.some(child => child.type === 'interpolation');
+
+const isOnAnother = (call: Node): boolean => {
+  const receiver = call.childForFieldName('receiver');
+  return receiver !== null && receiver.type !== 'self';
+};
 
 const namesInCall = (call: Node): ReadonlyArray<Node> => {
   const receiver = call.childForFieldName('receiver');
@@ -38,6 +44,18 @@ const firstUseIn = (program: Node | undefined, member: string): Node | undefined
       node.type === 'block_argument' ? node.namedChildren.filter(isLiteralName) : namesInCall(node),
     )
     .find(named => nameOf(named) === member);
+
+const firstOpenSendIn = (program: Node | undefined): Node | undefined =>
+  program?.descendantsOfType('call').find(call => {
+    const [first] = argsOf(call);
+    return (
+      SENDERS.has(methodOf(call)) &&
+      isOnAnother(call) &&
+      first !== undefined &&
+      first.type !== 'block_argument' &&
+      !isLiteralName(first)
+    );
+  });
 
 export const usesOfRuby = async ({ head, graph, node, names }: UsesAsked): Promise<UsesReading> => {
   const stack = node.id.slice(0, node.id.lastIndexOf(CLASS) + CLASS.length);
@@ -57,11 +75,15 @@ export const usesOfRuby = async ({ head, graph, node, names }: UsesAsked): Promi
     const program = parseRuby(text);
     const naming = namingsIn(program, constantIn(id), classes).find(({ named }) => named === owner);
     if (naming === undefined) return [];
-    const at =
-      member === undefined || member === 'initialize' ? naming.at : firstUseIn(program, member);
-    if (at === undefined) return [];
-    const row = at.startPosition.row;
-    return [{ path, line: row + 1, text: (text.split('\n')[row] ?? '').trim() }];
+    const rowAt = (at: Node): SymbolUse => {
+      const row = at.startPosition.row;
+      return { path, line: row + 1, text: (text.split('\n')[row] ?? '').trim() };
+    };
+    if (member === undefined || member === 'initialize') return [rowAt(naming.at)];
+    const use = firstUseIn(program, member);
+    if (use !== undefined) return [rowAt(use)];
+    const open = firstOpenSendIn(program);
+    return open === undefined ? [] : [{ ...rowAt(open), unfollowed: true }];
   };
   const entries = await Promise.all(
     names.map(async name => [
