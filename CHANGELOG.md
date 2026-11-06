@@ -2,6 +2,17 @@
 
 What changed in each release of `@pablocm90/visual-review`, newest first. Versions follow [semver](https://semver.org); while it is 0.x, a minor version may change the exported types.
 
+## 0.48.0 — 2026-11-06
+
+### Added
+
+- A changed symbol under **What changed** has a **Diff** toggle opening its own lines of the file's patch in place, without its neighbours' or those of the symbols inside it. A removed symbol shows its base lines, an added one its head lines, and a moved one its lines from both files, each named by file. It says so when git's hunks leave out the symbol's first line, or hold no line of it.
+- A comment on one of those lines is a comment on the patch line, so it shows in **Full diff** too and the review tray goes to it.
+
+### Fixed
+
+- A long logic line wraps instead of giving the reading column a sideways scrollbar.
+
 ## 0.47.0 — 2026-11-05
 
 ### Changed
