@@ -193,6 +193,63 @@ test('in a pnpm monorepo each package is a stack, and a bare import of a sibling
   ]);
 });
 
+test.for([
+  {
+    how: 'a wildcard',
+    tsconfig: '{ "compilerOptions": { "paths": { "@/*": ["./src/*"] } } }',
+    imported: '@/lib/a',
+  },
+  {
+    how: 'an exact name',
+    tsconfig: '{ "compilerOptions": { "paths": { "the-lib": ["./src/lib/a.ts"] } } }',
+    imported: 'the-lib',
+  },
+  {
+    how: 'its second place, when the first holds nothing',
+    tsconfig: '{ "compilerOptions": { "paths": { "@/*": ["./gone/*", "./src/*"] } } }',
+    imported: '@/lib/a',
+  },
+])('an import through a tsconfig path draws its edge: $how', async ({ tsconfig, imported }) => {
+  using workspace = gitRepo({
+    'package.json': '{ "name": "shop" }\n',
+    'tsconfig.json': `${tsconfig}\n`,
+    'src/lib/a.ts': 'export const a = 1;\n',
+    'src/b.ts': `import { a } from '${imported}';\nexport const b = a;\n`,
+  });
+  const { repo, root } = workspace;
+
+  const range = await readRange({ repo, from: root, to: root });
+
+  expect(range.after.edges).toEqual([{ from: 'shop/file/b.ts', to: 'shop/file/lib/a.ts' }]);
+});
+
+test('each stack and each side resolves through its own tsconfig paths', async () => {
+  using workspace = gitRepo({
+    'apps/one/package.json': '{}\n',
+    'apps/one/tsconfig.json': '{ "compilerOptions": { "paths": { "@/*": ["./src/*"] } } }\n',
+    'apps/one/src/a.ts': 'export const a = 1;\n',
+    'apps/one/src/b.ts': "import { a } from '@/a';\nexport const b = a;\n",
+    'apps/two/package.json': '{}\n',
+    'apps/two/tsconfig.json': '{ "compilerOptions": { "paths": { "@/*": ["./src/lib/*"] } } }\n',
+    'apps/two/src/lib/c.ts': 'export const c = 1;\n',
+    'apps/two/src/d.ts': "import { c } from '@/c';\nexport const d = c;\n",
+  });
+  const { repo, root } = workspace;
+  const head = commit(repo, {
+    'apps/two/tsconfig.json': '{ "compilerOptions": { "paths": { "~/*": ["./src/lib/*"] } } }\n',
+    'apps/two/src/d.ts': "import { c } from '~/c';\nexport const d = c;\n",
+  });
+
+  const range = await readRange({ repo, from: root, to: head });
+
+  const edges = [
+    { from: 'apps/one/file/b.ts', to: 'apps/one/file/a.ts' },
+    { from: 'apps/two/file/d.ts', to: 'apps/two/file/lib/c.ts' },
+  ];
+  expect(range.before.edges).toEqual(edges);
+  expect(range.after.edges).toEqual(edges);
+});
+
 test('a package whose source root holds other packages is no stack, so their files are drawn once, in their own stacks', async () => {
   using workspace = gitRepo({
     'package.json': '{ "name": "mono" }\n',
@@ -237,6 +294,11 @@ test('with the whole package as source root, built-ins and packages it imports a
 });
 
 test.for([
+  {
+    tsconfig: '{ "compilerOptions": { "rootDir": "lib", "paths": "not a map" } }',
+    files: { 'lib/a.ts': 'export const a = 1;\n' },
+    drawn: 'lib/a.ts',
+  },
   {
     tsconfig: '{ "compilerOptions": { "rootDir": "lib" }, "include": ["libraries"] }',
     files: {

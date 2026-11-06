@@ -17,7 +17,12 @@ const SCRIPT_FILE = /\.[cm]?[jt]sx?$/;
 const SOURCES = '**/*.{ts,tsx,js,jsx,mjs,cjs}';
 
 const TsconfigSchema = z.object({
-  compilerOptions: z.object({ rootDir: z.string().optional() }).optional(),
+  compilerOptions: z
+    .object({
+      rootDir: z.string().optional(),
+      paths: z.record(z.string(), z.array(z.string())).optional().catch(undefined),
+    })
+    .optional(),
   include: z.array(z.string()).optional(),
 });
 
@@ -116,11 +121,21 @@ type GraphOptions = {
   readonly packages: ReadonlyMap<string, string>;
 };
 
+const aliasesOf = (directory: string) =>
+  Object.fromEntries(
+    Object.entries(tsconfigIn(directory).compilerOptions?.paths ?? {}).map(([name, places]) => [
+      name,
+      places.map(place => join(directory, place)),
+    ]),
+  );
+
 const graphAt = async ({ directory, root, stack, sourceRoot, boxes, packages }: GraphOptions) => {
-  const { output } = await cruise([sourceRoot], {
-    baseDir: join(directory, root),
-    outputType: 'json',
-  });
+  const baseDir = join(directory, root);
+  const { output } = await cruise(
+    [sourceRoot],
+    { baseDir, outputType: 'json' },
+    { alias: aliasesOf(baseDir) },
+  );
   return webGraph({
     stack,
     directory: root,
