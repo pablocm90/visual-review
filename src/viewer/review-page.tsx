@@ -59,6 +59,7 @@ import {
   type PlacedStack,
 } from './layout.ts';
 import { LENS_OF, type Lens } from './lenses.ts';
+import { type LogicCard, LogicCardRows, logicCardsOf } from './logic-card.tsx';
 import { MetricsTable } from './metrics-tab.tsx';
 import { NextToIt } from './next-to-it.tsx';
 import {
@@ -229,6 +230,7 @@ type Drawing = {
   readonly inMap: boolean;
   readonly current: string | undefined;
   readonly scale: number;
+  readonly cards: ReadonlyMap<string, LogicCard>;
 };
 
 type CurrentRingProps = {
@@ -269,6 +271,7 @@ const NodeView = ({ node, drawing }: { readonly node: PlacedNode; readonly drawi
   const unrouted = unroutedOf(node.id);
   const shade = shadeOf(node);
   const found = drawing.findingsOn(node.id);
+  const card = drawing.cards.get(node.id);
   const number = drawing.numberOf(node.id);
   const numberX = expandable.has(node.id) ? 24 : 0;
   const toggle = expandable.has(node.id) && (
@@ -332,6 +335,7 @@ const NodeView = ({ node, drawing }: { readonly node: PlacedNode; readonly drawi
         </title>
         <rect width={node.width} height={node.height} rx={6} />
         <CurrentRing node={node} drawing={drawing} rx={6} />
+        {card && <LogicCardRows card={card} />}
         <text x={node.width / 2} y={node.height / 2}>
           {node.formerLabel === undefined ? (
             node.label
@@ -1157,6 +1161,8 @@ const EVERYTHING: Scope = ['Everything', ({ drawn }) => drawn];
 
 const LOGIC_ONLY = 'Logic only';
 
+const NO_CARDS: ReadonlyMap<string, LogicCard> = new Map();
+
 const WIDER_SCOPES: ReadonlyArray<Scope> = [
   ['Changed + 1 hop', ({ drawn }) => nearChanges(drawn)],
   EVERYTHING,
@@ -1932,6 +1938,11 @@ const Page = ({ review, notes, send }: ReviewPageProps) => {
     () => visibleDiff({ diff: review.diff, expanded: placedAt }),
     [review, placedAt],
   );
+  const cards = useMemo(
+    () =>
+      boxesAllOpen ? logicCardsOf({ files: review.symbols, nodes: review.diff.nodes }) : NO_CARDS,
+    [review, boxesAllOpen],
+  );
   const [colouring, setColouring] = useState<Colouring>('change');
   const [picked, setPicked] = useState<Lens>();
   const [railOpen, setRailOpen] = useState(false);
@@ -1983,6 +1994,7 @@ const Page = ({ review, notes, send }: ReviewPageProps) => {
     inMap: reading,
     current: reading ? selected : undefined,
     scale: placed?.view.scale ?? 1,
+    cards,
     unroutedOf: (id: string) =>
       dangling.filter(call => visibleOf(call.from) === id).map(call => call.path),
     shadeOf: ({ id, state }: DiffedNode) =>

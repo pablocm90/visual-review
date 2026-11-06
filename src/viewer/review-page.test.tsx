@@ -10031,9 +10031,54 @@ test("with changed logic, Show offers 'Logic only' after 'Changes only'; picked,
     expect(buttonsIn(web)).toEqual([
       'refund.ts → cart.ts: unchanged',
       'refund.ts: modified',
+      'added if: if (late)',
       'cart.ts: modified',
+      'added if: if (empty)',
     ]),
   );
+});
+
+test("on 'Logic only' a file holds a row per function with a changed decision, each with a tick per decision named by it", async () => {
+  const user = userEvent.setup();
+  const same = {
+    change: 'same',
+    kind: 'guard',
+    depth: 0,
+    head: 'if (ok) return',
+    line: 1,
+  } as const;
+  render(
+    <ReviewPage
+      review={{
+        ...pageOfLogic(),
+        symbols: [
+          symbolsOf('web/file/refund.ts', [
+            {
+              ...decisionIn('refund', 'if (late)'),
+              logic: [same, ...(decisionIn('', 'if (late)').logic ?? [])],
+            },
+            { ...decisionIn('tidy', ''), logic: [same] },
+          ]),
+          symbolsOf('web/file/cart.ts', [decisionIn('total', 'if (empty)')]),
+        ],
+      }}
+    />,
+  );
+
+  const web = await screen.findByRole('group', { name: 'web' });
+  const before = await within(web).findByRole('button', { name: /^refund\.ts: modified/ });
+  expect(within(before).queryAllByRole('group')).toEqual([]);
+
+  await user.click(screen.getByRole('button', { name: 'Logic only' }));
+
+  const refund = await within(web).findByRole('button', { name: /^refund\.ts: modified/ });
+  const rows = await within(refund).findAllByRole('group');
+  expect(rows.map(row => row.getAttribute('aria-label'))).toEqual(['Marks of function refund']);
+  expect(
+    within(rows[0] as HTMLElement)
+      .getAllByRole('button')
+      .map(tick => tick.getAttribute('aria-label')),
+  ).toEqual(['same guard: if (ok) return', 'added if: if (late)']);
 });
 
 test("on 'Logic only', going to a part it holds stays, and to one it doesn't goes to 'Changes only' and wider", async () => {
@@ -10112,7 +10157,7 @@ test("on 'Logic only' boxes are open whatever was toggled: no toggle shows, and 
           symbolsOf('api/file/routes.ts', [decisionIn('route', 'if (open)')]),
         ],
         findings: [findingOn('web/file/refund.ts')],
-        dangling: [{ from: 'web/file/refund.ts', path: '/gone', line: 3 }],
+        dangling: [{ from: 'web/file/refund.ts', path: '/gone' }],
       })}
     />,
   );
