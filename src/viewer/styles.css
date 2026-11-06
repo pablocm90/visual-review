@@ -3158,3 +3158,19 @@ main:has(> .review-tray) {
   fill: var(--muted);
   opacity: 0.55;
 }
+
+.start-here-logic {
+  padding-left: 27px;
+}
+
+.start-here .start-here-logic > button {
+  flex: none;
+}
+
+.start-here-breakdown {
+  overflow: hidden;
+  color: var(--muted);
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
