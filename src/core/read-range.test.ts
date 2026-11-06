@@ -586,6 +586,26 @@ test('a tsconfig extending a directory still reads its own paths', async () => {
   expect(range.after.edges).toEqual([{ from: 'shop/file/b.ts', to: 'shop/file/a.ts' }]);
 });
 
+test('a very long tsconfig extends chain does not stop the review', async () => {
+  using workspace = gitRepo({
+    'package.json': '{ "name": "shop" }\n',
+    'tsconfig.json': JSON.stringify({ extends: './level-1.json', ...aliasTo('./src/*') }),
+    ...Object.fromEntries(
+      Array.from({ length: 5000 }, (_, level) => [
+        `level-${level + 1}.json`,
+        JSON.stringify({ extends: `./level-${level + 2}.json` }),
+      ]),
+    ),
+    'src/a.ts': 'export const a = 1;\n',
+    'src/b.ts': "import { a } from '@/a';\nexport const b = a;\n",
+  });
+  const { repo, root } = workspace;
+
+  const range = await readRange({ repo, from: root, to: root });
+
+  expect(range.after.edges).toEqual([{ from: 'shop/file/b.ts', to: 'shop/file/a.ts' }]);
+});
+
 test('the nearest tsconfig paths replace what it extends wholly', async () => {
   using workspace = gitRepo({
     'package.json': '{ "name": "shop" }\n',

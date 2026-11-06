@@ -146,6 +146,8 @@ const withExtension = (config: string): string =>
 
 const laterWins = (earlier: Aliases, later: Aliases): Aliases => ({ ...earlier, ...later });
 
+const MOST_CONFIGS = 256;
+
 const RELATIVE_NAME = /^\.\.?\//;
 
 type AliasReading = {
@@ -158,6 +160,7 @@ const aliasesAt = (reading: AliasReading, config: string): Aliases => {
   const { directory, stays, known } = reading;
   const already = known.get(config);
   if (already !== undefined) return already;
+  if (known.size >= MOST_CONFIGS) return {};
   known.set(config, {});
   const { extends: extended = [], compilerOptions } = tsconfigAt(join(directory, config));
   const { baseUrl, paths } = compilerOptions ?? {};
