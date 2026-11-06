@@ -39,7 +39,7 @@ export type RootOptions = {
 export const staysInCheckout = (root: string) => (place: string) =>
   !isAbsolute(place) && !`${join(root, place)}/`.startsWith('../');
 
-const MATCHES_RELATIVE_IMPORTS = /^[*.]/;
+const MATCHES_FILE_PATHS = /^[*./]/;
 
 const prefixLength = (name: string): number =>
   name.includes('*') ? name.indexOf('*') : name.length + 1;
@@ -126,7 +126,7 @@ export const resolutionIn = ({ checkout, root }: RootOptions) => {
   return {
     alias: Object.fromEntries(
       Object.entries(paths)
-        .filter(([name]) => !MATCHES_RELATIVE_IMPORTS.test(name))
+        .filter(([name]) => !MATCHES_FILE_PATHS.test(name))
         .toSorted(([one], [other]) => prefixLength(other) - prefixLength(one))
         .map(([name, places]) => [
           name.includes('*') ? name : `${name}$`,

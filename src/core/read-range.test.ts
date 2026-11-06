@@ -282,6 +282,7 @@ test.for([
   { how: 'a catch-all', paths: { '*': ['./src/*'] }, imported: './a' },
   { how: 'a pattern with no prefix', paths: { '*.js': ['./src/*.ts'] }, imported: './a.js' },
   { how: 'a relative pattern', paths: { './*': ['./src/*'] }, imported: './a' },
+  { how: 'an absolute pattern', paths: { '/*': ['./src/*'] }, imported: './a' },
 ])('a relative import stays relative under $how', async ({ paths, imported }) => {
   using workspace = gitRepo({
     'package.json': '{ "name": "shop" }\n',
