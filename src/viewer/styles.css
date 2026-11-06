@@ -2968,6 +2968,7 @@ main:has(> .review-tray) {
 }
 
 .logic-rows > summary {
+  margin-top: 0;
   cursor: pointer;
 }
 
@@ -2981,6 +2982,7 @@ main:has(> .review-tray) {
 }
 
 .logic-run > details > summary {
+  margin-top: 0;
   width: fit-content;
   color: var(--muted);
   font-size: 12px;
@@ -3034,11 +3036,6 @@ main:has(> .review-tray) {
   font: inherit;
   text-align: left;
   cursor: pointer;
-}
-
-.logic-line:hover code,
-.logic-line:hover ins {
-  text-decoration: underline;
 }
 
 .logic-row {
@@ -3104,7 +3101,7 @@ main:has(> .review-tray) {
   text-decoration: none;
 }
 
-.logic-rows > summary,
-.logic-run > details > summary {
-  margin-top: 0;
+.logic-line:hover code,
+.logic-line:hover ins {
+  text-decoration: underline;
 }
