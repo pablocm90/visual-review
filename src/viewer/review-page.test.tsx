@@ -9983,3 +9983,55 @@ test('Escape from a stop with no part, the outside files, leaves focus on the gr
 
   expect(document.activeElement).toBe(screen.getByRole('group', { name: 'Graph' }));
 });
+
+const decisionIn = (name: string, head: string): SymbolStatement => ({
+  name,
+  kind: 'function',
+  lines: {},
+  exported: { base: false, head: false },
+  change: 'edited',
+  logic: [{ change: 'added', kind: 'if', depth: 0, head, line: 2 }],
+});
+
+const pageOfLogic = () =>
+  pageWith({
+    range: 'abc123..def456',
+    diff: {
+      nodes: [
+        { id: 'web', kind: 'stack', label: 'web', path: '', state: 'unchanged' },
+        topFile('refund.ts', 'modified'),
+        topFile('cart.ts', 'modified'),
+        topFile('styles.ts', 'modified'),
+      ],
+      edges: [
+        webImport('refund.ts', 'cart.ts', 'unchanged'),
+        webImport('refund.ts', 'styles.ts', 'added'),
+      ],
+    },
+    symbols: [
+      symbolsOf('web/file/refund.ts', [decisionIn('refund', 'if (late)')]),
+      symbolsOf('web/file/cart.ts', [decisionIn('total', 'if (empty)')]),
+      symbolsOf('web/file/styles.ts', []),
+    ],
+  });
+
+test("with changed logic, Show offers 'Logic only' after 'Changes only'; picked, it draws the files holding a changed decision and every edge between them", async () => {
+  const user = userEvent.setup();
+  render(<ReviewPage review={pageOfLogic()} />);
+  const web = await screen.findByRole('group', { name: 'web' });
+  expect(
+    within(screen.getByRole('group', { name: 'Show' }))
+      .getAllByRole('button')
+      .map(button => button.textContent),
+  ).toEqual(['Changes only', 'Logic only', 'Changed + 1 hop', 'Everything']);
+
+  await user.click(shown('Logic only'));
+
+  await waitFor(() =>
+    expect(buttonsIn(web)).toEqual([
+      'refund.ts → cart.ts: unchanged',
+      'refund.ts: modified',
+      'cart.ts: modified',
+    ]),
+  );
+});

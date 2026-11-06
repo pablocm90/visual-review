@@ -17,6 +17,7 @@ import type { DiffedNode, FilePatch, GraphDiff } from '../core/diff-graphs.ts';
 import { deepestHolding, isAtOrUnder } from '../core/diff-graphs.ts';
 import { type Finding, findingsAt, findingsOf } from '../core/findings.ts';
 import { edgeId } from '../core/graph.ts';
+import { nodesWithChangedLogic } from '../core/logic-strip.ts';
 import { type MetricFinding, metricFindings } from '../core/metric-findings.ts';
 import type { NodeMetrics } from '../core/metrics.ts';
 import { type Note, type ReviewNotes, visibleNotes } from '../core/notes.ts';
@@ -34,6 +35,7 @@ import {
   changesOnly,
   expandedToShow,
   isDrawn,
+  logicOnly,
   mergedDiff,
   nearChanges,
   sinceLastReview,
@@ -1153,8 +1155,9 @@ const CHANGES_ONLY: Scope = ['Changes only', changesOnly];
 
 const EVERYTHING: Scope = ['Everything', ({ drawn }) => drawn];
 
+const LOGIC_ONLY = 'Logic only';
+
 const WIDER_SCOPES: ReadonlyArray<Scope> = [
-  CHANGES_ONLY,
   ['Changed + 1 hop', ({ drawn }) => nearChanges(drawn)],
   EVERYTHING,
 ];
@@ -1173,9 +1176,22 @@ const unmergedWith = (noted: ReadonlySet<string>, since: ChangedSince | undefine
 
 const scopesOf = (review: PageData): ReadonlyArray<Scope> => {
   const changed = changedSinceIn(review);
-  return changed === undefined
-    ? WIDER_SCOPES
-    : [[SINCE_LAST_REVIEW, keeping => sinceLastReview({ ...keeping, changed })], ...WIDER_SCOPES];
+  const files = nodesWithChangedLogic(review.symbols);
+  return [
+    ...(changed === undefined
+      ? []
+      : [
+          [
+            SINCE_LAST_REVIEW,
+            (keeping: Keeping) => sinceLastReview({ ...keeping, changed }),
+          ] satisfies Scope,
+        ]),
+    CHANGES_ONLY,
+    ...(files.length === 0
+      ? []
+      : [[LOGIC_ONLY, ({ diff }: Keeping) => logicOnly({ diff, files })] satisfies Scope]),
+    ...WIDER_SCOPES,
+  ];
 };
 
 type ShowProps = {
