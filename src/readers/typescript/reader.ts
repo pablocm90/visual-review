@@ -48,14 +48,16 @@ type RootOptions = {
   readonly root: string;
 };
 
+const staysInCheckout = (root: string) => (place: string) =>
+  !isAbsolute(place) && !`${join(root, place)}/`.startsWith('../');
+
 const sourceRootOf = ({ checkout, root }: RootOptions): string => {
   const directory = join(checkout, root);
-  const staysInCheckout = (folder: string) =>
-    !isAbsolute(folder) && !`${join(root, folder)}/`.startsWith('../');
+  const stays = staysInCheckout(root);
   const { compilerOptions, include = [] } = tsconfigIn(directory);
-  const [folder, ...others] = includedFolders(directory, include).filter(staysInCheckout);
+  const [folder, ...others] = includedFolders(directory, include).filter(stays);
   const rootDir = compilerOptions?.rootDir;
-  if (rootDir !== undefined && staysInCheckout(rootDir)) return folderOf(rootDir);
+  if (rootDir !== undefined && stays(rootDir)) return folderOf(rootDir);
   return folder !== undefined && others.length === 0 ? folder : 'src';
 };
 
@@ -125,17 +127,19 @@ const MATCHES_RELATIVE_IMPORTS = /^[*.]/;
 
 const prefixLength = (name: string): number => name.replace(/\*.*/, '').length;
 
-const resolutionIn = (directory: string) => {
+const resolutionIn = ({ checkout, root }: RootOptions) => {
+  const directory = join(checkout, root);
   const paths = tsconfigIn(directory).compilerOptions?.paths ?? {};
+  const placesOf = (places: ReadonlyArray<string>) => places.filter(staysInCheckout(root));
   return {
     alias: Object.fromEntries(
       Object.entries(paths)
         .filter(([name]) => !MATCHES_RELATIVE_IMPORTS.test(name))
         .toSorted(([one], [other]) => prefixLength(other) - prefixLength(one))
-        .map(([name, places]) => [name, places.map(place => join(directory, place))]),
+        .map(([name, places]) => [name, placesOf(places).map(place => join(directory, place))]),
     ),
     modules: [
-      ...(paths['*'] ?? [])
+      ...placesOf(paths['*'] ?? [])
         .filter(place => basename(place) === '*')
         .map(place => join(directory, dirname(place))),
       'node_modules',
@@ -145,11 +149,10 @@ const resolutionIn = (directory: string) => {
 };
 
 const graphAt = async ({ directory, root, stack, sourceRoot, boxes, packages }: GraphOptions) => {
-  const baseDir = join(directory, root);
   const { output } = await cruise(
     [sourceRoot],
-    { baseDir, outputType: 'json' },
-    resolutionIn(baseDir),
+    { baseDir: join(directory, root), outputType: 'json' },
+    resolutionIn({ checkout: directory, root }),
   );
   return webGraph({
     stack,

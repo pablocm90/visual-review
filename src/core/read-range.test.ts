@@ -162,6 +162,8 @@ test('every package.json with sources under its src/ is a stack named by its dir
   ]);
 });
 
+const climbingTo = (repo: string) => `${'../'.repeat(30)}${repo}/outside/*`;
+
 test('in a pnpm monorepo each package is a stack, and a bare import of a sibling package or of its subpath joins the importing file to its stack once, while an import of its own package joins nothing', async () => {
   using workspace = gitRepo({
     'pnpm-workspace.yaml': "packages:\n  - 'apps/*'\n  - 'packages/*'\n",
@@ -280,6 +282,32 @@ test('a catch-all tsconfig path finds a bare import in each of its folders', asy
   const range = await readRange({ repo, from: root, to: root });
 
   expect(range.after.edges).toEqual([{ from: 'shop/file/b.ts', to: 'shop/file/lib/a.ts' }]);
+});
+
+test.for([
+  { how: 'an alias climbing out', name: '@/*', imported: '@/a', place: climbingTo },
+  { how: 'a catch-all climbing out', name: '*', imported: 'a', place: climbingTo },
+  { how: 'an absolute place', name: '@/*', imported: '@/a', place: () => '/src/*' },
+])('a tsconfig path leaving the checkout is not read: $how', async ({ name, imported, place }) => {
+  using workspace = gitRepo({
+    'package.json': '{ "name": "shop" }\n',
+    'src/a.ts': 'export const a = 1;\n',
+    'src/b.ts': `import { a } from '${imported}';\nexport const b = a;\n`,
+  });
+  const { repo, root } = workspace;
+  const compilerOptions = { rootDir: '.', paths: { [name]: [place(repo)] } };
+  const head = commit(repo, { 'tsconfig.json': JSON.stringify({ compilerOptions }) });
+  writeFiles(repo, { 'outside/a.ts': 'export const a = 2;\n' });
+
+  const range = await readRange({ repo, from: root, to: head });
+
+  expect(range.after.edges).toEqual([]);
+  expect(nodeIds(range.after)).toEqual([
+    'shop',
+    'shop/module/src',
+    'shop/file/src/a.ts',
+    'shop/file/src/b.ts',
+  ]);
 });
 
 test('each stack and each side resolves through its own tsconfig paths', async () => {
