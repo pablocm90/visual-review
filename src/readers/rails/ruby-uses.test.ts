@@ -171,3 +171,78 @@ test('a method with no class around it reaches nothing, though an association re
 
   expect(reading?.uses).toEqual({ helper: [], 'self.helper': [] });
 });
+
+test.each([
+  { how: 'a block argument', written: 'lines.map(&:total)' },
+  { how: 'a quoted block argument', written: 'lines.map(&:"total")' },
+  { how: 'a block argument with no receiver', written: 'map(&:total)' },
+  { how: 'send', written: 'found.send(:total)' },
+  { how: 'send, with arguments', written: 'found.send(:total, 1)' },
+  { how: 'send, by a string', written: 'found.send("total")' },
+  { how: 'public_send', written: 'found.public_send(:total)' },
+  { how: '__send__', written: 'found.__send__(:total)' },
+  { how: 'try', written: 'found.try(:total)' },
+  { how: 'delegate', written: 'delegate :total, to: :order' },
+  { how: 'delegate, among others', written: 'delegate :price, :total, to: :order' },
+])('$how names a method', async ({ written }) => {
+  const reading = await usesIn({
+    files: {
+      'app/models/order.rb': ORDER,
+      'app/services/caller.rb': `class Caller\n  Order\n  ${written}\nend\n`,
+    },
+    target: 'app/models/order.rb',
+    names: ['Order.total'],
+  });
+
+  expect(reading?.uses).toEqual({
+    'Order.total': [{ path: 'app/services/caller.rb', line: 3, text: written }],
+  });
+});
+
+test.each([
+  { how: 'a later argument of send', written: 'found.send(:price, :total)' },
+  { how: 'an option of delegate', written: 'delegate :price, to: :total' },
+  { how: 'a word of that name delegated', written: 'delegate total, to: :order' },
+  { how: 'delegate on a receiver', written: 'found.delegate :total, to: :order' },
+  { how: 'send on nothing', written: 'send(:total)' },
+  { how: 'send on self', written: 'self.send(:total)' },
+  { how: 'a word of that name sent', written: 'found.send(total)' },
+  { how: 'a string building that name', written: 'found.send("total#{suffix}")' },
+  { how: 'a block argument of that name', written: 'lines.map(&total)' },
+  { how: 'another method taking that symbol', written: 'found.call(:total)' },
+])('$how names no method', async ({ written }) => {
+  const reading = await usesIn({
+    files: {
+      'app/models/order.rb': ORDER,
+      'app/services/caller.rb': `class Caller\n  Order\n  ${written}\nend\n`,
+    },
+    target: 'app/models/order.rb',
+    names: ['Order.total'],
+  });
+
+  expect(reading?.uses).toEqual({ 'Order.total': [] });
+});
+
+test('the first of any kind of use is the one shown, on the line of the name', async () => {
+  const reading = await usesIn({
+    files: {
+      'app/models/order.rb': ORDER,
+      'app/services/caller.rb': [
+        'class Caller',
+        '  Order',
+        '  lines.map(',
+        '    &:total',
+        '  )',
+        '  found.total',
+        'end',
+        '',
+      ].join('\n'),
+    },
+    target: 'app/models/order.rb',
+    names: ['Order.total'],
+  });
+
+  expect(reading?.uses).toEqual({
+    'Order.total': [{ path: 'app/services/caller.rb', line: 4, text: '&:total' }],
+  });
+});

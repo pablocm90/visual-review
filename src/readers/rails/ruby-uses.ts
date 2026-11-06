@@ -4,7 +4,7 @@ import type { Node } from 'web-tree-sitter';
 import type { GraphNode } from '../../core/graph.ts';
 import type { SymbolUse, UsesAsked, UsesReading } from '../../core/reader.ts';
 import { classesOf, namingsIn } from './rails-graph.ts';
-import { methodOf, parseRuby } from './ruby-syntax.ts';
+import { argsOf, methodOf, nameOf, parseRuby } from './ruby-syntax.ts';
 
 const CLASS = '/class/';
 
@@ -17,14 +17,27 @@ const askedOf = (name: string) => {
   return { owner, member: rest.at(-1) };
 };
 
-const firstCallIn = (program: Node | undefined, member: string): Node | undefined =>
+const LITERAL_NAMES: ReadonlySet<string> = new Set(['simple_symbol', 'delimited_symbol', 'string']);
+
+const SENDERS: ReadonlySet<string> = new Set(['send', 'public_send', '__send__', 'try']);
+
+const isLiteralName = ({ type }: Node): boolean => LITERAL_NAMES.has(type);
+
+const namesInCall = (call: Node): ReadonlyArray<Node> => {
+  const receiver = call.childForFieldName('receiver');
+  if (methodOf(call) === 'delegate' && receiver === null) return argsOf(call).filter(isLiteralName);
+  if (receiver === null || receiver.type === 'self') return [];
+  if (SENDERS.has(methodOf(call))) return argsOf(call).slice(0, 1).filter(isLiteralName);
+  return [call.childForFieldName('method') ?? []].flat();
+};
+
+const firstUseIn = (program: Node | undefined, member: string): Node | undefined =>
   program
-    ?.descendantsOfType('call')
-    .find(call => {
-      const receiver = call.childForFieldName('receiver');
-      return methodOf(call) === member && receiver !== null && receiver.type !== 'self';
-    })
-    ?.childForFieldName('method') ?? undefined;
+    ?.descendantsOfType(['call', 'block_argument'])
+    .flatMap(node =>
+      node.type === 'block_argument' ? node.namedChildren.filter(isLiteralName) : namesInCall(node),
+    )
+    .find(named => nameOf(named) === member);
 
 export const usesOfRuby = async ({ head, graph, node, names }: UsesAsked): Promise<UsesReading> => {
   const stack = node.id.slice(0, node.id.lastIndexOf(CLASS) + CLASS.length);
@@ -44,7 +57,7 @@ export const usesOfRuby = async ({ head, graph, node, names }: UsesAsked): Promi
     const program = parseRuby(text);
     const naming = namingsIn(program, constantIn(id), classes).find(({ named }) => named === owner);
     if (naming === undefined) return [];
-    const at = member === undefined ? naming.at : firstCallIn(program, member);
+    const at = member === undefined ? naming.at : firstUseIn(program, member);
     if (at === undefined) return [];
     const row = at.startPosition.row;
     return [{ path, line: row + 1, text: (text.split('\n')[row] ?? '').trim() }];
