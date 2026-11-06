@@ -75,13 +75,20 @@ type Forward = { readonly from: string; readonly to: string };
 
 type FileUses = {
   readonly named: ReadonlyMap<string, SymbolUse>;
+  readonly members: ReadonlyMap<string, SymbolUse>;
   readonly unfollowed: ReadonlyArray<SymbolUse>;
   readonly forwards: ReadonlyArray<Forward>;
   readonly forwardsAll: boolean;
   readonly notRead?: string;
 };
 
-const NO_USES: FileUses = { named: new Map(), unfollowed: [], forwards: [], forwardsAll: false };
+const NO_USES: FileUses = {
+  named: new Map(),
+  members: new Map(),
+  unfollowed: [],
+  forwards: [],
+  forwardsAll: false,
+};
 
 type Alias = { readonly local: string; readonly exported: string };
 
@@ -127,6 +134,14 @@ const readsOf = (scan: Scan, local: string) =>
         ]
       : [],
   );
+
+const memberReadsOf = (scan: Scan) =>
+  scan.code.flatMap((token, index) => {
+    const member = scan.code[index + 1];
+    return ACCESSES.has(textOf(scan, token)) && member !== undefined
+      ? [{ name: textOf(scan, member), token: member }]
+      : [];
+  });
 
 type Names = (specifier: string) => boolean;
 
@@ -210,6 +225,11 @@ const usesInFile = ({ path, text, target, stack }: Read): FileUses => {
       ),
       ...members.toReversed(),
     ]),
+    members: new Map(
+      memberReadsOf(scan)
+        .map(({ name, token }) => [name, placeOf(token)] as const)
+        .toReversed(),
+    ),
     unfollowed: [
       ...namespaceReads.filter(({ member }) => member === undefined).map(({ token }) => token),
       ...loadsOf(scan, names),
@@ -303,6 +323,13 @@ const fileUsesAt = async (stack: Stack, path: string, target: string): Promise<F
   }
 };
 
+const rowOf = ({ exported, asked }: Hop, { named, members, unfollowed }: FileUses) => {
+  const [, member] = asked.split('.');
+  const held = named.get(exported);
+  const row = member === undefined || held?.unfollowed ? held : held && members.get(member);
+  return row ?? unfollowed[0] ?? [];
+};
+
 const onePerFile = (uses: ReadonlyArray<SymbolUse>): ReadonlyArray<SymbolUse> => {
   const ordered = [...uses.filter(use => !use.unfollowed), ...uses.filter(use => use.unfollowed)];
   return ordered.filter(
@@ -339,12 +366,13 @@ export const usesOfTypeScript = async ({
     graph.nodes.filter(({ kind }) => kind === 'file').map(({ path }) => moduleAt(head, path)),
   );
   const visits = await walked({
-    hops: names.flatMap(asked =>
-      [
-        asked,
-        ...aliases.filter(({ local }) => local === asked).map(({ exported }) => exported),
-      ].map(exported => ({ node, exported, asked })),
-    ),
+    hops: names.flatMap(asked => {
+      const [owner = asked] = asked.split('.');
+      return [
+        owner,
+        ...aliases.filter(({ local }) => local === owner).map(({ exported }) => exported),
+      ].map(exported => ({ node, exported, asked }));
+    }),
     seen: new Set(),
     importersOf: ({ id }) =>
       graph.edges
@@ -367,9 +395,7 @@ export const usesOfTypeScript = async ({
       names.map(name => [
         name,
         onePerFile(
-          visits.flatMap(({ hop, uses }) =>
-            hop.asked === name ? (uses.named.get(hop.exported) ?? uses.unfollowed[0] ?? []) : [],
-          ),
+          visits.flatMap(({ hop, uses }) => (hop.asked === name ? rowOf(hop, uses) : [])),
         ),
       ]),
     ),

@@ -343,6 +343,70 @@ test('a named re-export is a use at its statement, and its importers use the nam
   });
 });
 
+test('a method is used where a file naming its class first reads the member', async () => {
+  const reading = await usesIn({
+    files: {
+      'a.ts': 'export class Foo {\n  bar() {}\n}\nexport const other = 1;\n',
+      'calls.ts':
+        "import { Foo } from './a';\nconst foo = new Foo();\nbaz();\nfoo?.bar();\nfoo.bar();\n",
+      'member-only.ts': "import { Foo } from './a';\nnew Foo().baz();\n",
+      'class-unnamed.ts': "import { other } from './a';\nother.bar();\n",
+      'barrel.ts': "export { Foo as Renamed } from './a';\n",
+      'through.ts': "import { Renamed } from './barrel';\nRenamed\n  .bar();\n",
+      'passes.ts': "import * as a from './a';\nconsole.log(a);\n",
+    },
+    edges: [
+      'calls.ts -> a.ts',
+      'member-only.ts -> a.ts',
+      'class-unnamed.ts -> a.ts',
+      'barrel.ts -> a.ts',
+      'through.ts -> barrel.ts',
+      'passes.ts -> a.ts',
+    ],
+    names: ['Foo.bar'],
+  });
+  expect(reading?.uses).toEqual({
+    'Foo.bar': [
+      { path: 'src/calls.ts', line: 4, text: 'foo?.bar();' },
+      { path: 'src/through.ts', line: 3, text: '.bar();' },
+      {
+        path: 'src/passes.ts',
+        line: 2,
+        text: 'console.log(a);',
+        unfollowed: true,
+      },
+    ],
+  });
+});
+
+test.for([
+  {
+    reason: 'through its default export',
+    a: 'export default class Foo {\n  bar() {}\n}\n',
+    importer: "import Thing from './a';\nThing.bar();\n",
+    row: { line: 2, text: 'Thing.bar();' },
+  },
+  {
+    reason: 'through an export under another name',
+    a: 'class Foo {\n  bar() {}\n}\nexport { Foo as Other };\n',
+    importer: "import { Other } from './a';\nOther.bar();\n",
+    row: { line: 2, text: 'Other.bar();' },
+  },
+  {
+    reason: "marked, through a package's default that may be another file's",
+    a: 'export default class Foo {\n  bar() {}\n}\n',
+    importer: "import Thing from '@acme/lib';\nThing.bar();\n",
+    row: { line: 1, text: "import Thing from '@acme/lib';", unfollowed: true },
+  },
+])('a method is followed $reason', async ({ a, importer, row }) => {
+  const reading = await usesIn({
+    files: { 'a.ts': a, 'b.ts': importer },
+    edges: ['b.ts -> a.ts'],
+    names: ['Foo.bar'],
+  });
+  expect(reading?.uses['Foo.bar']).toEqual([{ path: 'src/b.ts', ...row }]);
+});
+
 test('a star re-export has no row and passes on every name but the default', async () => {
   const reading = await usesIn({
     files: {
