@@ -341,6 +341,7 @@ type FileUsesOptions = {
   readonly path: string;
   readonly targetPlace: string;
   readonly placeOf: (specifier: string) => string | undefined;
+  readonly mayBePackage: (specifier: string) => boolean;
   readonly packageName: string | undefined;
 };
 
@@ -349,6 +350,7 @@ const fileUsesAt = ({
   path,
   targetPlace,
   placeOf,
+  mayBePackage,
   packageName,
 }: FileUsesOptions): FileUses => {
   const facts = factsAt(head, path);
@@ -357,7 +359,7 @@ const fileUsesAt = ({
   const namesExactly: Names = specifier => placeOf(specifier) === targetPlace;
   const names: Names = specifier =>
     namesExactly(specifier) ||
-    (placeOf(specifier) === undefined && namesPackage(packageName, specifier));
+    (mayBePackage(specifier) && namesPackage(packageName, specifier));
   return usesFrom(facts, names, namesExactly);
 };
 
@@ -424,11 +426,10 @@ const surroundingsOf = ({ base, head, stacks, graph }: Around) => {
     [...stacks].find(([, stack]) => stack === stackOf(id))?.[0] ?? '.';
   const resolutionOf = onceEach((root: string) => resolutionIn({ checkout: head, root }));
   const packageNameOf = onceEach((root: string) => packageNameIn(join(base, root)));
-  const drawn = new Set(
-    [...graph.nodes, ...outside.nodes]
-      .filter(({ kind }) => kind === 'file')
-      .map(({ path }) => moduleAt(head, path)),
-  );
+  const placesOfFiles = (files: ReadonlyArray<GraphNode>) =>
+    files.filter(({ kind }) => kind === 'file').map(({ path }) => moduleAt(head, path));
+  const inGraph = new Set(placesOfFiles(graph.nodes));
+  const drawn = new Set([...inGraph, ...placesOfFiles(outside.nodes)]);
   const placesNamedBy = onceEach(({ id, path }: Target) =>
     onceEach((specifier: string) =>
       modulesNamedBy(
@@ -438,6 +439,10 @@ const surroundingsOf = ({ base, head, stacks, graph }: Around) => {
     ),
   );
   const placeOf = (importer: Target, specifier: string) => placesNamedBy(importer)(specifier);
+  const mayBePackage = (importer: Target, specifier: string) => {
+    const place = placeOf(importer, specifier);
+    return place === undefined || !inGraph.has(place);
+  };
   const outsideIds = new Set(outside.nodes.map(({ id }) => id));
   const packageNameFor = (importer: Target, target: Target) =>
     outsideIds.has(target.id) ||
@@ -453,7 +458,7 @@ const surroundingsOf = ({ base, head, stacks, graph }: Around) => {
       {
         node,
         places: new Set(sources.map(source => placeOf(node, source))),
-        unplaced: sources.filter(source => placeOf(node, source) === undefined),
+        unplaced: sources.filter(source => mayBePackage(node, source)),
         unread: false,
       },
     ];
@@ -476,6 +481,7 @@ const surroundingsOf = ({ base, head, stacks, graph }: Around) => {
     nodes,
     stackOf,
     placeOf,
+    mayBePackage,
     packageNameFor,
     importersOutside: (target: Target) => namingAmong(outside.nodes, target),
     scriptsNaming: (target: Target) =>
@@ -501,8 +507,16 @@ export const usesOfTypeScript = async ({
   node,
   names,
 }: UsesAsked): Promise<UsesReading> => {
-  const { outside, nodes, stackOf, placeOf, packageNameFor, importersOutside, scriptsNaming } =
-    surroundingsAt({ base, head, stacks, graph });
+  const {
+    outside,
+    nodes,
+    stackOf,
+    placeOf,
+    mayBePackage,
+    packageNameFor,
+    importersOutside,
+    scriptsNaming,
+  } = surroundingsAt({ base, head, stacks, graph });
   const baseText = await readFile(join(base, node.path), 'utf8');
   const aliases = aliasesIn(baseText, parseTypeScript(baseText, node.path).program);
   const visits = walked({
@@ -527,6 +541,7 @@ export const usesOfTypeScript = async ({
         path: importer.path,
         targetPlace: moduleAt(head, target.path),
         placeOf: specifier => placeOf(importer, specifier),
+        mayBePackage: specifier => mayBePackage(importer, specifier),
         packageName: packageNameFor(importer, target),
       }),
   });

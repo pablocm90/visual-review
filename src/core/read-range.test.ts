@@ -2379,6 +2379,69 @@ test("a sibling stack's file importing through an alias of its own tsconfig reac
 
 test.for([
   {
+    reason: 'names it under another',
+    file: 'lib/index.ts',
+    barrel: "import { foo as impl } from './src/a';\nexport const foo = impl;\n",
+    alias: '../lib/index.ts',
+    rows: ['lib/index.ts', 'web/src/w.ts'],
+  },
+  {
+    reason: 'hands on a whole module',
+    file: 'lib/index.js',
+    barrel: "module.exports = require('./src/a');\n",
+    alias: '../lib',
+    rows: ['lib/index.js', 'web/src/w.ts'],
+  },
+  {
+    reason: "won't parse",
+    file: 'lib/index.ts',
+    barrel: 'export const = ;\n',
+    alias: '../lib/index.ts',
+    rows: ['web/src/w.ts'],
+  },
+])(
+  "a sibling's alias landing on an outside barrel that $reason still reaches by the package's name",
+  async ({ file, barrel, alias, rows }) => {
+    using repository = gitRepo({
+      'lib/package.json': '{"name":"@acme/lib"}\n',
+      'lib/src/a.ts': 'export const foo = (x: number) => x;\n',
+      [file]: barrel,
+      'web/package.json': '{}\n',
+      'web/tsconfig.json': JSON.stringify({ compilerOptions: { paths: { '@acme/lib': [alias] } } }),
+      'web/src/w.ts': "import { foo } from '@acme/lib';\nexport const w = foo(1);\n",
+    });
+    const { repo, root } = repository;
+    const head = commit(repo, { 'lib/src/a.ts': 'export const foo = (x: string) => x;\n' });
+
+    const range = await readRange({ repo, from: root, to: head });
+
+    expect(range.reaches.flatMap(({ uses }) => uses.map(({ path }) => path))).toEqual(rows);
+  },
+);
+
+test("a sibling's outside file whose alias lands on an outside barrel reaches by the package's name", async () => {
+  using repository = gitRepo({
+    'lib/package.json': '{"name":"@acme/lib"}\n',
+    'lib/src/a.ts': 'export const foo = (x: number) => x;\n',
+    'lib/index.ts': "import { foo as impl } from './src/a';\nexport const foo = impl;\n",
+    'web/package.json': '{}\n',
+    'web/tsconfig.json': '{"compilerOptions":{"paths":{"@acme/lib":["../lib/index.ts"]}}}\n',
+    'web/src/w.ts': 'export const w = 1;\n',
+    'web/test/w.test.ts': "import { foo } from '@acme/lib';\nfoo(1);\n",
+  });
+  const { repo, root } = repository;
+  const head = commit(repo, { 'lib/src/a.ts': 'export const foo = (x: string) => x;\n' });
+
+  const range = await readRange({ repo, from: root, to: head });
+
+  expect(range.reaches.flatMap(({ uses }) => uses.map(({ path }) => path))).toEqual([
+    'lib/index.ts',
+    'web/test/w.test.ts',
+  ]);
+});
+
+test.for([
+  {
     reason: 'renamed',
     head: { 'src/a.ts': 'export function bar() {\n  return 42;\n}\nexport const kept = 1;\n' },
     how: 'renamed to bar',
