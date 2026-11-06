@@ -1608,6 +1608,70 @@ test.for([
   expect(range.reachesNotRead).toEqual(lacks);
 });
 
+test.for([
+  {
+    reason: 'renamed',
+    head: { 'src/a.ts': 'export function bar() {\n  return 42;\n}\nexport const kept = 1;\n' },
+    how: 'renamed to bar',
+  },
+  {
+    reason: 'no longer exported',
+    head: { 'src/a.ts': 'function foo() {\n  return 42;\n}\nexport const kept = foo();\n' },
+    how: 'no longer exported',
+  },
+  {
+    reason: 'moved away',
+    head: {
+      'src/a.ts': 'export const kept = 1;\n',
+      'src/b.ts': 'export function foo() {\n  return 42;\n}\n',
+    },
+    how: 'moved to src/b.ts',
+  },
+])('a symbol $reason is asked by its former name', async ({ head, how }) => {
+  using repository = gitRepo({ 'README.md': 'a shop\n' });
+  const { repo } = repository;
+  const base = commit(repo, {
+    ...rootPackage,
+    'src/a.ts': 'export function foo() {\n  return 42;\n}\nexport const kept = 1;\n',
+    'src/uses.ts': "import { foo } from './a.ts';\nfoo();\n",
+  });
+
+  const range = await readRange({ repo, from: base, to: commit(repo, head) });
+
+  expect(range.reaches).toEqual([
+    expect.objectContaining({
+      label: 'function foo',
+      how,
+      uses: [{ path: 'src/uses.ts', line: 2, text: 'foo();' }],
+    }),
+  ]);
+});
+
+test('a file the range deletes reaches those still importing it, and a type by its type import', async () => {
+  using repository = gitRepo({ 'README.md': 'a shop\n' });
+  const { repo } = repository;
+  const base = commit(repo, {
+    ...rootPackage,
+    'src/a.ts': 'export type Foo = number;\n',
+    'src/uses.ts': "import type { Foo } from './a.ts';\nexport const x: Foo = 1;\n",
+  });
+  rmSync(join(repo, 'src/a.ts'));
+
+  const range = await readRange({
+    repo,
+    from: base,
+    to: commit(repo, { 'README.md': 'a shop.\n' }),
+  });
+
+  expect(range.reaches).toEqual([
+    expect.objectContaining({
+      label: 'type Foo',
+      how: 'removed',
+      uses: [{ path: 'src/uses.ts', line: 2, text: 'export const x: Foo = 1;' }],
+    }),
+  ]);
+});
+
 test("a removed star re-export says it isn't followed, as its names can't be told", async () => {
   using repository = gitRepo({ 'README.md': 'a shop\n' });
   const { repo } = repository;
