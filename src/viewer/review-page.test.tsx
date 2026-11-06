@@ -4734,6 +4734,39 @@ test('Reaches lists where the selected part reaches, counting files once, and is
   ).toEqual(['web/src/b.ts:41foo(raw);', 'web/src/c.ts:12rows.map(foo)', 'web/src/b.ts:7bar();']);
 });
 
+test('a Reaches row goes to the file it names, widening Show, and a file the graph has no node for stays text', async () => {
+  const user = userEvent.setup();
+  render(
+    <ReviewPage
+      review={pageWith({
+        range: review.range,
+        diff: {
+          nodes: [
+            { id: 'web', kind: 'stack', label: 'web', path: '', state: 'unchanged' },
+            topFile('tax.ts', 'modified'),
+            topFile('b.ts'),
+          ],
+          edges: [],
+        },
+        reaches: [
+          reachOf('web/file/tax.ts', 'foo', [
+            { path: 'web/src/b.ts', line: 41, text: 'foo(raw);' },
+            { path: 'web/src/gone.ts', line: 3, text: 'foo();' },
+          ]),
+        ],
+      })}
+    />,
+  );
+
+  await user.click(await screen.findByRole('button', { name: 'tax.ts: modified' }));
+  const region = reachesRegion() ?? inspector();
+  expect(within(region).queryByRole('button', { name: /gone\.ts/ })).toBeNull();
+  expect(within(region).getByText('web/src/gone.ts:3')).toBeTruthy();
+
+  await user.click(within(region).getByRole('button', { name: /^web\/src\/b\.ts:41/ }));
+  expect(await screen.findByRole('heading', { level: 2, name: 'b.ts' })).toBeTruthy();
+});
+
 test("a node's Tested by also lists the test files named after a file inside it, wherever they sit in its stack", async () => {
   const user = userEvent.setup();
   render(

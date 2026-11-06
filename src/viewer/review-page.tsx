@@ -836,7 +836,7 @@ const NotePanel = ({
           onAnswer={onAnswer}
         />
       )}
-      {reachesHere.length > 0 && <Reaches reaches={reachesHere} />}
+      {reachesHere.length > 0 && <Reaches reaches={reachesHere} nodes={nodes} onGoTo={onGoTo} />}
     </LandedRows>
   );
 };
