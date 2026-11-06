@@ -1639,7 +1639,11 @@ const GraphControls = ({
 }: GraphControlsProps) => (
   <>
     <div className="graph-controls">
-      <ColourBy colouring={colouring} onPick={onColouring} />
+      <ColourBy
+        colouring={colouring}
+        onPick={onColouring}
+        withLogic={scopes.some(([name]) => name === LOGIC_ONLY)}
+      />
       <div className="graph-filters">
         <Show scopes={scopes} scope={scope} onPick={onScope} />
         <label className="near-only">

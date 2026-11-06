@@ -10503,3 +10503,18 @@ test('Colour by Logic names each changed file with its changed decisions and the
     ]),
   );
 });
+
+test('Colour by offers Logic only on a page with a changed decision', async () => {
+  const offered = () =>
+    within(screen.getByRole('group', { name: 'Colour by' }))
+      .getAllByRole('button')
+      .map(button => button.textContent);
+  const page = render(<ReviewPage review={pageWith(review)} />);
+  await screen.findByRole('group', { name: 'rust' });
+  expect(offered()).toEqual(['Change', 'Churn', 'Complexity', 'Kind of change']);
+  page.unmount();
+
+  render(<ReviewPage review={pageOfLogic()} />);
+  await screen.findByRole('group', { name: 'web' });
+  expect(offered()).toEqual(['Change', 'Churn', 'Complexity', 'Kind of change', 'Logic']);
+});

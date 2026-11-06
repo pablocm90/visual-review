@@ -113,15 +113,16 @@ export const ScaleLegend = ({
 type ColourByProps = {
   readonly colouring: Colouring;
   readonly onPick: (colouring: Colouring) => void;
+  readonly withLogic: boolean;
 };
 
-export const ColourBy = ({ colouring, onPick }: ColourByProps) => {
+export const ColourBy = ({ colouring, onPick, withLogic }: ColourByProps) => {
   const label = useId();
   return (
     <div className="graph-choice">
       <span id={label}>Colour by</span>
       <div role="group" aria-labelledby={label}>
-        {COLOURINGS.map(([id, name]) => (
+        {COLOURINGS.filter(([id]) => withLogic || id !== 'logic').map(([id, name]) => (
           <button key={id} type="button" aria-pressed={id === colouring} onClick={() => onPick(id)}>
             {name}
           </button>
