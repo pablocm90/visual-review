@@ -317,6 +317,10 @@ test.each([
   { how: 'a built string', written: 'found.public_send("to_#{kind}")' },
   { how: 'a built symbol', written: 'found.__send__(:"to_#{kind}")' },
   { how: 'a splat', written: 'found.try(*asked)' },
+  { how: 'a %q string', written: 'found.send(%q(total))' },
+  { how: 'a % string', written: 'found.send(%(total))' },
+  { how: 'a %s symbol', written: 'found.send(%s(total))' },
+  { how: 'an escape', written: 'found.send("to\\x74al")' },
 ])('a send of $how may use the method, in a file naming its class', async ({ written }) => {
   const reading = await usesIn({
     files: {

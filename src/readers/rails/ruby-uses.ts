@@ -33,8 +33,10 @@ const LITERAL_NAMES: ReadonlySet<string> = new Set(['simple_symbol', 'delimited_
 
 const SENDERS: ReadonlySet<string> = new Set(['send', 'public_send', '__send__', 'try']);
 
-const isLiteralName = ({ type, namedChildren }: Node): boolean =>
-  LITERAL_NAMES.has(type) && !namedChildren.some(child => child.type === 'interpolation');
+const isLiteralName = ({ type, text, namedChildren }: Node): boolean =>
+  LITERAL_NAMES.has(type) &&
+  !text.startsWith('%') &&
+  namedChildren.every(child => child.type === 'string_content');
 
 const isOnAnother = (call: Node): boolean => {
   const receiver = call.childForFieldName('receiver');
