@@ -326,7 +326,8 @@ const fileUsesAt = async (stack: Stack, path: string, target: string): Promise<F
 const rowOf = ({ exported, asked }: Hop, { named, members, unfollowed }: FileUses) => {
   const [, member] = asked.split('.');
   const held = named.get(exported);
-  const row = member === undefined || held?.unfollowed ? held : held && members.get(member);
+  const namesAlone = member === undefined || member === 'constructor' || held?.unfollowed;
+  const row = namesAlone ? held : held && members.get(member);
   return row ?? unfollowed[0] ?? [];
 };
 

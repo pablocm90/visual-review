@@ -379,6 +379,20 @@ test('a method is used where a file naming its class first reads the member', as
   });
 });
 
+test('a constructor is used by what names its class, with no read of `.constructor`', async () => {
+  const reading = await usesIn({
+    files: {
+      'a.ts': 'export class Foo {\n  constructor(one: string) {}\n}\n',
+      'makes.ts': "import { Foo } from './a';\nnew Foo('x');\n",
+    },
+    edges: ['makes.ts -> a.ts'],
+    names: ['Foo.constructor'],
+  });
+  expect(reading?.uses['Foo.constructor']).toEqual([
+    { path: 'src/makes.ts', line: 2, text: "new Foo('x');" },
+  ]);
+});
+
 test.for([
   {
     reason: 'through its default export',
