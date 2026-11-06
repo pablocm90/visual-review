@@ -67,6 +67,7 @@ const usesIn = async ({
         ['app', 'app'],
       ]),
       graph: graphOf(Object.keys({ ...files, ...atBase }), edges, elsewhere),
+      graphAtHead: { nodes: [], edges: [] },
       node: { id: idOf(target), path: `src/${target}` },
       names,
     });
@@ -704,6 +705,7 @@ test('every outside file is read when few files may be open at once', async () =
         head: ${JSON.stringify(root)},
         stacks: new Map([['.', 'web']]),
         graph: { nodes: [node], edges: [] },
+        graphAtHead: { nodes: [], edges: [] },
         node,
         names: ['foo'],
       });

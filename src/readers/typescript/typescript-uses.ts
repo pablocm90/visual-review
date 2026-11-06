@@ -411,10 +411,10 @@ type Imports = {
   readonly unread: boolean;
 };
 
-type Around = Pick<UsesAsked, 'base' | 'head' | 'stacks' | 'graph'>;
+type Around = Pick<UsesAsked, 'base' | 'head' | 'stacks' | 'graph' | 'graphAtHead'>;
 
-const surroundingsOf = ({ base, head, stacks, graph }: Around) => {
-  const outside = filesOutside({ head, stacks, graph });
+const surroundingsOf = ({ base, head, stacks, graph, graphAtHead }: Around) => {
+  const outside = filesOutside({ head, stacks, graph, graphAtHead });
   const nodes = new Map<string, GraphNode>(
     [...graph.nodes, ...outside.nodes].map(each => [each.id, each]),
   );
@@ -504,6 +504,7 @@ export const usesOfTypeScript = async ({
   head,
   stacks,
   graph,
+  graphAtHead,
   node,
   names,
 }: UsesAsked): Promise<UsesReading> => {
@@ -516,7 +517,7 @@ export const usesOfTypeScript = async ({
     packageNameFor,
     importersOutside,
     scriptsNaming,
-  } = surroundingsAt({ base, head, stacks, graph });
+  } = surroundingsAt({ base, head, stacks, graph, graphAtHead });
   const baseText = await readFile(join(base, node.path), 'utf8');
   const aliases = aliasesIn(baseText, parseTypeScript(baseText, node.path).program);
   const visits = walked({

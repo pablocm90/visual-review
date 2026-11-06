@@ -45,6 +45,7 @@ type OutsideOptions = {
   readonly head: string;
   readonly stacks: ReadonlyMap<string, string>;
   readonly graph: Graph;
+  readonly graphAtHead: Graph;
 };
 
 type Outside = {
@@ -52,8 +53,8 @@ type Outside = {
   readonly notFollowed: ReadonlyArray<string>;
 };
 
-export const filesOutside = ({ head, stacks, graph }: OutsideOptions): Outside => {
-  const drawn = new Set(graph.nodes.map(({ path }) => path));
+export const filesOutside = ({ head, stacks, graph, graphAtHead }: OutsideOptions): Outside => {
+  const drawn = new Set([...graph.nodes, ...graphAtHead.nodes].map(({ path }) => path));
   const read = [...stacks].map(([root, stack]) => ({
     stack,
     paths: scriptsOfStack({ head, root, roots: [...stacks.keys()] }).filter(

@@ -57,6 +57,7 @@ const placeOf = ({ path, line }: SymbolUse): string => `${path}:${line}`;
 type ReadReachesOptions = {
   readonly sides: { readonly before: string; readonly after: string };
   readonly before: StacksReading;
+  readonly after: Pick<StacksReading, 'graph'>;
   readonly symbols: ReadonlyArray<SymbolFile>;
   readonly measured: ReadonlyArray<MeasuredNode>;
   readonly changedPaths: ReadonlyArray<string>;
@@ -122,7 +123,7 @@ type Asking = {
 };
 
 const askReader = async (
-  { sides, before, changedPaths, pathOf }: ReadReachesOptions,
+  { sides, before, after, changedPaths, pathOf }: ReadReachesOptions,
   { file, reader, ask, node }: Asking,
 ): Promise<FileReaches> => {
   const symbolsAsked = askedOf(file, pathOf);
@@ -137,6 +138,7 @@ const askReader = async (
         .map(({ root, stack }) => [root, stack]),
     ),
     graph: before.graph,
+    graphAtHead: after.graph,
     node,
     names: [...symbolsAsked, ...exportsAsked].map(({ name }) => name),
   });

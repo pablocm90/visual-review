@@ -2189,6 +2189,22 @@ test("an unchanged candidate that can't be read is named once, the other rows st
   expect(range.reachesNotRead).toEqual(['not read: src/huge.ts', NOT_DRAWN]);
 });
 
+test("a file the range adds under the source root isn't counted among the files outside it", async () => {
+  using repository = gitRepo({
+    'package.json': '{"name":"shop"}\n',
+    'src/a.ts': 'export const foo = (x: number) => x;\n',
+  });
+  const { repo, root } = repository;
+  const head = commit(repo, {
+    'src/a.ts': 'export const foo = (x: string) => x;\n',
+    'src/gen.ts': `export const big = '${'x'.repeat(1001)}';\n`,
+  });
+
+  const range = await readRange({ repo, from: root, to: head });
+
+  expect(range.reachesNotRead).toEqual([NOT_DRAWN]);
+});
+
 test('a file renamed from what its reader cannot parse has nothing to ask, so is not read for its names', async () => {
   using repository = gitRepo({ 'README.md': 'a shop\n' });
   const { repo } = repository;
