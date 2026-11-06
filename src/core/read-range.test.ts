@@ -340,6 +340,95 @@ test.for([
   ]);
 });
 
+test.for([
+  {
+    how: 'through an alias',
+    paths: { '@/*': ['./*'] },
+    imported: (repo: string) => `@/${climbingTo(repo)}/a`,
+  },
+  {
+    how: 'through a catch-all',
+    paths: { '*': ['./*'] },
+    imported: (repo: string) => `src/${climbingTo(repo)}/a`,
+  },
+  { how: 'by a relative climb', paths: {}, imported: (repo: string) => `${climbingTo(repo)}/a` },
+  { how: 'by an absolute path', paths: {}, imported: (repo: string) => `${repo}/outside/a` },
+])('a file outside the checkout is not drawn: $how', async ({ paths, imported }) => {
+  using workspace = gitRepo({
+    'package.json': '{ "name": "shop" }\n',
+    'tsconfig.json': `${JSON.stringify({ compilerOptions: { rootDir: '.', paths } })}\n`,
+    'src/b.ts': 'export const b = 1;\n',
+  });
+  const { repo, root } = workspace;
+  const head = commit(repo, {
+    'src/b.ts': `import { a } from '${imported(repo)}';\nexport const b = a;\n`,
+  });
+  writeFiles(repo, { 'outside/a.ts': 'export const a = 2;\n' });
+
+  const range = await readRange({ repo, from: root, to: head });
+
+  expect(range.after.edges).toEqual([]);
+  expect(nodeIds(range.after)).toEqual(['shop', 'shop/module/src', 'shop/file/src/b.ts']);
+});
+
+test.for([
+  { how: "from the checkout's root", root: '.', climb: '../../before/src/a' },
+  { how: 'from a stack below it', root: 'apps/web', climb: '../../../../before/apps/web/src/a' },
+])('the other side of the range, one climb away, is not drawn: $how', async ({ root, climb }) => {
+  using workspace = gitRepo({
+    [join(root, 'package.json')]: '{}\n',
+    [join(root, 'tsconfig.json')]: '{ "compilerOptions": { "rootDir": "." } }\n',
+    [join(root, 'src/a.ts')]: 'export const a = 1;\n',
+    [join(root, 'src/b.ts')]: 'export const b = 1;\n',
+  });
+  const { repo, root: base } = workspace;
+  const head = commit(repo, {
+    [join(root, 'src/b.ts')]: `import { a } from '${climb}';\nexport const b = a;\n`,
+  });
+
+  const range = await readRange({ repo, from: base, to: head });
+
+  expect(range.after.edges).toEqual([]);
+});
+
+test('a bare import of a sibling package, found in a node_modules above the checkout, joins its stack and draws no file', async () => {
+  using above = gitRepo({
+    'node_modules/@acme/lib/index.js': 'export const x = 1;\n',
+    'tmp/keep': '',
+  });
+  vi.stubEnv('TMPDIR', join(above.repo, 'tmp'));
+  using workspace = gitRepo({
+    'apps/web/package.json': '{}\n',
+    'apps/web/tsconfig.json': '{ "compilerOptions": { "rootDir": "." } }\n',
+    'apps/web/src/b.ts': "import { x } from '@acme/lib';\nexport const b = x;\n",
+    'packages/lib/package.json': '{ "name": "@acme/lib" }\n',
+    'packages/lib/src/x.ts': 'export const x = 1;\n',
+  });
+  const { repo, root } = workspace;
+
+  const range = await readRange({ repo, from: root, to: root });
+
+  expect(range.after.edges).toEqual([{ from: 'apps/web/file/src/b.ts', to: 'packages/lib' }]);
+  expect(nodeIds(range.after).filter(id => id.includes('node_modules'))).toEqual([]);
+});
+
+test('a relative climb staying in the checkout is still followed, from a stack below its root', async () => {
+  using workspace = gitRepo({
+    'apps/web/package.json': '{}\n',
+    'apps/web/tsconfig.json': '{ "compilerOptions": { "rootDir": "." } }\n',
+    'apps/web/src/b.ts': "import { x } from '../../lib/src/x';\nexport const b = x;\n",
+    'apps/lib/package.json': '{}\n',
+    'apps/lib/src/x.ts': 'export const x = 1;\n',
+  });
+  const { repo, root } = workspace;
+
+  const range = await readRange({ repo, from: root, to: root });
+
+  expect(range.after.edges).toEqual([
+    { from: 'apps/web/file/src/b.ts', to: 'apps/web/file/../lib/src/x.ts' },
+  ]);
+});
+
 test('each stack and each side resolves through its own tsconfig paths', async () => {
   using workspace = gitRepo({
     'apps/one/package.json': '{}\n',

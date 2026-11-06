@@ -8,6 +8,7 @@ const CruiseOutputSchema = z.object({
       source: z.string(),
       coreModule: z.boolean().optional(),
       couldNotResolve: z.boolean().optional(),
+      matchesDoNotFollow: z.boolean().optional(),
       dependencies: z.array(z.object({ module: z.string(), resolved: z.string() })),
     }),
   ),
@@ -83,8 +84,11 @@ export const webGraph = ({
 }: WebGraphOptions): Graph => {
   const { modules } = CruiseOutputSchema.parse(JSON.parse(cruiseJson));
   const sources = modules.filter(
-    ({ source, coreModule, couldNotResolve }) =>
-      source.startsWith(prefixOf(sourceRoot)) && !coreModule && !couldNotResolve,
+    ({ source, coreModule, couldNotResolve, matchesDoNotFollow }) =>
+      source.startsWith(prefixOf(sourceRoot)) &&
+      !coreModule &&
+      !couldNotResolve &&
+      !matchesDoNotFollow,
   );
   const sourcePaths = new Set(sources.map(({ source }) => source));
   const nodes = new Map(

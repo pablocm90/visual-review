@@ -156,10 +156,17 @@ const resolutionIn = ({ checkout, root }: RootOptions) => {
   };
 };
 
+const leavingCheckoutFrom = (root: string): string =>
+  `^(\\.\\./){${join(root, 'file').split('/').length}}`;
+
 const graphAt = async ({ directory, root, stack, sourceRoot, boxes, packages }: GraphOptions) => {
   const { output } = await cruise(
     [sourceRoot],
-    { baseDir: join(directory, root), outputType: 'json' },
+    {
+      baseDir: join(directory, root),
+      outputType: 'json',
+      doNotFollow: { path: leavingCheckoutFrom(root) },
+    },
     resolutionIn({ checkout: directory, root }),
   );
   return webGraph({
