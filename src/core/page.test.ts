@@ -304,14 +304,17 @@ test("a route change's reading stays on the page and raises its findings", () =>
 
 test('a symbol reaching files the change left is a blast radius finding to look at on its file, per symbol, counting them', () => {
   const node = 'web/file/a.ts';
-  const reach = (name: string, paths: ReadonlyArray<string>) => ({
+  const reach = (name: string, how: string, paths: ReadonlyArray<string>) => ({
     node,
     id: `${node}#${name}`,
     label: `function ${name}`,
-    how: 'removed',
+    how,
     uses: paths.map(path => ({ path, line: 2, text: `${name}();` })),
   });
-  const reaches = [reach('foo', ['web/src/b.ts', 'web/src/c.ts']), reach('bar', ['web/src/b.ts'])];
+  const reaches = [
+    reach('foo', 'signature changed', ['web/src/b.ts', 'web/src/c.ts']),
+    reach('bar', 'removed', ['web/src/b.ts']),
+  ];
 
   const { findings } = pageData({
     reading: readingWith({ reaches }),
@@ -329,7 +332,7 @@ test('a symbol reaching files the change left is a blast radius finding to look 
       level: 'look',
       target: node,
       title: 'function foo reaches 2 unchanged files',
-      detail: 'found by name',
+      detail: 'signature changed, found by name',
     },
     {
       id: `blast-radius:reaches:${node}#bar`,
@@ -338,7 +341,7 @@ test('a symbol reaching files the change left is a blast radius finding to look 
       level: 'look',
       target: node,
       title: 'function bar reaches 1 unchanged file',
-      detail: 'found by name',
+      detail: 'removed, found by name',
     },
   ]);
 });
