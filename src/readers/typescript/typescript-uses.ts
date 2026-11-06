@@ -12,7 +12,7 @@ import {
   type Resolution,
   resolutionIn,
 } from './typescript-config.ts';
-import { scriptsOfStack } from './typescript-outside.ts';
+import { filesOutside } from './typescript-outside.ts';
 import {
   defaultExported,
   endOf,
@@ -376,20 +376,9 @@ export const usesOfTypeScript = async ({
   node,
   names,
 }: UsesAsked): Promise<UsesReading> => {
-  const drawnPaths = new Set(graph.nodes.map(({ path }) => path));
-  const outside: ReadonlyArray<GraphNode> = [...stacks].flatMap(([root, stack]) =>
-    scriptsOfStack({ head, root, roots: [...stacks.keys()] })
-      .filter(path => !drawnPaths.has(path))
-      .map(path => ({
-        id: `${stack}/outside/${path}`,
-        kind: 'file' as const,
-        label: path,
-        parent: stack,
-        path,
-      })),
-  );
+  const outside = filesOutside({ head, stacks, graph });
   const nodes = new Map<string, GraphNode>(
-    [...graph.nodes, ...outside].map(each => [each.id, each]),
+    [...graph.nodes, ...outside.nodes].map(each => [each.id, each]),
   );
   const baseText = await readFile(join(base, node.path), 'utf8');
   const aliases = aliasesIn(baseText, parseTypeScript(baseText, node.path).program);
@@ -408,7 +397,7 @@ export const usesOfTypeScript = async ({
     return resolution;
   };
   const drawn = new Set(
-    [...graph.nodes, ...outside]
+    [...graph.nodes, ...outside.nodes]
       .filter(({ kind }) => kind === 'file')
       .map(({ path }) => moduleAt(head, path)),
   );
@@ -425,7 +414,7 @@ export const usesOfTypeScript = async ({
       ...graph.edges
         .filter(({ to }) => to === id || to === stackOf(id))
         .flatMap(({ from }) => nodes.get(from) ?? []),
-      ...outside,
+      ...outside.nodes,
     ],
     read: ({ id, path }, target) =>
       fileUsesAt(
@@ -451,6 +440,7 @@ export const usesOfTypeScript = async ({
     ),
     notRead: [...new Set(visits.flatMap(({ uses }) => uses.notRead ?? []))],
     notFollowed: [
+      ...outside.notFollowed,
       NOT_DRAWN,
       ...(names.some(name => !isUnbackedAll(name) && name.includes('.'))
         ? ['not followed: a method read other than by `.name`, or without importing its class']

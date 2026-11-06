@@ -641,3 +641,41 @@ test.for([
     });
   },
 );
+
+const scriptsOutside = (count: number): Readonly<Record<string, string>> =>
+  Object.fromEntries(
+    Array.from({ length: count }, (_, index) => [
+      `test/${index}.ts`,
+      index === 0 ? "import { foo } from '../src/a';\n" : '',
+    ]),
+  );
+
+test.for([
+  {
+    outsideFiles: 5000,
+    paths: ['test/0.ts', 'app/z.ts'],
+    notFollowed: [NOT_DRAWN],
+  },
+  {
+    outsideFiles: 5001,
+    paths: ['app/z.ts'],
+    notFollowed: ['not followed: web has over 5000 files outside its source root', NOT_DRAWN],
+  },
+])(
+  'a stack with $outsideFiles files holding no node reads $paths, the drawn file and the other stack not counting',
+  async ({ outsideFiles, paths, notFollowed }) => {
+    const reading = await usesIn({
+      files: { 'a.ts': 'export const foo = 1;\n' },
+      outside: {
+        ...scriptsOutside(outsideFiles),
+        'app/package.json': '{"name":"app"}',
+        'app/z.ts': "import { foo } from '../src/a';\n",
+      },
+      edges: [],
+      names: ['foo'],
+    });
+
+    expect(reading?.uses).toEqual({ foo: paths.map(path => expect.objectContaining({ path })) });
+    expect(reading?.notFollowed).toEqual(notFollowed);
+  },
+);
