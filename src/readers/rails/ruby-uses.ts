@@ -11,9 +11,10 @@ const constantIn = (id: string): string => id.slice(id.lastIndexOf(CLASS) + CLAS
 
 export const usesOfRuby = async ({ head, graph, node, names }: UsesAsked): Promise<UsesReading> => {
   const stack = node.id.slice(0, node.id.lastIndexOf(CLASS) + CLASS.length);
-  const classes = classesOf(
-    graph.nodes.filter(({ id }) => id.startsWith(stack)).map(({ id }) => constantIn(id)),
-  );
+  const classes = classesOf([
+    ...graph.nodes.filter(({ id }) => id.startsWith(stack)).map(({ id }) => constantIn(id)),
+    ...names,
+  ]);
   const importers = graph.edges
     .filter(({ to }) => to === node.id)
     .flatMap(({ from }) => graph.nodes.find(({ id }) => id === from) ?? []);

@@ -54,3 +54,42 @@ test('a class reaches the file naming it, where it first does, and not a file na
     Order: [{ path: 'app/services/checkout.rb', line: 4, text: 'Order.new' }],
   });
 });
+
+test('a class nested in another file goes by its own name, and shadows the top-level one it hides', async () => {
+  const reading = await usesIn({
+    files: {
+      'app/models/order.rb': 'class Order\n  class Item\n  end\nend\n',
+      'app/models/item.rb': 'class Item\nend\n',
+      'app/services/order/report.rb':
+        'class Order\n  class Report\n    def run\n      Order.new\n      Item.new\n    end\n  end\nend\n',
+      'app/services/export.rb': 'class Export\n  def run\n    Order::Item.new\n  end\nend\n',
+    },
+    target: 'app/models/order.rb',
+    names: ['Order::Item', 'Order'],
+  });
+
+  expect(reading?.uses).toEqual({
+    'Order::Item': [
+      { path: 'app/services/export.rb', line: 3, text: 'Order::Item.new' },
+      { path: 'app/services/order/report.rb', line: 5, text: 'Item.new' },
+    ],
+    Order: [{ path: 'app/services/order/report.rb', line: 4, text: 'Order.new' }],
+  });
+});
+
+test('an association is a use, resolved from the class holding it', async () => {
+  const reading = await usesIn({
+    files: {
+      'app/models/item.rb': 'class Item\nend\n',
+      'app/models/billing/item.rb': 'module Billing\n  class Item\n  end\nend\n',
+      'app/models/billing/invoice.rb':
+        'module Billing\n  class Invoice\n    has_many :items\n  end\nend\n',
+    },
+    target: 'app/models/billing/item.rb',
+    names: ['Billing::Item'],
+  });
+
+  expect(reading?.uses).toEqual({
+    'Billing::Item': [{ path: 'app/models/billing/invoice.rb', line: 3, text: 'has_many :items' }],
+  });
+});
