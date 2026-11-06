@@ -1,4 +1,4 @@
-import { mkdtempSync, rmSync } from 'node:fs';
+import { mkdtempSync, rmSync, symlinkSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { expect, test } from 'vitest';
@@ -35,6 +35,7 @@ type Scene = {
   readonly target?: string;
   readonly elsewhere?: ReadonlyArray<string>;
   readonly outside?: Readonly<Record<string, string>>;
+  readonly outsideLinks?: Readonly<Record<string, string>>;
 };
 
 const usesIn = async ({
@@ -45,6 +46,7 @@ const usesIn = async ({
   target = 'a.ts',
   elsewhere = [],
   outside = {},
+  outsideLinks = {},
 }: Scene) => {
   const base = mkdtempSync(join(tmpdir(), 'visual-review-uses-base-'));
   const head = mkdtempSync(join(tmpdir(), 'visual-review-uses-head-'));
@@ -53,6 +55,7 @@ const usesIn = async ({
   try {
     writeFiles(base, { ...under({ ...files, ...atBase }), 'package.json': '{"name":"@acme/lib"}' });
     writeFiles(head, { ...under(files), ...outside });
+    for (const [path, to] of Object.entries(outsideLinks)) symlinkSync(to, join(head, path));
     return await typeScriptReader.uses?.({
       base,
       head,
@@ -639,6 +642,42 @@ test("an outside file that doesn't parse is listed as not read", async () => {
   });
 
   expect(reading?.notRead).toEqual(['test/broken.ts']);
+});
+
+test("an outside file that can't be opened is listed as not read", async () => {
+  const reading = await usesIn({
+    files: { 'a.ts': 'export const foo = 1;\n' },
+    outsideLinks: { 'loop.ts': 'loop.ts' },
+    edges: [],
+    names: ['foo'],
+  });
+
+  expect(reading?.notRead).toEqual(['loop.ts']);
+});
+
+test.for([
+  {
+    reason: 'a folder named as a script',
+    atBase: {},
+    outside: { 'test/x.test.ts/keep.txt': '' },
+    edges: [],
+  },
+  {
+    reason: 'a file under what is now a file',
+    atBase: { 'b/c.ts': "import { foo } from '../a';\nfoo();\n" },
+    outside: { 'src/b': 'now a file\n' },
+    edges: ['b/c.ts -> a.ts'],
+  },
+])('$reason is no file, so it is not named', async ({ atBase, outside, edges }) => {
+  const reading = await usesIn({
+    files: { 'a.ts': 'export const foo = 1;\n' },
+    atBase,
+    outside,
+    edges,
+    names: ['foo'],
+  });
+
+  expect(reading).toEqual({ uses: { foo: [] }, notRead: [], notFollowed: [NOT_DRAWN] });
 });
 
 test('a file outside the source root importing its own package by name uses it', async () => {

@@ -305,14 +305,17 @@ const walked = async ({ hops, seen, importersOf, read }: Walk): Promise<Readonly
 
 type Read = FileFacts | { readonly notRead: true } | undefined;
 
+const NO_FILE: ReadonlyArray<unknown> = ['ENOENT', 'ENOTDIR', 'EISDIR'];
+
+const isNoFile = (error: unknown): boolean =>
+  error instanceof Error && 'code' in error && NO_FILE.includes(error.code);
+
 const readFacts = async (path: string, file: string): Promise<Read> => {
-  const text = await readFile(file, 'utf8').catch(() => undefined);
-  if (text === undefined) return undefined;
-  if (isTooBig(text)) return { notRead: true };
   try {
-    return factsOf(path, text);
-  } catch {
-    return { notRead: true };
+    const text = await readFile(file, 'utf8');
+    return isTooBig(text) ? { notRead: true } : factsOf(path, text);
+  } catch (error) {
+    return isNoFile(error) ? undefined : { notRead: true };
   }
 };
 
