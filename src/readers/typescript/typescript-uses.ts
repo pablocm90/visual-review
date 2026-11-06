@@ -4,14 +4,7 @@ import type { ImportDeclaration, Node, Program } from '@babel/types';
 import type { GraphNode } from '../../core/graph.ts';
 import type { SymbolUse, UsesAsked, UsesReading } from '../../core/reader.ts';
 import { isTooBig } from '../too-big.ts';
-import {
-  moduleAt,
-  modulesNamedBy,
-  type Naming,
-  packageNameIn,
-  type Resolution,
-  resolutionIn,
-} from './typescript-config.ts';
+import { moduleAt, modulesNamedBy, packageNameIn, resolutionIn } from './typescript-config.ts';
 import { filesOutside } from './typescript-outside.ts';
 import {
   defaultExported,
@@ -34,19 +27,9 @@ export const NOT_DRAWN =
 const ACCESSES = new Set(['.', '?.']);
 const LOADERS = new Set(['import', 'require']);
 
-type Stack = {
-  readonly head: string;
-  readonly resolution: Resolution;
-  readonly drawn: ReadonlySet<string>;
-  readonly packageName: string | undefined;
-};
-
 const namesPackage = (packageName: string | undefined, specifier: string) =>
   packageName !== undefined &&
   (specifier === packageName || specifier.startsWith(`${packageName}/`));
-
-const drawnPlaceNamedBy = (stack: Stack, naming: Naming) =>
-  modulesNamedBy(stack, naming).find(place => stack.drawn.has(place));
 
 const importedName = (text: string, specifier: ImportDeclaration['specifiers'][number]) => {
   if (specifier.type === 'ImportSpecifier') return sourceOf(text, specifier.imported);
@@ -271,7 +254,7 @@ type Hop = { readonly node: Target; readonly exported: string; readonly asked: s
 type Walk = {
   readonly hops: ReadonlyArray<Hop>;
   readonly seen: ReadonlySet<string>;
-  readonly importersOf: (node: Target) => ReadonlyArray<Target>;
+  readonly importersOf: (node: Target) => Promise<ReadonlyArray<Target>>;
   readonly read: (importer: Target, target: Target) => Promise<FileUses>;
 };
 
@@ -285,15 +268,21 @@ const walked = async ({ hops, seen, importersOf, read }: Walk): Promise<Readonly
   );
   if (fresh.length === 0) return [];
   const targets = [...new Map(fresh.map(([, { node }]) => [node.id, node])).values()];
-  const visits = await Promise.all(
-    targets.flatMap(target =>
-      importersOf(target).map(async importer => ({
-        target,
-        importer,
-        uses: await read(importer, target),
-      })),
-    ),
-  );
+  const visits = (
+    await Promise.all(
+      targets.map(async target =>
+        Promise.all(
+          (
+            await importersOf(target)
+          ).map(async importer => ({
+            target,
+            importer,
+            uses: await read(importer, target),
+          })),
+        ),
+      ),
+    )
+  ).flat();
   const met = visits.flatMap(({ target, importer, uses }) =>
     fresh.flatMap(([, hop]) => (hop.node.id === target.id ? [{ hop, importer, uses }] : [])),
   );
@@ -338,16 +327,28 @@ const factsAt = (head: string, path: string): Promise<Read> => {
   return read;
 };
 
-const fileUsesAt = async (stack: Stack, path: string, target: string): Promise<FileUses> => {
-  const facts = await factsAt(stack.head, path);
+type FileUsesOptions = {
+  readonly head: string;
+  readonly path: string;
+  readonly targetPlace: string;
+  readonly placeOf: (specifier: string) => string | undefined;
+  readonly packageName: string | undefined;
+};
+
+const fileUsesAt = async ({
+  head,
+  path,
+  targetPlace,
+  placeOf,
+  packageName,
+}: FileUsesOptions): Promise<FileUses> => {
+  const facts = await factsAt(head, path);
   if (facts === undefined) return NO_USES;
   if ('notRead' in facts) return { ...NO_USES, notRead: path };
-  const placeOfName = (specifier: string) =>
-    drawnPlaceNamedBy(stack, { specifier, importer: path });
-  const namesExactly: Names = specifier => placeOfName(specifier) === moduleAt(stack.head, target);
+  const namesExactly: Names = specifier => placeOf(specifier) === targetPlace;
   const names: Names = specifier =>
     namesExactly(specifier) ||
-    (placeOfName(specifier) === undefined && namesPackage(stack.packageName, specifier));
+    (placeOf(specifier) === undefined && namesPackage(packageName, specifier));
   return usesFrom(facts, names, namesExactly);
 };
 
@@ -368,13 +369,120 @@ const onePerFile = (uses: ReadonlyArray<SymbolUse>): ReadonlyArray<SymbolUse> =>
 
 const isUnbackedAll = (name: string) => name.startsWith('* from ');
 
-const oncePerRoot = <T>(read: (root: string) => T) => {
-  const kept = new Map<string, { readonly value: T }>();
-  return (root: string): T => {
-    const held = kept.get(root) ?? { value: read(root) };
-    kept.set(root, held);
+const onceEach = <K, T>(read: (key: K) => T) => {
+  const kept = new Map<K, { readonly value: T }>();
+  return (key: K): T => {
+    const held = kept.get(key) ?? { value: read(key) };
+    kept.set(key, held);
     return held.value;
   };
+};
+
+const sourcesIn = ({
+  imported,
+  namespaceReads,
+  reexports,
+  namespaceExports,
+  loads,
+  exportsAll,
+}: FileFacts): ReadonlySet<string> =>
+  new Set([
+    ...[...imported, ...namespaceReads, ...reexports, ...namespaceExports, ...loads].map(
+      ({ source }) => source,
+    ),
+    ...exportsAll,
+  ]);
+
+type Imports = {
+  readonly node: GraphNode;
+  readonly places: ReadonlySet<string | undefined>;
+  readonly unplaced: ReadonlyArray<string>;
+  readonly unread: boolean;
+};
+
+type Around = Pick<UsesAsked, 'base' | 'head' | 'stacks' | 'graph'>;
+
+const surroundingsOf = ({ base, head, stacks, graph }: Around) => {
+  const outside = filesOutside({ head, stacks, graph });
+  const nodes = new Map<string, GraphNode>(
+    [...graph.nodes, ...outside.nodes].map(each => [each.id, each]),
+  );
+  const stackOf = (id: string): string => {
+    const parent = nodes.get(id)?.parent;
+    return parent === undefined ? id : stackOf(parent);
+  };
+  const rootOf = (id: string): string =>
+    [...stacks].find(([, stack]) => stack === stackOf(id))?.[0] ?? '.';
+  const resolutionOf = onceEach((root: string) => resolutionIn({ checkout: head, root }));
+  const packageNameOf = onceEach((root: string) => packageNameIn(join(base, root)));
+  const drawn = new Set(
+    [...graph.nodes, ...outside.nodes]
+      .filter(({ kind }) => kind === 'file')
+      .map(({ path }) => moduleAt(head, path)),
+  );
+  const placesNamedBy = onceEach(({ id, path }: Target) =>
+    onceEach((specifier: string) =>
+      modulesNamedBy(
+        { head, resolution: resolutionOf(rootOf(id)) },
+        { specifier, importer: path },
+      ).find(place => drawn.has(place)),
+    ),
+  );
+  const placeOf = (importer: Target, specifier: string) => placesNamedBy(importer)(specifier);
+  const outsideIds = new Set(outside.nodes.map(({ id }) => id));
+  const packageNameFor = (importer: Target, target: Target) =>
+    rootOf(importer.id) === rootOf(target.id) && !outsideIds.has(importer.id)
+      ? undefined
+      : packageNameOf(rootOf(target.id));
+  const importsOf = async (node: GraphNode): Promise<ReadonlyArray<Imports>> => {
+    const facts = await factsAt(head, node.path);
+    if (facts === undefined) return [];
+    if ('notRead' in facts) return [{ node, places: new Set(), unplaced: [], unread: true }];
+    const sources = [...sourcesIn(facts)];
+    return [
+      {
+        node,
+        places: new Set(sources.map(source => placeOf(node, source))),
+        unplaced: sources.filter(source => placeOf(node, source) === undefined),
+        unread: false,
+      },
+    ];
+  };
+  const importsAmong = onceEach(async (files: ReadonlyArray<GraphNode>) =>
+    (await Promise.all(files.map(importsOf))).flat(),
+  );
+  const scripts = graph.nodes.filter(({ path }) => isScript(path));
+  const namingAmong = async (files: ReadonlyArray<GraphNode>, target: Target) => {
+    const targetPlace = moduleAt(head, target.path);
+    return (await importsAmong(files))
+      .filter(
+        ({ node, places, unplaced, unread }) =>
+          unread ||
+          places.has(targetPlace) ||
+          unplaced.some(source => namesPackage(packageNameFor(node, target), source)),
+      )
+      .map(({ node }) => node);
+  };
+  return {
+    outside,
+    nodes,
+    stackOf,
+    placeOf,
+    packageNameFor,
+    importersOutside: (target: Target) => namingAmong(outside.nodes, target),
+    scriptsNaming: (target: Target) =>
+      outsideIds.has(target.id) ? namingAmong(scripts, target) : Promise.resolve([]),
+  };
+};
+
+const surroundings = new WeakMap<UsesAsked['graph'], ReturnType<typeof surroundingsOf>>();
+
+const surroundingsAt = (around: Around) => {
+  const kept = surroundings.get(around.graph);
+  if (kept !== undefined) return kept;
+  const made = surroundingsOf(around);
+  surroundings.set(around.graph, made);
+  return made;
 };
 
 export const usesOfTypeScript = async ({
@@ -385,27 +493,10 @@ export const usesOfTypeScript = async ({
   node,
   names,
 }: UsesAsked): Promise<UsesReading> => {
-  const outside = filesOutside({ head, stacks, graph });
-  const nodes = new Map<string, GraphNode>(
-    [...graph.nodes, ...outside.nodes].map(each => [each.id, each]),
-  );
+  const { outside, nodes, stackOf, placeOf, packageNameFor, importersOutside, scriptsNaming } =
+    surroundingsAt({ base, head, stacks, graph });
   const baseText = await readFile(join(base, node.path), 'utf8');
   const aliases = aliasesIn(baseText, parseTypeScript(baseText, node.path).program);
-  const stackOf = (id: string): string => {
-    const parent = nodes.get(id)?.parent;
-    return parent === undefined ? id : stackOf(parent);
-  };
-  const rootOf = (id: string): string =>
-    [...stacks].find(([, stack]) => stack === stackOf(id))?.[0] ?? '.';
-  const resolutionOf = oncePerRoot(root => resolutionIn({ checkout: head, root }));
-  const packageNameOf = oncePerRoot(root => packageNameIn(join(base, root)));
-  const drawn = new Set(
-    [...graph.nodes, ...outside.nodes]
-      .filter(({ kind }) => kind === 'file')
-      .map(({ path }) => moduleAt(head, path)),
-  );
-  const scripts = graph.nodes.filter(({ path }) => isScript(path));
-  const outsideIds = new Set(outside.nodes.map(({ id }) => id));
   const visits = await walked({
     hops: names.flatMap(asked => {
       const [owner = asked] = asked.split('.');
@@ -415,27 +506,21 @@ export const usesOfTypeScript = async ({
       ].map(exported => ({ node, exported, asked }));
     }),
     seen: new Set(),
-    importersOf: ({ id }) => [
+    importersOf: async target => [
       ...graph.edges
-        .filter(({ to }) => to === id || to === stackOf(id))
+        .filter(({ to }) => to === target.id || to === stackOf(target.id))
         .flatMap(({ from }) => nodes.get(from) ?? []),
-      ...outside.nodes,
-      ...(outsideIds.has(id) ? scripts : []),
+      ...(await importersOutside(target)),
+      ...(await scriptsNaming(target)),
     ],
-    read: ({ id, path }, target) =>
-      fileUsesAt(
-        {
-          head,
-          drawn,
-          resolution: resolutionOf(rootOf(id)),
-          packageName:
-            rootOf(id) === rootOf(target.id) && !outsideIds.has(id)
-              ? undefined
-              : packageNameOf(rootOf(target.id)),
-        },
-        path,
-        target.path,
-      ),
+    read: (importer, target) =>
+      fileUsesAt({
+        head,
+        path: importer.path,
+        targetPlace: moduleAt(head, target.path),
+        placeOf: specifier => placeOf(importer, specifier),
+        packageName: packageNameFor(importer, target),
+      }),
   });
   return {
     uses: Object.fromEntries(

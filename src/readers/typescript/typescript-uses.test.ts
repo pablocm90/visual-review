@@ -586,6 +586,61 @@ test('a file outside the source root, with no node, uses a name as a drawn one d
   });
 });
 
+test.for([
+  {
+    form: 'a namespace read',
+    text: "import * as a from '../src/a';\na.foo();\n",
+    row: { line: 2, text: 'a.foo();' },
+  },
+  {
+    form: 'a namespace re-export',
+    text: "export * as a from '../src/a';\n",
+    row: { line: 1, text: "export * as a from '../src/a';", unfollowed: true },
+  },
+  {
+    form: 'a load',
+    text: "const a = await import('../src/a');\n",
+    row: { line: 1, text: "const a = await import('../src/a');", unfollowed: true },
+  },
+])(
+  'a file outside the source root naming a module only by $form uses it',
+  async ({ text, row }) => {
+    const reading = await usesIn({
+      files: { 'a.ts': 'export const foo = 1;\n' },
+      outside: { 'test/a.ts': text },
+      edges: [],
+      names: ['foo'],
+    });
+
+    expect(reading?.uses).toEqual({ foo: [{ path: 'test/a.ts', ...row }] });
+  },
+);
+
+test('an outside file naming a module only by `export *` is followed', async () => {
+  const reading = await usesIn({
+    files: { 'a.ts': 'export const foo = 1;\n' },
+    outside: {
+      'test/all.ts': "export * from '../src/a';\n",
+      'test/a.ts': "import { foo } from './all';\nfoo();\n",
+    },
+    edges: [],
+    names: ['foo'],
+  });
+
+  expect(reading?.uses).toEqual({ foo: [{ path: 'test/a.ts', line: 2, text: 'foo();' }] });
+});
+
+test("an outside file that doesn't parse is listed as not read", async () => {
+  const reading = await usesIn({
+    files: { 'a.ts': 'export const foo = 1;\n' },
+    outside: { 'test/broken.ts': 'import * from ;\n' },
+    edges: [],
+    names: ['foo'],
+  });
+
+  expect(reading?.notRead).toEqual(['test/broken.ts']);
+});
+
 test('a file outside the source root importing its own package by name uses it', async () => {
   const reading = await usesIn({
     files: { 'a.ts': 'export const foo = 1;\n' },
