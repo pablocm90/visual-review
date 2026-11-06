@@ -58,7 +58,7 @@ _Avoid_: rule, kind
 _In code_: `Finding['check']`, `Check` (`src/core/checks.ts`)
 
 **Start here**:
-The few lines to begin with above the graph, at most five, each the findings of one check and level, or one flag. Those that need a look come first; within each level, a line ranks by its best finding: the blind spots, then direct dependency changes, risky migrations, removed tables, removed routes and new targets, then what most depends on, then what changes most.
+The few lines to begin with above the graph, at most five, each the findings of one check and level, or one flag. Those that need a look come first; within each level, a line ranks by its best finding: the blind spots, then direct dependency changes, risky migrations, removed tables, removed routes and new targets, then what most depends on, then what changes most. Above those, when the range changed a decision and no lens but Behaviour is picked, one more line that is no finding: how many decisions changed, going to **Logic only**.
 _Avoid_: Look first, top findings, priorities
 _In code_: `startHere` (`src/core/start-here.ts`)
 
@@ -131,6 +131,10 @@ _In code_: `LogicLine`
 **Logic strip**:
 A function's logic lines drawn as marks in source order, one tick each, above What changed's rows of it: the way to see a function's changes at a glance and go to one.
 _In code_: `LogicStrip`
+
+**Logic only**:
+A choice of Show drawing only the files with a changed decision, their boxes open, with every edge between them, each file a card holding a logic strip per function with a changed decision. It's offered only when there is one.
+_In code_: `logicOnly`, `LogicCardBody`
 
 **Anchor**:
 What a reviewer's comment or answer is on, by its kind and id: a part the graph draws (a crate, module, file, class or box) or an edge, by the id notes are keyed by; a **symbol** in a file (`<file>#<scope.name>`, `#<n>` after it from the second of that name in the file on, as a getter and its setter are); a **logic line** (`<symbol id>#<text>`, `#<n>` after it from the second reading the same on, carrying its text; a removed guard's or catch's id is its finding's without `logic:removed:`); a test (`<test file>#<heading › … › name>`, `#<n>` after it from the second of those headings and that name in the file on); a diff line (`<file>@<base|head>:<n>`, carrying its text, since its number drifts); or, for an answer, a finding, by its id. Two anchors of different kinds never share a comment, whatever their ids.

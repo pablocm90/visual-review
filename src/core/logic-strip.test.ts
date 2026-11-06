@@ -1,6 +1,13 @@
 import { expect, test } from 'vitest';
 import type { LogicLine } from './logic-diff.ts';
-import { countsOf, holdsFewChanges, isExit, runsOf } from './logic-strip.ts';
+import {
+  countsOf,
+  holdsFewChanges,
+  isExit,
+  logicTotalsOf,
+  nodesWithChangedLogic,
+  runsOf,
+} from './logic-strip.ts';
 
 const line = (change: LogicLine['change'], kind: LogicLine['kind']): LogicLine => ({
   change,
@@ -77,4 +84,59 @@ test('rows split into runs of changed and runs of unchanged, order kept, each ro
     [true, ['d', 'e']],
     [false, ['f']],
   ]);
+});
+
+test('the nodes with a changed decision: same lines, no logic and unreadable files hold none', () => {
+  const fileOf = (node: string, logics: ReadonlyArray<ReadonlyArray<LogicLine> | undefined>) => ({
+    node,
+    symbols: logics.map(logic => (logic === undefined ? {} : { logic })),
+  });
+
+  expect(
+    nodesWithChangedLogic([
+      fileOf('only-same', [[line('same', 'if')]]),
+      fileOf('second-symbol', [undefined, [line('same', 'if'), line('removed', 'guard')]]),
+      { node: 'unreadable', unreadable: 'parse error' },
+      fileOf('no-logic', [undefined]),
+      fileOf('moved', [[line('moved', 'if')]]),
+    ]),
+  ).toEqual(['second-symbol', 'moved']);
+});
+
+test('the totals count the changed decisions by change and exit, the functions and files holding one', () => {
+  expect(
+    logicTotalsOf([
+      {
+        node: 'refund',
+        symbols: [
+          { logic: [line('added', 'guard'), line('added', 'if'), line('same', 'guard')] },
+          { logic: [line('same', 'if')] },
+          {},
+          {
+            logic: [
+              line('removed', 'throw'),
+              line('removed', 'if'),
+              line('removed', 'if'),
+              line('moved', 'if'),
+              line('moved', 'if'),
+              line('moved', 'if'),
+              line('moved', 'if'),
+            ],
+          },
+        ],
+      },
+      { node: 'cart', symbols: [{ logic: [line('changed', 'loop')] }] },
+      { node: 'styles', symbols: [{ logic: [line('same', 'if')] }] },
+      { node: 'broken', unreadable: 'Unexpected token' },
+    ]),
+  ).toEqual({
+    decisions: 10,
+    functions: 3,
+    files: 2,
+    exits: 2,
+    added: 2,
+    changed: 1,
+    removed: 3,
+    moved: 4,
+  });
 });

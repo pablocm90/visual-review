@@ -9983,3 +9983,388 @@ test('Escape from a stop with no part, the outside files, leaves focus on the gr
 
   expect(document.activeElement).toBe(screen.getByRole('group', { name: 'Graph' }));
 });
+
+const decisionIn = (name: string, head: string): SymbolStatement => ({
+  name,
+  kind: 'function',
+  lines: {},
+  exported: { base: false, head: false },
+  change: 'edited',
+  logic: [{ change: 'added', kind: 'if', depth: 0, head, line: 2 }],
+});
+
+const pageOfLogic = () =>
+  pageWith({
+    range: 'abc123..def456',
+    diff: {
+      nodes: [
+        { id: 'web', kind: 'stack', label: 'web', path: '', state: 'unchanged' },
+        topFile('refund.ts', 'modified'),
+        topFile('cart.ts', 'modified'),
+        topFile('styles.ts', 'modified'),
+      ],
+      edges: [
+        webImport('refund.ts', 'cart.ts', 'unchanged'),
+        webImport('refund.ts', 'styles.ts', 'added'),
+      ],
+    },
+    symbols: [
+      symbolsOf('web/file/refund.ts', [decisionIn('refund', 'if (late)')]),
+      symbolsOf('web/file/cart.ts', [decisionIn('total', 'if (empty)')]),
+      symbolsOf('web/file/styles.ts', []),
+    ],
+  });
+
+test("with changed logic, Show offers 'Logic only' after 'Changes only'; picked, it draws the files holding a changed decision and every edge between them", async () => {
+  const user = userEvent.setup();
+  render(<ReviewPage review={pageOfLogic()} />);
+  const web = await screen.findByRole('group', { name: 'web' });
+  expect(
+    within(screen.getByRole('group', { name: 'Show' }))
+      .getAllByRole('button')
+      .map(button => button.textContent),
+  ).toEqual(['Changes only', 'Logic only', 'Changed + 1 hop', 'Everything']);
+
+  await user.click(shown('Logic only'));
+
+  await waitFor(() =>
+    expect(buttonsIn(web)).toEqual([
+      'refund.ts → cart.ts: unchanged',
+      'refund.ts: modified',
+      'added if: if (late)',
+      'cart.ts: modified',
+      'added if: if (empty)',
+    ]),
+  );
+});
+
+test("on 'Logic only' a file holds a row per function with a changed decision, each with a tick per decision named by it", async () => {
+  const user = userEvent.setup();
+  const same = {
+    change: 'same',
+    kind: 'guard',
+    depth: 0,
+    head: 'if (ok) return',
+    line: 1,
+  } as const;
+  render(
+    <ReviewPage
+      review={{
+        ...pageOfLogic(),
+        symbols: [
+          symbolsOf('web/file/refund.ts', [
+            {
+              ...decisionIn('refund', 'if (late)'),
+              logic: [same, ...(decisionIn('', 'if (late)').logic ?? [])],
+            },
+            { ...decisionIn('tidy', ''), logic: [same] },
+          ]),
+          symbolsOf('web/file/cart.ts', [decisionIn('total', 'if (empty)')]),
+        ],
+      }}
+    />,
+  );
+
+  const web = await screen.findByRole('group', { name: 'web' });
+  const before = await within(web).findByRole('button', { name: /^refund\.ts: modified/ });
+  expect(within(before).queryAllByRole('group')).toEqual([]);
+
+  await user.click(screen.getByRole('button', { name: 'Logic only' }));
+
+  const refund = await within(web).findByRole('button', { name: /^refund\.ts: modified/ });
+  const rows = await within(refund).findAllByRole('group');
+  expect(rows.map(row => row.getAttribute('aria-label'))).toEqual(['Marks of function refund']);
+  expect(
+    within(rows[0] as HTMLElement)
+      .getAllByRole('button')
+      .map(tick => tick.getAttribute('aria-label')),
+  ).toEqual(['same guard: if (ok) return', 'added if: if (late)']);
+});
+
+test("on 'Logic only' a file's card counts its changed decisions and exits and is as big as its rows", async () => {
+  const user = userEvent.setup();
+  const exit = { change: 'removed', kind: 'throw', depth: 0, base: 'throw oops', line: 4 } as const;
+  const same = { change: 'same', kind: 'if', depth: 0, head: 'if (ok)', line: 9 } as const;
+  render(
+    <ReviewPage
+      review={{
+        ...pageOfLogic(),
+        symbols: [
+          symbolsOf('web/file/refund.ts', [
+            {
+              ...addedIfs('refund', 2),
+              logic: [same, ...(addedIfs('refund', 2).logic ?? []), exit],
+            },
+            addedIfs('tidy', 1),
+          ]),
+          symbolsOf('web/file/cart.ts', [addedIfs('total', 20)]),
+        ],
+      }}
+    />,
+  );
+
+  await user.click(await screen.findByRole('button', { name: 'Logic only' }));
+
+  const web = await screen.findByRole('group', { name: 'web' });
+  const refund = await within(web).findByRole('button', { name: /^refund\.ts: modified/ });
+  const cart = within(web).getByRole('button', { name: /^cart\.ts: modified/ });
+  expect(within(refund).getByText('refund.ts')).toBeTruthy();
+  expect(within(refund).getByText('4 · 1 exit')).toBeTruthy();
+  expect(within(refund).getByText('3 of 4')).toBeTruthy();
+  const sizeOf = (node: HTMLElement) => node.querySelector('rect');
+  await waitFor(() =>
+    expect(Number(sizeOf(refund)?.getAttribute('height'))).toBeGreaterThan(
+      Number(sizeOf(cart)?.getAttribute('height')),
+    ),
+  );
+  expect(Number(sizeOf(cart)?.getAttribute('width'))).toBeGreaterThan(
+    Number(sizeOf(refund)?.getAttribute('width')),
+  );
+});
+
+test("on 'Logic only' a tick selects its file and lands on its row in What changed; in the reading map it only goes to its part", async () => {
+  const user = userEvent.setup();
+  render(
+    <ReviewPage
+      review={{
+        ...pageOfLogic(),
+        readingOrder: { parts: ['web/file/refund.ts', 'web/file/cart.ts'], cycles: [] },
+      }}
+    />,
+  );
+  await user.click(await screen.findByRole('button', { name: 'Logic only' }));
+  const tickOn = (file: string, name: string) =>
+    within(screen.getByRole('button', { name: new RegExp(`^${file}: modified`) })).findByRole(
+      'button',
+      { name },
+    );
+  const landedRows = () => whatChanged().querySelectorAll('li[aria-current="true"]');
+
+  await user.click(await tickOn('cart\\.ts', 'added if: if (empty)'));
+
+  expect(landedRows()).toHaveLength(1);
+  expect(landedRows()[0]?.getAttribute('aria-label')).toBe('added if: if (empty)');
+
+  await user.keyboard('k');
+  await screen.findByRole('button', { name: 'Open map' });
+  await user.click(await tickOn('cart\\.ts', 'added if: if (empty)'));
+
+  expect(
+    await within(whatChanged()).findByRole('listitem', { name: 'added if: if (empty)' }),
+  ).toBeTruthy();
+  expect(landedRows()).toHaveLength(0);
+});
+
+test("on 'Logic only', going to a part it holds stays, and to one it doesn't goes to 'Changes only' and wider", async () => {
+  const user = userEvent.setup();
+  render(
+    <ReviewPage
+      review={pageOfLogic()}
+      notes={{
+        version: 1,
+        tests: '',
+        summary: [
+          { text: 'The refund.', target: 'web/file/refund.ts' },
+          { text: 'The styles.', target: 'web/file/styles.ts' },
+        ],
+        notes: {},
+      }}
+    />,
+  );
+  const web = await screen.findByRole('group', { name: 'web' });
+  await within(web).findByRole('button', { name: 'refund.ts: modified' });
+  const pressed = () =>
+    within(screen.getByRole('group', { name: 'Show' }))
+      .getAllByRole('button', { pressed: true })
+      .map(button => button.textContent);
+  const summary = screen.getByRole('region', { name: 'Summary' });
+
+  await user.click(shown('Logic only'));
+  await user.click(within(summary).getByRole('button', { name: 'The refund.' }));
+  expect(pressed()).toEqual(['Logic only']);
+
+  await user.click(within(summary).getByRole('button', { name: 'The styles.' }));
+  expect(pressed()).toEqual(['Changes only']);
+});
+
+test("on 'Logic only' boxes are open whatever was toggled: no toggle shows, and a file in a closed box wears its own findings", async () => {
+  const user = userEvent.setup();
+  render(
+    <ReviewPage
+      review={pageWith({
+        range: 'abc123..def456',
+        diff: {
+          nodes: [
+            { id: 'web', kind: 'stack', label: 'web', path: '', state: 'unchanged' },
+            {
+              id: 'web/module/billing',
+              kind: 'module',
+              label: 'billing',
+              parent: 'web',
+              path: 'web/src/billing',
+              state: 'modified',
+            },
+            {
+              ...topFile('refund.ts', 'modified'),
+              parent: 'web/module/billing',
+              path: 'web/src/billing/refund.ts',
+            },
+            { id: 'api', kind: 'stack', label: 'api', path: 'api', state: 'unchanged' },
+            {
+              ...topFile('routes.ts', 'modified'),
+              id: 'api/file/routes.ts',
+              parent: 'api',
+              path: 'api/routes.ts',
+            },
+          ],
+          edges: [
+            {
+              from: 'web/file/refund.ts',
+              to: 'api/file/routes.ts',
+              state: 'added',
+              via: ['/late'],
+            },
+          ],
+        },
+        symbols: [
+          symbolsOf('web/file/refund.ts', [decisionIn('refund', 'if (late)')]),
+          symbolsOf('api/file/routes.ts', [decisionIn('route', 'if (open)')]),
+        ],
+        findings: [findingOn('web/file/refund.ts')],
+        dangling: [{ from: 'web/file/refund.ts', path: '/gone' }],
+      })}
+    />,
+  );
+  const web = await screen.findByRole('group', { name: 'web' });
+  await within(web).findByRole('button', { name: 'Expand billing' });
+  expect(within(web).queryByRole('button', { name: /^refund\.ts/ })).toBeNull();
+
+  await user.click(shown('Logic only'));
+
+  const refund = await within(web).findByRole('button', {
+    name: /^refund\.ts: modified, no route for \/gone/,
+  });
+  expect(screen.getByRole('button', { name: 'refund.ts ⇢ routes.ts: added (/late)' })).toBeTruthy();
+  expect(within(web).queryByRole('button', { name: /(Expand|Collapse) billing/ })).toBeNull();
+  expect(within(refund).getByRole('img', { name: /finding/ })).toBeTruthy();
+});
+
+test("on 'Logic only' a last comment on an edge stays on its own arrow, not on the arrow between its boxes", async () => {
+  const user = userEvent.setup();
+  const cart = 'web/file/orders/cart.ts -> web/file/billing/invoice.ts';
+  render(
+    <ReviewPage
+      review={pageWith({
+        range: review.range,
+        diff: {
+          nodes: [
+            { id: 'web', kind: 'stack', label: 'web', path: '', state: 'unchanged' },
+            webModule('orders'),
+            webModule('billing'),
+            webFile('orders', 'cart.ts', 'modified'),
+            webFile('billing', 'invoice.ts', 'modified'),
+          ],
+          edges: [
+            webImport('orders/cart.ts', 'billing/invoice.ts', 'unchanged'),
+            { from: 'web/module/orders', to: 'web/module/billing', state: 'unchanged' },
+          ],
+        },
+        symbols: [
+          symbolsOf('web/file/orders/cart.ts', [decisionIn('total', 'if (empty)')]),
+          symbolsOf('web/file/billing/invoice.ts', [decisionIn('bill', 'if (paid)')]),
+        ],
+        sinceReview: {
+          ...sinceReview,
+          comments: [
+            {
+              anchor: { kind: 'edge', id: cart },
+              kind: 'question',
+              text: 'Why the cart?',
+              target: cart,
+            },
+          ],
+        },
+      })}
+      notes={{ version: 1, tests: '', summary: [], notes: { [cart]: { text: 'The cart bills.' } } }}
+    />,
+  );
+
+  await user.click(await screen.findByRole('button', { name: 'Logic only' }));
+
+  const web = await screen.findByRole('group', { name: 'web' });
+  const own = await within(web).findByRole('button', { name: 'cart.ts → invoice.ts: unchanged' });
+  await user.click(within(web).getByRole('button', { name: 'orders → billing: unchanged' }));
+  expect(within(inspector()).queryByText('Why the cart?')).toBeNull();
+  expect(within(inspector()).queryByText('The cart bills.')).toBeNull();
+  await user.click(own);
+  expect(within(inspector()).getByText('Why the cart?')).toBeTruthy();
+  expect(within(inspector()).getByText('The cart bills.')).toBeTruthy();
+});
+
+test("Start here opens with what the range's logic did, counting only the kinds there are, and going to it shows Logic only", async () => {
+  const user = userEvent.setup();
+  const line = { kind: 'if', depth: 0, line: 2 } as const;
+  const logic: SymbolStatement['logic'] = [
+    { ...line, change: 'added', head: 'if (late)' },
+    { ...line, change: 'added', kind: 'throw', head: 'throw late' },
+    { ...line, change: 'removed', base: 'if (early)' },
+  ];
+  render(
+    <ReviewPage
+      review={{
+        ...pageOfLogic(),
+        symbols: [
+          symbolsOf('web/file/refund.ts', [{ ...decisionIn('refund', ''), logic }]),
+          symbolsOf('web/file/cart.ts', [
+            decisionIn('total', 'if (empty)'),
+            decisionIn('count', 'if (none)'),
+          ]),
+        ],
+        findings: [findingOn('web/file/refund.ts')],
+      }}
+    />,
+  );
+  await screen.findByRole('group', { name: 'web' });
+
+  const band = within(screen.getByRole('region', { name: 'Start here' }));
+  const [first] = band.getAllByRole('listitem');
+  expect(first?.textContent).toBe(
+    'Behaviour · logic5 decisions changed in 3 functions, 2 files1 exit · 4 added · 1 removed',
+  );
+  expect(shown('Logic only').getAttribute('aria-pressed')).toBe('false');
+
+  await user.click(band.getByRole('button', { name: /^5 decisions changed/ }));
+
+  expect(shown('Logic only').getAttribute('aria-pressed')).toBe('true');
+  await screen.findByRole('button', { name: 'added throw: throw late' });
+});
+
+test("Start here's logic line shows with no findings, and goes with a lens other than Behaviour", async () => {
+  const user = userEvent.setup();
+  render(<ReviewPage review={pageOfLogic()} />);
+  await screen.findByRole('group', { name: 'web' });
+  const logicLine = () =>
+    within(screen.getByRole('region', { name: 'Start here' })).getByRole('listitem').textContent;
+  const line = 'Behaviour · logic2 decisions changed in 2 functions, 2 files2 added';
+  expect(logicLine()).toBe(line);
+
+  await user.click(screen.getByRole('button', { name: /^Behaviour/ }));
+  expect(logicLine()).toBe(line);
+
+  await user.click(screen.getByRole('button', { name: /^Contract/ }));
+  expect(screen.queryByRole('region', { name: 'Start here' })).toBeNull();
+});
+
+test('Start here has no logic line with no changed decision', async () => {
+  render(
+    <ReviewPage
+      review={{
+        ...pageOfLogic(),
+        symbols: [symbolsOf('web/file/styles.ts', [])],
+        findings: [findingOn('web/file/styles.ts')],
+      }}
+    />,
+  );
+  const band = within(await screen.findByRole('region', { name: 'Start here' }));
+  expect(band.getAllByRole('listitem')).toHaveLength(1);
+});
