@@ -7,6 +7,7 @@ import { diffGraphs, type FilePatch, type GraphDiff, type Rename } from './diff-
 import { git } from './git.ts';
 import { type Graph, stackOfIn } from './graph.ts';
 import type { DanglingCall } from './linker.ts';
+import { dropLinksLeaving } from './links-leaving.ts';
 import type { Lockfile } from './lockfile.ts';
 import { type MeasuredNode, measuredNodes } from './metrics.ts';
 import type { MigrationReader } from './migration.ts';
@@ -124,6 +125,7 @@ const readSide = async ({
   ...options
 }: ReadSideOptions): Promise<StacksReading> => {
   await git(repo, 'worktree', 'add', '--detach', options.directory, revision);
+  await dropLinksLeaving({ repo, revision, directory: options.directory });
   return readStacks({ ...options, repoName: basename(repo) });
 };
 
