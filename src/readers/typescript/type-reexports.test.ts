@@ -4,6 +4,9 @@ import { join } from 'node:path';
 import { expect, test } from 'vitest';
 import { writeFiles } from '../../test-support/repos.ts';
 import { typeScriptReader } from './reader.ts';
+import { resolutionIn } from './typescript-config.ts';
+import { withTypeReexports } from './typescript-type-reexports.ts';
+import { CruiseOutputSchema } from './web-graph.ts';
 
 type Layout = {
   readonly root: string;
@@ -140,4 +143,30 @@ test('an inline type re-export and a local one draw what they did', async () => 
   });
 
   expect(edges).toEqual([{ from: 'web/file/inline.ts', to: 'web/file/a.ts' }]);
+});
+
+test("a module the cruise found outside the checkout isn't read for its type re-exports", () => {
+  const parent = mkdtempSync(join(tmpdir(), 'visual-review-type-reexports-'));
+  try {
+    writeFiles(parent, {
+      'leaves.ts': "export type { Foo } from './checkout/src/a';\n",
+      'checkout/src/a.ts': 'export type Foo = string;\n',
+    });
+    const checkout = join(parent, 'checkout');
+
+    const { modules } = CruiseOutputSchema.parse(
+      JSON.parse(
+        withTypeReexports({
+          cruiseJson: JSON.stringify({ modules: [{ source: '../leaves.ts', dependencies: [] }] }),
+          checkout,
+          root: '.',
+          resolution: resolutionIn({ checkout, root: '.' }),
+        }),
+      ),
+    );
+
+    expect(modules).toEqual([{ source: '../leaves.ts', dependencies: [] }]);
+  } finally {
+    rmSync(parent, { recursive: true, force: true });
+  }
 });

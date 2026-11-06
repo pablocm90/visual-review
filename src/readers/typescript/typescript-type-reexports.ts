@@ -57,7 +57,10 @@ export const withTypeReexports = ({
     )[0];
   const read = modules.map(module => ({
     module,
-    named: typeSourcesIn(module.source, join(directory, module.source)).map(specifier => ({
+    named: (isUnder(checkout, join(directory, module.source))
+      ? typeSourcesIn(module.source, join(directory, module.source))
+      : []
+    ).map(specifier => ({
       specifier,
       file: fileNamedBy(specifier, module.source),
     })),
