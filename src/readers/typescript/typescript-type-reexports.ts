@@ -1,6 +1,6 @@
 import { readFileSync } from 'node:fs';
-import { dirname, join } from 'node:path';
-import { moduleOf } from './typescript-config.ts';
+import { join } from 'node:path';
+import { moduleAt, modulesNamedBy, type Resolution } from './typescript-config.ts';
 import { parseTypeScript } from './typescript-syntax.ts';
 import { CruiseOutputSchema } from './web-graph.ts';
 
@@ -22,11 +22,23 @@ const typeSourcesIn = (path: string, file: string): ReadonlyArray<string> => {
   }
 };
 
-type TypeReexportsOptions = { readonly cruiseJson: string; readonly directory: string };
+type TypeReexportsOptions = {
+  readonly cruiseJson: string;
+  readonly directory: string;
+  readonly resolution: Resolution;
+};
 
-export const withTypeReexports = ({ cruiseJson, directory }: TypeReexportsOptions): string => {
+export const withTypeReexports = ({
+  cruiseJson,
+  directory,
+  resolution,
+}: TypeReexportsOptions): string => {
   const { modules } = CruiseOutputSchema.parse(JSON.parse(cruiseJson));
-  const sourceAt = new Map(modules.map(({ source }) => [moduleOf(source), source]));
+  const sourceAt = new Map(modules.map(({ source }) => [moduleAt(directory, source), source]));
+  const resolved = (specifier: string, importer: string): string =>
+    modulesNamedBy({ head: directory, resolution }, { specifier, importer }).flatMap(
+      place => sourceAt.get(place) ?? [],
+    )[0] ?? specifier;
   return JSON.stringify({
     modules: modules.map(module => ({
       ...module,
@@ -34,7 +46,7 @@ export const withTypeReexports = ({ cruiseJson, directory }: TypeReexportsOption
         ...module.dependencies,
         ...typeSourcesIn(module.source, join(directory, module.source)).map(specifier => ({
           module: specifier,
-          resolved: sourceAt.get(moduleOf(join(dirname(module.source), specifier))) ?? specifier,
+          resolved: resolved(specifier, module.source),
         })),
       ],
     })),

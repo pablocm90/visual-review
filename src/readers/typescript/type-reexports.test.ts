@@ -34,6 +34,16 @@ test.for([
   expect(edges).toEqual([{ from: 'web/file/types.ts', to: 'web/file/a.ts' }]);
 });
 
+test('an aliased type re-export draws the edge to the file the alias names', async () => {
+  const edges = await edgesIn({
+    'tsconfig.json': '{"compilerOptions":{"paths":{"@/*":["./missing/*","./src/*"]}}}',
+    'src/a.ts': 'export type Foo = string;\n',
+    'src/types.ts': "export type { Foo } from '@/a';\n",
+  });
+
+  expect(edges).toEqual([{ from: 'web/file/types.ts', to: 'web/file/a.ts' }]);
+});
+
 test('a file that does not parse draws no type edge, and the rest of the graph is read', async () => {
   const edges = await edgesIn({
     'src/a.ts': 'export type Foo = string;\n',

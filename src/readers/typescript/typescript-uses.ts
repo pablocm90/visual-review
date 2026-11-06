@@ -1,13 +1,14 @@
 import { readFile } from 'node:fs/promises';
-import { dirname, join, resolve } from 'node:path';
+import { join } from 'node:path';
 import type { ImportDeclaration, Node, Program } from '@babel/types';
 import type { GraphNode } from '../../core/graph.ts';
 import type { SymbolUse, UsesAsked, UsesReading } from '../../core/reader.ts';
 import { isTooBig } from '../too-big.ts';
 import {
-  moduleOf,
+  moduleAt,
+  modulesNamedBy,
+  type Naming,
   packageNameIn,
-  placesNamedBy,
   type Resolution,
   resolutionIn,
 } from './typescript-config.ts';
@@ -39,20 +40,12 @@ type Stack = {
   readonly packageName: string | undefined;
 };
 
-type Naming = { readonly specifier: string; readonly importer: string };
-
-const moduleAt = (...path: ReadonlyArray<string>): string => moduleOf(resolve(...path));
-
 const namesPackage = (packageName: string | undefined, specifier: string) =>
   packageName !== undefined &&
   (specifier === packageName || specifier.startsWith(`${packageName}/`));
 
-const drawnPlaceNamedBy = ({ head, resolution, drawn }: Stack, { specifier, importer }: Naming) => {
-  const places = specifier.startsWith('.')
-    ? [join(head, dirname(importer), specifier)]
-    : placesNamedBy(resolution, specifier);
-  return places.map(place => moduleAt(place)).find(place => drawn.has(place));
-};
+const drawnPlaceNamedBy = (stack: Stack, naming: Naming) =>
+  modulesNamedBy(stack, naming).find(place => stack.drawn.has(place));
 
 const importedName = (text: string, specifier: ImportDeclaration['specifiers'][number]) => {
   if (specifier.type === 'ImportSpecifier') return sourceOf(text, specifier.imported);

@@ -1,5 +1,5 @@
 import { existsSync, readFileSync, statSync } from 'node:fs';
-import { basename, dirname, isAbsolute, join } from 'node:path';
+import { basename, dirname, isAbsolute, join, resolve } from 'node:path';
 import { parse } from 'jsonc-parser';
 import { z } from 'zod';
 
@@ -187,6 +187,21 @@ export const moduleOf = (path: string): string => {
   const stem = path.replace(/(\.d)?\.[cm]?[jt]sx?$/, '');
   return basename(stem) === 'index' ? dirname(stem) : stem;
 };
+
+export const moduleAt = (...path: ReadonlyArray<string>): string => moduleOf(resolve(...path));
+
+export type Naming = { readonly specifier: string; readonly importer: string };
+
+type Lookup = { readonly head: string; readonly resolution: Resolution };
+
+export const modulesNamedBy = (
+  { head, resolution }: Lookup,
+  { specifier, importer }: Naming,
+): ReadonlyArray<string> =>
+  (specifier.startsWith('.')
+    ? [join(head, dirname(importer), specifier)]
+    : placesNamedBy(resolution, specifier)
+  ).map(place => moduleAt(place));
 
 const PackageSchema = z.object({ name: z.string().optional() });
 

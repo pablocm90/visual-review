@@ -108,6 +108,7 @@ const graphAt = async ({
   packages,
   stacks,
 }: GraphOptions) => {
+  const resolution = resolutionIn({ checkout: directory, root });
   const { output } = await cruise(
     [sourceRoot],
     {
@@ -115,7 +116,7 @@ const graphAt = async ({
       outputType: 'json',
       doNotFollow: { path: leavingCheckoutFrom(root) },
     },
-    resolutionIn({ checkout: directory, root }),
+    resolution,
   );
   return webGraph({
     stack,
@@ -125,6 +126,7 @@ const graphAt = async ({
     cruiseJson: withTypeReexports({
       cruiseJson: String(output),
       directory: join(directory, root),
+      resolution,
     }),
     packages,
     stacks,
