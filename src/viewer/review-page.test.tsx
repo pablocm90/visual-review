@@ -4767,6 +4767,40 @@ test('a Reaches row goes to the file it names, widening Show, and a file the gra
   expect(await screen.findByRole('heading', { level: 2, name: 'b.ts' })).toBeTruthy();
 });
 
+test('a Reaches row marks a test file and says when a use could not be followed', async () => {
+  const user = userEvent.setup();
+  render(
+    <ReviewPage
+      review={pageWith({
+        range: review.range,
+        diff: {
+          nodes: [
+            { id: 'web', kind: 'stack', label: 'web', path: '', state: 'unchanged' },
+            topFile('tax.ts', 'modified'),
+          ],
+          edges: [],
+        },
+        reaches: [
+          reachOf('web/file/tax.ts', 'foo', [
+            { path: 'web/src/lazy.ts', line: 3, text: "import('./tax')", unfollowed: true },
+            { path: 'web/src/plain.ts', line: 4, text: 'foo();' },
+            { path: 'web/src/tax.test.ts', line: 8, text: 'foo();', test: true },
+          ]),
+        ],
+      })}
+    />,
+  );
+
+  await user.click(await screen.findByRole('button', { name: 'tax.ts: modified' }));
+  const [lazy, plain, tested] = within(reachesRegion() ?? inspector())
+    .getAllByRole('listitem')
+    .map(row => within(row));
+  expect(lazy?.getByText('may use it, not followed')).toBeTruthy();
+  expect(plain?.queryByText('may use it, not followed')).toBeNull();
+  expect(plain?.queryByText('test')).toBeNull();
+  expect(tested?.getByText('test')).toBeTruthy();
+});
+
 test("a node's Tested by also lists the test files named after a file inside it, wherever they sit in its stack", async () => {
   const user = userEvent.setup();
   render(
