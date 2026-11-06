@@ -12,6 +12,7 @@ import { type MeasuredNode, measuredNodes } from './metrics.ts';
 import type { MigrationReader } from './migration.ts';
 import { type DependencyChanges, readLockfiles } from './read-lockfiles.ts';
 import { type MigrationReading, readMigrations } from './read-migrations.ts';
+import { type Reach, readReaches } from './read-reaches.ts';
 import { type RoutesReading, readRoutes } from './read-routes.ts';
 import { readSchemas, type SchemaReading } from './read-schemas.ts';
 import {
@@ -83,6 +84,7 @@ export type RangeReading = {
   readonly tests: ReadonlyArray<TestFile>;
   readonly symbols: ReadonlyArray<SymbolFile>;
   readonly symbolsNotRead: ReadonlyArray<string>;
+  readonly reaches: ReadonlyArray<Reach>;
   readonly dependencyChanges: ReadonlyArray<DependencyChanges>;
   readonly migrations: ReadonlyArray<MigrationReading>;
   readonly schemas: ReadonlyArray<SchemaReading>;
@@ -574,6 +576,14 @@ export const readRange = async ({
       measures,
       measuresNotRead,
       ...anchors,
+      reaches: await readReaches({
+        sides,
+        before,
+        symbols: anchors.symbols,
+        measured,
+        changedPaths,
+        pathOf: id => diff.nodes.find(node => node.id === id)?.path ?? id,
+      }),
       dependencyChanges: await readLockfiles({ repo, base, head: toCommit, changes, lockfiles }),
       migrations: await readMigrations({ repo, base, head: toCommit, changes, migrations }),
       schemas: await readSchemas({ repo, base, head: toCommit, changes, schemas }),

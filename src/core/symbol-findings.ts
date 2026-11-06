@@ -10,7 +10,7 @@ type Removal = { readonly former: string; readonly how: string; readonly detail?
 
 type PathOf = (id: string) => string;
 
-const removalOf = (statement: SymbolStatement, pathOf: PathOf): Removal | undefined => {
+export const removalOf = (statement: SymbolStatement, pathOf: PathOf): Removal | undefined => {
   if (statement.exported.base !== true) return undefined;
   const name = qualified(statement);
   if (statement.renamedFrom !== undefined) {

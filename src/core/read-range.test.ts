@@ -1288,3 +1288,79 @@ test('no commits since a review of the same tree still reads as a comparable sid
 
   expect(range.reviewed).toMatchObject({ commits: [] });
 });
+
+const reachingScene = () => ({
+  ...rootPackage,
+  'src/a.ts':
+    'export function foo() {}\nexport function lonely() {}\nexport function kept() {}\nexport const X = 1;\n',
+  'src/uses.ts': "import { foo } from './a.ts';\nfoo();\n",
+  'src/uses.test.ts': "import { foo } from './a.ts';\nfoo();\n",
+  'src/changed.ts': "import { foo } from './a.ts';\nfoo();\n",
+  'src/other.ts': "import { kept } from './a.ts';\nkept();\n",
+  'src/barrel.ts': "export { foo } from './a.ts';\n",
+  'src/early.ts': "import { foo } from './barrel.ts';\nfoo();\n",
+});
+
+test("a removed export reaches the files the range didn't change that still use it, tests last", async () => {
+  using repository = gitRepo({ 'README.md': 'a shop\n' });
+  const { repo } = repository;
+  const base = commit(repo, reachingScene());
+  const head = commit(repo, {
+    'src/a.ts': 'export function kept() {}\nexport const X = 1;\n',
+    'src/changed.ts': "import { foo } from './a.ts';\nfoo();\nfoo();\n",
+  });
+
+  const range = await readRange({ repo, from: base, to: head });
+
+  const node = `${basename(repo)}/file/a.ts`;
+  expect(range.reaches).toEqual([
+    {
+      node,
+      id: `${node}#foo`,
+      label: 'function foo',
+      how: 'removed',
+      uses: [
+        { path: 'src/barrel.ts', line: 1, text: "export { foo } from './a.ts';" },
+        { path: 'src/early.ts', line: 2, text: 'foo();' },
+        { path: 'src/uses.ts', line: 2, text: 'foo();' },
+        { path: 'src/uses.test.ts', line: 2, text: 'foo();', test: true },
+      ],
+    },
+  ]);
+});
+
+test('a file renamed from what its reader cannot parse has nothing to ask, so is not read for its names', async () => {
+  using repository = gitRepo({ 'README.md': 'a shop\n' });
+  const { repo } = repository;
+  const values = '"a": 1,\n"b": 2,\n"c": 3,\n"d": 4,\n"e": 5,\n"f": 6,\n"g": 7,\n"h": 8\n';
+  const base = commit(repo, {
+    ...rootPackage,
+    'src/data.json': `{\n${values}}\n`,
+    'src/uses.ts': "import data from './data.json';\nexport const a = data;\n",
+  });
+  git(repo, 'mv', 'src/data.json', 'src/data.ts');
+  const head = commit(repo, {
+    'src/data.ts': `export default {\n${values}};\n`,
+    'src/uses.ts': "import data from './data.ts';\nexport const a = data;\n",
+  });
+
+  const range = await readRange({ repo, from: base, to: head });
+
+  expect(range.renames).toEqual([{ from: 'src/data.json', to: 'src/data.ts' }]);
+  expect(range.reaches).toEqual([]);
+});
+
+test("a removed method isn't asked about by itself", async () => {
+  using repository = gitRepo({ 'README.md': 'a shop\n' });
+  const { repo } = repository;
+  const base = commit(repo, {
+    ...rootPackage,
+    'src/a.ts': 'export class Foo {\n  bar() {}\n  baz() {}\n}\n',
+    'src/passes.ts': "import * as a from './a.ts';\nconsole.log(a);\n",
+  });
+  const head = commit(repo, { 'src/a.ts': 'export class Foo {\n  baz() {}\n}\n' });
+
+  const range = await readRange({ repo, from: base, to: head });
+
+  expect(range.reaches).toEqual([]);
+});
