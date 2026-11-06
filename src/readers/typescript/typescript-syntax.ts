@@ -2,6 +2,8 @@ import { type ParserPlugin, parse } from '@babel/parser';
 import type { Node } from '@babel/types';
 import type { ReadSymbol, SymbolKind } from '../../core/reader.ts';
 
+export const isScript = (path: string): boolean => /\.[cm]?[jt]sx?$/.test(path);
+
 const TYPESCRIPT: Array<ParserPlugin> = [
   'typescript',
   'decorators-legacy',
