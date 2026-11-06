@@ -1,6 +1,13 @@
 import { expect, test } from 'vitest';
 import type { LogicLine } from './logic-diff.ts';
-import { countsOf, holdsFewChanges, isExit, nodesWithChangedLogic, runsOf } from './logic-strip.ts';
+import {
+  countsOf,
+  holdsFewChanges,
+  isExit,
+  logicTotalsOf,
+  nodesWithChangedLogic,
+  runsOf,
+} from './logic-strip.ts';
 
 const line = (change: LogicLine['change'], kind: LogicLine['kind']): LogicLine => ({
   change,
@@ -94,4 +101,32 @@ test('the nodes with a changed decision: same lines, no logic and unreadable fil
       fileOf('moved', [[line('moved', 'if')]]),
     ]),
   ).toEqual(['second-symbol', 'moved']);
+});
+
+test('the totals count the changed decisions by change and exit, the functions and files holding one', () => {
+  expect(
+    logicTotalsOf([
+      {
+        node: 'refund',
+        symbols: [
+          { logic: [line('added', 'guard'), line('added', 'if'), line('same', 'guard')] },
+          { logic: [line('same', 'if')] },
+          {},
+          { logic: [line('removed', 'throw'), line('moved', 'if')] },
+        ],
+      },
+      { node: 'cart', symbols: [{ logic: [line('changed', 'loop')] }] },
+      { node: 'styles', symbols: [{ logic: [line('same', 'if')] }] },
+      { node: 'broken', unreadable: 'Unexpected token' },
+    ]),
+  ).toEqual({
+    decisions: 5,
+    functions: 3,
+    files: 2,
+    exits: 2,
+    added: 2,
+    changed: 1,
+    removed: 1,
+    moved: 1,
+  });
 });
