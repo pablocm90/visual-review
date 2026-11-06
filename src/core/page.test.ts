@@ -316,7 +316,7 @@ test('a symbol reaching files the change left is a blast radius finding to look 
     reach('bar', 'removed', ['web/src/b.ts']),
   ];
 
-  const { findings } = pageData({
+  const { findings, reaches: shown } = pageData({
     reading: readingWith({ reaches }),
     repo: 'acme/shop',
     range: 'a..b',
@@ -344,6 +344,7 @@ test('a symbol reaching files the change left is a blast radius finding to look 
       detail: 'removed, found by name',
     },
   ]);
+  expect(shown).toEqual(reaches);
 });
 
 test('stacks a missing tool kept from being read are a structure finding to look at, on no node', () => {

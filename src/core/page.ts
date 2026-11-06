@@ -8,6 +8,7 @@ import { notesProblems, type ReviewNotes } from './notes.ts';
 import type { DependencyChanges } from './read-lockfiles.ts';
 import type { MigrationReading } from './read-migrations.ts';
 import type { RangeReading, SymbolFile } from './read-range.ts';
+import type { Reach } from './read-reaches.ts';
 import type { RoutesReading } from './read-routes.ts';
 import type { SchemaReading } from './read-schemas.ts';
 import { type ReadingOrder, readingOrder } from './reading-order.ts';
@@ -43,6 +44,7 @@ export type PageData = {
   readonly routes: ReadonlyArray<RoutesReading>;
   readonly tests: ReadonlyArray<TestFile>;
   readonly symbols: ReadonlyArray<SymbolFile>;
+  readonly reaches: ReadonlyArray<Reach>;
   readonly skipped: ReadonlyArray<Skipped>;
   readonly thresholds: RangeReading['thresholds'];
   readonly churnDays: number;
@@ -115,6 +117,7 @@ export const pageData = ({
     routes: reading.routes,
     tests: reading.tests,
     symbols: reading.symbols,
+    reaches: reading.reaches,
     skipped: reading.skipped,
     thresholds: reading.thresholds,
     churnDays: reading.churnDays,

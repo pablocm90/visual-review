@@ -8,6 +8,7 @@ import type { ReviewNotes } from '../core/notes.ts';
 import type { PageData } from '../core/page.ts';
 import type { PreviousComment } from '../core/previous-comments.ts';
 import type { Commit, SymbolFile } from '../core/read-range.ts';
+import type { Reach } from '../core/read-reaches.ts';
 import type { Comment, Review } from '../core/review.ts';
 import type { ChangedSince, SinceReview } from '../core/since-review.ts';
 import type { Skipped } from '../core/skipped.ts';
@@ -4683,6 +4684,54 @@ test("logic changed with no test alongside shows its finding under Tested by, wi
   );
   expect(untestedRow().getAttribute('aria-current')).toBe('true');
   expect(scrolledIntoView.mock.contexts).toContain(untestedRow());
+});
+
+const reachOf = (node: string, name: string, uses: Reach['uses']): Reach => ({
+  node,
+  id: `${node}#${name}`,
+  label: `function ${name}`,
+  how: 'removed',
+  uses,
+});
+
+const reachesRegion = () => within(inspector()).queryByRole('region', { name: /^Reaches/ });
+
+test('Reaches lists where the selected part reaches, counting files once, and is not drawn on a part reaching nothing', async () => {
+  const user = userEvent.setup();
+  render(
+    <ReviewPage
+      review={pageWith({
+        range: review.range,
+        diff: {
+          nodes: [
+            { id: 'web', kind: 'stack', label: 'web', path: '', state: 'unchanged' },
+            topFile('tax.ts', 'modified'),
+            topFile('refund.ts', 'modified'),
+          ],
+          edges: [],
+        },
+        reaches: [
+          reachOf('web/file/tax.ts', 'foo', [
+            { path: 'web/src/b.ts', line: 41, text: 'foo(raw);' },
+            { path: 'web/src/c.ts', line: 12, text: 'rows.map(foo)' },
+          ]),
+          reachOf('web/file/tax.ts', 'bar', [{ path: 'web/src/b.ts', line: 7, text: 'bar();' }]),
+        ],
+      })}
+    />,
+  );
+
+  await user.click(await screen.findByRole('button', { name: 'refund.ts: modified' }));
+  expect(reachesRegion()).toBeNull();
+
+  await user.click(screen.getByRole('button', { name: 'tax.ts: modified' }));
+  const region = reachesRegion() ?? inspector();
+  expect(within(region).getByRole('heading', { name: 'Reaches 2 unchanged files' })).toBeTruthy();
+  expect(
+    within(region)
+      .getAllByRole('listitem')
+      .map(row => row.textContent),
+  ).toEqual(['web/src/b.ts:41foo(raw);', 'web/src/c.ts:12rows.map(foo)', 'web/src/b.ts:7bar();']);
 });
 
 test("a node's Tested by also lists the test files named after a file inside it, wherever they sit in its stack", async () => {
