@@ -49,6 +49,14 @@ export const holdsFirstLine = ({
   readonly lines: Spans;
 }): boolean => rows.some(row => startsAt(row.base, base) || startsAt(row.head, head));
 
+const headerOf = (rows: ReadonlyArray<PatchLine>): PatchLine => {
+  const base = rows.find(row => row.base !== undefined)?.base;
+  const head = rows.find(row => row.head !== undefined)?.head;
+  const sides = [base === undefined ? [] : [`-${base}`], head === undefined ? [] : [`+${head}`]];
+  const text = `@@ ${sides.flat().join(' ')} @@`;
+  return { kind: 'header', prefix: '', pieces: [{ text, scopes: [] }] };
+};
+
 export const rowsOfSymbol = ({
   rows,
   lines,
@@ -69,9 +77,8 @@ export const rowsOfSymbol = ({
   return starts.flatMap((start, index) => {
     const hunk = rows.slice(start, starts[index + 1]);
     const kept = hunk.filter(
-      (row, at) =>
-        row.kind === 'header' || holds(row) || (row.kind === 'note' && holds(hunk[at - 1])),
+      (row, at) => holds(row) || (row.kind === 'note' && holds(hunk[at - 1])),
     );
-    return kept.some(isChange) ? kept : [];
+    return kept.some(isChange) ? [headerOf(kept), ...kept] : [];
   });
 };

@@ -30,7 +30,25 @@ test('an edited symbol keeps its own lines of a hunk, the removed ones among the
         inFile: [],
       }),
     ),
-  ).toStrictEqual(['@@ -1,7 +1,7 @@', ' function b() {', '-  return 3;', '+  return 4;', ' }']);
+  ).toStrictEqual(['@@ -4 +4 @@', ' function b() {', '-  return 3;', '+  return 4;', ' }']);
+});
+
+test('a cut hunk names where its rows start, not the whole hunk or the function before it', () => {
+  const rows = rowsOf(
+    '@@ -10,9 +10,3 @@ fn before() {',
+    ' let kept = 1;',
+    '-fn gone() {',
+    '-  1',
+    '-}',
+    '-fn alsoGone() {',
+    '-  2',
+    '-}',
+    ' let last = 2;',
+  );
+
+  expect(
+    shown(rowsOfSymbol({ rows, lines: { base: { start: 14, end: 16 } }, inFile: [] }))[0],
+  ).toBe('@@ -14 @@');
 });
 
 const REPLACED = rowsOf(
@@ -46,12 +64,12 @@ test.for([
   {
     claim: 'a removed symbol, its base lines',
     lines: { base: { start: 2, end: 2 } },
-    expected: ['@@ -1,5 +1,5 @@', '-const gone = 2;'],
+    expected: ['@@ -2 @@', '-const gone = 2;'],
   },
   {
     claim: 'an added symbol, its head lines',
     lines: { head: { start: 2, end: 2 } },
-    expected: ['@@ -1,5 +1,5 @@', '+const fresh = 4;'],
+    expected: ['@@ +2 @@', '+const fresh = 4;'],
   },
 ])('$claim', ({ lines, expected }) => {
   expect(shown(rowsOfSymbol({ rows: REPLACED, lines, inFile: [] }))).toStrictEqual(expected);
@@ -77,7 +95,7 @@ test('a hunk where the symbol has only context is left out, its header too', () 
         inFile: [],
       }),
     ),
-  ).toStrictEqual(['@@ -1,3 +1,3 @@', ' function long() {', '-  first();', '+  second();']);
+  ).toStrictEqual(['@@ -1 +1 @@', ' function long() {', '-  first();', '+  second();']);
 });
 
 const NO_NEWLINE = rowsOf(
@@ -92,7 +110,7 @@ const NO_NEWLINE = rowsOf(
 test('a note on a line goes with that line', () => {
   expect(
     shown(rowsOfSymbol({ rows: NO_NEWLINE, lines: { base: { start: 1, end: 1 } }, inFile: [] })),
-  ).toStrictEqual(['@@ -1,2 +1,2 @@', '-const a = 1;', '\\ No newline at end of file']);
+  ).toStrictEqual(['@@ -1 @@', '-const a = 1;', '\\ No newline at end of file']);
 });
 
 const A_CLASS = rowsOf(
@@ -123,7 +141,7 @@ test('a symbol leaves out the lines of the symbols inside it', () => {
         inFile: [{ lines: BOX }, { lines: OPEN }, { lines: SHUT }],
       }),
     ),
-  ).toStrictEqual(['@@ -1,9 +1,6 @@', ' class Box {', '-  size = 1;', '+  size = 2;', ' }']);
+  ).toStrictEqual(['@@ -1 +1 @@', ' class Box {', '-  size = 1;', '+  size = 2;', ' }']);
 });
 
 test('a symbol inside another keeps its own lines', () => {
@@ -135,7 +153,7 @@ test('a symbol inside another keeps its own lines', () => {
         inFile: [{ lines: BOX }, { lines: OPEN }, { lines: SHUT }],
       }),
     ),
-  ).toStrictEqual(['@@ -1,9 +1,6 @@', '   open() {', '-    return 1;', '+    return 2;', '   }']);
+  ).toStrictEqual(['@@ -3 +3 @@', '   open() {', '-    return 1;', '+    return 2;', '   }']);
 });
 
 test('symbols sharing one range all keep its lines', () => {
