@@ -13,8 +13,10 @@ What changed in each release of `@pablocm90/visual-review`, newest first. Versio
 
 ### Fixed
 
-- A link in a reviewed revision that leaves the repo, or points nowhere, is no longer followed: one to `/dev/zero`, `/dev/stdin` or `/proc/self/pagemap` used to hang the CLI or run it out of memory. Its change still shows among the files outside the graph, the patch naming the target.
-- A `visual-review.config.json` in the working tree that links out of the repo stops the review, naming the file.
+- A link in a reviewed revision that leaves the repo, or points nowhere, is no longer followed: one to `/dev/zero`, `/dev/stdin` or `/proc/self/pagemap` used to hang the CLI or run it out of memory. Its patch still shows, naming the target: among the files outside the graph, or under the box that held it, which reads modified, or the node it replaced, which reads removed.
+- A `visual-review.config.json`, a review under `.reviews/` or a page given to `--notes` or `serve` linked to a device or an empty file no longer hangs the CLI. A config so linked stops the review, naming the file, as does a tracked config link leaving the repo; one linking to a plain file outside the repo still applies.
+- A tsconfig `rootDir` or `include` leaving the checkout is no longer followed.
+- A config `root` or `sourceRoot` written as an absolute path is refused, naming the field.
 
 ## 0.48.0 — 2026-11-06
 
