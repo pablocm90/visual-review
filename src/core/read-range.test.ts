@@ -1357,6 +1357,30 @@ test("a changed signature of an export reaches the files that use it, and a chan
   ]);
 });
 
+test('a removed export no symbol backs reaches the files that use it, by its name', async () => {
+  using repository = gitRepo({ 'README.md': 'a shop\n' });
+  const { repo } = repository;
+  const base = commit(repo, {
+    ...rootPackage,
+    'src/a.ts': 'export const X = 1;\nexport const kept = 2;\n',
+    'src/uses.ts': "import { X } from './a.ts';\nconsole.log(X);\n",
+  });
+  const head = commit(repo, { 'src/a.ts': 'export const kept = 2;\n' });
+
+  const range = await readRange({ repo, from: base, to: head });
+
+  const node = `${basename(repo)}/file/a.ts`;
+  expect(range.reaches).toEqual([
+    {
+      node,
+      id: `${node}#X`,
+      label: 'export X',
+      how: 'removed',
+      uses: [{ path: 'src/uses.ts', line: 2, text: 'console.log(X);' }],
+    },
+  ]);
+});
+
 test('a file renamed from what its reader cannot parse has nothing to ask, so is not read for its names', async () => {
   using repository = gitRepo({ 'README.md': 'a shop\n' });
   const { repo } = repository;

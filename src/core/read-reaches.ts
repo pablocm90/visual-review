@@ -2,7 +2,7 @@ import type { MeasuredNode } from './metrics.ts';
 import type { SymbolFile } from './read-range.ts';
 import type { StacksReading } from './read-stacks.ts';
 import type { SymbolUse } from './reader.ts';
-import { anchoredSymbols, removalOf } from './symbol-findings.ts';
+import { anchoredSymbols, removalOf, unbackedExports } from './symbol-findings.ts';
 
 export type ReachingUse = SymbolUse & { readonly test?: true };
 
@@ -21,10 +21,9 @@ type Asked = {
   readonly name: string;
 };
 
-const askedOf = (
-  file: Exclude<SymbolFile, { readonly unreadable: string }>,
-  pathOf: (id: string) => string,
-): ReadonlyArray<Asked> =>
+type Readable = Exclude<SymbolFile, { readonly unreadable: string }>;
+
+const askedOf = (file: Readable, pathOf: (id: string) => string): ReadonlyArray<Asked> =>
   anchoredSymbols(file.node, file.symbols)
     .filter(({ item }) => item.scope === undefined)
     .flatMap(({ item, id }) => {
@@ -37,6 +36,14 @@ const askedOf = (
         ? [{ id, label: `${item.kind} ${item.name}`, how: 'signature changed', name: item.name }]
         : [];
     });
+
+const unbackedAsked = (file: Readable): ReadonlyArray<Asked> =>
+  unbackedExports(file).removed.map(name => ({
+    id: `${file.node}#${name}`,
+    label: `export ${name}`,
+    how: 'removed',
+    name,
+  }));
 
 type ReadReachesOptions = {
   readonly sides: { readonly before: string; readonly after: string };
@@ -62,7 +69,7 @@ export const readReaches = async ({
       const reader = before.stacks.find(({ stack }) => stack === file.stack)?.reader;
       const basePath = measured.find(({ id }) => id === file.node)?.basePath;
       const node = before.graph.nodes.find(({ path }) => path === basePath);
-      const asked = askedOf(file, pathOf);
+      const asked = [...askedOf(file, pathOf), ...unbackedAsked(file)];
       if (reader?.uses === undefined || node === undefined || asked.length === 0) return [];
       const { uses } = await reader.uses({
         base: sides.before,
