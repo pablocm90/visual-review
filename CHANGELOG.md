@@ -2,6 +2,12 @@
 
 What changed in each release of `@pablocm90/visual-review`, newest first. Versions follow [semver](https://semver.org); while it is 0.x, a minor version may change the exported types.
 
+## Unreleased
+
+### Removed
+
+- The **Metrics** tab. Each part's **Metrics** fold, **Colour by** and the metrics findings stay, and a link to `#metrics` opens Structure.
+
 ## 0.50.0 — 2026-11-06
 
 ### Added

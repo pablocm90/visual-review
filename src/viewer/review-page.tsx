@@ -57,7 +57,6 @@ import {
   type PlacedStack,
 } from './layout.ts';
 import { LENS_OF, type Lens } from './lenses.ts';
-import { MetricsScreen } from './metrics-screen.tsx';
 import { MetricsTable } from './metrics-tab.tsx';
 import { NextToIt } from './next-to-it.tsx';
 import {
@@ -1221,7 +1220,6 @@ const viewOn = ({ layout, frame, chosen }: ViewOnOptions): View => {
 
 const TABS = {
   structure: 'Structure',
-  metrics: 'Metrics',
   tests: 'Tests',
   schema: 'Schema',
   routes: 'Routes',
@@ -1334,7 +1332,6 @@ const useGraphView = (layout: Layout | undefined, map: boolean) => {
 
 const tabsOf = ({ schemas, routes }: Pick<PageData, 'schemas' | 'routes'>): ReadonlyArray<Tab> => [
   'structure',
-  'metrics',
   'tests',
   ...(schemas.length === 0 ? [] : (['schema'] as const)),
   ...(routes.length === 0 ? [] : (['routes'] as const)),
@@ -1811,7 +1808,6 @@ const OtherScreen = ({
   onShowPatch,
 }: OtherScreenProps) => (
   <>
-    {tab === 'metrics' && <MetricsScreen review={review} onGoTo={onGoTo} />}
     {tab === 'tests' && (
       <ChangedSinceMarks value={changedSinceIn(review)}>
         <TestsScreen

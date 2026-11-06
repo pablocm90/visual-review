@@ -213,4 +213,4 @@ _In code_: `SinceReview['calledFine']`
 
 ## Flagged ambiguities
 
-- "Metric finding" meant a threshold crossing before findings existed. Resolved: a crossing raises a **finding** in the metrics dimension; `MetricFinding` in code is the crossing itself, used for the Metrics cells' marks.
+- "Metric finding" meant a threshold crossing before findings existed. Resolved: a crossing raises a **finding** in the metrics dimension; `MetricFinding` in code is the crossing itself, used for the marks on the Metrics fold's rows.
