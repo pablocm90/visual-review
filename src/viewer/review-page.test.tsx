@@ -1943,7 +1943,7 @@ test("the findings rail starts collapsed to their total and how many need a look
   expect(within(rail()).getByRole('button', { name: 'Show 0 findings' })).toBeDefined();
   expect(lensChips()).toEqual([
     'Behaviour · logic, tests checked, nothing found false',
-    'Contract · api, schema, routes checked, nothing found false',
+    'Contract · api, schema, routes, blast radius checked, nothing found false',
     'Risk · dependencies checked, nothing found false',
     'Shape · structure, cohesion checked, nothing found false',
     'Context · metrics checked, nothing found false',
@@ -1992,7 +1992,7 @@ test("a lens counts each of its dimensions' findings, a note's flag among them, 
   expect(startHereLines.getByRole('button', { name: /reads a token/ })).toBeDefined();
   expect(lensChips()).toEqual([
     'Behaviour ○2 ▲1 false',
-    'Contract · api, schema, routes checked, nothing found false',
+    'Contract · api, schema, routes, blast radius checked, nothing found false',
     'Risk ▲1 false',
     'Shape · structure, cohesion checked, nothing found false',
     'Context ○1 false',

@@ -95,6 +95,7 @@ test("a reading's page data holds its diff, the reading order of its changed par
   ).toStrictEqual({
     repo: 'shop',
     range: 'main..feature',
+    reaches: [],
     version: '1.2.3',
     parsers: { '@babel/parser': '8.0.7' },
     diff: {
