@@ -1,3 +1,4 @@
+import type { GraphNode } from './graph.ts';
 import type { MeasuredNode } from './metrics.ts';
 import type { RangeReading, SymbolFile } from './read-range.ts';
 import type { StacksReading } from './read-stacks.ts';
@@ -119,22 +120,23 @@ const reachesIn = ({
   ];
 };
 
-const readFile = async (
-  { sides, before, measured, changedPaths, pathOf }: ReadReachesOptions,
-  file: Readable,
+type Asking = {
+  readonly file: Readable;
+  readonly reader: Reader;
+  readonly ask: NonNullable<Reader['uses']>;
+  readonly node: GraphNode;
+};
+
+const askReader = async (
+  { sides, before, changedPaths, pathOf }: ReadReachesOptions,
+  { file, reader, ask, node }: Asking,
 ): Promise<FileReaches> => {
-  const reader = before.stacks.find(({ stack }) => stack === file.stack)?.reader;
-  if (reader !== undefined && reader.uses === undefined)
-    return { reaches: [], reachesNotRead: [`not read for ${file.stack}`] };
-  const basePath = measured.find(({ id }) => id === file.node)?.basePath;
-  const node = before.graph.nodes.find(({ path }) => path === basePath);
-  if (reader?.uses === undefined || node === undefined) return NOTHING_READ;
   const symbolsAsked = askedOf(file, pathOf);
   const exportsAsked = unbackedAsked(file);
   const methods = methodsAskedIn(file, pathOf) ? ['methods not followed'] : [];
   if (symbolsAsked.length + exportsAsked.length === 0)
     return { reaches: [], reachesNotRead: methods };
-  const { uses, notRead } = await reader.uses({
+  const { uses, notRead } = await ask({
     base: sides.before,
     head: sides.after,
     graph: before.graph,
@@ -156,6 +158,18 @@ const readFile = async (
       ...notRead.filter(path => !changedPaths.includes(path)).map(path => `not read: ${path}`),
     ],
   };
+};
+
+const readFile = async (options: ReadReachesOptions, file: Readable): Promise<FileReaches> => {
+  const { before, measured } = options;
+  const reader = before.stacks.find(({ stack }) => stack === file.stack)?.reader;
+  if (reader !== undefined && reader.uses === undefined)
+    return { reaches: [], reachesNotRead: [`not read for ${file.stack}`] };
+  const basePath = measured.find(({ id }) => id === file.node)?.basePath;
+  const node = before.graph.nodes.find(({ path }) => path === basePath);
+  return reader?.uses === undefined || node === undefined
+    ? NOTHING_READ
+    : askReader(options, { file, reader, ask: reader.uses, node });
 };
 
 export const readReaches = async (options: ReadReachesOptions): Promise<FileReaches> => {
