@@ -1,7 +1,7 @@
 import type { Node } from 'web-tree-sitter';
 import type { FileSymbols, ReadSymbol } from '../../core/reader.ts';
 import { isTooBig, TOO_BIG } from '../too-big.ts';
-import { hashesOf, hashOf, ownText, shapeOf } from '../tree-sitter.ts';
+import { hashesOf, hashOf, linesOf, ownText, shapeOf } from '../tree-sitter.ts';
 import {
   blindSpotsIn,
   decisionsOfBody,
@@ -92,6 +92,7 @@ const methodSymbol = (method: Node, within: string | undefined, walk: Walk): Rea
     name: object === undefined ? written : `${object}.${written}`,
     ...scopeOf(within),
     kind: methodKind(isSetter, within),
+    lines: linesOf(method),
     exported: isMethodExported(method, written, walk),
     signature: parameterText(method),
     ...hashesOf({ signed: parametersOf(method), body: fieldOf(method, 'body'), text: method.text }),
@@ -145,6 +146,7 @@ const attrSymbols = (
         name,
         {
           kind,
+          lines: linesOf(call),
           exported: walk.exported,
           signature: '',
           ...hashesOf({ signed: [], body: fieldOf(call, 'method'), text: name }),
@@ -189,6 +191,7 @@ const delegateSymbols = (
       `${delegatePrefix(call)}${name}`,
       {
         kind: 'method',
+        lines: linesOf(call),
         exported: walk.exported && optionOf(call, 'private')?.type !== 'true',
         signature: `to: ${to?.text ?? ''}`,
         ...hashes,
@@ -208,6 +211,7 @@ const scopeSymbols = (call: Node, within: string | undefined): ReadonlyArray<Rea
       writtenName(named),
       {
         kind: 'method',
+        lines: linesOf(call),
         exported: true,
         signature: '',
         decisions: decisionsOfBody(body),
@@ -358,6 +362,7 @@ const walkedDefinition = (walk: Walk, node: Node, within: string | undefined): W
   const definition: ReadSymbol = {
     name: constant,
     kind: 'class',
+    lines: linesOf(node),
     exported: !isNamespace(node),
     signature: signatureOf(node),
     decisions: decisionsOfClass(node, holes),

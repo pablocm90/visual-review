@@ -479,3 +479,41 @@ test.for([
 ])('a file of $reason is too big to read symbols from, as it is to measure', ({ text }) => {
   expect(() => symbolsOfTypeScript(text, 'src/vendor.js')).toThrow(/too big/);
 });
+
+test('a symbol knows the lines it spans: from its first overload or decorator to its end, leaving out the comment above it', () => {
+  const { symbols } = symbolsOfTypeScript(
+    source(
+      '/** Opens it. */',
+      'export const open =',
+      '  () => 1;',
+      '',
+      'function load(a: string): void;',
+      'function load(a: number): void;',
+      'function load(a: unknown) {',
+      '}',
+      'class Shop {',
+      '  @logged',
+      '  close() {',
+      '  }',
+      '  static wrapped = () => {',
+      '  };',
+      '}',
+      '@sealed',
+      'class Till {}',
+      'const Held = forwardRef(() => {',
+      '});',
+      'type Id = string;',
+    ),
+    'src/shop.ts',
+  );
+  expect(symbols.map(({ name, lines }) => [name, lines.start, lines.end])).toEqual([
+    ['open', 2, 3],
+    ['load', 5, 8],
+    ['Shop', 9, 15],
+    ['close', 10, 12],
+    ['wrapped', 13, 14],
+    ['Till', 16, 17],
+    ['Held', 18, 19],
+    ['Id', 20, 20],
+  ]);
+});

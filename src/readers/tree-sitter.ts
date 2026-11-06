@@ -1,6 +1,7 @@
 import { createHash } from 'node:crypto';
 import { createRequire } from 'node:module';
 import { Language, type Node, Parser } from 'web-tree-sitter';
+import type { LineRange } from '../core/reader.ts';
 
 await Parser.init();
 
@@ -24,6 +25,11 @@ export const codeLines = (root: Node, isSkipped: (node: Node) => boolean): numbe
   };
   return new Set(root.children.flatMap(rows)).size;
 };
+
+export const linesOf = ({ startPosition, endPosition }: Node): LineRange => ({
+  start: startPosition.row + 1,
+  end: endPosition.row + 1,
+});
 
 type Shape = string | ReadonlyArray<Shape>;
 

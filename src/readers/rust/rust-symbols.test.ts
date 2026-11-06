@@ -712,3 +712,37 @@ test("dropping a macro rule's optional comma reads as a logic change", () => {
     }).kind,
   ).toBe('logic');
 });
+
+test('a symbol knows the lines it spans, from its attributes to its end, leaving out the comments above them', () => {
+  const { symbols } = read(
+    '// said above',
+    '/// Opens it.',
+    '#[inline]',
+    '#[must_use]',
+    'pub fn open() {',
+    '}',
+    'struct Shop {',
+    '  id: u8,',
+    '}',
+    'impl Shop {',
+    '  fn close(&self) {',
+    '  }',
+    '}',
+    'mod inner {',
+    '  enum Size {',
+    '    Small,',
+    '  }',
+    '}',
+    'trait Till {',
+    '  fn count(&self);',
+    '}',
+  );
+  expect(symbols.map(({ name, lines }) => [name, lines.start, lines.end])).toEqual([
+    ['open', 3, 6],
+    ['Shop', 7, 9],
+    ['close', 11, 12],
+    ['inner::Size', 15, 17],
+    ['Till', 19, 21],
+    ['count', 20, 20],
+  ]);
+});
