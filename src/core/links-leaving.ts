@@ -10,7 +10,7 @@ const linksAt = async (repo: string, revision: string): Promise<ReadonlyArray<st
     .filter(entry => entry.startsWith(`${LINK_MODE} `))
     .map(entry => entry.slice(entry.indexOf('\t') + 1));
 
-const resolvesInside = async (root: string, path: string): Promise<boolean> => {
+export const resolvesInside = async (root: string, path: string): Promise<boolean> => {
   const resolved = await realpath(join(root, path)).catch(() => undefined);
   return resolved?.startsWith(`${root}${sep}`) === true;
 };

@@ -354,6 +354,33 @@ test.each([
   30_000,
 );
 
+test('a config link in the working tree leaving the repo stops the review, naming the file', async () => {
+  using workspace = webRepo();
+  const { repo } = workspace;
+  commit(repo, { 'src/a.ts': 'export const a = 2;\n' });
+  symlinkSync('/dev/zero', join(repo, 'visual-review.config.json'));
+  commit(repo, { 'src/a.ts': 'export const a = 3;\n' });
+
+  const run = await runCliOnBoundedMemory(repo, 'HEAD~2..HEAD~1');
+
+  expect(run.code).toBe(1);
+  expect(run.stderr).toContain('visual-review.config.json: a link leaving the repo is not read');
+}, 30_000);
+
+test('a config link in the working tree staying in the repo applies', async () => {
+  using workspace = webRepo();
+  const { repo } = workspace;
+  commit(repo, { 'src/a.ts': 'export const a = 2;\n' });
+  writeFileSync(join(repo, 'mine.json'), '{"stacks":{"web":false}}');
+  symlinkSync('./mine.json', join(repo, 'visual-review.config.json'));
+
+  const run = await runCliOnBoundedMemory(repo, 'HEAD~1..HEAD');
+
+  expect(run.code).toBe(0);
+  const page = readFileSync(join(repo, '.reviews', 'HEAD~1..HEAD.html'), 'utf8');
+  expect(reviewDataIn(page).diff.nodes).toEqual([]);
+}, 30_000);
+
 test('a link in the range staying in the repo is read as the file it points at', async () => {
   using workspace = webRepo();
   const { repo } = workspace;
