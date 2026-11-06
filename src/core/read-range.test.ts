@@ -1381,6 +1381,68 @@ test('a removed export no symbol backs reaches the files that use it, by its nam
   ]);
 });
 
+test("a symbol's export name adds no row at a place the symbol already reached", async () => {
+  using repository = gitRepo({ 'README.md': 'a shop\n' });
+  const { repo } = repository;
+  const base = commit(repo, {
+    ...rootPackage,
+    'src/a.ts': 'export default function App() {}\nexport const X = 1;\nexport const kept = 2;\n',
+    'src/uses.ts': "import App, { X } from './a.ts';\nApp();\nconsole.log(X);\n",
+    'src/other.ts': "import { X } from './a.ts';\nconsole.log(X);\n",
+  });
+  const head = commit(repo, { 'src/a.ts': 'export const kept = 2;\n' });
+
+  const range = await readRange({ repo, from: base, to: head });
+
+  const node = `${basename(repo)}/file/a.ts`;
+  expect(range.reaches).toEqual([
+    {
+      node,
+      id: `${node}#App`,
+      label: 'function App',
+      how: 'removed',
+      uses: [{ path: 'src/uses.ts', line: 2, text: 'App();' }],
+    },
+    {
+      node,
+      id: `${node}#X`,
+      label: 'export X',
+      how: 'removed',
+      uses: [
+        { path: 'src/other.ts', line: 2, text: 'console.log(X);' },
+        { path: 'src/uses.ts', line: 3, text: 'console.log(X);' },
+      ],
+    },
+  ]);
+});
+
+test("a renamed file's removed export reaches through its name at the base", async () => {
+  using repository = gitRepo({ 'README.md': 'a shop\n' });
+  const { repo } = repository;
+  const kept = Array.from({ length: 8 }, (_, index) => `export const kept${index} = ${index};\n`);
+  const base = commit(repo, {
+    ...rootPackage,
+    'src/a.ts': `export function foo() {}\n${kept.join('')}`,
+    'src/uses.ts': "import { foo } from './a.ts';\nfoo();\n",
+  });
+  git(repo, 'mv', 'src/a.ts', 'src/b.ts');
+  const head = commit(repo, { 'src/b.ts': kept.join('') });
+
+  const range = await readRange({ repo, from: base, to: head });
+
+  const node = `${basename(repo)}/file/b.ts`;
+  expect(range.renames).toEqual([{ from: 'src/a.ts', to: 'src/b.ts' }]);
+  expect(range.reaches).toEqual([
+    {
+      node,
+      id: `${node}#foo`,
+      label: 'function foo',
+      how: 'removed',
+      uses: [{ path: 'src/uses.ts', line: 2, text: 'foo();' }],
+    },
+  ]);
+});
+
 test('a file renamed from what its reader cannot parse has nothing to ask, so is not read for its names', async () => {
   using repository = gitRepo({ 'README.md': 'a shop\n' });
   const { repo } = repository;

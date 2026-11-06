@@ -45,6 +45,8 @@ const unbackedAsked = (file: Readable): ReadonlyArray<Asked> =>
     name,
   }));
 
+const placeOf = ({ path, line }: SymbolUse): string => `${path}:${line}`;
+
 type ReadReachesOptions = {
   readonly sides: { readonly before: string; readonly after: string };
   readonly before: StacksReading;
@@ -69,14 +71,20 @@ export const readReaches = async ({
       const reader = before.stacks.find(({ stack }) => stack === file.stack)?.reader;
       const basePath = measured.find(({ id }) => id === file.node)?.basePath;
       const node = before.graph.nodes.find(({ path }) => path === basePath);
-      const asked = [...askedOf(file, pathOf), ...unbackedAsked(file)];
-      if (reader?.uses === undefined || node === undefined || asked.length === 0) return [];
+      const symbolsAsked = askedOf(file, pathOf);
+      const exportsAsked = unbackedAsked(file);
+      if (
+        reader?.uses === undefined ||
+        node === undefined ||
+        symbolsAsked.length + exportsAsked.length === 0
+      )
+        return [];
       const { uses } = await reader.uses({
         base: sides.before,
         head: sides.after,
         graph: before.graph,
         node,
-        names: asked.map(({ name }) => name),
+        names: [...symbolsAsked, ...exportsAsked].map(({ name }) => name),
       });
       const isTest = ({ path }: SymbolUse) => reader.isTestFile(path);
       const rowsOf = (name: string): ReadonlyArray<ReachingUse> =>
@@ -87,10 +95,19 @@ export const readReaches = async ({
               Number(isTest(one)) - Number(isTest(other)) || one.path.localeCompare(other.path),
           )
           .map(use => (isTest(use) ? { ...use, test: true as const } : use));
-      return asked.flatMap(({ name, ...reach }) => {
-        const rows = rowsOf(name);
-        return rows.length === 0 ? [] : [{ node: file.node, ...reach, uses: rows }];
-      });
+      const reachOf = ({ name, ...reach }: Asked, rows: ReadonlyArray<ReachingUse>) =>
+        rows.length === 0 ? [] : [{ node: file.node, ...reach, uses: rows }];
+      const symbolReaches = symbolsAsked.flatMap(asked => reachOf(asked, rowsOf(asked.name)));
+      const reached = new Set(symbolReaches.flatMap(({ uses }) => uses.map(placeOf)));
+      return [
+        ...symbolReaches,
+        ...exportsAsked.flatMap(asked =>
+          reachOf(
+            asked,
+            rowsOf(asked.name).filter(use => !reached.has(placeOf(use))),
+          ),
+        ),
+      ];
     }),
   );
   return read.flat();
