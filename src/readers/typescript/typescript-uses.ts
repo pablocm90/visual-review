@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs';
 import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import type { ImportDeclaration, Node, Program } from '@babel/types';
@@ -254,35 +255,23 @@ type Hop = { readonly node: Target; readonly exported: string; readonly asked: s
 type Walk = {
   readonly hops: ReadonlyArray<Hop>;
   readonly seen: ReadonlySet<string>;
-  readonly importersOf: (node: Target) => Promise<ReadonlyArray<Target>>;
-  readonly read: (importer: Target, target: Target) => Promise<FileUses>;
+  readonly importersOf: (node: Target) => ReadonlyArray<Target>;
+  readonly read: (importer: Target, target: Target) => FileUses;
 };
 
 type Visit = { readonly hop: Hop; readonly uses: FileUses };
 
 const keyOf = ({ node, exported, asked }: Hop) => JSON.stringify([node.id, exported, asked]);
 
-const walked = async ({ hops, seen, importersOf, read }: Walk): Promise<ReadonlyArray<Visit>> => {
+const walked = ({ hops, seen, importersOf, read }: Walk): ReadonlyArray<Visit> => {
   const fresh = [...new Map(hops.map(hop => [keyOf(hop), hop])).entries()].filter(
     ([key]) => !seen.has(key),
   );
   if (fresh.length === 0) return [];
   const targets = [...new Map(fresh.map(([, { node }]) => [node.id, node])).values()];
-  const visits = (
-    await Promise.all(
-      targets.map(async target =>
-        Promise.all(
-          (
-            await importersOf(target)
-          ).map(async importer => ({
-            target,
-            importer,
-            uses: await read(importer, target),
-          })),
-        ),
-      ),
-    )
-  ).flat();
+  const visits = targets.flatMap(target =>
+    importersOf(target).map(importer => ({ target, importer, uses: read(importer, target) })),
+  );
   const met = visits.flatMap(({ target, importer, uses }) =>
     fresh.flatMap(([, hop]) => (hop.node.id === target.id ? [{ hop, importer, uses }] : [])),
   );
@@ -294,12 +283,12 @@ const walked = async ({ hops, seen, importersOf, read }: Walk): Promise<Readonly
   );
   return [
     ...met,
-    ...(await walked({
+    ...walked({
       hops: next,
       seen: new Set([...seen, ...fresh.map(([key]) => key)]),
       importersOf,
       read,
-    })),
+    }),
   ];
 };
 
@@ -310,25 +299,23 @@ const NO_FILE: ReadonlyArray<unknown> = ['ENOENT', 'ENOTDIR', 'EISDIR'];
 const isNoFile = (error: unknown): boolean =>
   error instanceof Error && 'code' in error && NO_FILE.includes(error.code);
 
-const readFacts = async (path: string, file: string): Promise<Read> => {
+const readFacts = (path: string, file: string): Read => {
   try {
-    const text = await readFile(file, 'utf8');
+    const text = readFileSync(file, 'utf8');
     return isTooBig(text) ? { notRead: true } : factsOf(path, text);
   } catch (error) {
     return isNoFile(error) ? undefined : { notRead: true };
   }
 };
 
-const known = new Map<string, Promise<Read>>();
-let lastRead: Promise<Read> = Promise.resolve(undefined);
+const known = new Map<string, Read>();
 
-const factsAt = (head: string, path: string): Promise<Read> => {
+const factsAt = (head: string, path: string): Read => {
   const file = join(head, path);
-  const kept = known.get(file);
-  if (kept !== undefined) return kept;
-  lastRead = lastRead.then(() => readFacts(path, file));
-  known.set(file, lastRead);
-  return lastRead;
+  if (known.has(file)) return known.get(file);
+  const read = readFacts(path, file);
+  known.set(file, read);
+  return read;
 };
 
 type FileUsesOptions = {
@@ -339,14 +326,14 @@ type FileUsesOptions = {
   readonly packageName: string | undefined;
 };
 
-const fileUsesAt = async ({
+const fileUsesAt = ({
   head,
   path,
   targetPlace,
   placeOf,
   packageName,
-}: FileUsesOptions): Promise<FileUses> => {
-  const facts = await factsAt(head, path);
+}: FileUsesOptions): FileUses => {
+  const facts = factsAt(head, path);
   if (facts === undefined) return NO_USES;
   if ('notRead' in facts) return { ...NO_USES, notRead: path };
   const namesExactly: Names = specifier => placeOf(specifier) === targetPlace;
@@ -439,8 +426,8 @@ const surroundingsOf = ({ base, head, stacks, graph }: Around) => {
     (rootOf(importer.id) === rootOf(target.id) && !outsideIds.has(importer.id))
       ? undefined
       : packageNameOf(rootOf(target.id));
-  const importsOf = async (node: GraphNode): Promise<ReadonlyArray<Imports>> => {
-    const facts = await factsAt(head, node.path);
+  const importsOf = (node: GraphNode): ReadonlyArray<Imports> => {
+    const facts = factsAt(head, node.path);
     if (facts === undefined) return [];
     if ('notRead' in facts) return [{ node, places: new Set(), unplaced: [], unread: true }];
     const sources = [...sourcesIn(facts)];
@@ -453,13 +440,11 @@ const surroundingsOf = ({ base, head, stacks, graph }: Around) => {
       },
     ];
   };
-  const importsAmong = onceEach(async (files: ReadonlyArray<GraphNode>) =>
-    (await Promise.all(files.map(importsOf))).flat(),
-  );
+  const importsAmong = onceEach((files: ReadonlyArray<GraphNode>) => files.flatMap(importsOf));
   const scripts = graph.nodes.filter(({ path }) => isScript(path));
-  const namingAmong = async (files: ReadonlyArray<GraphNode>, target: Target) => {
+  const namingAmong = (files: ReadonlyArray<GraphNode>, target: Target) => {
     const targetPlace = moduleAt(head, target.path);
-    return (await importsAmong(files))
+    return importsAmong(files)
       .filter(
         ({ node, places, unplaced, unread }) =>
           unread ||
@@ -476,7 +461,7 @@ const surroundingsOf = ({ base, head, stacks, graph }: Around) => {
     packageNameFor,
     importersOutside: (target: Target) => namingAmong(outside.nodes, target),
     scriptsNaming: (target: Target) =>
-      outsideIds.has(target.id) ? namingAmong(scripts, target) : Promise.resolve([]),
+      outsideIds.has(target.id) ? namingAmong(scripts, target) : [],
   };
 };
 
@@ -502,7 +487,7 @@ export const usesOfTypeScript = async ({
     surroundingsAt({ base, head, stacks, graph });
   const baseText = await readFile(join(base, node.path), 'utf8');
   const aliases = aliasesIn(baseText, parseTypeScript(baseText, node.path).program);
-  const visits = await walked({
+  const visits = walked({
     hops: names.flatMap(asked => {
       const [owner = asked] = asked.split('.');
       return [
@@ -511,12 +496,12 @@ export const usesOfTypeScript = async ({
       ].map(exported => ({ node, exported, asked }));
     }),
     seen: new Set(),
-    importersOf: async target => [
+    importersOf: target => [
       ...graph.edges
         .filter(({ to }) => to === target.id || to === stackOf(target.id))
         .flatMap(({ from }) => nodes.get(from) ?? []),
-      ...(await importersOutside(target)),
-      ...(await scriptsNaming(target)),
+      ...importersOutside(target),
+      ...scriptsNaming(target),
     ],
     read: (importer, target) =>
       fileUsesAt({
