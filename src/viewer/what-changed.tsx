@@ -9,6 +9,7 @@ import {
 import { anchorKey } from '../core/anchors.ts';
 import type { DiffedNode, FilePatch } from '../core/diff-graphs.ts';
 import type { LogicLine } from '../core/logic-diff.ts';
+import { holdsFewChanges, runsOf } from '../core/logic-strip.ts';
 import type { PageData } from '../core/page.ts';
 import type { PreviousComment } from '../core/previous-comments.ts';
 import type { SymbolFile } from '../core/read-range.ts';
@@ -25,6 +26,7 @@ import { type AnchoredSymbol, anchoredSymbols, decisionsOf } from '../core/symbo
 import { boxesAboveIn } from '../core/visible-diff.ts';
 import { ChangedSinceTag, sinceLabel, useIsChangedSince } from './changed-since.tsx';
 import type { Comments } from './comment-field.tsx';
+import { LogicStrip } from './logic-strip.tsx';
 import { CommentOn, SaidBefore, useHasSaid } from './said-before.tsx';
 import { scrollInPanel } from './scroll-in-panel.ts';
 import { Signature } from './signature-lines.tsx';
@@ -65,6 +67,7 @@ type Places = {
   readonly allFiles: ReadonlyArray<SymbolFile>;
   readonly onGoTo: (id: string) => void;
   readonly onShowLine: (at: LineAt) => void;
+  readonly onShowRow: (row: string) => void;
   readonly comments: Comments;
   readonly onComment: ((comment: Comment) => void) | undefined;
 };
@@ -190,62 +193,123 @@ const logicLabel = (line: LogicLine, nodes: Places['nodes']): string => {
 
 type ShowLine = (at: Omit<LineAt, 'node'>) => void;
 
-const LogicLines = ({
-  symbol,
+type LogicPlaces = Pick<Places, 'nodes' | 'comments' | 'onComment'>;
+
+type DecisionRow = ReturnType<typeof decisionsOf>[number] & {
+  readonly marked: boolean;
+  readonly label: string;
+};
+
+const LogicRow = ({
+  row: { line, id, text, marked, label },
   onShowLine,
   nodes,
   comments,
   onComment,
-}: Pick<Places, 'nodes' | 'comments' | 'onComment'> & {
-  readonly symbol: AnchoredSymbol;
-  readonly onShowLine: ShowLine;
-}) => {
-  const isChangedSince = useIsChangedSince();
+}: LogicPlaces & { readonly row: DecisionRow; readonly onShowLine: ShowLine }) => {
   const marksOf = useRowMarks();
   return (
-    <ul
-      className="logic-lines"
-      aria-label={`Logic of ${symbol.item.kind} ${qualified(symbol.item)}`}
+    <li
+      className={`logic-row logic-${line.change}`}
+      aria-label={label}
+      data-comment-anchor={anchorKey({ kind: 'decision', id })}
+      {...marksOf({ kind: 'decision', id })}
+      style={{ paddingInlineStart: `${line.depth}em` }}
     >
-      {decisionsOf(symbol).map(({ line, id, text }) => {
-        const marked = isChangedSince('decisions', id);
-        const label = sinceLabel(logicLabel(line, nodes), marked);
-        return (
-          <li
-            key={id}
-            className={`logic-${line.change}`}
-            aria-label={label}
-            {...marksOf({ kind: 'decision', id })}
-            style={{ paddingInlineStart: `${line.depth}em` }}
-          >
-            {line.change === 'same' ? (
-              <LogicText line={line} nodes={nodes} />
-            ) : (
-              <button
-                type="button"
-                className="logic-line"
-                aria-label={label}
-                onClick={() =>
-                  onShowLine({ side: line.head === undefined ? 'base' : 'head', line: line.line })
-                }
-              >
-                <LogicText line={line} nodes={nodes} />
-              </button>
-            )}
-            <ChangedSinceTag marked={marked} />
-            <SaidBefore on={{ kind: 'decision', id }} />
-            {onComment && (
-              <CommentOn
-                name={logicLabel(line, nodes)}
-                anchor={{ kind: 'decision', id, text }}
-                comments={comments}
-                onComment={onComment}
-              />
-            )}
-          </li>
-        );
-      })}
-    </ul>
+      {line.change === 'same' ? (
+        <LogicText line={line} nodes={nodes} />
+      ) : (
+        <button
+          type="button"
+          className="logic-line"
+          aria-label={label}
+          onClick={() =>
+            onShowLine({ side: line.head === undefined ? 'base' : 'head', line: line.line })
+          }
+        >
+          <LogicText line={line} nodes={nodes} />
+        </button>
+      )}
+      <ChangedSinceTag marked={marked} />
+      <SaidBefore on={{ kind: 'decision', id }} />
+      {onComment && (
+        <CommentOn
+          className="logic-comment-on"
+          name={logicLabel(line, nodes)}
+          anchor={{ kind: 'decision', id, text }}
+          comments={comments}
+          onComment={onComment}
+        />
+      )}
+    </li>
+  );
+};
+
+const LogicLines = ({
+  symbol,
+  onShowLine,
+  onShowRow,
+  fewChanges,
+  ...places
+}: LogicPlaces & {
+  readonly symbol: AnchoredSymbol;
+  readonly onShowLine: ShowLine;
+  readonly onShowRow: Places['onShowRow'];
+  readonly fewChanges: boolean;
+}) => {
+  const isChangedSince = useIsChangedSince();
+  const hasSaid = useHasSaid();
+  const marksOf = useRowMarks();
+  const name = `${symbol.item.kind} ${qualified(symbol.item)}`;
+  const rows = decisionsOf(symbol).map(decision => {
+    const marked = isChangedSince('decisions', decision.id);
+    return {
+      ...decision,
+      marked,
+      label: sinceLabel(logicLabel(decision.line, places.nodes), marked),
+    };
+  });
+  const holdsNews = ({ id, marked }: DecisionRow): boolean =>
+    marked ||
+    places.comments[anchorKey({ kind: 'decision', id })] !== undefined ||
+    hasSaid({ kind: 'decision', id });
+  const rowOf = (row: DecisionRow) => (
+    <LogicRow key={row.id} row={row} onShowLine={onShowLine} {...places} />
+  );
+  return (
+    <details
+      className="logic-rows"
+      aria-label={`Rows of ${name}`}
+      open={fewChanges || rows.some(holdsNews)}
+    >
+      <summary>
+        <LogicStrip
+          name={name}
+          rows={rows}
+          marksOf={id => marksOf({ kind: 'decision', id })}
+          onTick={id => onShowRow(anchorKey({ kind: 'decision', id }))}
+        />
+      </summary>
+      <ul className="logic-lines" aria-label={`Logic of ${name}`}>
+        {runsOf(rows).flatMap(run =>
+          run.unchanged
+            ? [
+                <li key={run.rows[0]?.id} className="logic-run">
+                  <details
+                    aria-label={`${run.rows.length} unchanged`}
+                    open={run.rows.some(holdsNews)}
+                  >
+                    <summary>
+                      ⋯ {run.rows.length} unchanged<span className="logic-run-show">, show</span>
+                    </summary>
+                    <ul>{run.rows.map(rowOf)}</ul>
+                  </details>
+                </li>,
+              ]
+            : run.rows.map(rowOf),
+        )}
+      </ul>
+    </details>
   );
 };
 
@@ -339,6 +403,8 @@ const SymbolRow = ({
         <LogicLines
           symbol={{ item: symbol, id }}
           onShowLine={at => places.onShowLine({ node, ...at })}
+          onShowRow={places.onShowRow}
+          fewChanges={holdsFewChanges(inFile)}
           nodes={places.nodes}
           comments={places.comments}
           onComment={places.onComment}
@@ -398,6 +464,7 @@ const SymbolFiles = ({ file, ...places }: Places & { readonly file: SymbolFile }
       {quiet.length > 0 && (
         <details
           className="symbol-group"
+          aria-label="Unchanged symbols"
           open={quiet.some(
             ({ id }) =>
               places.comments[anchorKey({ kind: 'symbol', id })] !== undefined ||
@@ -446,6 +513,13 @@ export const useFilesWithNews = (
   return here.some(hasSymbolNews) ? here : [];
 };
 
+const openFoldsAround = (element: Element | null | undefined): void => {
+  const fold = element?.closest('details');
+  if (!fold) return;
+  fold.open = true;
+  openFoldsAround(fold.parentElement);
+};
+
 export const LandedRows = ({
   landing,
   children,
@@ -456,10 +530,9 @@ export const LandedRows = ({
   const rows = useRef<HTMLDivElement>(null);
   useLayoutEffect(() => {
     if (landing?.row === undefined) return;
-    const row = rows.current?.querySelector<HTMLElement>('[aria-current]');
+    const row = rows.current?.querySelector<HTMLElement>('li[aria-current]');
     if (!row) return;
-    const fold = row.closest('details');
-    if (fold) fold.open = true;
+    openFoldsAround(row);
     scrollInPanel(row, 'center');
     row.focus({ preventScroll: true });
   }, [landing]);

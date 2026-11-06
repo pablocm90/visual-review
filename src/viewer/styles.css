@@ -2896,3 +2896,212 @@ main:has(> .review-tray) {
   color: var(--muted);
   font-size: 11px;
 }
+
+.strip-of-logic {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 2px 10px;
+  margin: 4px 0;
+}
+
+.strip-ticks {
+  display: inline-flex;
+  flex-wrap: wrap;
+  row-gap: 2px;
+}
+
+.strip-tick {
+  position: relative;
+  flex: none;
+  width: 8px;
+  height: 30px;
+  padding: 0;
+  border: 0;
+  background: none;
+  cursor: pointer;
+}
+
+.strip-tick::before {
+  content: "";
+  position: absolute;
+  left: 1px;
+  bottom: 15px;
+  width: 6px;
+  height: 8px;
+  box-sizing: border-box;
+}
+
+.tick-added::before {
+  background: var(--added);
+}
+
+.tick-changed::before {
+  background: var(--modified);
+}
+
+.tick-removed::before {
+  top: 15px;
+  bottom: auto;
+  background: var(--removed);
+}
+
+.tick-moved::before {
+  border: 1px solid var(--muted);
+}
+
+.tick-exit::before {
+  height: 14px;
+}
+
+.tick-same::before {
+  bottom: 14px;
+  height: 2px;
+  background: var(--muted);
+  opacity: 0.55;
+}
+
+.strip-count {
+  color: var(--muted);
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.logic-rows > summary {
+  margin-top: 0;
+  cursor: pointer;
+}
+
+.logic-rows > summary .strip-of-logic {
+  display: inline-flex;
+  vertical-align: middle;
+}
+
+.logic-run {
+  list-style: none;
+}
+
+.logic-run > details > summary {
+  margin-top: 0;
+  width: fit-content;
+  color: var(--muted);
+  font-size: 12px;
+  cursor: pointer;
+  list-style: none;
+}
+
+.logic-run > details > summary::-webkit-details-marker {
+  display: none;
+}
+
+.logic-run-show {
+  text-decoration: underline;
+}
+
+.logic-run > details[open] .logic-run-show {
+  display: none;
+}
+
+.logic-run > details > ul {
+  margin: 0;
+  padding: 0;
+}
+
+.strip-tick[aria-current="true"] {
+  outline: 2px solid var(--ink);
+  outline-offset: -1px;
+}
+
+.logic-comment-on {
+  opacity: 0;
+}
+
+.logic-row:hover > .logic-comment-on,
+.logic-row:focus-within > .logic-comment-on,
+.logic-comment-on[aria-expanded="true"] {
+  opacity: 1;
+}
+
+@media (hover: none) {
+  .logic-comment-on {
+    opacity: 1;
+  }
+}
+
+.logic-line {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.logic-row {
+  padding-block: 1px;
+  border-radius: 4px;
+}
+
+.logic-row .mark {
+  display: inline-block;
+  width: 1.4em;
+  font-weight: 600;
+  text-align: center;
+}
+
+.logic-added {
+  background: var(--added-fill);
+}
+
+.logic-added .mark {
+  color: var(--added);
+}
+
+.logic-removed {
+  background: var(--removed-fill);
+}
+
+.logic-removed .mark {
+  color: var(--removed);
+}
+
+.logic-changed {
+  background: var(--unchanged-fill);
+}
+
+.logic-changed .mark {
+  color: var(--modified);
+}
+
+.logic-moved .mark,
+.logic-same {
+  color: var(--muted);
+}
+
+.logic-row del,
+.logic-row ins {
+  padding: 0 2px;
+  border-radius: 3px;
+  font:
+    12.5px ui-monospace,
+    "SF Mono",
+    Menlo,
+    monospace;
+}
+
+.logic-row del {
+  background: var(--removed-fill);
+  color: var(--removed);
+}
+
+.logic-row ins {
+  background: var(--added-fill);
+  color: var(--added);
+  text-decoration: none;
+}
+
+.logic-line:hover code,
+.logic-line:hover ins {
+  text-decoration: underline;
+}

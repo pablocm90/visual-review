@@ -128,6 +128,10 @@ One decision of an edited or renamed symbol, diffed across the sides: the same, 
 _Avoid_: logic diff (for one line), branch change
 _In code_: `LogicLine`
 
+**Logic strip**:
+A function's logic lines drawn as marks in source order, one tick each, above What changed's rows of it: the way to see a function's changes at a glance and go to one.
+_In code_: `LogicStrip`
+
 **Anchor**:
 What a reviewer's comment or answer is on, by its kind and id: a part the graph draws (a crate, module, file, class or box) or an edge, by the id notes are keyed by; a **symbol** in a file (`<file>#<scope.name>`, `#<n>` after it from the second of that name in the file on, as a getter and its setter are); a **logic line** (`<symbol id>#<text>`, `#<n>` after it from the second reading the same on, carrying its text; a removed guard's or catch's id is its finding's without `logic:removed:`); a test (`<test file>#<heading › … › name>`, `#<n>` after it from the second of those headings and that name in the file on); a diff line (`<file>@<base|head>:<n>`, carrying its text, since its number drifts); or, for an answer, a finding, by its id. Two anchors of different kinds never share a comment, whatever their ids.
 _Avoid_: target (a finding's), key

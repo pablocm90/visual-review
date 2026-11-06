@@ -8,10 +8,15 @@ What changed in each release of `@pablocm90/visual-review`, newest first. Versio
 
 - **Reaches** and the `blast-radius` findings follow a changed TypeScript export into sibling stacks, through an import of the package's name or of a path under it, by name: coverage no longer says other stacks aren't followed. A default export through the package's name is only marked, since it may be another file's.
 - **Reaches** and the `blast-radius` findings follow an exported class's method removed, renamed, moved or with a changed signature, to the files naming the class and reading the member, by name: `.bar` on anything else in such a file counts. Coverage now says a method read other than by `.name` or without importing its class isn't followed, and that a package imported under another name isn't, in place of "methods not followed".
+- An edited function's logic in **What changed** shows as a strip of marks, one tick per decision in source order: added, changed and moved above the baseline, removed below it, an unchanged one a flat dash, a moved one hollow and an exit taller. Beside it, how many of its decisions changed and how many of those are exits. A tick opens its row and rings itself; a draft going to a decision rings its tick too.
+- `C` on a focused logic row opens that row's comment.
 
 ### Changed
 
 - `UsesAsked`, what `Reader.uses` is given, carries `stacks`, each root's stack id, in place of `root`.
+- A function's logic rows fold under its strip when its file holds more than 8 changed decisions, unless a row holds a draft, a last comment or a mark changed since. Runs of unchanged decisions fold into `⋯ n unchanged, show`, under the same exception.
+- Comment on a logic row shows on hover or focus, always on a device with no hover.
+- **Full diff**, once a landing has opened it, stays open while you stay on the part, until you close it: a tick or a finding going elsewhere in the column no longer closes it.
 
 ### Removed
 
