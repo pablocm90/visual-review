@@ -8,10 +8,13 @@ import { classesOf, namingsIn } from './rails-graph.ts';
 import { argsOf, methodOf, nameOf, parseRuby, positional } from './ruby-syntax.ts';
 
 export const NOT_DRAWN =
-  'not followed: views, tests and other files outside `app/` and `lib/`, and a base class the graph draws no edge into, such as `ApplicationRecord`';
+  'not followed: anything but `.rb` files under `app/` and `lib/`, so views, tests and rake tasks, another Rails root, a file defining a class another file defines too, and a base class the graph draws no edge into, such as `ApplicationRecord`';
 
 export const METHODS_NOT_FOLLOWED =
-  'not followed: a method called with no receiver, through a subclass, in a file not naming its class, by `try!`, `method(:x)` or as an operator, or with no class around it';
+  'not followed: a method called on `self` or with no receiver, through a subclass, in a file not naming its class, by `try!`, `method(:x)`, `public_method(:x)`, `instance_method(:x)`, `.()` or as an operator, by Forwardable past `delegate`, `def_delegator` and `def_delegators`, or with no class around it';
+
+export const NOT_ITS_FILES_CLASS =
+  'not followed: a class other than the one its file is drawn as, in a file not naming that one';
 
 const CLASS = '/class/';
 
@@ -27,6 +30,11 @@ const askedOf = (name: string) => {
 const isClass = (name: string): boolean => {
   const { owner, member } = askedOf(name);
   return member === undefined && STARTS_AS_CONSTANT.test(owner);
+};
+
+const isBesideItsNode = (name: string, node: string): boolean => {
+  const { owner } = askedOf(name);
+  return STARTS_AS_CONSTANT.test(owner) && owner !== constantIn(node);
 };
 
 const LITERAL_NAMES: ReadonlySet<string> = new Set(['simple_symbol', 'delimited_symbol', 'string']);
@@ -158,6 +166,10 @@ export const usesOfRuby = async ({ head, graph, node, names }: UsesAsked): Promi
     notRead: reads.flatMap(({ path, read }) =>
       read !== undefined && 'notRead' in read ? [path] : [],
     ),
-    notFollowed: [NOT_DRAWN, ...(names.every(isClass) ? [] : [METHODS_NOT_FOLLOWED])],
+    notFollowed: [
+      NOT_DRAWN,
+      ...(names.every(isClass) ? [] : [METHODS_NOT_FOLLOWED]),
+      ...(names.some(name => isBesideItsNode(name, node.id)) ? [NOT_ITS_FILES_CLASS] : []),
+    ],
   };
 };

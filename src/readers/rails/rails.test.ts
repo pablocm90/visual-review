@@ -4,7 +4,7 @@ import { expect, test } from 'vitest';
 import { pageData } from '../../core/page.ts';
 import { readRange } from '../../test-support/read-range.ts';
 import { commit, gitRepo } from '../../test-support/repos.ts';
-import { METHODS_NOT_FOLLOWED, NOT_DRAWN } from './ruby-uses.ts';
+import { METHODS_NOT_FOLLOWED, NOT_DRAWN, NOT_ITS_FILES_CLASS } from './ruby-uses.ts';
 
 const railsApp = { 'config/application.rb': 'module Shop\n  class Application\n  end\nend\n' };
 
@@ -1056,5 +1056,5 @@ test('a changed class and its methods reach the unchanged files using them, each
       uses: ['app/services/checkout.rb:8 Refund.new'],
     },
   ]);
-  expect(range.reachesNotRead).toEqual([NOT_DRAWN, METHODS_NOT_FOLLOWED]);
+  expect(range.reachesNotRead).toEqual([NOT_DRAWN, METHODS_NOT_FOLLOWED, NOT_ITS_FILES_CLASS]);
 });

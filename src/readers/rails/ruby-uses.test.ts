@@ -4,7 +4,7 @@ import { join } from 'node:path';
 import { expect, test } from 'vitest';
 import { writeFiles } from '../../test-support/repos.ts';
 import { railsReader } from './reader.ts';
-import { METHODS_NOT_FOLLOWED, NOT_DRAWN } from './ruby-uses.ts';
+import { METHODS_NOT_FOLLOWED, NOT_DRAWN, NOT_ITS_FILES_CLASS } from './ruby-uses.ts';
 
 type Scene = {
   readonly files: Readonly<Record<string, string>>;
@@ -459,6 +459,23 @@ test.each([
   expect(reading).toMatchObject({ uses: { Order: [OTHER_ROW] }, notRead: [] });
 });
 
+test('a class beside the one its file is drawn as has rows only in files naming that one', async () => {
+  const reading = await usesIn({
+    files: {
+      'app/models/order.rb': 'class Order\nend\nclass OrderError < StandardError\nend\n',
+      'app/services/both.rb': 'class Both\n  Order\n  raise OrderError\nend\n',
+      'app/services/only.rb': 'class Only\n  raise OrderError\nend\n',
+    },
+    target: 'app/models/order.rb',
+    names: ['OrderError'],
+  });
+
+  expect(reading?.uses).toEqual({
+    OrderError: [{ path: 'app/services/both.rb', line: 3, text: 'raise OrderError' }],
+  });
+  expect(reading?.notFollowed).toContain(NOT_ITS_FILES_CLASS);
+});
+
 test.each([
   { asked: 'a class', names: ['Order'], notFollowed: [NOT_DRAWN] },
   { asked: 'a method', names: ['Order.total'], notFollowed: [NOT_DRAWN, METHODS_NOT_FOLLOWED] },
@@ -471,6 +488,16 @@ test.each([
     asked: 'a method with no class',
     names: ['helper'],
     notFollowed: [NOT_DRAWN, METHODS_NOT_FOLLOWED],
+  },
+  {
+    asked: 'a class nested in the one its file is drawn as',
+    names: ['Order::Item'],
+    notFollowed: [NOT_DRAWN, NOT_ITS_FILES_CLASS],
+  },
+  {
+    asked: 'a method of a class beside the one its file is drawn as',
+    names: ['OrderError.code'],
+    notFollowed: [NOT_DRAWN, METHODS_NOT_FOLLOWED, NOT_ITS_FILES_CLASS],
   },
 ])('asked about $asked, it says what it cannot see', async ({ names, notFollowed }) => {
   const reading = await usesIn({
