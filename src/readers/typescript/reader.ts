@@ -125,7 +125,8 @@ const graphAt = async ({
     boxes,
     cruiseJson: withTypeReexports({
       cruiseJson: String(output),
-      directory: join(directory, root),
+      checkout: directory,
+      root,
       resolution,
     }),
     packages,

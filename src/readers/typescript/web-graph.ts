@@ -75,7 +75,7 @@ type WebGraphOptions = StackOptions & {
   readonly stacks: ReadonlyMap<string, string>;
 };
 
-const isUnder = (folder: string, path: string): boolean =>
+export const isUnder = (folder: string, path: string): boolean =>
   !`${relative(folder, path)}/`.startsWith('../');
 
 const stackHolding = (path: string, stacks: ReadonlyMap<string, string>): string | undefined =>

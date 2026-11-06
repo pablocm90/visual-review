@@ -5,16 +5,24 @@ import { expect, test } from 'vitest';
 import { writeFiles } from '../../test-support/repos.ts';
 import { typeScriptReader } from './reader.ts';
 
-const edgesIn = async (files: Readonly<Record<string, string>>) => {
+type Layout = {
+  readonly root: string;
+  readonly stacks: ReadonlyArray<readonly [string, string]>;
+};
+
+const edgesIn = async (
+  files: Readonly<Record<string, string>>,
+  { root, stacks }: Layout = { root: '.', stacks: [['.', 'web']] },
+) => {
   const checkout = mkdtempSync(join(tmpdir(), 'visual-review-type-reexports-'));
   try {
-    writeFiles(checkout, { 'package.json': '{"name":"web"}', ...files });
+    writeFiles(checkout, { 'package.json': '{"name":"repo"}', ...files });
     const { edges } = await typeScriptReader.graph({
       directory: checkout,
-      root: '.',
+      root,
       stack: 'web',
       settings: {},
-      stacks: new Map([['.', 'web']]),
+      stacks: new Map(stacks),
     });
     return edges;
   } finally {
@@ -42,6 +50,65 @@ test('an aliased type re-export draws the edge to the file the alias names', asy
   });
 
   expect(edges).toEqual([{ from: 'web/file/types.ts', to: 'web/file/a.ts' }]);
+});
+
+test.for([
+  {
+    how: 'by a package name the running tool also has installed',
+    specifier: 'zod',
+  },
+  {
+    how: 'by a relative path',
+    specifier: '../../lib/src/a',
+  },
+  {
+    how: 'by an alias',
+    specifier: '@lib/a',
+  },
+  {
+    how: "by a folder's index",
+    specifier: '../../lib/src/inner',
+  },
+])('a type re-export into a sibling stack, $how, draws the edge to it', async ({ specifier }) => {
+  const edges = await edgesIn(
+    {
+      'web/package.json': '{"name":"web"}',
+      'web/tsconfig.json': '{"compilerOptions":{"paths":{"@lib/*":["../lib/src/*"]}}}',
+      'web/src/types.ts': `export type { Foo } from '${specifier}';\n`,
+      'lib/package.json': '{"name":"zod"}',
+      'lib/src/a.ts': 'export type Foo = string;\n',
+      'lib/src/inner/index.ts': 'export type Foo = string;\n',
+    },
+    {
+      root: 'web',
+      stacks: [
+        ['web', 'web'],
+        ['lib', 'lib'],
+      ],
+    },
+  );
+
+  expect(edges).toEqual([{ from: 'web/file/types.ts', to: 'lib' }]);
+});
+
+test('a type re-export naming no file in a sibling stack draws nothing', async () => {
+  const edges = await edgesIn(
+    {
+      'web/package.json': '{"name":"web"}',
+      'web/src/types.ts': "export type { Foo } from '../../lib/src/gone';\n",
+      'lib/package.json': '{"name":"@acme/lib"}',
+      'lib/src/a.ts': 'export type Foo = string;\n',
+    },
+    {
+      root: 'web',
+      stacks: [
+        ['web', 'web'],
+        ['lib', 'lib'],
+      ],
+    },
+  );
+
+  expect(edges).toEqual([]);
 });
 
 test('a file that does not parse draws no type edge, and the rest of the graph is read', async () => {
