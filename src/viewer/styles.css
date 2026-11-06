@@ -2966,3 +2966,12 @@ main:has(> .review-tray) {
   font-size: 12px;
   white-space: nowrap;
 }
+
+.logic-rows > summary {
+  cursor: pointer;
+}
+
+.logic-rows > summary .strip-of-logic {
+  display: inline-flex;
+  vertical-align: middle;
+}

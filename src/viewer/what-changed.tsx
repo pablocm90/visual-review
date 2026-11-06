@@ -9,6 +9,7 @@ import {
 import { anchorKey } from '../core/anchors.ts';
 import type { DiffedNode, FilePatch } from '../core/diff-graphs.ts';
 import type { LogicLine } from '../core/logic-diff.ts';
+import { holdsFewChanges } from '../core/logic-strip.ts';
 import type { PageData } from '../core/page.ts';
 import type { PreviousComment } from '../core/previous-comments.ts';
 import type { SymbolFile } from '../core/read-range.ts';
@@ -194,14 +195,17 @@ type ShowLine = (at: Omit<LineAt, 'node'>) => void;
 const LogicLines = ({
   symbol,
   onShowLine,
+  fewChanges,
   nodes,
   comments,
   onComment,
 }: Pick<Places, 'nodes' | 'comments' | 'onComment'> & {
   readonly symbol: AnchoredSymbol;
   readonly onShowLine: ShowLine;
+  readonly fewChanges: boolean;
 }) => {
   const isChangedSince = useIsChangedSince();
+  const hasSaid = useHasSaid();
   const marksOf = useRowMarks();
   const name = `${symbol.item.kind} ${qualified(symbol.item)}`;
   const rows = decisionsOf(symbol).map(decision => {
@@ -209,8 +213,22 @@ const LogicLines = ({
     return { ...decision, marked, label: sinceLabel(logicLabel(decision.line, nodes), marked) };
   });
   return (
-    <>
-      <LogicStrip name={name} rows={rows} />
+    <details
+      className="logic-rows"
+      aria-label={`Rows of ${name}`}
+      open={
+        fewChanges ||
+        rows.some(
+          ({ id, marked }) =>
+            marked ||
+            comments[anchorKey({ kind: 'decision', id })] !== undefined ||
+            hasSaid({ kind: 'decision', id }),
+        )
+      }
+    >
+      <summary>
+        <LogicStrip name={name} rows={rows} />
+      </summary>
       <ul className="logic-lines" aria-label={`Logic of ${name}`}>
         {rows.map(({ line, id, text, marked, label }) => (
           <li
@@ -247,7 +265,7 @@ const LogicLines = ({
           </li>
         ))}
       </ul>
-    </>
+    </details>
   );
 };
 
@@ -341,6 +359,7 @@ const SymbolRow = ({
         <LogicLines
           symbol={{ item: symbol, id }}
           onShowLine={at => places.onShowLine({ node, ...at })}
+          fewChanges={holdsFewChanges(inFile)}
           nodes={places.nodes}
           comments={places.comments}
           onComment={places.onComment}

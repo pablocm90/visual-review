@@ -1,6 +1,6 @@
 import { expect, test } from 'vitest';
 import type { LogicLine } from './logic-diff.ts';
-import { countsOf, isExit } from './logic-strip.ts';
+import { countsOf, holdsFewChanges, isExit } from './logic-strip.ts';
 
 const line = (change: LogicLine['change'], kind: LogicLine['kind']): LogicLine => ({
   change,
@@ -39,3 +39,22 @@ test('it counts the decisions changed and, among them, the exits', () => {
     ]),
   ).toEqual({ changed: 3, exits: 2 });
 });
+
+test.for([
+  { changes: 8, few: true },
+  { changes: 9, few: false },
+])(
+  'a file of $changes changed decisions over two functions holds few: $few',
+  ({ changes, few }) => {
+    const first = Array.from({ length: 4 }, () => line('added', 'if'));
+    const second = Array.from({ length: changes - 4 }, () => line('removed', 'if'));
+
+    expect(
+      holdsFewChanges([
+        { logic: first },
+        { logic: [line('same', 'if'), line('same', 'loop'), ...second] },
+        {},
+      ]),
+    ).toBe(few);
+  },
+);

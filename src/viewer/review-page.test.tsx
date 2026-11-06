@@ -5918,6 +5918,11 @@ test("an edited function's logic lines show under it in What changed, each with 
     name: 'Marks of function refund',
   });
   expect(
+    within(screen.getByRole('region', { name: 'What changed' }))
+      .getByRole('group', { name: 'Rows of function refund' })
+      .hasAttribute('open'),
+  ).toBe(true);
+  expect(
     within(strip)
       .getAllByRole('button')
       .map(tick => tick.getAttribute('aria-label')),
@@ -8078,6 +8083,106 @@ const sinceReview = {
   changedWithoutComment: [],
   stillRead: [],
 };
+
+const addedIfs = (name: string, count: number): Omit<SymbolStatement, 'lines'> => ({
+  name,
+  kind: 'function',
+  exported: { base: false, head: false },
+  change: 'edited',
+  logic: Array.from({ length: count }, (_, index) => ({
+    change: 'added',
+    kind: 'if',
+    depth: 0,
+    head: `if (${name}${index})`,
+    line: index + 1,
+  })),
+});
+
+const pageWithManyDecisions = () =>
+  pageWith({
+    range: 'abc123..def456',
+    diff: {
+      nodes: [
+        { id: 'web', kind: 'stack', label: 'web', path: '', state: 'unchanged' },
+        topFile('many.ts', 'modified'),
+      ],
+      edges: [],
+    },
+    symbols: [symbolsOf('web/file/many.ts', [addedIfs('big', 5), addedIfs('small', 4)])],
+  });
+
+const logicRowsOf = (name: string) =>
+  within(whatChanged()).getByRole('group', { name: `Rows of function ${name}` });
+
+test("a file of many changed decisions leaves its functions' rows folded under their strips, opened by hand", async () => {
+  const user = userEvent.setup();
+  render(<ReviewPage review={pageWithManyDecisions()} />);
+
+  await user.click(await screen.findByRole('button', { name: 'many.ts: modified' }));
+  expect(logicRowsOf('big').hasAttribute('open')).toBe(false);
+  expect(logicRowsOf('small').hasAttribute('open')).toBe(false);
+
+  await user.click(within(logicRowsOf('big')).getByText('5 of 5'));
+  expect(logicRowsOf('big').hasAttribute('open')).toBe(true);
+  expect(logicRowsOf('small').hasAttribute('open')).toBe(false);
+});
+
+test.for([
+  {
+    news: 'a decision changed since the last review',
+    since: {
+      changed: changedSince({ decisions: ['web/file/many.ts#small#if (small0)'] }),
+    },
+  },
+  {
+    news: "the last review's comment on a decision",
+    since: {
+      comments: [
+        {
+          anchor: {
+            kind: 'decision',
+            id: 'web/file/many.ts#small#if (small0)',
+            text: 'if (small0)',
+          },
+          kind: 'question',
+          text: 'Why?',
+          changedSince: [],
+        },
+      ],
+    },
+  },
+] as const)('$news opens its function among many', async ({ since }) => {
+  const user = userEvent.setup();
+  render(
+    <ReviewPage
+      review={{ ...pageWithManyDecisions(), sinceReview: { ...sinceReview, ...since } }}
+    />,
+  );
+
+  await user.click(await screen.findByRole('button', { name: 'many.ts: modified' }));
+  expect(logicRowsOf('small').hasAttribute('open')).toBe(true);
+  expect(logicRowsOf('big').hasAttribute('open')).toBe(false);
+});
+
+test('a draft on a decision opens its function among many when the part is picked again', async () => {
+  const user = userEvent.setup();
+  render(<ReviewPage review={pageWithManyDecisions()} send={vi.fn(async () => {})} />);
+
+  await user.click(await screen.findByRole('button', { name: 'many.ts: modified' }));
+  await user.click(within(logicRowsOf('small')).getByText('4 of 4'));
+  await user.click(
+    within(logicRowsOf('small')).getByRole('button', { name: 'Comment on added if: if (small0)' }),
+  );
+  await write(
+    user,
+    within(logicRowsOf('small')).getByRole('textbox', { name: 'Your comment' }),
+    'Why?',
+  );
+  await closeAndReopen(user, 'many.ts: modified');
+
+  expect(logicRowsOf('small').hasAttribute('open')).toBe(true);
+  expect(logicRowsOf('big').hasAttribute('open')).toBe(false);
+});
 
 test("a later round offers 'Since last review' first in Show, Changes only still picked; picked, it draws what changed since, and going to a part it hides widens Show", async () => {
   const user = userEvent.setup();
