@@ -95,16 +95,21 @@ const isOpenSend = (call: Node): boolean => {
 const firstOpenSendIn = (program: Node): Node | undefined =>
   program.descendantsOfType('call').find(isOpenSend);
 
-type Read = { readonly text: string; readonly program: Node } | { readonly notRead: true };
+type Ruby = { readonly text: string; readonly program: Node };
 
-const NOT_READ: Read = { notRead: true };
+const NOT_READ = 'not read';
 
-const readRuby = (file: string): Read | undefined => {
+const withRuby = <T>(file: string, read: (ruby: Ruby) => T): T | typeof NOT_READ | undefined => {
   try {
     const text = readFileSync(file, 'utf8');
     if (isTooBig(text)) return NOT_READ;
     const program = parseRuby(text);
-    return program === undefined || program.hasError ? NOT_READ : { text, program };
+    if (program === undefined) return NOT_READ;
+    try {
+      return program.hasError ? NOT_READ : read({ text, program });
+    } finally {
+      program.tree.delete();
+    }
   } catch (error) {
     return isNoFile(error) ? undefined : NOT_READ;
   }
@@ -147,25 +152,23 @@ export const usesOfRuby = async ({ head, graph, node, names }: UsesAsked): Promi
     ...graph.nodes.filter(({ id }) => id.startsWith(stack)).map(({ id }) => constantIn(id)),
     ...names.map(name => askedOf(name).owner).filter(owner => STARTS_AS_CONSTANT.test(owner)),
   ]);
-  const reads = graph.edges
+  const files = graph.edges
     .filter(({ to }) => to === node.id)
     .flatMap(({ from }) => graph.nodes.find(({ id }) => id === from) ?? [])
-    .map(({ id, path }) => ({ id, path, read: readRuby(join(head, path)) }));
-  const rows = reads.flatMap(({ id, path, read }) =>
-    read === undefined || 'notRead' in read
-      ? []
-      : [
-          rowsIn(
-            { path, ...read, namings: namingsIn(read.program, constantIn(id), classes) },
-            names,
-          ),
-        ],
-  );
+    .map(({ id, path }) => ({
+      path,
+      rows: withRuby(join(head, path), ruby =>
+        rowsIn({ path, ...ruby, namings: namingsIn(ruby.program, constantIn(id), classes) }, names),
+      ),
+    }));
   return {
-    uses: Object.fromEntries(names.map(name => [name, rows.flatMap(row => row.get(name) ?? [])])),
-    notRead: reads.flatMap(({ path, read }) =>
-      read !== undefined && 'notRead' in read ? [path] : [],
+    uses: Object.fromEntries(
+      names.map(name => [
+        name,
+        files.flatMap(({ rows }) => (rows instanceof Map ? (rows.get(name) ?? []) : [])),
+      ]),
     ),
+    notRead: files.flatMap(({ path, rows }) => (rows === NOT_READ ? [path] : [])),
     notFollowed: [
       NOT_DRAWN,
       ...(names.every(isClass) ? [] : [METHODS_NOT_FOLLOWED]),
