@@ -76,10 +76,7 @@ test.for([
   { specifier: './', importer: 'lib/b.ts', target: 'lib/index.ts', counts: true },
   { specifier: '.', importer: 'b.ts', target: 'index.ts', counts: true },
   { specifier: './types', importer: 'b.ts', target: 'types.d.ts', counts: true },
-  { specifier: '@/lib/a', importer: 'b.ts', target: 'a.ts', counts: true },
-  { specifier: '@/lib/a.js', importer: 'b.ts', target: 'a.ts', counts: true },
-  { specifier: '@/lib/other', importer: 'b.ts', target: 'a.ts', counts: false },
-  { specifier: '@/lib', importer: 'b.ts', target: 'lib/index.ts', counts: true },
+  { specifier: 'date-fns/a', importer: 'b.ts', target: 'a.ts', counts: false },
 ])(
   '$specifier in $importer is $target: $counts',
   async ({ specifier, importer, target, counts }) => {

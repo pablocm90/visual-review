@@ -27,12 +27,9 @@ const moduleOf = (path: string): string => {
   return basename(stem) === 'index' ? dirname(stem) : stem;
 };
 
-const namesFile = (specifier: string, importer: string, file: string): boolean => {
-  const target = moduleOf(posix.resolve('/', file));
-  return specifier.startsWith('.')
-    ? moduleOf(posix.resolve('/', dirname(importer), specifier)) === target
-    : basename(moduleOf(specifier)) === basename(target);
-};
+const namesFile = (specifier: string, importer: string, file: string): boolean =>
+  specifier.startsWith('.') &&
+  moduleOf(posix.resolve('/', dirname(importer), specifier)) === moduleOf(posix.resolve('/', file));
 
 const importedName = (text: string, specifier: ImportDeclaration['specifiers'][number]) => {
   if (specifier.type === 'ImportSpecifier') return sourceOf(text, specifier.imported);
