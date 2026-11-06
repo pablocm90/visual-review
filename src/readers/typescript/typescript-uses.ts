@@ -358,8 +358,7 @@ const fileUsesAt = ({
   if ('notRead' in facts) return { ...NO_USES, notRead: path };
   const namesExactly: Names = specifier => placeOf(specifier) === targetPlace;
   const names: Names = specifier =>
-    namesExactly(specifier) ||
-    (mayBePackage(specifier) && namesPackage(packageName, specifier));
+    namesExactly(specifier) || (mayBePackage(specifier) && namesPackage(packageName, specifier));
   return usesFrom(facts, names, namesExactly);
 };
 
