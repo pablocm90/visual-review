@@ -5965,6 +5965,51 @@ test('an opened symbol says so when its diff holds no changed line of its own, a
   expect(note('elsewhere')).toBe('No line inside it changed.');
 });
 
+test("a comment on a line of a symbol's diff shows in Full diff too, and the tray goes to it there", async () => {
+  const user = userEvent.setup();
+  render(
+    <ReviewPage
+      review={pageWith({
+        range: review.range,
+        diff: {
+          nodes: [
+            { id: 'web', kind: 'stack', label: 'web', path: '', state: 'unchanged' },
+            topFile('two.ts', 'modified'),
+          ],
+          edges: [],
+        },
+        symbols: [symbolsOf('web/file/two.ts', [editedAt('a', 1, 3), editedAt('b', 4, 6)])],
+        patches: [twoFunctionsPatch()],
+      })}
+      send={vi.fn(async () => {})}
+    />,
+  );
+  const name = 'two.ts:2 "return 2;"';
+
+  await user.click(await screen.findByRole('button', { name: 'two.ts: modified' }));
+  await openFold(user, 'Full diff');
+  await toggleSymbolDiff(user, 'a');
+  await user.click(within(whatChanged()).getByRole('button', { name: `Comment on ${name}` }));
+  await write(user, within(whatChanged()).getByRole('textbox', { name: 'Your comment' }), 'Why 2?');
+  const inFullDiff = screen.getByRole('region', { name: 'Full diff' });
+  expect(within(inFullDiff).getByRole('textbox', { name: 'Your comment' })).toHaveProperty(
+    'value',
+    'Why 2?',
+  );
+
+  await openReview(user);
+  await user.click(
+    within(screen.getByRole('list', { name: 'Drafts' })).getByRole('button', { name }),
+  );
+  const row = within(screen.getByRole('region', { name: 'Full diff' })).getByRole('insertion', {
+    current: true,
+  });
+  expect(within(row).getByRole('textbox', { name: 'Your comment' })).toHaveProperty(
+    'value',
+    'Why 2?',
+  );
+});
+
 test("a file whose symbols wouldn't parse shows the parse error in its What changed, and in its box's", async () => {
   const user = userEvent.setup();
   render(

@@ -84,6 +84,11 @@ type CommentOpenerProps = CommentFieldProps & {
 export const CommentOpener = ({ word, label, landing, ...field }: CommentOpenerProps) => {
   const drafted = field.comments[anchorKey(field.anchor)] !== undefined;
   const [open, setOpen] = useState(drafted);
+  const [wasDrafted, setWasDrafted] = useState(drafted);
+  if (drafted !== wasDrafted) {
+    setWasDrafted(drafted);
+    if (drafted) setOpen(true);
+  }
   const [landed, setLanded] = useState(landing);
   const [clicked, setClicked] = useState<object>();
   const asked = useAsked(field.anchor);
