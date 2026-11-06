@@ -14,6 +14,14 @@ export const CruiseOutputSchema = z.object({
   ),
 });
 
+type CruiseModule = z.infer<typeof CruiseOutputSchema>['modules'][number];
+
+export const isFile = ({
+  coreModule,
+  couldNotResolve,
+  matchesDoNotFollow,
+}: CruiseModule): boolean => !coreModule && !couldNotResolve && !matchesDoNotFollow;
+
 type SourceOptions = {
   readonly stack: string;
   readonly sourceRoot: string;
@@ -94,10 +102,7 @@ export const webGraph = ({
   stacks,
 }: WebGraphOptions): Graph => {
   const { modules } = CruiseOutputSchema.parse(JSON.parse(cruiseJson));
-  const files = modules.filter(
-    ({ coreModule, couldNotResolve, matchesDoNotFollow }) =>
-      !coreModule && !couldNotResolve && !matchesDoNotFollow,
-  );
+  const files = modules.filter(isFile);
   const sources = files.filter(({ source }) => isUnder(sourceRoot, source));
   const filePaths = new Set(files.map(({ source }) => source));
   const sourcePaths = new Set(sources.map(({ source }) => source));

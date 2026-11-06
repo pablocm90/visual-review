@@ -3,7 +3,7 @@ import { join, relative } from 'node:path';
 import { isTooBig } from '../too-big.ts';
 import { moduleAt, modulesNamedBy, type Resolution } from './typescript-config.ts';
 import { parseTypeScript } from './typescript-syntax.ts';
-import { CruiseOutputSchema, isUnder } from './web-graph.ts';
+import { CruiseOutputSchema, isFile, isUnder } from './web-graph.ts';
 
 const MAY_REEXPORT_TYPES = /\bexport\s+type\s*[{*]/;
 
@@ -46,7 +46,8 @@ export const withTypeReexports = ({
 }: TypeReexportsOptions): string => {
   const directory = join(checkout, root);
   const { modules } = CruiseOutputSchema.parse(JSON.parse(cruiseJson));
-  const sourceAt = new Map(modules.map(({ source }) => [moduleAt(directory, source), source]));
+  const files = modules.filter(isFile);
+  const sourceAt = new Map(files.map(({ source }) => [moduleAt(directory, source), source]));
   const fileAt = (place: string): string | undefined => {
     const file = isUnder(checkout, place) ? scriptAt(place) : undefined;
     return file === undefined ? undefined : relative(directory, file);
@@ -55,7 +56,7 @@ export const withTypeReexports = ({
     modulesNamedBy({ head: directory, resolution }, { specifier, importer }).flatMap(
       place => sourceAt.get(place) ?? fileAt(place) ?? [],
     )[0];
-  const read = modules.map(module => ({
+  const read = files.map(module => ({
     module,
     named: (isUnder(checkout, join(directory, module.source))
       ? typeSourcesIn(module.source, join(directory, module.source))

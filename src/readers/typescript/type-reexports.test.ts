@@ -2,6 +2,7 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { expect, test } from 'vitest';
+import type { Graph } from '../../core/graph.ts';
 import { writeFiles } from '../../test-support/repos.ts';
 import { typeScriptReader } from './reader.ts';
 import { resolutionIn } from './typescript-config.ts';
@@ -13,25 +14,29 @@ type Layout = {
   readonly stacks: ReadonlyArray<readonly [string, string]>;
 };
 
-const edgesIn = async (
+const graphIn = async (
   files: Readonly<Record<string, string>>,
   { root, stacks }: Layout = { root: '.', stacks: [['.', 'web']] },
 ) => {
   const checkout = mkdtempSync(join(tmpdir(), 'visual-review-type-reexports-'));
   try {
     writeFiles(checkout, { 'package.json': '{"name":"repo"}', ...files });
-    const { edges } = await typeScriptReader.graph({
+    return await typeScriptReader.graph({
       directory: checkout,
       root,
       stack: 'web',
       settings: {},
       stacks: new Map(stacks),
     });
-    return edges;
   } finally {
     rmSync(checkout, { recursive: true, force: true });
   }
 };
+
+const edgesIn = async (
+  files: Readonly<Record<string, string>>,
+  layout?: Layout,
+): Promise<Graph['edges']> => (await graphIn(files, layout)).edges;
 
 test.for([
   { form: 'export type { … } from', text: "export type { Foo } from './a';\n" },
@@ -92,6 +97,56 @@ test.for([
   );
 
   expect(edges).toEqual([{ from: 'web/file/types.ts', to: 'lib' }]);
+});
+
+test('a package name an import left unresolved still reaches its sibling, from both files', async () => {
+  const edges = await edgesIn(
+    {
+      'web/package.json': '{"name":"web"}',
+      'web/tsconfig.json': '{"compilerOptions":{"baseUrl":"."}}',
+      'web/src/a.ts': "import { x } from '@acme/lib';\nexport const y = x;\n",
+      'web/src/types.ts': "export type { T } from '@acme/lib';\n",
+      'lib/package.json': '{"name":"@acme/lib"}',
+      'lib/src/index.ts': 'export const x = 1;\n',
+    },
+    {
+      root: 'web',
+      stacks: [
+        ['web', 'web'],
+        ['lib', 'lib'],
+      ],
+    },
+  );
+
+  expect(edges).toEqual([
+    { from: 'web/file/a.ts', to: 'lib' },
+    { from: 'web/file/types.ts', to: 'lib' },
+  ]);
+});
+
+test.for([
+  {
+    what: 'a package an import also names',
+    tsconfig: '{"compilerOptions":{"baseUrl":".","rootDir":"."}}',
+    named: 'zod',
+  },
+  {
+    what: 'a path an import also names and nothing holds',
+    tsconfig: '{"compilerOptions":{"rootDir":"."}}',
+    named: './gone',
+  },
+])('a type re-export of $what draws no node for it', async ({ tsconfig, named }) => {
+  const { nodes } = await graphIn({
+    'tsconfig.json': tsconfig,
+    'a.ts': `import { z } from '${named}';\nexport const y = z;\n`,
+    'types.ts': `export type { Z } from '${named}';\n`,
+  });
+
+  expect(nodes.map(({ id }) => id).toSorted()).toEqual([
+    'web',
+    'web/file/a.ts',
+    'web/file/types.ts',
+  ]);
 });
 
 test('a type re-export naming no file in a sibling stack draws nothing', async () => {
