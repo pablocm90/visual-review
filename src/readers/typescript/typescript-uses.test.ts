@@ -332,3 +332,33 @@ test('a barrel cycle ends, and a file reached twice has one row per asked name',
     bar: [{ path: 'src/d.ts', line: 4, text: 'bar();' }],
   });
 });
+
+test.for([
+  {
+    reason: 'exported under another name',
+    barrel: "import { foo as local } from './a';\nexport { local as baz };\n",
+    importer: "import { baz } from './index';\nbaz();\n",
+  },
+  {
+    reason: 'exported as the default',
+    barrel: "import { foo as local } from './a';\nexport default local;\n",
+    importer: "import Thing from './index';\nThing();\n",
+  },
+])('an import $reason passes the name on to its importers', async ({ barrel, importer }) => {
+  const reading = await usesIn({
+    files: {
+      'a.ts': 'export const foo = 1;\n',
+      'index.ts': `${barrel}const other = 2;\nexport { other };\n`,
+      'd.ts': importer,
+      'e.ts': "import { other } from './index';\nother();\n",
+    },
+    edges: ['index.ts -> a.ts', 'd.ts -> index.ts', 'e.ts -> index.ts'],
+    names: ['foo'],
+  });
+  expect(reading?.uses).toEqual({
+    foo: [
+      expect.objectContaining({ path: 'src/index.ts', line: 2 }),
+      { path: 'src/d.ts', line: 2, text: importer.split('\n')[1] },
+    ],
+  });
+});

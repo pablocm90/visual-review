@@ -1,6 +1,6 @@
 import { readFile } from 'node:fs/promises';
 import { basename, dirname, join, posix } from 'node:path';
-import type { ImportDeclaration, Node } from '@babel/types';
+import type { ImportDeclaration, Node, Program } from '@babel/types';
 import type { GraphNode } from '../../core/graph.ts';
 import type { SymbolUse, UsesAsked, UsesReading } from '../../core/reader.ts';
 import {
@@ -48,6 +48,23 @@ type FileUses = {
   readonly forwards: ReadonlyArray<Forward>;
   readonly forwardsAll: boolean;
 };
+
+type Alias = { readonly local: string; readonly exported: string };
+
+const aliasesIn = (text: string, program: Program): ReadonlyArray<Alias> =>
+  program.body.flatMap((statement): ReadonlyArray<Alias> => {
+    if (statement.type === 'ExportDefaultDeclaration')
+      return defaultExported(text, statement.declaration).map(local => ({
+        local,
+        exported: 'default',
+      }));
+    if (statement.type !== 'ExportNamedDeclaration' || statement.source) return [];
+    return statement.specifiers.flatMap(specifier =>
+      specifier.type === 'ExportSpecifier'
+        ? [{ local: nameOf(text, specifier.local), exported: nameOf(text, specifier.exported) }]
+        : [],
+    );
+  });
 
 const usesInFile = ({ path, text, target }: Read): FileUses => {
   const { program, tokens } = parseTypeScript(text, path);
@@ -100,6 +117,7 @@ const usesInFile = ({ path, text, target }: Read): FileUses => {
   const namespaceExports = exportsFrom.flatMap(({ statement, specifier }) =>
     specifier.type === 'ExportNamespaceSpecifier' ? [statement] : [],
   );
+  const aliases = aliasesIn(text, program);
   const specifiers = imports
     .filter(statement => namesFile(statement.source.value, path, target))
     .flatMap(statement => statement.specifiers.map(specifier => ({ statement, specifier })));
@@ -126,7 +144,17 @@ const usesInFile = ({ path, text, target }: Read): FileUses => {
       ...loads,
       ...namespaceExports,
     ].map(range => ({ ...placeOf(range), unfollowed: true })),
-    forwards: reexports.map(({ from, to }) => ({ from, to })),
+    forwards: [
+      ...reexports.map(({ from, to }) => ({ from, to })),
+      ...specifiers.flatMap(({ specifier }) => {
+        const from = importedName(text, specifier);
+        return from === undefined
+          ? []
+          : aliases
+              .filter(({ local }) => local === specifier.local.name)
+              .map(({ exported }) => ({ from, to: exported }));
+      }),
+    ],
     forwardsAll: program.body.some(
       statement =>
         statement.type === 'ExportAllDeclaration' &&
@@ -134,23 +162,6 @@ const usesInFile = ({ path, text, target }: Read): FileUses => {
     ),
   };
 };
-
-type Alias = { readonly local: string; readonly exported: string };
-
-const aliasesIn = (text: string, path: string): ReadonlyArray<Alias> =>
-  parseTypeScript(text, path).program.body.flatMap((statement): ReadonlyArray<Alias> => {
-    if (statement.type === 'ExportDefaultDeclaration')
-      return defaultExported(text, statement.declaration).map(local => ({
-        local,
-        exported: 'default',
-      }));
-    if (statement.type !== 'ExportNamedDeclaration' || statement.source) return [];
-    return statement.specifiers.flatMap(specifier =>
-      specifier.type === 'ExportSpecifier'
-        ? [{ local: nameOf(text, specifier.local), exported: nameOf(text, specifier.exported) }]
-        : [],
-    );
-  });
 
 type Target = Pick<GraphNode, 'id' | 'path'>;
 
@@ -221,7 +232,8 @@ export const usesOfTypeScript = async ({
   names,
 }: UsesAsked): Promise<UsesReading> => {
   const nodes = new Map<string, GraphNode>(graph.nodes.map(each => [each.id, each]));
-  const aliases = aliasesIn(await readFile(join(base, node.path), 'utf8'), node.path);
+  const baseText = await readFile(join(base, node.path), 'utf8');
+  const aliases = aliasesIn(baseText, parseTypeScript(baseText, node.path).program);
   const rows = await walked({
     hops: names.flatMap(asked =>
       [
