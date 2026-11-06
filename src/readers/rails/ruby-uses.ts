@@ -5,7 +5,7 @@ import type { SymbolUse, UsesAsked, UsesReading } from '../../core/reader.ts';
 import { isNoFile } from '../no-file.ts';
 import { isTooBig } from '../too-big.ts';
 import { classesOf, namingsIn } from './rails-graph.ts';
-import { argsOf, methodOf, nameOf, parseRuby } from './ruby-syntax.ts';
+import { argsOf, methodOf, nameOf, parseRuby, positional } from './ruby-syntax.ts';
 
 export const NOT_DRAWN =
   'not followed: views, tests and other files outside `app/` and `lib/`, and a base class the graph draws no edge into, such as `ApplicationRecord`';
@@ -33,6 +33,8 @@ const LITERAL_NAMES: ReadonlySet<string> = new Set(['simple_symbol', 'delimited_
 
 const SENDERS: ReadonlySet<string> = new Set(['send', 'public_send', '__send__', 'try']);
 
+const DELEGATORS: ReadonlySet<string> = new Set(['delegate', 'def_delegator', 'def_delegators']);
+
 const isLiteralName = ({ type, text, namedChildren }: Node): boolean =>
   LITERAL_NAMES.has(type) &&
   !text.startsWith('%') &&
@@ -43,9 +45,12 @@ const isOnAnother = (call: Node): boolean => {
   return receiver !== null && receiver.type !== 'self';
 };
 
+const isDelegation = (call: Node): boolean =>
+  DELEGATORS.has(methodOf(call)) && call.childForFieldName('receiver') === null;
+
 const namesInCall = (call: Node): ReadonlyArray<Node> => {
   const receiver = call.childForFieldName('receiver');
-  if (methodOf(call) === 'delegate' && receiver === null) return argsOf(call).filter(isLiteralName);
+  if (isDelegation(call)) return argsOf(call).filter(isLiteralName);
   if (receiver === null || receiver.type === 'self') return [];
   const method = [call.childForFieldName('method') ?? []].flat();
   if (SENDERS.has(methodOf(call))) {
@@ -69,17 +74,18 @@ const firstUsesIn = (program: Node): ReadonlyMap<string, Node> =>
       .map(named => [nameOf(named).replace(SETTER_END, ''), named]),
   );
 
+const isOpenName = (arg: Node): boolean => arg.type !== 'block_argument' && !isLiteralName(arg);
+
+const isOpenSend = (call: Node): boolean => {
+  if (isDelegation(call)) return positional(argsOf(call)).some(isOpenName);
+  const [first] = argsOf(call);
+  return (
+    SENDERS.has(methodOf(call)) && isOnAnother(call) && first !== undefined && isOpenName(first)
+  );
+};
+
 const firstOpenSendIn = (program: Node): Node | undefined =>
-  program.descendantsOfType('call').find(call => {
-    const [first] = argsOf(call);
-    return (
-      SENDERS.has(methodOf(call)) &&
-      isOnAnother(call) &&
-      first !== undefined &&
-      first.type !== 'block_argument' &&
-      !isLiteralName(first)
-    );
-  });
+  program.descendantsOfType('call').find(isOpenSend);
 
 type Read = { readonly text: string; readonly program: Node } | { readonly notRead: true };
 

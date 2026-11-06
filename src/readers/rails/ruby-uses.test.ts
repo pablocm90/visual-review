@@ -190,6 +190,9 @@ test.each([
   { how: 'delegate of its setter', written: 'delegate :total=, to: :order' },
   { how: 'delegate', written: 'delegate :total, to: :order' },
   { how: 'delegate, among others', written: 'delegate :price, :total, to: :order' },
+  { how: 'def_delegators', written: 'def_delegators :@order, :price, :total' },
+  { how: 'def_delegator', written: 'def_delegator :@order, :total' },
+  { how: 'def_delegator, aliased', written: 'def_delegator :@order, :total, :sum' },
 ])('$how names a method', async ({ written }) => {
   const reading = await usesIn({
     files: {
@@ -208,7 +211,6 @@ test.each([
 test.each([
   { how: 'a later argument of send', written: 'found.send(:price, :total)' },
   { how: 'an option of delegate', written: 'delegate :price, to: :total' },
-  { how: 'a word of that name delegated', written: 'delegate total, to: :order' },
   { how: 'delegate on a receiver', written: 'found.delegate :total, to: :order' },
   { how: 'send on nothing', written: 'send(:total)' },
   { how: 'send on self', written: 'self.send(:total)' },
@@ -335,6 +337,45 @@ test.each([
   expect(reading?.uses).toEqual({
     'Order.total': [{ path: 'app/services/caller.rb', line: 3, text: written, unfollowed: true }],
   });
+});
+
+test.each([
+  { how: 'a word', written: 'delegate total, to: :order' },
+  { how: 'a splat', written: 'delegate(*NAMES, to: :order)' },
+  { how: 'a splat of a list', written: 'delegate(*%i[total], to: :order)' },
+  { how: 'a splat among names', written: 'delegate :price, *NAMES, to: :order' },
+  { how: 'a word in a loop', written: '%i[total].each { |name| delegate name, to: :order }' },
+  { how: 'a splat to def_delegators', written: 'def_delegators :@order, *NAMES' },
+])('a delegate of $how may use the method', async ({ written }) => {
+  const reading = await usesIn({
+    files: {
+      'app/models/order.rb': ORDER,
+      'app/services/caller.rb': `class Caller\n  Order\n  ${written}\nend\n`,
+    },
+    target: 'app/models/order.rb',
+    names: ['Order.total'],
+  });
+
+  expect(reading?.uses).toEqual({
+    'Order.total': [{ path: 'app/services/caller.rb', line: 3, text: written, unfollowed: true }],
+  });
+});
+
+test.each([
+  { how: 'names it can read', written: 'delegate :price, to: :order' },
+  { how: 'only options', written: 'delegate to: :order' },
+  { how: 'a receiver', written: 'found.delegate(*NAMES, to: :order)' },
+])('a delegate of $how is no use of another method', async ({ written }) => {
+  const reading = await usesIn({
+    files: {
+      'app/models/order.rb': ORDER,
+      'app/services/caller.rb': `class Caller\n  Order\n  ${written}\nend\n`,
+    },
+    target: 'app/models/order.rb',
+    names: ['Order.total'],
+  });
+
+  expect(reading?.uses).toEqual({ 'Order.total': [] });
 });
 
 test('a use found in the file wins over a send that may be one, and a send of another name is none', async () => {
