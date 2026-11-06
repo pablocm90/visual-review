@@ -29,9 +29,13 @@ const askedOf = (
     .filter(({ item }) => item.scope === undefined)
     .flatMap(({ item, id }) => {
       const removal = removalOf(item, pathOf);
-      return removal === undefined
-        ? []
-        : [{ id, label: `${item.kind} ${removal.former}`, how: removal.how, name: removal.former }];
+      if (removal !== undefined)
+        return [
+          { id, label: `${item.kind} ${removal.former}`, how: removal.how, name: removal.former },
+        ];
+      return item.signature !== undefined && item.exported.base === true
+        ? [{ id, label: `${item.kind} ${item.name}`, how: 'signature changed', name: item.name }]
+        : [];
     });
 
 type ReadReachesOptions = {

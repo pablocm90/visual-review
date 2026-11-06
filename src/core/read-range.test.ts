@@ -1329,6 +1329,34 @@ test("a removed export reaches the files the range didn't change that still use 
   ]);
 });
 
+test("a changed signature of an export reaches the files that use it, and a changed body doesn't", async () => {
+  using repository = gitRepo({ 'README.md': 'a shop\n' });
+  const { repo } = repository;
+  const base = commit(repo, {
+    ...rootPackage,
+    'src/a.ts':
+      'export function foo(a: string) {}\nexport function kept() {\n  return 1;\n}\nfunction own(a: string) {}\nown();\n',
+    'src/uses.ts': "import { foo, kept, own } from './a.ts';\nfoo('x');\nkept();\nown();\n",
+  });
+  const head = commit(repo, {
+    'src/a.ts':
+      'export function foo(a: string, b: number) {}\nexport function kept() {\n  return 2;\n}\nfunction own(a: number) {}\nown();\n',
+  });
+
+  const range = await readRange({ repo, from: base, to: head });
+
+  const node = `${basename(repo)}/file/a.ts`;
+  expect(range.reaches).toEqual([
+    {
+      node,
+      id: `${node}#foo`,
+      label: 'function foo',
+      how: 'signature changed',
+      uses: [{ path: 'src/uses.ts', line: 2, text: "foo('x');" }],
+    },
+  ]);
+});
+
 test('a file renamed from what its reader cannot parse has nothing to ask, so is not read for its names', async () => {
   using repository = gitRepo({ 'README.md': 'a shop\n' });
   const { repo } = repository;
