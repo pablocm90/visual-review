@@ -1,7 +1,7 @@
 import { existsSync, readFileSync } from 'node:fs';
 import { join, relative } from 'node:path';
 import { isTooBig } from '../too-big.ts';
-import { moduleAt, modulesNamedBy, type Resolution } from './typescript-config.ts';
+import { moduleAt, moduleOf, modulesNamedBy, type Resolution } from './typescript-config.ts';
 import { parseTypeScript } from './typescript-syntax.ts';
 import { CruiseOutputSchema, isFile, isUnder } from './web-graph.ts';
 
@@ -25,8 +25,9 @@ const typeSourcesIn = (path: string, file: string): ReadonlyArray<string> => {
 
 const SCRIPT_ENDINGS = ['.ts', '.tsx', '.d.ts', '.js', '.jsx', '.mjs', '.cjs'];
 
-const scriptAt = (place: string): string | undefined =>
+const scriptAt = (place: string, written: string): string | undefined =>
   [
+    ...(written === '' ? [] : [`${place}${written}`]),
     ...SCRIPT_ENDINGS.map(ending => `${place}${ending}`),
     ...SCRIPT_ENDINGS.map(ending => join(place, `index${ending}`)),
   ].find(file => existsSync(file));
@@ -48,13 +49,14 @@ export const withTypeReexports = ({
   const { modules } = CruiseOutputSchema.parse(JSON.parse(cruiseJson));
   const files = modules.filter(isFile);
   const sourceAt = new Map(files.map(({ source }) => [moduleAt(directory, source), source]));
-  const fileAt = (place: string): string | undefined => {
-    const file = isUnder(checkout, place) ? scriptAt(place) : undefined;
+  const fileAt = (place: string, written: string): string | undefined => {
+    const file = isUnder(checkout, place) ? scriptAt(place, written) : undefined;
     return file === undefined ? undefined : relative(directory, file);
   };
   const fileNamedBy = (specifier: string, importer: string): string | undefined =>
     modulesNamedBy({ head: directory, resolution }, { specifier, importer }).flatMap(
-      place => fileAt(place) ?? sourceAt.get(place) ?? [],
+      place =>
+        fileAt(place, specifier.slice(moduleOf(specifier).length)) ?? sourceAt.get(place) ?? [],
     )[0];
   const read = files.map(module => ({
     module,

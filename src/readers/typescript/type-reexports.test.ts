@@ -109,6 +109,16 @@ test('a type re-export of a name both a file and a folder hold draws to the file
   expect(edges).toEqual([{ from: 'web/file/types.ts', to: 'web/file/x.ts' }]);
 });
 
+test('a type re-export writing its extension draws to that file, though another ending comes first', async () => {
+  const edges = await edgesIn({
+    'src/x.ts': 'export type A = string;\n',
+    'src/x.tsx': 'export type A = number;\n',
+    'src/types.ts': "export type { A } from './x.tsx';\n",
+  });
+
+  expect(edges).toEqual([{ from: 'web/file/types.ts', to: 'web/file/x.tsx' }]);
+});
+
 test('a type re-export of a file the cruise holds and no script ending names draws its edge', async () => {
   const edges = await edgesIn({
     'src/a.ts': "import C from './c.vue';\nexport const y = C;\n",
