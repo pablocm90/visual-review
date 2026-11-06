@@ -3,6 +3,7 @@ import { basename, dirname, join, posix } from 'node:path';
 import type { ImportDeclaration, Node, Program } from '@babel/types';
 import type { GraphNode } from '../../core/graph.ts';
 import type { SymbolUse, UsesAsked, UsesReading } from '../../core/reader.ts';
+import { isTooBig } from '../too-big.ts';
 import {
   defaultExported,
   endOf,
@@ -47,7 +48,10 @@ type FileUses = {
   readonly unfollowed: ReadonlyArray<SymbolUse>;
   readonly forwards: ReadonlyArray<Forward>;
   readonly forwardsAll: boolean;
+  readonly notRead?: string;
 };
+
+const NO_USES: FileUses = { named: new Map(), unfollowed: [], forwards: [], forwardsAll: false };
 
 type Alias = { readonly local: string; readonly exported: string };
 
@@ -190,11 +194,11 @@ type Walk = {
   readonly read: (importer: Target, target: Target) => Promise<FileUses>;
 };
 
-type Row = { readonly asked: string; readonly use: SymbolUse };
+type Visit = { readonly hop: Hop; readonly uses: FileUses };
 
 const keyOf = ({ node, exported, asked }: Hop) => JSON.stringify([node.id, exported, asked]);
 
-const walked = async ({ hops, seen, importersOf, read }: Walk): Promise<ReadonlyArray<Row>> => {
+const walked = async ({ hops, seen, importersOf, read }: Walk): Promise<ReadonlyArray<Visit>> => {
   const fresh = [...new Map(hops.map(hop => [keyOf(hop), hop])).entries()].filter(
     ([key]) => !seen.has(key),
   );
@@ -212,10 +216,6 @@ const walked = async ({ hops, seen, importersOf, read }: Walk): Promise<Readonly
   const met = visits.flatMap(({ target, importer, uses }) =>
     fresh.flatMap(([, hop]) => (hop.node.id === target.id ? [{ hop, importer, uses }] : [])),
   );
-  const rows = met.flatMap(({ hop, uses }) => {
-    const use = uses.named.get(hop.exported) ?? uses.unfollowed[0];
-    return use === undefined ? [] : [{ asked: hop.asked, use }];
-  });
   const next = met.flatMap(({ hop, importer, uses }) =>
     [
       ...uses.forwards.filter(({ from }) => from === hop.exported).map(({ to }) => to),
@@ -223,7 +223,7 @@ const walked = async ({ hops, seen, importersOf, read }: Walk): Promise<Readonly
     ].map(exported => ({ node: importer, exported, asked: hop.asked })),
   );
   return [
-    ...rows,
+    ...met,
     ...(await walked({
       hops: next,
       seen: new Set([...seen, ...fresh.map(([key]) => key)]),
@@ -231,6 +231,17 @@ const walked = async ({ hops, seen, importersOf, read }: Walk): Promise<Readonly
       read,
     })),
   ];
+};
+
+const fileUsesAt = async (head: string, path: string, target: string): Promise<FileUses> => {
+  const text = await readFile(join(head, path), 'utf8').catch(() => undefined);
+  if (text === undefined) return NO_USES;
+  if (isTooBig(text)) return { ...NO_USES, notRead: path };
+  try {
+    return usesInFile({ path, text, target });
+  } catch {
+    return { ...NO_USES, notRead: path };
+  }
 };
 
 const onePerFile = (uses: ReadonlyArray<SymbolUse>): ReadonlyArray<SymbolUse> => {
@@ -250,7 +261,7 @@ export const usesOfTypeScript = async ({
   const nodes = new Map<string, GraphNode>(graph.nodes.map(each => [each.id, each]));
   const baseText = await readFile(join(base, node.path), 'utf8');
   const aliases = aliasesIn(baseText, parseTypeScript(baseText, node.path).program);
-  const rows = await walked({
+  const visits = await walked({
     hops: names.flatMap(asked =>
       [
         asked,
@@ -260,15 +271,19 @@ export const usesOfTypeScript = async ({
     seen: new Set(),
     importersOf: ({ id }) =>
       graph.edges.filter(({ to }) => to === id).flatMap(({ from }) => nodes.get(from) ?? []),
-    read: async ({ path }, target) =>
-      usesInFile({ path, text: await readFile(join(head, path), 'utf8'), target: target.path }),
+    read: ({ path }, target) => fileUsesAt(head, path, target.path),
   });
   return {
     uses: Object.fromEntries(
       names.map(name => [
         name,
-        onePerFile(rows.filter(({ asked }) => asked === name).map(({ use }) => use)),
+        onePerFile(
+          visits.flatMap(({ hop, uses }) =>
+            hop.asked === name ? (uses.named.get(hop.exported) ?? uses.unfollowed[0] ?? []) : [],
+          ),
+        ),
       ]),
     ),
+    notRead: [...new Set(visits.flatMap(({ uses }) => uses.notRead ?? []))],
   };
 };

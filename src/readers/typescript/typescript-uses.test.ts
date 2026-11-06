@@ -362,3 +362,46 @@ test.for([
     ],
   });
 });
+
+test.for([
+  { reason: 'does not parse', broken: "import { foo from './a';\n" },
+  { reason: 'is too big', broken: `import { foo } from './a';\n// ${'x'.repeat(1000)}\n` },
+])('a file that $reason is not read, and the rest still are', async ({ broken }) => {
+  const reading = await usesIn({
+    files: {
+      'a.ts': 'export const foo = 1;\n',
+      'broken.ts': broken,
+      'c.ts': "import { foo } from './a';\nfoo();\n",
+    },
+    edges: ['broken.ts -> a.ts', 'c.ts -> a.ts'],
+    names: ['foo'],
+  });
+  expect(reading).toEqual({
+    uses: { foo: [{ path: 'src/c.ts', line: 2, text: 'foo();' }] },
+    notRead: ['src/broken.ts'],
+  });
+});
+
+test('a file reached twice is named not read once', async () => {
+  const reading = await usesIn({
+    files: {
+      'a.ts': 'export const foo = 1;\n',
+      'one.ts': "export * from './a';\n",
+      'two.ts': "export * from './a';\n",
+      'broken.ts': 'import {',
+    },
+    edges: ['one.ts -> a.ts', 'two.ts -> a.ts', 'broken.ts -> one.ts', 'broken.ts -> two.ts'],
+    names: ['foo'],
+  });
+  expect(reading?.notRead).toEqual(['src/broken.ts']);
+});
+
+test('a file gone at the head has no uses and is not named', async () => {
+  const reading = await usesIn({
+    files: { 'a.ts': 'export const foo = 1;\n' },
+    atBase: { 'b.ts': "import { foo } from './a';\nfoo();\n" },
+    edges: ['b.ts -> a.ts'],
+    names: ['foo'],
+  });
+  expect(reading).toEqual({ uses: { foo: [] }, notRead: [] });
+});
