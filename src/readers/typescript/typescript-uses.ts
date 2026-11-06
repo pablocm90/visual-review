@@ -29,7 +29,7 @@ const placeAt = (path: string, text: string, offset: number): SymbolUse => {
 };
 
 export const NOT_DRAWN =
-  'not followed: type-only re-exports, files outside the source root, a package imported under another name';
+  'not followed: a package imported under another name, files under no stack';
 
 const ACCESSES = new Set(['.', '?.']);
 const LOADERS = new Set(['import', 'require']);
