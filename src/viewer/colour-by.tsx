@@ -16,7 +16,7 @@ type Shading = {
   readonly metrics: NodeMetrics | undefined;
   readonly kinds: ReadonlyArray<KindOfChange>;
   readonly changed: boolean;
-  readonly decisions: number;
+  readonly decisions: number | undefined;
 };
 
 type Scale = {
@@ -50,7 +50,7 @@ const SCALES: Readonly<Record<Scaled, Scale>> = {
     measure: 'decisions',
     cuts: [1, 4, 10],
     steps: ['0', '1–3', '4–9', '10+'],
-    read: ({ decisions, changed }) => (changed ? decisions : undefined),
+    read: ({ decisions }) => decisions,
   },
 };
 

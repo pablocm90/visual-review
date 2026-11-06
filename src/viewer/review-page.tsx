@@ -2032,11 +2032,12 @@ const Page = ({ review, notes, send }: ReviewPageProps) => {
       const inside = review.symbols.filter(
         file => file.node === id || boxesAbove(file.node).includes(id),
       );
+      const kinds = inside.flatMap(file => ('kind' in file ? [file.kind] : []));
       return shadeOf(colouring, {
         metrics: review.metrics[id],
         changed: state !== 'unchanged',
-        decisions: logicTotalsOf(inside).decisions,
-        kinds: inside.flatMap(file => ('kind' in file ? [file.kind] : [])),
+        decisions: kinds.length > 0 ? logicTotalsOf(inside).decisions : undefined,
+        kinds,
       });
     },
   };

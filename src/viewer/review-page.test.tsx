@@ -10458,7 +10458,7 @@ test("the legend of marks sits above the graph on 'Logic only', and leaves on an
 const decisionsIn = (file: string, count: number) =>
   symbolsOf(`web/file/${file}`, [addedIfs(file, count)]);
 
-test('Colour by Logic names each changed file with its changed decisions and the step holding them, cut at 1, 4 and 10; an unchanged one with nothing', async () => {
+test('Colour by Logic names each changed file with its changed decisions and the step holding them, cut at 1, 4 and 10; an unchanged one, or one whose symbols were not read, with nothing', async () => {
   const user = userEvent.setup();
   render(
     <ReviewPage
@@ -10471,10 +10471,12 @@ test('Colour by Logic names each changed file with its changed decisions and the
               topFile(file, 'modified'),
             ),
             topFile('quiet.ts', 'unchanged'),
+            topFile('unread.ts', 'modified'),
           ],
           edges: [],
         },
         symbols: [
+          decisionsIn('none.ts', 0),
           decisionsIn('one.ts', 1),
           decisionsIn('three.ts', 3),
           decisionsIn('four.ts', 4),
@@ -10500,6 +10502,7 @@ test('Colour by Logic names each changed file with its changed decisions and the
       'nine.ts: modified, decisions 9 (4–9)',
       'ten.ts: modified, decisions 10 (10+)',
       'quiet.ts: unchanged',
+      'unread.ts: modified',
     ]),
   );
 });
