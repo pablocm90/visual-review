@@ -227,6 +227,11 @@ test.for([
     imported: 'lib/a',
   },
   {
+    how: 'a bare name under the baseUrl of a root holding no files, its references no paths',
+    tsconfig: '{ "files": [], "compilerOptions": { "baseUrl": "./src" } }',
+    imported: 'lib/a',
+  },
+  {
     how: 'a wildcard, under an exact name of its folder',
     tsconfig:
       '{ "compilerOptions": { "paths": { "@/lib": ["./src/lib/a.ts"], "@/*": ["./src/*"] } } }',
@@ -693,14 +698,33 @@ test.for([
   {
     how: 'a folder, by the tsconfig.json in it',
     configs: {
-      'tsconfig.json': { references: [{ path: './config' }] },
+      'tsconfig.json': { files: [], references: [{ path: './config' }] },
       'config/tsconfig.json': aliasTo('../src/*'),
+    },
+  },
+  {
+    how: 'its paths under an empty include',
+    configs: {
+      'tsconfig.json': { include: [], references: [{ path: './app.json' }] },
+      'app.json': aliasTo('./src/*'),
+    },
+  },
+  {
+    how: 'the first project holding paths, past one holding none',
+    configs: {
+      'tsconfig.json': {
+        files: [],
+        references: [{ path: './node.json' }, { path: './app.json' }, { path: './other.json' }],
+      },
+      'node.json': { compilerOptions: { composite: true } },
+      'app.json': aliasTo('./src/*'),
+      'other.json': aliasTo('./src/vendored/*'),
     },
   },
   {
     how: 'nothing when its own chain holds paths',
     configs: {
-      'tsconfig.json': { extends: './base.json', references: [{ path: './app.json' }] },
+      'tsconfig.json': { extends: './base.json', files: [], references: [{ path: './app.json' }] },
       'base.json': aliasTo('./src/*'),
       'app.json': aliasTo('./src/vendored/*'),
     },
@@ -709,6 +733,7 @@ test.for([
     how: "its own baseUrl, ahead of the chain's",
     configs: {
       'tsconfig.json': {
+        files: [],
         compilerOptions: { baseUrl: './src/vendored' },
         references: [{ path: './app.json' }],
       },
@@ -733,6 +758,45 @@ test.for([
 });
 
 test.for([
+  {
+    how: 'a project that holds files of its own',
+    configs: { 'tsconfig.json': { references: [{ path: './app.json' }] } },
+  },
+  {
+    how: 'a project naming files',
+    configs: { 'tsconfig.json': { files: ['src/b.ts'], references: [{ path: './app.json' }] } },
+  },
+  {
+    how: 'a project including files, with no files named',
+    configs: {
+      'tsconfig.json': { files: [], include: ['src'], references: [{ path: './app.json' }] },
+    },
+  },
+  {
+    how: 'what it extends, whose own references those are',
+    configs: {
+      'tsconfig.json': { files: [], extends: './base.json' },
+      'base.json': { files: [], references: [{ path: './app.json' }] },
+    },
+  },
+])('a tsconfig reference from $how brings no paths', async ({ configs }) => {
+  using workspace = gitRepo({
+    'package.json': '{ "name": "shop" }\n',
+    ...Object.fromEntries(
+      Object.entries(configs).map(([file, config]) => [file, JSON.stringify(config)]),
+    ),
+    'app.json': JSON.stringify(aliasTo('./src/*')),
+    'src/a.ts': 'export const a = 1;\n',
+    'src/b.ts': "import { a } from '@/a';\nexport const b = a;\n",
+  });
+  const { repo, root } = workspace;
+
+  const range = await readRange({ repo, from: root, to: root });
+
+  expect(range.after.edges).toEqual([]);
+});
+
+test.for([
   { how: 'an absolute path', path: () => '/outside.json' },
   {
     how: 'a climb out of the checkout',
@@ -749,7 +813,8 @@ test.for([
   const { repo, root } = workspace;
   const head = commit(repo, {
     'tsconfig.json': JSON.stringify({
-      references: [{ path: './mine.json' }, { path: path(repo) }],
+      files: [],
+      references: [{ path: path(repo) }, { path: './mine.json' }],
     }),
   });
 
@@ -869,6 +934,11 @@ test('with the whole package as source root, built-ins and packages it imports a
 test.for([
   {
     tsconfig: '{ "compilerOptions": { "rootDir": "lib", "paths": "not a map" } }',
+    files: { 'lib/a.ts': 'export const a = 1;\n' },
+    drawn: 'lib/a.ts',
+  },
+  {
+    tsconfig: '{ "compilerOptions": { "rootDir": "lib" }, "files": "not a list" }',
     files: { 'lib/a.ts': 'export const a = 1;\n' },
     drawn: 'lib/a.ts',
   },

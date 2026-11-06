@@ -19,6 +19,7 @@ const TsconfigSchema = z.object({
       baseUrl: z.string().optional().catch(undefined),
     })
     .optional(),
+  files: z.array(z.string()).optional().catch(undefined),
   include: z.array(z.string()).optional(),
 });
 
@@ -69,53 +70,52 @@ type AliasReading = {
   readonly known: Map<string, Aliases>;
 };
 
-const aliasesAt = (reading: AliasReading, config: string): Aliases => {
+const chainAt = (reading: AliasReading, config: string): Aliases => {
   const { directory, stays, known } = reading;
   const already = known.get(config);
   if (already !== undefined) return already;
   if (known.size >= MOST_CONFIGS) return {};
   known.set(config, {});
-  const {
-    extends: extended = [],
-    references = [],
-    compilerOptions,
-  } = tsconfigAt(join(directory, config));
+  const { extends: extended = [], compilerOptions } = tsconfigAt(join(directory, config));
   const { baseUrl, paths } = compilerOptions ?? {};
   const from = dirname(config);
-  const aliasesOf = (names: ReadonlyArray<string>): Aliases =>
-    names
-      .map(name => join(from, name))
+  const aliases: Aliases = {
+    ...[extended]
+      .flat()
+      .filter(isRelativeName)
+      .map(name => join(from, withExtension(name)))
       .filter(stays)
-      .map(name => aliasesAt(reading, name))
-      .reduce(laterWins, {});
-  const chain: Aliases = {
-    ...aliasesOf([extended].flat().filter(isRelativeName).map(withExtension)),
+      .map(name => chainAt(reading, name))
+      .reduce(laterWins, {}),
     ...(baseUrl === undefined || isAbsolute(baseUrl) ? {} : { baseUrl: join(from, baseUrl) }),
     ...(paths === undefined ? {} : { paths: { places: paths, from } }),
   };
-  const aliases =
-    chain.paths === undefined
-      ? {
-          ...chain,
-          ...aliasesOf(
-            references
-              .map(({ path }) => path)
-              .filter(path => !isAbsolute(path))
-              .map(projectFile),
-          ),
-        }
-      : chain;
   known.set(config, aliases);
   return aliases;
+};
+
+const holdsNoFiles = ({ files, include }: z.infer<typeof TsconfigSchema>): boolean =>
+  (files !== undefined || include !== undefined) &&
+  (files ?? []).length === 0 &&
+  (include ?? []).length === 0;
+
+const ROOT_CONFIG = 'tsconfig.json';
+
+const rootAliases = (reading: AliasReading): Aliases => {
+  const chain = chainAt(reading, ROOT_CONFIG);
+  const root = tsconfigAt(join(reading.directory, ROOT_CONFIG));
+  if (chain.paths !== undefined || !holdsNoFiles(root)) return chain;
+  const referenced = (root.references ?? [])
+    .map(({ path }) => projectFile(path))
+    .filter(reading.stays)
+    .map(project => chainAt(reading, project));
+  return referenced.find(({ paths }) => paths !== undefined) ?? chain;
 };
 
 export const resolutionIn = ({ checkout, root }: RootOptions) => {
   const directory = join(checkout, root);
   const stays = staysInCheckout(root);
-  const { baseUrl, paths: pathsSaid } = aliasesAt(
-    { directory, stays, known: new Map() },
-    'tsconfig.json',
-  );
+  const { baseUrl, paths: pathsSaid } = rootAliases({ directory, stays, known: new Map() });
   const { places: paths = {}, from = '.' } = pathsSaid ?? {};
   const base = baseUrl !== undefined && stays(baseUrl) ? baseUrl : undefined;
   const placesOf = (places: ReadonlyArray<string>) =>
