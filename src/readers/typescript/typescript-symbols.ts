@@ -26,7 +26,7 @@ const declaredNames = (text: string, node: Node): ReadonlyArray<string> => {
   return 'id' in node && node.id ? [nameOf(text, node.id)] : [];
 };
 
-const defaultExported = (text: string, declaration: Node): ReadonlyArray<string> => {
+export const defaultExported = (text: string, declaration: Node): ReadonlyArray<string> => {
   if (declaration.type === 'Identifier') return [declaration.name];
   const named = declaredNames(text, declaration);
   return named.length === 0 ? ['default'] : named;

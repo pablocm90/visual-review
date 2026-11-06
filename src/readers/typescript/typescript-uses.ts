@@ -3,8 +3,15 @@ import { basename, dirname, join, posix } from 'node:path';
 import type { ImportDeclaration } from '@babel/types';
 import type { GraphNode } from '../../core/graph.ts';
 import type { SymbolUse, UsesAsked, UsesReading } from '../../core/reader.ts';
-import { endOf, isCode, isToken, startOf, type Token } from './typescript-symbols.ts';
-import { parseTypeScript, sourceOf } from './typescript-syntax.ts';
+import {
+  defaultExported,
+  endOf,
+  isCode,
+  isToken,
+  startOf,
+  type Token,
+} from './typescript-symbols.ts';
+import { nameOf, parseTypeScript, sourceOf } from './typescript-syntax.ts';
 
 const placeAt = (path: string, text: string, offset: number): SymbolUse => {
   const line = text.slice(0, offset).split('\n').length;
@@ -65,7 +72,25 @@ const usesInFile = ({ path, text, target }: Read): ReadonlyMap<string, SymbolUse
   );
 };
 
+type Alias = { readonly local: string; readonly exported: string };
+
+const aliasesIn = (text: string, path: string): ReadonlyArray<Alias> =>
+  parseTypeScript(text, path).program.body.flatMap((statement): ReadonlyArray<Alias> => {
+    if (statement.type === 'ExportDefaultDeclaration')
+      return defaultExported(text, statement.declaration).map(local => ({
+        local,
+        exported: 'default',
+      }));
+    if (statement.type !== 'ExportNamedDeclaration' || statement.source) return [];
+    return statement.specifiers.flatMap(specifier =>
+      specifier.type === 'ExportSpecifier'
+        ? [{ local: nameOf(text, specifier.local), exported: nameOf(text, specifier.exported) }]
+        : [],
+    );
+  });
+
 export const usesOfTypeScript = async ({
+  base,
   head,
   graph,
   node,
@@ -80,7 +105,21 @@ export const usesOfTypeScript = async ({
       usesInFile({ path, text: await readFile(join(head, path), 'utf8'), target: node.path }),
     ),
   );
+  const aliases = aliasesIn(await readFile(join(base, node.path), 'utf8'), node.path);
+  const importedAs = (name: string) => [
+    name,
+    ...aliases.filter(({ local }) => local === name).map(({ exported }) => exported),
+  ];
   return {
-    uses: Object.fromEntries(names.map(name => [name, read.flatMap(file => file.get(name) ?? [])])),
+    uses: Object.fromEntries(
+      names.map(name => [
+        name,
+        read.flatMap(file =>
+          importedAs(name)
+            .flatMap(each => file.get(each) ?? [])
+            .slice(0, 1),
+        ),
+      ]),
+    ),
   };
 };

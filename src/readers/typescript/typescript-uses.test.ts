@@ -18,27 +18,30 @@ const graphOf = (files: ReadonlyArray<string>, edges: ReadonlyArray<string>): Gr
 
 type Scene = {
   readonly files: Readonly<Record<string, string>>;
+  readonly atBase?: Readonly<Record<string, string>>;
   readonly edges: ReadonlyArray<string>;
   readonly names: ReadonlyArray<string>;
   readonly target?: string;
 };
 
-const usesIn = async ({ files, edges, names, target = 'a.ts' }: Scene) => {
-  const directory = mkdtempSync(join(tmpdir(), 'visual-review-uses-'));
+const usesIn = async ({ files, atBase = {}, edges, names, target = 'a.ts' }: Scene) => {
+  const base = mkdtempSync(join(tmpdir(), 'visual-review-uses-base-'));
+  const head = mkdtempSync(join(tmpdir(), 'visual-review-uses-head-'));
+  const under = (tree: Readonly<Record<string, string>>) =>
+    Object.fromEntries(Object.entries(tree).map(([path, text]) => [`src/${path}`, text]));
   try {
-    writeFiles(
-      directory,
-      Object.fromEntries(Object.entries(files).map(([path, text]) => [`src/${path}`, text])),
-    );
+    writeFiles(base, under({ ...files, ...atBase }));
+    writeFiles(head, under(files));
     return await typeScriptReader.uses?.({
-      base: directory,
-      head: directory,
-      graph: graphOf(Object.keys(files), edges),
+      base,
+      head,
+      graph: graphOf(Object.keys({ ...files, ...atBase }), edges),
       node: { id: idOf(target), path: `src/${target}` },
       names,
     });
   } finally {
-    rmSync(directory, { recursive: true, force: true });
+    rmSync(base, { recursive: true, force: true });
+    rmSync(head, { recursive: true, force: true });
   }
 };
 
@@ -107,4 +110,76 @@ test('a default import uses the default export, wherever it names it', async () 
   expect(reading?.uses).toEqual({
     default: [{ path: 'src/b.ts', line: 2, text: 'Thing();' }],
   });
+});
+
+test.for([
+  {
+    reason: 'a named default function is imported as default',
+    base: 'export default function App() {}\n',
+    asked: 'App',
+    importer: "import Thing from './a';\nThing();\n",
+    line: 2,
+  },
+  {
+    reason: 'a default export of a local is imported as default',
+    base: 'const App = 1;\nexport default App;\n',
+    asked: 'App',
+    importer: "import Thing from './a';\nThing;\n",
+    line: 2,
+  },
+  {
+    reason: 'an export under another name is imported by that name',
+    base: 'const a = 1;\nexport { a as b };\n',
+    asked: 'a',
+    importer: "import { b } from './a';\nb;\n",
+    line: 2,
+  },
+  {
+    reason: 'a name exported directly and under another is imported by either',
+    base: 'export const a = 1;\nexport { a as b };\n',
+    asked: 'a',
+    importer: "import { a } from './a';\na;\n",
+    line: 2,
+  },
+  {
+    reason: 'a name no local backs is imported by itself',
+    base: "export { c } from './d';\n",
+    asked: 'c',
+    importer: "import { c } from './a';\nc;\n",
+    line: 2,
+  },
+  {
+    reason: 'a file importing it under two names is one use, at the first',
+    base: 'export function App() {}\nexport default App;\n',
+    asked: 'App',
+    importer: "import Thing, { App } from './a';\nApp();\nThing();\n",
+    line: 2,
+  },
+])('$reason', async ({ base, asked, importer, line }) => {
+  const reading = await usesIn({
+    files: { 'b.ts': importer },
+    atBase: { 'a.ts': base },
+    edges: ['b.ts -> a.ts'],
+    names: [asked],
+  });
+  expect(reading?.uses[asked]?.map(use => use.line)).toEqual([line]);
+});
+
+test.for([
+  {
+    reason: 're-exported from elsewhere under that name',
+    base: "export const a = 1;\nexport { a as b } from './d';\n",
+  },
+  {
+    reason: "another local's export name",
+    base: 'export const a = 1;\nconst other = 2;\nexport { other as b };\n',
+  },
+])('an import of $reason is no use of the asked name', async ({ base }) => {
+  const reading = await usesIn({
+    files: { 'b.ts': "import { b } from './a';\nb;\n" },
+    atBase: { 'a.ts': base },
+    edges: ['b.ts -> a.ts'],
+    names: ['a'],
+  });
+  expect(reading?.uses['a']).toEqual([]);
 });
