@@ -183,6 +183,11 @@ export const placesNamedBy = ({ alias, modules }: Resolution, specifier: string)
   return said[0] ?? modules.map(folder => join(folder, specifier));
 };
 
+export const moduleOf = (path: string): string => {
+  const stem = path.replace(/(\.d)?\.[cm]?[jt]sx?$/, '');
+  return basename(stem) === 'index' ? dirname(stem) : stem;
+};
+
 const PackageSchema = z.object({ name: z.string().optional() });
 
 export const packageNameIn = (directory: string): string | undefined => {

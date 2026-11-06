@@ -2,7 +2,7 @@ import { join, matchesGlob, relative } from 'node:path';
 import { z } from 'zod';
 import type { Graph, GraphNode } from '../../core/graph.ts';
 
-const CruiseOutputSchema = z.object({
+export const CruiseOutputSchema = z.object({
   modules: z.array(
     z.object({
       source: z.string(),

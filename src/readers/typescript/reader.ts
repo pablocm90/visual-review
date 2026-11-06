@@ -13,6 +13,7 @@ import {
 import { measureTypeScript } from './typescript-measure.ts';
 import { symbolsOfTypeScript } from './typescript-symbols.ts';
 import { readTypeScriptTests } from './typescript-tests.ts';
+import { withTypeReexports } from './typescript-type-reexports.ts';
 import { usesOfTypeScript } from './typescript-uses.ts';
 import { webGraph } from './web-graph.ts';
 
@@ -121,7 +122,10 @@ const graphAt = async ({
     directory: root,
     sourceRoot,
     boxes,
-    cruiseJson: String(output),
+    cruiseJson: withTypeReexports({
+      cruiseJson: String(output),
+      directory: join(directory, root),
+    }),
     packages,
     stacks,
   });

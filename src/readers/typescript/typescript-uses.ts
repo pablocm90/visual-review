@@ -1,10 +1,11 @@
 import { readFile } from 'node:fs/promises';
-import { basename, dirname, join, resolve } from 'node:path';
+import { dirname, join, resolve } from 'node:path';
 import type { ImportDeclaration, Node, Program } from '@babel/types';
 import type { GraphNode } from '../../core/graph.ts';
 import type { SymbolUse, UsesAsked, UsesReading } from '../../core/reader.ts';
 import { isTooBig } from '../too-big.ts';
 import {
+  moduleOf,
   packageNameIn,
   placesNamedBy,
   type Resolution,
@@ -30,11 +31,6 @@ export const NOT_DRAWN =
 
 const ACCESSES = new Set(['.', '?.']);
 const LOADERS = new Set(['import', 'require']);
-
-const moduleOf = (path: string): string => {
-  const stem = path.replace(/(\.d)?\.[cm]?[jt]sx?$/, '');
-  return basename(stem) === 'index' ? dirname(stem) : stem;
-};
 
 type Stack = {
   readonly head: string;
