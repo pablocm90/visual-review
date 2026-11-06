@@ -81,6 +81,25 @@ test('a class nested in another file goes by its own name, and shadows the top-l
   });
 });
 
+test('a name meaning another class where it stands is no use of the top-level one', async () => {
+  const reading = await usesIn({
+    files: {
+      'app/models/user.rb': 'class User\nend\n',
+      'app/models/admin/user.rb': 'module Admin\n  class User\n  end\nend\n',
+      'app/services/admin/report.rb':
+        'module Admin\n  class Report\n    def run\n      User.new\n      ::User.new\n    end\n  end\nend\n',
+      'app/services/admin/audit.rb':
+        'module Admin\n  class Audit\n    def run\n      User.new\n    end\n  end\nend\n',
+    },
+    target: 'app/models/user.rb',
+    names: ['User'],
+  });
+
+  expect(reading?.uses).toEqual({
+    User: [{ path: 'app/services/admin/report.rb', line: 5, text: '::User.new' }],
+  });
+});
+
 test('an association is a use, resolved from the class holding it', async () => {
   const reading = await usesIn({
     files: {
