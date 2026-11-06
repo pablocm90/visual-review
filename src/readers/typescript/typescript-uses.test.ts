@@ -636,27 +636,35 @@ test('an outside file naming a module only by `export *` is followed', async () 
   expect(reading?.uses).toEqual({ foo: [{ path: 'test/a.ts', line: 2, text: 'foo();' }] });
 });
 
-test("an outside file that doesn't parse is listed as not read", async () => {
-  const reading = await usesIn({
-    files: { 'a.ts': 'export const foo = 1;\n' },
+test.for([
+  {
     outside: { 'test/broken.ts': 'import * from ;\n' },
-    edges: [],
-    names: ['foo'],
-  });
-
-  expect(reading?.notRead).toEqual(['test/broken.ts']);
-});
-
-test("an outside file that can't be opened is listed as not read", async () => {
-  const reading = await usesIn({
-    files: { 'a.ts': 'export const foo = 1;\n' },
+    outsideLinks: {},
+    line: '1 file outside the source root not read',
+  },
+  {
+    outside: { 'test/broken.ts': 'import * from ;\n' },
     outsideLinks: { 'loop.ts': 'loop.ts' },
-    edges: [],
-    names: ['foo'],
-  });
+    line: '2 files outside the source root not read',
+  },
+])(
+  'outside files not read are counted, not named: $line',
+  async ({ outside, outsideLinks, line }) => {
+    const reading = await usesIn({
+      files: {
+        'a.ts': 'export const foo = 1;\n',
+        'broken.ts': 'import {',
+      },
+      outside,
+      outsideLinks,
+      edges: ['broken.ts -> a.ts'],
+      names: ['foo'],
+    });
 
-  expect(reading?.notRead).toEqual(['loop.ts']);
-});
+    expect(reading?.notRead).toEqual(['src/broken.ts']);
+    expect(reading?.notFollowed).toEqual([line, NOT_DRAWN]);
+  },
+);
 
 test('every outside file is read when few files may be open at once', async () => {
   const root = mkdtempSync(join(tmpdir(), 'visual-review-uses-limit-'));

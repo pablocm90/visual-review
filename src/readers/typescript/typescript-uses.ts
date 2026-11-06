@@ -526,6 +526,9 @@ export const usesOfTypeScript = async ({
         packageName: packageNameFor(importer, target),
       }),
   });
+  const outsidePaths = new Set(outside.nodes.map(({ path }) => path));
+  const notRead = [...new Set(visits.flatMap(({ uses }) => uses.notRead ?? []))];
+  const notReadOutside = notRead.filter(path => outsidePaths.has(path)).length;
   return {
     uses: Object.fromEntries(
       names.map(name => [
@@ -533,9 +536,14 @@ export const usesOfTypeScript = async ({
         onePerFile(visits.flatMap(({ hop, uses }) => (hop.asked === name ? rowOf(hop, uses) : []))),
       ]),
     ),
-    notRead: [...new Set(visits.flatMap(({ uses }) => uses.notRead ?? []))],
+    notRead: notRead.filter(path => !outsidePaths.has(path)),
     notFollowed: [
       ...outside.notFollowed,
+      ...(notReadOutside === 0
+        ? []
+        : [
+            `${notReadOutside} ${notReadOutside === 1 ? 'file' : 'files'} outside the source root not read`,
+          ]),
       NOT_DRAWN,
       ...(names.some(name => !isUnbackedAll(name) && name.includes('.'))
         ? ['not followed: a method read other than by `.name`, or without importing its class']
