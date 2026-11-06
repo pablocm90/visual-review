@@ -485,6 +485,41 @@ test.for([
       'config/base.json': { compilerOptions: { baseUrl: '../src' } },
     },
   },
+  {
+    how: 'itself, which ends',
+    configs: { 'tsconfig.json': { extends: './tsconfig.json', ...aliasTo('./src/*') } },
+  },
+  {
+    how: 'in a cycle, which ends',
+    configs: {
+      'tsconfig.json': { extends: './one.json' },
+      'one.json': { extends: './tsconfig.json', ...aliasTo('./src/*') },
+    },
+  },
+  {
+    how: 'a config two entries share, which counts for both',
+    configs: {
+      'tsconfig.json': { extends: ['./one.json', './two.json'] },
+      'one.json': { extends: './shared.json', ...aliasTo('./src/vendored/*') },
+      'two.json': { extends: './shared.json' },
+      'shared.json': aliasTo('./src/*'),
+    },
+  },
+  {
+    how: 'a fan-out of thirty levels, read once a config',
+    configs: {
+      'tsconfig.json': { extends: ['./one-1.json', './two-1.json'] },
+      ...Object.fromEntries(
+        Array.from({ length: 30 }, (_, level) => level + 1).flatMap(level =>
+          ['one', 'two'].map(side => [
+            `${side}-${level}.json`,
+            { extends: [`./one-${level + 1}.json`, `./two-${level + 1}.json`] },
+          ]),
+        ),
+      ),
+      'one-31.json': aliasTo('./src/*'),
+    },
+  },
 ])('a tsconfig extends $how', async ({ configs }) => {
   using workspace = gitRepo({
     'package.json': '{ "name": "shop" }\n',

@@ -146,18 +146,27 @@ const withExtension = (config: string): string =>
 
 const laterWins = (earlier: Aliases, later: Aliases): Aliases => ({ ...earlier, ...later });
 
-const aliasesAt = (directory: string, config: string): Aliases => {
+const aliasesAt = (
+  directory: string,
+  config: string,
+  known: Map<string, Aliases> = new Map(),
+): Aliases => {
+  const already = known.get(config);
+  if (already !== undefined) return already;
+  known.set(config, {});
   const { extends: extended = [], compilerOptions } = tsconfigAt(join(directory, config));
   const { baseUrl, paths } = compilerOptions ?? {};
   const from = dirname(config);
-  return {
+  const aliases = {
     ...[extended]
       .flat()
-      .map(entry => aliasesAt(directory, withExtension(join(from, entry))))
+      .map(entry => aliasesAt(directory, withExtension(join(from, entry)), known))
       .reduce(laterWins, {}),
     ...(baseUrl === undefined || isAbsolute(baseUrl) ? {} : { baseUrl: join(from, baseUrl) }),
     ...(paths === undefined ? {} : { paths: { places: paths, from } }),
   };
+  known.set(config, aliases);
+  return aliases;
 };
 
 const resolutionIn = ({ checkout, root }: RootOptions) => {
