@@ -9,5 +9,8 @@ export type {
   HoldsOptions,
   Reader,
   StackOptions,
+  SymbolUse,
+  UsesAsked,
+  UsesReading,
 } from './core/reader.ts';
 export type { ReadTest, TestLabel } from './core/test-changes.ts';
