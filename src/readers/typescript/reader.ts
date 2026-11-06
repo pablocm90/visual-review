@@ -131,6 +131,7 @@ type GraphOptions = {
   readonly sourceRoot: string;
   readonly boxes: ReadonlyArray<string>;
   readonly packages: ReadonlyMap<string, string>;
+  readonly stacks: ReadonlyMap<string, string>;
 };
 
 const MATCHES_RELATIVE_IMPORTS = /^[*.]/;
@@ -238,7 +239,15 @@ const resolutionIn = ({ checkout, root }: RootOptions) => {
 const leavingCheckoutFrom = (root: string): string =>
   `^(\\.\\./){${join(root, 'file').split('/').length}}`;
 
-const graphAt = async ({ directory, root, stack, sourceRoot, boxes, packages }: GraphOptions) => {
+const graphAt = async ({
+  directory,
+  root,
+  stack,
+  sourceRoot,
+  boxes,
+  packages,
+  stacks,
+}: GraphOptions) => {
   const { output } = await cruise(
     [sourceRoot],
     {
@@ -255,6 +264,7 @@ const graphAt = async ({ directory, root, stack, sourceRoot, boxes, packages }: 
     boxes,
     cruiseJson: String(output),
     packages,
+    stacks,
   });
 };
 
@@ -272,6 +282,7 @@ export const typeScriptReader: Reader = {
       sourceRoot: sourceRootIn({ checkout: directory, root }, settings),
       boxes: settings.boxes ?? [],
       packages: packagesIn(directory, stacks),
+      stacks,
     }),
   isTestFile: path => TEST_FILE.test(path),
   readTests: readTypeScriptTests,

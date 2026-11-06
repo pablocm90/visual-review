@@ -412,11 +412,30 @@ test('a bare import of a sibling package, found in a node_modules above the chec
   expect(nodeIds(range.after).filter(id => id.includes('node_modules'))).toEqual([]);
 });
 
-test('a relative climb staying in the checkout is still followed, from a stack below its root', async () => {
+test.for([
+  {
+    how: 'a relative climb, from a stack whose source root is its folder',
+    tsconfig: { compilerOptions: { rootDir: '.' } },
+    imported: '../../lib/src/x',
+    from: 'apps/web/file/src/b.ts',
+  },
+  {
+    how: 'a tsconfig path, from a stack whose source root is its folder',
+    tsconfig: { compilerOptions: { rootDir: '.', paths: { '@lib/*': ['../lib/src/*'] } } },
+    imported: '@lib/x',
+    from: 'apps/web/file/src/b.ts',
+  },
+  {
+    how: 'a tsconfig path, from a stack with a src folder',
+    tsconfig: { compilerOptions: { paths: { '@lib/*': ['../lib/src/*'] } } },
+    imported: '@lib/x',
+    from: 'apps/web/file/b.ts',
+  },
+])('$how joins the file to the sibling stack it lands in', async ({ tsconfig, imported, from }) => {
   using workspace = gitRepo({
     'apps/web/package.json': '{}\n',
-    'apps/web/tsconfig.json': '{ "compilerOptions": { "rootDir": "." } }\n',
-    'apps/web/src/b.ts': "import { x } from '../../lib/src/x';\nexport const b = x;\n",
+    'apps/web/tsconfig.json': JSON.stringify(tsconfig),
+    'apps/web/src/b.ts': `import { x } from '${imported}';\nexport const b = x;\n`,
     'apps/lib/package.json': '{}\n',
     'apps/lib/src/x.ts': 'export const x = 1;\n',
   });
@@ -424,9 +443,50 @@ test('a relative climb staying in the checkout is still followed, from a stack b
 
   const range = await readRange({ repo, from: root, to: root });
 
-  expect(range.after.edges).toEqual([
-    { from: 'apps/web/file/src/b.ts', to: 'apps/web/file/../lib/src/x.ts' },
-  ]);
+  expect(range.after.edges).toEqual([{ from, to: 'apps/lib' }]);
+  expect(nodeIds(range.after).filter(id => id.includes('..'))).toEqual([]);
+});
+
+test.for([
+  {
+    how: 'the deepest root holding it',
+    place: './packages/lib/src/*',
+    edges: [{ from: 'shop/file/b.ts', to: 'packages/lib' }],
+  },
+  {
+    how: 'no root its folder name only begins like',
+    place: './packages/library/src/*',
+    edges: [],
+  },
+])('a path inside the root stack goes to $how', async ({ place, edges }) => {
+  using workspace = gitRepo({
+    'package.json': '{ "name": "shop" }\n',
+    'tsconfig.json': JSON.stringify({ compilerOptions: { paths: { '@/*': [place] } } }),
+    'src/b.ts': "import { x } from '@/x';\nexport const b = x;\n",
+    'packages/lib/package.json': '{}\n',
+    'packages/lib/src/x.ts': 'export const x = 1;\n',
+    'packages/library/src/x.ts': 'export const x = 1;\n',
+  });
+  const { repo, root } = workspace;
+
+  const range = await readRange({ repo, from: root, to: root });
+
+  expect(range.after.edges).toEqual(edges);
+});
+
+test('a relative climb to a file under no stack draws nothing', async () => {
+  using workspace = gitRepo({
+    'apps/web/package.json': '{}\n',
+    'apps/web/tsconfig.json': '{ "compilerOptions": { "rootDir": "." } }\n',
+    'apps/web/src/b.ts': "import { x } from '../../shared/x';\nexport const b = x;\n",
+    'apps/shared/x.ts': 'export const x = 1;\n',
+  });
+  const { repo, root } = workspace;
+
+  const range = await readRange({ repo, from: root, to: root });
+
+  expect(range.after.edges).toEqual([]);
+  expect(nodeIds(range.after).filter(id => id.includes('..'))).toEqual([]);
 });
 
 const aliasTo = (place: string) => ({ compilerOptions: { paths: { '@/*': [place] } } });

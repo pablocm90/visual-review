@@ -40,6 +40,7 @@ test('web/src files sit in a module per top-level directory, root files directly
     boxes: [],
     cruiseJson: recordedAt11bbc5d,
     packages: new Map(),
+    stacks: new Map(),
   });
 
   expect(graph.nodes).toEqual([
@@ -76,6 +77,7 @@ test.for([
       sourceRoot: 'src',
       cruiseJson: recordedAt11bbc5d,
       packages: new Map(),
+      stacks: new Map(),
       boxes,
     });
 
