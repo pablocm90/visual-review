@@ -8266,6 +8266,43 @@ test("the last review's comment on an unchanged decision opens its whole run, an
   expect(unchangedRun(1).hasAttribute('open')).toBe(false);
 });
 
+test('a tick opens its function and its run at its row, ringed in the strip and landed on in the rows, and only that one', async () => {
+  const user = userEvent.setup();
+  const big = addedIfs('big', 9);
+  render(
+    <ReviewPage
+      review={{
+        ...pageWithManyDecisions(),
+        symbols: [
+          symbolsOf('web/file/many.ts', [
+            { ...big, logic: [...(big.logic ?? []), unchangedIf('kept', 10)] },
+            addedIfs('small', 1),
+          ]),
+        ],
+      }}
+    />,
+  );
+
+  await user.click(await screen.findByRole('button', { name: 'many.ts: modified' }));
+  const tick = () =>
+    within(within(whatChanged()).getByRole('group', { name: 'Marks of function big' })).getByRole(
+      'button',
+      { name: 'same if: if (kept)' },
+    );
+  expect(logicRowsOf('big').hasAttribute('open')).toBe(false);
+  expect(unchangedRun(1).hasAttribute('open')).toBe(false);
+
+  await user.click(tick());
+  expect(logicRowsOf('big').hasAttribute('open')).toBe(true);
+  expect(logicRowsOf('small').hasAttribute('open')).toBe(false);
+  expect(unchangedRun(1).hasAttribute('open')).toBe(true);
+  const row = within(unchangedRun(1)).getByRole('listitem', { name: 'same if: if (kept)' });
+  expect(row.getAttribute('aria-current')).toBe('true');
+  expect(document.activeElement).toBe(row);
+  expect(tick().getAttribute('aria-current')).toBe('true');
+  expect(whatChanged().querySelectorAll('[aria-current="true"]')).toHaveLength(2);
+});
+
 test("a later round offers 'Since last review' first in Show, Changes only still picked; picked, it draws what changed since, and going to a part it hides widens Show", async () => {
   const user = userEvent.setup();
   render(

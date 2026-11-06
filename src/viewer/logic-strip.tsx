@@ -15,9 +15,13 @@ const exitsWords = (exits: number): string => {
 export const LogicStrip = ({
   name,
   rows,
+  marksOf,
+  onTick,
 }: {
   readonly name: string;
   readonly rows: ReadonlyArray<StripRow>;
+  readonly marksOf: (id: string) => object;
+  readonly onTick: (id: string) => void;
 }) => {
   const { changed, exits } = countsOf(rows.map(({ line }) => line));
   return (
@@ -31,6 +35,8 @@ export const LogicStrip = ({
             className={`strip-tick tick-${line.change}${isExit(line) ? ' tick-exit' : ''}`}
             aria-label={label}
             title={label}
+            {...marksOf(id)}
+            onClick={() => onTick(id)}
           />
         ))}
       </span>

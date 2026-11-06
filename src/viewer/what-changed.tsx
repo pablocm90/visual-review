@@ -67,6 +67,7 @@ type Places = {
   readonly allFiles: ReadonlyArray<SymbolFile>;
   readonly onGoTo: (id: string) => void;
   readonly onShowLine: (at: LineAt) => void;
+  readonly onShowRow: (row: string) => void;
   readonly comments: Comments;
   readonly onComment: ((comment: Comment) => void) | undefined;
 };
@@ -245,15 +246,18 @@ const LogicRow = ({
 const LogicLines = ({
   symbol,
   onShowLine,
+  onShowRow,
   fewChanges,
   ...places
 }: LogicPlaces & {
   readonly symbol: AnchoredSymbol;
   readonly onShowLine: ShowLine;
+  readonly onShowRow: Places['onShowRow'];
   readonly fewChanges: boolean;
 }) => {
   const isChangedSince = useIsChangedSince();
   const hasSaid = useHasSaid();
+  const marksOf = useRowMarks();
   const name = `${symbol.item.kind} ${qualified(symbol.item)}`;
   const rows = decisionsOf(symbol).map(decision => {
     const marked = isChangedSince('decisions', decision.id);
@@ -277,7 +281,12 @@ const LogicLines = ({
       open={fewChanges || rows.some(holdsNews)}
     >
       <summary>
-        <LogicStrip name={name} rows={rows} />
+        <LogicStrip
+          name={name}
+          rows={rows}
+          marksOf={id => marksOf({ kind: 'decision', id })}
+          onTick={id => onShowRow(anchorKey({ kind: 'decision', id }))}
+        />
       </summary>
       <ul className="logic-lines" aria-label={`Logic of ${name}`}>
         {runsOf(rows).flatMap(run =>
@@ -392,6 +401,7 @@ const SymbolRow = ({
         <LogicLines
           symbol={{ item: symbol, id }}
           onShowLine={at => places.onShowLine({ node, ...at })}
+          onShowRow={places.onShowRow}
           fewChanges={holdsFewChanges(inFile)}
           nodes={places.nodes}
           comments={places.comments}
@@ -501,6 +511,13 @@ export const useFilesWithNews = (
   return here.some(hasSymbolNews) ? here : [];
 };
 
+const openFoldsAround = (element: Element | null | undefined): void => {
+  const fold = element?.closest('details');
+  if (!fold) return;
+  fold.open = true;
+  openFoldsAround(fold.parentElement);
+};
+
 export const LandedRows = ({
   landing,
   children,
@@ -511,10 +528,9 @@ export const LandedRows = ({
   const rows = useRef<HTMLDivElement>(null);
   useLayoutEffect(() => {
     if (landing?.row === undefined) return;
-    const row = rows.current?.querySelector<HTMLElement>('[aria-current]');
+    const row = rows.current?.querySelector<HTMLElement>('li[aria-current]');
     if (!row) return;
-    const fold = row.closest('details');
-    if (fold) fold.open = true;
+    openFoldsAround(row);
     scrollInPanel(row, 'center');
     row.focus({ preventScroll: true });
   }, [landing]);

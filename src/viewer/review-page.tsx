@@ -746,6 +746,7 @@ type NotePanelProps = Pick<
   | 'reviewPatches'
 > & {
   readonly onShowLine: (at: LineAt) => void;
+  readonly onShowRow: (row: string) => void;
 };
 
 const WhyLook = (rows: FindingRowsProps) => (
@@ -766,6 +767,7 @@ const NotePanel = ({
   tests,
   onGoTo,
   onShowLine,
+  onShowRow,
   landing,
   note,
   found,
@@ -824,6 +826,7 @@ const NotePanel = ({
           allFiles={symbols}
           onGoTo={onGoTo}
           onShowLine={onShowLine}
+          onShowRow={onShowRow}
           comments={comments}
           onComment={onComment}
         />
@@ -893,7 +896,13 @@ const Inspector = ({
           landing={landing}
         />
       )}
-      <NotePanel {...props} node={node} onShowLine={showLine} landing={landing} />
+      <NotePanel
+        {...props}
+        node={node}
+        onShowLine={showLine}
+        onShowRow={row => onLand({ path: undefined, row })}
+        landing={landing}
+      />
       {node && measured && (
         <Fold title="Metrics" open={metricsOpen} onToggle={() => setMetricsOpen(!metricsOpen)}>
           <MetricsTable
