@@ -91,9 +91,9 @@ test.for([
       names: ['foo'],
       target,
     });
-    expect(reading?.uses['foo']?.map(({ path }) => path)).toEqual(
-      counts ? [`src/${importer}`] : [],
-    );
+    expect(reading?.uses).toEqual({
+      foo: counts ? [expect.objectContaining({ path: `src/${importer}` })] : [],
+    });
   },
 );
 
@@ -181,7 +181,7 @@ test.for([
     edges: ['b.ts -> a.ts'],
     names: ['a'],
   });
-  expect(reading?.uses['a']).toEqual([]);
+  expect(reading?.uses).toEqual({ a: [] });
 });
 
 test('a namespace import uses a name where it first reads it off the namespace', async () => {
@@ -216,4 +216,37 @@ test.for([
     foo: [{ path: 'src/b.ts', line: 2, text: 'all.foo;' }],
     bar: [{ path: 'src/b.ts', line: 3, text: statement, unfollowed: true }],
   });
+});
+
+test.for([
+  { statement: "import('./a').then(run);" },
+  { statement: 'import(`./a`);' },
+  { statement: "const a = require('./a');" },
+  { statement: "export * as all from './a';" },
+])('$statement may use any name, not followed', async ({ statement }) => {
+  const reading = await usesIn({
+    files: { 'a.ts': 'export const foo = 1;\n', 'b.ts': `run();\n${statement}\n` },
+    edges: ['b.ts -> a.ts'],
+    names: ['foo'],
+  });
+  expect(reading?.uses).toEqual({
+    foo: [{ path: 'src/b.ts', line: 2, text: statement, unfollowed: true }],
+  });
+});
+
+test.for([
+  { statement: "import('./other');" },
+  { statement: "require('./other');" },
+  { statement: "export * as all from './other';" },
+  { statement: "export { bar } from './a';" },
+  { statement: "thing.require('./a');" },
+  { statement: "require.resolve('./a');" },
+  { statement: 'import.meta.url;' },
+])('$statement says nothing of the file', async ({ statement }) => {
+  const reading = await usesIn({
+    files: { 'a.ts': 'export const foo = 1;\n', 'b.ts': `${statement}\n` },
+    edges: ['b.ts -> a.ts'],
+    names: ['foo'],
+  });
+  expect(reading?.uses).toEqual({ foo: [] });
 });

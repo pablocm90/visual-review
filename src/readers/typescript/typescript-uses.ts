@@ -19,6 +19,7 @@ const placeAt = (path: string, text: string, offset: number): SymbolUse => {
 };
 
 const ACCESSES = new Set(['.', '?.']);
+const LOADERS = new Set(['import', 'require']);
 
 const moduleOf = (path: string): string => {
   const stem = path.replace(/\.[cm]?[jt]sx?$/, '');
@@ -67,7 +68,21 @@ const usesInFile = ({ path, text, target }: Read): FileUses => {
           ]
         : [],
     );
-  const useAt = (range: Token | Node) => placeAt(path, text, startOf(range));
+  const placeOf = (range: Token | Node) => placeAt(path, text, startOf(range));
+  const loads = code.filter(
+    (token, index) =>
+      LOADERS.has(tokenText(token)) &&
+      !ACCESSES.has(tokenText(code[index - 1])) &&
+      namesFile(tokenText(code[index + 2]).slice(1, -1), path, target),
+  );
+  const namespaceExports = program.body.flatMap(statement =>
+    statement.type === 'ExportNamedDeclaration' &&
+    statement.source &&
+    namesFile(statement.source.value, path, target) &&
+    statement.specifiers.some(({ type }) => type === 'ExportNamespaceSpecifier')
+      ? [statement]
+      : [],
+  );
   const specifiers = imports
     .filter(statement => namesFile(statement.source.value, path, target))
     .flatMap(statement => statement.specifiers.map(specifier => ({ statement, specifier })));
@@ -78,16 +93,18 @@ const usesInFile = ({ path, text, target }: Read): FileUses => {
     const name = importedName(text, specifier);
     return name === undefined
       ? []
-      : [[name, useAt(readsOf(specifier.local.name)[0]?.token ?? statement)] as const];
+      : [[name, placeOf(readsOf(specifier.local.name)[0]?.token ?? statement)] as const];
   });
   const members = namespaceReads.flatMap(({ token, member }) =>
-    member === undefined ? [] : [[member, useAt(token)] as const],
+    member === undefined ? [] : [[member, placeOf(token)] as const],
   );
   return {
     named: new Map([...imported, ...members.toReversed()]),
-    unfollowed: namespaceReads
-      .filter(({ member }) => member === undefined)
-      .map(({ token }) => ({ ...useAt(token), unfollowed: true })),
+    unfollowed: [
+      ...namespaceReads.filter(({ member }) => member === undefined).map(({ token }) => token),
+      ...loads,
+      ...namespaceExports,
+    ].map(range => ({ ...placeOf(range), unfollowed: true })),
   };
 };
 
