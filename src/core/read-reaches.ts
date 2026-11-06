@@ -73,6 +73,8 @@ export const readReaches = async ({
     symbols.map(async (file): Promise<FileReaches> => {
       if ('unreadable' in file) return NOTHING_READ;
       const reader = before.stacks.find(({ stack }) => stack === file.stack)?.reader;
+      if (reader !== undefined && reader.uses === undefined)
+        return { reaches: [], reachesNotRead: [`not read for ${file.stack}`] };
       const basePath = measured.find(({ id }) => id === file.node)?.basePath;
       const node = before.graph.nodes.find(({ path }) => path === basePath);
       const symbolsAsked = askedOf(file, pathOf);

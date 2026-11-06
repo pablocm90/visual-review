@@ -1504,3 +1504,20 @@ test("a removed method isn't asked about by itself", async () => {
 
   expect(range.reaches).toEqual([]);
 });
+
+test("a changed file of a stack whose reader follows no uses says so, and a stack the base doesn't hold has nothing to follow", async () => {
+  using repository = gitRepo({
+    'config/application.rb': 'module Shop\n  class Application\n  end\nend\n',
+    'app/models/order.rb': 'class Order\n  def total\n    1\n  end\nend\n',
+  });
+  const { repo, root } = repository;
+  const head = commit(repo, {
+    'app/models/order.rb': 'class Order\n  def total\n    2\n  end\nend\n',
+    'web/package.json': '{}\n',
+    'web/src/a.ts': 'export const a = 1;\n',
+  });
+
+  const range = await readRange({ repo, from: root, to: head });
+
+  expect(range.reachesNotRead).toEqual([`not read for ${basename(repo)}`]);
+});
