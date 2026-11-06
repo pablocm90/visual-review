@@ -4801,6 +4801,71 @@ test('a Reaches row marks a test file and says when a use could not be followed'
   expect(tested?.getByText('test')).toBeTruthy();
 });
 
+test("a part's reach findings sit above their own rows in Reaches, with answers, and Why look doesn't repeat them; going to one lands on its row there", async () => {
+  const user = userEvent.setup();
+  const reaches = [
+    reachOf('web/file/tax.ts', 'foo', [{ path: 'web/src/b.ts', line: 41, text: 'foo(raw);' }]),
+    reachOf('web/file/tax.ts', 'bar', [{ path: 'web/src/c.ts', line: 7, text: 'bar();' }]),
+  ];
+  const reachFinding = (name: string) =>
+    findingOn('web/file/tax.ts', {
+      id: `blast-radius:reaches:web/file/tax.ts#${name}`,
+      check: 'blast-radius:reaches',
+      dimension: 'blast-radius',
+      level: 'look',
+      title: `function ${name} reaches 1 unchanged file`,
+    });
+  render(
+    <ReviewPage
+      review={pageWith({
+        range: review.range,
+        diff: {
+          nodes: [
+            { id: 'web', kind: 'stack', label: 'web', path: '', state: 'unchanged' },
+            topFile('tax.ts', 'modified'),
+          ],
+          edges: [],
+        },
+        reaches,
+        findings: [reachFinding('foo'), reachFinding('bar'), findingOn('web/file/tax.ts')],
+      })}
+      send={async () => {}}
+    />,
+  );
+
+  await user.click(await screen.findByRole('button', { name: 'tax.ts: modified' }));
+  const region = () => reachesRegion() ?? inspector();
+  expect(
+    within(region())
+      .getAllByRole('listitem')
+      .map(row => row.textContent),
+  ).toEqual([
+    expect.stringContaining('function foo'),
+    expect.stringContaining('web/src/b.ts:41'),
+    expect.stringContaining('function bar'),
+    expect.stringContaining('web/src/c.ts:7'),
+  ]);
+  const whyLook = within(inspector()).getByRole('region', { name: 'Why look' });
+  expect(within(whyLook).getAllByRole('listitem')).toHaveLength(1);
+
+  const barRow = () =>
+    within(region())
+      .getByText(/function bar/)
+      .closest('li') ?? region();
+  await user.click(within(barRow()).getByRole('button', { name: 'Fix this' }));
+  expect(
+    within(barRow()).getByRole('button', { name: 'Fix this' }).getAttribute('aria-pressed'),
+  ).toBe('true');
+
+  await user.click(screen.getByRole('button', { name: 'Show 3 findings' }));
+  await user.click(
+    within(screen.getByRole('complementary', { name: 'Findings' })).getByRole('button', {
+      name: /^tax.ts: function bar/,
+    }),
+  );
+  expect(barRow().getAttribute('aria-current')).toBe('true');
+});
+
 test("a node's Tested by also lists the test files named after a file inside it, wherever they sit in its stack", async () => {
   const user = userEvent.setup();
   render(

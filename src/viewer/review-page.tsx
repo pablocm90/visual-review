@@ -22,6 +22,7 @@ import type { NodeMetrics } from '../core/metrics.ts';
 import { type Note, type ReviewNotes, visibleNotes } from '../core/notes.ts';
 import { type PageData, UNCOMMITTED } from '../core/page.ts';
 import type { PreviousComment } from '../core/previous-comments.ts';
+import { isReachFinding } from '../core/reach-findings.ts';
 import type { SymbolFile } from '../core/read-range.ts';
 import type { Reach } from '../core/read-reaches.ts';
 import type { Answer, Comment, Review } from '../core/review.ts';
@@ -782,7 +783,7 @@ const NotePanel = ({
   const testsToRead = useTestsToRead(node ? testsAlongside({ nodes, node, tests }) : [], comments);
   const reachesHere = reaches.filter(reach => reach.node === node?.id);
   const untested = found.filter(isUntestedLogic);
-  const toLookAt = found.filter(finding => !isUntestedLogic(finding));
+  const toLookAt = found.filter(finding => !isUntestedLogic(finding) && !isReachFinding(finding));
   const isBare =
     filesWithNews.length === 0 &&
     found.length === 0 &&
@@ -836,7 +837,16 @@ const NotePanel = ({
           onAnswer={onAnswer}
         />
       )}
-      {reachesHere.length > 0 && <Reaches reaches={reachesHere} nodes={nodes} onGoTo={onGoTo} />}
+      {reachesHere.length > 0 && (
+        <Reaches
+          reaches={reachesHere}
+          nodes={nodes}
+          onGoTo={onGoTo}
+          found={found}
+          answers={answers}
+          onAnswer={onAnswer}
+        />
+      )}
     </LandedRows>
   );
 };
