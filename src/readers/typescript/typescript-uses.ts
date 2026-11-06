@@ -23,7 +23,7 @@ const ACCESSES = new Set(['.', '?.']);
 const LOADERS = new Set(['import', 'require']);
 
 const moduleOf = (path: string): string => {
-  const stem = path.replace(/\.[cm]?[jt]sx?$/, '');
+  const stem = path.replace(/(\.d)?\.[cm]?[jt]sx?$/, '');
   return basename(stem) === 'index' ? dirname(stem) : stem;
 };
 
