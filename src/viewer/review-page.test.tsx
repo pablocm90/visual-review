@@ -10440,3 +10440,17 @@ test("What changed holds the legend of marks when a strip shows, and not on a fi
   expect(within(whatChanged()).getByRole('listitem', { name: /tidy/ })).toBeTruthy();
   expect(legend()).toBeNull();
 });
+
+test("the legend of marks sits above the graph on 'Logic only', and leaves on another Show choice", async () => {
+  const user = userEvent.setup();
+  render(<ReviewPage review={pageOfLogic()} />);
+  await screen.findByRole('group', { name: 'web' });
+  const legend = () => screen.queryByRole('list', { name: 'Marks' });
+  expect(legend()).toBeNull();
+
+  await user.click(shown('Logic only'));
+  expect(legend()).not.toBeNull();
+
+  await user.click(shown('Changes only'));
+  expect(legend()).toBeNull();
+});

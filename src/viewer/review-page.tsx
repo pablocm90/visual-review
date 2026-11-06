@@ -60,6 +60,7 @@ import {
 } from './layout.ts';
 import { LENS_OF, type Lens } from './lenses.ts';
 import { type LogicCard, LogicCardBody, logicCardsOf } from './logic-card.tsx';
+import { LogicLegend } from './logic-strip.tsx';
 import { MetricsTable } from './metrics-tab.tsx';
 import { NextToIt } from './next-to-it.tsx';
 import {
@@ -1720,6 +1721,7 @@ const LandingHead = ({
       onShowFile={onShowFile}
       logic={logicLineOf({ review, picked, ...controls })}
     />
+    {controls.scope[0] === LOGIC_ONLY && <LogicLegend />}
     <GraphControls {...controls} />
     <GraphCaveat since={since} nothingDrawn={nothingDrawn} />
   </>
