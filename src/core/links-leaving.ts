@@ -1,4 +1,4 @@
-import { realpath, unlink } from 'node:fs/promises';
+import { realpath, rm } from 'node:fs/promises';
 import { join, sep } from 'node:path';
 import { gitUntrimmed } from './git.ts';
 
@@ -29,7 +29,8 @@ export const dropLinksLeaving = async ({
   const links = await linksAt(repo, revision);
   await Promise.all(
     links.map(async link => {
-      if (!(await resolvesInside(directory, link))) await unlink(join(directory, link));
+      if (!(await resolvesInside(directory, link)))
+        await rm(join(directory, link), { force: true });
     }),
   );
 };

@@ -354,6 +354,20 @@ test.each([
   30_000,
 );
 
+test('a link a sparse checkout leaves out of the checkout does not stop the review', async () => {
+  using workspace = webRepo();
+  const { repo } = workspace;
+  mkdirSync(join(repo, 'docs'));
+  symlinkSync('../src/a.ts', join(repo, 'docs/near.ts'));
+  commit(repo, { 'src/a.ts': 'export const a = 2;\n' });
+  git(repo, 'sparse-checkout', 'set', 'src');
+  commit(repo, { 'src/a.ts': 'export const a = 3;\n' });
+
+  const run = await runCliOnBoundedMemory(repo, 'HEAD~1..HEAD');
+
+  expect(run).toMatchObject({ code: 0 });
+}, 30_000);
+
 test('a config link in the working tree leaving the repo stops the review, naming the file', async () => {
   using workspace = webRepo();
   const { repo } = workspace;
