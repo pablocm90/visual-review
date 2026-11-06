@@ -2305,6 +2305,25 @@ test("a changed file of a stack whose reader follows no uses says so, and a stac
   expect(range.reachesNotRead).toEqual([`not read for ${basename(repo)}`]);
 });
 
+test("a root another reader's stack also holds still resolves its own tsconfig", async () => {
+  using repository = gitRepo({
+    'web/package.json': '{}\n',
+    'web/config/application.rb': 'module Shop\n  class Application\n  end\nend\n',
+    'web/app/models/order.rb': 'class Order\nend\n',
+    'web/tsconfig.json': '{"compilerOptions":{"paths":{"@/*":["./src/*"]}}}\n',
+    'web/src/a.ts': 'export function foo() {}\nexport function kept() {}\n',
+    'web/src/uses.ts': "import { foo } from '@/a';\nfoo();\n",
+  });
+  const { repo, root } = repository;
+  const head = commit(repo, { 'web/src/a.ts': 'export function kept() {}\n' });
+
+  const range = await readRange({ repo, from: root, to: head });
+
+  expect(range.reaches.flatMap(({ uses }) => uses.map(({ path }) => path))).toEqual([
+    'web/src/uses.ts',
+  ]);
+});
+
 const twoStacks = {
   'lib/package.json': '{"name":"@acme/lib"}\n',
   'lib/src/a.ts': 'export function foo() {}\nexport function kept() {}\n',

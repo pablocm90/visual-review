@@ -131,7 +131,11 @@ const askReader = async (
   const { uses, notRead, notFollowed } = await ask({
     base: sides.before,
     head: sides.after,
-    stacks: new Map(before.stacks.map(({ root, stack }) => [root, stack])),
+    stacks: new Map(
+      before.stacks
+        .filter(drawn => drawn.reader === reader)
+        .map(({ root, stack }) => [root, stack]),
+    ),
     graph: before.graph,
     node,
     names: [...symbolsAsked, ...exportsAsked].map(({ name }) => name),
