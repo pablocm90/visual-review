@@ -4914,6 +4914,7 @@ test("a box's Reaches lists those of the files inside it, with their finding onl
   expect(await screen.findByRole('button', { name: 'Collapse orders' })).toBeTruthy();
   expect(within(region()).queryByRole('list', { name: 'Findings' })).toBeNull();
   expect(within(region()).getByText('web/src/b.ts:41')).toBeTruthy();
+  expect(within(inspector()).queryByText('No note')).toBeNull();
 });
 
 test("a node's Tested by also lists the test files named after a file inside it, wherever they sit in its stack", async () => {

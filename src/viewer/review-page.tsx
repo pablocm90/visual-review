@@ -791,6 +791,7 @@ const NotePanel = ({
     filesWithNews.length === 0 &&
     found.length === 0 &&
     testsToRead.length === 0 &&
+    reachesHere.length === 0 &&
     !hasSaid(anchor) &&
     saidInPlace.length === 0;
   const shownNote = note?.text ?? (isBare ? 'No note' : undefined);
