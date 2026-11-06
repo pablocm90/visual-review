@@ -3152,3 +3152,7 @@ main:has(> .review-tray) {
     monospace;
   word-break: break-all;
 }
+
+.logic-lines {
+  overflow-wrap: anywhere;
+}
