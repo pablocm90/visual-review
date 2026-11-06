@@ -5962,7 +5962,7 @@ test('an opened symbol says so when its diff holds no changed line of its own, a
   await toggleSymbolDiff(user, 'whole');
   expect(note('whole')).toBeUndefined();
   await toggleSymbolDiff(user, 'elsewhere');
-  expect(note('elsewhere')).toBe('No line inside it changed.');
+  expect(note('elsewhere')).toBe('No line of its own changed.');
 });
 
 test("a comment on a line of a symbol's diff shows in Full diff too, and the tray goes to it there", async () => {

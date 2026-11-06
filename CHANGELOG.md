@@ -6,8 +6,13 @@ What changed in each release of `@pablocm90/visual-review`, newest first. Versio
 
 ### Added
 
-- A changed symbol under **What changed** has a **Diff** toggle opening its own lines of the file's patch in place, without its neighbours' or those of the symbols inside it. A removed symbol shows its base lines, an added one its head lines, and a moved one its lines from both files, each named by file. It says so when git's hunks leave out the symbol's first line, or hold no line of it.
+- A changed symbol under **What changed** has a **Diff** toggle opening its own lines of the file's patch in place, without its neighbours' or those of the symbols inside it. A removed symbol shows its base lines, an added one its head lines, and a moved one its lines from both files, each named by file. It says so when git's hunks leave out the symbol's first line, or hold no line of its own.
 - A comment on one of those lines is a comment on the patch line, so it shows in **Full diff** too and the review tray goes to it.
+- The review data carries each symbol's `lines`, its base and head line range.
+
+### Changed
+
+- `ReadSymbol.lines` is required: a custom `Reader.symbols` must return each symbol's line range.
 
 ### Fixed
 

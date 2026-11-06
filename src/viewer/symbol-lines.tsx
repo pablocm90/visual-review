@@ -20,7 +20,7 @@ const LinesOfFile = ({ patch: { path, patch }, lines, inFile, ...commenting }: L
   if (rows.length === 0)
     return (
       <p role="note" className="symbol-lines-note">
-        No line inside it changed.
+        No line of its own changed.
       </p>
     );
   return (
