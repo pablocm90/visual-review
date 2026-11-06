@@ -1,5 +1,5 @@
 import type { ReaderName, StackSettings } from './config.ts';
-import type { Graph } from './graph.ts';
+import type { Graph, GraphNode } from './graph.ts';
 import type { ReadTest } from './test-changes.ts';
 
 export type CandidateRoot = {
@@ -87,7 +87,7 @@ export type UsesAsked = {
   readonly base: string;
   readonly head: string;
   readonly graph: Graph;
-  readonly node: string;
+  readonly node: Pick<GraphNode, 'id' | 'path'>;
   readonly names: ReadonlyArray<string>;
 };
 

@@ -34,7 +34,7 @@ const usesIn = async ({ files, edges, names, target = 'a.ts' }: Scene) => {
       base: directory,
       head: directory,
       graph: graphOf(Object.keys(files), edges),
-      node: idOf(target),
+      node: { id: idOf(target), path: `src/${target}` },
       names,
     });
   } finally {
@@ -81,7 +81,6 @@ test.for([
   async ({ specifier, importer, target, counts }) => {
     const reading = await usesIn({
       files: {
-        'other.ts': 'export const foo = 2;\n',
         [target]: 'export const foo = 1;\n',
         [importer]: `import { foo } from '${specifier}';\n`,
       },

@@ -73,16 +73,12 @@ export const usesOfTypeScript = async ({
 }: UsesAsked): Promise<UsesReading> => {
   const nodes = new Map<string, GraphNode>(graph.nodes.map(each => [each.id, each]));
   const importers = graph.edges
-    .filter(({ to }) => to === node)
+    .filter(({ to }) => to === node.id)
     .flatMap(({ from }) => nodes.get(from) ?? []);
   const read = await Promise.all(
-    graph.nodes
-      .filter(({ id }) => id === node)
-      .flatMap(({ path: target }) =>
-        importers.map(async ({ path }) =>
-          usesInFile({ path, text: await readFile(join(head, path), 'utf8'), target }),
-        ),
-      ),
+    importers.map(async ({ path }) =>
+      usesInFile({ path, text: await readFile(join(head, path), 'utf8'), target: node.path }),
+    ),
   );
   return {
     uses: Object.fromEntries(names.map(name => [name, read.flatMap(file => file.get(name) ?? [])])),
