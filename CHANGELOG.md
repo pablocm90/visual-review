@@ -13,6 +13,10 @@ What changed in each release of `@pablocm90/visual-review`, newest first. Versio
 
 - `UsesAsked`, what `Reader.uses` is given, carries `stacks`, each root's stack id, in place of `root`.
 
+### Removed
+
+- The **Metrics** tab. Each part's **Metrics** fold, **Colour by** and the metrics findings stay, and a link to `#metrics` opens Structure.
+
 ## 0.50.0 — 2026-11-06
 
 ### Added

@@ -749,7 +749,7 @@ test('the open tray lists the drafts, those on parts in reading order first, the
     'domain Question: Why here?',
   ]);
 
-  await user.click(screen.getByRole('link', { name: 'Metrics' }));
+  await user.click(screen.getByRole('link', { name: /^Tests/ }));
   await user.click(within(drafts).getByRole('button', { name: 'legacy' }));
   await waitFor(() => expect(currentTab()).toBe('Structure'));
   const legacy = await screen.findByRole('button', { name: 'legacy: removed' });
@@ -818,7 +818,7 @@ test("the open tray lists the finding answers after the comments, each named by 
       .map(button => button.textContent),
   ).toEqual(['domain', 'cyclomatic 30, over 20', 'lines 900, over 800']);
 
-  await user.click(screen.getByRole('link', { name: 'Metrics' }));
+  await user.click(screen.getByRole('link', { name: /^Tests/ }));
   await user.click(within(drafts).getByRole('button', { name: 'cyclomatic 30, over 20' }));
   await waitFor(() => expect(currentTab()).toBe('Structure'));
   expect(within(inspector()).getByRole('heading', { name: 'application' })).not.toBeNull();
@@ -1159,11 +1159,11 @@ test("a PR's page is headed by the PR's number and title, as a link to it", asyn
   await screen.findByRole('group', { name: 'rust' });
 });
 
-test('the Review nav links Structure, Metrics and Tests, and marks Structure the current page', async () => {
+test('the Review nav links Structure and Tests, and marks Structure the current page', async () => {
   render(<ReviewPage review={pageWith(review)} />);
 
   const links = within(screen.getByRole('navigation', { name: 'Review' })).getAllByRole('link');
-  expect(links.map(link => link.textContent)).toEqual(['Structure', 'Metrics', 'Tests']);
+  expect(links.map(link => link.textContent)).toEqual(['Structure', 'Tests']);
   expect(links[0]?.getAttribute('href')).toBe('#structure');
   expect(links[0]?.getAttribute('aria-current')).toBe('page');
   await screen.findByRole('group', { name: 'rust' });
@@ -1176,7 +1176,8 @@ const currentTab = () =>
     .textContent;
 
 test.for([
-  { hash: '#metrics', tab: 'Metrics' },
+  { hash: '#tests', tab: 'Tests' },
+  { hash: '#metrics', tab: 'Structure' },
   { hash: '#elsewhere', tab: 'Structure' },
 ])('at $hash the page opens on $tab', ({ hash, tab }) => {
   atHash(hash);
@@ -1227,7 +1228,7 @@ test("the Tests tab's link counts the review's changed tests, a moved pair once,
     within(screen.getByRole('navigation', { name: 'Review' }))
       .getAllByRole('link')
       .map(link => link.textContent),
-  ).toEqual(['Structure', 'Metrics', 'Tests 2']);
+  ).toEqual(['Structure', 'Tests 2']);
   await user.click(screen.getByRole('link', { name: 'Tests 2' }));
   await waitFor(() => expect(currentTab()).toBe('Tests 2'));
   expect(screen.queryByRole('group', { name: 'rust' })).toBeNull();
@@ -1488,45 +1489,22 @@ test("the Tests tab lists the added and modified nodes, not stacks, with the cha
   expect(within(inspector()).getByRole('heading', { name: 'billing' })).not.toBeNull();
 });
 
-test("a Metrics row's node name goes to it on Structure, focused, its inspector open", async () => {
-  atHash('#metrics');
-  const user = userEvent.setup();
-  render(
-    <ReviewPage
-      review={pageWith({
-        ...review,
-        metrics: { 'rust/crate/application': { base: measured(), head: measured() } },
-      })}
-    />,
-  );
-
-  await user.click(
-    within(screen.getByRole('region', { name: 'Metrics per node' })).getByRole('button', {
-      name: 'application',
-    }),
-  );
-  await waitFor(() => expect(currentTab()).toBe('Structure'));
-  const application = await screen.findByRole('button', { name: 'application: modified' });
-  await waitFor(() => expect(document.activeElement).toBe(application));
-  expect(within(inspector()).getByRole('heading', { name: 'application' })).not.toBeNull();
-});
-
 test('picking a tab sets the hash and shows it, and back and forward move between the tabs', async () => {
   const user = userEvent.setup();
   render(<ReviewPage review={pageWith(review)} />);
   await screen.findByRole('group', { name: 'rust' });
 
-  await user.click(screen.getByRole('link', { name: 'Metrics' }));
-  await waitFor(() => expect(currentTab()).toBe('Metrics'));
-  expect(location.hash).toBe('#metrics');
+  await user.click(screen.getByRole('link', { name: 'Tests' }));
+  await waitFor(() => expect(currentTab()).toBe('Tests'));
+  expect(location.hash).toBe('#tests');
   expect(screen.queryByRole('group', { name: 'rust' })).toBeNull();
 
   history.back();
   await waitFor(() => expect(currentTab()).toBe('Structure'));
   history.forward();
-  await waitFor(() => expect(currentTab()).toBe('Metrics'));
-  location.hash = '#tests';
   await waitFor(() => expect(currentTab()).toBe('Tests'));
+  location.hash = '#structure';
+  await waitFor(() => expect(currentTab()).toBe('Structure'));
 });
 
 test('a reader skipped for want of its tool is named once, at the top of the findings rail, collapsed or open, with the stacks it did not read', async () => {
@@ -2251,7 +2229,7 @@ test('the parts read are counted and barred on every tab, only when there are pa
   expect(screen.getByText('1 of 3 parts read')).toBeDefined();
   expect([bar().value, bar().max]).toEqual([1, 3]);
 
-  await user.click(screen.getByRole('link', { name: 'Metrics' }));
+  await user.click(screen.getByRole('link', { name: /^Tests/ }));
   expect(screen.getByText('1 of 3 parts read')).toBeDefined();
   expect(bar().value).toBe(1);
 });
@@ -2686,16 +2664,15 @@ test('All findings, while reading, returns to the landing with every finding ope
   ).toBeDefined();
 });
 
-test('reading holds across Metrics and Tests: the map, the part and the column are as they were left', async () => {
+test('reading holds across Tests: the map, the part and the column are as they were left', async () => {
   const user = userEvent.setup();
   render(<ReviewPage review={walkedReview()} />);
   await screen.findByRole('group', { name: 'rust' });
   await user.keyboard('jj');
   expect(selectedPart()).toBe('cli-adapter');
 
-  await user.click(screen.getByRole('link', { name: 'Metrics' }));
+  await user.click(screen.getByRole('link', { name: /^Tests/ }));
   expect(screen.queryByRole('group', { name: 'Map' })).toBeNull();
-  await user.click(screen.getByRole('link', { name: /Tests/ }));
   await user.click(screen.getByRole('link', { name: 'Structure' }));
 
   expect(await screen.findByRole('group', { name: 'Map' })).toBeDefined();
@@ -3176,15 +3153,12 @@ test.for([
   expect(readRows()).toEqual(rows);
 });
 
-test('J, K and A act on Structure alone: on Metrics and Tests they neither walk nor mark', async () => {
+test('J, K and A act on Structure alone: on Tests they neither walk nor mark', async () => {
   const user = userEvent.setup();
   render(<ReviewPage review={walkedReview()} />);
   await screen.findByRole('group', { name: 'rust' });
   await user.keyboard('j');
 
-  await user.click(screen.getByRole('link', { name: 'Metrics' }));
-  await waitFor(() => expect(currentTab()).toBe('Metrics'));
-  await user.keyboard('ja');
   await user.click(screen.getByRole('link', { name: /^Tests/ }));
   await waitFor(() => expect(currentTab()).toMatch(/^Tests/));
   await user.keyboard('ja');
@@ -3257,7 +3231,7 @@ test('C focuses the field of a selected edge', async () => {
   const field = () => within(inspector()).getByRole('textbox', { name: 'Your comment' });
   expect(document.activeElement).toBe(field());
 
-  await user.click(screen.getByRole('link', { name: 'Metrics' }));
+  await user.click(screen.getByRole('link', { name: /^Tests/ }));
   await user.click(screen.getByRole('link', { name: 'Structure' }));
   expect(field()).toBeTruthy();
   expect(document.activeElement).not.toBe(field());
@@ -5133,8 +5107,8 @@ test('a selected node opens its panel beside a divider that gives its width: 360
   await user.click(within(rust).getByRole('button', { name: 'application: modified' }));
   expect(panelWidth()).toBe('555');
 
-  await user.click(screen.getByRole('link', { name: 'Metrics' }));
-  await waitFor(() => expect(currentTab()).toBe('Metrics'));
+  await user.click(screen.getByRole('link', { name: 'Tests' }));
+  await waitFor(() => expect(currentTab()).toBe('Tests'));
   await user.click(screen.getByRole('link', { name: 'Structure' }));
   await waitFor(() => expect(currentTab()).toBe('Structure'));
   expect(panelWidth()).toBe('555');
