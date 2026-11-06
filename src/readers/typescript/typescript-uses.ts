@@ -337,6 +337,8 @@ const onePerFile = (uses: ReadonlyArray<SymbolUse>): ReadonlyArray<SymbolUse> =>
   );
 };
 
+const isUnbackedAll = (name: string) => name.startsWith('* from ');
+
 export const usesOfTypeScript = async ({
   base,
   head,
@@ -394,15 +396,16 @@ export const usesOfTypeScript = async ({
     uses: Object.fromEntries(
       names.map(name => [
         name,
-        onePerFile(
-          visits.flatMap(({ hop, uses }) => (hop.asked === name ? rowOf(hop, uses) : [])),
-        ),
+        onePerFile(visits.flatMap(({ hop, uses }) => (hop.asked === name ? rowOf(hop, uses) : []))),
       ]),
     ),
     notRead: [...new Set(visits.flatMap(({ uses }) => uses.notRead ?? []))],
     notFollowed: [
       NOT_DRAWN,
-      ...(names.some(name => name.startsWith('* from ')) ? ['removed export * not followed'] : []),
+      ...(names.some(name => !isUnbackedAll(name) && name.includes('.'))
+        ? ['not followed: a method read without importing its class']
+        : []),
+      ...(names.some(isUnbackedAll) ? ['removed export * not followed'] : []),
     ],
   };
 };

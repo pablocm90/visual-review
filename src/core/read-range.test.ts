@@ -2245,6 +2245,10 @@ test.for([
         ],
       },
     ]);
+    expect(range.reachesNotRead).toEqual([
+      NOT_DRAWN,
+      'not followed: a method read without importing its class',
+    ]);
   },
 );
 
