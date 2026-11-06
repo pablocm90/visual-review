@@ -2335,14 +2335,91 @@ test('another stack of a reader that reads another language is no stack to follo
   expect(range.reachesNotRead).toEqual([NOT_DRAWN]);
 });
 
-test('what asks a name says what the graph holds no edge for, which reads no row: an alias, a type-only re-export, a test outside the source root', async () => {
+const usesFoo = (imported: string) => `import { foo } from '${imported}';\nfoo();\n`;
+
+test.for([
+  {
+    how: 'a wildcard',
+    paths: { '@/*': ['./src/*'] },
+    imported: '@/lib/a',
+  },
+  {
+    how: 'an exact name',
+    paths: { 'the-lib': ['./src/lib/a.ts'] },
+    imported: 'the-lib',
+  },
+  {
+    how: 'a later place, when the first holds no file',
+    paths: { '@/*': ['./gone/*', './src/*'] },
+    imported: '@/lib/a',
+  },
+  {
+    how: 'the longest prefix, written last',
+    paths: { '@/*': ['./gone/*'], '@/lib/*': ['./src/lib/*'] },
+    imported: '@/lib/a',
+  },
+  {
+    how: 'a catch-all',
+    paths: { '*': ['./src/*'] },
+    imported: 'lib/a',
+  },
+  {
+    how: 'a suffix',
+    paths: { '@/*-gen': ['./src/*'] },
+    imported: '@/lib/a-gen',
+  },
+  {
+    how: 'a baseUrl, past paths that do not match',
+    paths: { '@/*': ['./gone/*'], 'lib/*-gen': ['./gone/*'], other: ['./gone/other.ts'] },
+    baseUrl: './src',
+    imported: 'lib/a',
+  },
+])(
+  'an unchanged file importing through $how still reaches',
+  async ({ paths, baseUrl, imported }) => {
+    using repository = gitRepo({ 'README.md': 'a shop\n' });
+    const { repo } = repository;
+    const base = commit(repo, {
+      'apps/web/package.json': '{}\n',
+      'apps/web/tsconfig.json': JSON.stringify({ compilerOptions: { paths, baseUrl } }),
+      'apps/web/src/lib/a.ts': 'export function foo() {}\nexport const kept = 1;\n',
+      'apps/web/src/uses.ts': usesFoo(imported),
+    });
+    const head = commit(repo, { 'apps/web/src/lib/a.ts': 'export const kept = 1;\n' });
+
+    const range = await readRange({ repo, from: base, to: head });
+
+    expect(range.reaches.flatMap(({ uses }) => uses)).toEqual([
+      { path: 'apps/web/src/uses.ts', line: 2, text: 'foo();' },
+    ]);
+  },
+);
+
+test('an import through a tsconfig path names only the first place holding a file', async () => {
   using repository = gitRepo({ 'README.md': 'a shop\n' });
   const { repo } = repository;
   const base = commit(repo, {
     ...rootPackage,
-    'tsconfig.json': '{"compilerOptions":{"paths":{"@/*":["src/*"]}}}\n',
+    'tsconfig.json': JSON.stringify({
+      compilerOptions: { paths: { '@/*': ['./src/one/*', './src/two/*'] } },
+    }),
+    'src/one/a.ts': 'export function foo() {}\n',
+    'src/two/a.ts': 'export function foo() {}\nexport const kept = 1;\n',
+    'src/uses.ts': `${usesFoo('@/a')}import { kept } from './two/a';\nkept;\n`,
+  });
+  const head = commit(repo, { 'src/two/a.ts': 'export const kept = 1;\n' });
+
+  const range = await readRange({ repo, from: base, to: head });
+
+  expect(range.reaches).toEqual([]);
+});
+
+test('what asks a name says what the graph holds no edge for, which reads no row: a type-only re-export, a test outside the source root', async () => {
+  using repository = gitRepo({ 'README.md': 'a shop\n' });
+  const { repo } = repository;
+  const base = commit(repo, {
+    ...rootPackage,
     'src/a.ts': 'export function foo() {}\nexport type Foo = number;\nexport const kept = 1;\n',
-    'src/aliased.ts': "import { foo } from '@/a';\nfoo();\n",
     'src/types.ts': "export type { Foo } from './a.ts';\n",
     'test/a.test.ts': "import { foo } from '../src/a.ts';\nfoo();\n",
   });

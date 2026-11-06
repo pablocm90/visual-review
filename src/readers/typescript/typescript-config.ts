@@ -139,3 +139,21 @@ export const resolutionIn = ({ checkout, root }: RootOptions) => {
     ],
   };
 };
+
+export type Resolution = ReturnType<typeof resolutionIn>;
+
+const captureOf = (name: string, specifier: string): string | undefined => {
+  const [prefix = '', suffix] = name.split('*');
+  if (suffix === undefined) return name === specifier ? '' : undefined;
+  return specifier.startsWith(prefix) && specifier.endsWith(suffix)
+    ? specifier.slice(prefix.length, specifier.length - suffix.length)
+    : undefined;
+};
+
+export const placesNamedBy = ({ alias, modules }: Resolution, specifier: string) => {
+  const said = Object.entries(alias).flatMap(([name, places]) => {
+    const capture = captureOf(name, specifier);
+    return capture === undefined ? [] : [places.map(place => place.replace('*', () => capture))];
+  });
+  return said[0] ?? modules.map(folder => join(folder, specifier));
+};

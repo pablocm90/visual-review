@@ -124,12 +124,13 @@ type Asking = {
   readonly file: Readable;
   readonly reader: Reader;
   readonly ask: NonNullable<Reader['uses']>;
+  readonly root: string;
   readonly node: GraphNode;
 };
 
 const askReader = async (
   { sides, before, changedPaths, pathOf }: ReadReachesOptions,
-  { file, reader, ask, node }: Asking,
+  { file, reader, ask, root, node }: Asking,
 ): Promise<FileReaches> => {
   const symbolsAsked = askedOf(file, pathOf);
   const exportsAsked = unbackedAsked(file);
@@ -139,6 +140,7 @@ const askReader = async (
   const { uses, notRead, notFollowed } = await ask({
     base: sides.before,
     head: sides.after,
+    root,
     graph: before.graph,
     node,
     names: [...symbolsAsked, ...exportsAsked].map(({ name }) => name),
@@ -163,14 +165,20 @@ const askReader = async (
 
 const readFile = async (options: ReadReachesOptions, file: Readable): Promise<FileReaches> => {
   const { before, measured } = options;
-  const reader = before.stacks.find(({ stack }) => stack === file.stack)?.reader;
-  if (reader !== undefined && reader.uses === undefined)
+  const drawn = before.stacks.find(({ stack }) => stack === file.stack);
+  if (drawn !== undefined && drawn.reader.uses === undefined)
     return { reaches: [], reachesNotRead: [`not read for ${file.stack}`] };
   const basePath = measured.find(({ id }) => id === file.node)?.basePath;
   const node = before.graph.nodes.find(({ path }) => path === basePath);
-  return reader?.uses === undefined || node === undefined
+  return drawn?.reader.uses === undefined || node === undefined
     ? NOTHING_READ
-    : askReader(options, { file, reader, ask: reader.uses, node }).catch((error: unknown) => ({
+    : askReader(options, {
+        file,
+        reader: drawn.reader,
+        ask: drawn.reader.uses,
+        root: drawn.root,
+        node,
+      }).catch((error: unknown) => ({
         reaches: [],
         reachesNotRead: [`not read for ${file.stack}: ${String(error)}`],
       }));

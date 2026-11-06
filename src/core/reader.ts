@@ -87,6 +87,7 @@ export type SymbolUse = {
 export type UsesAsked = {
   readonly base: string;
   readonly head: string;
+  readonly root: string;
   readonly graph: Graph;
   readonly node: Pick<GraphNode, 'id' | 'path'>;
   readonly names: ReadonlyArray<string>;
