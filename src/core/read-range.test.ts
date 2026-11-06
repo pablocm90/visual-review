@@ -226,6 +226,12 @@ test.for([
     tsconfig: '{ "compilerOptions": { "baseUrl": "./src" } }',
     imported: 'lib/a',
   },
+  {
+    how: 'a wildcard, under an exact name of its folder',
+    tsconfig:
+      '{ "compilerOptions": { "paths": { "@/lib": ["./src/lib/a.ts"], "@/*": ["./src/*"] } } }',
+    imported: '@/lib/a',
+  },
 ])('an import through a tsconfig path draws its edge: $how', async ({ tsconfig, imported }) => {
   using workspace = gitRepo({
     'package.json': '{ "name": "shop" }\n',

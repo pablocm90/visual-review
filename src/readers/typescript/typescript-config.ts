@@ -127,7 +127,10 @@ export const resolutionIn = ({ checkout, root }: RootOptions) => {
       Object.entries(paths)
         .filter(([name]) => !MATCHES_RELATIVE_IMPORTS.test(name))
         .toSorted(([one], [other]) => prefixLength(other) - prefixLength(one))
-        .map(([name, places]) => [name, placesOf(places).map(place => join(directory, place))]),
+        .map(([name, places]) => [
+          name.includes('*') ? name : `${name}$`,
+          placesOf(places).map(place => join(directory, place)),
+        ]),
     ),
     modules: [
       ...placesOf(paths['*'] ?? [])
@@ -144,7 +147,7 @@ export type Resolution = ReturnType<typeof resolutionIn>;
 
 const captureOf = (name: string, specifier: string): string | undefined => {
   const [prefix = '', suffix] = name.split('*');
-  if (suffix === undefined) return name === specifier ? '' : undefined;
+  if (suffix === undefined) return name === `${specifier}$` ? '' : undefined;
   return specifier.startsWith(prefix) && specifier.endsWith(suffix)
     ? specifier.slice(prefix.length, specifier.length - suffix.length)
     : undefined;
