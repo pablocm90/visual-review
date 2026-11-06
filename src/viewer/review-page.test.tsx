@@ -10409,3 +10409,34 @@ test("What changed's heading sums the logic of the files it lists: a box's acros
     'What changed 1 · 1 function decides differently, 1 decision',
   );
 });
+
+test("What changed holds the legend of marks when a strip shows, and not on a file with no logic", async () => {
+  const user = userEvent.setup();
+  render(
+    <ReviewPage
+      review={{
+        ...pageOfLogic(),
+        symbols: [
+          symbolsOf('web/file/cart.ts', [decisionIn('total', 'if (empty)')]),
+          symbolsOf('web/file/styles.ts', [
+            {
+              name: 'tidy',
+              kind: 'function',
+              lines: {},
+              exported: { base: false, head: false },
+              change: 'edited',
+            },
+          ]),
+        ],
+      }}
+    />,
+  );
+  const legend = () => within(whatChanged()).queryByRole('list', { name: 'Marks' });
+
+  await user.click(await screen.findByRole('button', { name: 'cart.ts: modified' }));
+  expect(legend()).not.toBeNull();
+
+  await user.click(screen.getByRole('button', { name: 'styles.ts: modified' }));
+  expect(within(whatChanged()).getByRole('listitem', { name: /tidy/ })).toBeTruthy();
+  expect(legend()).toBeNull();
+});

@@ -27,7 +27,7 @@ import { type AnchoredSymbol, anchoredSymbols, decisionsOf } from '../core/symbo
 import { boxesAboveIn } from '../core/visible-diff.ts';
 import { ChangedSinceTag, sinceLabel, useIsChangedSince } from './changed-since.tsx';
 import type { Comments } from './comment-field.tsx';
-import { LogicStrip } from './logic-strip.tsx';
+import { LogicLegend, LogicStrip } from './logic-strip.tsx';
 import { CommentOn, SaidBefore, useHasSaid } from './said-before.tsx';
 import { scrollInPanel } from './scroll-in-panel.ts';
 import { Signature } from './signature-lines.tsx';
@@ -571,6 +571,7 @@ export const WhatChanged = ({
         What changed{count > 0 && ` ${count}`}
         <LogicSummary files={files} />
       </h3>
+      {symbolsIn(files).some(({ logic }) => logic !== undefined) && <LogicLegend />}
       <SymbolsOf node={node} files={files} {...places} />
     </section>
   );
