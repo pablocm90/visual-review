@@ -46,6 +46,7 @@ type FileUses = {
   readonly named: ReadonlyMap<string, SymbolUse>;
   readonly unfollowed: ReadonlyArray<SymbolUse>;
   readonly forwards: ReadonlyArray<Forward>;
+  readonly forwardsAll: boolean;
 };
 
 const usesInFile = ({ path, text, target }: Read): FileUses => {
@@ -126,6 +127,11 @@ const usesInFile = ({ path, text, target }: Read): FileUses => {
       ...namespaceExports,
     ].map(range => ({ ...placeOf(range), unfollowed: true })),
     forwards: reexports.map(({ from, to }) => ({ from, to })),
+    forwardsAll: program.body.some(
+      statement =>
+        statement.type === 'ExportAllDeclaration' &&
+        namesFile(statement.source.value, path, target),
+    ),
   };
 };
 
@@ -184,9 +190,10 @@ const walked = async ({ hops, seen, importersOf, read }: Walk): Promise<Readonly
     return use === undefined ? [] : [{ asked: hop.asked, use }];
   });
   const next = met.flatMap(({ hop, importer, uses }) =>
-    uses.forwards
-      .filter(({ from }) => from === hop.exported)
-      .map(({ to }) => ({ node: importer, exported: to, asked: hop.asked })),
+    [
+      ...uses.forwards.filter(({ from }) => from === hop.exported).map(({ to }) => to),
+      ...(uses.forwardsAll && hop.exported !== 'default' ? [hop.exported] : []),
+    ].map(exported => ({ node: importer, exported, asked: hop.asked })),
   );
   return [
     ...rows,

@@ -290,3 +290,45 @@ test('a named re-export is a use at its statement, and its importers use the nam
     ],
   });
 });
+
+test('a star re-export has no row and passes on every name but the default', async () => {
+  const reading = await usesIn({
+    files: {
+      'a.ts': 'export default 1;\nexport const foo = 2;\n',
+      'index.ts': "export * from './a';\n",
+      'elsewhere.ts': "export * from './other';\n",
+      'd.ts': "import Thing, { foo } from './index';\nfoo();\nThing();\n",
+      'e.ts': "import { foo } from './elsewhere';\nfoo();\n",
+    },
+    edges: ['index.ts -> a.ts', 'elsewhere.ts -> a.ts', 'd.ts -> index.ts', 'e.ts -> elsewhere.ts'],
+    names: ['foo', 'default'],
+  });
+  expect(reading?.uses).toEqual({
+    foo: [{ path: 'src/d.ts', line: 2, text: 'foo();' }],
+    default: [],
+  });
+});
+
+test('a barrel cycle ends, and a file reached twice has one row per asked name', async () => {
+  const reading = await usesIn({
+    files: {
+      'a.ts': 'export const foo = 1;\nexport const bar = 2;\n',
+      'one.ts': "export * from './a';\nexport * from './two';\n",
+      'two.ts': "export * from './one';\n",
+      'd.ts':
+        "import { foo, bar } from './one';\nimport { foo as again } from './two';\nfoo();\nbar();\n",
+    },
+    edges: [
+      'one.ts -> a.ts',
+      'one.ts -> two.ts',
+      'two.ts -> one.ts',
+      'd.ts -> one.ts',
+      'd.ts -> two.ts',
+    ],
+    names: ['foo', 'bar'],
+  });
+  expect(reading?.uses).toEqual({
+    foo: [{ path: 'src/d.ts', line: 3, text: 'foo();' }],
+    bar: [{ path: 'src/d.ts', line: 4, text: 'bar();' }],
+  });
+});
