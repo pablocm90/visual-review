@@ -223,6 +223,43 @@ test.for([
   expect(range.after.edges).toEqual([{ from: 'shop/file/b.ts', to: 'shop/file/lib/a.ts' }]);
 });
 
+test.for([
+  { how: 'a catch-all', paths: { '*': ['./src/*'] }, imported: './a' },
+  { how: 'a pattern with no prefix', paths: { '*.js': ['./src/*.ts'] }, imported: './a.js' },
+  { how: 'a relative pattern', paths: { './*': ['./src/*'] }, imported: './a' },
+])('a relative import stays relative under $how', async ({ paths, imported }) => {
+  using workspace = gitRepo({
+    'package.json': '{ "name": "shop" }\n',
+    'tsconfig.json': `${JSON.stringify({ compilerOptions: { paths } })}\n`,
+    'src/a.ts': 'export const a = 1;\n',
+    'src/x/a.ts': 'export const a = 2;\n',
+    'src/x/b.ts': `import { a } from '${imported}';\nexport const b = a;\n`,
+  });
+  const { repo, root } = workspace;
+
+  const range = await readRange({ repo, from: root, to: root });
+
+  expect(range.after.edges).toEqual([{ from: 'shop/file/x/b.ts', to: 'shop/file/x/a.ts' }]);
+});
+
+test('a catch-all tsconfig path finds a bare import in each of its folders', async () => {
+  using workspace = gitRepo({
+    'package.json': '{ "name": "shop" }\n',
+    'tsconfig.json':
+      '{ "compilerOptions": { "paths": { "*": ["./gone/*", "./src/lib/*", "./src/only.ts"] } } }\n',
+    'src/lib/a.ts': 'export const a = 1;\n',
+    'src/src/lib/a.ts': 'export const a = 2;\n',
+    'src/c.ts': 'export const c = 1;\n',
+    'src/only.ts': 'export const only = 1;\n',
+    'src/b.ts': "import { a } from 'a';\nimport { c } from 'c';\nexport const b = a + c;\n",
+  });
+  const { repo, root } = workspace;
+
+  const range = await readRange({ repo, from: root, to: root });
+
+  expect(range.after.edges).toEqual([{ from: 'shop/file/b.ts', to: 'shop/file/lib/a.ts' }]);
+});
+
 test('each stack and each side resolves through its own tsconfig paths', async () => {
   using workspace = gitRepo({
     'apps/one/package.json': '{}\n',

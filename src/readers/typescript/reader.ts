@@ -121,20 +121,32 @@ type GraphOptions = {
   readonly packages: ReadonlyMap<string, string>;
 };
 
-const aliasesOf = (directory: string) =>
-  Object.fromEntries(
-    Object.entries(tsconfigIn(directory).compilerOptions?.paths ?? {}).map(([name, places]) => [
-      name,
-      places.map(place => join(directory, place)),
-    ]),
-  );
+const MATCHES_RELATIVE_IMPORTS = /^[*.]/;
+
+const resolutionIn = (directory: string) => {
+  const paths = tsconfigIn(directory).compilerOptions?.paths ?? {};
+  return {
+    alias: Object.fromEntries(
+      Object.entries(paths)
+        .filter(([name]) => !MATCHES_RELATIVE_IMPORTS.test(name))
+        .map(([name, places]) => [name, places.map(place => join(directory, place))]),
+    ),
+    modules: [
+      ...(paths['*'] ?? [])
+        .filter(place => basename(place) === '*')
+        .map(place => join(directory, dirname(place))),
+      'node_modules',
+      'node_modules/@types',
+    ],
+  };
+};
 
 const graphAt = async ({ directory, root, stack, sourceRoot, boxes, packages }: GraphOptions) => {
   const baseDir = join(directory, root);
   const { output } = await cruise(
     [sourceRoot],
     { baseDir, outputType: 'json' },
-    { alias: aliasesOf(baseDir) },
+    resolutionIn(baseDir),
   );
   return webGraph({
     stack,
