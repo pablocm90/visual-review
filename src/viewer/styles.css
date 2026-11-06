@@ -3169,10 +3169,13 @@ main:has(> .review-tray) {
 }
 
 .start-here .start-here-logic > button {
-  flex: none;
+  flex: 0 1 auto;
+  min-width: 0;
 }
 
 .start-here-breakdown {
+  flex: 0 9999 auto;
+  min-width: 0;
   overflow: hidden;
   color: var(--muted);
   font-size: 12px;
