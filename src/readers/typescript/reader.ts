@@ -21,6 +21,10 @@ const TsconfigSchema = z.object({
     .union([z.string(), z.array(z.string())])
     .optional()
     .catch(undefined),
+  references: z
+    .array(z.object({ path: z.string() }))
+    .optional()
+    .catch(undefined),
   compilerOptions: z
     .object({
       rootDir: z.string().optional(),
@@ -144,11 +148,14 @@ type Aliases = {
 const withExtension = (config: string): string =>
   config.endsWith('.json') ? config : `${config}.json`;
 
+const projectFile = (path: string): string =>
+  path.endsWith('.json') ? path : join(path, 'tsconfig.json');
+
 const laterWins = (earlier: Aliases, later: Aliases): Aliases => ({ ...earlier, ...later });
 
 const MOST_CONFIGS = 256;
 
-const RELATIVE_NAME = /^\.\.?\//;
+const isRelativeName = (name: string): boolean => /^\.\.?\//.test(name);
 
 type AliasReading = {
   readonly directory: string;
@@ -162,20 +169,36 @@ const aliasesAt = (reading: AliasReading, config: string): Aliases => {
   if (already !== undefined) return already;
   if (known.size >= MOST_CONFIGS) return {};
   known.set(config, {});
-  const { extends: extended = [], compilerOptions } = tsconfigAt(join(directory, config));
+  const {
+    extends: extended = [],
+    references = [],
+    compilerOptions,
+  } = tsconfigAt(join(directory, config));
   const { baseUrl, paths } = compilerOptions ?? {};
   const from = dirname(config);
-  const aliases = {
-    ...[extended]
-      .flat()
-      .filter(entry => RELATIVE_NAME.test(entry))
-      .map(entry => withExtension(join(from, entry)))
+  const aliasesOf = (names: ReadonlyArray<string>): Aliases =>
+    names
+      .map(name => join(from, name))
       .filter(stays)
-      .map(entry => aliasesAt(reading, entry))
-      .reduce(laterWins, {}),
+      .map(name => aliasesAt(reading, name))
+      .reduce(laterWins, {});
+  const chain: Aliases = {
+    ...aliasesOf([extended].flat().filter(isRelativeName).map(withExtension)),
     ...(baseUrl === undefined || isAbsolute(baseUrl) ? {} : { baseUrl: join(from, baseUrl) }),
     ...(paths === undefined ? {} : { paths: { places: paths, from } }),
   };
+  const aliases =
+    chain.paths === undefined
+      ? {
+          ...chain,
+          ...aliasesOf(
+            references
+              .map(({ path }) => path)
+              .filter(path => !isAbsolute(path))
+              .map(projectFile),
+          ),
+        }
+      : chain;
   known.set(config, aliases);
   return aliases;
 };

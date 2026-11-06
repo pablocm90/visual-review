@@ -586,6 +586,86 @@ test('a tsconfig extending a directory still reads its own paths', async () => {
   expect(range.after.edges).toEqual([{ from: 'shop/file/b.ts', to: 'shop/file/a.ts' }]);
 });
 
+test.for([
+  {
+    how: 'its paths, as in the Vite template',
+    configs: {
+      'tsconfig.json': {
+        files: [],
+        references: [{ path: './tsconfig.app.json' }, { path: './tsconfig.node.json' }],
+      },
+      'tsconfig.app.json': aliasTo('./src/*'),
+      'tsconfig.node.json': { compilerOptions: { composite: true } },
+    },
+  },
+  {
+    how: 'a folder, by the tsconfig.json in it',
+    configs: {
+      'tsconfig.json': { references: [{ path: './config' }] },
+      'config/tsconfig.json': aliasTo('../src/*'),
+    },
+  },
+  {
+    how: 'nothing when its own chain holds paths',
+    configs: {
+      'tsconfig.json': { extends: './base.json', references: [{ path: './app.json' }] },
+      'base.json': aliasTo('./src/*'),
+      'app.json': aliasTo('./src/vendored/*'),
+    },
+  },
+  {
+    how: "its own baseUrl, ahead of the chain's",
+    configs: {
+      'tsconfig.json': {
+        compilerOptions: { baseUrl: './src/vendored' },
+        references: [{ path: './app.json' }],
+      },
+      'app.json': { compilerOptions: { baseUrl: './src', paths: { '@/*': ['./*'] } } },
+    },
+  },
+])('a tsconfig reference brings $how', async ({ configs }) => {
+  using workspace = gitRepo({
+    'package.json': '{ "name": "shop" }\n',
+    ...Object.fromEntries(
+      Object.entries(configs).map(([file, config]) => [file, JSON.stringify(config)]),
+    ),
+    'src/lib/a.ts': 'export const a = 1;\n',
+    'src/vendored/lib/a.ts': 'export const a = 2;\n',
+    'src/b.ts': "import { a } from '@/lib/a';\nexport const b = a;\n",
+  });
+  const { repo, root } = workspace;
+
+  const range = await readRange({ repo, from: root, to: root });
+
+  expect(range.after.edges).toEqual([{ from: 'shop/file/b.ts', to: 'shop/file/lib/a.ts' }]);
+});
+
+test.for([
+  { how: 'an absolute path', path: () => '/outside.json' },
+  {
+    how: 'a climb out of the checkout',
+    path: (repo: string) => `${'../'.repeat(30)}${repo}/outside.json`,
+  },
+])('a tsconfig referencing $how reads nothing from it', async ({ path }) => {
+  using workspace = gitRepo({
+    'package.json': '{ "name": "shop" }\n',
+    'mine.json': JSON.stringify(aliasTo('./src/*')),
+    'outside.json': JSON.stringify({ compilerOptions: { paths: { '~/*': ['./src/*'] } } }),
+    'src/a.ts': 'export const a = 1;\n',
+    'src/b.ts': "import { a } from '@/a';\nexport const b = a;\n",
+  });
+  const { repo, root } = workspace;
+  const head = commit(repo, {
+    'tsconfig.json': JSON.stringify({
+      references: [{ path: './mine.json' }, { path: path(repo) }],
+    }),
+  });
+
+  const range = await readRange({ repo, from: root, to: head });
+
+  expect(range.after.edges).toEqual([{ from: 'shop/file/b.ts', to: 'shop/file/a.ts' }]);
+});
+
 test('a very long tsconfig extends chain does not stop the review', async () => {
   using workspace = gitRepo({
     'package.json': '{ "name": "shop" }\n',
