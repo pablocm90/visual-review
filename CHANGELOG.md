@@ -10,6 +10,7 @@ What changed in each release of `@pablocm90/visual-review`, newest first. Versio
 - **Reaches** and the `blast-radius` findings follow an exported class's method removed, renamed, moved or with a changed signature, to the files naming the class and reading the member, by name: `.bar` on anything else in such a file counts. Coverage now says a method read other than by `.name` or without importing its class isn't followed, and that a package imported under another name isn't, in place of "methods not followed".
 - An edited function's logic in **What changed** shows as a strip of marks, one tick per decision in source order: added, changed and moved above the baseline, removed below it, an unchanged one a flat dash, a moved one hollow and an exit taller. Beside it, how many of its decisions changed and how many of those are exits. A tick opens its row and rings itself; a draft going to a decision rings its tick too.
 - `C` on a focused logic row opens that row's comment.
+- **Show** offers **Logic only** when a decision changed: the files holding one, their boxes open, with every arrow between them, each a card with a strip of marks per function that changed. A tick opens its row. Start here's first line counts the range's changed decisions, by kind of change and exits, and goes there.
 
 ### Changed
 
