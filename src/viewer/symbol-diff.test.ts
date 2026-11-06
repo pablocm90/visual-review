@@ -1,6 +1,7 @@
 import { expect, test } from 'vitest';
+import type { SymbolStatement } from '../core/symbol-changes.ts';
 import { highlightPatch } from './highlight-patch.ts';
-import { holdsFirstLine, rowsOfSymbol } from './symbol-diff.ts';
+import { holdsFirstLine, otherEndOf, rowsOfSymbol } from './symbol-diff.ts';
 
 const rowsOf = (...lines: readonly string[]) =>
   highlightPatch({ path: 'a.ts', patch: lines.join('\n') });
@@ -204,4 +205,65 @@ test.for([
   },
 ])('holdsFirstLine: $claim', ({ lines, holds }) => {
   expect(holdsFirstLine({ rows: rowsOf('@@ -2,2 +2,2 @@', '-a', '+b', ' c'), lines })).toBe(holds);
+});
+
+const movedSymbol = (overrides: Partial<SymbolStatement>): SymbolStatement => ({
+  name: 'f',
+  kind: 'function',
+  exported: { base: false, head: false },
+  change: 'moved',
+  lines: {},
+  ...overrides,
+});
+
+const fileHolding = (node: string, symbols: ReadonlyArray<SymbolStatement>) => ({
+  node,
+  stack: 'web',
+  symbols,
+  exports: { added: [], removed: [] },
+  kind: 'logic' as const,
+});
+
+const THE_END = movedSymbol({ movedFrom: 'from', lines: { head: { start: 5, end: 6 } } });
+
+test.for([
+  { claim: 'another name', stranger: { name: 'g', movedFrom: 'from' } },
+  { claim: 'another kind', stranger: { kind: 'type', movedFrom: 'from' } },
+  { claim: 'another scope', stranger: { scope: 'Other', movedFrom: 'from' } },
+  { claim: 'moved from another file', stranger: { movedFrom: 'elsewhere' } },
+] as const)(
+  "otherEndOf: a moved symbol's end in the other file isn't one of $claim",
+  ({ stranger }) => {
+    const symbols = [movedSymbol({ lines: { head: { start: 1, end: 2 } }, ...stranger }), THE_END];
+    expect(
+      otherEndOf({
+        symbol: movedSymbol({ movedTo: 'to' }),
+        node: 'from',
+        files: [fileHolding('to', symbols)],
+      }),
+    ).toStrictEqual({ node: 'to', lines: THE_END.lines, inFile: symbols });
+  },
+);
+
+test.for([
+  { claim: 'a symbol that stayed', symbol: movedSymbol({ change: 'edited' }), files: [] },
+  {
+    claim: "a file that isn't read",
+    symbol: movedSymbol({ movedTo: 'to' }),
+    files: [{ node: 'to', stack: 'web', unreadable: 'nope' }],
+  },
+  { claim: 'a file not listed', symbol: movedSymbol({ movedTo: 'to' }), files: [] },
+])('otherEndOf: $claim has none', ({ symbol, files }) => {
+  expect(otherEndOf({ symbol, node: 'from', files })).toBeUndefined();
+});
+
+test('otherEndOf: the end it left is found from the end it came to', () => {
+  const left = movedSymbol({ movedTo: 'to', lines: { base: { start: 1, end: 2 } } });
+  expect(
+    otherEndOf({
+      symbol: THE_END,
+      node: 'to',
+      files: [fileHolding('from', [left])],
+    })?.lines,
+  ).toBe(left.lines);
 });

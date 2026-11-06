@@ -28,7 +28,8 @@ import type { Comments } from './comment-field.tsx';
 import { CommentOn, SaidBefore, useHasSaid } from './said-before.tsx';
 import { scrollInPanel } from './scroll-in-panel.ts';
 import { Signature } from './signature-lines.tsx';
-import { SymbolLines } from './symbol-lines.tsx';
+import { otherEndOf } from './symbol-diff.ts';
+import { type SymbolEnd, SymbolLines } from './symbol-lines.tsx';
 
 type Group = readonly [string, (symbol: SymbolStatement) => boolean];
 
@@ -61,6 +62,7 @@ export type LineAt = {
 type Places = {
   readonly nodes: ReadonlyArray<DiffedNode>;
   readonly patches: ReadonlyArray<FilePatch>;
+  readonly allFiles: ReadonlyArray<SymbolFile>;
   readonly onGoTo: (id: string) => void;
   readonly onShowLine: (at: LineAt) => void;
   readonly comments: Comments;
@@ -264,6 +266,24 @@ type InItsFile = {
   readonly inFile: ReadonlyArray<SymbolStatement>;
 };
 
+const patchOfNode = ({ nodes, patches }: Places, node: string): FilePatch | undefined => {
+  const path = nodes.find(({ id }) => id === node)?.path;
+  return patches.find(patch => patch.path === path);
+};
+
+const endsOf = (
+  symbol: SymbolStatement,
+  { node, patch, inFile }: InItsFile,
+  places: Places,
+): ReadonlyArray<SymbolEnd> => {
+  const own = patch ? [{ patch, lines: symbol.lines, inFile }] : [];
+  const other = otherEndOf({ symbol, node, files: places.allFiles });
+  const otherPatch = other && patchOfNode(places, other.node);
+  if (!other || !otherPatch) return own;
+  const theirs = { patch: otherPatch, lines: other.lines, inFile: other.inFile };
+  return symbol.movedTo === undefined ? [theirs, ...own] : [...own, theirs];
+};
+
 const SymbolRow = ({
   anchored: { item: symbol, id },
   node,
@@ -275,7 +295,7 @@ const SymbolRow = ({
   const marksOf = useRowMarks();
   const [diffOpen, setDiffOpen] = useState(false);
   const name = `${symbol.kind} ${qualified(symbol)}`;
-  const diffable = patch !== undefined && !isQuiet(symbol);
+  const ends = isQuiet(symbol) ? [] : endsOf(symbol, { node, patch, inFile }, places);
   return (
     <li
       aria-label={sinceLabel(`${nameOf(symbol)}: ${symbol.change}`, isChangedSince('symbols', id))}
@@ -287,7 +307,7 @@ const SymbolRow = ({
       )}
       <ChangedSinceTag marked={isChangedSince('symbols', id)} />
       <Origin symbol={symbol} {...places} />
-      {diffable && (
+      {ends.length > 0 && (
         <button
           type="button"
           className="symbol-diff"
@@ -317,11 +337,9 @@ const SymbolRow = ({
           onComment={places.onComment}
         />
       )}
-      {diffable && diffOpen && (
+      {diffOpen && (
         <SymbolLines
-          patch={patch}
-          lines={symbol.lines}
-          inFile={inFile}
+          ends={ends}
           nodes={places.nodes}
           comments={places.comments}
           onComment={places.onComment}
@@ -351,12 +369,7 @@ const SymbolFiles = ({ file, ...places }: Places & { readonly file: SymbolFile }
   const inFile = 'symbols' in file ? file.symbols : [];
   const symbols = anchoredSymbols(file.node, inFile);
   const quiet = symbols.filter(({ item }) => isQuiet(item));
-  const path = places.nodes.find(({ id }) => id === file.node)?.path;
-  const inItsFile = {
-    node: file.node,
-    patch: places.patches.find(patch => patch.path === path),
-    inFile,
-  };
+  const inItsFile = { node: file.node, patch: patchOfNode(places, file.node), inFile };
   const isChangedSince = useIsChangedSince();
   const hasSaid = useHasSaid();
   return (

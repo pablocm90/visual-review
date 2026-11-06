@@ -1,7 +1,30 @@
+import type { SymbolFile } from '../core/read-range.ts';
 import type { SymbolStatement } from '../core/symbol-changes.ts';
 import type { PatchLine } from './highlight-patch.ts';
 
 type Spans = SymbolStatement['lines'];
+
+export const otherEndOf = ({
+  symbol: { movedTo, movedFrom, name, scope, kind },
+  node,
+  files,
+}: {
+  readonly symbol: SymbolStatement;
+  readonly node: string;
+  readonly files: ReadonlyArray<SymbolFile>;
+}) => {
+  const other = movedTo ?? movedFrom;
+  const file = files.find(candidate => candidate.node === other);
+  if (other === undefined || file === undefined || !('symbols' in file)) return undefined;
+  const end = file.symbols.find(
+    candidate =>
+      candidate.name === name &&
+      candidate.scope === scope &&
+      candidate.kind === kind &&
+      (candidate.movedTo === node || candidate.movedFrom === node),
+  );
+  return end && { node: other, lines: end.lines, inFile: file.symbols };
+};
 
 const within = (line: number | undefined, range: Spans['base']): boolean =>
   line !== undefined && range !== undefined && range.start <= line && line <= range.end;

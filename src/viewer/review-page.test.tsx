@@ -5053,7 +5053,7 @@ const topFile = (label: string, state: Diffed = 'unchanged') => ({
 
 const symbolsOf = (
   node: string,
-  symbols: ReadonlyArray<Omit<SymbolStatement, 'lines'>>,
+  symbols: ReadonlyArray<Omit<SymbolStatement, 'lines'> & Partial<Pick<SymbolStatement, 'lines'>>>,
 ): SymbolFile => ({
   node,
   stack: 'web',
@@ -6007,6 +6007,65 @@ test("a comment on a line of a symbol's diff shows in Full diff too, and the tra
     'value',
     'Why 2?',
   );
+});
+
+test('a symbol moved between files opens its lines from both, each named by its file, the one it left first, from either end', async () => {
+  const user = userEvent.setup();
+  const moved = {
+    name: 'f',
+    kind: 'function' as const,
+    exported: { base: false, head: false },
+    change: 'moved' as const,
+  };
+  render(
+    <ReviewPage
+      review={pageWith({
+        range: 'abc123..def456',
+        diff: {
+          nodes: [
+            { id: 'web', kind: 'stack', label: 'web', path: '', state: 'unchanged' },
+            topFile('from.ts', 'modified'),
+            topFile('to.ts', 'modified'),
+          ],
+          edges: [],
+        },
+        symbols: [
+          symbolsOf('web/file/from.ts', [
+            { ...moved, movedTo: 'web/file/to.ts', lines: { base: { start: 1, end: 2 } } },
+          ]),
+          symbolsOf('web/file/to.ts', [
+            { ...moved, movedFrom: 'web/file/from.ts', lines: { head: { start: 5, end: 6 } } },
+          ]),
+        ],
+        patches: [
+          patchOf('web/src/from.ts', '@@ -1,3 +1 @@', '-function f() {', '-}', ' const kept = 1;'),
+          patchOf('web/src/to.ts', '@@ -4 +4,3 @@', ' const before = 1;', '+function f() {', '+}'),
+        ],
+      })}
+    />,
+  );
+  const sides = () =>
+    within(whatChanged())
+      .getAllByRole('region', { name: /^Lines in/ })
+      .map(side => [
+        side.getAttribute('aria-label'),
+        ...within(side)
+          .queryAllByRole('deletion')
+          .concat(within(side).queryAllByRole('insertion'))
+          .map(row => row.textContent),
+      ]);
+  const expected = [
+    ['Lines in web/src/from.ts', '-function f() {', '-}'],
+    ['Lines in web/src/to.ts', '+function f() {', '+}'],
+  ];
+
+  await user.click(await screen.findByRole('button', { name: 'from.ts: modified' }));
+  await toggleSymbolDiff(user, 'f');
+  expect(sides()).toStrictEqual(expected);
+
+  await user.click(screen.getByRole('button', { name: 'to.ts: modified' }));
+  await toggleSymbolDiff(user, 'f');
+  expect(sides()).toStrictEqual(expected);
 });
 
 test("a file whose symbols wouldn't parse shows the parse error in its What changed, and in its box's", async () => {
