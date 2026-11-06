@@ -8303,6 +8303,32 @@ test('a tick opens its function and its run at its row, ringed in the strip and 
   expect(whatChanged().querySelectorAll('[aria-current="true"]')).toHaveLength(2);
 });
 
+test("C on a logic row, landed on by its tick or focused through its line, opens that row's comment, not the part's", async () => {
+  const user = userEvent.setup();
+  render(<ReviewPage review={pageWithUnchangedRuns()} send={vi.fn(async () => {})} />);
+  const rowField = (name: string) =>
+    within(within(whatChanged()).getByRole('listitem', { name })).findByRole('textbox', {
+      name: 'Your comment',
+    });
+
+  await user.click(await screen.findByRole('button', { name: 'runs.ts: modified' }));
+  await user.click(
+    within(within(whatChanged()).getByRole('group', { name: 'Marks of function runs' })).getByRole(
+      'button',
+      { name: 'same if: if (b)' },
+    ),
+  );
+  await user.keyboard('c');
+  expect(document.activeElement).toBe(await rowField('same if: if (b)'));
+
+  within(within(whatChanged()).getByRole('list', { name: 'Logic of function runs' }))
+    .getByRole('button', { name: 'added if: if (c)' })
+    .focus();
+  await user.keyboard('c');
+  expect(document.activeElement).toBe(await rowField('added if: if (c)'));
+  expect(within(inspector()).getAllByRole('textbox', { name: 'Your comment' })).toHaveLength(2);
+});
+
 test("a later round offers 'Since last review' first in Show, Changes only still picked; picked, it draws what changed since, and going to a part it hides widens Show", async () => {
   const user = userEvent.setup();
   render(

@@ -3009,3 +3009,19 @@ main:has(> .review-tray) {
   outline: 2px solid var(--ink);
   outline-offset: -1px;
 }
+
+.logic-comment-on {
+  opacity: 0;
+}
+
+.logic-row:hover > .logic-comment-on,
+.logic-row:focus-within > .logic-comment-on,
+.logic-comment-on[aria-expanded="true"] {
+  opacity: 1;
+}
+
+@media (hover: none) {
+  .logic-comment-on {
+    opacity: 1;
+  }
+}

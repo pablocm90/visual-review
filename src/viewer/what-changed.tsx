@@ -210,8 +210,9 @@ const LogicRow = ({
   const marksOf = useRowMarks();
   return (
     <li
-      className={`logic-${line.change}`}
+      className={`logic-row logic-${line.change}`}
       aria-label={label}
+      data-comment-anchor={anchorKey({ kind: 'decision', id })}
       {...marksOf({ kind: 'decision', id })}
       style={{ paddingInlineStart: `${line.depth}em` }}
     >
@@ -233,6 +234,7 @@ const LogicRow = ({
       <SaidBefore on={{ kind: 'decision', id }} />
       {onComment && (
         <CommentOn
+          className="logic-comment-on"
           name={logicLabel(line, nodes)}
           anchor={{ kind: 'decision', id, text }}
           comments={comments}

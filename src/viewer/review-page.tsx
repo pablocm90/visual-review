@@ -662,6 +662,8 @@ type InspectorProps = {
 
 type LandingPlace = string | null | undefined;
 
+type CommentAskedOn = { readonly on: string; readonly row: string | undefined };
+
 const useLanding = (place: LandingPlace) => {
   const [landed, setLanded] = useState<LandingIn & { readonly on: LandingPlace }>();
   if (landed !== undefined && landed.on !== place) setLanded(undefined);
@@ -972,7 +974,7 @@ type SidePanelProps = {
   readonly onLand: (landing: LandingIn) => void;
   readonly read: ReadonlySet<string>;
   readonly onToggleRead: (id: string) => void;
-  readonly commentAsked: { readonly on: string } | undefined;
+  readonly commentAsked: CommentAskedOn | undefined;
   readonly heading: RefObject<HTMLHeadingElement | null>;
   readonly reading: boolean;
 };
@@ -1063,7 +1065,9 @@ const SidePanel = ({
   const nextId = partFrom(parts, selected, 1);
   return (
     <CommentAsked.Provider
-      value={commentAsked && { anchor: anchorKey(anchor), request: commentAsked }}
+      value={
+        commentAsked && { anchor: commentAsked.row ?? anchorKey(anchor), request: commentAsked }
+      }
     >
       {divider}
       <Inspector
@@ -1850,8 +1854,13 @@ const reviewedIn = ({ range, pullRequest }: PageData) => ({
   ...(pullRequest && { pullRequest: pullRequest.number }),
 });
 
+const rowCommentedFrom = (target: EventTarget | null): string | undefined =>
+  target instanceof Element
+    ? (target.closest('[data-comment-anchor]')?.getAttribute('data-comment-anchor') ?? undefined)
+    : undefined;
+
 const useCommentAsked = (selected: string | undefined, tab: Tab) => {
-  const [asked, setAsked] = useState<{ readonly on: string }>();
+  const [asked, setAsked] = useState<CommentAskedOn>();
   if (asked !== undefined && (asked.on !== selected || tab !== 'structure')) setAsked(undefined);
   return [asked, setAsked] as const;
 };
@@ -2082,7 +2091,7 @@ const Page = ({ review, notes, send }: ReviewPageProps) => {
       if (key === 'k') walk(-1);
       if (key === 'c' && selected !== undefined) {
         event.preventDefault();
-        setCommentAsked({ on: selected });
+        setCommentAsked({ on: selected, row: rowCommentedFrom(event.target) });
       }
       if (key === 'a' && selected !== undefined && review.readingOrder.parts.includes(selected))
         toggleRead(selected);

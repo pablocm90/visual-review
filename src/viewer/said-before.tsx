@@ -175,7 +175,7 @@ export const useTargetOfSaid = () => {
 };
 
 type CommentOnProps = CommentFieldProps &
-  Landed & { readonly name: string; readonly word?: ReactNode };
+  Landed & { readonly name: string; readonly word?: ReactNode; readonly className?: string };
 
 export const CommentOn = ({ name, word = 'Comment', ...opener }: CommentOnProps) =>
   useHasSaid()(opener.anchor) ? null : (

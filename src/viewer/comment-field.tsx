@@ -79,9 +79,16 @@ type CommentOpenerProps = CommentFieldProps & {
   readonly word: ReactNode;
   readonly label?: string;
   readonly landing?: object | undefined;
+  readonly className?: string;
 };
 
-export const CommentOpener = ({ word, label, landing, ...field }: CommentOpenerProps) => {
+export const CommentOpener = ({
+  word,
+  label,
+  landing,
+  className = '',
+  ...field
+}: CommentOpenerProps) => {
   const drafted = field.comments[anchorKey(field.anchor)] !== undefined;
   const [open, setOpen] = useState(drafted);
   const [landed, setLanded] = useState(landing);
@@ -100,7 +107,7 @@ export const CommentOpener = ({ word, label, landing, ...field }: CommentOpenerP
     <>
       <button
         type="button"
-        className="comment-on"
+        className={`comment-on ${className}`}
         aria-expanded={open}
         aria-label={label}
         onClick={() => {
