@@ -162,6 +162,8 @@ test('every package.json with sources under its src/ is a stack named by its dir
   ]);
 });
 
+const climbingTo = (repo: string) => `${'../'.repeat(30)}${repo}/outside`;
+
 test('in a pnpm monorepo each package is a stack, and a bare import of a sibling package or of its subpath joins the importing file to its stack once, while an import of its own package joins nothing', async () => {
   using workspace = gitRepo({
     'pnpm-workspace.yaml': "packages:\n  - 'apps/*'\n  - 'packages/*'\n",
@@ -191,6 +193,707 @@ test('in a pnpm monorepo each package is a stack, and a bare import of a sibling
     { from: 'apps/a/file/c.ts', to: 'packages/b' },
     { from: 'apps/a/file/c.ts', to: 'mono' },
   ]);
+});
+
+test.for([
+  {
+    how: 'a wildcard',
+    tsconfig: '{ "compilerOptions": { "paths": { "@/*": ["./src/*"] } } }',
+    imported: '@/lib/a',
+  },
+  {
+    how: 'an exact name',
+    tsconfig: '{ "compilerOptions": { "paths": { "the-lib": ["./src/lib/a.ts"] } } }',
+    imported: 'the-lib',
+  },
+  {
+    how: 'its second place, when the first holds nothing',
+    tsconfig: '{ "compilerOptions": { "paths": { "@/*": ["./gone/*", "./src/*"] } } }',
+    imported: '@/lib/a',
+  },
+  {
+    how: 'a place relative to baseUrl',
+    tsconfig: '{ "compilerOptions": { "baseUrl": "./src", "paths": { "@/*": ["./*"] } } }',
+    imported: '@/lib/a',
+  },
+  {
+    how: 'a place climbing from baseUrl, inside the checkout',
+    tsconfig: '{ "compilerOptions": { "baseUrl": "./src/lib", "paths": { "@/*": ["../*"] } } }',
+    imported: '@/lib/a',
+  },
+  {
+    how: 'a bare name under baseUrl',
+    tsconfig: '{ "compilerOptions": { "baseUrl": "./src" } }',
+    imported: 'lib/a',
+  },
+  {
+    how: 'a bare name under the baseUrl of a root holding no files, its references no paths',
+    tsconfig: '{ "files": [], "compilerOptions": { "baseUrl": "./src" } }',
+    imported: 'lib/a',
+  },
+  {
+    how: 'a wildcard, under an exact name of its folder',
+    tsconfig:
+      '{ "compilerOptions": { "paths": { "@/lib": ["./src/lib/a.ts"], "@/*": ["./src/*"] } } }',
+    imported: '@/lib/a',
+  },
+])('an import through a tsconfig path draws its edge: $how', async ({ tsconfig, imported }) => {
+  using workspace = gitRepo({
+    'package.json': '{ "name": "shop" }\n',
+    'tsconfig.json': `${tsconfig}\n`,
+    'src/lib/a.ts': 'export const a = 1;\n',
+    'src/src/lib/a.ts': 'export const a = 2;\n',
+    'src/b.ts': `import { a } from '${imported}';\nexport const b = a;\n`,
+  });
+  const { repo, root } = workspace;
+
+  const range = await readRange({ repo, from: root, to: root });
+
+  expect(range.after.edges).toEqual([{ from: 'shop/file/b.ts', to: 'shop/file/lib/a.ts' }]);
+});
+
+test.for([
+  { order: 'shorter first', paths: { '@/*': ['./src/*'], '@/lib/*': ['./src/vendored/*'] } },
+  { order: 'longer first', paths: { '@/lib/*': ['./src/vendored/*'], '@/*': ['./src/*'] } },
+  {
+    order: 'an exact name after the wildcard it also matches',
+    paths: { '@/lib/*': ['./src/lib/*'], '@/lib/a': ['./src/vendored/a.ts'] },
+  },
+  {
+    order: 'an exact name after a wildcard of its length',
+    paths: { '@/lib/a*': ['./src/lib/a*'], '@/lib/a': ['./src/vendored/a.ts'] },
+  },
+])('the longest tsconfig path prefix wins, written $order', async ({ paths }) => {
+  using workspace = gitRepo({
+    'package.json': '{ "name": "shop" }\n',
+    'tsconfig.json': `${JSON.stringify({ compilerOptions: { paths } })}\n`,
+    'src/lib/a.ts': 'export const a = 1;\n',
+    'src/vendored/a.ts': 'export const a = 2;\n',
+    'src/b.ts': "import { a } from '@/lib/a';\nexport const b = a;\n",
+  });
+  const { repo, root } = workspace;
+
+  const range = await readRange({ repo, from: root, to: root });
+
+  expect(range.after.edges).toEqual([{ from: 'shop/file/b.ts', to: 'shop/file/vendored/a.ts' }]);
+});
+
+test.for([
+  { how: 'a catch-all', paths: { '*': ['./src/*'] }, imported: './a' },
+  { how: 'a pattern with no prefix', paths: { '*.js': ['./src/*.ts'] }, imported: './a.js' },
+  { how: 'a relative pattern', paths: { './*': ['./src/*'] }, imported: './a' },
+  { how: 'an absolute pattern', paths: { '/*': ['./src/*'] }, imported: './a' },
+])('a relative import stays relative under $how', async ({ paths, imported }) => {
+  using workspace = gitRepo({
+    'package.json': '{ "name": "shop" }\n',
+    'tsconfig.json': `${JSON.stringify({ compilerOptions: { paths } })}\n`,
+    'src/a.ts': 'export const a = 1;\n',
+    'src/x/a.ts': 'export const a = 2;\n',
+    'src/x/b.ts': `import { a } from '${imported}';\nexport const b = a;\n`,
+  });
+  const { repo, root } = workspace;
+
+  const range = await readRange({ repo, from: root, to: root });
+
+  expect(range.after.edges).toEqual([{ from: 'shop/file/x/b.ts', to: 'shop/file/x/a.ts' }]);
+});
+
+test('a catch-all tsconfig path finds a bare import in each of its folders', async () => {
+  using workspace = gitRepo({
+    'package.json': '{ "name": "shop" }\n',
+    'tsconfig.json':
+      '{ "compilerOptions": { "paths": { "*": ["./gone/*", "./src/lib/*", "./src/only.ts"] } } }\n',
+    'src/lib/a.ts': 'export const a = 1;\n',
+    'src/src/lib/a.ts': 'export const a = 2;\n',
+    'src/c.ts': 'export const c = 1;\n',
+    'src/only.ts': 'export const only = 1;\n',
+    'src/b.ts': "import { a } from 'a';\nimport { c } from 'c';\nexport const b = a + c;\n",
+  });
+  const { repo, root } = workspace;
+
+  const range = await readRange({ repo, from: root, to: root });
+
+  expect(range.after.edges).toEqual([{ from: 'shop/file/b.ts', to: 'shop/file/lib/a.ts' }]);
+});
+
+test.for([
+  {
+    how: 'an alias climbing out',
+    imported: '@/a',
+    options: (repo: string) => ({ paths: { '@/*': [`${climbingTo(repo)}/*`] } }),
+  },
+  {
+    how: 'a catch-all climbing out',
+    imported: 'a',
+    options: (repo: string) => ({ paths: { '*': [`${climbingTo(repo)}/*`] } }),
+  },
+  { how: 'an absolute place', imported: '@/a', options: () => ({ paths: { '@/*': ['/src/*'] } }) },
+  {
+    how: 'a baseUrl climbing out',
+    imported: 'a',
+    options: (repo: string) => ({ baseUrl: climbingTo(repo) }),
+  },
+  { how: 'an absolute baseUrl', imported: 'a', options: () => ({ baseUrl: '/src' }) },
+])('a tsconfig path leaving the checkout is not read: $how', async ({ imported, options }) => {
+  using workspace = gitRepo({
+    'package.json': '{ "name": "shop" }\n',
+    'src/a.ts': 'export const a = 1;\n',
+    'src/b.ts': `import { a } from '${imported}';\nexport const b = a;\n`,
+  });
+  const { repo, root } = workspace;
+  const compilerOptions = { rootDir: '.', ...options(repo) };
+  const head = commit(repo, { 'tsconfig.json': JSON.stringify({ compilerOptions }) });
+  writeFiles(repo, { 'outside/a.ts': 'export const a = 2;\n' });
+
+  const range = await readRange({ repo, from: root, to: head });
+
+  expect(range.after.edges).toEqual([]);
+  expect(nodeIds(range.after)).toEqual([
+    'shop',
+    'shop/module/src',
+    'shop/file/src/a.ts',
+    'shop/file/src/b.ts',
+  ]);
+});
+
+test.for([
+  {
+    how: 'through an alias',
+    paths: { '@/*': ['./*'] },
+    imported: (repo: string) => `@/${climbingTo(repo)}/a`,
+  },
+  {
+    how: 'through a catch-all',
+    paths: { '*': ['./*'] },
+    imported: (repo: string) => `src/${climbingTo(repo)}/a`,
+  },
+  { how: 'by a relative climb', paths: {}, imported: (repo: string) => `${climbingTo(repo)}/a` },
+  { how: 'by an absolute path', paths: {}, imported: (repo: string) => `${repo}/outside/a` },
+])('a file outside the checkout is not drawn: $how', async ({ paths, imported }) => {
+  using workspace = gitRepo({
+    'package.json': '{ "name": "shop" }\n',
+    'tsconfig.json': `${JSON.stringify({ compilerOptions: { rootDir: '.', paths } })}\n`,
+    'src/b.ts': 'export const b = 1;\n',
+  });
+  const { repo, root } = workspace;
+  const head = commit(repo, {
+    'src/b.ts': `import { a } from '${imported(repo)}';\nexport const b = a;\n`,
+  });
+  writeFiles(repo, { 'outside/a.ts': 'export const a = 2;\n' });
+
+  const range = await readRange({ repo, from: root, to: head });
+
+  expect(range.after.edges).toEqual([]);
+  expect(nodeIds(range.after)).toEqual(['shop', 'shop/module/src', 'shop/file/src/b.ts']);
+});
+
+test.for([
+  { how: "from the checkout's root", root: '.', climb: '../../before/src/a' },
+  { how: 'from a stack below it', root: 'apps/web', climb: '../../../../before/apps/web/src/a' },
+])('the other side of the range, one climb away, is not drawn: $how', async ({ root, climb }) => {
+  using workspace = gitRepo({
+    [join(root, 'package.json')]: '{}\n',
+    [join(root, 'tsconfig.json')]: '{ "compilerOptions": { "rootDir": "." } }\n',
+    [join(root, 'src/a.ts')]: 'export const a = 1;\n',
+    [join(root, 'src/b.ts')]: 'export const b = 1;\n',
+  });
+  const { repo, root: base } = workspace;
+  const head = commit(repo, {
+    [join(root, 'src/b.ts')]: `import { a } from '${climb}';\nexport const b = a;\n`,
+  });
+
+  const range = await readRange({ repo, from: base, to: head });
+
+  expect(range.after.edges).toEqual([]);
+});
+
+test('a bare import of a sibling package, found in a node_modules above the checkout, joins its stack and draws no file', async () => {
+  using above = gitRepo({
+    'node_modules/@acme/lib/index.js': 'export const x = 1;\n',
+    'tmp/keep': '',
+  });
+  vi.stubEnv('TMPDIR', join(above.repo, 'tmp'));
+  using workspace = gitRepo({
+    'apps/web/package.json': '{}\n',
+    'apps/web/tsconfig.json': '{ "compilerOptions": { "rootDir": "." } }\n',
+    'apps/web/src/b.ts': "import { x } from '@acme/lib';\nexport const b = x;\n",
+    'packages/lib/package.json': '{ "name": "@acme/lib" }\n',
+    'packages/lib/src/x.ts': 'export const x = 1;\n',
+  });
+  const { repo, root } = workspace;
+
+  const range = await readRange({ repo, from: root, to: root });
+
+  expect(range.after.edges).toEqual([{ from: 'apps/web/file/src/b.ts', to: 'packages/lib' }]);
+  expect(nodeIds(range.after).filter(id => id.includes('node_modules'))).toEqual([]);
+});
+
+test.for([
+  {
+    how: 'a relative climb, from a stack whose source root is its folder',
+    tsconfig: { compilerOptions: { rootDir: '.' } },
+    imported: '../../lib/src/x',
+    from: 'apps/web/file/src/b.ts',
+  },
+  {
+    how: 'a tsconfig path, from a stack whose source root is its folder',
+    tsconfig: { compilerOptions: { rootDir: '.', paths: { '@lib/*': ['../lib/src/*'] } } },
+    imported: '@lib/x',
+    from: 'apps/web/file/src/b.ts',
+  },
+  {
+    how: 'a tsconfig path, from a stack with a src folder',
+    tsconfig: { compilerOptions: { paths: { '@lib/*': ['../lib/src/*'] } } },
+    imported: '@lib/x',
+    from: 'apps/web/file/b.ts',
+  },
+])('$how joins the file to the sibling stack it lands in', async ({ tsconfig, imported, from }) => {
+  using workspace = gitRepo({
+    'apps/web/package.json': '{}\n',
+    'apps/web/tsconfig.json': JSON.stringify(tsconfig),
+    'apps/web/src/b.ts': `import { x } from '${imported}';\nexport const b = x;\n`,
+    'apps/lib/package.json': '{}\n',
+    'apps/lib/src/x.ts': 'export const x = 1;\n',
+  });
+  const { repo, root } = workspace;
+
+  const range = await readRange({ repo, from: root, to: root });
+
+  expect(range.after.edges).toEqual([{ from, to: 'apps/lib' }]);
+  expect(nodeIds(range.after).filter(id => id.includes('..'))).toEqual([]);
+});
+
+test.for([
+  {
+    how: 'the deepest root holding it',
+    place: './packages/lib/src/*',
+    edges: [{ from: 'shop/file/b.ts', to: 'packages/lib' }],
+  },
+  {
+    how: 'the deepest root holding it, of one letter',
+    place: './p/src/*',
+    edges: [{ from: 'shop/file/b.ts', to: 'p' }],
+  },
+  {
+    how: 'no root its folder name only begins like',
+    place: './packages/library/src/*',
+    edges: [],
+  },
+])('a path inside the root stack goes to $how', async ({ place, edges }) => {
+  using workspace = gitRepo({
+    'package.json': '{ "name": "shop" }\n',
+    'tsconfig.json': JSON.stringify({ compilerOptions: { paths: { '@/*': [place] } } }),
+    'src/b.ts': "import { x } from '@/x';\nexport const b = x;\n",
+    'packages/lib/package.json': '{}\n',
+    'packages/lib/src/x.ts': 'export const x = 1;\n',
+    'packages/library/src/x.ts': 'export const x = 1;\n',
+    'p/package.json': '{}\n',
+    'p/src/x.ts': 'export const x = 1;\n',
+  });
+  const { repo, root } = workspace;
+
+  const range = await readRange({ repo, from: root, to: root });
+
+  expect(range.after.edges).toEqual(edges);
+});
+
+test('a relative climb to a file under no stack draws nothing', async () => {
+  using workspace = gitRepo({
+    'apps/web/package.json': '{}\n',
+    'apps/web/tsconfig.json': '{ "compilerOptions": { "rootDir": "." } }\n',
+    'apps/web/src/b.ts': "import { x } from '../../shared/x';\nexport const b = x;\n",
+    'apps/shared/x.ts': 'export const x = 1;\n',
+  });
+  const { repo, root } = workspace;
+
+  const range = await readRange({ repo, from: root, to: root });
+
+  expect(range.after.edges).toEqual([]);
+  expect(nodeIds(range.after).filter(id => id.includes('..'))).toEqual([]);
+});
+
+const aliasTo = (place: string) => ({ compilerOptions: { paths: { '@/*': [place] } } });
+
+test.for([
+  {
+    how: 'a file named by a string',
+    configs: { 'tsconfig.json': { extends: './base.json' }, 'base.json': aliasTo('./src/*') },
+  },
+  {
+    how: 'a name without its extension',
+    configs: { 'tsconfig.json': { extends: './base' }, 'base.json': aliasTo('./src/*') },
+  },
+  {
+    how: 'an array, the later entry winning',
+    configs: {
+      'tsconfig.json': { extends: ['./one.json', './two.json'] },
+      'one.json': aliasTo('./src/vendored/*'),
+      'two.json': aliasTo('./src/*'),
+    },
+  },
+  {
+    how: 'a chain, the nearest winning',
+    configs: {
+      'tsconfig.json': { extends: './one.json' },
+      'one.json': { extends: './two.json', ...aliasTo('./src/*') },
+      'two.json': aliasTo('./src/vendored/*'),
+    },
+  },
+  {
+    how: 'its own paths ahead of what it extends',
+    configs: {
+      'tsconfig.json': { extends: './one.json', ...aliasTo('./src/*') },
+      'one.json': aliasTo('./src/vendored/*'),
+    },
+  },
+  {
+    how: 'places relative to the config defining them',
+    configs: {
+      'tsconfig.json': { extends: './config/base' },
+      'config/base.json': aliasTo('../src/*'),
+    },
+  },
+  {
+    how: 'a name relative to the config saying it',
+    configs: {
+      'tsconfig.json': { extends: './config/one' },
+      'config/one.json': { extends: './two' },
+      'config/two.json': aliasTo('../src/*'),
+    },
+  },
+  {
+    how: 'a climb that stays in the checkout',
+    configs: {
+      'tsconfig.json': { extends: './config/one' },
+      'config/one.json': { extends: '../base' },
+      'base.json': aliasTo('./src/*'),
+    },
+  },
+  {
+    how: 'places relative to an inherited baseUrl',
+    configs: {
+      'tsconfig.json': { extends: './config/base', ...aliasTo('./*') },
+      'config/base.json': { compilerOptions: { baseUrl: '../src' } },
+    },
+  },
+  {
+    how: 'itself, which ends',
+    configs: { 'tsconfig.json': { extends: './tsconfig.json', ...aliasTo('./src/*') } },
+  },
+  {
+    how: 'in a cycle, which ends',
+    configs: {
+      'tsconfig.json': { extends: './one.json' },
+      'one.json': { extends: './tsconfig.json', ...aliasTo('./src/*') },
+    },
+  },
+  {
+    how: 'a config two entries share, which counts for both',
+    configs: {
+      'tsconfig.json': { extends: ['./one.json', './two.json'] },
+      'one.json': { extends: './shared.json', ...aliasTo('./src/vendored/*') },
+      'two.json': { extends: './shared.json' },
+      'shared.json': aliasTo('./src/*'),
+    },
+  },
+  {
+    how: 'a fan-out of thirty levels, read once a config',
+    configs: {
+      'tsconfig.json': { extends: ['./one-1.json', './two-1.json'] },
+      ...Object.fromEntries(
+        Array.from({ length: 30 }, (_, level) => level + 1).flatMap(level =>
+          ['one', 'two'].map(side => [
+            `${side}-${level}.json`,
+            { extends: [`./one-${level + 1}.json`, `./two-${level + 1}.json`] },
+          ]),
+        ),
+      ),
+      'one-31.json': aliasTo('./src/*'),
+    },
+  },
+])('a tsconfig extends $how', async ({ configs }) => {
+  using workspace = gitRepo({
+    'package.json': '{ "name": "shop" }\n',
+    ...Object.fromEntries(
+      Object.entries(configs).map(([file, config]) => [file, `${JSON.stringify(config)}\n`]),
+    ),
+    'src/lib/a.ts': 'export const a = 1;\n',
+    'src/vendored/lib/a.ts': 'export const a = 2;\n',
+    'src/b.ts': "import { a } from '@/lib/a';\nexport const b = a;\n",
+  });
+  const { repo, root } = workspace;
+
+  const range = await readRange({ repo, from: root, to: root });
+
+  expect(range.after.edges).toEqual([{ from: 'shop/file/b.ts', to: 'shop/file/lib/a.ts' }]);
+});
+
+test.for([
+  { how: 'an absolute name', name: (repo: string) => `${repo}/outside.json` },
+  {
+    how: 'a climb out of the checkout',
+    name: (repo: string) => `${'../'.repeat(30)}${repo}/outside.json`,
+  },
+  { how: 'a package', name: () => 'outside' },
+  { how: 'a package whose name climbs', name: () => 'package/../outside' },
+])('a tsconfig extending $how reads nothing from it', async ({ name }) => {
+  using workspace = gitRepo({
+    'package.json': '{ "name": "shop" }\n',
+    'mine.json': JSON.stringify(aliasTo('./src/*')),
+    'outside.json': JSON.stringify({ compilerOptions: { paths: { '~/*': ['./src/*'] } } }),
+    'src/a.ts': 'export const a = 1;\n',
+    'src/b.ts': "import { a } from '@/a';\nexport const b = a;\n",
+  });
+  const { repo, root } = workspace;
+  const head = commit(repo, {
+    'tsconfig.json': JSON.stringify({ extends: ['./mine.json', name(repo)] }),
+  });
+
+  const range = await readRange({ repo, from: root, to: head });
+
+  expect(range.after.edges).toEqual([{ from: 'shop/file/b.ts', to: 'shop/file/a.ts' }]);
+});
+
+test.for([
+  { how: 'its rootDir', tsconfig: { compilerOptions: { rootDir: '..' } } },
+  { how: 'its one included folder', tsconfig: { include: ['../**/*'] } },
+])(
+  'a stack whose source root climbs by $how, inside the checkout, is still drawn',
+  async ({ tsconfig }) => {
+    using workspace = gitRepo({
+      'apps/web/package.json': '{ "name": "web" }\n',
+      'apps/web/tsconfig.json': `${JSON.stringify(tsconfig)}\n`,
+      'apps/web/a.ts': "import { x } from '../shared/x';\nexport const a = x;\n",
+      'apps/shared/x.ts': 'export const x = 1;\n',
+    });
+    const { repo, root } = workspace;
+
+    const range = await readRange({ repo, from: root, to: root });
+
+    expect(range.after.edges).toEqual([
+      { from: 'apps/web/file/web/a.ts', to: 'apps/web/file/shared/x.ts' },
+    ]);
+  },
+);
+
+test('a tsconfig extending a directory still reads its own paths', async () => {
+  using workspace = gitRepo({
+    'package.json': '{ "name": "shop" }\n',
+    'tsconfig.json': JSON.stringify({ extends: './config.json', ...aliasTo('./src/*') }),
+    'config.json/keep': '',
+    'src/a.ts': 'export const a = 1;\n',
+    'src/b.ts': "import { a } from '@/a';\nexport const b = a;\n",
+  });
+  const { repo, root } = workspace;
+
+  const range = await readRange({ repo, from: root, to: root });
+
+  expect(range.after.edges).toEqual([{ from: 'shop/file/b.ts', to: 'shop/file/a.ts' }]);
+});
+
+test.for([
+  {
+    how: 'its paths, as in the Vite template',
+    configs: {
+      'tsconfig.json': {
+        files: [],
+        references: [{ path: './tsconfig.app.json' }, { path: './tsconfig.node.json' }],
+      },
+      'tsconfig.app.json': aliasTo('./src/*'),
+      'tsconfig.node.json': { compilerOptions: { composite: true } },
+    },
+  },
+  {
+    how: 'a folder, by the tsconfig.json in it',
+    configs: {
+      'tsconfig.json': { files: [], references: [{ path: './config' }] },
+      'config/tsconfig.json': aliasTo('../src/*'),
+    },
+  },
+  {
+    how: 'its paths under an empty include',
+    configs: {
+      'tsconfig.json': { include: [], references: [{ path: './app.json' }] },
+      'app.json': aliasTo('./src/*'),
+    },
+  },
+  {
+    how: 'the first project holding paths, past one holding none',
+    configs: {
+      'tsconfig.json': {
+        files: [],
+        references: [{ path: './node.json' }, { path: './app.json' }, { path: './other.json' }],
+      },
+      'node.json': { compilerOptions: { composite: true } },
+      'app.json': aliasTo('./src/*'),
+      'other.json': aliasTo('./src/vendored/*'),
+    },
+  },
+  {
+    how: 'nothing when its own chain holds paths',
+    configs: {
+      'tsconfig.json': { extends: './base.json', files: [], references: [{ path: './app.json' }] },
+      'base.json': aliasTo('./src/*'),
+      'app.json': aliasTo('./src/vendored/*'),
+    },
+  },
+  {
+    how: "its own baseUrl, ahead of the chain's",
+    configs: {
+      'tsconfig.json': {
+        files: [],
+        compilerOptions: { baseUrl: './src/vendored' },
+        references: [{ path: './app.json' }],
+      },
+      'app.json': { compilerOptions: { baseUrl: './src', paths: { '@/*': ['./*'] } } },
+    },
+  },
+])('a tsconfig reference brings $how', async ({ configs }) => {
+  using workspace = gitRepo({
+    'package.json': '{ "name": "shop" }\n',
+    ...Object.fromEntries(
+      Object.entries(configs).map(([file, config]) => [file, JSON.stringify(config)]),
+    ),
+    'src/lib/a.ts': 'export const a = 1;\n',
+    'src/vendored/lib/a.ts': 'export const a = 2;\n',
+    'src/b.ts': "import { a } from '@/lib/a';\nexport const b = a;\n",
+  });
+  const { repo, root } = workspace;
+
+  const range = await readRange({ repo, from: root, to: root });
+
+  expect(range.after.edges).toEqual([{ from: 'shop/file/b.ts', to: 'shop/file/lib/a.ts' }]);
+});
+
+test.for([
+  {
+    how: 'a project that holds files of its own',
+    configs: { 'tsconfig.json': { references: [{ path: './app.json' }] } },
+  },
+  {
+    how: 'a project naming files',
+    configs: { 'tsconfig.json': { files: ['src/b.ts'], references: [{ path: './app.json' }] } },
+  },
+  {
+    how: 'a project including files, with no files named',
+    configs: {
+      'tsconfig.json': { files: [], include: ['src'], references: [{ path: './app.json' }] },
+    },
+  },
+  {
+    how: 'what it extends, whose own references those are',
+    configs: {
+      'tsconfig.json': { files: [], extends: './base.json' },
+      'base.json': { files: [], references: [{ path: './app.json' }] },
+    },
+  },
+])('a tsconfig reference from $how brings no paths', async ({ configs }) => {
+  using workspace = gitRepo({
+    'package.json': '{ "name": "shop" }\n',
+    ...Object.fromEntries(
+      Object.entries(configs).map(([file, config]) => [file, JSON.stringify(config)]),
+    ),
+    'app.json': JSON.stringify(aliasTo('./src/*')),
+    'src/a.ts': 'export const a = 1;\n',
+    'src/b.ts': "import { a } from '@/a';\nexport const b = a;\n",
+  });
+  const { repo, root } = workspace;
+
+  const range = await readRange({ repo, from: root, to: root });
+
+  expect(range.after.edges).toEqual([]);
+});
+
+test.for([
+  { how: 'an absolute path', path: () => '/outside.json' },
+  {
+    how: 'a climb out of the checkout',
+    path: (repo: string) => `${'../'.repeat(30)}${repo}/outside.json`,
+  },
+])('a tsconfig referencing $how reads nothing from it', async ({ path }) => {
+  using workspace = gitRepo({
+    'package.json': '{ "name": "shop" }\n',
+    'mine.json': JSON.stringify(aliasTo('./src/*')),
+    'outside.json': JSON.stringify({ compilerOptions: { paths: { '~/*': ['./src/*'] } } }),
+    'src/a.ts': 'export const a = 1;\n',
+    'src/b.ts': "import { a } from '@/a';\nexport const b = a;\n",
+  });
+  const { repo, root } = workspace;
+  const head = commit(repo, {
+    'tsconfig.json': JSON.stringify({
+      files: [],
+      references: [{ path: path(repo) }, { path: './mine.json' }],
+    }),
+  });
+
+  const range = await readRange({ repo, from: root, to: head });
+
+  expect(range.after.edges).toEqual([{ from: 'shop/file/b.ts', to: 'shop/file/a.ts' }]);
+});
+
+test('a very long tsconfig extends chain does not stop the review', async () => {
+  using workspace = gitRepo({
+    'package.json': '{ "name": "shop" }\n',
+    'tsconfig.json': JSON.stringify({ extends: './level-1.json', ...aliasTo('./src/*') }),
+    ...Object.fromEntries(
+      Array.from({ length: 5000 }, (_, level) => [
+        `level-${level + 1}.json`,
+        JSON.stringify({ extends: `./level-${level + 2}.json` }),
+      ]),
+    ),
+    'src/a.ts': 'export const a = 1;\n',
+    'src/b.ts': "import { a } from '@/a';\nexport const b = a;\n",
+  });
+  const { repo, root } = workspace;
+
+  const range = await readRange({ repo, from: root, to: root });
+
+  expect(range.after.edges).toEqual([{ from: 'shop/file/b.ts', to: 'shop/file/a.ts' }]);
+});
+
+test('the nearest tsconfig paths replace what it extends wholly', async () => {
+  using workspace = gitRepo({
+    'package.json': '{ "name": "shop" }\n',
+    'tsconfig.json': JSON.stringify({
+      extends: './base.json',
+      compilerOptions: { paths: { '~/*': ['./src/*'] } },
+    }),
+    'base.json': JSON.stringify(aliasTo('./src/*')),
+    'src/a.ts': 'export const a = 1;\n',
+    'src/b.ts': "import { a } from '@/a';\nexport const b = a;\n",
+  });
+  const { repo, root } = workspace;
+
+  const range = await readRange({ repo, from: root, to: root });
+
+  expect(range.after.edges).toEqual([]);
+});
+
+test('each stack and each side resolves through its own tsconfig paths', async () => {
+  using workspace = gitRepo({
+    'apps/one/package.json': '{}\n',
+    'apps/one/tsconfig.json': '{ "compilerOptions": { "paths": { "@/*": ["./src/*"] } } }\n',
+    'apps/one/src/a.ts': 'export const a = 1;\n',
+    'apps/one/src/b.ts': "import { a } from '@/a';\nexport const b = a;\n",
+    'apps/two/package.json': '{}\n',
+    'apps/two/tsconfig.json': '{ "compilerOptions": { "paths": { "@/*": ["./src/lib/*"] } } }\n',
+    'apps/two/src/lib/c.ts': 'export const c = 1;\n',
+    'apps/two/src/d.ts': "import { c } from '@/c';\nexport const d = c;\n",
+  });
+  const { repo, root } = workspace;
+  const head = commit(repo, {
+    'apps/two/tsconfig.json': '{ "compilerOptions": { "paths": { "~/*": ["./src/lib/*"] } } }\n',
+    'apps/two/src/d.ts': "import { c } from '~/c';\nexport const d = c;\n",
+  });
+
+  const range = await readRange({ repo, from: root, to: head });
+
+  const edges = [
+    { from: 'apps/one/file/b.ts', to: 'apps/one/file/a.ts' },
+    { from: 'apps/two/file/d.ts', to: 'apps/two/file/lib/c.ts' },
+  ];
+  expect(range.before.edges).toEqual(edges);
+  expect(range.after.edges).toEqual(edges);
 });
 
 test('a package whose source root holds other packages is no stack, so their files are drawn once, in their own stacks', async () => {
@@ -237,6 +940,21 @@ test('with the whole package as source root, built-ins and packages it imports a
 });
 
 test.for([
+  {
+    tsconfig: '{ "compilerOptions": { "rootDir": "lib", "paths": "not a map" } }',
+    files: { 'lib/a.ts': 'export const a = 1;\n' },
+    drawn: 'lib/a.ts',
+  },
+  {
+    tsconfig: '{ "compilerOptions": { "rootDir": "lib" }, "files": "not a list" }',
+    files: { 'lib/a.ts': 'export const a = 1;\n' },
+    drawn: 'lib/a.ts',
+  },
+  {
+    tsconfig: '{ "compilerOptions": { "rootDir": "lib", "baseUrl": 1 } }',
+    files: { 'lib/a.ts': 'export const a = 1;\n' },
+    drawn: 'lib/a.ts',
+  },
   {
     tsconfig: '{ "compilerOptions": { "rootDir": "lib" }, "include": ["libraries"] }',
     files: {
@@ -1727,14 +2445,97 @@ test('another stack of a reader that reads another language is no stack to follo
   expect(range.reachesNotRead).toEqual([NOT_DRAWN]);
 });
 
-test('what asks a name says what the graph holds no edge for, which reads no row: an alias, a type-only re-export, a test outside the source root', async () => {
+const usesFoo = (imported: string) => `import { foo } from '${imported}';\nfoo();\n`;
+
+test.for([
+  {
+    how: 'a wildcard',
+    paths: { '@/*': ['./src/*'] },
+    imported: '@/lib/a',
+  },
+  {
+    how: 'an exact name',
+    paths: { 'the-lib': ['./src/lib/a.ts'] },
+    imported: 'the-lib',
+  },
+  {
+    how: 'a later place, when the first holds no file',
+    paths: { '@/*': ['./gone/*', './src/*'] },
+    imported: '@/lib/a',
+  },
+  {
+    how: 'a later place, past a folder of that name',
+    paths: { '@/*': ['./src/*', './src/lib/*'] },
+    imported: '@/a',
+  },
+  {
+    how: 'the longest prefix, written last',
+    paths: { '@/*': ['./gone/*'], '@/lib/*': ['./src/lib/*'] },
+    imported: '@/lib/a',
+  },
+  {
+    how: 'a catch-all',
+    paths: { '*': ['./src/*'] },
+    imported: 'lib/a',
+  },
+  {
+    how: 'a suffix',
+    paths: { '@/*-gen': ['./src/*'] },
+    imported: '@/lib/a-gen',
+  },
+  {
+    how: 'a baseUrl, past paths that do not match',
+    paths: { '@/*': ['./gone/*'], 'lib/*-gen': ['./gone/*'], other: ['./gone/other.ts'] },
+    baseUrl: './src',
+    imported: 'lib/a',
+  },
+])(
+  'an unchanged file importing through $how still reaches',
+  async ({ paths, baseUrl, imported }) => {
+    using repository = gitRepo({ 'README.md': 'a shop\n' });
+    const { repo } = repository;
+    const base = commit(repo, {
+      'apps/web/package.json': '{}\n',
+      'apps/web/tsconfig.json': JSON.stringify({ compilerOptions: { paths, baseUrl } }),
+      'apps/web/src/lib/a.ts': 'export function foo() {}\nexport const kept = 1;\n',
+      'apps/web/src/a/other.ts': 'export const other = 1;\n',
+      'apps/web/src/uses.ts': usesFoo(imported),
+    });
+    const head = commit(repo, { 'apps/web/src/lib/a.ts': 'export const kept = 1;\n' });
+
+    const range = await readRange({ repo, from: base, to: head });
+
+    expect(range.reaches.flatMap(({ uses }) => uses)).toEqual([
+      { path: 'apps/web/src/uses.ts', line: 2, text: 'foo();' },
+    ]);
+  },
+);
+
+test('an import through a tsconfig path names only the first place holding a file', async () => {
   using repository = gitRepo({ 'README.md': 'a shop\n' });
   const { repo } = repository;
   const base = commit(repo, {
     ...rootPackage,
-    'tsconfig.json': '{"compilerOptions":{"paths":{"@/*":["src/*"]}}}\n',
+    'tsconfig.json': JSON.stringify({
+      compilerOptions: { paths: { '@/*': ['./src/one/*', './src/two/*'] } },
+    }),
+    'src/one/a.ts': 'export function foo() {}\n',
+    'src/two/a.ts': 'export function foo() {}\nexport const kept = 1;\n',
+    'src/uses.ts': `${usesFoo('@/a')}import { kept } from './two/a';\nkept;\n`,
+  });
+  const head = commit(repo, { 'src/two/a.ts': 'export const kept = 1;\n' });
+
+  const range = await readRange({ repo, from: base, to: head });
+
+  expect(range.reaches).toEqual([]);
+});
+
+test('what asks a name says what the graph holds no edge for, which reads no row: a type-only re-export, a test outside the source root', async () => {
+  using repository = gitRepo({ 'README.md': 'a shop\n' });
+  const { repo } = repository;
+  const base = commit(repo, {
+    ...rootPackage,
     'src/a.ts': 'export function foo() {}\nexport type Foo = number;\nexport const kept = 1;\n',
-    'src/aliased.ts': "import { foo } from '@/a';\nfoo();\n",
     'src/types.ts': "export type { Foo } from './a.ts';\n",
     'test/a.test.ts': "import { foo } from '../src/a.ts';\nfoo();\n",
   });

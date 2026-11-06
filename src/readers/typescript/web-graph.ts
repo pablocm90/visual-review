@@ -1,4 +1,4 @@
-import { join, matchesGlob } from 'node:path';
+import { join, matchesGlob, relative } from 'node:path';
 import { z } from 'zod';
 import type { Graph, GraphNode } from '../../core/graph.ts';
 
@@ -8,6 +8,7 @@ const CruiseOutputSchema = z.object({
       source: z.string(),
       coreModule: z.boolean().optional(),
       couldNotResolve: z.boolean().optional(),
+      matchesDoNotFollow: z.boolean().optional(),
       dependencies: z.array(z.object({ module: z.string(), resolved: z.string() })),
     }),
   ),
@@ -71,7 +72,17 @@ const packageOf = (module: string): string =>
 type WebGraphOptions = StackOptions & {
   readonly cruiseJson: string;
   readonly packages: ReadonlyMap<string, string>;
+  readonly stacks: ReadonlyMap<string, string>;
 };
+
+const isUnder = (folder: string, path: string): boolean =>
+  !`${relative(folder, path)}/`.startsWith('../');
+
+const stackHolding = (path: string, stacks: ReadonlyMap<string, string>): string | undefined =>
+  [...stacks]
+    .filter(([root]) => isUnder(root, path))
+    .toSorted(([one], [other]) => relative(one, path).length - relative(other, path).length)
+    .at(0)?.[1];
 
 export const webGraph = ({
   stack,
@@ -80,12 +91,15 @@ export const webGraph = ({
   boxes,
   cruiseJson,
   packages,
+  stacks,
 }: WebGraphOptions): Graph => {
   const { modules } = CruiseOutputSchema.parse(JSON.parse(cruiseJson));
-  const sources = modules.filter(
-    ({ source, coreModule, couldNotResolve }) =>
-      source.startsWith(prefixOf(sourceRoot)) && !coreModule && !couldNotResolve,
+  const files = modules.filter(
+    ({ coreModule, couldNotResolve, matchesDoNotFollow }) =>
+      !coreModule && !couldNotResolve && !matchesDoNotFollow,
   );
+  const sources = files.filter(({ source }) => isUnder(sourceRoot, source));
+  const filePaths = new Set(files.map(({ source }) => source));
   const sourcePaths = new Set(sources.map(({ source }) => source));
   const nodes = new Map(
     sources
@@ -95,7 +109,9 @@ export const webGraph = ({
   const targetsOf = (dependency: { readonly module: string; readonly resolved: string }) => {
     if (sourcePaths.has(dependency.resolved))
       return [fileId({ stack, sourceRoot, source: dependency.resolved })];
-    const sibling = packages.get(packageOf(dependency.module));
+    const sibling = filePaths.has(dependency.resolved)
+      ? stackHolding(join(directory, dependency.resolved), stacks)
+      : packages.get(packageOf(dependency.module));
     return sibling === undefined || sibling === stack ? [] : [sibling];
   };
   const edges = sources.flatMap(module => {

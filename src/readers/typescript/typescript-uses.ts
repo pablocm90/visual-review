@@ -1,9 +1,10 @@
 import { readFile } from 'node:fs/promises';
-import { basename, dirname, join, posix } from 'node:path';
+import { basename, dirname, join, resolve } from 'node:path';
 import type { ImportDeclaration, Node, Program } from '@babel/types';
 import type { GraphNode } from '../../core/graph.ts';
 import type { SymbolUse, UsesAsked, UsesReading } from '../../core/reader.ts';
 import { isTooBig } from '../too-big.ts';
+import { placesNamedBy, type Resolution, resolutionIn } from './typescript-config.ts';
 import {
   defaultExported,
   endOf,
@@ -19,8 +20,7 @@ const placeAt = (path: string, text: string, offset: number): SymbolUse => {
   return { path, line, text: (text.split('\n')[line - 1] ?? '').trim() };
 };
 
-export const NOT_DRAWN =
-  'not followed: tsconfig aliases, type-only re-exports, files outside the source root';
+export const NOT_DRAWN = 'not followed: type-only re-exports, files outside the source root';
 
 const ACCESSES = new Set(['.', '?.']);
 const LOADERS = new Set(['import', 'require']);
@@ -30,16 +30,36 @@ const moduleOf = (path: string): string => {
   return basename(stem) === 'index' ? dirname(stem) : stem;
 };
 
-const namesFile = (specifier: string, importer: string, file: string): boolean =>
-  specifier.startsWith('.') &&
-  moduleOf(posix.resolve('/', dirname(importer), specifier)) === moduleOf(posix.resolve('/', file));
+type Stack = {
+  readonly head: string;
+  readonly resolution: Resolution;
+  readonly drawn: ReadonlySet<string>;
+};
+
+type Naming = { readonly specifier: string; readonly importer: string; readonly file: string };
+
+const moduleAt = (...path: ReadonlyArray<string>): string => moduleOf(resolve(...path));
+
+const namesFile = ({ head, resolution, drawn }: Stack, { specifier, importer, file }: Naming) => {
+  const places = specifier.startsWith('.')
+    ? [join(head, dirname(importer), specifier)]
+    : placesNamedBy(resolution, specifier);
+  return (
+    places.map(place => moduleAt(place)).find(place => drawn.has(place)) === moduleAt(head, file)
+  );
+};
 
 const importedName = (text: string, specifier: ImportDeclaration['specifiers'][number]) => {
   if (specifier.type === 'ImportSpecifier') return sourceOf(text, specifier.imported);
   return specifier.type === 'ImportDefaultSpecifier' ? 'default' : undefined;
 };
 
-type Read = { readonly path: string; readonly text: string; readonly target: string };
+type Read = {
+  readonly path: string;
+  readonly text: string;
+  readonly target: string;
+  readonly stack: Stack;
+};
 
 type Forward = { readonly from: string; readonly to: string };
 
@@ -132,11 +152,11 @@ const exportsFrom = (text: string, program: Program, names: Names) => {
   };
 };
 
-const usesInFile = ({ path, text, target }: Read): FileUses => {
+const usesInFile = ({ path, text, target, stack }: Read): FileUses => {
   const parsed = parseTypeScript(text, path);
   const { program } = parsed;
   const scan = scanOf(text, parsed);
-  const names: Names = specifier => namesFile(specifier, path, target);
+  const names: Names = specifier => namesFile(stack, { specifier, importer: path, file: target });
   const placeOf = (range: Token | Node) => placeAt(path, text, startOf(range));
   const { reexports, namespaceExports } = exportsFrom(text, program, names);
   const aliases = aliasesIn(text, program);
@@ -236,7 +256,7 @@ const walked = async ({ hops, seen, importersOf, read }: Walk): Promise<Readonly
 const known = new Map<string, FileUses>();
 
 const usesInFileOnce = (read: Read): FileUses => {
-  const key = JSON.stringify([read.path, read.target, read.text]);
+  const key = JSON.stringify([read.path, read.target, read.text, read.stack.resolution]);
   const kept = known.get(key);
   if (kept !== undefined) return kept;
   const uses = usesInFile(read);
@@ -244,12 +264,12 @@ const usesInFileOnce = (read: Read): FileUses => {
   return uses;
 };
 
-const fileUsesAt = async (head: string, path: string, target: string): Promise<FileUses> => {
-  const text = await readFile(join(head, path), 'utf8').catch(() => undefined);
+const fileUsesAt = async (stack: Stack, path: string, target: string): Promise<FileUses> => {
+  const text = await readFile(join(stack.head, path), 'utf8').catch(() => undefined);
   if (text === undefined) return NO_USES;
   if (isTooBig(text)) return { ...NO_USES, notRead: path };
   try {
-    return usesInFileOnce({ path, text, target });
+    return usesInFileOnce({ path, text, target, stack });
   } catch {
     return { ...NO_USES, notRead: path };
   }
@@ -265,6 +285,7 @@ const onePerFile = (uses: ReadonlyArray<SymbolUse>): ReadonlyArray<SymbolUse> =>
 export const usesOfTypeScript = async ({
   base,
   head,
+  root,
   graph,
   node,
   names,
@@ -272,6 +293,13 @@ export const usesOfTypeScript = async ({
   const nodes = new Map<string, GraphNode>(graph.nodes.map(each => [each.id, each]));
   const baseText = await readFile(join(base, node.path), 'utf8');
   const aliases = aliasesIn(baseText, parseTypeScript(baseText, node.path).program);
+  const stack: Stack = {
+    head,
+    resolution: resolutionIn({ checkout: head, root }),
+    drawn: new Set(
+      graph.nodes.filter(({ kind }) => kind === 'file').map(({ path }) => moduleAt(head, path)),
+    ),
+  };
   const visits = await walked({
     hops: names.flatMap(asked =>
       [
@@ -282,7 +310,7 @@ export const usesOfTypeScript = async ({
     seen: new Set(),
     importersOf: ({ id }) =>
       graph.edges.filter(({ to }) => to === id).flatMap(({ from }) => nodes.get(from) ?? []),
-    read: ({ path }, target) => fileUsesAt(head, path, target.path),
+    read: ({ path }, target) => fileUsesAt(stack, path, target.path),
   });
   return {
     uses: Object.fromEntries(

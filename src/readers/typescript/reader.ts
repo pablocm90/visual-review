@@ -1,10 +1,16 @@
 import { existsSync, globSync, readFileSync, statSync } from 'node:fs';
-import { basename, dirname, isAbsolute, join, relative } from 'node:path';
+import { basename, dirname, join, relative } from 'node:path';
 import { cruise } from 'dependency-cruiser';
 import { parse } from 'jsonc-parser';
 import { z } from 'zod';
 import { folderOf, type StackSettings } from '../../core/config.ts';
 import type { CandidateRoot, Reader } from '../../core/reader.ts';
+import {
+  type RootOptions,
+  resolutionIn,
+  staysInCheckout,
+  tsconfigIn,
+} from './typescript-config.ts';
 import { measureTypeScript } from './typescript-measure.ts';
 import { symbolsOfTypeScript } from './typescript-symbols.ts';
 import { readTypeScriptTests } from './typescript-tests.ts';
@@ -16,18 +22,6 @@ const SCRIPT_FILE = /\.[cm]?[jt]sx?$/;
 
 const SOURCES = '**/*.{ts,tsx,js,jsx,mjs,cjs}';
 
-const TsconfigSchema = z.object({
-  compilerOptions: z.object({ rootDir: z.string().optional() }).optional(),
-  include: z.array(z.string()).optional(),
-});
-
-const tsconfigIn = (directory: string): z.infer<typeof TsconfigSchema> => {
-  const tsconfig = join(directory, 'tsconfig.json');
-  return existsSync(tsconfig)
-    ? (TsconfigSchema.safeParse(parse(readFileSync(tsconfig, 'utf8'))).data ?? {})
-    : {};
-};
-
 const isDirectory = (path: string): boolean => existsSync(path) && statSync(path).isDirectory();
 
 const includedFolders = (directory: string, include: ReadonlyArray<string>) => [
@@ -38,19 +32,13 @@ const includedFolders = (directory: string, include: ReadonlyArray<string>) => [
   ),
 ];
 
-type RootOptions = {
-  readonly checkout: string;
-  readonly root: string;
-};
-
 const sourceRootOf = ({ checkout, root }: RootOptions): string => {
   const directory = join(checkout, root);
-  const staysInCheckout = (folder: string) =>
-    !isAbsolute(folder) && !`${join(root, folder)}/`.startsWith('../');
+  const stays = staysInCheckout(root);
   const { compilerOptions, include = [] } = tsconfigIn(directory);
-  const [folder, ...others] = includedFolders(directory, include).filter(staysInCheckout);
+  const [folder, ...others] = includedFolders(directory, include).filter(stays);
   const rootDir = compilerOptions?.rootDir;
-  if (rootDir !== undefined && staysInCheckout(rootDir)) return folderOf(rootDir);
+  if (rootDir !== undefined && stays(rootDir)) return folderOf(rootDir);
   return folder !== undefined && others.length === 0 ? folder : 'src';
 };
 
@@ -114,13 +102,30 @@ type GraphOptions = {
   readonly sourceRoot: string;
   readonly boxes: ReadonlyArray<string>;
   readonly packages: ReadonlyMap<string, string>;
+  readonly stacks: ReadonlyMap<string, string>;
 };
 
-const graphAt = async ({ directory, root, stack, sourceRoot, boxes, packages }: GraphOptions) => {
-  const { output } = await cruise([sourceRoot], {
-    baseDir: join(directory, root),
-    outputType: 'json',
-  });
+const leavingCheckoutFrom = (root: string): string =>
+  `^(\\.\\./){${join(root, 'file').split('/').length}}`;
+
+const graphAt = async ({
+  directory,
+  root,
+  stack,
+  sourceRoot,
+  boxes,
+  packages,
+  stacks,
+}: GraphOptions) => {
+  const { output } = await cruise(
+    [sourceRoot],
+    {
+      baseDir: join(directory, root),
+      outputType: 'json',
+      doNotFollow: { path: leavingCheckoutFrom(root) },
+    },
+    resolutionIn({ checkout: directory, root }),
+  );
   return webGraph({
     stack,
     directory: root,
@@ -128,6 +133,7 @@ const graphAt = async ({ directory, root, stack, sourceRoot, boxes, packages }: 
     boxes,
     cruiseJson: String(output),
     packages,
+    stacks,
   });
 };
 
@@ -145,6 +151,7 @@ export const typeScriptReader: Reader = {
       sourceRoot: sourceRootIn({ checkout: directory, root }, settings),
       boxes: settings.boxes ?? [],
       packages: packagesIn(directory, stacks),
+      stacks,
     }),
   isTestFile: path => TEST_FILE.test(path),
   readTests: readTypeScriptTests,

@@ -36,6 +36,7 @@ const usesIn = async ({ files, atBase = {}, edges, names, target = 'a.ts' }: Sce
     return await typeScriptReader.uses?.({
       base,
       head,
+      root: '.',
       graph: graphOf(Object.keys({ ...files, ...atBase }), edges),
       node: { id: idOf(target), path: `src/${target}` },
       names,
