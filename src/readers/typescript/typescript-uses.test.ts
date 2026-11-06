@@ -666,6 +666,24 @@ test.for([
   },
 );
 
+test("an outside barrel isn't its package's entry, so importing the package doesn't reach through it", async () => {
+  const compat = "export { foo as bar } from '../src/a';";
+  const reading = await usesIn({
+    files: {
+      'a.ts': 'export const foo = 1;\n',
+      'w.ts': "import { bar } from '@acme/lib';\nbar();\n",
+    },
+    outside: { 'scripts/compat.ts': `${compat}\n` },
+    elsewhere: ['w.ts'],
+    edges: [],
+    names: ['foo'],
+  });
+
+  expect(reading?.uses).toEqual({
+    foo: [{ path: 'scripts/compat.ts', line: 1, text: compat }],
+  });
+});
+
 test('every outside file is read when few files may be open at once', async () => {
   const root = mkdtempSync(join(tmpdir(), 'visual-review-uses-limit-'));
   try {

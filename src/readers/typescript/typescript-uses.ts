@@ -435,7 +435,8 @@ const surroundingsOf = ({ base, head, stacks, graph }: Around) => {
   const placeOf = (importer: Target, specifier: string) => placesNamedBy(importer)(specifier);
   const outsideIds = new Set(outside.nodes.map(({ id }) => id));
   const packageNameFor = (importer: Target, target: Target) =>
-    rootOf(importer.id) === rootOf(target.id) && !outsideIds.has(importer.id)
+    outsideIds.has(target.id) ||
+    (rootOf(importer.id) === rootOf(target.id) && !outsideIds.has(importer.id))
       ? undefined
       : packageNameOf(rootOf(target.id));
   const importsOf = async (node: GraphNode): Promise<ReadonlyArray<Imports>> => {
