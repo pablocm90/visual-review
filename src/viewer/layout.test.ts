@@ -58,3 +58,23 @@ test('a call from a file to another stack itself turns in the gap between the tw
   expect(turn).toBeGreaterThan((a?.x ?? Number.NaN) + (a?.width ?? 0));
   expect(turn).toBeLessThan(b?.x ?? Number.NaN);
 });
+
+test('a node given a size is laid out at that size, and the others keep theirs', async () => {
+  const layout = await layoutDiff(
+    {
+      nodes: [
+        node('web', 'stack'),
+        node('refund.ts', 'file', 'web'),
+        node('cart.ts', 'file', 'web'),
+      ],
+      edges: [],
+    },
+    { sizes: new Map([['refund.ts', { width: 300, height: 90 }]]) },
+  );
+
+  const placed = layout.stacks[0]?.children ?? [];
+  expect(placed.map(({ id, width, height }) => ({ id, width, height }))).toEqual([
+    { id: 'refund.ts', width: 300, height: 90 },
+    { id: 'cart.ts', width: 80, height: 36 },
+  ]);
+});
