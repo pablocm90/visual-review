@@ -121,6 +121,49 @@ test('a default import uses the default export, wherever it names it', async () 
   });
 });
 
+test("a default through the package's name may be another file's, so it's marked and goes no further", async () => {
+  const reading = await usesIn({
+    files: {
+      'a.ts': 'export default 1;\n',
+      'import.ts': "import Thing from '@acme/lib';\nThing();\n",
+      'reexport.ts': "run();\nexport { default as Renamed } from '@acme/lib';\n",
+      'alias.ts': "import Other from '@acme/lib';\nexport default Other;\n",
+      'beyond.ts':
+        "import { Renamed } from './reexport';\nimport Other from './alias';\nRenamed(Other);\n",
+    },
+    edges: [
+      'import.ts -> a.ts',
+      'reexport.ts -> a.ts',
+      'alias.ts -> a.ts',
+      'beyond.ts -> reexport.ts',
+      'beyond.ts -> alias.ts',
+    ],
+    names: ['default'],
+  });
+  expect(reading?.uses).toEqual({
+    default: [
+      {
+        path: 'src/import.ts',
+        line: 1,
+        text: "import Thing from '@acme/lib';",
+        unfollowed: true,
+      },
+      {
+        path: 'src/reexport.ts',
+        line: 2,
+        text: "export { default as Renamed } from '@acme/lib';",
+        unfollowed: true,
+      },
+      {
+        path: 'src/alias.ts',
+        line: 1,
+        text: "import Other from '@acme/lib';",
+        unfollowed: true,
+      },
+    ],
+  });
+});
+
 test.for([
   {
     reason: 'a named default function is imported as default',

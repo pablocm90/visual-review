@@ -50,11 +50,7 @@ const namesPackage = (packageName: string | undefined, specifier: string) =>
   packageName !== undefined &&
   (specifier === packageName || specifier.startsWith(`${packageName}/`));
 
-const namesFile = (
-  { head, resolution, drawn, packageName }: Stack,
-  { specifier, importer, file }: Naming,
-) => {
-  if (namesPackage(packageName, specifier)) return true;
+const namesFile = ({ head, resolution, drawn }: Stack, { specifier, importer, file }: Naming) => {
   const places = specifier.startsWith('.')
     ? [join(head, dirname(importer), specifier)]
     : placesNamedBy(resolution, specifier);
@@ -143,17 +139,20 @@ const loadsOf = (scan: Scan, names: Names) =>
   );
 
 const exportsFrom = (text: string, program: Program, names: Names) => {
-  const specifiers = program.body.flatMap(statement =>
-    statement.type === 'ExportNamedDeclaration' && statement.source && names(statement.source.value)
-      ? statement.specifiers.map(specifier => ({ statement, specifier }))
-      : [],
-  );
+  const specifiers = program.body.flatMap(statement => {
+    if (statement.type !== 'ExportNamedDeclaration' || !statement.source) return [];
+    const source = statement.source.value;
+    return names(source)
+      ? statement.specifiers.map(specifier => ({ statement, specifier, source }))
+      : [];
+  });
   return {
-    reexports: specifiers.flatMap(({ statement, specifier }) =>
+    reexports: specifiers.flatMap(({ statement, specifier, source }) =>
       specifier.type === 'ExportSpecifier'
         ? [
             {
               statement,
+              source,
               from: nameOf(text, specifier.local),
               to: nameOf(text, specifier.exported),
             },
@@ -170,8 +169,13 @@ const usesInFile = ({ path, text, target, stack }: Read): FileUses => {
   const parsed = parseTypeScript(text, path);
   const { program } = parsed;
   const scan = scanOf(text, parsed);
-  const names: Names = specifier => namesFile(stack, { specifier, importer: path, file: target });
+  const namesExactly: Names = specifier =>
+    namesFile(stack, { specifier, importer: path, file: target });
+  const names: Names = specifier =>
+    namesExactly(specifier) || namesPackage(stack.packageName, specifier);
+  const isLoose = (name: string, source: string) => name === 'default' && !namesExactly(source);
   const placeOf = (range: Token | Node) => placeAt(path, text, startOf(range));
+  const mayUseAt = (range: Token | Node): SymbolUse => ({ ...placeOf(range), unfollowed: true });
   const { reexports, namespaceExports } = exportsFrom(text, program, names);
   const aliases = aliasesIn(text, program);
   const specifiers = program.body.flatMap(statement =>
@@ -191,10 +195,18 @@ const usesInFile = ({ path, text, target, stack }: Read): FileUses => {
   );
   return {
     named: new Map([
-      ...reexports.map(({ statement, from }) => [from, placeOf(statement)] as const),
+      ...reexports.map(
+        ({ statement, source, from }) =>
+          [from, isLoose(from, source) ? mayUseAt(statement) : placeOf(statement)] as const,
+      ),
       ...imported.map(
         ({ statement, name, local }) =>
-          [name, placeOf(readsOf(scan, local)[0]?.token ?? statement)] as const,
+          [
+            name,
+            isLoose(name, statement.source.value)
+              ? mayUseAt(statement)
+              : placeOf(readsOf(scan, local)[0]?.token ?? statement),
+          ] as const,
       ),
       ...members.toReversed(),
     ]),
@@ -202,14 +214,16 @@ const usesInFile = ({ path, text, target, stack }: Read): FileUses => {
       ...namespaceReads.filter(({ member }) => member === undefined).map(({ token }) => token),
       ...loadsOf(scan, names),
       ...namespaceExports,
-    ].map(range => ({ ...placeOf(range), unfollowed: true })),
+    ].map(mayUseAt),
     forwards: [
-      ...reexports,
-      ...imported.flatMap(({ name, local }) =>
-        aliases
-          .filter(alias => alias.local === local)
-          .map(({ exported }) => ({ from: name, to: exported })),
-      ),
+      ...reexports.filter(({ source, from }) => !isLoose(from, source)),
+      ...imported
+        .filter(({ statement, name }) => !isLoose(name, statement.source.value))
+        .flatMap(({ name, local }) =>
+          aliases
+            .filter(alias => alias.local === local)
+            .map(({ exported }) => ({ from: name, to: exported })),
+        ),
     ],
     forwardsAll: program.body.some(
       statement => statement.type === 'ExportAllDeclaration' && names(statement.source.value),
