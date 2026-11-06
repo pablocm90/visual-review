@@ -10368,3 +10368,44 @@ test('Start here has no logic line with no changed decision', async () => {
   const band = within(await screen.findByRole('region', { name: 'Start here' }));
   expect(band.getAllByRole('listitem')).toHaveLength(1);
 });
+
+test("What changed's heading sums the logic of the files it lists: a box's across them, a file's its own, with no exits clause when it has none", async () => {
+  const user = userEvent.setup();
+  const line = { kind: 'if', depth: 0, line: 2 } as const;
+  const logic: SymbolStatement['logic'] = [
+    { ...line, change: 'added', head: 'if (late)' },
+    { ...line, change: 'added', kind: 'throw', head: 'throw late' },
+    { ...line, change: 'removed', kind: 'return', base: 'return early' },
+  ];
+  render(
+    <ReviewPage
+      review={{
+        ...pageOfLogic(),
+        diff: {
+          nodes: [
+            { id: 'web', kind: 'stack', label: 'web', path: '', state: 'unchanged' },
+            webModule('orders', 'modified'),
+            webFile('orders', 'refund.ts', 'modified'),
+            webFile('orders', 'cart.ts', 'modified'),
+          ],
+          edges: [],
+        },
+        symbols: [
+          symbolsOf('web/file/orders/refund.ts', [{ ...decisionIn('refund', ''), logic }]),
+          symbolsOf('web/file/orders/cart.ts', [decisionIn('total', 'if (empty)')]),
+        ],
+      }}
+    />,
+  );
+
+  await user.click(await screen.findByRole('button', { name: 'orders: modified' }));
+  expect(within(whatChanged()).getAllByRole('heading', { level: 3 })[0]?.textContent).toBe(
+    'What changed 2 · 2 functions decide differently, 4 decisions, 2 exits',
+  );
+
+  await user.click(await screen.findByRole('button', { name: 'Expand orders' }));
+  await user.click(await screen.findByRole('button', { name: 'cart.ts: modified' }));
+  expect(within(whatChanged()).getByRole('heading', { level: 3 }).textContent).toBe(
+    'What changed 1 · 1 function decides differently, 1 decision',
+  );
+});

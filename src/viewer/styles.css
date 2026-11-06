@@ -3174,3 +3174,8 @@ main:has(> .review-tray) {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+
+.logic-summary {
+  color: var(--muted);
+  font-weight: 400;
+}

@@ -8,8 +8,9 @@ import {
 } from 'react';
 import { anchorKey } from '../core/anchors.ts';
 import type { DiffedNode, FilePatch } from '../core/diff-graphs.ts';
+import { counted } from '../core/findings.ts';
 import type { LogicLine } from '../core/logic-diff.ts';
-import { holdsFewChanges, runsOf } from '../core/logic-strip.ts';
+import { holdsFewChanges, logicTotalsOf, runsOf } from '../core/logic-strip.ts';
 import type { PageData } from '../core/page.ts';
 import type { PreviousComment } from '../core/previous-comments.ts';
 import type { SymbolFile } from '../core/read-range.ts';
@@ -543,6 +544,18 @@ export const LandedRows = ({
   );
 };
 
+const LogicSummary = ({ files }: { readonly files: ReadonlyArray<SymbolFile> }) => {
+  const { functions, decisions, exits } = logicTotalsOf(files);
+  if (decisions === 0) return null;
+  const deciding = counted(functions, 'function decides', 'functions decide');
+  const exitWords = exits > 0 ? `, ${counted(exits, 'exit', 'exits')}` : '';
+  return (
+    <span className="logic-summary">
+      {` · ${deciding} differently, ${counted(decisions, 'decision', 'decisions')}${exitWords}`}
+    </span>
+  );
+};
+
 export const WhatChanged = ({
   node,
   files,
@@ -554,7 +567,10 @@ export const WhatChanged = ({
   const count = changedSymbolCount(files);
   return (
     <section className="column-section symbols" aria-label="What changed">
-      <h3>What changed{count > 0 && ` ${count}`}</h3>
+      <h3>
+        What changed{count > 0 && ` ${count}`}
+        <LogicSummary files={files} />
+      </h3>
       <SymbolsOf node={node} files={files} {...places} />
     </section>
   );
