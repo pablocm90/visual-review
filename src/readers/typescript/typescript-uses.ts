@@ -368,6 +368,15 @@ const onePerFile = (uses: ReadonlyArray<SymbolUse>): ReadonlyArray<SymbolUse> =>
 
 const isUnbackedAll = (name: string) => name.startsWith('* from ');
 
+const oncePerRoot = <T>(read: (root: string) => T) => {
+  const kept = new Map<string, { readonly value: T }>();
+  return (root: string): T => {
+    const held = kept.get(root) ?? { value: read(root) };
+    kept.set(root, held);
+    return held.value;
+  };
+};
+
 export const usesOfTypeScript = async ({
   base,
   head,
@@ -388,14 +397,8 @@ export const usesOfTypeScript = async ({
   };
   const rootOf = (id: string): string =>
     [...stacks].find(([, stack]) => stack === stackOf(id))?.[0] ?? '.';
-  const resolutions = new Map<string, Resolution>();
-  const resolutionOf = (root: string): Resolution => {
-    const kept = resolutions.get(root);
-    if (kept !== undefined) return kept;
-    const resolution = resolutionIn({ checkout: head, root });
-    resolutions.set(root, resolution);
-    return resolution;
-  };
+  const resolutionOf = oncePerRoot(root => resolutionIn({ checkout: head, root }));
+  const packageNameOf = oncePerRoot(root => packageNameIn(join(base, root)));
   const drawn = new Set(
     [...graph.nodes, ...outside.nodes]
       .filter(({ kind }) => kind === 'file')
@@ -427,9 +430,9 @@ export const usesOfTypeScript = async ({
           drawn,
           resolution: resolutionOf(rootOf(id)),
           packageName:
-            rootOf(id) === rootOf(target.id)
+            rootOf(id) === rootOf(target.id) && !outsideIds.has(id)
               ? undefined
-              : packageNameIn(join(base, rootOf(target.id))),
+              : packageNameOf(rootOf(target.id)),
         },
         path,
         target.path,

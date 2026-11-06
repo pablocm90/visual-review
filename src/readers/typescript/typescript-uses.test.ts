@@ -589,6 +589,22 @@ test('a file outside the source root, with no node, uses a name as a drawn one d
   });
 });
 
+test('a file outside the source root importing its own package by name uses it', async () => {
+  const reading = await usesIn({
+    files: { 'a.ts': 'export const foo = 1;\n' },
+    outside: {
+      'package.json': '{"name":"@acme/lib"}',
+      'test/a.test.ts': "import { foo } from '@acme/lib';\nfoo();\n",
+    },
+    edges: [],
+    names: ['foo'],
+  });
+
+  expect(reading?.uses).toEqual({
+    foo: [{ path: 'test/a.test.ts', line: 2, text: 'foo();' }],
+  });
+});
+
 test('an outside barrel is followed to the files importing it, by the name it gives', async () => {
   const reading = await usesIn({
     files: { 'a.ts': 'export const foo = 1;\n' },
