@@ -112,7 +112,17 @@ test('the totals count the changed decisions by change and exit, the functions a
           { logic: [line('added', 'guard'), line('added', 'if'), line('same', 'guard')] },
           { logic: [line('same', 'if')] },
           {},
-          { logic: [line('removed', 'throw'), line('moved', 'if')] },
+          {
+            logic: [
+              line('removed', 'throw'),
+              line('removed', 'if'),
+              line('removed', 'if'),
+              line('moved', 'if'),
+              line('moved', 'if'),
+              line('moved', 'if'),
+              line('moved', 'if'),
+            ],
+          },
         ],
       },
       { node: 'cart', symbols: [{ logic: [line('changed', 'loop')] }] },
@@ -120,13 +130,13 @@ test('the totals count the changed decisions by change and exit, the functions a
       { node: 'broken', unreadable: 'Unexpected token' },
     ]),
   ).toEqual({
-    decisions: 5,
+    decisions: 10,
     functions: 3,
     files: 2,
     exits: 2,
     added: 2,
     changed: 1,
-    removed: 1,
-    moved: 1,
+    removed: 3,
+    moved: 4,
   });
 });
