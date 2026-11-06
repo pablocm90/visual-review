@@ -163,8 +163,8 @@ const signatureNodesOf = (node: Node): unknown => {
 
 type Range = { readonly start?: number | null; readonly end?: number | null };
 
-const startOf = (range: Range): number => range.start ?? 0;
-const endOf = (range: Range): number => range.end ?? 0;
+export const startOf = (range: Range): number => range.start ?? 0;
+export const endOf = (range: Range): number => range.end ?? 0;
 
 const within = (outer: Range, inner: Range): boolean =>
   startOf(inner) >= startOf(outer) && endOf(inner) <= endOf(outer);
@@ -185,12 +185,12 @@ const ownText = (text: string, node: Node, holes: ReadonlyArray<Node>): string =
   return [...pieces, text.slice(cursor, endOf(node))].join('');
 };
 
-type Token = Range & { readonly type: unknown };
+export type Token = Range & { readonly type: unknown };
 
-const isToken = (value: unknown): value is Token =>
+export const isToken = (value: unknown): value is Token =>
   typeof value === 'object' && value !== null && 'type' in value;
 
-const isCode = (token: Token): boolean =>
+export const isCode = (token: Token): boolean =>
   endOf(token) > startOf(token) && token.type !== 'CommentLine' && token.type !== 'CommentBlock';
 
 const nameOfNode = (node: Node): ReadonlyArray<Node> => {

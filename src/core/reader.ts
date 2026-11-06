@@ -77,6 +77,24 @@ export type FileSymbols = {
   readonly blindSpots?: ReadonlyArray<string>;
 };
 
+export type SymbolUse = {
+  readonly path: string;
+  readonly line: number;
+  readonly text: string;
+};
+
+export type UsesAsked = {
+  readonly base: string;
+  readonly head: string;
+  readonly graph: Graph;
+  readonly node: string;
+  readonly names: ReadonlyArray<string>;
+};
+
+export type UsesReading = {
+  readonly uses: Readonly<Record<string, ReadonlyArray<SymbolUse>>>;
+};
+
 export type StackOptions = HoldsOptions & {
   readonly stack: string;
   readonly stacks: ReadonlyMap<string, string>;
@@ -102,6 +120,9 @@ export type StackOptions = HoldsOptions & {
  * names it decides on, when its text alone says them, so that it reads as changed only where the
  * head holds them all;
  * `blindSpots` names the calls and macros in the file that hide logic from this reading.
+ * `uses`, if it has one, says where the files around a changed file use the names it exported at the
+ * base: it takes the base's graph, since at the head a removed file has no edges into it, and the
+ * head's checkout to read what they say now.
  */
 export interface Reader {
   readonly name: ReaderName;
@@ -114,4 +135,5 @@ export interface Reader {
   readonly readTests: (text: string) => ReadonlyArray<ReadTest>;
   readonly measure?: (text: string, path: string) => FileMeasures | undefined;
   readonly symbols?: (text: string, path: string) => FileSymbols | undefined;
+  readonly uses?: (asked: UsesAsked) => Promise<UsesReading>;
 }
