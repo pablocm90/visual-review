@@ -3025,3 +3025,86 @@ main:has(> .review-tray) {
     opacity: 1;
   }
 }
+
+.logic-line {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.logic-line:hover code,
+.logic-line:hover ins {
+  text-decoration: underline;
+}
+
+.logic-row {
+  padding-block: 1px;
+  border-radius: 4px;
+}
+
+.logic-row .mark {
+  display: inline-block;
+  width: 1.4em;
+  font-weight: 600;
+  text-align: center;
+}
+
+.logic-added {
+  background: var(--added-fill);
+}
+
+.logic-added .mark {
+  color: var(--added);
+}
+
+.logic-removed {
+  background: var(--removed-fill);
+}
+
+.logic-removed .mark {
+  color: var(--removed);
+}
+
+.logic-changed {
+  background: var(--unchanged-fill);
+}
+
+.logic-changed .mark {
+  color: var(--modified);
+}
+
+.logic-moved .mark,
+.logic-same {
+  color: var(--muted);
+}
+
+.logic-row del,
+.logic-row ins {
+  padding: 0 2px;
+  border-radius: 3px;
+  font:
+    12.5px ui-monospace,
+    "SF Mono",
+    Menlo,
+    monospace;
+}
+
+.logic-row del {
+  background: var(--removed-fill);
+  color: var(--removed);
+}
+
+.logic-row ins {
+  background: var(--added-fill);
+  color: var(--added);
+  text-decoration: none;
+}
+
+.logic-rows > summary,
+.logic-run > details > summary {
+  margin-top: 0;
+}
