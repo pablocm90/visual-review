@@ -3105,3 +3105,56 @@ main:has(> .review-tray) {
 .logic-line:hover ins {
   text-decoration: underline;
 }
+
+.node text.card-file,
+.node text.card-name,
+.node text.card-count {
+  text-anchor: start;
+}
+
+.node text.card-total {
+  text-anchor: end;
+}
+
+.node text.card-name,
+.node text.card-count,
+.node text.card-total {
+  font-size: 11.5px;
+  font-weight: 400;
+  text-decoration: none;
+}
+
+.node text.card-file {
+  font-weight: 600;
+}
+
+.node text.card-count,
+.node text.card-total {
+  fill: var(--muted);
+}
+
+.card-tick-hit {
+  fill: transparent;
+}
+
+.card-mark-added {
+  fill: var(--added);
+}
+
+.card-mark-changed {
+  fill: var(--modified);
+}
+
+.card-mark-removed {
+  fill: var(--removed);
+}
+
+.card-mark-moved {
+  fill: none;
+  stroke: var(--muted);
+}
+
+.card-mark-same {
+  fill: var(--muted);
+  opacity: 0.55;
+}

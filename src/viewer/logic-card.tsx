@@ -1,6 +1,6 @@
 import type { DiffedNode } from '../core/diff-graphs.ts';
 import type { LogicLine } from '../core/logic-diff.ts';
-import { countsOf } from '../core/logic-strip.ts';
+import { countsOf, isExit } from '../core/logic-strip.ts';
 import type { SymbolFile } from '../core/read-range.ts';
 import { qualified } from '../core/symbol-changes.ts';
 import { anchoredSymbols, decisionsOf } from '../core/symbol-findings.ts';
@@ -12,6 +12,8 @@ const PADDING_Y = 8;
 const HEADER_HEIGHT = 26;
 const ROW_HEIGHT = 32;
 const TICK_PITCH = 8;
+const TICK_WIDTH = 6;
+const TICK_AREA = 30;
 const GAP = 8;
 const FILE_CHAR = 8;
 const ROW_CHAR = 7;
@@ -103,11 +105,34 @@ export const logicCardsOf = ({
     }),
   );
 
-const Tick = ({ decision }: { readonly decision: StripRow }) => (
-  <g role="button" tabIndex={-1} aria-label={decision.label}>
-    <title>{decision.label}</title>
-  </g>
-);
+const markOf = (line: LogicLine): { readonly y: number; readonly height: number } => {
+  if (line.change === 'same') return { y: 14, height: 2 };
+  if (line.change === 'removed') return { y: 15, height: isExit(line) ? 14 : 8 };
+  return isExit(line) ? { y: 1, height: 14 } : { y: 7, height: 8 };
+};
+
+const boxPath = (x: number, y: number, width: number, height: number): string =>
+  `M${x} ${y}h${width}v${height}h${-width}z`;
+
+const Tick = ({ decision, x }: { readonly decision: StripRow; readonly x: number }) => {
+  const { y, height } = markOf(decision.line);
+  return (
+    <g
+      className="card-tick"
+      role="button"
+      tabIndex={-1}
+      aria-label={decision.label}
+      transform={`translate(${x} ${(ROW_HEIGHT - TICK_AREA) / 2})`}
+    >
+      <title>{decision.label}</title>
+      <path className="card-tick-hit" d={boxPath(-1, 0, TICK_PITCH, TICK_AREA)} />
+      <path
+        className={`card-mark card-mark-${decision.line.change}`}
+        d={boxPath(0, y, TICK_WIDTH, height)}
+      />
+    </g>
+  );
+};
 
 const Row = ({
   row: { name, shownName, count, decisions },
@@ -128,8 +153,8 @@ const Row = ({
       <text className="card-name" y={ROW_HEIGHT / 2}>
         {shownName}
       </text>
-      {decisions.map(decision => (
-        <Tick key={decision.id} decision={decision} />
+      {decisions.map((decision, tick) => (
+        <Tick key={decision.id} decision={decision} x={stripX + tick * TICK_PITCH} />
       ))}
       <text
         className="card-count"
