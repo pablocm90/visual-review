@@ -233,12 +233,23 @@ const walked = async ({ hops, seen, importersOf, read }: Walk): Promise<Readonly
   ];
 };
 
+const known = new Map<string, FileUses>();
+
+const usesInFileOnce = (read: Read): FileUses => {
+  const key = JSON.stringify([read.path, read.target, read.text]);
+  const kept = known.get(key);
+  if (kept !== undefined) return kept;
+  const uses = usesInFile(read);
+  known.set(key, uses);
+  return uses;
+};
+
 const fileUsesAt = async (head: string, path: string, target: string): Promise<FileUses> => {
   const text = await readFile(join(head, path), 'utf8').catch(() => undefined);
   if (text === undefined) return NO_USES;
   if (isTooBig(text)) return { ...NO_USES, notRead: path };
   try {
-    return usesInFile({ path, text, target });
+    return usesInFileOnce({ path, text, target });
   } catch {
     return { ...NO_USES, notRead: path };
   }
