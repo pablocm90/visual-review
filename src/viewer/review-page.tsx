@@ -2028,17 +2028,17 @@ const Page = ({ review, notes, send }: ReviewPageProps) => {
       goToRow(node, anchorKey({ kind: 'decision', id: decision })),
     unroutedOf: (id: string) =>
       dangling.filter(call => visibleOf(call.from) === id).map(call => call.path),
-    shadeOf: ({ id, state }: DiffedNode) =>
-      shadeOf(colouring, {
+    shadeOf: ({ id, state }: DiffedNode) => {
+      const inside = review.symbols.filter(
+        file => file.node === id || boxesAbove(file.node).includes(id),
+      );
+      return shadeOf(colouring, {
         metrics: review.metrics[id],
         changed: state !== 'unchanged',
-        decisions: logicTotalsOf(review.symbols.filter(file => file.node === id)).decisions,
-        kinds: review.symbols.flatMap(file =>
-          (file.node === id || boxesAbove(file.node).includes(id)) && 'kind' in file
-            ? [file.kind]
-            : [],
-        ),
-      }),
+        decisions: logicTotalsOf(inside).decisions,
+        kinds: inside.flatMap(file => ('kind' in file ? [file.kind] : [])),
+      });
+    },
   };
   const selectedNode = review.diff.nodes.find(node => node.id === selected);
   const selectedNote = selected === undefined ? undefined : shown[selected];

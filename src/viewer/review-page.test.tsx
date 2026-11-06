@@ -10518,3 +10518,31 @@ test('Colour by offers Logic only on a page with a changed decision', async () =
   await screen.findByRole('group', { name: 'web' });
   expect(offered()).toEqual(['Change', 'Churn', 'Complexity', 'Kind of change', 'Logic']);
 });
+
+test('Colour by Logic gives a closed box the sum of the decisions inside it, not their highest', async () => {
+  const user = userEvent.setup();
+  render(
+    <ReviewPage
+      review={{
+        ...pageOfLogic(),
+        diff: {
+          nodes: [
+            { id: 'web', kind: 'stack', label: 'web', path: '', state: 'modified' },
+            webModule('lib', 'modified'),
+            webFile('lib', 'two.ts', 'modified'),
+            webFile('lib', 'three.ts', 'modified'),
+          ],
+          edges: [],
+        },
+        symbols: [decisionsIn('lib/two.ts', 2), decisionsIn('lib/three.ts', 3)],
+      }}
+    />,
+  );
+  const web = await screen.findByRole('group', { name: 'web' });
+
+  await user.click(colourBy('Logic'));
+
+  await waitFor(() =>
+    expect(buttonsIn(web)).toEqual(['lib: modified, decisions 5 (4–9)', 'Expand lib']),
+  );
+});
