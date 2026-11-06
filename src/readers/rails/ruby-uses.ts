@@ -7,6 +7,12 @@ import { isTooBig } from '../too-big.ts';
 import { classesOf, namingsIn } from './rails-graph.ts';
 import { argsOf, methodOf, nameOf, parseRuby } from './ruby-syntax.ts';
 
+export const NOT_DRAWN =
+  'not followed: views, tests and other files outside `app/` and `lib/`, and a base class the graph draws no edge into, such as `ApplicationRecord`';
+
+export const METHODS_NOT_FOLLOWED =
+  'not followed: a method called with no receiver, through a subclass, in a file not naming its class, by `try!`, `method(:x)` or as an operator, or with no class around it';
+
 const CLASS = '/class/';
 
 const constantIn = (id: string): string => id.slice(id.lastIndexOf(CLASS) + CLASS.length);
@@ -16,6 +22,11 @@ const STARTS_AS_CONSTANT = /^\p{Lu}/u;
 const askedOf = (name: string) => {
   const [owner = '', ...rest] = name.split('.');
   return { owner, member: rest.at(-1) };
+};
+
+const isClass = (name: string): boolean => {
+  const { owner, member } = askedOf(name);
+  return member === undefined && STARTS_AS_CONSTANT.test(owner);
 };
 
 const LITERAL_NAMES: ReadonlySet<string> = new Set(['simple_symbol', 'delimited_symbol', 'string']);
@@ -120,6 +131,6 @@ export const usesOfRuby = async ({ head, graph, node, names }: UsesAsked): Promi
     notRead: reads.flatMap(({ path, read }) =>
       read !== undefined && 'notRead' in read ? [path] : [],
     ),
-    notFollowed: [],
+    notFollowed: [NOT_DRAWN, ...(names.every(isClass) ? [] : [METHODS_NOT_FOLLOWED])],
   };
 };

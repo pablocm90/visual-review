@@ -4,6 +4,7 @@ import { join } from 'node:path';
 import { expect, test } from 'vitest';
 import { writeFiles } from '../../test-support/repos.ts';
 import { railsReader } from './reader.ts';
+import { METHODS_NOT_FOLLOWED, NOT_DRAWN } from './ruby-uses.ts';
 
 type Scene = {
   readonly files: Readonly<Record<string, string>>;
@@ -362,4 +363,23 @@ test.each([
   const reading = await readingWhenCaller(change);
 
   expect(reading).toMatchObject({ uses: { Order: [OTHER_ROW] }, notRead: [] });
+});
+
+test.each([
+  { asked: 'a class', names: ['Order'], notFollowed: [NOT_DRAWN] },
+  { asked: 'a method', names: ['Order.total'], notFollowed: [NOT_DRAWN, METHODS_NOT_FOLLOWED] },
+  {
+    asked: 'a class and its method',
+    names: ['Order', 'Order.total'],
+    notFollowed: [NOT_DRAWN, METHODS_NOT_FOLLOWED],
+  },
+  { asked: 'a method with no class', names: ['helper'], notFollowed: [NOT_DRAWN, METHODS_NOT_FOLLOWED] },
+])('asked about $asked, it says what it cannot see', async ({ names, notFollowed }) => {
+  const reading = await usesIn({
+    files: { 'app/models/order.rb': ORDER },
+    target: 'app/models/order.rb',
+    names,
+  });
+
+  expect(reading?.notFollowed).toEqual(notFollowed);
 });
