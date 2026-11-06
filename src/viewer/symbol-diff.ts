@@ -15,6 +15,17 @@ const isInside = (inner: Spans['base'], outer: Spans['base']): boolean =>
 
 const isChange = ({ kind }: PatchLine): boolean => kind === 'added' || kind === 'removed';
 
+const startsAt = (line: number | undefined, range: Spans['base']): boolean =>
+  line !== undefined && line === range?.start;
+
+export const holdsFirstLine = ({
+  rows,
+  lines: { base, head },
+}: {
+  readonly rows: ReadonlyArray<PatchLine>;
+  readonly lines: Spans;
+}): boolean => rows.some(row => startsAt(row.base, base) || startsAt(row.head, head));
+
 export const rowsOfSymbol = ({
   rows,
   lines,

@@ -5915,6 +5915,56 @@ test("in a box's What changed a symbol's toggle opens its own file's patch", asy
   expect(symbolDiffRows('insertion')).toStrictEqual(['+in b!']);
 });
 
+test('an opened symbol says so when its diff holds no changed line of its own, and when the rows leave out its first line', async () => {
+  const user = userEvent.setup();
+  render(
+    <ReviewPage
+      review={pageWith({
+        range: 'abc123..def456',
+        diff: {
+          nodes: [
+            { id: 'web', kind: 'stack', label: 'web', path: '', state: 'unchanged' },
+            topFile('three.ts', 'modified'),
+          ],
+          edges: [],
+        },
+        symbols: [
+          symbolsOf('web/file/three.ts', [
+            editedAt('deep', 1, 20),
+            editedAt('whole', 21, 23),
+            editedAt('elsewhere', 40, 42),
+          ]),
+        ],
+        patches: [
+          patchOf(
+            'web/src/three.ts',
+            '@@ -9,3 +9,3 @@',
+            ' const before = 1;',
+            '-const inner = 1;',
+            '+const inner = 2;',
+            '@@ -21,3 +21,3 @@',
+            ' function whole() {',
+            '-  return 1;',
+            '+  return 2;',
+          ),
+        ],
+      })}
+    />,
+  );
+  const note = (name: string) =>
+    within(screen.getByRole('listitem', { name: new RegExp(`function ${name}`) })).queryByRole(
+      'note',
+    )?.textContent;
+
+  await user.click(await screen.findByRole('button', { name: 'three.ts: modified' }));
+  await toggleSymbolDiff(user, 'deep');
+  expect(note('deep')).toBe('Only its changed lines.');
+  await toggleSymbolDiff(user, 'whole');
+  expect(note('whole')).toBeUndefined();
+  await toggleSymbolDiff(user, 'elsewhere');
+  expect(note('elsewhere')).toBe('No line inside it changed.');
+});
+
 test("a file whose symbols wouldn't parse shows the parse error in its What changed, and in its box's", async () => {
   const user = userEvent.setup();
   render(

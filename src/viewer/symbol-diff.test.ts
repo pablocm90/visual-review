@@ -1,6 +1,6 @@
 import { expect, test } from 'vitest';
 import { highlightPatch } from './highlight-patch.ts';
-import { rowsOfSymbol } from './symbol-diff.ts';
+import { holdsFirstLine, rowsOfSymbol } from './symbol-diff.ts';
 
 const rowsOf = (...lines: readonly string[]) =>
   highlightPatch({ path: 'a.ts', patch: lines.join('\n') });
@@ -180,3 +180,28 @@ test.for([
     ).toStrictEqual([]);
   },
 );
+
+test.for([
+  {
+    claim: 'a head row on its first head line',
+    lines: { base: { start: 90, end: 99 }, head: { start: 2, end: 3 } },
+    holds: true,
+  },
+  {
+    claim: 'a base row on its first base line',
+    lines: { base: { start: 2, end: 3 }, head: { start: 90, end: 99 } },
+    holds: true,
+  },
+  {
+    claim: 'rows that start after it',
+    lines: { base: { start: 1, end: 3 }, head: { start: 1, end: 3 } },
+    holds: false,
+  },
+  {
+    claim: 'a removed symbol, no head line to match',
+    lines: { base: { start: 1, end: 3 } },
+    holds: false,
+  },
+])('holdsFirstLine: $claim', ({ lines, holds }) => {
+  expect(holdsFirstLine({ rows: rowsOf('@@ -2,2 +2,2 @@', '-a', '+b', ' c'), lines })).toBe(holds);
+});

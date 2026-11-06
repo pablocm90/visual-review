@@ -3135,3 +3135,9 @@ main:has(> .review-tray) {
 .symbol-lines {
   margin-top: 4px;
 }
+
+.symbol-lines-note {
+  margin: 4px 0 0;
+  color: var(--muted);
+  font-size: 12px;
+}
