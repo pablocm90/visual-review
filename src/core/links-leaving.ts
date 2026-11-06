@@ -12,7 +12,7 @@ const linksAt = async (repo: string, revision: string): Promise<ReadonlyArray<st
 
 export const resolvesInside = async (root: string, path: string): Promise<boolean> => {
   const resolved = await realpath(join(root, path)).catch(() => undefined);
-  return resolved?.startsWith(`${root}${sep}`) === true;
+  return resolved === root || resolved?.startsWith(`${root}${sep}`) === true;
 };
 
 type DropLinksOptions = {

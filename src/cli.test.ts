@@ -408,6 +408,24 @@ test('a link in the range staying in the repo is read as the file it points at',
   expect(reviewDataIn(page).undrawn).toEqual([]);
 }, 30_000);
 
+test('a link in the range resolving to the repo root keeps the edge drawn through it', async () => {
+  using workspace = webRepo();
+  const { repo } = workspace;
+  mkdirSync(join(repo, 'tools'));
+  symlinkSync('..', join(repo, 'tools/root'));
+  commit(repo, {
+    'src/b.ts': "import { a } from '../tools/root/src/a.ts';\nexport const b = a;\n",
+  });
+
+  const run = await runCliOnBoundedMemory(repo, 'HEAD~1..HEAD');
+
+  expect(run.code).toBe(0);
+  const page = readFileSync(join(repo, '.reviews', 'HEAD~1..HEAD.html'), 'utf8');
+  expect(reviewDataIn(page).diff.edges).toEqual([
+    expect.objectContaining({ from: 'web/file/b.ts', to: 'web/file/a.ts' }),
+  ]);
+}, 30_000);
+
 test('--notes replaces a link standing at the page with the noted page, what it points at left as it was', async () => {
   using workspace = cargoWorkspace();
   const { repo } = workspace;
