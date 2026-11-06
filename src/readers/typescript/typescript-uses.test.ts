@@ -94,3 +94,18 @@ test.for([
     );
   },
 );
+
+test('a default import uses the default export, wherever it names it', async () => {
+  const reading = await usesIn({
+    files: {
+      'a.ts': 'export default () => 1;\nexport const foo = 2;\n',
+      'b.ts': "import Thing, { foo } from './a';\nThing();\n",
+      'c.ts': "import * as all from './a';\nall.foo;\n",
+    },
+    edges: ['b.ts -> a.ts', 'c.ts -> a.ts'],
+    names: ['default'],
+  });
+  expect(reading?.uses).toEqual({
+    default: [{ path: 'src/b.ts', line: 2, text: 'Thing();' }],
+  });
+});

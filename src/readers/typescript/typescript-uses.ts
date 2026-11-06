@@ -1,5 +1,6 @@
 import { readFile } from 'node:fs/promises';
 import { basename, dirname, join, posix } from 'node:path';
+import type { ImportDeclaration } from '@babel/types';
 import type { GraphNode } from '../../core/graph.ts';
 import type { SymbolUse, UsesAsked, UsesReading } from '../../core/reader.ts';
 import { endOf, isCode, isToken, startOf, type Token } from './typescript-symbols.ts';
@@ -24,6 +25,11 @@ const namesFile = (specifier: string, importer: string, file: string): boolean =
     : basename(moduleOf(specifier)) === basename(target);
 };
 
+const importedName = (text: string, specifier: ImportDeclaration['specifiers'][number]) => {
+  if (specifier.type === 'ImportSpecifier') return sourceOf(text, specifier.imported);
+  return specifier.type === 'ImportDefaultSpecifier' ? 'default' : undefined;
+};
+
 type Read = { readonly path: string; readonly text: string; readonly target: string };
 
 const usesInFile = ({ path, text, target }: Read): ReadonlyMap<string, SymbolUse> => {
@@ -44,16 +50,17 @@ const usesInFile = ({ path, text, target }: Read): ReadonlyMap<string, SymbolUse
     imports
       .filter(statement => namesFile(statement.source.value, path, target))
       .flatMap(statement =>
-        statement.specifiers.flatMap(specifier =>
-          specifier.type === 'ImportSpecifier'
-            ? [
+        statement.specifiers.flatMap(specifier => {
+          const imported = importedName(text, specifier);
+          return imported === undefined
+            ? []
+            : [
                 [
-                  sourceOf(text, specifier.imported),
+                  imported,
                   placeAt(path, text, startOf(firstUse(specifier.local.name) ?? statement)),
                 ] as const,
-              ]
-            : [],
-        ),
+              ];
+        }),
       ),
   );
 };
