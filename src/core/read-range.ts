@@ -8,7 +8,7 @@ import { readFileThatEnds } from './file-that-ends.ts';
 import { git } from './git.ts';
 import { type Graph, stackOfIn } from './graph.ts';
 import type { DanglingCall } from './linker.ts';
-import { dropLinksLeaving } from './links-leaving.ts';
+import { dropLinksLeaving, isTrackedLinkLeaving } from './links-leaving.ts';
 import type { Lockfile } from './lockfile.ts';
 import { type MeasuredNode, measuredNodes } from './metrics.ts';
 import type { MigrationReader } from './migration.ts';
@@ -210,7 +210,10 @@ const configAt = async (repo: string, revision: string): Promise<Config> => {
   if ((await git(repo, 'ls-tree', '--name-only', revision, '--', CONFIG_FILE)) !== '')
     return parseConfig(await git(repo, 'show', `${revision}:${CONFIG_FILE}`));
   const inWorkingTree = join(repo, CONFIG_FILE);
-  return parseConfig(existsSync(inWorkingTree) ? await readFileThatEnds(inWorkingTree) : '{}');
+  if (!existsSync(inWorkingTree)) return parseConfig('{}');
+  if (await isTrackedLinkLeaving(repo, CONFIG_FILE))
+    throw new Error(`${CONFIG_FILE}: a tracked link leaving the repo is not read`);
+  return parseConfig(await readFileThatEnds(inWorkingTree));
 };
 
 type ChurnOptions = {

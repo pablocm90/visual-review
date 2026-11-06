@@ -1,6 +1,6 @@
 import { realpath, rm } from 'node:fs/promises';
 import { join, sep } from 'node:path';
-import { gitUntrimmed } from './git.ts';
+import { git, gitUntrimmed } from './git.ts';
 
 const LINK_MODE = '120000';
 
@@ -14,6 +14,10 @@ const resolvesInside = async (root: string, path: string): Promise<boolean> => {
   const resolved = await realpath(join(root, path)).catch(() => undefined);
   return resolved === root || resolved?.startsWith(`${root}${sep}`) === true;
 };
+
+export const isTrackedLinkLeaving = async (repo: string, path: string): Promise<boolean> =>
+  (await git(repo, 'ls-files', '--stage', '--', path)).startsWith(`${LINK_MODE} `) &&
+  !(await resolvesInside(repo, path));
 
 type DropLinksOptions = {
   readonly repo: string;

@@ -447,6 +447,38 @@ test.each([
   30_000,
 );
 
+test('a config link git tracks leaving the repo stops the review, showing nothing of what it points at', async () => {
+  using workspace = webRepo();
+  const { repo } = workspace;
+  commit(repo, { 'src/a.ts': 'export const a = 2;\n' });
+  using elsewhere = gitRepo({ 'secret.txt': 'hunter2 is the password' });
+  symlinkSync(join(elsewhere.repo, 'secret.txt'), join(repo, 'visual-review.config.json'));
+  commit(repo, { 'src/a.ts': 'export const a = 3;\n' });
+
+  const run = await runCliOnBoundedMemory(repo, 'HEAD~2..HEAD~1');
+
+  expect(run.code).toBe(1);
+  expect(run.stderr).toContain(
+    'visual-review.config.json: a tracked link leaving the repo is not read',
+  );
+  expect(run.stderr).not.toContain('hunter2');
+}, 30_000);
+
+test('a config link git tracks staying in the repo applies', async () => {
+  using workspace = webRepo();
+  const { repo } = workspace;
+  commit(repo, { 'src/a.ts': 'export const a = 2;\n' });
+  writeFileSync(join(repo, 'mine.json'), '{"stacks":{"web":false}}');
+  symlinkSync('./mine.json', join(repo, 'visual-review.config.json'));
+  commit(repo, { 'src/a.ts': 'export const a = 3;\n' });
+
+  const run = await runCliOnBoundedMemory(repo, 'HEAD~2..HEAD~1');
+
+  expect(run.code).toBe(0);
+  const page = readFileSync(join(repo, '.reviews', 'HEAD~2..HEAD~1.html'), 'utf8');
+  expect(reviewDataIn(page).diff.nodes).toEqual([]);
+}, 30_000);
+
 test('a config link in the working tree to a file outside the repo applies', async () => {
   using workspace = webRepo();
   const { repo } = workspace;
