@@ -8,6 +8,7 @@ What changed in each release of `@pablocm90/visual-review`, newest first. Versio
 
 - **Reaches** and the `blast-radius` findings follow a changed TypeScript export into sibling stacks, through an import of the package's name or of a path under it, by name: coverage no longer says other stacks aren't followed. A default export through the package's name is only marked, since it may be another file's.
 - **Reaches** and the `blast-radius` findings follow an exported class's method removed, renamed, moved or with a changed signature, to the files naming the class and reading the member, by name: `.bar` on anything else in such a file counts. Coverage now says a method read other than by `.name` or without importing its class isn't followed, and that a package imported under another name isn't, in place of "methods not followed".
+- A patch of a Ruby file is coloured as Ruby: `.rb`, `.rake`, `.gemspec`, `.ru`, `Gemfile` and `Rakefile`.
 
 ### Changed
 

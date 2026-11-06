@@ -36,8 +36,20 @@ test('a patch shows from its first hunk, each line with its kind, its prefix and
   ]);
 });
 
+test('a Ruby patch is scoped as Ruby', () => {
+  const [, line] = highlightPatch(patchOf('app/models/order.rb', '@@ -0,0 +1 @@', '+class Order'));
+
+  expect(line?.pieces[0]).toEqual({ text: 'class', scopes: ['hljs-keyword'] });
+});
+
 test.for([
   { path: 'crates/domain/src/lib.rs', language: 'rust' },
+  { path: 'app/models/order.rb', language: 'ruby' },
+  { path: 'lib/tasks/orders.rake', language: 'ruby' },
+  { path: 'shop.gemspec', language: 'ruby' },
+  { path: 'config.ru', language: 'ruby' },
+  { path: 'Gemfile', language: 'ruby' },
+  { path: 'engines/billing/Rakefile', language: 'ruby' },
   { path: 'web/src/utils/x.ts', language: 'typescript' },
   { path: 'web/src/App.tsx', language: 'typescript' },
   { path: 'web/.dependency-cruiser.cjs', language: 'javascript' },
