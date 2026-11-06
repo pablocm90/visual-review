@@ -9,12 +9,16 @@ import { NOT_DRAWN } from './typescript-uses.ts';
 
 const idOf = (path: string) => `web/file/${path}`;
 
-const graphOf = (files: ReadonlyArray<string>, edges: ReadonlyArray<string>): Graph => ({
+const graphOf = (
+  files: ReadonlyArray<string>,
+  edges: ReadonlyArray<string>,
+  elsewhere: ReadonlyArray<string>,
+): Graph => ({
   nodes: files.map(path => ({
     id: idOf(path),
     kind: 'file',
     label: path,
-    parent: 'web',
+    parent: elsewhere.includes(path) ? 'app' : 'web',
     path: `src/${path}`,
   })),
   edges: edges.map(edge => {
@@ -29,9 +33,17 @@ type Scene = {
   readonly edges: ReadonlyArray<string>;
   readonly names: ReadonlyArray<string>;
   readonly target?: string;
+  readonly elsewhere?: ReadonlyArray<string>;
 };
 
-const usesIn = async ({ files, atBase = {}, edges, names, target = 'a.ts' }: Scene) => {
+const usesIn = async ({
+  files,
+  atBase = {},
+  edges,
+  names,
+  target = 'a.ts',
+  elsewhere = [],
+}: Scene) => {
   const base = mkdtempSync(join(tmpdir(), 'visual-review-uses-base-'));
   const head = mkdtempSync(join(tmpdir(), 'visual-review-uses-head-'));
   const under = (tree: Readonly<Record<string, string>>) =>
@@ -42,8 +54,11 @@ const usesIn = async ({ files, atBase = {}, edges, names, target = 'a.ts' }: Sce
     return await typeScriptReader.uses?.({
       base,
       head,
-      stacks: new Map([['.', 'web']]),
-      graph: graphOf(Object.keys({ ...files, ...atBase }), edges),
+      stacks: new Map([
+        ['.', 'web'],
+        ['app', 'app'],
+      ]),
+      graph: graphOf(Object.keys({ ...files, ...atBase }), edges, elsewhere),
       node: { id: idOf(target), path: `src/${target}` },
       names,
     });
@@ -85,9 +100,7 @@ test.for([
   { specifier: '.', importer: 'b.ts', target: 'index.ts', counts: true },
   { specifier: './types', importer: 'b.ts', target: 'types.d.ts', counts: true },
   { specifier: 'date-fns/a', importer: 'b.ts', target: 'a.ts', counts: false },
-  { specifier: '@acme/lib', importer: 'b.ts', target: 'a.ts', counts: true },
-  { specifier: '@acme/lib/sub', importer: 'b.ts', target: 'a.ts', counts: true },
-  { specifier: '@acme/lib-two', importer: 'b.ts', target: 'a.ts', counts: false },
+  { specifier: '@acme/lib', importer: 'b.ts', target: 'a.ts', counts: false },
 ])(
   '$specifier in $importer is $target: $counts',
   async ({ specifier, importer, target, counts }) => {
@@ -105,6 +118,22 @@ test.for([
     });
   },
 );
+
+test.for([
+  { specifier: '@acme/lib', counts: true },
+  { specifier: '@acme/lib/sub', counts: true },
+  { specifier: '@acme/lib-two', counts: false },
+])("$specifier in another stack is the package's: $counts", async ({ specifier, counts }) => {
+  const reading = await usesIn({
+    files: { 'a.ts': 'export const foo = 1;\n', 'b.ts': `import { foo } from '${specifier}';\n` },
+    edges: ['b.ts -> a.ts'],
+    names: ['foo'],
+    elsewhere: ['b.ts'],
+  });
+  expect(reading?.uses).toEqual({
+    foo: counts ? [expect.objectContaining({ path: 'src/b.ts' })] : [],
+  });
+});
 
 test('a default import uses the default export, wherever it names it', async () => {
   const reading = await usesIn({
@@ -139,6 +168,7 @@ test("a default through the package's name may be another file's, so it's marked
       'beyond.ts -> alias.ts',
     ],
     names: ['default'],
+    elsewhere: ['import.ts', 'reexport.ts', 'alias.ts', 'beyond.ts'],
   });
   expect(reading?.uses).toEqual({
     default: [
@@ -417,6 +447,7 @@ test.for([
     files: { 'a.ts': a, 'b.ts': importer },
     edges: ['b.ts -> a.ts'],
     names: ['Foo.bar'],
+    elsewhere: ['b.ts'],
   });
   expect(reading?.uses['Foo.bar']).toEqual([{ path: 'src/b.ts', ...row }]);
 });

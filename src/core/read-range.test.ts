@@ -2324,6 +2324,23 @@ test("a root another reader's stack also holds still resolves its own tsconfig",
   ]);
 });
 
+test("a sibling's alias landing on another of the package's files isn't taken for the package", async () => {
+  using repository = gitRepo({
+    'lib/package.json': '{"name":"@acme/lib"}\n',
+    'lib/src/a.ts': 'export function parse() {}\nexport function kept() {}\n',
+    'lib/src/b.ts': 'export function parse() {}\n',
+    'web/package.json': '{}\n',
+    'web/tsconfig.json': '{"compilerOptions":{"paths":{"@acme/lib/*":["../lib/src/*"]}}}\n',
+    'web/src/uses.ts': "import { parse } from '@acme/lib/b';\nparse();\n",
+  });
+  const { repo, root } = repository;
+  const head = commit(repo, { 'lib/src/a.ts': 'export function kept() {}\n' });
+
+  const range = await readRange({ repo, from: root, to: head });
+
+  expect(range.reaches).toEqual([]);
+});
+
 const twoStacks = {
   'lib/package.json': '{"name":"@acme/lib"}\n',
   'lib/src/a.ts': 'export function foo() {}\nexport function kept() {}\n',

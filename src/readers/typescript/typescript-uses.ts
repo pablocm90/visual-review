@@ -43,7 +43,7 @@ type Stack = {
   readonly packageName: string | undefined;
 };
 
-type Naming = { readonly specifier: string; readonly importer: string; readonly file: string };
+type Naming = { readonly specifier: string; readonly importer: string };
 
 const moduleAt = (...path: ReadonlyArray<string>): string => moduleOf(resolve(...path));
 
@@ -51,13 +51,11 @@ const namesPackage = (packageName: string | undefined, specifier: string) =>
   packageName !== undefined &&
   (specifier === packageName || specifier.startsWith(`${packageName}/`));
 
-const namesFile = ({ head, resolution, drawn }: Stack, { specifier, importer, file }: Naming) => {
+const drawnPlaceNamedBy = ({ head, resolution, drawn }: Stack, { specifier, importer }: Naming) => {
   const places = specifier.startsWith('.')
     ? [join(head, dirname(importer), specifier)]
     : placesNamedBy(resolution, specifier);
-  return (
-    places.map(place => moduleAt(place)).find(place => drawn.has(place)) === moduleAt(head, file)
-  );
+  return places.map(place => moduleAt(place)).find(place => drawn.has(place));
 };
 
 const importedName = (text: string, specifier: ImportDeclaration['specifiers'][number]) => {
@@ -185,10 +183,12 @@ const usesInFile = ({ path, text, target, stack }: Read): FileUses => {
   const parsed = parseTypeScript(text, path);
   const { program } = parsed;
   const scan = scanOf(text, parsed);
-  const namesExactly: Names = specifier =>
-    namesFile(stack, { specifier, importer: path, file: target });
+  const placeOfName = (specifier: string) =>
+    drawnPlaceNamedBy(stack, { specifier, importer: path });
+  const namesExactly: Names = specifier => placeOfName(specifier) === moduleAt(stack.head, target);
   const names: Names = specifier =>
-    namesExactly(specifier) || namesPackage(stack.packageName, specifier);
+    namesExactly(specifier) ||
+    (placeOfName(specifier) === undefined && namesPackage(stack.packageName, specifier));
   const isLoose = (name: string, source: string) => name === 'default' && !namesExactly(source);
   const placeOf = (range: Token | Node) => placeAt(path, text, startOf(range));
   const mayUseAt = (range: Token | Node): SymbolUse => ({ ...placeOf(range), unfollowed: true });
@@ -305,7 +305,13 @@ const walked = async ({ hops, seen, importersOf, read }: Walk): Promise<Readonly
 const known = new Map<string, FileUses>();
 
 const usesInFileOnce = (read: Read): FileUses => {
-  const key = JSON.stringify([read.path, read.target, read.text, read.stack.resolution]);
+  const key = JSON.stringify([
+    read.path,
+    read.target,
+    read.text,
+    read.stack.resolution,
+    read.stack.packageName,
+  ]);
   const kept = known.get(key);
   if (kept !== undefined) return kept;
   const uses = usesInFile(read);
@@ -388,7 +394,10 @@ export const usesOfTypeScript = async ({
           head,
           drawn,
           resolution: resolutionOf(rootOf(id)),
-          packageName: packageNameIn(join(base, rootOf(target.id))),
+          packageName:
+            rootOf(id) === rootOf(target.id)
+              ? undefined
+              : packageNameIn(join(base, rootOf(target.id))),
         },
         path,
         target.path,
