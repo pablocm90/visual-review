@@ -429,6 +429,97 @@ test('a relative climb staying in the checkout is still followed, from a stack b
   ]);
 });
 
+const aliasTo = (place: string) => ({ compilerOptions: { paths: { '@/*': [place] } } });
+
+test.for([
+  {
+    how: 'a file named by a string',
+    configs: { 'tsconfig.json': { extends: './base.json' }, 'base.json': aliasTo('./src/*') },
+  },
+  {
+    how: 'a name without its extension',
+    configs: { 'tsconfig.json': { extends: './base' }, 'base.json': aliasTo('./src/*') },
+  },
+  {
+    how: 'an array, the later entry winning',
+    configs: {
+      'tsconfig.json': { extends: ['./one.json', './two.json'] },
+      'one.json': aliasTo('./src/vendored/*'),
+      'two.json': aliasTo('./src/*'),
+    },
+  },
+  {
+    how: 'a chain, the nearest winning',
+    configs: {
+      'tsconfig.json': { extends: './one.json' },
+      'one.json': { extends: './two.json', ...aliasTo('./src/*') },
+      'two.json': aliasTo('./src/vendored/*'),
+    },
+  },
+  {
+    how: 'its own paths ahead of what it extends',
+    configs: {
+      'tsconfig.json': { extends: './one.json', ...aliasTo('./src/*') },
+      'one.json': aliasTo('./src/vendored/*'),
+    },
+  },
+  {
+    how: 'places relative to the config defining them',
+    configs: {
+      'tsconfig.json': { extends: './config/base' },
+      'config/base.json': aliasTo('../src/*'),
+    },
+  },
+  {
+    how: 'a name relative to the config saying it',
+    configs: {
+      'tsconfig.json': { extends: './config/one' },
+      'config/one.json': { extends: './two' },
+      'config/two.json': aliasTo('../src/*'),
+    },
+  },
+  {
+    how: 'places relative to an inherited baseUrl',
+    configs: {
+      'tsconfig.json': { extends: './config/base', ...aliasTo('./*') },
+      'config/base.json': { compilerOptions: { baseUrl: '../src' } },
+    },
+  },
+])('a tsconfig extends $how', async ({ configs }) => {
+  using workspace = gitRepo({
+    'package.json': '{ "name": "shop" }\n',
+    ...Object.fromEntries(
+      Object.entries(configs).map(([file, config]) => [file, `${JSON.stringify(config)}\n`]),
+    ),
+    'src/lib/a.ts': 'export const a = 1;\n',
+    'src/vendored/lib/a.ts': 'export const a = 2;\n',
+    'src/b.ts': "import { a } from '@/lib/a';\nexport const b = a;\n",
+  });
+  const { repo, root } = workspace;
+
+  const range = await readRange({ repo, from: root, to: root });
+
+  expect(range.after.edges).toEqual([{ from: 'shop/file/b.ts', to: 'shop/file/lib/a.ts' }]);
+});
+
+test('the nearest tsconfig paths replace what it extends wholly', async () => {
+  using workspace = gitRepo({
+    'package.json': '{ "name": "shop" }\n',
+    'tsconfig.json': JSON.stringify({
+      extends: './base.json',
+      compilerOptions: { paths: { '~/*': ['./src/*'] } },
+    }),
+    'base.json': JSON.stringify(aliasTo('./src/*')),
+    'src/a.ts': 'export const a = 1;\n',
+    'src/b.ts': "import { a } from '@/a';\nexport const b = a;\n",
+  });
+  const { repo, root } = workspace;
+
+  const range = await readRange({ repo, from: root, to: root });
+
+  expect(range.after.edges).toEqual([]);
+});
+
 test('each stack and each side resolves through its own tsconfig paths', async () => {
   using workspace = gitRepo({
     'apps/one/package.json': '{}\n',

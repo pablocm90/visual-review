@@ -17,6 +17,10 @@ const SCRIPT_FILE = /\.[cm]?[jt]sx?$/;
 const SOURCES = '**/*.{ts,tsx,js,jsx,mjs,cjs}';
 
 const TsconfigSchema = z.object({
+  extends: z
+    .union([z.string(), z.array(z.string())])
+    .optional()
+    .catch(undefined),
   compilerOptions: z
     .object({
       rootDir: z.string().optional(),
@@ -27,12 +31,13 @@ const TsconfigSchema = z.object({
   include: z.array(z.string()).optional(),
 });
 
-const tsconfigIn = (directory: string): z.infer<typeof TsconfigSchema> => {
-  const tsconfig = join(directory, 'tsconfig.json');
-  return existsSync(tsconfig)
+const tsconfigAt = (tsconfig: string): z.infer<typeof TsconfigSchema> =>
+  existsSync(tsconfig)
     ? (TsconfigSchema.safeParse(parse(readFileSync(tsconfig, 'utf8'))).data ?? {})
     : {};
-};
+
+const tsconfigIn = (directory: string): z.infer<typeof TsconfigSchema> =>
+  tsconfigAt(join(directory, 'tsconfig.json'));
 
 const isDirectory = (path: string): boolean => existsSync(path) && statSync(path).isDirectory();
 
@@ -128,15 +133,43 @@ const MATCHES_RELATIVE_IMPORTS = /^[*.]/;
 
 const prefixLength = (name: string): number => name.replace(/\*.*/, '').length;
 
+type Aliases = {
+  readonly baseUrl?: string;
+  readonly paths?: {
+    readonly places: Readonly<Record<string, ReadonlyArray<string>>>;
+    readonly from: string;
+  };
+};
+
+const withExtension = (config: string): string =>
+  config.endsWith('.json') ? config : `${config}.json`;
+
+const laterWins = (earlier: Aliases, later: Aliases): Aliases => ({ ...earlier, ...later });
+
+const aliasesAt = (directory: string, config: string): Aliases => {
+  const { extends: extended = [], compilerOptions } = tsconfigAt(join(directory, config));
+  const { baseUrl, paths } = compilerOptions ?? {};
+  const from = dirname(config);
+  return {
+    ...[extended]
+      .flat()
+      .map(entry => aliasesAt(directory, withExtension(join(from, entry))))
+      .reduce(laterWins, {}),
+    ...(baseUrl === undefined || isAbsolute(baseUrl) ? {} : { baseUrl: join(from, baseUrl) }),
+    ...(paths === undefined ? {} : { paths: { places: paths, from } }),
+  };
+};
+
 const resolutionIn = ({ checkout, root }: RootOptions) => {
   const directory = join(checkout, root);
   const stays = staysInCheckout(root);
-  const { baseUrl, paths = {} } = tsconfigIn(directory).compilerOptions ?? {};
+  const { baseUrl, paths: pathsSaid } = aliasesAt(directory, 'tsconfig.json');
+  const { places: paths = {}, from = '.' } = pathsSaid ?? {};
   const base = baseUrl !== undefined && stays(baseUrl) ? baseUrl : undefined;
   const placesOf = (places: ReadonlyArray<string>) =>
     places
       .filter(place => !isAbsolute(place))
-      .map(place => join(base ?? '.', place))
+      .map(place => join(base ?? from, place))
       .filter(stays);
   return {
     alias: Object.fromEntries(
