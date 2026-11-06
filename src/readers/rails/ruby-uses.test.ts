@@ -206,9 +206,9 @@ test.each([
   { how: 'delegate on a receiver', written: 'found.delegate :total, to: :order' },
   { how: 'send on nothing', written: 'send(:total)' },
   { how: 'send on self', written: 'self.send(:total)' },
+  { how: 'a block argument of that name', written: 'lines.map(&total)' },
   { how: 'a word of that name sent', written: 'found.send(total)' },
   { how: 'a string building that name', written: 'found.send("total#{suffix}")' },
-  { how: 'a block argument of that name', written: 'lines.map(&total)' },
   { how: 'another method taking that symbol', written: 'found.call(:total)' },
 ])('$how names no method', async ({ written }) => {
   const reading = await usesIn({
@@ -244,5 +244,20 @@ test('the first of any kind of use is the one shown, on the line of the name', a
 
   expect(reading?.uses).toEqual({
     'Order.total': [{ path: 'app/services/caller.rb', line: 4, text: '&:total' }],
+  });
+});
+
+test('the constructor counts where the class is named, as nothing calls initialize by name', async () => {
+  const reading = await usesIn({
+    files: {
+      'app/models/order.rb': ORDER,
+      'app/services/caller.rb': 'class Caller\n  def run\n    Order.new(1)\n  end\nend\n',
+    },
+    target: 'app/models/order.rb',
+    names: ['Order.initialize'],
+  });
+
+  expect(reading?.uses).toEqual({
+    'Order.initialize': [{ path: 'app/services/caller.rb', line: 3, text: 'Order.new(1)' }],
   });
 });

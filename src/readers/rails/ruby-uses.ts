@@ -57,7 +57,8 @@ export const usesOfRuby = async ({ head, graph, node, names }: UsesAsked): Promi
     const program = parseRuby(text);
     const naming = namingsIn(program, constantIn(id), classes).find(({ named }) => named === owner);
     if (naming === undefined) return [];
-    const at = member === undefined ? naming.at : firstUseIn(program, member);
+    const at =
+      member === undefined || member === 'initialize' ? naming.at : firstUseIn(program, member);
     if (at === undefined) return [];
     const row = at.startPosition.row;
     return [{ path, line: row + 1, text: (text.split('\n')[row] ?? '').trim() }];
