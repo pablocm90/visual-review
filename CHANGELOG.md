@@ -2,6 +2,21 @@
 
 What changed in each release of `@pablocm90/visual-review`, newest first. Versions follow [semver](https://semver.org); while it is 0.x, a minor version may change the exported types.
 
+## Unreleased
+
+### Added
+
+- An import through a tsconfig's `paths` draws its edge: wildcard or exact, the longest prefix winning as in TypeScript, the next place taken when the first holds no file. `baseUrl` places them, and finds bare imports. Both come through a relative `extends` (a string or an array, later entries winning), or, when that chain holds no `paths`, its `references`, as in Vite's template.
+- **Reaches** and the `blast-radius` findings follow an import through a tsconfig alias.
+
+### Changed
+
+- An import landing in a sibling stack's root draws the edge to that stack, by an alias or a relative climb, where a climb used to draw an id such as `apps/web/file/../shared/x.ts`. A climb to a folder under no stack draws nothing.
+
+### Fixed
+
+- What an import resolves to outside the checkout, by a relative climb, an absolute specifier or an alias, is no longer read or drawn.
+
 ## 0.49.0 — 2026-11-06
 
 ### Added
