@@ -1,5 +1,5 @@
 import { decisionKey, decisionText, type LogicLine, logicDiff } from './logic-diff.ts';
-import type { FileSymbols, ReadSymbol, SymbolKind } from './reader.ts';
+import type { FileSymbols, LineRange, ReadSymbol, SymbolKind } from './reader.ts';
 
 export type SymbolChange =
   | 'added'
@@ -14,6 +14,7 @@ export type SymbolStatement = {
   readonly name: string;
   readonly scope?: string;
   readonly kind: SymbolKind;
+  readonly lines: { readonly base?: LineRange; readonly head?: LineRange };
   readonly exported: { readonly base?: boolean; readonly head?: boolean };
   readonly change: SymbolChange;
   readonly signature?: { readonly base: string; readonly head: string };
@@ -96,6 +97,7 @@ const logicOf = (old: ReadSymbol, symbol: ReadSymbol) => {
 
 const pairedWith = (old: ReadSymbol, symbol: ReadSymbol): SymbolStatement => ({
   ...named(symbol),
+  lines: { base: old.lines, head: symbol.lines },
   exported: { base: old.exported, head: symbol.exported },
   change: changeOf(old, symbol),
   ...(old.signatureHash === symbol.signatureHash
@@ -204,7 +206,12 @@ const readStatements = ({ before, after }: SymbolChangesOptions): ReadonlyArray<
         ...(former.bodyHash === symbol.bodyHash ? {} : { probably: true }),
       };
     }
-    return { ...named(symbol), exported: { head: symbol.exported }, change: 'added' };
+    return {
+      ...named(symbol),
+      lines: { head: symbol.lines },
+      exported: { head: symbol.exported },
+      change: 'added',
+    };
   };
   return [
     ...after.symbols.map(read => ({ statement: headStatement(read), read })),
@@ -213,6 +220,7 @@ const readStatements = ({ before, after }: SymbolChangesOptions): ReadonlyArray<
       .map(read => ({
         statement: {
           ...named(read),
+          lines: { base: read.lines },
           exported: { base: read.exported },
           change: 'removed' as const,
         },

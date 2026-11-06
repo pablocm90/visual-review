@@ -5051,10 +5051,13 @@ const topFile = (label: string, state: Diffed = 'unchanged') => ({
   state,
 });
 
-const symbolsOf = (node: string, symbols: ReadonlyArray<SymbolStatement>): SymbolFile => ({
+const symbolsOf = (
+  node: string,
+  symbols: ReadonlyArray<Omit<SymbolStatement, 'lines'>>,
+): SymbolFile => ({
   node,
   stack: 'web',
-  symbols,
+  symbols: symbols.map(symbol => ({ lines: {}, ...symbol })),
   exports: { added: [], removed: [] },
   kind: 'logic',
 });
@@ -5485,6 +5488,7 @@ test("a box's What changed lists each file inside it with symbol changes, each w
   });
   const symbol = (name: string, change: SymbolStatement['change']): SymbolStatement => ({
     name,
+    lines: {},
     kind: 'function',
     exported: { base: false, head: false },
     change,
@@ -7811,6 +7815,7 @@ test('a box shows a file whose only news is a symbol changed since the last revi
   });
   const unchanged = (name: string): SymbolStatement => ({
     name,
+    lines: {},
     kind: 'function',
     exported: { base: false, head: false },
     change: 'unchanged',

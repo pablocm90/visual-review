@@ -1,9 +1,17 @@
 import { expect, test } from 'vitest';
 import { symbolsOfTypeScript } from '../readers/typescript/typescript-symbols.ts';
-import { type FileSymbolChanges, symbolChanges, symbolChangesOf } from './symbol-changes.ts';
+import {
+  type FileSymbolChanges,
+  type SymbolChanges,
+  symbolChanges,
+  symbolChangesOf,
+} from './symbol-changes.ts';
 
 const read = (...lines: ReadonlyArray<string>) =>
   symbolsOfTypeScript(lines.join('\n'), 'src/shop.ts');
+
+const withoutLines = ({ symbols }: Pick<SymbolChanges, 'symbols'>) =>
+  symbols.map(({ lines, ...statement }) => statement);
 
 test('a symbol is paired by scope, name and kind: unchanged with the same text, edited with another, added or removed when on one side only', () => {
   const before = read(
@@ -18,13 +26,44 @@ test('a symbol is paired by scope, name and kind: unchanged with the same text, 
     'export type Id = string;',
   );
 
-  expect(symbolChanges({ before, after }).symbols).toEqual([
+  expect(withoutLines(symbolChanges({ before, after }))).toEqual([
     { name: 'kept', kind: 'function', exported: { base: true, head: true }, change: 'unchanged' },
     { name: 'charge', kind: 'function', exported: { base: false, head: false }, change: 'edited' },
     { name: 'Shop', kind: 'class', exported: { base: false, head: false }, change: 'edited' },
     { name: 'Id', kind: 'type', exported: { head: true }, change: 'added' },
     { name: 'open', scope: 'Shop', kind: 'method', exported: { base: false }, change: 'removed' },
   ]);
+});
+
+test('a statement carries the lines of each side it is on: a paired or renamed symbol both, an added one the head, a removed one the base', () => {
+  const before = read(
+    'function gone() { return 1; }',
+    'function kept() {',
+    '  return 1;',
+    '}',
+    'function former() { return 2 * 3; }',
+  );
+  const after = read(
+    '// moved down',
+    '',
+    'function kept() {',
+    '  return 2;',
+    '',
+    '}',
+    'function renamed() { return 2 * 3; }',
+    'function fresh() { return 4; }',
+  );
+
+  expect(
+    Object.fromEntries(
+      symbolChanges({ before, after }).symbols.map(({ name, lines }) => [name, lines]),
+    ),
+  ).toEqual({
+    kept: { base: { start: 2, end: 4 }, head: { start: 3, end: 6 } },
+    renamed: { base: { start: 5, end: 5 }, head: { start: 7, end: 7 } },
+    fresh: { head: { start: 8, end: 8 } },
+    gone: { base: { start: 1, end: 1 } },
+  });
 });
 
 test('a symbol of the same name but another kind or scope is another symbol', () => {
@@ -78,7 +117,7 @@ test("an edited symbol carries both signatures when its signature changed, and n
     'function refund(amount: number) { return 2; }',
   );
 
-  expect(symbolChanges({ before, after }).symbols).toEqual([
+  expect(withoutLines(symbolChanges({ before, after }))).toEqual([
     {
       name: 'charge',
       kind: 'function',
@@ -133,7 +172,7 @@ test('a probably renamed function whose decisions changed carries its logic line
   );
   const after = read('function bill(order) { if (order.amount >= 0) { pay(order); log(order); } }');
 
-  expect(symbolChanges({ before, after }).symbols).toEqual([
+  expect(withoutLines(symbolChanges({ before, after }))).toEqual([
     expect.objectContaining({
       change: 'renamed',
       probably: true,
@@ -152,7 +191,7 @@ test('a symbol gone from the base and new at the head with the same kind and bod
     'class Shop { static close = () => 1; }',
   );
 
-  expect(symbolChanges({ before, after }).symbols).toEqual([
+  expect(withoutLines(symbolChanges({ before, after }))).toEqual([
     {
       name: 'bill',
       kind: 'function',
@@ -315,6 +354,7 @@ test('a symbol removed from one changed file and added to another with the same 
         {
           name: 'charge',
           kind: 'function',
+          lines: { base: { start: 1, end: 1 } },
           exported: { base: false },
           change: 'moved',
           movedTo: 'web/src/till.ts',
@@ -329,6 +369,7 @@ test('a symbol removed from one changed file and added to another with the same 
         {
           name: 'charge',
           kind: 'function',
+          lines: { head: { start: 1, end: 1 } },
           exported: { head: true },
           change: 'moved',
           movedFrom: 'web/src/shop.ts',
