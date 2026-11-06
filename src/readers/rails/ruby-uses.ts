@@ -49,16 +49,21 @@ const namesInCall = (call: Node): ReadonlyArray<Node> => {
   return [call.childForFieldName('method') ?? []].flat();
 };
 
-const firstUseIn = (program: Node | undefined, member: string): Node | undefined =>
-  program
-    ?.descendantsOfType(['call', 'block_argument'])
-    .flatMap(node =>
-      node.type === 'block_argument' ? node.namedChildren.filter(isLiteralName) : namesInCall(node),
-    )
-    .find(named => nameOf(named) === member);
+const firstUsesIn = (program: Node): ReadonlyMap<string, Node> =>
+  new Map(
+    program
+      .descendantsOfType(['call', 'block_argument'])
+      .flatMap(node =>
+        node.type === 'block_argument'
+          ? node.namedChildren.filter(isLiteralName)
+          : namesInCall(node),
+      )
+      .toSorted((one, other) => other.startIndex - one.startIndex)
+      .map(named => [nameOf(named), named]),
+  );
 
-const firstOpenSendIn = (program: Node | undefined): Node | undefined =>
-  program?.descendantsOfType('call').find(call => {
+const firstOpenSendIn = (program: Node): Node | undefined =>
+  program.descendantsOfType('call').find(call => {
     const [first] = argsOf(call);
     return (
       SENDERS.has(methodOf(call)) &&
@@ -93,20 +98,26 @@ type Importer = {
 
 const rowsIn = (
   { path, text, program, namings }: Importer,
-  name: string,
-): ReadonlyArray<SymbolUse> => {
-  const { owner, member } = askedOf(name);
-  const naming = namings.find(({ named }) => named === owner);
-  if (naming === undefined) return [];
+  names: ReadonlyArray<string>,
+): ReadonlyMap<string, ReadonlyArray<SymbolUse>> => {
+  const lines = text.split('\n');
   const rowAt = (at: Node): SymbolUse => {
     const row = at.startPosition.row;
-    return { path, line: row + 1, text: (text.split('\n')[row] ?? '').trim() };
+    return { path, line: row + 1, text: (lines[row] ?? '').trim() };
   };
-  if (member === undefined || member === 'initialize') return [rowAt(naming.at)];
-  const use = firstUseIn(program, member);
-  if (use !== undefined) return [rowAt(use)];
+  const firstNamings = new Map(namings.toReversed().map(({ at, named }) => [named, at]));
+  const firstUses = firstUsesIn(program);
   const open = firstOpenSendIn(program);
-  return open === undefined ? [] : [{ ...rowAt(open), unfollowed: true }];
+  const rowsOf = (name: string): ReadonlyArray<SymbolUse> => {
+    const { owner, member } = askedOf(name);
+    const naming = firstNamings.get(owner);
+    if (naming === undefined) return [];
+    if (member === undefined || member === 'initialize') return [rowAt(naming)];
+    const use = firstUses.get(member);
+    if (use !== undefined) return [rowAt(use)];
+    return open === undefined ? [] : [{ ...rowAt(open), unfollowed: true }];
+  };
+  return new Map(names.map(name => [name, rowsOf(name)]));
 };
 
 export const usesOfRuby = async ({ head, graph, node, names }: UsesAsked): Promise<UsesReading> => {
@@ -119,15 +130,18 @@ export const usesOfRuby = async ({ head, graph, node, names }: UsesAsked): Promi
     .filter(({ to }) => to === node.id)
     .flatMap(({ from }) => graph.nodes.find(({ id }) => id === from) ?? [])
     .map(({ id, path }) => ({ id, path, read: readRuby(join(head, path)) }));
-  const importers = reads.flatMap(({ id, path, read }) =>
+  const rows = reads.flatMap(({ id, path, read }) =>
     read === undefined || 'notRead' in read
       ? []
-      : [{ path, ...read, namings: namingsIn(read.program, constantIn(id), classes) }],
+      : [
+          rowsIn(
+            { path, ...read, namings: namingsIn(read.program, constantIn(id), classes) },
+            names,
+          ),
+        ],
   );
   return {
-    uses: Object.fromEntries(
-      names.map(name => [name, importers.flatMap(importer => rowsIn(importer, name))]),
-    ),
+    uses: Object.fromEntries(names.map(name => [name, rows.flatMap(row => row.get(name) ?? [])])),
     notRead: reads.flatMap(({ path, read }) =>
       read !== undefined && 'notRead' in read ? [path] : [],
     ),

@@ -248,6 +248,29 @@ test('the first of any kind of use is the one shown, on the line of the name', a
   });
 });
 
+test('in a chain the first call to it is the one shown, though the last holds the rest', async () => {
+  const reading = await usesIn({
+    files: {
+      'app/models/order.rb': ORDER,
+      'app/services/caller.rb': [
+        'class Caller',
+        '  Order',
+        '  found.total',
+        '    .itself',
+        '    .total',
+        'end',
+        '',
+      ].join('\n'),
+    },
+    target: 'app/models/order.rb',
+    names: ['Order.total'],
+  });
+
+  expect(reading?.uses).toEqual({
+    'Order.total': [{ path: 'app/services/caller.rb', line: 3, text: 'found.total' }],
+  });
+});
+
 test('the constructor counts where the class is named, as nothing calls initialize by name', async () => {
   const reading = await usesIn({
     files: {
@@ -373,7 +396,11 @@ test.each([
     names: ['Order', 'Order.total'],
     notFollowed: [NOT_DRAWN, METHODS_NOT_FOLLOWED],
   },
-  { asked: 'a method with no class', names: ['helper'], notFollowed: [NOT_DRAWN, METHODS_NOT_FOLLOWED] },
+  {
+    asked: 'a method with no class',
+    names: ['helper'],
+    notFollowed: [NOT_DRAWN, METHODS_NOT_FOLLOWED],
+  },
 ])('asked about $asked, it says what it cannot see', async ({ names, notFollowed }) => {
   const reading = await usesIn({
     files: { 'app/models/order.rb': ORDER },
