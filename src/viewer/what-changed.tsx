@@ -284,6 +284,16 @@ const endsOf = (
   return symbol.movedTo === undefined ? [theirs, ...own] : [...own, theirs];
 };
 
+const SymbolName = ({ symbol }: { readonly symbol: SymbolStatement }) => {
+  const mark = exportMarkOf(symbol);
+  return (
+    <>
+      <span className="kind">{symbol.kind}</span> <code>{qualified(symbol)}</code>
+      {mark !== undefined && <span className="export-mark"> {mark}</span>}
+    </>
+  );
+};
+
 const SymbolRow = ({
   anchored: { item: symbol, id },
   node,
@@ -301,10 +311,7 @@ const SymbolRow = ({
       aria-label={sinceLabel(`${nameOf(symbol)}: ${symbol.change}`, isChangedSince('symbols', id))}
       {...marksOf({ kind: 'symbol', id })}
     >
-      <span className="kind">{symbol.kind}</span> <code>{qualified(symbol)}</code>
-      {exportMarkOf(symbol) !== undefined && (
-        <span className="export-mark"> {exportMarkOf(symbol)}</span>
-      )}
+      <SymbolName symbol={symbol} />
       <ChangedSinceTag marked={isChangedSince('symbols', id)} />
       <Origin symbol={symbol} {...places} />
       {ends.length > 0 && (
