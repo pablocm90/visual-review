@@ -320,14 +320,15 @@ const readFacts = async (path: string, file: string): Promise<Read> => {
 };
 
 const known = new Map<string, Promise<Read>>();
+let lastRead: Promise<Read> = Promise.resolve(undefined);
 
 const factsAt = (head: string, path: string): Promise<Read> => {
   const file = join(head, path);
   const kept = known.get(file);
   if (kept !== undefined) return kept;
-  const read = readFacts(path, file);
-  known.set(file, read);
-  return read;
+  lastRead = lastRead.then(() => readFacts(path, file));
+  known.set(file, lastRead);
+  return lastRead;
 };
 
 type FileUsesOptions = {

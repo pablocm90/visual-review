@@ -1,6 +1,9 @@
+import { execFile } from 'node:child_process';
 import { mkdtempSync, rmSync, symlinkSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { pathToFileURL } from 'node:url';
+import { promisify } from 'node:util';
 import { expect, test } from 'vitest';
 import type { Graph } from '../../core/graph.ts';
 import { writeFiles } from '../../test-support/repos.ts';
@@ -653,6 +656,44 @@ test("an outside file that can't be opened is listed as not read", async () => {
   });
 
   expect(reading?.notRead).toEqual(['loop.ts']);
+});
+
+test('every outside file is read when few files may be open at once', async () => {
+  const root = mkdtempSync(join(tmpdir(), 'visual-review-uses-limit-'));
+  try {
+    writeFiles(root, {
+      'src/a.ts': 'export const foo = 1;\n',
+      ...Object.fromEntries(
+        Array.from({ length: 400 }, (_, index) => [
+          `test/o${index}.test.ts`,
+          "import { foo } from '../src/a';\nfoo();\n",
+        ]),
+      ),
+    });
+    const asked = `
+      import { typeScriptReader } from ${JSON.stringify(pathToFileURL(join(import.meta.dirname, 'reader.ts')).href)};
+      const node = { id: 'web/file/a.ts', kind: 'file', label: 'a.ts', parent: 'web', path: 'src/a.ts' };
+      const reading = await typeScriptReader.uses({
+        base: ${JSON.stringify(root)},
+        head: ${JSON.stringify(root)},
+        stacks: new Map([['.', 'web']]),
+        graph: { nodes: [node], edges: [] },
+        node,
+        names: ['foo'],
+      });
+      console.log(JSON.stringify({ rows: reading.uses.foo.length, notRead: reading.notRead }));
+    `;
+    const { stdout } = await promisify(execFile)('sh', [
+      '-c',
+      'ulimit -n 256 && exec "$0" --no-warnings --input-type=module -e "$1"',
+      process.execPath,
+      asked,
+    ]);
+
+    expect(JSON.parse(stdout)).toEqual({ rows: 400, notRead: [] });
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
 });
 
 test.for([
