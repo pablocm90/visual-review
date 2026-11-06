@@ -2305,20 +2305,17 @@ test.for([
 });
 
 test("a changed file of a stack whose reader follows no uses says so, and a stack the base doesn't hold has nothing to follow", async () => {
-  using repository = gitRepo({
-    'config/application.rb': 'module Shop\n  class Application\n  end\nend\n',
-    'app/models/order.rb': 'class Order\n  def total\n    1\n  end\nend\n',
-  });
-  const { repo, root } = repository;
+  using workspace = cargoWorkspace();
+  const { repo, root } = workspace;
   const head = commit(repo, {
-    'app/models/order.rb': 'class Order\n  def total\n    2\n  end\nend\n',
+    'crates/core/src/lib.rs': 'pub fn core() {}\n',
     'web/package.json': '{}\n',
     'web/src/a.ts': 'export const a = 1;\n',
   });
 
   const range = await readRange({ repo, from: root, to: head });
 
-  expect(range.reachesNotRead).toEqual([`not read for ${basename(repo)}`]);
+  expect(range.reachesNotRead).toEqual(['not read for rust']);
 });
 
 test("a root another reader's stack also holds still resolves its own tsconfig", async () => {

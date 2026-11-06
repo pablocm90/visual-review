@@ -6,6 +6,7 @@ import { railsGraph } from './rails-graph.ts';
 import { measureRuby } from './ruby-measure.ts';
 import { symbolsOfRuby } from './ruby-symbols.ts';
 import { readRubyTests } from './ruby-tests.ts';
+import { usesOfRuby } from './ruby-uses.ts';
 
 const APPLICATION = 'config/application.rb';
 
@@ -39,4 +40,5 @@ export const railsReader: Reader = {
   readTests: readRubyTests,
   measure: (text, path) => (TEST_FILE.test(path) ? undefined : measureRuby(text)),
   symbols: (text, path) => (TEST_FILE.test(path) ? undefined : symbolsOfRuby(text)),
+  uses: usesOfRuby,
 };
