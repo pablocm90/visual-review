@@ -12,13 +12,13 @@ import {
 } from './typescript-config.ts';
 import { measureTypeScript } from './typescript-measure.ts';
 import { symbolsOfTypeScript } from './typescript-symbols.ts';
+import { isScript } from './typescript-syntax.ts';
 import { readTypeScriptTests } from './typescript-tests.ts';
 import { withTypeReexports } from './typescript-type-reexports.ts';
 import { usesOfTypeScript } from './typescript-uses.ts';
 import { webGraph } from './web-graph.ts';
 
 const TEST_FILE = /\.(test|spec)\.[cm]?[jt]sx?$/;
-const SCRIPT_FILE = /\.[cm]?[jt]sx?$/;
 
 const SOURCES = '**/*.{ts,tsx,js,jsx,mjs,cjs}';
 
@@ -154,6 +154,6 @@ export const typeScriptReader: Reader = {
   readTests: readTypeScriptTests,
   measure: (text, path) => (TEST_FILE.test(path) ? undefined : measureTypeScript(text, path)),
   symbols: (text, path) =>
-    SCRIPT_FILE.test(path) && !TEST_FILE.test(path) ? symbolsOfTypeScript(text, path) : undefined,
+    isScript(path) && !TEST_FILE.test(path) ? symbolsOfTypeScript(text, path) : undefined,
   uses: usesOfTypeScript,
 };

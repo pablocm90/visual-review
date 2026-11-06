@@ -13,13 +13,12 @@ const graphOf = (
   files: ReadonlyArray<string>,
   edges: ReadonlyArray<string>,
   elsewhere: ReadonlyArray<string>,
-  anotherReaders: ReadonlyArray<string>,
 ): Graph => ({
   nodes: files.map(path => ({
     id: idOf(path),
     kind: 'file',
     label: path,
-    parent: anotherReaders.includes(path) ? 'rails' : elsewhere.includes(path) ? 'app' : 'web',
+    parent: elsewhere.includes(path) ? 'app' : 'web',
     path: `src/${path}`,
   })),
   edges: edges.map(edge => {
@@ -35,7 +34,6 @@ type Scene = {
   readonly names: ReadonlyArray<string>;
   readonly target?: string;
   readonly elsewhere?: ReadonlyArray<string>;
-  readonly anotherReaders?: ReadonlyArray<string>;
   readonly outside?: Readonly<Record<string, string>>;
 };
 
@@ -46,7 +44,6 @@ const usesIn = async ({
   names,
   target = 'a.ts',
   elsewhere = [],
-  anotherReaders = [],
   outside = {},
 }: Scene) => {
   const base = mkdtempSync(join(tmpdir(), 'visual-review-uses-base-'));
@@ -63,7 +60,7 @@ const usesIn = async ({
         ['.', 'web'],
         ['app', 'app'],
       ]),
-      graph: graphOf(Object.keys({ ...files, ...atBase }), edges, elsewhere, anotherReaders),
+      graph: graphOf(Object.keys({ ...files, ...atBase }), edges, elsewhere),
       node: { id: idOf(target), path: `src/${target}` },
       names,
     });
@@ -653,10 +650,13 @@ test('a drawn file with no edge to a drawn target is not read', async () => {
   expect(reading?.notRead).toEqual([]);
 });
 
-test("an outside barrel's importers are this reader's files, not another reader's", async () => {
+test("an outside barrel's importers are scripts: a drawn stylesheet or Ruby class isn't read as one", async () => {
   const reading = await usesIn({
-    files: { 'a.ts': 'export const foo = 1;\n', 'b.rb': 'class B; end\n' },
-    anotherReaders: ['b.rb'],
+    files: {
+      'a.ts': 'export const foo = 1;\n',
+      'logo.scss': '.logo { color: red; }\n',
+      'b.rb': 'class B; end\n',
+    },
     outside: { 'test/helpers/index.ts': "export { foo } from '../../src/a';\n" },
     edges: [],
     names: ['foo'],

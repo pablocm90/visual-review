@@ -21,7 +21,7 @@ import {
   startOf,
   type Token,
 } from './typescript-symbols.ts';
-import { nameOf, parseTypeScript, sourceOf } from './typescript-syntax.ts';
+import { isScript, nameOf, parseTypeScript, sourceOf } from './typescript-syntax.ts';
 
 const placeAt = (path: string, text: string, offset: number): SymbolUse => {
   const line = text.slice(0, offset).split('\n').length;
@@ -404,8 +404,7 @@ export const usesOfTypeScript = async ({
       .filter(({ kind }) => kind === 'file')
       .map(({ path }) => moduleAt(head, path)),
   );
-  const ownStacks = new Set(stacks.values());
-  const ownNodes = graph.nodes.filter(({ id }) => ownStacks.has(stackOf(id)));
+  const scripts = graph.nodes.filter(({ path }) => isScript(path));
   const outsideIds = new Set(outside.nodes.map(({ id }) => id));
   const visits = await walked({
     hops: names.flatMap(asked => {
@@ -421,7 +420,7 @@ export const usesOfTypeScript = async ({
         .filter(({ to }) => to === id || to === stackOf(id))
         .flatMap(({ from }) => nodes.get(from) ?? []),
       ...outside.nodes,
-      ...(outsideIds.has(id) ? ownNodes : []),
+      ...(outsideIds.has(id) ? scripts : []),
     ],
     read: ({ id, path }, target) =>
       fileUsesAt(
