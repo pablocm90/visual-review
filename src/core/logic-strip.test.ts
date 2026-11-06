@@ -1,6 +1,6 @@
 import { expect, test } from 'vitest';
 import type { LogicLine } from './logic-diff.ts';
-import { countsOf, holdsFewChanges, isExit, runsOf } from './logic-strip.ts';
+import { countsOf, holdsFewChanges, isExit, nodesWithChangedLogic, runsOf } from './logic-strip.ts';
 
 const line = (change: LogicLine['change'], kind: LogicLine['kind']): LogicLine => ({
   change,
@@ -77,4 +77,21 @@ test('rows split into runs of changed and runs of unchanged, order kept, each ro
     [true, ['d', 'e']],
     [false, ['f']],
   ]);
+});
+
+test('the nodes with a changed decision: same lines, no logic and unreadable files hold none', () => {
+  const fileOf = (node: string, logics: ReadonlyArray<ReadonlyArray<LogicLine> | undefined>) => ({
+    node,
+    symbols: logics.map(logic => (logic === undefined ? {} : { logic })),
+  });
+
+  expect(
+    nodesWithChangedLogic([
+      fileOf('only-same', [[line('same', 'if')]]),
+      fileOf('second-symbol', [undefined, [line('same', 'if'), line('removed', 'guard')]]),
+      { node: 'unreadable', unreadable: 'parse error' },
+      fileOf('no-logic', [undefined]),
+      fileOf('moved', [[line('moved', 'if')]]),
+    ]),
+  ).toEqual(['second-symbol', 'moved']);
 });

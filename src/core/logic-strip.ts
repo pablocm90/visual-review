@@ -14,9 +14,13 @@ export const countsOf = (
   exits: logic.filter(isExit).length,
 });
 
-export const holdsFewChanges = (
-  symbols: ReadonlyArray<{ readonly logic?: ReadonlyArray<LogicLine> }>,
-): boolean => countsOf(symbols.flatMap(({ logic }) => logic ?? [])).changed <= FEW_CHANGES;
+type WithLogic = { readonly logic?: ReadonlyArray<LogicLine> };
+
+const changedIn = (symbols: ReadonlyArray<WithLogic>): number =>
+  countsOf(symbols.flatMap(({ logic }) => logic ?? [])).changed;
+
+export const holdsFewChanges = (symbols: ReadonlyArray<WithLogic>): boolean =>
+  changedIn(symbols) <= FEW_CHANGES;
 
 export type RowRun<Row> = {
   readonly unchanged: boolean;
@@ -35,3 +39,10 @@ export const runsOf = <Row extends { readonly line: LogicLine }>(
     ? [{ unchanged, rows }]
     : [{ unchanged, rows: rows.slice(0, end) }, ...runsOf(rows.slice(end))];
 };
+
+type FileWithLogic =
+  | { readonly node: string; readonly symbols: ReadonlyArray<WithLogic> }
+  | { readonly node: string; readonly unreadable: string };
+
+export const nodesWithChangedLogic = (files: ReadonlyArray<FileWithLogic>): ReadonlyArray<string> =>
+  files.flatMap(file => ('symbols' in file && changedIn(file.symbols) > 0 ? [file.node] : []));
