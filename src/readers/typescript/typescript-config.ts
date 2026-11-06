@@ -40,7 +40,8 @@ export const staysInCheckout = (root: string) => (place: string) =>
 
 const MATCHES_RELATIVE_IMPORTS = /^[*.]/;
 
-const prefixLength = (name: string): number => name.replace(/\*.*/, '').length;
+const prefixLength = (name: string): number =>
+  name.includes('*') ? name.indexOf('*') : name.length + 1;
 
 type Aliases = {
   readonly baseUrl?: string;

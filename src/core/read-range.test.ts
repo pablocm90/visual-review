@@ -254,6 +254,10 @@ test.for([
     order: 'an exact name after the wildcard it also matches',
     paths: { '@/lib/*': ['./src/lib/*'], '@/lib/a': ['./src/vendored/a.ts'] },
   },
+  {
+    order: 'an exact name after a wildcard of its length',
+    paths: { '@/lib/a*': ['./src/lib/a*'], '@/lib/a': ['./src/vendored/a.ts'] },
+  },
 ])('the longest tsconfig path prefix wins, written $order', async ({ paths }) => {
   using workspace = gitRepo({
     'package.json': '{ "name": "shop" }\n',
