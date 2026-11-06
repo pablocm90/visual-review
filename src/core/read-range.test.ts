@@ -629,7 +629,7 @@ test.for([
 });
 
 test.for([
-  { how: 'an absolute name', name: () => '/outside.json' },
+  { how: 'an absolute name', name: (repo: string) => `${repo}/outside.json` },
   {
     how: 'a climb out of the checkout',
     name: (repo: string) => `${'../'.repeat(30)}${repo}/outside.json`,
