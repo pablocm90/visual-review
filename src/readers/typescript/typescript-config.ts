@@ -44,10 +44,12 @@ const MATCHES_FILE_PATHS = /^[*./]/;
 const prefixLength = (name: string): number =>
   name.includes('*') ? name.indexOf('*') : name.length + 1;
 
+type Paths = Readonly<Record<string, ReadonlyArray<string>>>;
+
 type Aliases = {
   readonly baseUrl?: string;
   readonly paths?: {
-    readonly places: Readonly<Record<string, ReadonlyArray<string>>>;
+    readonly places: Paths;
     readonly from: string;
   };
 };
@@ -70,6 +72,17 @@ type AliasReading = {
   readonly known: Map<string, Aliases>;
 };
 
+type Said = {
+  readonly from: string;
+  readonly baseUrl?: string | undefined;
+  readonly paths?: Paths | undefined;
+};
+
+const saidIn = ({ from, baseUrl, paths }: Said): Aliases => ({
+  ...(baseUrl === undefined || isAbsolute(baseUrl) ? {} : { baseUrl: join(from, baseUrl) }),
+  ...(paths === undefined ? {} : { paths: { places: paths, from } }),
+});
+
 const chainAt = (reading: AliasReading, config: string): Aliases => {
   const { directory, stays, known } = reading;
   const already = known.get(config);
@@ -77,7 +90,6 @@ const chainAt = (reading: AliasReading, config: string): Aliases => {
   if (known.size >= MOST_CONFIGS) return {};
   known.set(config, {});
   const { extends: extended = [], compilerOptions } = tsconfigAt(join(directory, config));
-  const { baseUrl, paths } = compilerOptions ?? {};
   const from = dirname(config);
   const aliases: Aliases = {
     ...[extended]
@@ -87,8 +99,7 @@ const chainAt = (reading: AliasReading, config: string): Aliases => {
       .filter(stays)
       .map(name => chainAt(reading, name))
       .reduce(laterWins, {}),
-    ...(baseUrl === undefined || isAbsolute(baseUrl) ? {} : { baseUrl: join(from, baseUrl) }),
-    ...(paths === undefined ? {} : { paths: { places: paths, from } }),
+    ...saidIn({ ...compilerOptions, from }),
   };
   known.set(config, aliases);
   return aliases;
@@ -112,6 +123,23 @@ const rootAliases = (reading: AliasReading): Aliases => {
   return referenced.find(({ paths }) => paths !== undefined) ?? chain;
 };
 
+type Folders = {
+  readonly directory: string;
+  readonly catchAll: ReadonlyArray<string>;
+  readonly base: string | undefined;
+};
+
+const moduleFolders = ({ directory, catchAll, base }: Folders) => [
+  ...catchAll
+    .filter(place => basename(place) === '*')
+    .map(place => join(directory, dirname(place))),
+  ...(base === undefined ? [] : [join(directory, base)]),
+  'node_modules',
+  'node_modules/@types',
+];
+
+const aliasNameOf = (name: string): string => (name.includes('*') ? name : `${name}$`);
+
 export const resolutionIn = ({ checkout, root }: RootOptions) => {
   const directory = join(checkout, root);
   const stays = staysInCheckout(root);
@@ -129,18 +157,11 @@ export const resolutionIn = ({ checkout, root }: RootOptions) => {
         .filter(([name]) => !MATCHES_FILE_PATHS.test(name))
         .toSorted(([one], [other]) => prefixLength(other) - prefixLength(one))
         .map(([name, places]) => [
-          name.includes('*') ? name : `${name}$`,
+          aliasNameOf(name),
           placesOf(places).map(place => join(directory, place)),
         ]),
     ),
-    modules: [
-      ...placesOf(paths['*'] ?? [])
-        .filter(place => basename(place) === '*')
-        .map(place => join(directory, dirname(place))),
-      ...(base === undefined ? [] : [join(directory, base)]),
-      'node_modules',
-      'node_modules/@types',
-    ],
+    modules: moduleFolders({ directory, catchAll: placesOf(paths['*'] ?? []), base }),
   };
 };
 
