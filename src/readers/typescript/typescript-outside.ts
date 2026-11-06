@@ -15,7 +15,7 @@ type ScriptsOptions = {
   readonly roots: ReadonlyArray<string>;
 };
 
-const scriptsOfStack = ({ head, root, roots }: ScriptsOptions): ReadonlyArray<string> => {
+const scriptsIn = ({ head, root, roots }: ScriptsOptions): ReadonlyArray<string> => {
   const cwd = join(head, root);
   const others = [
     ...globSync('**/package.json', { cwd, exclude: isDependencies })
@@ -28,6 +28,17 @@ const scriptsOfStack = ({ head, root, roots }: ScriptsOptions): ReadonlyArray<st
   return globSync(SCRIPTS, { cwd, exclude: isDependencies })
     .filter(file => !others.some(folder => isUnder(folder, file)))
     .map(file => join(root, file));
+};
+
+const known = new Map<string, ReadonlyArray<string>>();
+
+const scriptsOfStack = (options: ScriptsOptions): ReadonlyArray<string> => {
+  const place = join(options.head, options.root);
+  const kept = known.get(place);
+  if (kept !== undefined) return kept;
+  const scripts = scriptsIn(options);
+  known.set(place, scripts);
+  return scripts;
 };
 
 type OutsideOptions = {
