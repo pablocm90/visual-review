@@ -1564,3 +1564,56 @@ test("a changed file of a stack whose reader follows no uses says so, and a stac
 
   expect(range.reachesNotRead).toEqual([`not read for ${basename(repo)}`]);
 });
+
+const twoStacks = {
+  'web/package.json': '{}\n',
+  'web/src/a.ts': 'export function foo() {}\nexport function kept() {}\n',
+  'lib/package.json': '{}\n',
+  'lib/src/index.ts': 'export const lib = 1;\n',
+};
+
+test("a name asked in a repo of several stacks says other stacks aren't followed", async () => {
+  using repository = gitRepo(twoStacks);
+  const { repo, root } = repository;
+  const head = commit(repo, { 'web/src/a.ts': 'export function kept() {}\n' });
+
+  const range = await readRange({ repo, from: root, to: head });
+
+  expect(range.reachesNotRead).toEqual(['other stacks not followed']);
+});
+
+test.for([
+  {
+    reason: 'nothing asked',
+    files: { 'web/src/a.ts': 'export function foo() {}\nexport function kept() { return 1; }\n' },
+    config: {},
+  },
+  {
+    reason: 'the other stack dropped',
+    files: { 'web/src/a.ts': 'export function kept() {}\n' },
+    config: { 'visual-review.config.json': '{"stacks":{"lib":false}}\n' },
+  },
+])('$reason says no other stack is left to follow', async ({ files, config }) => {
+  using repository = gitRepo({ ...twoStacks, ...config });
+  const { repo, root } = repository;
+  const head = commit(repo, files);
+
+  const range = await readRange({ repo, from: root, to: head });
+
+  expect(range.reachesNotRead).toEqual([]);
+});
+
+test('another stack of a reader that reads another language is no stack to follow', async () => {
+  using repository = gitRepo({
+    'web/package.json': twoStacks['web/package.json'],
+    'web/src/a.ts': twoStacks['web/src/a.ts'],
+    'config/application.rb': 'module Shop\n  class Application\n  end\nend\n',
+    'app/models/order.rb': 'class Order\nend\n',
+  });
+  const { repo, root } = repository;
+  const head = commit(repo, { 'web/src/a.ts': 'export function kept() {}\n' });
+
+  const range = await readRange({ repo, from: root, to: head });
+
+  expect(range.reachesNotRead).toEqual([]);
+});

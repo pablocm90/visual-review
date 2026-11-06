@@ -127,6 +127,9 @@ export const readReaches = async ({
         ],
         reachesNotRead: [
           ...methods,
+          ...(before.roots.filter(root => root.reader === reader).length > 1
+            ? ['other stacks not followed']
+            : []),
           ...notRead.filter(path => !changed.has(path)).map(path => `not read: ${path}`),
         ],
       };
