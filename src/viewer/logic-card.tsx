@@ -14,6 +14,7 @@ const ROW_HEIGHT = 32;
 const TICK_PITCH = 8;
 const TICK_WIDTH = 6;
 const TICK_AREA = 30;
+const PLATE_MARGIN = 2;
 const GAP = 8;
 const FILE_CHAR = 8;
 const ROW_CHAR = 7;
@@ -166,6 +167,15 @@ const Row = ({
       <text className="card-name" y={ROW_HEIGHT / 2}>
         {shownName}
       </text>
+      <path
+        className="card-strip-plate"
+        d={boxPath(
+          stripX - PLATE_MARGIN,
+          (ROW_HEIGHT - TICK_AREA) / 2,
+          decisions.length * TICK_PITCH + PLATE_MARGIN,
+          TICK_AREA,
+        )}
+      />
       {decisions.map((decision, tick) => (
         <Tick
           key={decision.id}

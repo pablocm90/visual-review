@@ -3133,8 +3133,13 @@ main:has(> .review-tray) {
   fill: var(--muted);
 }
 
-.card-tick-hit {
+.card-tick-hit,
+.card-strip-plate {
   fill: transparent;
+}
+
+.graph .node[data-step] .card-strip-plate {
+  fill: var(--stack);
 }
 
 .card-mark-added {
