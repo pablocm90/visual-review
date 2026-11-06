@@ -162,7 +162,7 @@ test('every package.json with sources under its src/ is a stack named by its dir
   ]);
 });
 
-const climbingTo = (repo: string) => `${'../'.repeat(30)}${repo}/outside/*`;
+const climbingTo = (repo: string) => `${'../'.repeat(30)}${repo}/outside`;
 
 test('in a pnpm monorepo each package is a stack, and a bare import of a sibling package or of its subpath joins the importing file to its stack once, while an import of its own package joins nothing', async () => {
   using workspace = gitRepo({
@@ -211,11 +211,27 @@ test.for([
     tsconfig: '{ "compilerOptions": { "paths": { "@/*": ["./gone/*", "./src/*"] } } }',
     imported: '@/lib/a',
   },
+  {
+    how: 'a place relative to baseUrl',
+    tsconfig: '{ "compilerOptions": { "baseUrl": "./src", "paths": { "@/*": ["./*"] } } }',
+    imported: '@/lib/a',
+  },
+  {
+    how: 'a place climbing from baseUrl, inside the checkout',
+    tsconfig: '{ "compilerOptions": { "baseUrl": "./src/lib", "paths": { "@/*": ["../*"] } } }',
+    imported: '@/lib/a',
+  },
+  {
+    how: 'a bare name under baseUrl',
+    tsconfig: '{ "compilerOptions": { "baseUrl": "./src" } }',
+    imported: 'lib/a',
+  },
 ])('an import through a tsconfig path draws its edge: $how', async ({ tsconfig, imported }) => {
   using workspace = gitRepo({
     'package.json': '{ "name": "shop" }\n',
     'tsconfig.json': `${tsconfig}\n`,
     'src/lib/a.ts': 'export const a = 1;\n',
+    'src/src/lib/a.ts': 'export const a = 2;\n',
     'src/b.ts': `import { a } from '${imported}';\nexport const b = a;\n`,
   });
   const { repo, root } = workspace;
@@ -285,17 +301,31 @@ test('a catch-all tsconfig path finds a bare import in each of its folders', asy
 });
 
 test.for([
-  { how: 'an alias climbing out', name: '@/*', imported: '@/a', place: climbingTo },
-  { how: 'a catch-all climbing out', name: '*', imported: 'a', place: climbingTo },
-  { how: 'an absolute place', name: '@/*', imported: '@/a', place: () => '/src/*' },
-])('a tsconfig path leaving the checkout is not read: $how', async ({ name, imported, place }) => {
+  {
+    how: 'an alias climbing out',
+    imported: '@/a',
+    options: (repo: string) => ({ paths: { '@/*': [`${climbingTo(repo)}/*`] } }),
+  },
+  {
+    how: 'a catch-all climbing out',
+    imported: 'a',
+    options: (repo: string) => ({ paths: { '*': [`${climbingTo(repo)}/*`] } }),
+  },
+  { how: 'an absolute place', imported: '@/a', options: () => ({ paths: { '@/*': ['/src/*'] } }) },
+  {
+    how: 'a baseUrl climbing out',
+    imported: 'a',
+    options: (repo: string) => ({ baseUrl: climbingTo(repo) }),
+  },
+  { how: 'an absolute baseUrl', imported: 'a', options: () => ({ baseUrl: '/src' }) },
+])('a tsconfig path leaving the checkout is not read: $how', async ({ imported, options }) => {
   using workspace = gitRepo({
     'package.json': '{ "name": "shop" }\n',
     'src/a.ts': 'export const a = 1;\n',
     'src/b.ts': `import { a } from '${imported}';\nexport const b = a;\n`,
   });
   const { repo, root } = workspace;
-  const compilerOptions = { rootDir: '.', paths: { [name]: [place(repo)] } };
+  const compilerOptions = { rootDir: '.', ...options(repo) };
   const head = commit(repo, { 'tsconfig.json': JSON.stringify({ compilerOptions }) });
   writeFiles(repo, { 'outside/a.ts': 'export const a = 2;\n' });
 
@@ -383,6 +413,11 @@ test('with the whole package as source root, built-ins and packages it imports a
 test.for([
   {
     tsconfig: '{ "compilerOptions": { "rootDir": "lib", "paths": "not a map" } }',
+    files: { 'lib/a.ts': 'export const a = 1;\n' },
+    drawn: 'lib/a.ts',
+  },
+  {
+    tsconfig: '{ "compilerOptions": { "rootDir": "lib", "baseUrl": 1 } }',
     files: { 'lib/a.ts': 'export const a = 1;\n' },
     drawn: 'lib/a.ts',
   },

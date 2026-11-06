@@ -21,6 +21,7 @@ const TsconfigSchema = z.object({
     .object({
       rootDir: z.string().optional(),
       paths: z.record(z.string(), z.array(z.string())).optional().catch(undefined),
+      baseUrl: z.string().optional().catch(undefined),
     })
     .optional(),
   include: z.array(z.string()).optional(),
@@ -129,8 +130,14 @@ const prefixLength = (name: string): number => name.replace(/\*.*/, '').length;
 
 const resolutionIn = ({ checkout, root }: RootOptions) => {
   const directory = join(checkout, root);
-  const paths = tsconfigIn(directory).compilerOptions?.paths ?? {};
-  const placesOf = (places: ReadonlyArray<string>) => places.filter(staysInCheckout(root));
+  const stays = staysInCheckout(root);
+  const { baseUrl, paths = {} } = tsconfigIn(directory).compilerOptions ?? {};
+  const base = baseUrl !== undefined && stays(baseUrl) ? baseUrl : undefined;
+  const placesOf = (places: ReadonlyArray<string>) =>
+    places
+      .filter(place => !isAbsolute(place))
+      .map(place => join(base ?? '.', place))
+      .filter(stays);
   return {
     alias: Object.fromEntries(
       Object.entries(paths)
@@ -142,6 +149,7 @@ const resolutionIn = ({ checkout, root }: RootOptions) => {
       ...placesOf(paths['*'] ?? [])
         .filter(place => basename(place) === '*')
         .map(place => join(directory, dirname(place))),
+      ...(base === undefined ? [] : [join(directory, base)]),
       'node_modules',
       'node_modules/@types',
     ],
