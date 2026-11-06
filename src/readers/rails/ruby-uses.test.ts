@@ -29,6 +29,7 @@ const usesIn = async ({ files, target, names }: Scene) => {
       head: checkout,
       stacks: new Map([['.', 'shop']]),
       graph,
+      graphAtHead: graph,
       node,
       names,
     });
