@@ -15,7 +15,7 @@ const UseLine = ({ path, line, text, test, unfollowed }: ReachingUse) => (
     <span className="reach-place">
       {path}:{line}
     </span>
-    <code>{text}</code>
+    <code className="reach-text">{text}</code>
     {unfollowed && <span className="reach-mark">may use it, not followed</span>}
     {test && <span className="reach-mark">test</span>}
   </>
