@@ -2306,6 +2306,22 @@ test("a sibling stack's file importing the package's name reaches, and other sta
   expect(range.reachesNotRead).toEqual([NOT_DRAWN]);
 });
 
+test("a sibling stack's file importing through an alias of its own tsconfig reaches", async () => {
+  using repository = gitRepo({
+    ...twoStacks,
+    'web/tsconfig.json': '{"compilerOptions":{"paths":{"#lib/*":["../lib/src/*"]}}}\n',
+    'web/src/uses.ts': "import { foo } from '#lib/a';\nfoo();\n",
+  });
+  const { repo, root } = repository;
+  const head = commit(repo, { 'lib/src/a.ts': 'export function kept() {}\n' });
+
+  const range = await readRange({ repo, from: root, to: head });
+
+  expect(range.reaches.flatMap(({ uses }) => uses)).toEqual([
+    { path: 'web/src/uses.ts', line: 2, text: 'foo();' },
+  ]);
+});
+
 test.for([
   {
     reason: 'renamed',

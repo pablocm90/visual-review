@@ -313,13 +313,17 @@ export const usesOfTypeScript = async ({
   };
   const rootOf = (id: string): string =>
     [...stacks].find(([, stack]) => stack === stackOf(id))?.[0] ?? '.';
-  const stack: Omit<Stack, 'packageName'> = {
-    head,
-    resolution: resolutionIn({ checkout: head, root: rootOf(node.id) }),
-    drawn: new Set(
-      graph.nodes.filter(({ kind }) => kind === 'file').map(({ path }) => moduleAt(head, path)),
-    ),
+  const resolutions = new Map<string, Resolution>();
+  const resolutionOf = (root: string): Resolution => {
+    const kept = resolutions.get(root);
+    if (kept !== undefined) return kept;
+    const resolution = resolutionIn({ checkout: head, root });
+    resolutions.set(root, resolution);
+    return resolution;
   };
+  const drawn = new Set(
+    graph.nodes.filter(({ kind }) => kind === 'file').map(({ path }) => moduleAt(head, path)),
+  );
   const visits = await walked({
     hops: names.flatMap(asked =>
       [
@@ -332,9 +336,14 @@ export const usesOfTypeScript = async ({
       graph.edges
         .filter(({ to }) => to === id || to === stackOf(id))
         .flatMap(({ from }) => nodes.get(from) ?? []),
-    read: ({ path }, target) =>
+    read: ({ id, path }, target) =>
       fileUsesAt(
-        { ...stack, packageName: packageNameIn(join(base, rootOf(target.id))) },
+        {
+          head,
+          drawn,
+          resolution: resolutionOf(rootOf(id)),
+          packageName: packageNameIn(join(base, rootOf(target.id))),
+        },
         path,
         target.path,
       ),
