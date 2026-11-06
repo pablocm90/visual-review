@@ -354,6 +354,65 @@ test.each([
   30_000,
 );
 
+const upToTheRoot = '../'.repeat(20);
+
+test.each([
+  {
+    name: 'rootDir',
+    settings: (repo: string) => ({ compilerOptions: { rootDir: `${upToTheRoot}${repo}/src` } }),
+    files: () => ({}),
+  },
+  {
+    name: 'one include folder',
+    settings: (repo: string) => ({ include: [`${upToTheRoot}${repo}/src/*`] }),
+    files: () => ({}),
+  },
+  {
+    name: 'absolute rootDir',
+    settings: () => ({ compilerOptions: { rootDir: '/nowhere/src' } }),
+    files: () => ({ 'nowhere/src/mirror.ts': 'export const m = 1;\n' }),
+  },
+])(
+  'a tsconfig whose $name leaves the checkout is not followed, and the stack reads its src',
+  async ({ settings, files }) => {
+    using workspace = webRepo();
+    const { repo } = workspace;
+    symlinkSync('/dev/stdin', join(repo, 'src/stdin.ts'));
+    commit(repo, {
+      ...files(),
+      'tsconfig.json': JSON.stringify(settings(repo)),
+      'src/a.ts': 'export const a = 2;\n',
+    });
+
+    const run = await runCliOnBoundedMemory(repo, 'HEAD~1..HEAD');
+
+    expect(run.code).toBe(0);
+    const page = readFileSync(join(repo, '.reviews', 'HEAD~1..HEAD.html'), 'utf8');
+    expect(reviewDataIn(page).diff.nodes).toContainEqual(
+      expect.objectContaining({ id: 'web/file/a.ts', state: 'modified' }),
+    );
+  },
+  30_000,
+);
+
+test('a tsconfig rootDir reaching out of its package but not the checkout is still followed', async () => {
+  using workspace = gitRepo({
+    'packages/a/package.json': '{"name":"a"}',
+    'packages/a/tsconfig.json': '{"compilerOptions":{"rootDir":"../.."}}',
+    'packages/a/index.ts': 'export const a = 1;\n',
+  });
+  const { repo } = workspace;
+  commit(repo, { 'packages/a/index.ts': 'export const a = 2;\n' });
+
+  const run = await runCliOnBoundedMemory(repo, 'HEAD~1..HEAD');
+
+  expect(run.code).toBe(0);
+  const page = readFileSync(join(repo, '.reviews', 'HEAD~1..HEAD.html'), 'utf8');
+  expect(reviewDataIn(page).diff.nodes.map(({ id }) => id)).toContain(
+    'packages/a/file/packages/a/index.ts',
+  );
+}, 30_000);
+
 test('a link a sparse checkout leaves out of the checkout does not stop the review', async () => {
   using workspace = webRepo();
   const { repo } = workspace;
