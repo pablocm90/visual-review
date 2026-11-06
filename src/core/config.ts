@@ -1,4 +1,4 @@
-import { normalize } from 'node:path';
+import { isAbsolute, normalize } from 'node:path';
 import { z } from 'zod';
 
 export const CONFIG_FILE = 'visual-review.config.json';
@@ -14,7 +14,7 @@ export type LinkerName = (typeof LINKERS)[number];
 export const folderOf = (path: string): string => normalize(path).replace(/\/$/, '');
 
 const folderInside = (parent: string) =>
-  z.string().refine(path => !`${folderOf(path)}/`.startsWith('../'), {
+  z.string().refine(path => !isAbsolute(path) && !`${folderOf(path)}/`.startsWith('../'), {
     message: `must be a folder inside ${parent}`,
   });
 

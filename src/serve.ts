@@ -8,6 +8,7 @@ import { homedir } from 'node:os';
 import { basename, dirname, isAbsolute, join } from 'node:path';
 import { text } from 'node:stream/consumers';
 import { z } from 'zod';
+import { readFileThatEnds } from './core/file-that-ends.ts';
 import { servedPageHtml } from './core/page.ts';
 import { parseReview } from './core/review.ts';
 import { writeAnew } from './write-anew.ts';
@@ -191,7 +192,7 @@ export const servePage = async ({
   }
   const token = randomBytes(16).toString('hex');
   const pageNow = () =>
-    readFile(page, 'utf8').then(written => servedPageHtml({ page: written, token, version }));
+    readFileThatEnds(page).then(written => servedPageHtml({ page: written, token, version }));
   await pageNow();
   const server = createServer();
   server.listen(0, '127.0.0.1');

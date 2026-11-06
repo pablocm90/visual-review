@@ -22,7 +22,9 @@ import type { NodeMetrics } from '../core/metrics.ts';
 import { type Note, type ReviewNotes, visibleNotes } from '../core/notes.ts';
 import { type PageData, UNCOMMITTED } from '../core/page.ts';
 import type { PreviousComment } from '../core/previous-comments.ts';
+import { isReachFinding } from '../core/reach-findings.ts';
 import type { SymbolFile } from '../core/read-range.ts';
+import type { Reach } from '../core/read-reaches.ts';
 import type { Answer, Comment, Review } from '../core/review.ts';
 import type { ChangedSince, SinceReview } from '../core/since-review.ts';
 import type { TestFile } from '../core/test-changes.ts';
@@ -65,6 +67,7 @@ import {
   rowLandedOn,
   useSaidAt,
 } from './patch-rows.tsx';
+import { Reaches } from './reaches.tsx';
 import { storedReadMarks, storeReadMarks } from './read-marks.ts';
 import { partsRead, ReadingOrderList, ReadingStops } from './reading-order-list.tsx';
 import { Ref, shortRef } from './ref.tsx';
@@ -643,6 +646,7 @@ type InspectorProps = {
   readonly patches: ReadonlyArray<FilePatch>;
   readonly tests: ReadonlyArray<TestFile>;
   readonly symbols: ReadonlyArray<SymbolFile>;
+  readonly reaches: ReadonlyArray<Reach>;
   readonly onGoTo: (id: string) => void;
   readonly anchor: Comment['anchor'];
   readonly comments: Comments;
@@ -727,6 +731,7 @@ type NotePanelProps = Pick<
   | 'nodes'
   | 'node'
   | 'symbols'
+  | 'reaches'
   | 'tests'
   | 'onGoTo'
   | 'note'
@@ -758,6 +763,7 @@ const NotePanel = ({
   node,
   reviewPatches,
   symbols,
+  reaches,
   tests,
   onGoTo,
   onShowLine,
@@ -775,12 +781,17 @@ const NotePanel = ({
   const filesWithNews = useFilesWithNews(node, symbols, nodes);
   const hasSaid = useHasSaid();
   const testsToRead = useTestsToRead(node ? testsAlongside({ nodes, node, tests }) : [], comments);
+  const boxesAbove = boxesAboveIn(nodes);
+  const reachesHere = node
+    ? reaches.filter(reach => reach.node === node.id || boxesAbove(reach.node).includes(node.id))
+    : [];
   const untested = found.filter(isUntestedLogic);
-  const toLookAt = found.filter(finding => !isUntestedLogic(finding));
+  const toLookAt = found.filter(finding => !isUntestedLogic(finding) && !isReachFinding(finding));
   const isBare =
     filesWithNews.length === 0 &&
     found.length === 0 &&
     testsToRead.length === 0 &&
+    reachesHere.length === 0 &&
     !hasSaid(anchor) &&
     saidInPlace.length === 0;
   const shownNote = note?.text ?? (isBare ? 'No note' : undefined);
@@ -826,6 +837,16 @@ const NotePanel = ({
           comments={comments}
           onComment={onComment}
           found={untested}
+          answers={answers}
+          onAnswer={onAnswer}
+        />
+      )}
+      {reachesHere.length > 0 && (
+        <Reaches
+          reaches={reachesHere}
+          nodes={nodes}
+          onGoTo={onGoTo}
+          found={found}
           answers={answers}
           onAnswer={onAnswer}
         />
@@ -1049,6 +1070,7 @@ const SidePanel = ({
         reviewPatches={review.patches}
         tests={review.tests}
         symbols={review.symbols}
+        reaches={review.reaches}
         onGoTo={onGoTo}
         anchor={anchor}
         comments={comments}

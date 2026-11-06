@@ -59,6 +59,8 @@ const readingWith = (overrides: Partial<RangeReading>): RangeReading => ({
   tests: [],
   symbols: [],
   symbolsNotRead: [],
+  reaches: [],
+  reachesNotRead: [],
   danglingCalls: [],
   linksNotRead: [],
   skipped: [],
@@ -93,6 +95,7 @@ test("a reading's page data holds its diff, the reading order of its changed par
   ).toStrictEqual({
     repo: 'shop',
     range: 'main..feature',
+    reaches: [],
     version: '1.2.3',
     parsers: { '@babel/parser': '8.0.7' },
     diff: {
@@ -298,6 +301,51 @@ test("a route change's reading stays on the page and raises its findings", () =>
 
   expect(data.routes).toStrictEqual(routes);
   expect(data.findings.map(({ id }) => id)).toContain('routes:not-read:config/routes.rb');
+});
+
+test('a symbol reaching files the change left is a blast radius finding to look at on its file, per symbol, counting them', () => {
+  const node = 'web/file/a.ts';
+  const reach = (name: string, how: string, paths: ReadonlyArray<string>) => ({
+    node,
+    id: `${node}#${name}`,
+    label: `function ${name}`,
+    how,
+    uses: paths.map(path => ({ path, line: 2, text: `${name}();` })),
+  });
+  const reaches = [
+    reach('foo', 'signature changed', ['web/src/b.ts', 'web/src/c.ts']),
+    reach('bar', 'removed', ['web/src/b.ts']),
+  ];
+
+  const { findings, reaches: shown } = pageData({
+    reading: readingWith({ reaches }),
+    repo: 'acme/shop',
+    range: 'a..b',
+    version,
+    parsers,
+  });
+
+  expect(findings.filter(({ dimension }) => dimension === 'blast-radius')).toEqual([
+    {
+      id: `blast-radius:reaches:${node}#foo`,
+      check: 'blast-radius:reaches',
+      dimension: 'blast-radius',
+      level: 'look',
+      target: node,
+      title: 'function foo reaches 2 unchanged files',
+      detail: 'signature changed, found by name',
+    },
+    {
+      id: `blast-radius:reaches:${node}#bar`,
+      check: 'blast-radius:reaches',
+      dimension: 'blast-radius',
+      level: 'look',
+      target: node,
+      title: 'function bar reaches 1 unchanged file',
+      detail: 'removed, found by name',
+    },
+  ]);
+  expect(shown).toEqual(reaches);
 });
 
 test('stacks a missing tool kept from being read are a structure finding to look at, on no node', () => {

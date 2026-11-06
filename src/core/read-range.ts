@@ -4,14 +4,17 @@ import { tmpdir } from 'node:os';
 import { basename, join, relative } from 'node:path';
 import { CONFIG_FILE, type Config, parseConfig, type ReaderName } from './config.ts';
 import { diffGraphs, type FilePatch, type GraphDiff, type Rename } from './diff-graphs.ts';
+import { readFileThatEnds } from './file-that-ends.ts';
 import { git } from './git.ts';
 import { type Graph, stackOfIn } from './graph.ts';
 import type { DanglingCall } from './linker.ts';
+import { dropLinksLeaving, isTrackedLinkLeaving } from './links-leaving.ts';
 import type { Lockfile } from './lockfile.ts';
 import { type MeasuredNode, measuredNodes } from './metrics.ts';
 import type { MigrationReader } from './migration.ts';
 import { type DependencyChanges, readLockfiles } from './read-lockfiles.ts';
 import { type MigrationReading, readMigrations } from './read-migrations.ts';
+import { type Reach, readReaches } from './read-reaches.ts';
 import { type RoutesReading, readRoutes } from './read-routes.ts';
 import { readSchemas, type SchemaReading } from './read-schemas.ts';
 import {
@@ -83,6 +86,8 @@ export type RangeReading = {
   readonly tests: ReadonlyArray<TestFile>;
   readonly symbols: ReadonlyArray<SymbolFile>;
   readonly symbolsNotRead: ReadonlyArray<string>;
+  readonly reaches: ReadonlyArray<Reach>;
+  readonly reachesNotRead: ReadonlyArray<string>;
   readonly dependencyChanges: ReadonlyArray<DependencyChanges>;
   readonly migrations: ReadonlyArray<MigrationReading>;
   readonly schemas: ReadonlyArray<SchemaReading>;
@@ -121,6 +126,7 @@ const readSide = async ({
   ...options
 }: ReadSideOptions): Promise<StacksReading> => {
   await git(repo, 'worktree', 'add', '--detach', options.directory, revision);
+  await dropLinksLeaving({ repo, revision, directory: options.directory });
   return readStacks({ ...options, repoName: basename(repo) });
 };
 
@@ -203,7 +209,11 @@ const testsIn = async ({
 const configAt = async (repo: string, revision: string): Promise<Config> => {
   if ((await git(repo, 'ls-tree', '--name-only', revision, '--', CONFIG_FILE)) !== '')
     return parseConfig(await git(repo, 'show', `${revision}:${CONFIG_FILE}`));
-  return parseConfig((await textIn(repo, CONFIG_FILE)) ?? '{}');
+  const inWorkingTree = join(repo, CONFIG_FILE);
+  if (!existsSync(inWorkingTree)) return parseConfig('{}');
+  if (await isTrackedLinkLeaving(repo, CONFIG_FILE))
+    throw new Error(`${CONFIG_FILE}: a tracked link leaving the repo is not read`);
+  return parseConfig(await readFileThatEnds(inWorkingTree));
 };
 
 type ChurnOptions = {
@@ -574,6 +584,14 @@ export const readRange = async ({
       measures,
       measuresNotRead,
       ...anchors,
+      ...(await readReaches({
+        sides,
+        before,
+        symbols: anchors.symbols,
+        measured,
+        changedPaths,
+        pathOf: id => diff.nodes.find(node => node.id === id)?.path ?? id,
+      })),
       dependencyChanges: await readLockfiles({ repo, base, head: toCommit, changes, lockfiles }),
       migrations: await readMigrations({ repo, base, head: toCommit, changes, migrations }),
       schemas: await readSchemas({ repo, base, head: toCommit, changes, schemas }),

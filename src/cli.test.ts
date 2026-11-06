@@ -22,12 +22,25 @@ import {
   commit,
   crateFiles,
   git,
+  gitRepo,
   layOutBareRepository,
   pathTo,
   writeFiles,
 } from './test-support/repos.ts';
 
 type CliRun = { readonly code: number; readonly stdout: string; readonly stderr: string };
+
+const ranToTheEnd = ({ stdout, stderr }: { readonly stdout: string; readonly stderr: string }) => ({
+  code: 0,
+  stdout,
+  stderr,
+});
+
+const stoppedShort = (error: { code: number; stdout: string; stderr: string }): CliRun => ({
+  code: error.code,
+  stdout: error.stdout,
+  stderr: error.stderr,
+});
 
 const runCliIn = (
   options: { readonly cwd: string; readonly env?: NodeJS.ProcessEnv },
@@ -37,14 +50,7 @@ const runCliIn = (
     process.execPath,
     [join(import.meta.dirname, 'cli.ts'), ...args],
     options,
-  ).then(
-    ({ stdout, stderr }) => ({ code: 0, stdout, stderr }),
-    (error: { code: number; stdout: string; stderr: string }) => ({
-      code: error.code,
-      stdout: error.stdout,
-      stderr: error.stderr,
-    }),
-  );
+  ).then(ranToTheEnd, stoppedShort);
 
 const runCli = (cwd: string, ...args: ReadonlyArray<string>): Promise<CliRun> =>
   runCliIn({ cwd }, ...args);
@@ -299,6 +305,268 @@ test('a link standing where a review writes is replaced by the file, what it poi
     JSON.parse(readFileSync(join(repo, '.reviews', 'HEAD..worktree.json'), 'utf8')),
   ).toMatchObject({ range: 'HEAD..worktree' });
 }, 60_000);
+
+const webRepo = () =>
+  gitRepo({ 'package.json': '{"name":"web"}', 'src/a.ts': 'export const a = 1;\n' });
+
+const runCliOnBoundedMemory = (cwd: string, ...args: ReadonlyArray<string>): Promise<CliRun> =>
+  promisify(execFile)(
+    'sh',
+    [
+      '-c',
+      'ulimit -d 2097152; stdin=$(mktemp -u); mkfifo "$stdin"; exec 3<>"$stdin"; rm "$stdin"; exec "$@" <&3 3<&-',
+      'sh',
+      process.execPath,
+      join(import.meta.dirname, 'cli.ts'),
+      ...args,
+    ],
+    { cwd, timeout: 20_000, killSignal: 'SIGKILL' },
+  ).then(ranToTheEnd, stoppedShort);
+
+test.each([
+  { name: 'a device that never ends', links: { 'src/zero.ts': '/dev/zero' } },
+  { name: 'a device that never answers', links: { 'src/stdin.ts': '/dev/stdin' } },
+  {
+    name: 'a file with no end the system calls regular',
+    links: { 'src/map.ts': '/proc/self/pagemap' },
+  },
+  { name: 'a device, at a manifest a reader reads', links: { 'tsconfig.json': '/dev/zero' } },
+  { name: 'nothing', links: { 'src/gone.ts': '/nonexistent/gone' } },
+  { name: 'a device, under a name git quotes', links: { 'src/a\tb "c".ts': '/dev/zero' } },
+])(
+  'a link in the range leaving the repo for $name is not followed, and the review names it as changed',
+  async ({ links }) => {
+    using workspace = webRepo();
+    const { repo } = workspace;
+    Object.entries(links).forEach(([path, target]) => {
+      symlinkSync(target, join(repo, path));
+    });
+    commit(repo, { 'src/a.ts': 'export const a = 2;\n' });
+
+    const run = await runCliOnBoundedMemory(repo, 'HEAD~1..HEAD');
+
+    expect(run.code).toBe(0);
+    const page = readFileSync(join(repo, '.reviews', 'HEAD~1..HEAD.html'), 'utf8');
+    expect(reviewDataIn(page).undrawn.map(({ path }) => path)).toEqual(
+      expect.arrayContaining(Object.keys(links)),
+    );
+  },
+  30_000,
+);
+
+const upToTheRoot = '../'.repeat(20);
+
+test.each([
+  {
+    name: 'rootDir',
+    settings: (repo: string) => ({ compilerOptions: { rootDir: `${upToTheRoot}${repo}/src` } }),
+    files: () => ({}),
+  },
+  {
+    name: 'one include folder',
+    settings: (repo: string) => ({ include: [`${upToTheRoot}${repo}/src/*`] }),
+    files: () => ({}),
+  },
+  {
+    name: 'absolute rootDir',
+    settings: () => ({ compilerOptions: { rootDir: '/nowhere/src' } }),
+    files: () => ({ 'nowhere/src/mirror.ts': 'export const m = 1;\n' }),
+  },
+])(
+  'a tsconfig whose $name leaves the checkout is not followed, and the stack reads its src',
+  async ({ settings, files }) => {
+    using workspace = webRepo();
+    const { repo } = workspace;
+    symlinkSync('/dev/stdin', join(repo, 'src/stdin.ts'));
+    commit(repo, {
+      ...files(),
+      'tsconfig.json': JSON.stringify(settings(repo)),
+      'src/a.ts': 'export const a = 2;\n',
+    });
+
+    const run = await runCliOnBoundedMemory(repo, 'HEAD~1..HEAD');
+
+    expect(run.code).toBe(0);
+    const page = readFileSync(join(repo, '.reviews', 'HEAD~1..HEAD.html'), 'utf8');
+    expect(reviewDataIn(page).diff.nodes).toContainEqual(
+      expect.objectContaining({ id: 'web/file/a.ts', state: 'modified' }),
+    );
+  },
+  30_000,
+);
+
+test('a tsconfig rootDir reaching out of its package but not the checkout is still followed', async () => {
+  using workspace = gitRepo({
+    'packages/a/package.json': '{"name":"a"}',
+    'packages/a/tsconfig.json': '{"compilerOptions":{"rootDir":"../.."}}',
+    'packages/a/index.ts': 'export const a = 1;\n',
+  });
+  const { repo } = workspace;
+  commit(repo, { 'packages/a/index.ts': 'export const a = 2;\n' });
+
+  const run = await runCliOnBoundedMemory(repo, 'HEAD~1..HEAD');
+
+  expect(run.code).toBe(0);
+  const page = readFileSync(join(repo, '.reviews', 'HEAD~1..HEAD.html'), 'utf8');
+  expect(reviewDataIn(page).diff.nodes.map(({ id }) => id)).toContain(
+    'packages/a/file/packages/a/index.ts',
+  );
+}, 30_000);
+
+test('a link a sparse checkout leaves out of the checkout does not stop the review', async () => {
+  using workspace = webRepo();
+  const { repo } = workspace;
+  mkdirSync(join(repo, 'docs'));
+  symlinkSync('../src/a.ts', join(repo, 'docs/near.ts'));
+  commit(repo, { 'src/a.ts': 'export const a = 2;\n' });
+  git(repo, 'sparse-checkout', 'set', 'src');
+  commit(repo, { 'src/a.ts': 'export const a = 3;\n' });
+
+  const run = await runCliOnBoundedMemory(repo, 'HEAD~1..HEAD');
+
+  expect(run).toMatchObject({ code: 0 });
+}, 30_000);
+
+test.each([
+  { name: 'a device', target: '/dev/stdin' },
+  { name: 'a file with no end the system calls regular', target: '/proc/self/pagemap' },
+  { name: 'a folder', target: './src' },
+])(
+  'a config link in the working tree to $name stops the review, naming the file',
+  async ({ target }) => {
+    using workspace = webRepo();
+    const { repo } = workspace;
+    commit(repo, { 'src/a.ts': 'export const a = 2;\n' });
+    symlinkSync(target, join(repo, 'visual-review.config.json'));
+
+    const run = await runCliOnBoundedMemory(repo, 'HEAD~1..HEAD');
+
+    expect(run.code).toBe(1);
+    expect(run.stderr).toContain('visual-review.config.json: not a regular file with contents');
+  },
+  30_000,
+);
+
+test('a config link git tracks leaving the repo stops the review, showing nothing of what it points at', async () => {
+  using workspace = webRepo();
+  const { repo } = workspace;
+  commit(repo, { 'src/a.ts': 'export const a = 2;\n' });
+  using elsewhere = gitRepo({ 'secret.txt': 'hunter2 is the password' });
+  symlinkSync(join(elsewhere.repo, 'secret.txt'), join(repo, 'visual-review.config.json'));
+  commit(repo, { 'src/a.ts': 'export const a = 3;\n' });
+
+  const run = await runCliOnBoundedMemory(repo, 'HEAD~2..HEAD~1');
+
+  expect(run.code).toBe(1);
+  expect(run.stderr).toContain(
+    'visual-review.config.json: a tracked link leaving the repo is not read',
+  );
+  expect(run.stderr).not.toContain('hunter2');
+}, 30_000);
+
+test('a config link git tracks staying in the repo applies', async () => {
+  using workspace = webRepo();
+  const { repo } = workspace;
+  commit(repo, { 'src/a.ts': 'export const a = 2;\n' });
+  writeFileSync(join(repo, 'mine.json'), '{"stacks":{"web":false}}');
+  symlinkSync('./mine.json', join(repo, 'visual-review.config.json'));
+  commit(repo, { 'src/a.ts': 'export const a = 3;\n' });
+
+  const run = await runCliOnBoundedMemory(repo, 'HEAD~2..HEAD~1');
+
+  expect(run.code).toBe(0);
+  const page = readFileSync(join(repo, '.reviews', 'HEAD~2..HEAD~1.html'), 'utf8');
+  expect(reviewDataIn(page).diff.nodes).toEqual([]);
+}, 30_000);
+
+test('a config link in the working tree to a file outside the repo applies', async () => {
+  using workspace = webRepo();
+  const { repo } = workspace;
+  commit(repo, { 'src/a.ts': 'export const a = 2;\n' });
+  using elsewhere = gitRepo({ 'shared.json': '{"stacks":{"web":false}}' });
+  symlinkSync(join(elsewhere.repo, 'shared.json'), join(repo, 'visual-review.config.json'));
+
+  const run = await runCliOnBoundedMemory(repo, 'HEAD~1..HEAD');
+
+  expect(run.code).toBe(0);
+  const page = readFileSync(join(repo, '.reviews', 'HEAD~1..HEAD.html'), 'utf8');
+  expect(reviewDataIn(page).diff.nodes).toEqual([]);
+}, 30_000);
+
+test('a link in the range staying in the repo is read as the file it points at', async () => {
+  using workspace = webRepo();
+  const { repo } = workspace;
+  symlinkSync('./a.ts', join(repo, 'src/near.ts'));
+  commit(repo, { 'src/a.ts': 'export const a = 2;\n' });
+
+  const run = await runCliOnBoundedMemory(repo, 'HEAD~1..HEAD');
+
+  expect(run.code).toBe(0);
+  const page = readFileSync(join(repo, '.reviews', 'HEAD~1..HEAD.html'), 'utf8');
+  expect(reviewDataIn(page).undrawn).toEqual([]);
+}, 30_000);
+
+test('a link in the range resolving to the repo root keeps the edge drawn through it', async () => {
+  using workspace = webRepo();
+  const { repo } = workspace;
+  mkdirSync(join(repo, 'tools'));
+  symlinkSync('..', join(repo, 'tools/root'));
+  commit(repo, {
+    'src/b.ts': "import { a } from '../tools/root/src/a.ts';\nexport const b = a;\n",
+  });
+
+  const run = await runCliOnBoundedMemory(repo, 'HEAD~1..HEAD');
+
+  expect(run.code).toBe(0);
+  const page = readFileSync(join(repo, '.reviews', 'HEAD~1..HEAD.html'), 'utf8');
+  expect(reviewDataIn(page).diff.edges).toEqual([
+    expect.objectContaining({ from: 'web/file/b.ts', to: 'web/file/a.ts' }),
+  ]);
+}, 30_000);
+
+test('a review in .reviews linked to a device is passed over', async () => {
+  using workspace = webRepo();
+  const { repo } = workspace;
+  commit(repo, { 'src/a.ts': 'export const a = 2;\n' });
+  mkdirSync(join(repo, '.reviews'));
+  writeFileSync(join(repo, '.reviews', '.gitignore'), '*\n');
+  symlinkSync('/dev/stdin', join(repo, '.reviews', 'old.review.json'));
+
+  const run = await runCliOnBoundedMemory(repo, 'HEAD~1..HEAD');
+
+  expect(run.code).toBe(0);
+}, 30_000);
+
+test('--notes on a page linked to a device says there is no page', async () => {
+  using workspace = webRepo();
+  const { repo } = workspace;
+  commit(repo, { 'src/a.ts': 'export const a = 2;\n' });
+  mkdirSync(join(repo, '.reviews'));
+  symlinkSync('/dev/stdin', join(repo, '.reviews', 'HEAD~1..HEAD.html'));
+  writeFileSync(join(repo, 'notes.json'), '{"version":1,"summary":[],"tests":"None.","notes":{}}');
+
+  const run = await runCliOnBoundedMemory(
+    repo,
+    'HEAD~1..HEAD',
+    '--notes',
+    join(repo, 'notes.json'),
+  );
+
+  expect(run.code).toBe(1);
+  expect(run.stderr).toContain('No page for HEAD~1..HEAD yet');
+}, 30_000);
+
+test('serve of a page linked to a device exits non-zero, naming it', async () => {
+  using workspace = webRepo();
+  const { repo } = workspace;
+  const page = join(repo, 'linked.html');
+  symlinkSync('/dev/zero', page);
+
+  const run = await runCliOnBoundedMemory(repo, 'serve', '--no-open', page);
+
+  expect(run.code).toBe(1);
+  expect(run.stderr).toContain('linked.html: not a regular file with contents');
+}, 30_000);
 
 test('--notes replaces a link standing at the page with the noted page, what it points at left as it was', async () => {
   using workspace = cargoWorkspace();

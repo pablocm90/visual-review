@@ -2,6 +2,22 @@
 
 What changed in each release of `@pablocm90/visual-review`, newest first. Versions follow [semver](https://semver.org); while it is 0.x, a minor version may change the exported types.
 
+## 0.49.0 — 2026-11-06
+
+### Added
+
+- A changed export that unchanged files still use raises a finding to look at in the `blast-radius` dimension, such as `function parseOrder reaches 2 unchanged files`, for TypeScript inside a stack. It counts named, default, namespace and type imports, and follows barrels.
+- **Reaches**, in the reading column after **Tested by**, lists those files with each one's first use and its line of source, each going to its file, a test file marked `test` and last. A dynamic import, a `require` or a namespace passed along reads `may use it, not followed`.
+- `blast-radius` is listed in coverage, naming a stack not read and a file that wouldn't parse. When something was asked, it says what isn't followed: class methods, other stacks, a removed `export *`, tsconfig aliases, type-only re-exports and files outside the source root.
+- The review data carries `reaches`, and `Reader` takes an optional `uses`.
+
+### Fixed
+
+- A link in a reviewed revision that leaves the repo, or points nowhere, is no longer followed: one to `/dev/zero`, `/dev/stdin` or `/proc/self/pagemap` used to hang the CLI or run it out of memory. Its patch still shows, naming the target: among the files outside the graph, or under the box that held it, which reads modified, or the node it replaced, which reads removed.
+- A `visual-review.config.json`, a review under `.reviews/` or a page given to `--notes` or `serve` linked to a device or an empty file no longer hangs the CLI. A config so linked stops the review, naming the file, as does a tracked config link leaving the repo; one linking to a plain file outside the repo still applies.
+- A tsconfig `rootDir` or `include` leaving the checkout is no longer followed.
+- A config `root` or `sourceRoot` written as an absolute path is refused, naming the field.
+
 ## 0.48.0 — 2026-11-06
 
 ### Added

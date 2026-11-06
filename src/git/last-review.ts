@@ -1,7 +1,8 @@
 import { execFile } from 'node:child_process';
-import { readFile, stat } from 'node:fs/promises';
+import { stat } from 'node:fs/promises';
 import { join } from 'node:path';
 import { promisify } from 'node:util';
+import { readFileThatEnds } from '../core/file-that-ends.ts';
 import { type ReviewedHead, resolve } from '../core/read-range.ts';
 import { pastReviewOf } from '../core/review.ts';
 
@@ -30,7 +31,7 @@ const pullRequestReviewIn = async (
   file: string,
 ): Promise<ReadonlyArray<PullRequestReview>> => {
   const path = join(directory, file);
-  const past = pastReviewOf(await readFile(path, 'utf8'));
+  const past = pastReviewOf(await readFileThatEnds(path));
   if (past?.reviewed.pullRequest === undefined) return [];
   const head = headOfRange(past.reviewed.range);
   if (!FULL_SHA.test(head)) return [];

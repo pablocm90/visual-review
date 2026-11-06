@@ -1,6 +1,8 @@
 import { existsSync, rmSync } from 'node:fs';
 import { basename, join } from 'node:path';
 import { expect, test, vi } from 'vitest';
+import { typeScriptReader } from '../readers/typescript/reader.ts';
+import { NOT_DRAWN } from '../readers/typescript/typescript-uses.ts';
 import { fakeReader } from '../test-support/fakes.ts';
 import { readRange } from '../test-support/read-range.ts';
 import {
@@ -1287,4 +1289,459 @@ test('no commits since a review of the same tree still reads as a comparable sid
   const range = await readRange({ repo, from: root, to, reviewed: reviewedHead({ head: ahead }) });
 
   expect(range.reviewed).toMatchObject({ commits: [] });
+});
+
+const reachingScene = () => ({
+  ...rootPackage,
+  'src/a.ts':
+    'export function foo() {}\nexport function lonely() {}\nexport function kept() {}\nexport const X = 1;\n',
+  'src/uses.ts': "import { foo } from './a.ts';\nfoo();\n",
+  'src/uses.test.ts': "import { foo } from './a.ts';\nfoo();\n",
+  'src/changed.ts': "import { foo } from './a.ts';\nfoo();\n",
+  'src/other.ts': "import { kept } from './a.ts';\nkept();\n",
+  'src/barrel.ts': "export { foo } from './a.ts';\n",
+  'src/early.ts': "import { foo } from './barrel.ts';\nfoo();\n",
+});
+
+test("a removed export reaches the files the range didn't change that still use it, tests last", async () => {
+  using repository = gitRepo({ 'README.md': 'a shop\n' });
+  const { repo } = repository;
+  const base = commit(repo, reachingScene());
+  const head = commit(repo, {
+    'src/a.ts': 'export function kept() {}\nexport const X = 1;\n',
+    'src/changed.ts': "import { foo } from './a.ts';\nfoo();\nfoo();\n",
+  });
+
+  const range = await readRange({ repo, from: base, to: head });
+
+  const node = `${basename(repo)}/file/a.ts`;
+  expect(range.reaches).toEqual([
+    {
+      node,
+      id: `${node}#foo`,
+      label: 'function foo',
+      how: 'removed',
+      uses: [
+        { path: 'src/barrel.ts', line: 1, text: "export { foo } from './a.ts';" },
+        { path: 'src/early.ts', line: 2, text: 'foo();' },
+        { path: 'src/uses.ts', line: 2, text: 'foo();' },
+        { path: 'src/uses.test.ts', line: 2, text: 'foo();', test: true },
+      ],
+    },
+  ]);
+});
+
+test("a changed signature of an export reaches the files that use it, and a changed body doesn't", async () => {
+  using repository = gitRepo({ 'README.md': 'a shop\n' });
+  const { repo } = repository;
+  const base = commit(repo, {
+    ...rootPackage,
+    'src/a.ts':
+      'export function foo(a: string) {}\nexport function kept() {\n  return 1;\n}\nfunction own(a: string) {}\nown();\n',
+    'src/uses.ts': "import { foo, kept, own } from './a.ts';\nfoo('x');\nkept();\nown();\n",
+  });
+  const head = commit(repo, {
+    'src/a.ts':
+      'export function foo(a: string, b: number) {}\nexport function kept() {\n  return 2;\n}\nfunction own(a: number) {}\nown();\n',
+  });
+
+  const range = await readRange({ repo, from: base, to: head });
+
+  const node = `${basename(repo)}/file/a.ts`;
+  expect(range.reaches).toEqual([
+    {
+      node,
+      id: `${node}#foo`,
+      label: 'function foo',
+      how: 'signature changed',
+      uses: [{ path: 'src/uses.ts', line: 2, text: "foo('x');" }],
+    },
+  ]);
+});
+
+test('a removed export no symbol backs reaches the files that use it, by its name', async () => {
+  using repository = gitRepo({ 'README.md': 'a shop\n' });
+  const { repo } = repository;
+  const base = commit(repo, {
+    ...rootPackage,
+    'src/a.ts': 'export const X = 1;\nexport const kept = 2;\n',
+    'src/uses.ts': "import { X } from './a.ts';\nconsole.log(X);\n",
+  });
+  const head = commit(repo, { 'src/a.ts': 'export const kept = 2;\n' });
+
+  const range = await readRange({ repo, from: base, to: head });
+
+  const node = `${basename(repo)}/file/a.ts`;
+  expect(range.reaches).toEqual([
+    {
+      node,
+      id: `${node}#X`,
+      label: 'export X',
+      how: 'removed',
+      uses: [{ path: 'src/uses.ts', line: 2, text: 'console.log(X);' }],
+    },
+  ]);
+});
+
+test("a symbol's export name adds no row at a place the symbol already reached", async () => {
+  using repository = gitRepo({ 'README.md': 'a shop\n' });
+  const { repo } = repository;
+  const base = commit(repo, {
+    ...rootPackage,
+    'src/a.ts': 'export default function App() {}\nexport const X = 1;\nexport const kept = 2;\n',
+    'src/uses.ts': "import App, { X } from './a.ts';\nApp();\nconsole.log(X);\n",
+    'src/other.ts': "import { X } from './a.ts';\nconsole.log(X);\n",
+  });
+  const head = commit(repo, { 'src/a.ts': 'export const kept = 2;\n' });
+
+  const range = await readRange({ repo, from: base, to: head });
+
+  const node = `${basename(repo)}/file/a.ts`;
+  expect(range.reaches).toEqual([
+    {
+      node,
+      id: `${node}#App`,
+      label: 'function App',
+      how: 'removed',
+      uses: [{ path: 'src/uses.ts', line: 2, text: 'App();' }],
+    },
+    {
+      node,
+      id: `${node}#X`,
+      label: 'export X',
+      how: 'removed',
+      uses: [
+        { path: 'src/other.ts', line: 2, text: 'console.log(X);' },
+        { path: 'src/uses.ts', line: 3, text: 'console.log(X);' },
+      ],
+    },
+  ]);
+});
+
+test("a renamed file's removed export reaches through its name at the base", async () => {
+  using repository = gitRepo({ 'README.md': 'a shop\n' });
+  const { repo } = repository;
+  const kept = Array.from({ length: 8 }, (_, index) => `export const kept${index} = ${index};\n`);
+  const base = commit(repo, {
+    ...rootPackage,
+    'src/a.ts': `export function foo() {}\n${kept.join('')}`,
+    'src/uses.ts': "import { foo } from './a.ts';\nfoo();\n",
+  });
+  git(repo, 'mv', 'src/a.ts', 'src/b.ts');
+  const head = commit(repo, { 'src/b.ts': kept.join('') });
+
+  const range = await readRange({ repo, from: base, to: head });
+
+  const node = `${basename(repo)}/file/b.ts`;
+  expect(range.renames).toEqual([{ from: 'src/a.ts', to: 'src/b.ts' }]);
+  expect(range.reaches).toEqual([
+    {
+      node,
+      id: `${node}#foo`,
+      label: 'function foo',
+      how: 'removed',
+      uses: [{ path: 'src/uses.ts', line: 2, text: 'foo();' }],
+    },
+  ]);
+});
+
+test("an unchanged candidate that can't be read is named once, the other rows still there, and a changed one isn't", async () => {
+  using repository = gitRepo({ 'README.md': 'a shop\n' });
+  const { repo } = repository;
+  const tooLong = `// ${'x'.repeat(1001)}\n`;
+  const base = commit(repo, {
+    ...rootPackage,
+    'src/a.ts': 'export function foo() {}\nexport function bar() {}\nexport const kept = 2;\n',
+    'src/b.ts': 'export function baz() {}\nexport const kept = 2;\n',
+    'src/huge.ts': `import { foo } from './a.ts';\nimport { baz } from './b.ts';\n${tooLong}`,
+    'src/uses.ts': "import { foo } from './a.ts';\nfoo();\n",
+    'src/fixed.ts': "import { bar } from './a.ts';\nbar();\n",
+  });
+  const head = commit(repo, {
+    'src/a.ts': 'export const kept = 2;\n',
+    'src/b.ts': 'export const kept = 2;\n',
+    'src/fixed.ts': `import { bar } from './a.ts';\n${tooLong}`,
+  });
+
+  const range = await readRange({ repo, from: base, to: head });
+
+  expect(range.reaches.flatMap(({ uses }) => uses.map(({ path }) => path))).toEqual([
+    'src/uses.ts',
+  ]);
+  expect(range.reachesNotRead).toEqual(['not read: src/huge.ts', NOT_DRAWN]);
+});
+
+test('a file renamed from what its reader cannot parse has nothing to ask, so is not read for its names', async () => {
+  using repository = gitRepo({ 'README.md': 'a shop\n' });
+  const { repo } = repository;
+  const values = '"a": 1,\n"b": 2,\n"c": 3,\n"d": 4,\n"e": 5,\n"f": 6,\n"g": 7,\n"h": 8\n';
+  const base = commit(repo, {
+    ...rootPackage,
+    'src/data.json': `{\n${values}}\n`,
+    'src/uses.ts': "import data from './data.json';\nexport const a = data;\n",
+  });
+  git(repo, 'mv', 'src/data.json', 'src/data.ts');
+  const head = commit(repo, {
+    'src/data.ts': `export default {\n${values}};\n`,
+    'src/uses.ts': "import data from './data.ts';\nexport const a = data;\n",
+  });
+
+  const range = await readRange({ repo, from: base, to: head });
+
+  expect(range.renames).toEqual([{ from: 'src/data.json', to: 'src/data.ts' }]);
+  expect(range.reaches).toEqual([]);
+});
+
+test("a removed method isn't asked about by itself", async () => {
+  using repository = gitRepo({ 'README.md': 'a shop\n' });
+  const { repo } = repository;
+  const base = commit(repo, {
+    ...rootPackage,
+    'src/a.ts': 'export class Foo {\n  bar() {}\n  baz() {}\n}\n',
+    'src/passes.ts': "import * as a from './a.ts';\nconsole.log(a);\n",
+  });
+  const head = commit(repo, { 'src/a.ts': 'export class Foo {\n  baz() {}\n}\n' });
+
+  const range = await readRange({ repo, from: base, to: head });
+
+  expect(range.reaches).toEqual([]);
+  expect(range.reachesNotRead).toEqual(['methods not followed']);
+});
+
+test('a removed method beside a removed function still says methods are not followed', async () => {
+  using repository = gitRepo({ 'README.md': 'a shop\n' });
+  const { repo } = repository;
+  const base = commit(repo, {
+    ...rootPackage,
+    'src/a.ts': 'export class Foo {\n  bar() {}\n  baz() {}\n}\nexport function gone() {}\n',
+  });
+  const head = commit(repo, { 'src/a.ts': 'export class Foo {\n  baz() {}\n}\n' });
+
+  const range = await readRange({ repo, from: base, to: head });
+
+  expect(range.reachesNotRead).toEqual(['methods not followed', NOT_DRAWN]);
+});
+
+test.for([
+  {
+    reason: 'a method whose body changed',
+    a: 'export class Foo {\n  bar() {\n    return 2;\n  }\n}\n',
+  },
+  {
+    reason: 'a method of a class never exported',
+    from: 'class Foo {\n  bar() {}\n  baz() {}\n}\nexport const f = Foo;\n',
+    a: 'class Foo {\n  baz() {}\n}\nexport const f = Foo;\n',
+  },
+  {
+    reason: 'a class removed whole, which is followed by its own name',
+    a: 'export const other = 1;\n',
+    lacks: [NOT_DRAWN],
+  },
+])('$reason leaves methods out of what blast radius lacks', async ({ from, a, lacks }) => {
+  using repository = gitRepo({ 'README.md': 'a shop\n' });
+  const { repo } = repository;
+  const base = commit(repo, {
+    ...rootPackage,
+    'src/a.ts': from ?? 'export class Foo {\n  bar() {\n    return 1;\n  }\n}\n',
+  });
+  const head = commit(repo, { 'src/a.ts': a });
+
+  const range = await readRange({ repo, from: base, to: head });
+
+  expect(range.reachesNotRead).toEqual(lacks ?? []);
+});
+
+test("a changed file of a stack whose reader follows no uses says so, and a stack the base doesn't hold has nothing to follow", async () => {
+  using repository = gitRepo({
+    'config/application.rb': 'module Shop\n  class Application\n  end\nend\n',
+    'app/models/order.rb': 'class Order\n  def total\n    1\n  end\nend\n',
+  });
+  const { repo, root } = repository;
+  const head = commit(repo, {
+    'app/models/order.rb': 'class Order\n  def total\n    2\n  end\nend\n',
+    'web/package.json': '{}\n',
+    'web/src/a.ts': 'export const a = 1;\n',
+  });
+
+  const range = await readRange({ repo, from: root, to: head });
+
+  expect(range.reachesNotRead).toEqual([`not read for ${basename(repo)}`]);
+});
+
+const twoStacks = {
+  'web/package.json': '{}\n',
+  'web/src/a.ts': 'export function foo() {}\nexport function kept() {}\n',
+  'lib/package.json': '{}\n',
+  'lib/src/index.ts': 'export const lib = 1;\n',
+};
+
+test("a name asked in a repo of several stacks says other stacks aren't followed", async () => {
+  using repository = gitRepo(twoStacks);
+  const { repo, root } = repository;
+  const head = commit(repo, { 'web/src/a.ts': 'export function kept() {}\n' });
+
+  const range = await readRange({ repo, from: root, to: head });
+
+  expect(range.reachesNotRead).toEqual(['other stacks not followed', NOT_DRAWN]);
+});
+
+test.for([
+  {
+    reason: 'nothing asked',
+    files: { 'web/src/a.ts': 'export function foo() {}\nexport function kept() { return 1; }\n' },
+    config: {},
+    lacks: [],
+  },
+  {
+    reason: 'the other stack dropped',
+    files: { 'web/src/a.ts': 'export function kept() {}\n' },
+    config: { 'visual-review.config.json': '{"stacks":{"lib":false}}\n' },
+    lacks: [NOT_DRAWN],
+  },
+])('$reason says no other stack is left to follow', async ({ files, config, lacks }) => {
+  using repository = gitRepo({ ...twoStacks, ...config });
+  const { repo, root } = repository;
+  const head = commit(repo, files);
+
+  const range = await readRange({ repo, from: root, to: head });
+
+  expect(range.reachesNotRead).toEqual(lacks);
+});
+
+test.for([
+  {
+    reason: 'renamed',
+    head: { 'src/a.ts': 'export function bar() {\n  return 42;\n}\nexport const kept = 1;\n' },
+    how: 'renamed to bar',
+  },
+  {
+    reason: 'no longer exported',
+    head: { 'src/a.ts': 'function foo() {\n  return 42;\n}\nexport const kept = foo();\n' },
+    how: 'no longer exported',
+  },
+  {
+    reason: 'moved away',
+    head: {
+      'src/a.ts': 'export const kept = 1;\n',
+      'src/b.ts': 'export function foo() {\n  return 42;\n}\n',
+    },
+    how: 'moved to src/b.ts',
+  },
+])('a symbol $reason is asked by its former name', async ({ head, how }) => {
+  using repository = gitRepo({ 'README.md': 'a shop\n' });
+  const { repo } = repository;
+  const base = commit(repo, {
+    ...rootPackage,
+    'src/a.ts': 'export function foo() {\n  return 42;\n}\nexport const kept = 1;\n',
+    'src/uses.ts': "import { foo } from './a.ts';\nfoo();\n",
+  });
+
+  const range = await readRange({ repo, from: base, to: commit(repo, head) });
+
+  expect(range.reaches).toEqual([
+    expect.objectContaining({
+      label: 'function foo',
+      how,
+      uses: [{ path: 'src/uses.ts', line: 2, text: 'foo();' }],
+    }),
+  ]);
+});
+
+test('a file the range deletes reaches those still importing it, and a type by its type import', async () => {
+  using repository = gitRepo({ 'README.md': 'a shop\n' });
+  const { repo } = repository;
+  const base = commit(repo, {
+    ...rootPackage,
+    'src/a.ts': 'export type Foo = number;\n',
+    'src/uses.ts': "import type { Foo } from './a.ts';\nexport const x: Foo = 1;\n",
+  });
+  rmSync(join(repo, 'src/a.ts'));
+
+  const range = await readRange({
+    repo,
+    from: base,
+    to: commit(repo, { 'README.md': 'a shop.\n' }),
+  });
+
+  expect(range.reaches).toEqual([
+    expect.objectContaining({
+      label: 'type Foo',
+      how: 'removed',
+      uses: [{ path: 'src/uses.ts', line: 2, text: 'export const x: Foo = 1;' }],
+    }),
+  ]);
+});
+
+test("a removed star re-export says it isn't followed, as its names can't be told", async () => {
+  using repository = gitRepo({ 'README.md': 'a shop\n' });
+  const { repo } = repository;
+  const base = commit(repo, {
+    ...rootPackage,
+    'src/x.ts': 'export const fromX = 1;\n',
+    'src/barrel.ts': "export * from './x.ts';\nexport const kept = 1;\n",
+    'src/user.ts': "import { fromX } from './barrel.ts';\nfromX;\n",
+  });
+  const head = commit(repo, { 'src/barrel.ts': 'export const kept = 1;\n' });
+
+  const range = await readRange({ repo, from: base, to: head });
+
+  expect(range.reaches).toEqual([]);
+  expect(range.reachesNotRead).toEqual([NOT_DRAWN, 'removed export * not followed']);
+});
+
+test("a reader's uses that throws is kept as not read, and the review goes on", async () => {
+  using repository = gitRepo({ 'README.md': 'a shop\n' });
+  const { repo } = repository;
+  const base = commit(repo, {
+    ...rootPackage,
+    'src/a.ts': 'export function foo() {}\nexport const kept = 1;\n',
+  });
+  const head = commit(repo, { 'src/a.ts': 'export const kept = 1;\n' });
+  const uses = async () => {
+    throw new Error('boom');
+  };
+
+  const range = await readRange({
+    repo,
+    from: base,
+    to: head,
+    readers: [{ ...typeScriptReader, uses }],
+  });
+
+  expect(range.reaches).toEqual([]);
+  expect(range.reachesNotRead).toEqual([`not read for ${basename(repo)}: Error: boom`]);
+});
+
+test('another stack of a reader that reads another language is no stack to follow', async () => {
+  using repository = gitRepo({
+    'web/package.json': twoStacks['web/package.json'],
+    'web/src/a.ts': twoStacks['web/src/a.ts'],
+    'config/application.rb': 'module Shop\n  class Application\n  end\nend\n',
+    'app/models/order.rb': 'class Order\nend\n',
+  });
+  const { repo, root } = repository;
+  const head = commit(repo, { 'web/src/a.ts': 'export function kept() {}\n' });
+
+  const range = await readRange({ repo, from: root, to: head });
+
+  expect(range.reachesNotRead).toEqual([NOT_DRAWN]);
+});
+
+test('what asks a name says what the graph holds no edge for, which reads no row: an alias, a type-only re-export, a test outside the source root', async () => {
+  using repository = gitRepo({ 'README.md': 'a shop\n' });
+  const { repo } = repository;
+  const base = commit(repo, {
+    ...rootPackage,
+    'tsconfig.json': '{"compilerOptions":{"paths":{"@/*":["src/*"]}}}\n',
+    'src/a.ts': 'export function foo() {}\nexport type Foo = number;\nexport const kept = 1;\n',
+    'src/aliased.ts': "import { foo } from '@/a';\nfoo();\n",
+    'src/types.ts': "export type { Foo } from './a.ts';\n",
+    'test/a.test.ts': "import { foo } from '../src/a.ts';\nfoo();\n",
+  });
+  const head = commit(repo, { 'src/a.ts': 'export const kept = 1;\n' });
+
+  const range = await readRange({ repo, from: base, to: head });
+
+  expect(range.reaches).toEqual([]);
+  expect(range.reachesNotRead).toEqual([NOT_DRAWN]);
 });

@@ -4,13 +4,18 @@ import type { GraphNode } from './graph.ts';
 import { decisionText, type LogicLine } from './logic-diff.ts';
 import type { SymbolFile } from './read-range.ts';
 import { signatureSummary } from './signature-members.ts';
-import { type FileSymbolChanges, qualified, type SymbolStatement } from './symbol-changes.ts';
+import {
+  type ExportChanges,
+  type FileSymbolChanges,
+  qualified,
+  type SymbolStatement,
+} from './symbol-changes.ts';
 
 type Removal = { readonly former: string; readonly how: string; readonly detail?: string };
 
 type PathOf = (id: string) => string;
 
-const removalOf = (statement: SymbolStatement, pathOf: PathOf): Removal | undefined => {
+export const removalOf = (statement: SymbolStatement, pathOf: PathOf): Removal | undefined => {
   if (statement.exported.base !== true) return undefined;
   const name = qualified(statement);
   if (statement.renamedFrom !== undefined) {
@@ -38,7 +43,7 @@ const isAddedExport = ({ exported }: SymbolStatement): boolean =>
 const raisesItsOwn = (statement: SymbolStatement): boolean =>
   removalOf(statement, id => id) !== undefined || isAddedExport(statement);
 
-const unheld = (symbols: ReadonlyArray<AnchoredSymbol>): ReadonlyArray<AnchoredSymbol> => {
+export const unheld = (symbols: ReadonlyArray<AnchoredSymbol>): ReadonlyArray<AnchoredSymbol> => {
   const holders = new Set(
     symbols
       .map(({ item }) => item)
@@ -89,15 +94,18 @@ const findingOf = ({
   };
 };
 
-const exportsFinding = (file: FileSymbolChanges): ReadonlyArray<Finding> => {
+export const unbackedExports = ({ symbols, exports }: FileSymbolChanges): ExportChanges => {
   const behind = new Set(
-    file.symbols
+    symbols
       .filter(raisesItsOwn)
       .flatMap(statement => [qualified(statement), statement.renamedFrom]),
   );
   const unbacked = (names: ReadonlyArray<string>) => names.filter(name => !behind.has(name));
-  const removed = unbacked(file.exports.removed);
-  const added = unbacked(file.exports.added);
+  return { added: unbacked(exports.added), removed: unbacked(exports.removed) };
+};
+
+const exportsFinding = (file: FileSymbolChanges): ReadonlyArray<Finding> => {
+  const { removed, added } = unbackedExports(file);
   const parts = [
     ...(removed.length === 0 ? [] : [`removed ${removed.join(', ')}`]),
     ...(added.length === 0 ? [] : [`added ${added.join(', ')}`]),

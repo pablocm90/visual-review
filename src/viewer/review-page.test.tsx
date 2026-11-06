@@ -8,6 +8,7 @@ import type { ReviewNotes } from '../core/notes.ts';
 import type { PageData } from '../core/page.ts';
 import type { PreviousComment } from '../core/previous-comments.ts';
 import type { Commit, SymbolFile } from '../core/read-range.ts';
+import type { Reach } from '../core/read-reaches.ts';
 import type { Comment, Review } from '../core/review.ts';
 import type { ChangedSince, SinceReview } from '../core/since-review.ts';
 import type { Skipped } from '../core/skipped.ts';
@@ -1550,6 +1551,7 @@ test('a reader skipped for want of its tool is named once, at the top of the fin
           metricFindings: [],
           symbols: [],
           symbolsNotRead: [],
+          reaches: [],
           tests: [],
           nodes: [],
           split: undefined,
@@ -1941,7 +1943,7 @@ test("the findings rail starts collapsed to their total and how many need a look
   expect(within(rail()).getByRole('button', { name: 'Show 0 findings' })).toBeDefined();
   expect(lensChips()).toEqual([
     'Behaviour · logic, tests checked, nothing found false',
-    'Contract · api, schema, routes checked, nothing found false',
+    'Contract · api, schema, routes, blast radius checked, nothing found false',
     'Risk · dependencies checked, nothing found false',
     'Shape · structure, cohesion checked, nothing found false',
     'Context · metrics checked, nothing found false',
@@ -1990,7 +1992,7 @@ test("a lens counts each of its dimensions' findings, a note's flag among them, 
   expect(startHereLines.getByRole('button', { name: /reads a token/ })).toBeDefined();
   expect(lensChips()).toEqual([
     'Behaviour ○2 ▲1 false',
-    'Contract · api, schema, routes checked, nothing found false',
+    'Contract · api, schema, routes, blast radius checked, nothing found false',
     'Risk ▲1 false',
     'Shape · structure, cohesion checked, nothing found false',
     'Context ○1 false',
@@ -4682,6 +4684,237 @@ test("logic changed with no test alongside shows its finding under Tested by, wi
   );
   expect(untestedRow().getAttribute('aria-current')).toBe('true');
   expect(scrolledIntoView.mock.contexts).toContain(untestedRow());
+});
+
+const reachOf = (node: string, name: string, uses: Reach['uses']): Reach => ({
+  node,
+  id: `${node}#${name}`,
+  label: `function ${name}`,
+  how: 'removed',
+  uses,
+});
+
+const reachesRegion = () => within(inspector()).queryByRole('region', { name: /^Reaches/ });
+
+test('Reaches lists where the selected part reaches, counting files once, and is not drawn on a part reaching nothing', async () => {
+  const user = userEvent.setup();
+  render(
+    <ReviewPage
+      review={pageWith({
+        range: review.range,
+        diff: {
+          nodes: [
+            { id: 'web', kind: 'stack', label: 'web', path: '', state: 'unchanged' },
+            topFile('tax.ts', 'modified'),
+            topFile('refund.ts', 'modified'),
+          ],
+          edges: [],
+        },
+        reaches: [
+          reachOf('web/file/tax.ts', 'foo', [
+            { path: 'web/src/b.ts', line: 41, text: 'foo(raw);' },
+            { path: 'web/src/c.ts', line: 12, text: 'rows.map(foo)' },
+          ]),
+          reachOf('web/file/tax.ts', 'bar', [{ path: 'web/src/b.ts', line: 7, text: 'bar();' }]),
+        ],
+      })}
+    />,
+  );
+
+  await user.click(await screen.findByRole('button', { name: 'refund.ts: modified' }));
+  expect(reachesRegion()).toBeNull();
+
+  await user.click(screen.getByRole('button', { name: 'tax.ts: modified' }));
+  const region = reachesRegion() ?? inspector();
+  expect(within(region).getByRole('heading', { name: 'Reaches 2 unchanged files' })).toBeTruthy();
+  expect(
+    within(region)
+      .getAllByRole('listitem')
+      .map(row => row.textContent),
+  ).toEqual(['web/src/b.ts:41foo(raw);', 'web/src/c.ts:12rows.map(foo)', 'web/src/b.ts:7bar();']);
+});
+
+test('a Reaches row goes to the file it names, widening Show, and a file the graph has no node for stays text', async () => {
+  const user = userEvent.setup();
+  render(
+    <ReviewPage
+      review={pageWith({
+        range: review.range,
+        diff: {
+          nodes: [
+            { id: 'web', kind: 'stack', label: 'web', path: '', state: 'unchanged' },
+            topFile('tax.ts', 'modified'),
+            topFile('b.ts'),
+          ],
+          edges: [],
+        },
+        reaches: [
+          reachOf('web/file/tax.ts', 'foo', [
+            { path: 'web/src/b.ts', line: 41, text: 'foo(raw);' },
+            { path: 'web/src/gone.ts', line: 3, text: 'foo();' },
+          ]),
+        ],
+      })}
+    />,
+  );
+
+  await user.click(await screen.findByRole('button', { name: 'tax.ts: modified' }));
+  const region = reachesRegion() ?? inspector();
+  expect(within(region).queryByRole('button', { name: /gone\.ts/ })).toBeNull();
+  expect(within(region).getByText('web/src/gone.ts:3')).toBeTruthy();
+
+  await user.click(within(region).getByRole('button', { name: /^web\/src\/b\.ts:41/ }));
+  expect(await screen.findByRole('heading', { level: 2, name: 'b.ts' })).toBeTruthy();
+});
+
+test('a Reaches row marks a test file and says when a use could not be followed', async () => {
+  const user = userEvent.setup();
+  render(
+    <ReviewPage
+      review={pageWith({
+        range: review.range,
+        diff: {
+          nodes: [
+            { id: 'web', kind: 'stack', label: 'web', path: '', state: 'unchanged' },
+            topFile('tax.ts', 'modified'),
+          ],
+          edges: [],
+        },
+        reaches: [
+          reachOf('web/file/tax.ts', 'foo', [
+            { path: 'web/src/lazy.ts', line: 3, text: "import('./tax')", unfollowed: true },
+            { path: 'web/src/plain.ts', line: 4, text: 'foo();' },
+            { path: 'web/src/tax.test.ts', line: 8, text: 'foo();', test: true },
+          ]),
+        ],
+      })}
+    />,
+  );
+
+  await user.click(await screen.findByRole('button', { name: 'tax.ts: modified' }));
+  const [lazy, plain, tested] = within(reachesRegion() ?? inspector())
+    .getAllByRole('listitem')
+    .map(row => within(row));
+  expect(lazy?.getByText('may use it, not followed')).toBeTruthy();
+  expect(plain?.queryByText('may use it, not followed')).toBeNull();
+  expect(plain?.queryByText('test')).toBeNull();
+  expect(tested?.getByText('test')).toBeTruthy();
+});
+
+test("a part's reach findings sit above their own rows in Reaches, with answers, and Why look doesn't repeat them; going to one lands on its row there", async () => {
+  const user = userEvent.setup();
+  const reaches = [
+    reachOf('web/file/tax.ts', 'foo', [{ path: 'web/src/b.ts', line: 41, text: 'foo(raw);' }]),
+    reachOf('web/file/tax.ts', 'bar', [{ path: 'web/src/c.ts', line: 7, text: 'bar();' }]),
+  ];
+  const reachFinding = (name: string) =>
+    findingOn('web/file/tax.ts', {
+      id: `blast-radius:reaches:web/file/tax.ts#${name}`,
+      check: 'blast-radius:reaches',
+      dimension: 'blast-radius',
+      level: 'look',
+      title: `function ${name} reaches 1 unchanged file`,
+    });
+  render(
+    <ReviewPage
+      review={pageWith({
+        range: review.range,
+        diff: {
+          nodes: [
+            { id: 'web', kind: 'stack', label: 'web', path: '', state: 'unchanged' },
+            topFile('tax.ts', 'modified'),
+          ],
+          edges: [],
+        },
+        reaches,
+        findings: [reachFinding('foo'), reachFinding('bar'), findingOn('web/file/tax.ts')],
+      })}
+      send={async () => {}}
+    />,
+  );
+
+  await user.click(await screen.findByRole('button', { name: 'tax.ts: modified' }));
+  const region = () => reachesRegion() ?? inspector();
+  expect(
+    within(region())
+      .getAllByRole('listitem')
+      .map(row => row.textContent),
+  ).toEqual([
+    expect.stringContaining('function foo'),
+    expect.stringContaining('web/src/b.ts:41'),
+    expect.stringContaining('function bar'),
+    expect.stringContaining('web/src/c.ts:7'),
+  ]);
+  const whyLook = within(inspector()).getByRole('region', { name: 'Why look' });
+  expect(within(whyLook).getAllByRole('listitem')).toHaveLength(1);
+
+  const barRow = () =>
+    within(region())
+      .getByText(/function bar/)
+      .closest('li') ?? region();
+  await user.click(within(barRow()).getByRole('button', { name: 'Fix this' }));
+  expect(
+    within(barRow()).getByRole('button', { name: 'Fix this' }).getAttribute('aria-pressed'),
+  ).toBe('true');
+
+  await user.click(screen.getByRole('button', { name: 'Show 3 findings' }));
+  await user.click(
+    within(screen.getByRole('complementary', { name: 'Findings' })).getByRole('button', {
+      name: /^tax.ts: function bar/,
+    }),
+  );
+  expect(barRow().getAttribute('aria-current')).toBe('true');
+});
+
+test("a box's Reaches lists those of the files inside it, with their finding only while the box holds it", async () => {
+  const user = userEvent.setup();
+  render(
+    <ReviewPage
+      review={pageWith({
+        range: review.range,
+        diff: {
+          nodes: [
+            { id: 'web', kind: 'stack', label: 'web', path: '', state: 'unchanged' },
+            webModule('orders', 'modified'),
+            webFile('orders', 'refund.ts', 'modified'),
+            webModule('billing', 'modified'),
+            webFile('billing', 'tax.ts', 'modified'),
+          ],
+          edges: [],
+        },
+        reaches: [
+          reachOf('web/file/orders/refund.ts', 'foo', [
+            { path: 'web/src/b.ts', line: 41, text: 'foo(raw);' },
+          ]),
+        ],
+        findings: [
+          findingOn('web/file/orders/refund.ts', {
+            id: 'blast-radius:reaches:web/file/orders/refund.ts#foo',
+            check: 'blast-radius:reaches',
+            dimension: 'blast-radius',
+            level: 'look',
+            title: 'function foo reaches 1 unchanged file',
+          }),
+        ],
+      })}
+    />,
+  );
+
+  await user.click(await screen.findByRole('button', { name: /^billing: modified/ }));
+  expect(reachesRegion()).toBeNull();
+
+  await user.click(screen.getByRole('button', { name: /^orders: modified/ }));
+  const region = () => reachesRegion() ?? inspector();
+  expect(
+    within(within(region()).getByRole('list', { name: 'Findings' })).getByText(/function foo/),
+  ).toBeTruthy();
+  expect(within(region()).getByText('web/src/b.ts:41')).toBeTruthy();
+
+  await user.click(screen.getByRole('button', { name: 'Expand orders' }));
+  expect(await screen.findByRole('button', { name: 'Collapse orders' })).toBeTruthy();
+  expect(within(region()).queryByRole('list', { name: 'Findings' })).toBeNull();
+  expect(within(region()).getByText('web/src/b.ts:41')).toBeTruthy();
+  expect(within(inspector()).queryByText('No note')).toBeNull();
 });
 
 test("a node's Tested by also lists the test files named after a file inside it, wherever they sit in its stack", async () => {

@@ -39,6 +39,16 @@ test.for([
     error: "stacks.web.sourceRoot: must be a folder inside the stack's root",
   },
   {
+    reason: 'an absolute root',
+    text: '{"stacks": {"gen": {"reader": "rust", "root": "/tools/gen"}}}',
+    error: 'stacks.gen.root: must be a folder inside the repo',
+  },
+  {
+    reason: 'an absolute source root',
+    text: '{"stacks": {"web": {"sourceRoot": "/shared"}}}',
+    error: "stacks.web.sourceRoot: must be a folder inside the stack's root",
+  },
+  {
     reason: 'an unknown linker',
     text: '{"linkers": {"fetch-axe": false}}',
     error: 'linkers: Unrecognized key: "fetch-axe"',

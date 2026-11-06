@@ -1,5 +1,5 @@
 import { existsSync, globSync, readFileSync, statSync } from 'node:fs';
-import { basename, dirname, join, relative } from 'node:path';
+import { basename, dirname, isAbsolute, join, relative } from 'node:path';
 import { cruise } from 'dependency-cruiser';
 import { parse } from 'jsonc-parser';
 import { z } from 'zod';
@@ -8,6 +8,7 @@ import type { CandidateRoot, Reader } from '../../core/reader.ts';
 import { measureTypeScript } from './typescript-measure.ts';
 import { symbolsOfTypeScript } from './typescript-symbols.ts';
 import { readTypeScriptTests } from './typescript-tests.ts';
+import { usesOfTypeScript } from './typescript-uses.ts';
 import { webGraph } from './web-graph.ts';
 
 const TEST_FILE = /\.(test|spec)\.[cm]?[jt]sx?$/;
@@ -37,11 +38,19 @@ const includedFolders = (directory: string, include: ReadonlyArray<string>) => [
   ),
 ];
 
-const sourceRootOf = (directory: string): string => {
+type RootOptions = {
+  readonly checkout: string;
+  readonly root: string;
+};
+
+const sourceRootOf = ({ checkout, root }: RootOptions): string => {
+  const directory = join(checkout, root);
+  const staysInCheckout = (folder: string) =>
+    !isAbsolute(folder) && !`${join(root, folder)}/`.startsWith('../');
   const { compilerOptions, include = [] } = tsconfigIn(directory);
-  const [folder, ...others] = includedFolders(directory, include);
+  const [folder, ...others] = includedFolders(directory, include).filter(staysInCheckout);
   const rootDir = compilerOptions?.rootDir;
-  if (rootDir !== undefined) return folderOf(rootDir);
+  if (rootDir !== undefined && staysInCheckout(rootDir)) return folderOf(rootDir);
   return folder !== undefined && others.length === 0 ? folder : 'src';
 };
 
@@ -54,20 +63,18 @@ const packageNameIn = (directory: string): string | undefined => {
     : undefined;
 };
 
-const sourceRootIn = (directory: string, { sourceRoot }: StackSettings): string =>
-  sourceRoot === undefined ? sourceRootOf(directory) : folderOf(sourceRoot);
+const sourceRootIn = (options: RootOptions, { sourceRoot }: StackSettings): string =>
+  sourceRoot === undefined ? sourceRootOf(options) : folderOf(sourceRoot);
 
 const hasSources = (directory: string, sourceRoot: string): boolean =>
   globSync(SOURCES, { cwd: join(directory, sourceRoot) }).length > 0;
 
-type HoldsOthersOptions = {
-  readonly checkout: string;
-  readonly root: string;
+type HoldsOthersOptions = RootOptions & {
   readonly roots: ReadonlyArray<string>;
 };
 
 const holdsOthers = ({ checkout, root, roots }: HoldsOthersOptions): boolean => {
-  const folder = join(root, sourceRootOf(join(checkout, root)));
+  const folder = join(root, sourceRootOf({ checkout, root }));
   return roots.some(other => other !== root && !relative(folder, other).startsWith('..'));
 };
 
@@ -79,7 +86,7 @@ const rootsIn = (checkout: string): ReadonlyArray<CandidateRoot> => {
     .map(dirname)
     .toSorted();
   const sourced = packages.filter(root =>
-    hasSources(join(checkout, root), sourceRootOf(join(checkout, root))),
+    hasSources(join(checkout, root), sourceRootOf({ checkout, root })),
   );
   return packages
     .filter(root => !holdsOthers({ checkout, root, roots: sourced }))
@@ -129,13 +136,13 @@ export const typeScriptReader: Reader = {
   stackFields: ['boxes', 'sourceRoot'],
   roots: rootsIn,
   holds: ({ directory, root, settings }) =>
-    hasSources(join(directory, root), sourceRootIn(join(directory, root), settings)),
+    hasSources(join(directory, root), sourceRootIn({ checkout: directory, root }, settings)),
   graph: ({ directory, root, stack, settings, stacks }) =>
     graphAt({
       directory,
       root,
       stack,
-      sourceRoot: sourceRootIn(join(directory, root), settings),
+      sourceRoot: sourceRootIn({ checkout: directory, root }, settings),
       boxes: settings.boxes ?? [],
       packages: packagesIn(directory, stacks),
     }),
@@ -144,4 +151,5 @@ export const typeScriptReader: Reader = {
   measure: (text, path) => (TEST_FILE.test(path) ? undefined : measureTypeScript(text, path)),
   symbols: (text, path) =>
     SCRIPT_FILE.test(path) && !TEST_FILE.test(path) ? symbolsOfTypeScript(text, path) : undefined,
+  uses: usesOfTypeScript,
 };

@@ -5,6 +5,7 @@ import { findPackageJSON } from 'node:module';
 import { basename, join } from 'node:path';
 import { parseArgs, promisify } from 'node:util';
 import { z } from 'zod';
+import { readFileThatEnds } from './core/file-that-ends.ts';
 import { parseNotes } from './core/notes.ts';
 import {
   notedPageHtml,
@@ -101,7 +102,7 @@ type FillNotesOptions = {
 
 const fillNotes = async ({ range, page, notesFile }: FillNotesOptions): Promise<void> => {
   const notes = parseNotes({ text: await readFile(notesFile, 'utf8'), file: notesFile });
-  const written = await readFile(page, 'utf8').catch(() => {
+  const written = await readFileThatEnds(page).catch(() => {
     throw new Error(`No page for ${range} yet: run visual-review without --notes first`);
   });
   await writeAnew({
