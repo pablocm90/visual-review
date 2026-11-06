@@ -301,6 +301,47 @@ test("a route change's reading stays on the page and raises its findings", () =>
   expect(data.findings.map(({ id }) => id)).toContain('routes:not-read:config/routes.rb');
 });
 
+test('a symbol reaching files the change left is a blast radius finding to look at on its file, per symbol, counting them', () => {
+  const node = 'web/file/a.ts';
+  const reach = (name: string, paths: ReadonlyArray<string>) => ({
+    node,
+    id: `${node}#${name}`,
+    label: `function ${name}`,
+    how: 'removed',
+    uses: paths.map(path => ({ path, line: 2, text: `${name}();` })),
+  });
+  const reaches = [reach('foo', ['web/src/b.ts', 'web/src/c.ts']), reach('bar', ['web/src/b.ts'])];
+
+  const { findings } = pageData({
+    reading: readingWith({ reaches }),
+    repo: 'acme/shop',
+    range: 'a..b',
+    version,
+    parsers,
+  });
+
+  expect(findings.filter(({ dimension }) => dimension === 'blast-radius')).toEqual([
+    {
+      id: `blast-radius:reaches:${node}#foo`,
+      check: 'blast-radius:reaches',
+      dimension: 'blast-radius',
+      level: 'look',
+      target: node,
+      title: 'function foo reaches 2 unchanged files',
+      detail: 'found by name',
+    },
+    {
+      id: `blast-radius:reaches:${node}#bar`,
+      check: 'blast-radius:reaches',
+      dimension: 'blast-radius',
+      level: 'look',
+      target: node,
+      title: 'function bar reaches 1 unchanged file',
+      detail: 'found by name',
+    },
+  ]);
+});
+
 test('stacks a missing tool kept from being read are a structure finding to look at, on no node', () => {
   const skipped = [{ reader: 'rust' as const, tool: 'cargo', stacks: ['api', 'worker'] }];
 

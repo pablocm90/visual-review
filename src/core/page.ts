@@ -86,6 +86,7 @@ export const pageData = ({
     metricFindings: metricFindings({ metrics, thresholds: reading.thresholds }),
     symbols: reading.symbols,
     symbolsNotRead: reading.symbolsNotRead,
+    reaches: reading.reaches,
     nodes: diff.nodes,
     tests: reading.tests,
     split: splitSuggestion({

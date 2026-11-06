@@ -8,9 +8,11 @@ import { tenths } from './metrics.ts';
 import { migrationFindings } from './migration-findings.ts';
 import type { ReviewNotes } from './notes.ts';
 import type { PageData } from './page.ts';
+import { reachFindings } from './reach-findings.ts';
 import type { DependencyChanges } from './read-lockfiles.ts';
 import type { MigrationReading } from './read-migrations.ts';
 import type { SymbolFile } from './read-range.ts';
+import type { Reach } from './read-reaches.ts';
 import type { RoutesReading } from './read-routes.ts';
 import type { SchemaReading } from './read-schemas.ts';
 import { routeFindings } from './route-findings.ts';
@@ -87,6 +89,7 @@ type RaisedOptions = {
   readonly metricFindings: ReadonlyArray<MetricFinding>;
   readonly symbols: ReadonlyArray<SymbolFile>;
   readonly symbolsNotRead: ReadonlyArray<string>;
+  readonly reaches: ReadonlyArray<Reach>;
   readonly nodes: ReadonlyArray<GraphNode>;
   readonly tests: ReadonlyArray<TestFile>;
   readonly split: SplitSuggestion | undefined;
@@ -167,6 +170,7 @@ export const raisedFindings = ({
   metricFindings,
   symbols,
   symbolsNotRead,
+  reaches,
   nodes,
   tests,
   split,
@@ -215,6 +219,7 @@ export const raisedFindings = ({
     }),
   ),
   ...symbolFindings({ files: symbols, nodes }),
+  ...reachFindings(reaches),
   ...untestedLogicFindings({ nodes, tests, symbols }),
   ...symbolsNotRead.map(
     (stack): Finding => ({

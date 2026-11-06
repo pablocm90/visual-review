@@ -19,6 +19,7 @@ export const CHECK_TITLES = {
   'api:added': 'exported symbols added',
   'api:signature': 'exported signatures changed',
   'api:exports': 'export lists changed',
+  'blast-radius:reaches': 'changed exports reaching unchanged files',
   'logic:removed': 'guards or catches lost',
   'logic:changed': 'functions changed their logic',
   'logic:blind-spot': 'files with logic not read through',
