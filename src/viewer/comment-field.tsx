@@ -86,7 +86,7 @@ export const CommentOpener = ({
   word,
   label,
   landing,
-  className = '',
+  className,
   ...field
 }: CommentOpenerProps) => {
   const drafted = field.comments[anchorKey(field.anchor)] !== undefined;
@@ -107,7 +107,7 @@ export const CommentOpener = ({
     <>
       <button
         type="button"
-        className={`comment-on ${className}`}
+        className={['comment-on', className].join(' ')}
         aria-expanded={open}
         aria-label={label}
         onClick={() => {
