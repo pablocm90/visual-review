@@ -17,3 +17,21 @@ export const countsOf = (
 export const holdsFewChanges = (
   symbols: ReadonlyArray<{ readonly logic?: ReadonlyArray<LogicLine> }>,
 ): boolean => countsOf(symbols.flatMap(({ logic }) => logic ?? [])).changed <= FEW_CHANGES;
+
+export type RowRun<Row> = {
+  readonly unchanged: boolean;
+  readonly rows: ReadonlyArray<Row>;
+};
+
+export const runsOf = <Row extends { readonly line: LogicLine }>(
+  rows: ReadonlyArray<Row>,
+): ReadonlyArray<RowRun<Row>> => {
+  const isUnchanged = ({ line }: Row): boolean => line.change === 'same';
+  const [first] = rows;
+  if (first === undefined) return [];
+  const unchanged = isUnchanged(first);
+  const end = rows.findIndex(row => isUnchanged(row) !== unchanged);
+  return end === -1
+    ? [{ unchanged, rows }]
+    : [{ unchanged, rows: rows.slice(0, end) }, ...runsOf(rows.slice(end))];
+};

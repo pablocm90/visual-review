@@ -2975,3 +2975,32 @@ main:has(> .review-tray) {
   display: inline-flex;
   vertical-align: middle;
 }
+
+.logic-run {
+  list-style: none;
+}
+
+.logic-run > details > summary {
+  width: fit-content;
+  color: var(--muted);
+  font-size: 12px;
+  cursor: pointer;
+  list-style: none;
+}
+
+.logic-run > details > summary::-webkit-details-marker {
+  display: none;
+}
+
+.logic-run-show {
+  text-decoration: underline;
+}
+
+.logic-run > details[open] .logic-run-show {
+  display: none;
+}
+
+.logic-run > details > ul {
+  margin: 0;
+  padding: 0;
+}

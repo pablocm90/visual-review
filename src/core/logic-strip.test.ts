@@ -1,6 +1,6 @@
 import { expect, test } from 'vitest';
 import type { LogicLine } from './logic-diff.ts';
-import { countsOf, holdsFewChanges, isExit } from './logic-strip.ts';
+import { countsOf, holdsFewChanges, isExit, runsOf } from './logic-strip.ts';
 
 const line = (change: LogicLine['change'], kind: LogicLine['kind']): LogicLine => ({
   change,
@@ -58,3 +58,23 @@ test.for([
     ).toBe(few);
   },
 );
+
+test('rows split into runs of changed and runs of unchanged, order kept, each row once', () => {
+  const rowOf = (change: LogicLine['change'], id: string) => ({ line: line(change, 'if'), id });
+
+  expect(
+    runsOf([
+      rowOf('same', 'a'),
+      rowOf('added', 'b'),
+      rowOf('removed', 'c'),
+      rowOf('same', 'd'),
+      rowOf('same', 'e'),
+      rowOf('moved', 'f'),
+    ]).map(({ unchanged, rows }) => [unchanged, rows.map(({ id }) => id)]),
+  ).toEqual([
+    [true, ['a']],
+    [false, ['b', 'c']],
+    [true, ['d', 'e']],
+    [false, ['f']],
+  ]);
+});

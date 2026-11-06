@@ -5898,6 +5898,7 @@ test("an edited function's logic lines show under it in What changed, each with 
   expect(
     within(logic)
       .getAllByRole('listitem')
+      .filter(item => item.hasAttribute('aria-label'))
       .map(item => item.getAttribute('aria-label')),
   ).toEqual([
     'removed guard: if (!paid) return',
@@ -8182,6 +8183,87 @@ test('a draft on a decision opens its function among many when the part is picke
 
   expect(logicRowsOf('small').hasAttribute('open')).toBe(true);
   expect(logicRowsOf('big').hasAttribute('open')).toBe(false);
+});
+
+const unchangedIf = (test: string, line: number) =>
+  ({ change: 'same', kind: 'if', depth: 0, head: `if (${test})`, line }) as const;
+
+const pageWithUnchangedRuns = () =>
+  pageWith({
+    range: 'abc123..def456',
+    diff: {
+      nodes: [
+        { id: 'web', kind: 'stack', label: 'web', path: '', state: 'unchanged' },
+        topFile('runs.ts', 'modified'),
+      ],
+      edges: [],
+    },
+    symbols: [
+      symbolsOf('web/file/runs.ts', [
+        {
+          name: 'runs',
+          kind: 'function',
+          exported: { base: false, head: false },
+          change: 'edited',
+          logic: [
+            unchangedIf('a', 1),
+            unchangedIf('b', 2),
+            { change: 'added', kind: 'if', depth: 0, head: 'if (c)', line: 3 },
+            unchangedIf('d', 4),
+          ],
+        },
+      ]),
+    ],
+  });
+
+const unchangedRun = (count: number) =>
+  within(whatChanged()).getByRole('group', { name: `${count} unchanged` });
+
+test("a function's unchanged runs fold into their counts, opened by hand, its changed rows and strip staying whole", async () => {
+  const user = userEvent.setup();
+  render(<ReviewPage review={pageWithUnchangedRuns()} />);
+
+  await user.click(await screen.findByRole('button', { name: 'runs.ts: modified' }));
+  const logic = within(whatChanged()).getByRole('list', { name: 'Logic of function runs' });
+  expect(within(logic).getByRole('listitem', { name: 'added if: if (c)' })).toBeTruthy();
+  expect(unchangedRun(2).hasAttribute('open')).toBe(false);
+  expect(unchangedRun(1).hasAttribute('open')).toBe(false);
+  expect(
+    within(
+      within(whatChanged()).getByRole('group', { name: 'Marks of function runs' }),
+    ).getAllByRole('button'),
+  ).toHaveLength(4);
+
+  await user.click(within(unchangedRun(2)).getByText(/2 unchanged/));
+  expect(unchangedRun(2).hasAttribute('open')).toBe(true);
+  expect(unchangedRun(1).hasAttribute('open')).toBe(false);
+  expect(within(unchangedRun(2)).getByRole('listitem', { name: 'same if: if (b)' })).toBeTruthy();
+});
+
+test("the last review's comment on an unchanged decision opens its whole run, and no other", async () => {
+  const user = userEvent.setup();
+  render(
+    <ReviewPage
+      review={{
+        ...pageWithUnchangedRuns(),
+        sinceReview: {
+          ...sinceReview,
+          comments: [
+            {
+              anchor: { kind: 'decision', id: 'web/file/runs.ts#runs#if (a)', text: 'if (a)' },
+              kind: 'question',
+              text: 'Why?',
+              changedSince: [],
+            },
+          ],
+        },
+      }}
+    />,
+  );
+
+  await user.click(await screen.findByRole('button', { name: 'runs.ts: modified' }));
+  expect(unchangedRun(2).hasAttribute('open')).toBe(true);
+  expect(unchangedRun(1).hasAttribute('open')).toBe(false);
 });
 
 test("a later round offers 'Since last review' first in Show, Changes only still picked; picked, it draws what changed since, and going to a part it hides widens Show", async () => {

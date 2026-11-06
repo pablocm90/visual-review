@@ -9,7 +9,7 @@ import {
 import { anchorKey } from '../core/anchors.ts';
 import type { DiffedNode, FilePatch } from '../core/diff-graphs.ts';
 import type { LogicLine } from '../core/logic-diff.ts';
-import { holdsFewChanges } from '../core/logic-strip.ts';
+import { holdsFewChanges, runsOf } from '../core/logic-strip.ts';
 import type { PageData } from '../core/page.ts';
 import type { PreviousComment } from '../core/previous-comments.ts';
 import type { SymbolFile } from '../core/read-range.ts';
@@ -192,78 +192,111 @@ const logicLabel = (line: LogicLine, nodes: Places['nodes']): string => {
 
 type ShowLine = (at: Omit<LineAt, 'node'>) => void;
 
+type LogicPlaces = Pick<Places, 'nodes' | 'comments' | 'onComment'>;
+
+type DecisionRow = ReturnType<typeof decisionsOf>[number] & {
+  readonly marked: boolean;
+  readonly label: string;
+};
+
+const LogicRow = ({
+  row: { line, id, text, marked, label },
+  onShowLine,
+  nodes,
+  comments,
+  onComment,
+}: LogicPlaces & { readonly row: DecisionRow; readonly onShowLine: ShowLine }) => {
+  const marksOf = useRowMarks();
+  return (
+    <li
+      className={`logic-${line.change}`}
+      aria-label={label}
+      {...marksOf({ kind: 'decision', id })}
+      style={{ paddingInlineStart: `${line.depth}em` }}
+    >
+      {line.change === 'same' ? (
+        <LogicText line={line} nodes={nodes} />
+      ) : (
+        <button
+          type="button"
+          className="logic-line"
+          aria-label={label}
+          onClick={() =>
+            onShowLine({ side: line.head === undefined ? 'base' : 'head', line: line.line })
+          }
+        >
+          <LogicText line={line} nodes={nodes} />
+        </button>
+      )}
+      <ChangedSinceTag marked={marked} />
+      <SaidBefore on={{ kind: 'decision', id }} />
+      {onComment && (
+        <CommentOn
+          name={logicLabel(line, nodes)}
+          anchor={{ kind: 'decision', id, text }}
+          comments={comments}
+          onComment={onComment}
+        />
+      )}
+    </li>
+  );
+};
+
 const LogicLines = ({
   symbol,
   onShowLine,
   fewChanges,
-  nodes,
-  comments,
-  onComment,
-}: Pick<Places, 'nodes' | 'comments' | 'onComment'> & {
+  ...places
+}: LogicPlaces & {
   readonly symbol: AnchoredSymbol;
   readonly onShowLine: ShowLine;
   readonly fewChanges: boolean;
 }) => {
   const isChangedSince = useIsChangedSince();
   const hasSaid = useHasSaid();
-  const marksOf = useRowMarks();
   const name = `${symbol.item.kind} ${qualified(symbol.item)}`;
   const rows = decisionsOf(symbol).map(decision => {
     const marked = isChangedSince('decisions', decision.id);
-    return { ...decision, marked, label: sinceLabel(logicLabel(decision.line, nodes), marked) };
+    return {
+      ...decision,
+      marked,
+      label: sinceLabel(logicLabel(decision.line, places.nodes), marked),
+    };
   });
+  const holdsNews = ({ id, marked }: DecisionRow): boolean =>
+    marked ||
+    places.comments[anchorKey({ kind: 'decision', id })] !== undefined ||
+    hasSaid({ kind: 'decision', id });
+  const rowOf = (row: DecisionRow) => (
+    <LogicRow key={row.id} row={row} onShowLine={onShowLine} {...places} />
+  );
   return (
     <details
       className="logic-rows"
       aria-label={`Rows of ${name}`}
-      open={
-        fewChanges ||
-        rows.some(
-          ({ id, marked }) =>
-            marked ||
-            comments[anchorKey({ kind: 'decision', id })] !== undefined ||
-            hasSaid({ kind: 'decision', id }),
-        )
-      }
+      open={fewChanges || rows.some(holdsNews)}
     >
       <summary>
         <LogicStrip name={name} rows={rows} />
       </summary>
       <ul className="logic-lines" aria-label={`Logic of ${name}`}>
-        {rows.map(({ line, id, text, marked, label }) => (
-          <li
-            key={id}
-            className={`logic-${line.change}`}
-            aria-label={label}
-            {...marksOf({ kind: 'decision', id })}
-            style={{ paddingInlineStart: `${line.depth}em` }}
-          >
-            {line.change === 'same' ? (
-              <LogicText line={line} nodes={nodes} />
-            ) : (
-              <button
-                type="button"
-                className="logic-line"
-                aria-label={label}
-                onClick={() =>
-                  onShowLine({ side: line.head === undefined ? 'base' : 'head', line: line.line })
-                }
-              >
-                <LogicText line={line} nodes={nodes} />
-              </button>
-            )}
-            <ChangedSinceTag marked={marked} />
-            <SaidBefore on={{ kind: 'decision', id }} />
-            {onComment && (
-              <CommentOn
-                name={logicLabel(line, nodes)}
-                anchor={{ kind: 'decision', id, text }}
-                comments={comments}
-                onComment={onComment}
-              />
-            )}
-          </li>
-        ))}
+        {runsOf(rows).flatMap(run =>
+          run.unchanged
+            ? [
+                <li key={run.rows[0]?.id} className="logic-run">
+                  <details
+                    aria-label={`${run.rows.length} unchanged`}
+                    open={run.rows.some(holdsNews)}
+                  >
+                    <summary>
+                      ⋯ {run.rows.length} unchanged<span className="logic-run-show">, show</span>
+                    </summary>
+                    <ul>{run.rows.map(rowOf)}</ul>
+                  </details>
+                </li>,
+              ]
+            : run.rows.map(rowOf),
+        )}
       </ul>
     </details>
   );
