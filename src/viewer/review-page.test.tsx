@@ -10067,3 +10067,117 @@ test("on 'Logic only', going to a part it holds stays, and to one it doesn't goe
   await user.click(within(summary).getByRole('button', { name: 'The styles.' }));
   expect(pressed()).toEqual(['Changes only']);
 });
+
+test("on 'Logic only' boxes are open whatever was toggled: no toggle shows, and a file in a closed box wears its own findings", async () => {
+  const user = userEvent.setup();
+  render(
+    <ReviewPage
+      review={pageWith({
+        range: 'abc123..def456',
+        diff: {
+          nodes: [
+            { id: 'web', kind: 'stack', label: 'web', path: '', state: 'unchanged' },
+            {
+              id: 'web/module/billing',
+              kind: 'module',
+              label: 'billing',
+              parent: 'web',
+              path: 'web/src/billing',
+              state: 'modified',
+            },
+            {
+              ...topFile('refund.ts', 'modified'),
+              parent: 'web/module/billing',
+              path: 'web/src/billing/refund.ts',
+            },
+            { id: 'api', kind: 'stack', label: 'api', path: 'api', state: 'unchanged' },
+            {
+              ...topFile('routes.ts', 'modified'),
+              id: 'api/file/routes.ts',
+              parent: 'api',
+              path: 'api/routes.ts',
+            },
+          ],
+          edges: [
+            {
+              from: 'web/file/refund.ts',
+              to: 'api/file/routes.ts',
+              state: 'added',
+              via: ['/late'],
+            },
+          ],
+        },
+        symbols: [
+          symbolsOf('web/file/refund.ts', [decisionIn('refund', 'if (late)')]),
+          symbolsOf('api/file/routes.ts', [decisionIn('route', 'if (open)')]),
+        ],
+        findings: [findingOn('web/file/refund.ts')],
+        dangling: [{ from: 'web/file/refund.ts', path: '/gone', line: 3 }],
+      })}
+    />,
+  );
+  const web = await screen.findByRole('group', { name: 'web' });
+  await within(web).findByRole('button', { name: 'Expand billing' });
+  expect(within(web).queryByRole('button', { name: /^refund\.ts/ })).toBeNull();
+
+  await user.click(shown('Logic only'));
+
+  const refund = await within(web).findByRole('button', {
+    name: /^refund\.ts: modified, no route for \/gone/,
+  });
+  expect(screen.getByRole('button', { name: 'refund.ts ⇢ routes.ts: added (/late)' })).toBeTruthy();
+  expect(within(web).queryByRole('button', { name: /(Expand|Collapse) billing/ })).toBeNull();
+  expect(within(refund).getByRole('img', { name: /finding/ })).toBeTruthy();
+});
+
+test("on 'Logic only' a last comment on an edge stays on its own arrow, not on the arrow between its boxes", async () => {
+  const user = userEvent.setup();
+  const cart = 'web/file/orders/cart.ts -> web/file/billing/invoice.ts';
+  render(
+    <ReviewPage
+      review={pageWith({
+        range: review.range,
+        diff: {
+          nodes: [
+            { id: 'web', kind: 'stack', label: 'web', path: '', state: 'unchanged' },
+            webModule('orders'),
+            webModule('billing'),
+            webFile('orders', 'cart.ts', 'modified'),
+            webFile('billing', 'invoice.ts', 'modified'),
+          ],
+          edges: [
+            webImport('orders/cart.ts', 'billing/invoice.ts', 'unchanged'),
+            { from: 'web/module/orders', to: 'web/module/billing', state: 'unchanged' },
+          ],
+        },
+        symbols: [
+          symbolsOf('web/file/orders/cart.ts', [decisionIn('total', 'if (empty)')]),
+          symbolsOf('web/file/billing/invoice.ts', [decisionIn('bill', 'if (paid)')]),
+        ],
+        sinceReview: {
+          ...sinceReview,
+          comments: [
+            {
+              anchor: { kind: 'edge', id: cart },
+              kind: 'question',
+              text: 'Why the cart?',
+              target: cart,
+            },
+          ],
+        },
+      })}
+      notes={{ version: 1, tests: '', summary: [], notes: { [cart]: { text: 'The cart bills.' } } }}
+    />,
+  );
+
+  await user.click(await screen.findByRole('button', { name: 'Logic only' }));
+
+  const web = await screen.findByRole('group', { name: 'web' });
+  const own = await within(web).findByRole('button', { name: 'cart.ts → invoice.ts: unchanged' });
+  await user.click(within(web).getByRole('button', { name: 'orders → billing: unchanged' }));
+  expect(within(inspector()).queryByText('Why the cart?')).toBeNull();
+  expect(within(inspector()).queryByText('The cart bills.')).toBeNull();
+  await user.click(own);
+  expect(within(inspector()).getByText('Why the cart?')).toBeTruthy();
+  expect(within(inspector()).getByText('The cart bills.')).toBeTruthy();
+});

@@ -1922,11 +1922,16 @@ const Page = ({ review, notes, send }: ReviewPageProps) => {
     () => new Set(review.diff.nodes.flatMap(node => node.parent ?? [])),
     [review],
   );
-  const visible = useMemo(() => visibleDiff({ diff: review.diff, expanded }), [review, expanded]);
   const [allEdges, setAllEdges] = useState(false);
   const noted = useMemo(() => new Set(Object.keys(notesIn(notes))), [notes]);
   const scopes = useMemo(() => scopesOf(review), [review]);
   const [scope, setScope] = useState(CHANGES_ONLY);
+  const boxesAllOpen = scope[0] === LOGIC_ONLY;
+  const placedAt = boxesAllOpen ? expandable : expanded;
+  const visible = useMemo(
+    () => visibleDiff({ diff: review.diff, expanded: placedAt }),
+    [review, placedAt],
+  );
   const [colouring, setColouring] = useState<Colouring>('change');
   const [picked, setPicked] = useState<Lens>();
   const [railOpen, setRailOpen] = useState(false);
@@ -1948,8 +1953,8 @@ const Page = ({ review, notes, send }: ReviewPageProps) => {
     return keep({ diff: review.diff, expanded, drawn: atExpansion });
   }, [review, expanded, unmerged, allEdges, scope]);
   const shown = useMemo(
-    () => visibleNotes({ diff: review.diff, expanded, notes: notesIn(notes) }),
-    [review, notes, expanded],
+    () => visibleNotes({ diff: review.diff, expanded: placedAt, notes: notesIn(notes) }),
+    [review, notes, placedAt],
   );
   const toggle = (id: string) => {
     pin(id);
@@ -1961,9 +1966,9 @@ const Page = ({ review, notes, send }: ReviewPageProps) => {
   };
   const labelOf = new Map(visible.nodes.map(node => [node.id, node.label]));
   const dangling = review.dangling;
-  const visibleOf = visibleNodeOf({ diff: review.diff, expanded });
+  const visibleOf = visibleNodeOf({ diff: review.diff, expanded: placedAt });
   const boxesAbove = boxesAboveIn(review.diff.nodes);
-  const placedFindings = findingsAt({ diff: review.diff, expanded, findings });
+  const placedFindings = findingsAt({ diff: review.diff, expanded: placedAt, findings });
   const numbers = new Map(review.readingOrder.parts.map((part, index) => [part, index + 1]));
   const drawing = {
     findingsOn: (id: string) => placedFindings.get(id) ?? [],
@@ -1972,7 +1977,7 @@ const Page = ({ review, notes, send }: ReviewPageProps) => {
     notes: shown,
     onSelect: (id: string) => (reading ? goTo(id) : select(id)),
     register,
-    expandable: reading ? NOTHING_EXPANDABLE : expandable,
+    expandable: reading || boxesAllOpen ? NOTHING_EXPANDABLE : expandable,
     expanded,
     onToggle: toggle,
     inMap: reading,
@@ -2217,7 +2222,7 @@ const Page = ({ review, notes, send }: ReviewPageProps) => {
           comments: review.sinceReview?.comments ?? [],
           arrow: selected,
           diff: review.diff,
-          expanded,
+          expanded: placedAt,
           noted: unmerged,
           allEdges,
         })}
