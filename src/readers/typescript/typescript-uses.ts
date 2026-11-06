@@ -296,7 +296,9 @@ export const usesOfTypeScript = async ({
   const stack: Stack = {
     head,
     resolution: resolutionIn({ checkout: head, root }),
-    drawn: new Set(graph.nodes.map(({ path }) => moduleAt(head, path))),
+    drawn: new Set(
+      graph.nodes.filter(({ kind }) => kind === 'file').map(({ path }) => moduleAt(head, path)),
+    ),
   };
   const visits = await walked({
     hops: names.flatMap(asked =>

@@ -2464,6 +2464,11 @@ test.for([
     imported: '@/lib/a',
   },
   {
+    how: 'a later place, past a folder of that name',
+    paths: { '@/*': ['./src/*', './src/lib/*'] },
+    imported: '@/a',
+  },
+  {
     how: 'the longest prefix, written last',
     paths: { '@/*': ['./gone/*'], '@/lib/*': ['./src/lib/*'] },
     imported: '@/lib/a',
@@ -2493,6 +2498,7 @@ test.for([
       'apps/web/package.json': '{}\n',
       'apps/web/tsconfig.json': JSON.stringify({ compilerOptions: { paths, baseUrl } }),
       'apps/web/src/lib/a.ts': 'export function foo() {}\nexport const kept = 1;\n',
+      'apps/web/src/a/other.ts': 'export const other = 1;\n',
       'apps/web/src/uses.ts': usesFoo(imported),
     });
     const head = commit(repo, { 'apps/web/src/lib/a.ts': 'export const kept = 1;\n' });
