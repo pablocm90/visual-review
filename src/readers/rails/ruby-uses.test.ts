@@ -248,6 +248,27 @@ test('the first of any kind of use is the one shown, on the line of the name', a
   });
 });
 
+test.each([
+  { asked: 'send', written: 'found.send' },
+  { asked: 'send', written: 'found.send("+33", "hi")' },
+  { asked: 'public_send', written: 'found.public_send(:deliver)' },
+  { asked: 'try', written: 'found.try' },
+])('a method itself named $asked is used by $written', async ({ asked, written }) => {
+  const name = `Order.${asked}`;
+  const reading = await usesIn({
+    files: {
+      'app/models/order.rb': ORDER,
+      'app/services/caller.rb': `class Caller\n  Order\n  ${written}\nend\n`,
+    },
+    target: 'app/models/order.rb',
+    names: [name],
+  });
+
+  expect(reading?.uses).toEqual({
+    [name]: [{ path: 'app/services/caller.rb', line: 3, text: written }],
+  });
+});
+
 test('in a chain the first call to it is the one shown, though the last holds the rest', async () => {
   const reading = await usesIn({
     files: {

@@ -45,8 +45,11 @@ const namesInCall = (call: Node): ReadonlyArray<Node> => {
   const receiver = call.childForFieldName('receiver');
   if (methodOf(call) === 'delegate' && receiver === null) return argsOf(call).filter(isLiteralName);
   if (receiver === null || receiver.type === 'self') return [];
-  if (SENDERS.has(methodOf(call))) return argsOf(call).slice(0, 1).filter(isLiteralName);
-  return [call.childForFieldName('method') ?? []].flat();
+  const method = [call.childForFieldName('method') ?? []].flat();
+  if (SENDERS.has(methodOf(call))) {
+    return [...method, ...argsOf(call).slice(0, 1).filter(isLiteralName)];
+  }
+  return method;
 };
 
 const firstUsesIn = (program: Node): ReadonlyMap<string, Node> =>
