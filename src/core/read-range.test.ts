@@ -631,6 +631,28 @@ test.for([
   expect(range.after.edges).toEqual([{ from: 'shop/file/b.ts', to: 'shop/file/a.ts' }]);
 });
 
+test.for([
+  { how: 'its rootDir', tsconfig: { compilerOptions: { rootDir: '..' } } },
+  { how: 'its one included folder', tsconfig: { include: ['../**/*'] } },
+])(
+  'a stack whose source root climbs by $how, inside the checkout, is still drawn',
+  async ({ tsconfig }) => {
+    using workspace = gitRepo({
+      'apps/web/package.json': '{ "name": "web" }\n',
+      'apps/web/tsconfig.json': `${JSON.stringify(tsconfig)}\n`,
+      'apps/web/a.ts': "import { x } from '../shared/x';\nexport const a = x;\n",
+      'apps/shared/x.ts': 'export const x = 1;\n',
+    });
+    const { repo, root } = workspace;
+
+    const range = await readRange({ repo, from: root, to: root });
+
+    expect(range.after.edges).toEqual([
+      { from: 'apps/web/file/web/a.ts', to: 'apps/web/file/shared/x.ts' },
+    ]);
+  },
+);
+
 test('a tsconfig extending a directory still reads its own paths', async () => {
   using workspace = gitRepo({
     'package.json': '{ "name": "shop" }\n',

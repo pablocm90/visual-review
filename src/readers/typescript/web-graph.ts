@@ -75,9 +75,12 @@ type WebGraphOptions = StackOptions & {
   readonly stacks: ReadonlyMap<string, string>;
 };
 
+const isUnder = (folder: string, path: string): boolean =>
+  !`${relative(folder, path)}/`.startsWith('../');
+
 const stackHolding = (path: string, stacks: ReadonlyMap<string, string>): string | undefined =>
   [...stacks]
-    .filter(([root]) => !relative(root, path).startsWith('..'))
+    .filter(([root]) => isUnder(root, path))
     .toSorted(([one], [other]) => other.length - one.length)
     .at(0)?.[1];
 
@@ -95,9 +98,7 @@ export const webGraph = ({
     ({ coreModule, couldNotResolve, matchesDoNotFollow }) =>
       !coreModule && !couldNotResolve && !matchesDoNotFollow,
   );
-  const sources = files.filter(
-    ({ source }) => source.startsWith(prefixOf(sourceRoot)) && !source.startsWith('../'),
-  );
+  const sources = files.filter(({ source }) => isUnder(sourceRoot, source));
   const filePaths = new Set(files.map(({ source }) => source));
   const sourcePaths = new Set(sources.map(({ source }) => source));
   const nodes = new Map(
