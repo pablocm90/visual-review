@@ -1194,6 +1194,11 @@ const scopesOf = (review: PageData): ReadonlyArray<Scope> => {
   ];
 };
 
+const scopesFrom = (scopes: ReadonlyArray<Scope>, scope: Scope): ReadonlyArray<Scope> => [
+  scope,
+  ...scopes.slice(scopes.indexOf(scope[0] === LOGIC_ONLY ? CHANGES_ONLY : scope), -1),
+];
+
 type ShowProps = {
   readonly scopes: ReadonlyArray<Scope>;
   readonly scope: Scope;
@@ -2020,10 +2025,10 @@ const Page = ({ review, notes, send }: ReviewPageProps) => {
     const all = allEdges || !isDrawn({ diff: drawnAt({ ...at, allEdges: false }), id });
     if (all) setAllEdges(true);
     const atAll = drawnAt({ ...at, allEdges: all });
-    const narrower = scopes.slice(scopes.indexOf(scope), -1);
     setScope(
-      narrower.find(([, keep]) => isDrawn({ diff: keep({ ...at, drawn: atAll }), id })) ??
-        EVERYTHING,
+      scopesFrom(scopes, scope).find(([, keep]) =>
+        isDrawn({ diff: keep({ ...at, drawn: atAll }), id }),
+      ) ?? EVERYTHING,
     );
     centre(id);
     setFocusTarget({ id, inGraph: true });

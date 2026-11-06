@@ -10035,3 +10035,35 @@ test("with changed logic, Show offers 'Logic only' after 'Changes only'; picked,
     ]),
   );
 });
+
+test("on 'Logic only', going to a part it holds stays, and to one it doesn't goes to 'Changes only' and wider", async () => {
+  const user = userEvent.setup();
+  render(
+    <ReviewPage
+      review={pageOfLogic()}
+      notes={{
+        version: 1,
+        tests: '',
+        summary: [
+          { text: 'The refund.', target: 'web/file/refund.ts' },
+          { text: 'The styles.', target: 'web/file/styles.ts' },
+        ],
+        notes: {},
+      }}
+    />,
+  );
+  const web = await screen.findByRole('group', { name: 'web' });
+  await within(web).findByRole('button', { name: 'refund.ts: modified' });
+  const pressed = () =>
+    within(screen.getByRole('group', { name: 'Show' }))
+      .getAllByRole('button', { pressed: true })
+      .map(button => button.textContent);
+  const summary = screen.getByRole('region', { name: 'Summary' });
+
+  await user.click(shown('Logic only'));
+  await user.click(within(summary).getByRole('button', { name: 'The refund.' }));
+  expect(pressed()).toEqual(['Logic only']);
+
+  await user.click(within(summary).getByRole('button', { name: 'The styles.' }));
+  expect(pressed()).toEqual(['Changes only']);
+});
