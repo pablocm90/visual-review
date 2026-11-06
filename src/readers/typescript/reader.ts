@@ -1,10 +1,16 @@
 import { existsSync, globSync, readFileSync, statSync } from 'node:fs';
-import { basename, dirname, isAbsolute, join, relative } from 'node:path';
+import { basename, dirname, join, relative } from 'node:path';
 import { cruise } from 'dependency-cruiser';
 import { parse } from 'jsonc-parser';
 import { z } from 'zod';
 import { folderOf, type StackSettings } from '../../core/config.ts';
 import type { CandidateRoot, Reader } from '../../core/reader.ts';
+import {
+  type RootOptions,
+  resolutionIn,
+  staysInCheckout,
+  tsconfigIn,
+} from './typescript-config.ts';
 import { measureTypeScript } from './typescript-measure.ts';
 import { symbolsOfTypeScript } from './typescript-symbols.ts';
 import { readTypeScriptTests } from './typescript-tests.ts';
@@ -16,33 +22,6 @@ const SCRIPT_FILE = /\.[cm]?[jt]sx?$/;
 
 const SOURCES = '**/*.{ts,tsx,js,jsx,mjs,cjs}';
 
-const TsconfigSchema = z.object({
-  extends: z
-    .union([z.string(), z.array(z.string())])
-    .optional()
-    .catch(undefined),
-  references: z
-    .array(z.object({ path: z.string() }))
-    .optional()
-    .catch(undefined),
-  compilerOptions: z
-    .object({
-      rootDir: z.string().optional(),
-      paths: z.record(z.string(), z.array(z.string())).optional().catch(undefined),
-      baseUrl: z.string().optional().catch(undefined),
-    })
-    .optional(),
-  include: z.array(z.string()).optional(),
-});
-
-const tsconfigAt = (tsconfig: string): z.infer<typeof TsconfigSchema> =>
-  existsSync(tsconfig) && statSync(tsconfig).isFile()
-    ? (TsconfigSchema.safeParse(parse(readFileSync(tsconfig, 'utf8'))).data ?? {})
-    : {};
-
-const tsconfigIn = (directory: string): z.infer<typeof TsconfigSchema> =>
-  tsconfigAt(join(directory, 'tsconfig.json'));
-
 const isDirectory = (path: string): boolean => existsSync(path) && statSync(path).isDirectory();
 
 const includedFolders = (directory: string, include: ReadonlyArray<string>) => [
@@ -52,14 +31,6 @@ const includedFolders = (directory: string, include: ReadonlyArray<string>) => [
       .filter(folder => folder !== '.' && isDirectory(join(directory, folder))),
   ),
 ];
-
-type RootOptions = {
-  readonly checkout: string;
-  readonly root: string;
-};
-
-const staysInCheckout = (root: string) => (place: string) =>
-  !isAbsolute(place) && !`${join(root, place)}/`.startsWith('../');
 
 const sourceRootOf = ({ checkout, root }: RootOptions): string => {
   const directory = join(checkout, root);
@@ -132,108 +103,6 @@ type GraphOptions = {
   readonly boxes: ReadonlyArray<string>;
   readonly packages: ReadonlyMap<string, string>;
   readonly stacks: ReadonlyMap<string, string>;
-};
-
-const MATCHES_RELATIVE_IMPORTS = /^[*.]/;
-
-const prefixLength = (name: string): number => name.replace(/\*.*/, '').length;
-
-type Aliases = {
-  readonly baseUrl?: string;
-  readonly paths?: {
-    readonly places: Readonly<Record<string, ReadonlyArray<string>>>;
-    readonly from: string;
-  };
-};
-
-const withExtension = (config: string): string =>
-  config.endsWith('.json') ? config : `${config}.json`;
-
-const projectFile = (path: string): string =>
-  path.endsWith('.json') ? path : join(path, 'tsconfig.json');
-
-const laterWins = (earlier: Aliases, later: Aliases): Aliases => ({ ...earlier, ...later });
-
-const MOST_CONFIGS = 256;
-
-const isRelativeName = (name: string): boolean => /^\.\.?\//.test(name);
-
-type AliasReading = {
-  readonly directory: string;
-  readonly stays: (place: string) => boolean;
-  readonly known: Map<string, Aliases>;
-};
-
-const aliasesAt = (reading: AliasReading, config: string): Aliases => {
-  const { directory, stays, known } = reading;
-  const already = known.get(config);
-  if (already !== undefined) return already;
-  if (known.size >= MOST_CONFIGS) return {};
-  known.set(config, {});
-  const {
-    extends: extended = [],
-    references = [],
-    compilerOptions,
-  } = tsconfigAt(join(directory, config));
-  const { baseUrl, paths } = compilerOptions ?? {};
-  const from = dirname(config);
-  const aliasesOf = (names: ReadonlyArray<string>): Aliases =>
-    names
-      .map(name => join(from, name))
-      .filter(stays)
-      .map(name => aliasesAt(reading, name))
-      .reduce(laterWins, {});
-  const chain: Aliases = {
-    ...aliasesOf([extended].flat().filter(isRelativeName).map(withExtension)),
-    ...(baseUrl === undefined || isAbsolute(baseUrl) ? {} : { baseUrl: join(from, baseUrl) }),
-    ...(paths === undefined ? {} : { paths: { places: paths, from } }),
-  };
-  const aliases =
-    chain.paths === undefined
-      ? {
-          ...chain,
-          ...aliasesOf(
-            references
-              .map(({ path }) => path)
-              .filter(path => !isAbsolute(path))
-              .map(projectFile),
-          ),
-        }
-      : chain;
-  known.set(config, aliases);
-  return aliases;
-};
-
-const resolutionIn = ({ checkout, root }: RootOptions) => {
-  const directory = join(checkout, root);
-  const stays = staysInCheckout(root);
-  const { baseUrl, paths: pathsSaid } = aliasesAt(
-    { directory, stays, known: new Map() },
-    'tsconfig.json',
-  );
-  const { places: paths = {}, from = '.' } = pathsSaid ?? {};
-  const base = baseUrl !== undefined && stays(baseUrl) ? baseUrl : undefined;
-  const placesOf = (places: ReadonlyArray<string>) =>
-    places
-      .filter(place => !isAbsolute(place))
-      .map(place => join(base ?? from, place))
-      .filter(stays);
-  return {
-    alias: Object.fromEntries(
-      Object.entries(paths)
-        .filter(([name]) => !MATCHES_RELATIVE_IMPORTS.test(name))
-        .toSorted(([one], [other]) => prefixLength(other) - prefixLength(one))
-        .map(([name, places]) => [name, placesOf(places).map(place => join(directory, place))]),
-    ),
-    modules: [
-      ...placesOf(paths['*'] ?? [])
-        .filter(place => basename(place) === '*')
-        .map(place => join(directory, dirname(place))),
-      ...(base === undefined ? [] : [join(directory, base)]),
-      'node_modules',
-      'node_modules/@types',
-    ],
-  };
 };
 
 const leavingCheckoutFrom = (root: string): string =>
