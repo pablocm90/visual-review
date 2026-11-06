@@ -5987,7 +5987,6 @@ test("a comment on a line of a symbol's diff shows in Full diff too, and the tra
   const name = 'two.ts:2 "return 2;"';
 
   await user.click(await screen.findByRole('button', { name: 'two.ts: modified' }));
-  await openFold(user, 'Full diff');
   await toggleSymbolDiff(user, 'a');
   await user.click(within(whatChanged()).getByRole('button', { name: `Comment on ${name}` }));
   await write(user, within(whatChanged()).getByRole('textbox', { name: 'Your comment' }), 'Why 2?');
