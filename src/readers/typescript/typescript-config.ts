@@ -182,3 +182,12 @@ export const placesNamedBy = ({ alias, modules }: Resolution, specifier: string)
   });
   return said[0] ?? modules.map(folder => join(folder, specifier));
 };
+
+const PackageSchema = z.object({ name: z.string().optional() });
+
+export const packageNameIn = (directory: string): string | undefined => {
+  const manifest = join(directory, 'package.json');
+  return existsSync(manifest)
+    ? PackageSchema.safeParse(parse(readFileSync(manifest, 'utf8'))).data?.name
+    : undefined;
+};

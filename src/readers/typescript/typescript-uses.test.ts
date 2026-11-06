@@ -9,8 +9,18 @@ import { NOT_DRAWN } from './typescript-uses.ts';
 
 const idOf = (path: string) => `web/file/${path}`;
 
-const graphOf = (files: ReadonlyArray<string>, edges: ReadonlyArray<string>): Graph => ({
-  nodes: files.map(path => ({ id: idOf(path), kind: 'file', label: path, path: `src/${path}` })),
+const graphOf = (
+  files: ReadonlyArray<string>,
+  edges: ReadonlyArray<string>,
+  elsewhere: ReadonlyArray<string>,
+): Graph => ({
+  nodes: files.map(path => ({
+    id: idOf(path),
+    kind: 'file',
+    label: path,
+    parent: elsewhere.includes(path) ? 'app' : 'web',
+    path: `src/${path}`,
+  })),
   edges: edges.map(edge => {
     const [from = '', to = ''] = edge.split(' -> ');
     return { from: idOf(from), to: idOf(to) };
@@ -23,21 +33,32 @@ type Scene = {
   readonly edges: ReadonlyArray<string>;
   readonly names: ReadonlyArray<string>;
   readonly target?: string;
+  readonly elsewhere?: ReadonlyArray<string>;
 };
 
-const usesIn = async ({ files, atBase = {}, edges, names, target = 'a.ts' }: Scene) => {
+const usesIn = async ({
+  files,
+  atBase = {},
+  edges,
+  names,
+  target = 'a.ts',
+  elsewhere = [],
+}: Scene) => {
   const base = mkdtempSync(join(tmpdir(), 'visual-review-uses-base-'));
   const head = mkdtempSync(join(tmpdir(), 'visual-review-uses-head-'));
   const under = (tree: Readonly<Record<string, string>>) =>
     Object.fromEntries(Object.entries(tree).map(([path, text]) => [`src/${path}`, text]));
   try {
-    writeFiles(base, under({ ...files, ...atBase }));
+    writeFiles(base, { ...under({ ...files, ...atBase }), 'package.json': '{"name":"@acme/lib"}' });
     writeFiles(head, under(files));
     return await typeScriptReader.uses?.({
       base,
       head,
-      root: '.',
-      graph: graphOf(Object.keys({ ...files, ...atBase }), edges),
+      stacks: new Map([
+        ['.', 'web'],
+        ['app', 'app'],
+      ]),
+      graph: graphOf(Object.keys({ ...files, ...atBase }), edges, elsewhere),
       node: { id: idOf(target), path: `src/${target}` },
       names,
     });
@@ -79,6 +100,7 @@ test.for([
   { specifier: '.', importer: 'b.ts', target: 'index.ts', counts: true },
   { specifier: './types', importer: 'b.ts', target: 'types.d.ts', counts: true },
   { specifier: 'date-fns/a', importer: 'b.ts', target: 'a.ts', counts: false },
+  { specifier: '@acme/lib', importer: 'b.ts', target: 'a.ts', counts: false },
 ])(
   '$specifier in $importer is $target: $counts',
   async ({ specifier, importer, target, counts }) => {
@@ -97,6 +119,22 @@ test.for([
   },
 );
 
+test.for([
+  { specifier: '@acme/lib', counts: true },
+  { specifier: '@acme/lib/sub', counts: true },
+  { specifier: '@acme/lib-two', counts: false },
+])("$specifier in another stack is the package's: $counts", async ({ specifier, counts }) => {
+  const reading = await usesIn({
+    files: { 'a.ts': 'export const foo = 1;\n', 'b.ts': `import { foo } from '${specifier}';\n` },
+    edges: ['b.ts -> a.ts'],
+    names: ['foo'],
+    elsewhere: ['b.ts'],
+  });
+  expect(reading?.uses).toEqual({
+    foo: counts ? [expect.objectContaining({ path: 'src/b.ts' })] : [],
+  });
+});
+
 test('a default import uses the default export, wherever it names it', async () => {
   const reading = await usesIn({
     files: {
@@ -109,6 +147,50 @@ test('a default import uses the default export, wherever it names it', async () 
   });
   expect(reading?.uses).toEqual({
     default: [{ path: 'src/b.ts', line: 2, text: 'Thing();' }],
+  });
+});
+
+test("a default through the package's name may be another file's, so it's marked and goes no further", async () => {
+  const reading = await usesIn({
+    files: {
+      'a.ts': 'export default 1;\n',
+      'import.ts': "import Thing from '@acme/lib';\nThing();\n",
+      'reexport.ts': "run();\nexport { default as Renamed } from '@acme/lib';\n",
+      'alias.ts': "import Other from '@acme/lib';\nexport default Other;\n",
+      'beyond.ts':
+        "import { Renamed } from './reexport';\nimport Other from './alias';\nRenamed(Other);\n",
+    },
+    edges: [
+      'import.ts -> a.ts',
+      'reexport.ts -> a.ts',
+      'alias.ts -> a.ts',
+      'beyond.ts -> reexport.ts',
+      'beyond.ts -> alias.ts',
+    ],
+    names: ['default'],
+    elsewhere: ['import.ts', 'reexport.ts', 'alias.ts', 'beyond.ts'],
+  });
+  expect(reading?.uses).toEqual({
+    default: [
+      {
+        path: 'src/import.ts',
+        line: 1,
+        text: "import Thing from '@acme/lib';",
+        unfollowed: true,
+      },
+      {
+        path: 'src/reexport.ts',
+        line: 2,
+        text: "export { default as Renamed } from '@acme/lib';",
+        unfollowed: true,
+      },
+      {
+        path: 'src/alias.ts',
+        line: 1,
+        text: "import Other from '@acme/lib';",
+        unfollowed: true,
+      },
+    ],
   });
 });
 
@@ -289,6 +371,85 @@ test('a named re-export is a use at its statement, and its importers use the nam
       { path: 'src/f.ts', line: 2, text: 'qux();' },
     ],
   });
+});
+
+test('a method is used where a file naming its class first reads the member', async () => {
+  const reading = await usesIn({
+    files: {
+      'a.ts': 'export class Foo {\n  bar() {}\n}\nexport const other = 1;\n',
+      'calls.ts':
+        "import { Foo } from './a';\nconst foo = new Foo();\nbaz();\nfoo?.bar();\nfoo.bar();\n",
+      'member-only.ts': "import { Foo } from './a';\nnew Foo().baz();\n",
+      'class-unnamed.ts': "import { other } from './a';\nother.bar();\n",
+      'barrel.ts': "export { Foo as Renamed } from './a';\n",
+      'through.ts': "import { Renamed } from './barrel';\nRenamed\n  .bar();\n",
+      'passes.ts': "import * as a from './a';\nconsole.log(a);\n",
+    },
+    edges: [
+      'calls.ts -> a.ts',
+      'member-only.ts -> a.ts',
+      'class-unnamed.ts -> a.ts',
+      'barrel.ts -> a.ts',
+      'through.ts -> barrel.ts',
+      'passes.ts -> a.ts',
+    ],
+    names: ['Foo.bar'],
+  });
+  expect(reading?.uses).toEqual({
+    'Foo.bar': [
+      { path: 'src/calls.ts', line: 4, text: 'foo?.bar();' },
+      { path: 'src/through.ts', line: 3, text: '.bar();' },
+      {
+        path: 'src/passes.ts',
+        line: 2,
+        text: 'console.log(a);',
+        unfollowed: true,
+      },
+    ],
+  });
+});
+
+test('a constructor is used by what names its class, with no read of `.constructor`', async () => {
+  const reading = await usesIn({
+    files: {
+      'a.ts': 'export class Foo {\n  constructor(one: string) {}\n}\n',
+      'makes.ts': "import { Foo } from './a';\nnew Foo('x');\n",
+    },
+    edges: ['makes.ts -> a.ts'],
+    names: ['Foo.constructor'],
+  });
+  expect(reading?.uses['Foo.constructor']).toEqual([
+    { path: 'src/makes.ts', line: 2, text: "new Foo('x');" },
+  ]);
+});
+
+test.for([
+  {
+    reason: 'through its default export',
+    a: 'export default class Foo {\n  bar() {}\n}\n',
+    importer: "import Thing from './a';\nThing.bar();\n",
+    row: { line: 2, text: 'Thing.bar();' },
+  },
+  {
+    reason: 'through an export under another name',
+    a: 'class Foo {\n  bar() {}\n}\nexport { Foo as Other };\n',
+    importer: "import { Other } from './a';\nOther.bar();\n",
+    row: { line: 2, text: 'Other.bar();' },
+  },
+  {
+    reason: "marked, through a package's default that may be another file's",
+    a: 'export default class Foo {\n  bar() {}\n}\n',
+    importer: "import Thing from '@acme/lib';\nThing.bar();\n",
+    row: { line: 1, text: "import Thing from '@acme/lib';", unfollowed: true },
+  },
+])('a method is followed $reason', async ({ a, importer, row }) => {
+  const reading = await usesIn({
+    files: { 'a.ts': a, 'b.ts': importer },
+    edges: ['b.ts -> a.ts'],
+    names: ['Foo.bar'],
+    elsewhere: ['b.ts'],
+  });
+  expect(reading?.uses['Foo.bar']).toEqual([{ path: 'src/b.ts', ...row }]);
 });
 
 test('a star re-export has no row and passes on every name but the default', async () => {
