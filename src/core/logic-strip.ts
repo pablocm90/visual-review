@@ -1,4 +1,7 @@
+import { anchorKey } from './anchors.ts';
 import type { LogicLine } from './logic-diff.ts';
+import type { SymbolStatement } from './symbol-changes.ts';
+import { anchoredSymbols, decisionsOf } from './symbol-findings.ts';
 
 const FEW_CHANGES = 8;
 
@@ -76,4 +79,52 @@ export const logicTotalsOf = (files: ReadonlyArray<FileWithLogic>): LogicTotals 
     removed: counting('removed'),
     moved: counting('moved'),
   };
+};
+
+export type WalkedDecision = {
+  readonly node: string;
+  readonly row: string;
+  readonly changed: boolean;
+};
+
+export const walkOfDecisions = ({
+  files,
+  parts,
+}: {
+  readonly files: ReadonlyArray<
+    | { readonly node: string; readonly symbols: ReadonlyArray<SymbolStatement> }
+    | { readonly node: string; readonly unreadable: string }
+  >;
+  readonly parts: ReadonlyArray<string>;
+}): ReadonlyArray<WalkedDecision> => {
+  const rank = (node: string): number =>
+    parts.includes(node) ? parts.indexOf(node) : parts.length;
+  return files
+    .toSorted((one, other) => rank(one.node) - rank(other.node))
+    .flatMap(file =>
+      'symbols' in file
+        ? anchoredSymbols(file.node, file.symbols).flatMap(symbol =>
+            decisionsOf(symbol).map(({ id, line }) => ({
+              node: file.node,
+              row: anchorKey({ kind: 'decision', id }),
+              changed: line.change !== 'same',
+            })),
+          )
+        : [],
+    );
+};
+
+export const nextDecision = ({
+  walk,
+  selected,
+  row,
+}: {
+  readonly walk: ReadonlyArray<WalkedDecision>;
+  readonly selected?: string | undefined;
+  readonly row?: string | undefined;
+}): WalkedDecision | undefined => {
+  const landed = walk.findIndex(decision => decision.row === row);
+  if (landed !== -1) return walk.slice(landed + 1).find(({ changed }) => changed) ?? walk[landed];
+  const changed = walk.filter(decision => decision.changed);
+  return changed.find(({ node }) => node === selected) ?? changed[0];
 };
