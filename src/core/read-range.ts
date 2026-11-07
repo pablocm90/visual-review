@@ -587,6 +587,7 @@ export const readRange = async ({
       ...(await readReaches({
         sides,
         before,
+        after,
         symbols: anchors.symbols,
         measured,
         changedPaths,

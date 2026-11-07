@@ -1,6 +1,9 @@
-import { mkdtempSync, rmSync } from 'node:fs';
+import { execFile } from 'node:child_process';
+import { mkdtempSync, rmSync, symlinkSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { pathToFileURL } from 'node:url';
+import { promisify } from 'node:util';
 import { expect, test } from 'vitest';
 import type { Graph } from '../../core/graph.ts';
 import { writeFiles } from '../../test-support/repos.ts';
@@ -34,6 +37,8 @@ type Scene = {
   readonly names: ReadonlyArray<string>;
   readonly target?: string;
   readonly elsewhere?: ReadonlyArray<string>;
+  readonly outside?: Readonly<Record<string, string>>;
+  readonly outsideLinks?: Readonly<Record<string, string>>;
 };
 
 const usesIn = async ({
@@ -43,6 +48,8 @@ const usesIn = async ({
   names,
   target = 'a.ts',
   elsewhere = [],
+  outside = {},
+  outsideLinks = {},
 }: Scene) => {
   const base = mkdtempSync(join(tmpdir(), 'visual-review-uses-base-'));
   const head = mkdtempSync(join(tmpdir(), 'visual-review-uses-head-'));
@@ -50,7 +57,8 @@ const usesIn = async ({
     Object.fromEntries(Object.entries(tree).map(([path, text]) => [`src/${path}`, text]));
   try {
     writeFiles(base, { ...under({ ...files, ...atBase }), 'package.json': '{"name":"@acme/lib"}' });
-    writeFiles(head, under(files));
+    writeFiles(head, { ...under(files), ...outside });
+    for (const [path, to] of Object.entries(outsideLinks)) symlinkSync(to, join(head, path));
     return await typeScriptReader.uses?.({
       base,
       head,
@@ -59,6 +67,7 @@ const usesIn = async ({
         ['app', 'app'],
       ]),
       graph: graphOf(Object.keys({ ...files, ...atBase }), edges, elsewhere),
+      graphAtHead: { nodes: [], edges: [] },
       node: { id: idOf(target), path: `src/${target}` },
       names,
     });
@@ -567,3 +576,329 @@ test('a file gone at the head has no uses and is not named', async () => {
   });
   expect(reading).toEqual({ uses: { foo: [] }, notRead: [], notFollowed: [NOT_DRAWN] });
 });
+
+test('a file outside the source root, with no node, uses a name as a drawn one does', async () => {
+  const reading = await usesIn({
+    files: { 'a.ts': 'export const foo = 1;\n' },
+    outside: {
+      'package.json': '{"name":"web"}',
+      'test/a.test.ts': "import { foo } from '../src/a';\nfoo();\n",
+    },
+    edges: [],
+    names: ['foo'],
+  });
+
+  expect(reading?.uses).toEqual({
+    foo: [{ path: 'test/a.test.ts', line: 2, text: 'foo();' }],
+  });
+});
+
+test.for([
+  {
+    form: 'a namespace read',
+    text: "import * as a from '../src/a';\na.foo();\n",
+    row: { line: 2, text: 'a.foo();' },
+  },
+  {
+    form: 'a namespace re-export',
+    text: "export * as a from '../src/a';\n",
+    row: { line: 1, text: "export * as a from '../src/a';", unfollowed: true },
+  },
+  {
+    form: 'a load',
+    text: "const a = await import('../src/a');\n",
+    row: { line: 1, text: "const a = await import('../src/a');", unfollowed: true },
+  },
+])(
+  'a file outside the source root naming a module only by $form uses it',
+  async ({ text, row }) => {
+    const reading = await usesIn({
+      files: { 'a.ts': 'export const foo = 1;\n' },
+      outside: { 'test/a.ts': text },
+      edges: [],
+      names: ['foo'],
+    });
+
+    expect(reading?.uses).toEqual({ foo: [{ path: 'test/a.ts', ...row }] });
+  },
+);
+
+test('an outside file naming a module only by `export *` is followed', async () => {
+  const reading = await usesIn({
+    files: { 'a.ts': 'export const foo = 1;\n' },
+    outside: {
+      'test/all.ts': "export * from '../src/a';\n",
+      'test/a.ts': "import { foo } from './all';\nfoo();\n",
+    },
+    edges: [],
+    names: ['foo'],
+  });
+
+  expect(reading?.uses).toEqual({ foo: [{ path: 'test/a.ts', line: 2, text: 'foo();' }] });
+});
+
+test.for([
+  {
+    outside: { 'test/broken.ts': 'import * from ;\n' },
+    outsideLinks: {},
+    line: '1 file outside the source root not read',
+  },
+  {
+    outside: { 'test/broken.ts': 'import * from ;\n' },
+    outsideLinks: { 'loop.ts': 'loop.ts' },
+    line: '2 files outside the source root not read',
+  },
+])(
+  'outside files not read are counted, not named: $line',
+  async ({ outside, outsideLinks, line }) => {
+    const reading = await usesIn({
+      files: {
+        'a.ts': 'export const foo = 1;\n',
+        'broken.ts': 'import {',
+      },
+      outside,
+      outsideLinks,
+      edges: ['broken.ts -> a.ts'],
+      names: ['foo'],
+    });
+
+    expect(reading?.notRead).toEqual(['src/broken.ts']);
+    expect(reading?.notFollowed).toEqual([line, NOT_DRAWN]);
+  },
+);
+
+test("an outside barrel isn't its package's entry, so importing the package doesn't reach through it", async () => {
+  const compat = "export { foo as bar } from '../src/a';";
+  const reading = await usesIn({
+    files: {
+      'a.ts': 'export const foo = 1;\n',
+      'w.ts': "import { bar } from '@acme/lib';\nbar();\n",
+    },
+    outside: { 'scripts/compat.ts': `${compat}\n` },
+    elsewhere: ['w.ts'],
+    edges: [],
+    names: ['foo'],
+  });
+
+  expect(reading?.uses).toEqual({
+    foo: [{ path: 'scripts/compat.ts', line: 1, text: compat }],
+  });
+});
+
+test('every outside file is read when few files may be open at once', async () => {
+  const root = mkdtempSync(join(tmpdir(), 'visual-review-uses-limit-'));
+  try {
+    writeFiles(root, {
+      'src/a.ts': 'export const foo = 1;\n',
+      ...Object.fromEntries(
+        Array.from({ length: 400 }, (_, index) => [
+          `test/o${index}.test.ts`,
+          "import { foo } from '../src/a';\nfoo();\n",
+        ]),
+      ),
+    });
+    const asked = `
+      import { typeScriptReader } from ${JSON.stringify(pathToFileURL(join(import.meta.dirname, 'reader.ts')).href)};
+      const node = { id: 'web/file/a.ts', kind: 'file', label: 'a.ts', parent: 'web', path: 'src/a.ts' };
+      const reading = await typeScriptReader.uses({
+        base: ${JSON.stringify(root)},
+        head: ${JSON.stringify(root)},
+        stacks: new Map([['.', 'web']]),
+        graph: { nodes: [node], edges: [] },
+        graphAtHead: { nodes: [], edges: [] },
+        node,
+        names: ['foo'],
+      });
+      console.log(JSON.stringify({ rows: reading.uses.foo.length, notRead: reading.notRead }));
+    `;
+    const { stdout } = await promisify(execFile)('sh', [
+      '-c',
+      'ulimit -n 256 && exec "$0" --no-warnings --input-type=module -e "$1"',
+      process.execPath,
+      asked,
+    ]);
+
+    expect(JSON.parse(stdout)).toEqual({ rows: 400, notRead: [] });
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test.for([
+  {
+    reason: 'a folder named as a script',
+    atBase: {},
+    outside: { 'test/x.test.ts/keep.txt': '' },
+    edges: [],
+  },
+  {
+    reason: 'a file under what is now a file',
+    atBase: { 'b/c.ts': "import { foo } from '../a';\nfoo();\n" },
+    outside: { 'src/b': 'now a file\n' },
+    edges: ['b/c.ts -> a.ts'],
+  },
+])('$reason is no file, so it is not named', async ({ atBase, outside, edges }) => {
+  const reading = await usesIn({
+    files: { 'a.ts': 'export const foo = 1;\n' },
+    atBase,
+    outside,
+    edges,
+    names: ['foo'],
+  });
+
+  expect(reading).toEqual({ uses: { foo: [] }, notRead: [], notFollowed: [NOT_DRAWN] });
+});
+
+test('a file outside the source root importing its own package by name uses it', async () => {
+  const reading = await usesIn({
+    files: { 'a.ts': 'export const foo = 1;\n' },
+    outside: {
+      'package.json': '{"name":"@acme/lib"}',
+      'test/a.test.ts': "import { foo } from '@acme/lib';\nfoo();\n",
+    },
+    edges: [],
+    names: ['foo'],
+  });
+
+  expect(reading?.uses).toEqual({
+    foo: [{ path: 'test/a.test.ts', line: 2, text: 'foo();' }],
+  });
+});
+
+test('an outside barrel is followed to the files importing it, by the name it gives', async () => {
+  const reading = await usesIn({
+    files: { 'a.ts': 'export const foo = 1;\n' },
+    outside: {
+      'test/helpers/index.ts': "export { foo as bar } from '../../src/a';\n",
+      'test/b.test.ts': "import { bar } from './helpers';\nbar();\n",
+    },
+    edges: [],
+    names: ['foo'],
+  });
+
+  expect(reading?.uses).toEqual({
+    foo: [
+      expect.objectContaining({ path: 'test/helpers/index.ts' }),
+      expect.objectContaining({ path: 'test/b.test.ts' }),
+    ],
+  });
+});
+
+test('an outside barrel is followed to a drawn file importing it', async () => {
+  const reading = await usesIn({
+    files: {
+      'a.ts': 'export const foo = 1;\n',
+      'b.ts': "import { foo } from '../test/helpers';\nfoo();\n",
+    },
+    outside: { 'test/helpers/index.ts': "export { foo } from '../../src/a';\n" },
+    edges: [],
+    names: ['foo'],
+  });
+
+  expect(reading?.uses).toEqual({
+    foo: [
+      expect.objectContaining({ path: 'test/helpers/index.ts' }),
+      { path: 'src/b.ts', line: 2, text: 'foo();' },
+    ],
+  });
+});
+
+test('a drawn file with no edge to a drawn target is not read', async () => {
+  const reading = await usesIn({
+    files: { 'a.ts': 'export const foo = 1;\n', 'broken.ts': 'const = ;\n' },
+    edges: [],
+    names: ['foo'],
+  });
+
+  expect(reading?.notRead).toEqual([]);
+});
+
+test("an outside barrel's importers are scripts: a drawn stylesheet or Ruby class isn't read as one", async () => {
+  const reading = await usesIn({
+    files: {
+      'a.ts': 'export const foo = 1;\n',
+      'logo.scss': '.logo { color: red; }\n',
+      'b.rb': 'class B; end\n',
+    },
+    outside: { 'test/helpers/index.ts': "export { foo } from '../../src/a';\n" },
+    edges: [],
+    names: ['foo'],
+  });
+
+  expect(reading?.notRead).toEqual([]);
+});
+
+test.for([
+  { place: 'a nested package', path: 'packages/x/y.ts', own: 'packages/x/package.json' },
+  { place: 'node_modules', path: 'node_modules/x/y.ts', own: 'node_modules/x/z.txt' },
+])("a file in $place isn't this stack's, so it isn't read", async ({ path, own }) => {
+  const reading = await usesIn({
+    files: { 'a.ts': 'export const foo = 1;\n' },
+    outside: { [own]: '{}', [path]: "import { foo } from '/src/a';\nimport * from ;\n" },
+    edges: [],
+    names: ['foo'],
+  });
+
+  expect(reading).toMatchObject({ uses: { foo: [] }, notRead: [] });
+});
+
+test.for([
+  { alias: './lib/*', rootAlias: './src/*', paths: [] },
+  { alias: '../src/*', rootAlias: './lib/*', paths: ['app/z.ts'] },
+])(
+  "a file in another stack's root is read with that stack's aliases: $alias",
+  async ({ alias, rootAlias, paths }) => {
+    const reading = await usesIn({
+      files: { 'a.ts': 'export const foo = 1;\n' },
+      outside: {
+        'tsconfig.json': `{"compilerOptions":{"paths":{"@/*":["${rootAlias}"]}}}`,
+        'app/tsconfig.json': `{"compilerOptions":{"paths":{"@/*":["${alias}"]}}}`,
+        'app/z.ts': "import { foo } from '@/a';\nfoo();\n",
+      },
+      edges: [],
+      names: ['foo'],
+    });
+
+    expect(reading?.uses).toEqual({
+      foo: paths.map(path => expect.objectContaining({ path })),
+    });
+  },
+);
+
+const scriptsOutside = (count: number): Readonly<Record<string, string>> =>
+  Object.fromEntries(
+    Array.from({ length: count }, (_, index) => [
+      `test/${index}.ts`,
+      index === 0 ? "import { foo } from '../src/a';\n" : '',
+    ]),
+  );
+
+test.for([
+  {
+    outsideFiles: 5000,
+    paths: ['test/0.ts', 'app/z.ts'],
+    notFollowed: [NOT_DRAWN],
+  },
+  {
+    outsideFiles: 5001,
+    paths: ['app/z.ts'],
+    notFollowed: ['not followed: web has over 5000 files outside its source root', NOT_DRAWN],
+  },
+])(
+  'a stack with $outsideFiles files holding no node reads $paths, the drawn file and the other stack not counting',
+  async ({ outsideFiles, paths, notFollowed }) => {
+    const reading = await usesIn({
+      files: { 'a.ts': 'export const foo = 1;\n' },
+      outside: {
+        ...scriptsOutside(outsideFiles),
+        'app/package.json': '{"name":"app"}',
+        'app/z.ts': "import { foo } from '../src/a';\n",
+      },
+      edges: [],
+      names: ['foo'],
+    });
+
+    expect(reading?.uses).toEqual({ foo: paths.map(path => expect.objectContaining({ path })) });
+    expect(reading?.notFollowed).toEqual(notFollowed);
+  },
+);
