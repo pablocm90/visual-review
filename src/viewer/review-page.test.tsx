@@ -10614,3 +10614,24 @@ test("L from the landing reads the first changed decision by reading order, land
     await within(landedRow('added if: if (late)')).findByRole('textbox', { name: 'Your comment' }),
   );
 });
+
+test("the head's Next logic change goes to the next changed decision, across files, and shows neither at the last nor on a page with none", async () => {
+  const user = userEvent.setup();
+  const { unmount } = render(<ReviewPage review={pageOfLogicToWalk()} />);
+  await screen.findByRole('group', { name: 'web' });
+  const nextLogic = () => within(inspector()).queryByRole('button', { name: 'Next logic change' });
+
+  await user.keyboard('l');
+  expect(selectedPart()).toBe('cart.ts');
+  await user.click(within(inspector()).getByRole('button', { name: 'Next logic change' }));
+  expect(selectedPart()).toBe('refund.ts');
+  expect(landedRow('added if: if (late)').getAttribute('aria-current')).toBe('true');
+  expect(nextLogic()).toBeNull();
+  unmount();
+
+  render(<ReviewPage review={{ ...pageOfLogicToWalk(), symbols: [] }} />);
+  const web = await screen.findByRole('group', { name: 'web' });
+  await user.click(within(web).getByRole('button', { name: /^cart\.ts/ }));
+  await within(inspector()).findByRole('button', { name: /^Next: / });
+  expect(nextLogic()).toBeNull();
+});

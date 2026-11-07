@@ -124,7 +124,7 @@ export const nextDecision = ({
   readonly row?: string | undefined;
 }): WalkedDecision | undefined => {
   const landed = walk.findIndex(decision => decision.row === row);
-  if (landed !== -1) return walk.slice(landed + 1).find(({ changed }) => changed) ?? walk[landed];
+  if (landed !== -1) return walk.slice(landed + 1).find(({ changed }) => changed);
   const changed = walk.filter(decision => decision.changed);
   return changed.find(({ node }) => node === selected) ?? changed[0];
 };

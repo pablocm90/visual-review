@@ -242,18 +242,11 @@ test.for([
   expect(nextDecision({ walk: walkOfThree(), ...at })?.row).toBe(next);
 });
 
-test('at the last changed decision the walk stays there, as J does at the last part', () => {
+test('past the last changed decision there is no next, so the walk stays, as J does at the last part', () => {
   const walk = walkOfThree();
-  const last = 'decision b#g#two';
 
-  expect(nextDecision({ walk, selected: 'b', row: last })).toEqual({
-    node: 'b',
-    row: last,
-    changed: true,
-  });
-  expect(nextDecision({ walk, selected: 'c', row: 'decision c#h#quiet' })?.row).toBe(
-    'decision c#h#quiet',
-  );
+  expect(nextDecision({ walk, selected: 'b', row: 'decision b#g#two' })).toBeUndefined();
+  expect(nextDecision({ walk, selected: 'c', row: 'decision c#h#quiet' })).toBeUndefined();
 });
 
 test('a range with no changed decision has nowhere to walk', () => {
