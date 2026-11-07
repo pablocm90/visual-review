@@ -47,3 +47,23 @@ export const LogicStrip = ({
     </span>
   );
 };
+
+const LEGEND: ReadonlyArray<readonly [string, string]> = [
+  ['tick-added', 'added'],
+  ['tick-changed', 'changed'],
+  ['tick-removed', 'removed, hangs below'],
+  ['tick-moved', 'moved, unchanged'],
+  ['tick-same', 'same'],
+  ['tick-added tick-exit', 'taller: an exit (a guard or return)'],
+];
+
+export const LogicLegend = () => (
+  <ul className="logic-legend" aria-label="Marks">
+    {LEGEND.map(([mark, words]) => (
+      <li key={words} className="logic-legend-entry">
+        <span className={`strip-tick logic-legend-mark ${mark}`} />
+        {words}
+      </li>
+    ))}
+  </ul>
+);

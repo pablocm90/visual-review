@@ -3133,8 +3133,13 @@ main:has(> .review-tray) {
   fill: var(--muted);
 }
 
-.card-tick-hit {
+.card-tick-hit,
+.card-strip-plate {
   fill: transparent;
+}
+
+.graph .node[data-step] .card-strip-plate {
+  fill: var(--stack);
 }
 
 .card-mark-added {
@@ -3164,13 +3169,42 @@ main:has(> .review-tray) {
 }
 
 .start-here .start-here-logic > button {
-  flex: none;
+  flex: 0 1 auto;
+  min-width: 0;
 }
 
 .start-here-breakdown {
+  flex: 0 9999 auto;
+  min-width: 0;
   overflow: hidden;
   color: var(--muted);
   font-size: 12px;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.logic-summary {
+  color: var(--muted);
+  font-weight: 400;
+}
+
+.logic-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px 14px;
+  margin: 4px 0 8px;
+  padding: 0;
+  list-style: none;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.logic-legend-entry {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.logic-legend-mark {
+  cursor: default;
 }
