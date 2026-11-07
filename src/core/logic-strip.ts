@@ -14,9 +14,13 @@ export const countsOf = (
   exits: logic.filter(isExit).length,
 });
 
-export const holdsFewChanges = (
-  symbols: ReadonlyArray<{ readonly logic?: ReadonlyArray<LogicLine> }>,
-): boolean => countsOf(symbols.flatMap(({ logic }) => logic ?? [])).changed <= FEW_CHANGES;
+type WithLogic = { readonly logic?: ReadonlyArray<LogicLine> };
+
+const changedIn = (symbols: ReadonlyArray<WithLogic>): number =>
+  countsOf(symbols.flatMap(({ logic }) => logic ?? [])).changed;
+
+export const holdsFewChanges = (symbols: ReadonlyArray<WithLogic>): boolean =>
+  changedIn(symbols) <= FEW_CHANGES;
 
 export type RowRun<Row> = {
   readonly unchanged: boolean;
@@ -34,4 +38,42 @@ export const runsOf = <Row extends { readonly line: LogicLine }>(
   return end === -1
     ? [{ unchanged, rows }]
     : [{ unchanged, rows: rows.slice(0, end) }, ...runsOf(rows.slice(end))];
+};
+
+type FileWithLogic =
+  | { readonly node: string; readonly symbols: ReadonlyArray<WithLogic> }
+  | { readonly node: string; readonly unreadable: string };
+
+export const nodesWithChangedLogic = (files: ReadonlyArray<FileWithLogic>): ReadonlyArray<string> =>
+  files.flatMap(file => ('symbols' in file && changedIn(file.symbols) > 0 ? [file.node] : []));
+
+export type LogicTotals = {
+  readonly decisions: number;
+  readonly functions: number;
+  readonly files: number;
+  readonly exits: number;
+  readonly added: number;
+  readonly changed: number;
+  readonly removed: number;
+  readonly moved: number;
+};
+
+export const logicTotalsOf = (files: ReadonlyArray<FileWithLogic>): LogicTotals => {
+  const functions = files
+    .flatMap(file => ('symbols' in file ? file.symbols : []))
+    .filter(symbol => changedIn([symbol]) > 0);
+  const lines = functions.flatMap(({ logic }) => logic ?? []);
+  const counting = (change: LogicLine['change']): number =>
+    lines.filter(line => line.change === change).length;
+  const { changed: decisions, exits } = countsOf(lines);
+  return {
+    decisions,
+    functions: functions.length,
+    files: nodesWithChangedLogic(files).length,
+    exits,
+    added: counting('added'),
+    changed: counting('changed'),
+    removed: counting('removed'),
+    moved: counting('moved'),
+  };
 };

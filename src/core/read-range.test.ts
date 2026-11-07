@@ -2189,6 +2189,22 @@ test("an unchanged candidate that can't be read is named once, the other rows st
   expect(range.reachesNotRead).toEqual(['not read: src/huge.ts', NOT_DRAWN]);
 });
 
+test("a file the range adds under the source root isn't counted among the files outside it", async () => {
+  using repository = gitRepo({
+    'package.json': '{"name":"shop"}\n',
+    'src/a.ts': 'export const foo = (x: number) => x;\n',
+  });
+  const { repo, root } = repository;
+  const head = commit(repo, {
+    'src/a.ts': 'export const foo = (x: string) => x;\n',
+    'src/gen.ts': `export const big = '${'x'.repeat(1001)}';\n`,
+  });
+
+  const range = await readRange({ repo, from: root, to: head });
+
+  expect(range.reachesNotRead).toEqual([NOT_DRAWN]);
+});
+
 test('a file renamed from what its reader cannot parse has nothing to ask, so is not read for its names', async () => {
   using repository = gitRepo({ 'README.md': 'a shop\n' });
   const { repo } = repository;
@@ -2374,6 +2390,69 @@ test("a sibling stack's file importing through an alias of its own tsconfig reac
 
   expect(range.reaches.flatMap(({ uses }) => uses)).toEqual([
     { path: 'web/src/uses.ts', line: 2, text: 'foo();' },
+  ]);
+});
+
+test.for([
+  {
+    reason: 'names it under another',
+    file: 'lib/index.ts',
+    barrel: "import { foo as impl } from './src/a';\nexport const foo = impl;\n",
+    alias: '../lib/index.ts',
+    rows: ['lib/index.ts', 'web/src/w.ts'],
+  },
+  {
+    reason: 'hands on a whole module',
+    file: 'lib/index.js',
+    barrel: "module.exports = require('./src/a');\n",
+    alias: '../lib',
+    rows: ['lib/index.js', 'web/src/w.ts'],
+  },
+  {
+    reason: "won't parse",
+    file: 'lib/index.ts',
+    barrel: 'export const = ;\n',
+    alias: '../lib/index.ts',
+    rows: ['web/src/w.ts'],
+  },
+])(
+  "a sibling's alias landing on an outside barrel that $reason still reaches by the package's name",
+  async ({ file, barrel, alias, rows }) => {
+    using repository = gitRepo({
+      'lib/package.json': '{"name":"@acme/lib"}\n',
+      'lib/src/a.ts': 'export const foo = (x: number) => x;\n',
+      [file]: barrel,
+      'web/package.json': '{}\n',
+      'web/tsconfig.json': JSON.stringify({ compilerOptions: { paths: { '@acme/lib': [alias] } } }),
+      'web/src/w.ts': "import { foo } from '@acme/lib';\nexport const w = foo(1);\n",
+    });
+    const { repo, root } = repository;
+    const head = commit(repo, { 'lib/src/a.ts': 'export const foo = (x: string) => x;\n' });
+
+    const range = await readRange({ repo, from: root, to: head });
+
+    expect(range.reaches.flatMap(({ uses }) => uses.map(({ path }) => path))).toEqual(rows);
+  },
+);
+
+test("a sibling's outside file whose alias lands on an outside barrel reaches by the package's name", async () => {
+  using repository = gitRepo({
+    'lib/package.json': '{"name":"@acme/lib"}\n',
+    'lib/src/a.ts': 'export const foo = (x: number) => x;\n',
+    'lib/index.ts': "import { foo as impl } from './src/a';\nexport const foo = impl;\n",
+    'web/package.json': '{}\n',
+    'web/tsconfig.json': '{"compilerOptions":{"paths":{"@acme/lib":["../lib/index.ts"]}}}\n',
+    'web/src/w.ts': 'export const w = 1;\n',
+    'web/test/w.test.ts': "import { foo } from '@acme/lib';\nfoo(1);\n",
+  });
+  const { repo, root } = repository;
+  const head = commit(repo, { 'lib/src/a.ts': 'export const foo = (x: string) => x;\n' });
+
+  const range = await readRange({ repo, from: root, to: head });
+
+  expect(range.reaches.flatMap(({ uses }) => uses.map(({ path }) => path))).toEqual([
+    'lib/index.ts',
+    'web/test/w.test.ts',
   ]);
 });
 
@@ -2566,7 +2645,7 @@ test('an import through a tsconfig path names only the first place holding a fil
   expect(range.reaches).toEqual([]);
 });
 
-test('what asks a name says what the graph holds no edge for, which reads no row: a type-only re-export, a test outside the source root', async () => {
+test('a type-only re-export and a test outside the source root reach what they name, unless the PR changes them', async () => {
   using repository = gitRepo({ 'README.md': 'a shop\n' });
   const { repo } = repository;
   const base = commit(repo, {
@@ -2574,11 +2653,24 @@ test('what asks a name says what the graph holds no edge for, which reads no row
     'src/a.ts': 'export function foo() {}\nexport type Foo = number;\nexport const kept = 1;\n',
     'src/types.ts': "export type { Foo } from './a.ts';\n",
     'test/a.test.ts': "import { foo } from '../src/a.ts';\nfoo();\n",
+    'test/b.test.ts': "import { foo } from '../src/a.ts';\nfoo();\n",
   });
-  const head = commit(repo, { 'src/a.ts': 'export const kept = 1;\n' });
+  const head = commit(repo, {
+    'src/a.ts': 'export const kept = 1;\n',
+    'test/b.test.ts': 'export const b = 1;\n',
+  });
 
   const range = await readRange({ repo, from: base, to: head });
 
-  expect(range.reaches).toEqual([]);
+  expect(range.reaches.map(({ label, uses }) => ({ label, uses }))).toEqual([
+    {
+      label: 'function foo',
+      uses: [{ path: 'test/a.test.ts', line: 2, text: 'foo();', test: true }],
+    },
+    {
+      label: 'type Foo',
+      uses: [{ path: 'src/types.ts', line: 1, text: "export type { Foo } from './a.ts';" }],
+    },
+  ]);
   expect(range.reachesNotRead).toEqual([NOT_DRAWN]);
 });

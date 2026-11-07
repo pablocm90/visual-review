@@ -7,6 +7,7 @@ import {
   skippedFindingId,
 } from '../core/findings.ts';
 import { endsOfId } from '../core/graph.ts';
+import type { LogicTotals } from '../core/logic-strip.ts';
 import type { PageData } from '../core/page.ts';
 import type { Answer } from '../core/review.ts';
 import { notReadLine } from '../core/skipped.ts';
@@ -357,7 +358,33 @@ type StartHereProps = LineOptions & {
   readonly open: boolean;
   readonly onOpen: (open: boolean) => void;
   readonly review: Pick<PageData, 'diff' | 'metrics' | 'sinceReview'>;
+  readonly logic: StartHereLogicProps | undefined;
 };
+
+type StartHereLogicProps = {
+  readonly totals: LogicTotals;
+  readonly onShow: () => void;
+};
+
+const StartHereLogic = ({ totals, onShow }: StartHereLogicProps) => (
+  <li className="finding start-here-logic">
+    <LensOf dimension="logic" />
+    <button type="button" onClick={onShow}>
+      {counted(totals.decisions, 'decision', 'decisions')} changed in{' '}
+      {counted(totals.functions, 'function', 'functions')}, {counted(totals.files, 'file', 'files')}
+    </button>
+    <span className="start-here-breakdown">
+      {[
+        totals.exits > 0 ? counted(totals.exits, 'exit', 'exits') : undefined,
+        ...(['added', 'changed', 'removed', 'moved'] as const).map(change =>
+          totals[change] > 0 ? `${totals[change]} ${change}` : undefined,
+        ),
+      ]
+        .filter(part => part !== undefined)
+        .join(' · ')}
+    </span>
+  </li>
+);
 
 type SeveralFindingsProps = {
   readonly line: StartHereLine;
@@ -404,7 +431,7 @@ export const StartHere = (props: StartHereProps) => {
     metrics: props.review.metrics,
     nodes: props.review.diff.nodes,
   });
-  if (lines.length === 0) return null;
+  if (lines.length === 0 && props.logic === undefined) return null;
   const lineOf = linesOf(props);
   const lineOfOne = (finding: Finding): Line => {
     const { groups, ...line } = lineOf(finding);
@@ -430,6 +457,7 @@ export const StartHere = (props: StartHereProps) => {
       </div>
       {open && (
         <ul>
+          {props.logic && <StartHereLogic {...props.logic} />}
           {lines.map(line =>
             line.findings.length === 1 ? (
               line.findings.map(finding => (
