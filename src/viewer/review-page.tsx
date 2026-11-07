@@ -17,7 +17,12 @@ import type { DiffedNode, FilePatch, GraphDiff } from '../core/diff-graphs.ts';
 import { deepestHolding, isAtOrUnder } from '../core/diff-graphs.ts';
 import { type Finding, findingsAt, findingsOf } from '../core/findings.ts';
 import { edgeId } from '../core/graph.ts';
-import { logicTotalsOf, nodesWithChangedLogic } from '../core/logic-strip.ts';
+import {
+  logicTotalsOf,
+  nextDecision,
+  nodesWithChangedLogic,
+  walkOfDecisions,
+} from '../core/logic-strip.ts';
 import { type MetricFinding, metricFindings } from '../core/metric-findings.ts';
 import type { NodeMetrics } from '../core/metrics.ts';
 import { type Note, type ReviewNotes, visibleNotes } from '../core/notes.ts';
@@ -2148,6 +2153,17 @@ const Page = ({ review, notes, send }: ReviewPageProps) => {
       : (parts.find(part => !read.has(part)) ?? parts[0]);
     if (next !== undefined) walkTo(next);
   };
+  const logicWalk = useMemo(
+    () => walkOfDecisions({ files: review.symbols, parts: review.readingOrder.parts }),
+    [review.symbols, review.readingOrder.parts],
+  );
+  const nextLogic = nextDecision({ walk: logicWalk, selected, row: landing?.row });
+  const walkLogic = () => {
+    if (nextLogic === undefined) return;
+    setReading(true);
+    goToRow(nextLogic.node, nextLogic.row);
+    setFocusTarget({ id: nextLogic.node, inGraph: false });
+  };
   const openMap = () => {
     setReading(false);
     if (selected === undefined) frameElement?.focus();
@@ -2167,6 +2183,7 @@ const Page = ({ review, notes, send }: ReviewPageProps) => {
       if (key === 'escape' && reading) openMap();
       if (key === 'j') walk(1);
       if (key === 'k') walk(-1);
+      if (key === 'l') walkLogic();
       if (key === 'c' && selected !== undefined) {
         event.preventDefault();
         setCommentAsked({ on: selected, row: rowCommentedFrom(event.target) });
