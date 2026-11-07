@@ -17,6 +17,7 @@ import type { DiffedNode, FilePatch, GraphDiff } from '../core/diff-graphs.ts';
 import { deepestHolding, isAtOrUnder } from '../core/diff-graphs.ts';
 import { type Finding, findingsAt, findingsOf } from '../core/findings.ts';
 import { edgeId } from '../core/graph.ts';
+import { logicTotalsOf, nodesWithChangedLogic } from '../core/logic-strip.ts';
 import { type MetricFinding, metricFindings } from '../core/metric-findings.ts';
 import type { NodeMetrics } from '../core/metrics.ts';
 import { type Note, type ReviewNotes, visibleNotes } from '../core/notes.ts';
@@ -34,6 +35,7 @@ import {
   changesOnly,
   expandedToShow,
   isDrawn,
+  logicOnly,
   mergedDiff,
   nearChanges,
   sinceLastReview,
@@ -57,6 +59,7 @@ import {
   type PlacedStack,
 } from './layout.ts';
 import { LENS_OF, type Lens } from './lenses.ts';
+import { type LogicCard, LogicCardBody, logicCardsOf } from './logic-card.tsx';
 import { MetricsTable } from './metrics-tab.tsx';
 import { NextToIt } from './next-to-it.tsx';
 import {
@@ -227,6 +230,8 @@ type Drawing = {
   readonly inMap: boolean;
   readonly current: string | undefined;
   readonly scale: number;
+  readonly cards: ReadonlyMap<string, LogicCard>;
+  readonly onTick: (node: string, decision: string) => void;
 };
 
 type CurrentRingProps = {
@@ -267,6 +272,7 @@ const NodeView = ({ node, drawing }: { readonly node: PlacedNode; readonly drawi
   const unrouted = unroutedOf(node.id);
   const shade = shadeOf(node);
   const found = drawing.findingsOn(node.id);
+  const card = drawing.cards.get(node.id);
   const number = drawing.numberOf(node.id);
   const numberX = expandable.has(node.id) ? 24 : 0;
   const toggle = expandable.has(node.id) && (
@@ -330,20 +336,30 @@ const NodeView = ({ node, drawing }: { readonly node: PlacedNode; readonly drawi
         </title>
         <rect width={node.width} height={node.height} rx={6} />
         <CurrentRing node={node} drawing={drawing} rx={6} />
-        <text x={node.width / 2} y={node.height / 2}>
-          {node.formerLabel === undefined ? (
-            node.label
-          ) : (
-            <>
-              <tspan x={node.width / 2} dy="-0.6em">
-                {node.label}
-              </tspan>
-              <tspan className="former" x={node.width / 2} dy="1.3em">
-                was {node.formerLabel}
-              </tspan>
-            </>
-          )}
-        </text>
+        {card ? (
+          <LogicCardBody
+            card={card}
+            label={node.label}
+            formerLabel={node.formerLabel}
+            width={node.width}
+            onTick={inMap ? undefined : decision => drawing.onTick(node.id, decision)}
+          />
+        ) : (
+          <text x={node.width / 2} y={node.height / 2}>
+            {node.formerLabel === undefined ? (
+              node.label
+            ) : (
+              <>
+                <tspan x={node.width / 2} dy="-0.6em">
+                  {node.label}
+                </tspan>
+                <tspan className="former" x={node.width / 2} dy="1.3em">
+                  was {node.formerLabel}
+                </tspan>
+              </>
+            )}
+          </text>
+        )}
         {found.length > 0 && (
           <FindingsBadge x={node.width} y={0} findings={found} picked={drawing.picked} />
         )}
@@ -1153,8 +1169,11 @@ const CHANGES_ONLY: Scope = ['Changes only', changesOnly];
 
 const EVERYTHING: Scope = ['Everything', ({ drawn }) => drawn];
 
+const LOGIC_ONLY = 'Logic only';
+
+const NO_CARDS: ReadonlyMap<string, LogicCard> = new Map();
+
 const WIDER_SCOPES: ReadonlyArray<Scope> = [
-  CHANGES_ONLY,
   ['Changed + 1 hop', ({ drawn }) => nearChanges(drawn)],
   EVERYTHING,
 ];
@@ -1173,10 +1192,28 @@ const unmergedWith = (noted: ReadonlySet<string>, since: ChangedSince | undefine
 
 const scopesOf = (review: PageData): ReadonlyArray<Scope> => {
   const changed = changedSinceIn(review);
-  return changed === undefined
-    ? WIDER_SCOPES
-    : [[SINCE_LAST_REVIEW, keeping => sinceLastReview({ ...keeping, changed })], ...WIDER_SCOPES];
+  const files = nodesWithChangedLogic(review.symbols);
+  return [
+    ...(changed === undefined
+      ? []
+      : [
+          [
+            SINCE_LAST_REVIEW,
+            (keeping: Keeping) => sinceLastReview({ ...keeping, changed }),
+          ] satisfies Scope,
+        ]),
+    CHANGES_ONLY,
+    ...(files.length === 0
+      ? []
+      : [[LOGIC_ONLY, ({ diff }: Keeping) => logicOnly({ diff, files })] satisfies Scope]),
+    ...WIDER_SCOPES,
+  ];
 };
+
+const scopesFrom = (scopes: ReadonlyArray<Scope>, scope: Scope): ReadonlyArray<Scope> => [
+  scope,
+  ...scopes.slice(scopes.indexOf(scope[0] === LOGIC_ONLY ? CHANGES_ONLY : scope), -1),
+];
 
 type ShowProps = {
   readonly scopes: ReadonlyArray<Scope>;
@@ -1637,6 +1674,18 @@ type LandingHeadProps = GraphControlsProps &
     readonly onShowFile: (path: string, opener: HTMLButtonElement, place?: string) => void;
   };
 
+const logicLineOf = ({
+  review,
+  picked,
+  scopes,
+  onScope,
+}: Pick<LandingHeadProps, 'review' | 'picked' | 'scopes' | 'onScope'>) => {
+  const logicOnly = scopes.find(([name]) => name === LOGIC_ONLY);
+  return logicOnly && (picked === undefined || picked === LENS_OF.logic)
+    ? { totals: logicTotalsOf(review.symbols), onShow: () => onScope(logicOnly) }
+    : undefined;
+};
+
 const LandingHead = ({
   review,
   notes,
@@ -1669,6 +1718,7 @@ const LandingHead = ({
       onGoToFinding={onGoToFinding}
       onShowOutside={onShowOutside}
       onShowFile={onShowFile}
+      logic={logicLineOf({ review, picked, ...controls })}
     />
     <GraphControls {...controls} />
     <GraphCaveat since={since} nothingDrawn={nothingDrawn} />
@@ -1901,11 +1951,21 @@ const Page = ({ review, notes, send }: ReviewPageProps) => {
     () => new Set(review.diff.nodes.flatMap(node => node.parent ?? [])),
     [review],
   );
-  const visible = useMemo(() => visibleDiff({ diff: review.diff, expanded }), [review, expanded]);
   const [allEdges, setAllEdges] = useState(false);
   const noted = useMemo(() => new Set(Object.keys(notesIn(notes))), [notes]);
   const scopes = useMemo(() => scopesOf(review), [review]);
   const [scope, setScope] = useState(CHANGES_ONLY);
+  const boxesAllOpen = scope[0] === LOGIC_ONLY;
+  const placedAt = boxesAllOpen ? expandable : expanded;
+  const visible = useMemo(
+    () => visibleDiff({ diff: review.diff, expanded: placedAt }),
+    [review, placedAt],
+  );
+  const cards = useMemo(
+    () =>
+      boxesAllOpen ? logicCardsOf({ files: review.symbols, nodes: review.diff.nodes }) : NO_CARDS,
+    [review, boxesAllOpen],
+  );
   const [colouring, setColouring] = useState<Colouring>('change');
   const [picked, setPicked] = useState<Lens>();
   const [railOpen, setRailOpen] = useState(false);
@@ -1927,8 +1987,8 @@ const Page = ({ review, notes, send }: ReviewPageProps) => {
     return keep({ diff: review.diff, expanded, drawn: atExpansion });
   }, [review, expanded, unmerged, allEdges, scope]);
   const shown = useMemo(
-    () => visibleNotes({ diff: review.diff, expanded, notes: notesIn(notes) }),
-    [review, notes, expanded],
+    () => visibleNotes({ diff: review.diff, expanded: placedAt, notes: notesIn(notes) }),
+    [review, notes, placedAt],
   );
   const toggle = (id: string) => {
     pin(id);
@@ -1940,9 +2000,9 @@ const Page = ({ review, notes, send }: ReviewPageProps) => {
   };
   const labelOf = new Map(visible.nodes.map(node => [node.id, node.label]));
   const dangling = review.dangling;
-  const visibleOf = visibleNodeOf({ diff: review.diff, expanded });
+  const visibleOf = visibleNodeOf({ diff: review.diff, expanded: placedAt });
   const boxesAbove = boxesAboveIn(review.diff.nodes);
-  const placedFindings = findingsAt({ diff: review.diff, expanded, findings });
+  const placedFindings = findingsAt({ diff: review.diff, expanded: placedAt, findings });
   const numbers = new Map(review.readingOrder.parts.map((part, index) => [part, index + 1]));
   const drawing = {
     findingsOn: (id: string) => placedFindings.get(id) ?? [],
@@ -1951,12 +2011,15 @@ const Page = ({ review, notes, send }: ReviewPageProps) => {
     notes: shown,
     onSelect: (id: string) => (reading ? goTo(id) : select(id)),
     register,
-    expandable: reading ? NOTHING_EXPANDABLE : expandable,
+    expandable: reading || boxesAllOpen ? NOTHING_EXPANDABLE : expandable,
     expanded,
     onToggle: toggle,
     inMap: reading,
     current: reading ? selected : undefined,
     scale: placed?.view.scale ?? 1,
+    cards,
+    onTick: (node: string, decision: string) =>
+      goToRow(node, anchorKey({ kind: 'decision', id: decision })),
     unroutedOf: (id: string) =>
       dangling.filter(call => visibleOf(call.from) === id).map(call => call.path),
     shadeOf: ({ id, state }: DiffedNode) =>
@@ -2004,10 +2067,10 @@ const Page = ({ review, notes, send }: ReviewPageProps) => {
     const all = allEdges || !isDrawn({ diff: drawnAt({ ...at, allEdges: false }), id });
     if (all) setAllEdges(true);
     const atAll = drawnAt({ ...at, allEdges: all });
-    const narrower = scopes.slice(scopes.indexOf(scope), -1);
     setScope(
-      narrower.find(([, keep]) => isDrawn({ diff: keep({ ...at, drawn: atAll }), id })) ??
-        EVERYTHING,
+      scopesFrom(scopes, scope).find(([, keep]) =>
+        isDrawn({ diff: keep({ ...at, drawn: atAll }), id }),
+      ) ?? EVERYTHING,
     );
     centre(id);
     setFocusTarget({ id, inGraph: true });
@@ -2027,10 +2090,12 @@ const Page = ({ review, notes, send }: ReviewPageProps) => {
     goToOnStructure(id);
     if (onRow) setFocusTarget({ id, inGraph: false });
   };
-  const goToFinding = (id: string, finding: string) => {
-    landOn(id, { path: undefined, row: anchorKey({ kind: 'finding', id: finding }) });
+  const goToRow = (id: string, row: string) => {
+    landOn(id, { path: undefined, row });
     goTo(id);
   };
+  const goToFinding = (id: string, finding: string) =>
+    goToRow(id, anchorKey({ kind: 'finding', id: finding }));
   const showOutsideAt = (place: LandingIn, opener: HTMLButtonElement) => {
     landOn(null, place);
     location.hash = '#structure';
@@ -2104,8 +2169,8 @@ const Page = ({ review, notes, send }: ReviewPageProps) => {
     return () => document.removeEventListener('keydown', keyed);
   });
   useEffect(() => {
-    layoutDiff(drawn).then(setLayout);
-  }, [drawn]);
+    layoutDiff(drawn, { sizes: cards }).then(setLayout);
+  }, [drawn, cards]);
   useEffect(() => {
     if (focusTarget === undefined || tab !== 'structure') return;
     if (reading) {
@@ -2196,7 +2261,7 @@ const Page = ({ review, notes, send }: ReviewPageProps) => {
           comments: review.sinceReview?.comments ?? [],
           arrow: selected,
           diff: review.diff,
-          expanded,
+          expanded: placedAt,
           noted: unmerged,
           allEdges,
         })}

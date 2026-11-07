@@ -118,6 +118,13 @@ export const sinceLastReview = ({
 }: SinceLastReviewOptions): GraphDiff =>
   keeping(drawn, [...nodes, ...edges.flatMap(endsOfId)].map(visibleNodeOf({ diff, expanded })));
 
+type LogicOnlyOptions = {
+  readonly diff: GraphDiff;
+  readonly files: ReadonlyArray<string>;
+};
+
+export const logicOnly = ({ diff, files }: LogicOnlyOptions): GraphDiff => keeping(diff, files);
+
 type MergedDiffOptions = VisibleDiffOptions & {
   readonly noted: ReadonlySet<string>;
 };

@@ -8,6 +8,8 @@ type Box = {
   readonly height: number;
 };
 
+type Size = Pick<Box, 'width' | 'height'>;
+
 type Point = { readonly x: number; readonly y: number };
 
 export type PlacedNode = DiffedNode & Box & { readonly children: ReadonlyArray<PlacedNode> };
@@ -77,7 +79,14 @@ const callPoints = ({ from, to, fromStack, toStack }: CallPointsOptions): Readon
   ];
 };
 
-export const layoutDiff = async (diff: GraphDiff): Promise<Layout> => {
+type LayoutOptions = {
+  readonly sizes?: ReadonlyMap<string, Size>;
+};
+
+export const layoutDiff = async (
+  diff: GraphDiff,
+  { sizes }: LayoutOptions = {},
+): Promise<Layout> => {
   const stacks = diff.nodes.filter(node => node.kind === 'stack');
   const childrenOf = (id: string) => diff.nodes.filter(node => node.parent === id);
   const descendantsOf = (id: string): ReadonlyArray<DiffedNode> =>
@@ -95,7 +104,7 @@ export const layoutDiff = async (diff: GraphDiff): Promise<Layout> => {
   const elkNodeOf = (node: DiffedNode): ElkNode => {
     const children = childrenOf(node.id);
     return children.length === 0
-      ? { id: node.id, ...sizeOf(node) }
+      ? { id: node.id, ...(sizes?.get(node.id) ?? sizeOf(node)) }
       : {
           id: node.id,
           layoutOptions: {

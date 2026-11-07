@@ -7,7 +7,7 @@ export type StripRow = {
   readonly label: string;
 };
 
-const exitsWords = (exits: number): string => {
+export const exitsWords = (exits: number): string => {
   if (exits === 0) return '';
   return exits === 1 ? ' · 1 exit' : ` · ${exits} exits`;
 };

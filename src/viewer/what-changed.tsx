@@ -184,7 +184,7 @@ const LogicText = ({
   </>
 );
 
-const logicLabel = (line: LogicLine, nodes: Places['nodes']): string => {
+export const logicLabel = (line: LogicLine, nodes: Places['nodes']): string => {
   const label = `${line.change} ${line.kind}: ${textOf(line)}`;
   return line.movedTo === undefined
     ? label
