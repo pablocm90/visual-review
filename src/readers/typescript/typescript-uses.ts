@@ -1,15 +1,12 @@
+import { readFileSync } from 'node:fs';
 import { readFile } from 'node:fs/promises';
-import { basename, dirname, join, resolve } from 'node:path';
+import { join } from 'node:path';
 import type { ImportDeclaration, Node, Program } from '@babel/types';
 import type { GraphNode } from '../../core/graph.ts';
 import type { SymbolUse, UsesAsked, UsesReading } from '../../core/reader.ts';
 import { isTooBig } from '../too-big.ts';
-import {
-  packageNameIn,
-  placesNamedBy,
-  type Resolution,
-  resolutionIn,
-} from './typescript-config.ts';
+import { moduleAt, modulesNamedBy, packageNameIn, resolutionIn } from './typescript-config.ts';
+import { filesOutside } from './typescript-outside.ts';
 import {
   defaultExported,
   endOf,
@@ -18,45 +15,39 @@ import {
   startOf,
   type Token,
 } from './typescript-symbols.ts';
-import { nameOf, parseTypeScript, sourceOf } from './typescript-syntax.ts';
+import { isScript, nameOf, parseTypeScript, sourceOf } from './typescript-syntax.ts';
 
-const placeAt = (path: string, text: string, offset: number): SymbolUse => {
-  const line = text.slice(0, offset).split('\n').length;
-  return { path, line, text: (text.split('\n')[line - 1] ?? '').trim() };
+const lineHolding = (
+  starts: ReadonlyArray<number>,
+  offset: number,
+  low: number,
+  high: number,
+): number => {
+  if (low >= high) return low;
+  const middle = Math.ceil((low + high) / 2);
+  return (starts[middle] ?? 0) <= offset
+    ? lineHolding(starts, offset, middle, high)
+    : lineHolding(starts, offset, low, middle - 1);
+};
+
+const placesIn = (path: string, text: string) => {
+  const lines = text.split('\n');
+  const starts = [0, ...Array.from(text.matchAll(/\n/g), ({ index }) => index + 1)];
+  return (offset: number): SymbolUse => {
+    const line = lineHolding(starts, offset, 0, starts.length - 1);
+    return { path, line: line + 1, text: (lines[line] ?? '').trim() };
+  };
 };
 
 export const NOT_DRAWN =
-  'not followed: type-only re-exports, files outside the source root, a package imported under another name';
+  'not followed: a package imported under another name, files under no stack, dot folders and dot, `.mts` and `.cts` files outside the source root';
 
 const ACCESSES = new Set(['.', '?.']);
 const LOADERS = new Set(['import', 'require']);
 
-const moduleOf = (path: string): string => {
-  const stem = path.replace(/(\.d)?\.[cm]?[jt]sx?$/, '');
-  return basename(stem) === 'index' ? dirname(stem) : stem;
-};
-
-type Stack = {
-  readonly head: string;
-  readonly resolution: Resolution;
-  readonly drawn: ReadonlySet<string>;
-  readonly packageName: string | undefined;
-};
-
-type Naming = { readonly specifier: string; readonly importer: string };
-
-const moduleAt = (...path: ReadonlyArray<string>): string => moduleOf(resolve(...path));
-
 const namesPackage = (packageName: string | undefined, specifier: string) =>
   packageName !== undefined &&
   (specifier === packageName || specifier.startsWith(`${packageName}/`));
-
-const drawnPlaceNamedBy = ({ head, resolution, drawn }: Stack, { specifier, importer }: Naming) => {
-  const places = specifier.startsWith('.')
-    ? [join(head, dirname(importer), specifier)]
-    : placesNamedBy(resolution, specifier);
-  return places.map(place => moduleAt(place)).find(place => drawn.has(place));
-};
 
 const importedName = (text: string, specifier: ImportDeclaration['specifiers'][number]) => {
   if (specifier.type === 'ImportSpecifier') return sourceOf(text, specifier.imported);
@@ -191,7 +182,8 @@ const factsOf = (path: string, text: string): FileFacts => {
   const parsed = parseTypeScript(text, path);
   const { program } = parsed;
   const scan = scanOf(text, parsed);
-  const placeOf: PlaceOf = range => placeAt(path, text, startOf(range));
+  const placeAt = placesIn(path, text);
+  const placeOf: PlaceOf = range => placeAt(startOf(range));
   const specifiers = program.body.flatMap(statement => {
     if (statement.type !== 'ImportDeclaration') return [];
     const source = statement.source.value;
@@ -282,27 +274,21 @@ type Walk = {
   readonly hops: ReadonlyArray<Hop>;
   readonly seen: ReadonlySet<string>;
   readonly importersOf: (node: Target) => ReadonlyArray<Target>;
-  readonly read: (importer: Target, target: Target) => Promise<FileUses>;
+  readonly read: (importer: Target, target: Target) => FileUses;
 };
 
 type Visit = { readonly hop: Hop; readonly uses: FileUses };
 
 const keyOf = ({ node, exported, asked }: Hop) => JSON.stringify([node.id, exported, asked]);
 
-const walked = async ({ hops, seen, importersOf, read }: Walk): Promise<ReadonlyArray<Visit>> => {
+const walked = ({ hops, seen, importersOf, read }: Walk): ReadonlyArray<Visit> => {
   const fresh = [...new Map(hops.map(hop => [keyOf(hop), hop])).entries()].filter(
     ([key]) => !seen.has(key),
   );
   if (fresh.length === 0) return [];
   const targets = [...new Map(fresh.map(([, { node }]) => [node.id, node])).values()];
-  const visits = await Promise.all(
-    targets.flatMap(target =>
-      importersOf(target).map(async importer => ({
-        target,
-        importer,
-        uses: await read(importer, target),
-      })),
-    ),
+  const visits = targets.flatMap(target =>
+    importersOf(target).map(importer => ({ target, importer, uses: read(importer, target) })),
   );
   const met = visits.flatMap(({ target, importer, uses }) =>
     fresh.flatMap(([, hop]) => (hop.node.id === target.id ? [{ hop, importer, uses }] : [])),
@@ -315,49 +301,64 @@ const walked = async ({ hops, seen, importersOf, read }: Walk): Promise<Readonly
   );
   return [
     ...met,
-    ...(await walked({
+    ...walked({
       hops: next,
       seen: new Set([...seen, ...fresh.map(([key]) => key)]),
       importersOf,
       read,
-    })),
+    }),
   ];
 };
 
 type Read = FileFacts | { readonly notRead: true } | undefined;
 
-const readFacts = async (path: string, file: string): Promise<Read> => {
-  const text = await readFile(file, 'utf8').catch(() => undefined);
-  if (text === undefined) return undefined;
-  if (isTooBig(text)) return { notRead: true };
+const NO_FILE: ReadonlyArray<unknown> = ['ENOENT', 'ENOTDIR', 'EISDIR'];
+
+const isNoFile = (error: unknown): boolean =>
+  error instanceof Error && 'code' in error && NO_FILE.includes(error.code);
+
+const readFacts = (path: string, file: string): Read => {
   try {
-    return factsOf(path, text);
-  } catch {
-    return { notRead: true };
+    const text = readFileSync(file, 'utf8');
+    return isTooBig(text) ? { notRead: true } : factsOf(path, text);
+  } catch (error) {
+    return isNoFile(error) ? undefined : { notRead: true };
   }
 };
 
-const known = new Map<string, Promise<Read>>();
+const known = new Map<string, Read>();
 
-const factsAt = (head: string, path: string): Promise<Read> => {
+const factsAt = (head: string, path: string): Read => {
   const file = join(head, path);
-  const kept = known.get(file);
-  if (kept !== undefined) return kept;
+  if (known.has(file)) return known.get(file);
   const read = readFacts(path, file);
   known.set(file, read);
   return read;
 };
 
-const fileUsesAt = async (stack: Stack, path: string, target: string): Promise<FileUses> => {
-  const facts = await factsAt(stack.head, path);
+type FileUsesOptions = {
+  readonly head: string;
+  readonly path: string;
+  readonly targetPlace: string;
+  readonly placeOf: (specifier: string) => string | undefined;
+  readonly mayBePackage: (specifier: string) => boolean;
+  readonly packageName: string | undefined;
+};
+
+const fileUsesAt = ({
+  head,
+  path,
+  targetPlace,
+  placeOf,
+  mayBePackage,
+  packageName,
+}: FileUsesOptions): FileUses => {
+  const facts = factsAt(head, path);
   if (facts === undefined) return NO_USES;
   if ('notRead' in facts) return { ...NO_USES, notRead: path };
-  const placeOfName = (specifier: string) =>
-    drawnPlaceNamedBy(stack, { specifier, importer: path });
-  const namesExactly: Names = specifier => placeOfName(specifier) === moduleAt(stack.head, target);
+  const namesExactly: Names = specifier => placeOf(specifier) === targetPlace;
   const names: Names = specifier =>
-    namesExactly(specifier) ||
-    (placeOfName(specifier) === undefined && namesPackage(stack.packageName, specifier));
+    namesExactly(specifier) || (mayBePackage(specifier) && namesPackage(packageName, specifier));
   return usesFrom(facts, names, namesExactly);
 };
 
@@ -378,35 +379,147 @@ const onePerFile = (uses: ReadonlyArray<SymbolUse>): ReadonlyArray<SymbolUse> =>
 
 const isUnbackedAll = (name: string) => name.startsWith('* from ');
 
-export const usesOfTypeScript = async ({
-  base,
-  head,
-  stacks,
-  graph,
-  node,
-  names,
-}: UsesAsked): Promise<UsesReading> => {
-  const nodes = new Map<string, GraphNode>(graph.nodes.map(each => [each.id, each]));
-  const baseText = await readFile(join(base, node.path), 'utf8');
-  const aliases = aliasesIn(baseText, parseTypeScript(baseText, node.path).program);
+const onceEach = <K, T>(read: (key: K) => T) => {
+  const kept = new Map<K, { readonly value: T }>();
+  return (key: K): T => {
+    const held = kept.get(key) ?? { value: read(key) };
+    kept.set(key, held);
+    return held.value;
+  };
+};
+
+const sourcesIn = ({
+  imported,
+  namespaceReads,
+  reexports,
+  namespaceExports,
+  loads,
+  exportsAll,
+}: FileFacts): ReadonlySet<string> =>
+  new Set([
+    ...[...imported, ...namespaceReads, ...reexports, ...namespaceExports, ...loads].map(
+      ({ source }) => source,
+    ),
+    ...exportsAll,
+  ]);
+
+type Imports = {
+  readonly node: GraphNode;
+  readonly places: ReadonlySet<string | undefined>;
+  readonly unplaced: ReadonlyArray<string>;
+  readonly unread: boolean;
+};
+
+type Around = Pick<UsesAsked, 'base' | 'head' | 'stacks' | 'graph' | 'graphAtHead'>;
+
+const surroundingsOf = ({ base, head, stacks, graph, graphAtHead }: Around) => {
+  const outside = filesOutside({ head, stacks, graph, graphAtHead });
+  const nodes = new Map<string, GraphNode>(
+    [...graph.nodes, ...outside.nodes].map(each => [each.id, each]),
+  );
   const stackOf = (id: string): string => {
     const parent = nodes.get(id)?.parent;
     return parent === undefined ? id : stackOf(parent);
   };
   const rootOf = (id: string): string =>
     [...stacks].find(([, stack]) => stack === stackOf(id))?.[0] ?? '.';
-  const resolutions = new Map<string, Resolution>();
-  const resolutionOf = (root: string): Resolution => {
-    const kept = resolutions.get(root);
-    if (kept !== undefined) return kept;
-    const resolution = resolutionIn({ checkout: head, root });
-    resolutions.set(root, resolution);
-    return resolution;
-  };
-  const drawn = new Set(
-    graph.nodes.filter(({ kind }) => kind === 'file').map(({ path }) => moduleAt(head, path)),
+  const resolutionOf = onceEach((root: string) => resolutionIn({ checkout: head, root }));
+  const packageNameOf = onceEach((root: string) => packageNameIn(join(base, root)));
+  const placesOfFiles = (files: ReadonlyArray<GraphNode>) =>
+    files.filter(({ kind }) => kind === 'file').map(({ path }) => moduleAt(head, path));
+  const inGraph = new Set(placesOfFiles(graph.nodes));
+  const drawn = new Set([...inGraph, ...placesOfFiles(outside.nodes)]);
+  const placesNamedBy = onceEach(({ id, path }: Target) =>
+    onceEach((specifier: string) =>
+      modulesNamedBy(
+        { head, resolution: resolutionOf(rootOf(id)) },
+        { specifier, importer: path },
+      ).find(place => drawn.has(place)),
+    ),
   );
-  const visits = await walked({
+  const placeOf = (importer: Target, specifier: string) => placesNamedBy(importer)(specifier);
+  const mayBePackage = (importer: Target, specifier: string) => {
+    const place = placeOf(importer, specifier);
+    return place === undefined || !inGraph.has(place);
+  };
+  const outsideIds = new Set(outside.nodes.map(({ id }) => id));
+  const packageNameFor = (importer: Target, target: Target) =>
+    outsideIds.has(target.id) ||
+    (rootOf(importer.id) === rootOf(target.id) && !outsideIds.has(importer.id))
+      ? undefined
+      : packageNameOf(rootOf(target.id));
+  const importsOf = (node: GraphNode): ReadonlyArray<Imports> => {
+    const facts = factsAt(head, node.path);
+    if (facts === undefined) return [];
+    if ('notRead' in facts) return [{ node, places: new Set(), unplaced: [], unread: true }];
+    const sources = [...sourcesIn(facts)];
+    return [
+      {
+        node,
+        places: new Set(sources.map(source => placeOf(node, source))),
+        unplaced: sources.filter(source => mayBePackage(node, source)),
+        unread: false,
+      },
+    ];
+  };
+  const importsAmong = onceEach((files: ReadonlyArray<GraphNode>) => files.flatMap(importsOf));
+  const scripts = graph.nodes.filter(({ path }) => isScript(path));
+  const namingAmong = (files: ReadonlyArray<GraphNode>, target: Target) => {
+    const targetPlace = moduleAt(head, target.path);
+    return importsAmong(files)
+      .filter(
+        ({ node, places, unplaced, unread }) =>
+          unread ||
+          places.has(targetPlace) ||
+          unplaced.some(source => namesPackage(packageNameFor(node, target), source)),
+      )
+      .map(({ node }) => node);
+  };
+  return {
+    outside,
+    nodes,
+    stackOf,
+    placeOf,
+    mayBePackage,
+    packageNameFor,
+    importersOutside: (target: Target) => namingAmong(outside.nodes, target),
+    scriptsNaming: (target: Target) =>
+      outsideIds.has(target.id) ? namingAmong(scripts, target) : [],
+  };
+};
+
+const surroundings = new WeakMap<UsesAsked['graph'], ReturnType<typeof surroundingsOf>>();
+
+const surroundingsAt = (around: Around) => {
+  const kept = surroundings.get(around.graph);
+  if (kept !== undefined) return kept;
+  const made = surroundingsOf(around);
+  surroundings.set(around.graph, made);
+  return made;
+};
+
+export const usesOfTypeScript = async ({
+  base,
+  head,
+  stacks,
+  graph,
+  graphAtHead,
+  node,
+  names,
+}: UsesAsked): Promise<UsesReading> => {
+  const {
+    outside,
+    nodes,
+    stackOf,
+    placeOf,
+    mayBePackage,
+    packageNameFor,
+    importersOutside,
+    scriptsNaming,
+  } = surroundingsAt({ base, head, stacks, graph, graphAtHead });
+  const baseText = await readFile(join(base, node.path), 'utf8');
+  const aliases = aliasesIn(baseText, parseTypeScript(baseText, node.path).program);
+  const visits = walked({
     hops: names.flatMap(asked => {
       const [owner = asked] = asked.split('.');
       return [
@@ -415,25 +528,26 @@ export const usesOfTypeScript = async ({
       ].map(exported => ({ node, exported, asked }));
     }),
     seen: new Set(),
-    importersOf: ({ id }) =>
-      graph.edges
-        .filter(({ to }) => to === id || to === stackOf(id))
+    importersOf: target => [
+      ...graph.edges
+        .filter(({ to }) => to === target.id || to === stackOf(target.id))
         .flatMap(({ from }) => nodes.get(from) ?? []),
-    read: ({ id, path }, target) =>
-      fileUsesAt(
-        {
-          head,
-          drawn,
-          resolution: resolutionOf(rootOf(id)),
-          packageName:
-            rootOf(id) === rootOf(target.id)
-              ? undefined
-              : packageNameIn(join(base, rootOf(target.id))),
-        },
-        path,
-        target.path,
-      ),
+      ...importersOutside(target),
+      ...scriptsNaming(target),
+    ],
+    read: (importer, target) =>
+      fileUsesAt({
+        head,
+        path: importer.path,
+        targetPlace: moduleAt(head, target.path),
+        placeOf: specifier => placeOf(importer, specifier),
+        mayBePackage: specifier => mayBePackage(importer, specifier),
+        packageName: packageNameFor(importer, target),
+      }),
   });
+  const outsidePaths = new Set(outside.nodes.map(({ path }) => path));
+  const notRead = [...new Set(visits.flatMap(({ uses }) => uses.notRead ?? []))];
+  const notReadOutside = notRead.filter(path => outsidePaths.has(path)).length;
   return {
     uses: Object.fromEntries(
       names.map(name => [
@@ -441,8 +555,14 @@ export const usesOfTypeScript = async ({
         onePerFile(visits.flatMap(({ hop, uses }) => (hop.asked === name ? rowOf(hop, uses) : []))),
       ]),
     ),
-    notRead: [...new Set(visits.flatMap(({ uses }) => uses.notRead ?? []))],
+    notRead: notRead.filter(path => !outsidePaths.has(path)),
     notFollowed: [
+      ...outside.notFollowed,
+      ...(notReadOutside === 0
+        ? []
+        : [
+            `${notReadOutside} ${notReadOutside === 1 ? 'file' : 'files'} outside the source root not read`,
+          ]),
       NOT_DRAWN,
       ...(names.some(name => !isUnbackedAll(name) && name.includes('.'))
         ? ['not followed: a method read other than by `.name`, or without importing its class']
