@@ -9,6 +9,7 @@ type Scene = {
   readonly files: Readonly<Record<string, string>>;
   readonly target: string;
   readonly names: ReadonlyArray<string>;
+  readonly goneAtHead?: ReadonlyArray<string>;
 };
 
 const WORKSPACE = { 'Cargo.toml': '[workspace]\nmembers = ["crates/*"]\nresolver = "2"\n' };
@@ -17,7 +18,7 @@ const crate = (name: string, dependencies = '') => ({
   [`crates/${name}/Cargo.toml`]: `[package]\nname = "${name}"\nversion = "0.1.0"\nedition = "2021"\n\n[dependencies]\n${dependencies}`,
 });
 
-const usesIn = async ({ files, target, names }: Scene) => {
+const usesIn = async ({ files, target, names, goneAtHead = [] }: Scene) => {
   const checkout = mkdtempSync(join(tmpdir(), 'visual-review-rust-uses-'));
   try {
     writeFiles(checkout, { ...WORKSPACE, ...files });
@@ -31,6 +32,9 @@ const usesIn = async ({ files, target, names }: Scene) => {
     });
     const node = graph.nodes.find(({ path }) => path === target);
     if (node === undefined) throw new Error(`no node at ${target}`);
+    goneAtHead.forEach(path => {
+      rmSync(join(checkout, path));
+    });
     return await rustReader.uses?.({
       base: checkout,
       head: checkout,
@@ -155,6 +159,26 @@ test.for([
   expect(reading?.uses).toEqual({
     parse: found === undefined ? [] : [{ path: file, ...found, test: false }],
   });
+});
+
+test('a module gone at the head reads as no use, beside one that still uses it', async () => {
+  const reading = await usesIn({
+    files: {
+      ...SHOP,
+      'crates/shop/src/lib.rs': 'pub mod orders;\npub mod checkout;\npub mod refund;\n',
+      'crates/shop/src/checkout.rs':
+        'use crate::orders::parse;\n\npub fn run() {\n    parse();\n}\n',
+      'crates/shop/src/refund.rs': 'use crate::orders::parse;\n\npub fn run() {\n    parse();\n}\n',
+    },
+    target: 'crates/shop/src/orders.rs',
+    names: ['parse'],
+    goneAtHead: ['crates/shop/src/refund.rs'],
+  });
+
+  expect(reading?.uses).toEqual({
+    parse: [{ path: 'crates/shop/src/checkout.rs', line: 4, text: 'parse();', test: false }],
+  });
+  expect(reading?.notRead).toEqual([]);
 });
 
 const ORDERS =

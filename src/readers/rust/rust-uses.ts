@@ -3,6 +3,7 @@ import { join } from 'node:path';
 import type { Node } from 'web-tree-sitter';
 import type { GraphNode } from '../../core/graph.ts';
 import type { SymbolUse, UsesAsked, UsesReading } from '../../core/reader.ts';
+import { isNoFile } from '../no-file.ts';
 import { isTestCode, parseRust, TEST_FOLDER } from './rust-syntax.ts';
 import {
   EXTERN_PRELUDE,
@@ -119,6 +120,15 @@ const rowsIn = (
   }
 };
 
+const textAt = (file: string): string | undefined => {
+  try {
+    return readFileSync(file, 'utf8');
+  } catch (error) {
+    if (isNoFile(error)) return undefined;
+    throw error;
+  }
+};
+
 export const usesOfRust = async ({ head, graph, node, names }: UsesAsked): Promise<UsesReading> => {
   const nodeOf = (id: string | undefined) => graph.nodes.find(candidate => candidate.id === id);
   const segmentsOfModule = ({ label, parent }: Pick<GraphNode, 'label' | 'parent'>): Segments => [
@@ -133,17 +143,12 @@ export const usesOfRust = async ({ head, graph, node, names }: UsesAsked): Promi
   const files = [
     ...graph.edges.filter(({ to }) => to === node.id).flatMap(({ from }) => nodeOf(from) ?? []),
     ...graph.nodes.filter(({ parent }) => dependents.has(parent)),
-  ].map(module =>
-    rowsIn(
-      {
-        path: module.path,
-        text: readFileSync(join(head, module.path), 'utf8'),
-        from: segmentsOfModule(module),
-      },
-      target,
-      names,
-    ),
-  );
+  ].flatMap(module => {
+    const text = textAt(join(head, module.path));
+    return text === undefined
+      ? []
+      : [rowsIn({ path: module.path, text, from: segmentsOfModule(module) }, target, names)];
+  });
   return {
     uses: Object.fromEntries(
       names.map(name => [name, files.flatMap(rows => rows.get(name) ?? [])]),
