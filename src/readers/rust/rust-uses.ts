@@ -99,7 +99,7 @@ const rowsIn = (
       .filter(node => !isInUse(node) && !namesItsParent(node));
     return new Map(
       names.map(name => {
-        const item = [...target, ...name.split('::')];
+        const item = [...target, ...name.split(/::|\./)];
         const forms = new Set(
           imported
             .filter(({ segments }) => isPrefix(segments, item))
