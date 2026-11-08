@@ -110,6 +110,12 @@ test.for([
     found: { line: 5, text: 'orders::parse();' },
   },
   {
+    reason: 'another of its functions, then calling the function by its path from the crate',
+    file: 'crates/shop/src/checkout.rs',
+    text: 'use crate::orders::total;\n\npub fn run() {\n    total();\n    crate::orders::parse();\n}\n',
+    found: { line: 5, text: 'crate::orders::parse();' },
+  },
+  {
     reason: 'the function through `super`',
     file: 'crates/shop/src/checkout.rs',
     text: 'use super::orders::parse;\n\npub fn run() {\n    parse();\n}\n',
@@ -236,6 +242,11 @@ test.for([
     text: 'pub fn run() {\n    shop_core::orders::parse();\n}\n',
     found: { line: 2, text: 'shop_core::orders::parse();' },
   },
+  {
+    how: 'not by a path from its own crate',
+    text: 'pub fn run() {\n    crate::orders::parse();\n}\n',
+    found: undefined,
+  },
 ])('a function reaches a module of another crate $how', async ({ text, found }) => {
   const reading = await usesIn({
     files: {
@@ -251,7 +262,8 @@ test.for([
   });
 
   expect(reading?.uses).toEqual({
-    parse: [{ path: 'crates/shop/src/checkout.rs', ...found, test: false }],
+    parse:
+      found === undefined ? [] : [{ path: 'crates/shop/src/checkout.rs', ...found, test: false }],
   });
 });
 

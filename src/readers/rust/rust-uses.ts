@@ -74,7 +74,11 @@ const rowsIn = (
             .map(({ segments, local }) => [...local, ...item.slice(segments.length)].join('::')),
         );
     const formsOf = formsIn(imported);
-    const writtenFormsOf = formsIn([...imported, importedOf(target.slice(0, 1))]);
+    const writtenFormsOf = formsIn([
+      ...imported,
+      importedOf(target.slice(0, 1)),
+      importedOf(from.slice(0, 1), ['crate']),
+    ]);
     const fields = root
       .descendantsOfType('field_identifier')
       .filter(node => node.parent?.type === 'field_expression');
