@@ -4,6 +4,7 @@ import { dirname, join } from 'node:path';
 import { promisify } from 'node:util';
 import type { Graph } from '../../core/graph.ts';
 import type { Reader } from '../../core/reader.ts';
+import { StackNotRead } from '../../core/skipped.ts';
 import { sourcesIn } from '../sources-in.ts';
 import { crateGraph, crateRoots } from './crate-graph.ts';
 import { crateModules } from './crate-modules.ts';
@@ -20,6 +21,21 @@ const reviewersToolchain = (outside: string): Promise<NodeJS.ProcessEnv> =>
     ({ stdout }) => ({ ...process.env, RUSTUP_TOOLCHAIN: stdout.split(' ')[0] }),
     () => process.env,
   );
+
+const CARGO_ERROR = 'error: ';
+
+const firstErrorOf = (error: unknown): string | undefined =>
+  error instanceof Error && 'stderr' in error && typeof error.stderr === 'string'
+    ? error.stderr
+        .split('\n')
+        .find(line => line.startsWith(CARGO_ERROR))
+        ?.slice(CARGO_ERROR.length)
+    : undefined;
+
+const notReadBy = (error: unknown): never => {
+  const first = firstErrorOf(error);
+  throw first === undefined ? error : new StackNotRead(`cargo: ${first}`);
+};
 
 type GraphAtOptions = {
   readonly checkout: string;
@@ -40,7 +56,7 @@ const graphAt = async ({ checkout, root, stack }: GraphAtOptions): Promise<Graph
       join(directory, 'Cargo.toml'),
     ],
     { cwd: directory, env: await reviewersToolchain(dirname(checkout)) },
-  );
+  ).catch(notReadBy);
   const crates = crateGraph({ metadataJson: stdout, stack, root });
   const modules = await Promise.all(
     crateRoots(stdout).map(async ({ crate, directory: crateDirectory, roots }) => {

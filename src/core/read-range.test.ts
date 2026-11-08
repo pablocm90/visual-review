@@ -1500,6 +1500,25 @@ test('a skipped reader lists the stacks it would read on either side, those foun
   ]);
 });
 
+test("a stack cargo can't read is not read, named by cargo's error, and the other stacks are drawn", async () => {
+  using workspace = cargoWorkspace();
+  const { repo, root } = workspace;
+  const head = commit(repo, { ...rootPackage, 'Cargo.toml': '[workspace\n' });
+
+  const range = await readRange({ repo, from: root, to: head });
+
+  expect(nodeIds(range.before)).toEqual([]);
+  expect(nodeIds(range.after)).toEqual([basename(repo), `${basename(repo)}/file/index.ts`]);
+  expect(range.skipped).toEqual([
+    {
+      reader: 'rust',
+      stacks: ['rust'],
+      reason: 'cargo: unclosed table, expected `]`',
+      side: 'head',
+    },
+  ]);
+});
+
 test('a stack not read at either side is dropped from both, and listed once per reason, saying the side when the other side read it', async () => {
   using repository = gitRepo({
     'api/broken': 'cargo: timed out',
@@ -1843,12 +1862,24 @@ test('a range with no commits in it has no changed paths and no patches', async 
   expect(range.patches).toEqual([]);
 });
 
-test('when reading a graph fails, the error surfaces and no worktree is left behind', async () => {
-  using workspace = cargoWorkspace();
-  const { repo, root } = workspace;
-  const broken = commit(repo, { 'crates/core/Cargo.toml': '[package' });
+const failingWhereBroken = () =>
+  fakeReader({
+    name: 'rust',
+    roots: [{ root: 'api' }],
+    graph: async ({ directory, root, stack }) => {
+      if (existsSync(join(directory, root, 'broken'))) throw new Error('graph failed');
+      return { nodes: [{ id: stack, kind: 'stack', label: stack, path: root }], edges: [] };
+    },
+  });
 
-  await expect(readRange({ repo, from: root, to: broken })).rejects.toThrow(/cargo metadata/);
+test('when reading a graph fails, the error surfaces and no worktree is left behind', async () => {
+  using repository = gitRepo({ 'api/a': '' });
+  const { repo, root } = repository;
+  const broken = commit(repo, { 'api/broken': '' });
+
+  await expect(
+    readRange({ repo, from: root, to: broken, readers: [failingWhereBroken()] }),
+  ).rejects.toThrow('graph failed');
   expect(git(repo, 'worktree', 'list').split('\n')).toHaveLength(1);
 });
 
@@ -2029,36 +2060,38 @@ test('a reviewed head that no longer resolves is gone, and the range still reads
 });
 
 test('a reviewed head that exists but fails to read is unreadable, saying why, and the range still reads', async () => {
-  using workspace = cargoWorkspace();
-  const { repo, root } = workspace;
-  const head = commit(repo, { 'crates/broken/Cargo.toml': 'not toml' });
+  using repository = gitRepo({ 'api/a': '' });
+  const { repo, root } = repository;
+  const head = commit(repo, { 'api/broken': '' });
   git(repo, 'reset', '--quiet', '--hard', root);
-  const to = commit(repo, crateFiles('cli'));
+  const to = commit(repo, { 'api/b': '' });
 
   const range = await readRange({
     repo,
     from: root,
     to,
     reviewed: reviewedHead({ head, verdict: 'approve' }),
+    readers: [failingWhereBroken()],
   });
 
   expect(range.reviewed).toMatchObject({
     head,
     verdict: 'approve',
-    unreadable: expect.stringContaining('cargo metadata'),
+    unreadable: expect.stringContaining('graph failed'),
   });
-  expect(nodeIds(range.after)).toContain('rust/crate/cli');
+  expect(nodeIds(range.after)).toEqual(['api']);
   expect(git(repo, 'worktree', 'list').split('\n')).toHaveLength(1);
 });
 
 test('a reviewed head whose own fork point fails to read is unreadable too, and the range still reads', async () => {
-  using workspace = cargoWorkspace();
-  const { repo } = workspace;
-  const broken = commit(repo, { 'crates/broken/Cargo.toml': 'not toml' });
-  const fixed = crateFiles('broken');
-  const head = commit(repo, { ...fixed, 'docs/mine.md': 'a long enough line\n' });
+  using repository = gitRepo({ 'api/a': '' });
+  const { repo } = repository;
+  const broken = commit(repo, { 'api/broken': '' });
+  git(repo, 'rm', '--quiet', 'api/broken');
+  const head = commit(repo, { 'docs/mine.md': 'a long enough line\n' });
   git(repo, 'reset', '--quiet', '--hard', broken);
-  const main = commit(repo, fixed);
+  git(repo, 'rm', '--quiet', 'api/broken');
+  const main = commit(repo, { 'api/b': '' });
   git(repo, 'merge', '--quiet', '--no-edit', head);
   const to = git(repo, 'rev-parse', 'HEAD');
 
@@ -2067,14 +2100,15 @@ test('a reviewed head whose own fork point fails to read is unreadable too, and 
     from: main,
     to,
     reviewed: reviewedHead({ head, verdict: 'approve' }),
+    readers: [failingWhereBroken()],
   });
 
   expect(range.reviewed).toMatchObject({
     head,
     verdict: 'approve',
-    unreadable: expect.stringContaining('cargo metadata'),
+    unreadable: expect.stringContaining('graph failed'),
   });
-  expect(nodeIds(range.after)).toContain('rust/crate/broken');
+  expect(nodeIds(range.after)).toEqual(['api']);
 });
 
 test('the commits since the review each name their subject and files, a rename by both names, a non-ASCII name as it is, and a merge by none', async () => {

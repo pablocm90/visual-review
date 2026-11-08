@@ -8,8 +8,11 @@ What changed in each release of `@pablocm90/visual-review`, newest first. Versio
 
 - **Reaches** and the `blast-radius` findings follow a changed Rust function, type or method, by name, to the modules importing from its file and the modules of the crates depending on its crate: at its first use by name, through a `use` (`crate`, `self`, `super`, a relative path or the crate's name, aliases, lists and `*`), or by a path written in full; a method by its type's path, or at the first `.total` in a file importing its type. A use in a `tests/` folder or inside a `#[test]` or `#[cfg(test)]` item is marked `test` and listed last. Coverage says what isn't followed: a module of its own crate with no `use` into its file, a crate named otherwise than by its package, such as through `[lib] name` or a renamed dependency, a binary naming its own package's library, a name re-exported through `pub use`, a path inside a macro, a method of an `impl Trait for`, and a method called on a value in a file not importing its type.
 
+- A Rust stack cargo can't read, such as one whose `Cargo.toml` doesn't parse, is listed as not read with cargo's error, saying the side it couldn't be read at, and is dropped from both graphs, so its crates don't all read as added or removed; the review goes on with the other stacks instead of failing.
+
 ### Changed
 
+- `Skipped` (`PageData.skipped`) is `{ reader, stacks, reason, side? }` in place of `{ reader, tool, stacks }`: `reason` reads `cargo not found on PATH` for a missing tool, and `side` is `base`, `head` or `reviewed` when the stack was read elsewhere.
 - A stacks-not-read finding goes by its stacks, `structure:skipped:<stacks>`, not by its reader, so one reader's stacks not read for two reasons are two findings.
 - `SymbolUse`, a row `Reader.uses` gives, takes an optional `test`: whether the use sits in test code. Without it, its file being a test file says so, as before.
 
