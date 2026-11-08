@@ -7,7 +7,6 @@ What changed in each release of `@pablocm90/visual-review`, newest first. Versio
 ### Added
 
 - **Reaches** and the `blast-radius` findings follow a changed Rust function, type or method, by name, to the modules importing from its file and the modules of the crates depending on its crate: at its first use by name, through a `use` (`crate`, `self`, `super`, a relative path or the crate's name, aliases, lists and `*`), or by a path written in full; a method by its type's path, or at the first `.total` in a file importing its type. A use in a `tests/` folder or inside a `#[test]` or `#[cfg(test)]` item is marked `test` and listed last. Coverage says what isn't followed: a module of its own crate with no `use` into its file, a crate named otherwise than by its package, such as through `[lib] name` or a renamed dependency, a binary naming its own package's library, a name re-exported through `pub use`, a path inside a macro, a method of an `impl Trait for`, and a method called on a value in a file not importing its type.
-
 - A note may say **why** its part or edge changed this way, beside what it does: an optional `why` in the notes file, still version 1, shown under the note's text in the inspector, labelled **Why**. Notes merged onto one drawn edge join their whys in order, as their texts are.
 
 ### Changed
