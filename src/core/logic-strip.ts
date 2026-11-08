@@ -1,6 +1,6 @@
 import { anchorKey } from './anchors.ts';
 import type { LogicLine } from './logic-diff.ts';
-import type { SymbolStatement } from './symbol-changes.ts';
+import { SYMBOL_GROUPS, type SymbolStatement } from './symbol-changes.ts';
 import { anchoredSymbols, decisionsOf } from './symbol-findings.ts';
 
 const FEW_CHANGES = 8;
@@ -103,7 +103,9 @@ export const walkOfDecisions = ({
     .toSorted((one, other) => rank(one.node) - rank(other.node))
     .flatMap(file =>
       'symbols' in file
-        ? anchoredSymbols(file.node, file.symbols).flatMap(symbol =>
+        ? SYMBOL_GROUPS.flatMap(([, holds]) =>
+            anchoredSymbols(file.node, file.symbols).filter(({ item }) => holds(item)),
+          ).flatMap(symbol =>
             decisionsOf(symbol).map(({ id, line }) => ({
               node: file.node,
               row: anchorKey({ kind: 'decision', id }),

@@ -160,7 +160,7 @@ const fn = (name: string, logic?: ReadonlyArray<LogicLine>): SymbolStatement => 
 
 const rowsOf = (walk: ReturnType<typeof walkOfDecisions>) => walk.map(({ row }) => row);
 
-test("the walk goes by reading order's parts, then a file's symbols and lines in order, and any other file after them", () => {
+test("the walk goes by reading order's parts, then a file's symbols as What changed lists them, API first, then edited, renamed, moved, added and removed, each's lines in order, and any other file after them", () => {
   expect(
     rowsOf(
       walkOfDecisions({
@@ -175,17 +175,23 @@ test("the walk goes by reading order's parts, then a file's symbols and lines in
           {
             node: 'first',
             symbols: [
-              fn('f', [decision('moved', 'f1')]),
+              { ...fn('f', [decision('moved', 'f1')]), change: 'moved' },
               fn('none'),
               fn('g', [decision('changed', 'g1')]),
+              {
+                ...fn('api', [decision('added', 'a1')]),
+                exported: { base: true, head: true },
+                change: 'renamed',
+              },
             ],
           },
         ],
       }),
     ),
   ).toEqual([
-    'decision first#f#f1',
+    'decision first#api#a1',
     'decision first#g#g1',
+    'decision first#f#f1',
     'decision second#s#s1',
     'decision second#s#s2',
     'decision other#o#o1',
