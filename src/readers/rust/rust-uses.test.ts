@@ -133,6 +133,32 @@ test.for([
   });
 });
 
+const ORDERS =
+  'pub fn parse() {}\npub mod inner {\n    pub fn z() {}\n}\npub struct Order;\nimpl Order {\n    pub fn total(&self) {}\n}\n';
+
+test.for([
+  {
+    reason: 'a function of an inline module',
+    name: 'inner::z',
+    text: 'use crate::orders::inner::z;\n\npub fn run() {\n    z();\n}\n',
+    found: { line: 4, text: 'z();' },
+  },
+])('$reason reaches a module importing it', async ({ name, text, found }) => {
+  const reading = await usesIn({
+    files: {
+      ...SHOP,
+      'crates/shop/src/orders.rs': ORDERS,
+      'crates/shop/src/checkout.rs': text,
+    },
+    target: 'crates/shop/src/orders.rs',
+    names: [name],
+  });
+
+  expect(reading?.uses).toEqual({
+    [name]: [{ path: 'crates/shop/src/checkout.rs', ...found }],
+  });
+});
+
 test('a function reaches a module of another crate importing it by that crate’s name', async () => {
   const reading = await usesIn({
     files: {
