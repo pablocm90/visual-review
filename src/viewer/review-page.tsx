@@ -835,6 +835,11 @@ const NotePanel = ({
       {shownNote !== undefined && (
         <section aria-label="Note">
           <p>{shownNote}</p>
+          {note?.why !== undefined && (
+            <p className="note-why">
+              <strong>Why</strong> {note.why}
+            </p>
+          )}
         </section>
       )}
       <SaidBefore key={anchorKey(anchor)} on={anchor} landing={onThePart(landing)} />

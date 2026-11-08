@@ -49,6 +49,10 @@ const ReviewNotesSchema = z
         z
           .strictObject({
             text: z.string(),
+            why: z
+              .string()
+              .optional()
+              .describe('Why it changed this way, and what follows from it'),
             flag: z.string().optional().describe('A short label for a structural concern'),
             dimension: z
               .enum(DIMENSIONS)
@@ -125,8 +129,10 @@ export const parseNotes = ({ text, file }: ParseNotesOptions): ReviewNotes => {
 
 const joined = (one: Note, other: Note): Note => {
   const flags = [one.flag, other.flag].filter(flag => flag !== undefined);
+  const whys = [one.why, other.why].filter(why => why !== undefined);
   return {
     text: `${one.text} ${other.text}`,
+    ...(whys.length > 0 ? { why: whys.join(' ') } : {}),
     ...(flags.length > 0 ? { flag: flags.join(', ') } : {}),
   };
 };

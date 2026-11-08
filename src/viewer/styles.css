@@ -3212,3 +3212,15 @@ main:has(> .review-tray) {
 .part-actions > .next-logic {
   margin-inline-start: auto;
 }
+
+.note .note-why {
+  margin-top: 6px;
+}
+
+.note-why strong {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
