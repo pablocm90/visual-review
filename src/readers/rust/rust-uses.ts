@@ -16,14 +16,27 @@ const segmentsOf = (node: Node | null): Segments => {
   ];
 };
 
-const pathsInUse = (node: Node): ReadonlyArray<Segments> => {
-  if (node.type === 'use_list') return node.namedChildren.flatMap(pathsInUse);
+type Imported = { readonly segments: Segments; readonly local: string };
+
+const importedOf = (segments: Segments, local = segments.at(-1) ?? ''): Imported => ({
+  segments,
+  local,
+});
+
+const importsInUse = (node: Node): ReadonlyArray<Imported> => {
+  if (node.type === 'use_list') return node.namedChildren.flatMap(importsInUse);
+  if (node.type === 'use_as_clause')
+    return [
+      importedOf(segmentsOf(node.childForFieldName('path')), node.childForFieldName('alias')?.text),
+    ];
   if (node.type === 'scoped_use_list') {
     const prefix = segmentsOf(node.childForFieldName('path'));
     const list = node.childForFieldName('list');
-    return (list === null ? [] : pathsInUse(list)).map(path => [...prefix, ...path]);
+    return (list === null ? [] : importsInUse(list)).map(({ segments, local }) =>
+      importedOf([...prefix, ...segments], local),
+    );
   }
-  return [segmentsOf(node)];
+  return [importedOf(segmentsOf(node))];
 };
 
 const startOf = (from: Segments, first: string): Segments => {
@@ -42,14 +55,14 @@ const absoluteFrom = (from: Segments, [first = '', ...rest]: Segments): Segments
 const moduleSegments = ({ label }: Pick<GraphNode, 'label'>): Segments =>
   label.endsWith('.rs') ? [] : label.split('::');
 
-const importsIn = (root: Node, from: Segments): ReadonlyArray<string> =>
+const importsIn = (root: Node, from: Segments): ReadonlyArray<Imported> =>
   root
     .descendantsOfType('use_declaration')
     .flatMap(declaration => {
       const argument = declaration.childForFieldName('argument');
-      return argument === null ? [] : pathsInUse(argument);
+      return argument === null ? [] : importsInUse(argument);
     })
-    .map(path => absoluteFrom(from, path).join('::'));
+    .map(({ segments, local }) => importedOf(absoluteFrom(from, segments), local));
 
 const isInUse = (node: Node): boolean =>
   node.parent !== null && (node.parent.type === 'use_declaration' || isInUse(node.parent));
@@ -68,13 +81,15 @@ const rowsIn = (
   const root = parseRust(text);
   if (root === undefined) return new Map();
   try {
-    const imported = new Set(importsIn(root, from));
+    const imported = importsIn(root, from);
     const lines = text.split('\n');
     const identifiers = root.descendantsOfType('identifier').filter(node => !isInUse(node));
     return new Map(
       names.map(name => {
-        const first = identifiers.find(node => node.text === name);
-        if (!imported.has([...target, name].join('::')) || first === undefined) return [name, []];
+        const item = [...target, name].join('::');
+        const local = imported.find(({ segments }) => segments.join('::') === item)?.local;
+        const first = identifiers.find(node => node.text === local);
+        if (first === undefined) return [name, []];
         const row = first.startPosition.row;
         return [name, [{ path, line: row + 1, text: (lines[row] ?? '').trim() }]];
       }),

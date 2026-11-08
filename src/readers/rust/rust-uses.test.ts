@@ -77,27 +77,33 @@ test.for([
     reason: 'a function of that name in another module',
     file: 'crates/shop/src/checkout.rs',
     text: 'use crate::orders::total;\nuse crate::billing::parse;\n\npub fn run() {\n    parse();\n}\n',
-    line: undefined,
+    found: undefined,
+  },
+  {
+    reason: 'the function under another name',
+    file: 'crates/shop/src/checkout.rs',
+    text: 'use crate::orders::parse as read;\n\npub fn run() {\n    parse();\n    read();\n}\n',
+    found: { line: 5, text: 'read();' },
   },
   {
     reason: 'the function through `super`',
     file: 'crates/shop/src/checkout.rs',
     text: 'use super::orders::parse;\n\npub fn run() {\n    parse();\n}\n',
-    line: 4,
+    found: { line: 4, text: 'parse();' },
   },
   {
     reason: 'the function through `super` twice',
     file: 'crates/shop/src/checkout/steps.rs',
     text: 'use super::super::orders::parse;\n\npub fn run() {\n    parse();\n}\n',
-    line: 4,
+    found: { line: 4, text: 'parse();' },
   },
   {
     reason: 'the function through `self`',
     file: 'crates/shop/src/lib.rs',
     text: 'pub mod orders;\npub mod billing;\nuse self::orders::parse;\n\npub fn run() {\n    parse();\n}\n',
-    line: 6,
+    found: { line: 6, text: 'parse();' },
   },
-])('a module importing $reason', async ({ file, text, line }) => {
+])('a module importing $reason', async ({ file, text, found }) => {
   const reading = await usesIn({
     files: { ...SHOP, [file]: text },
     target: 'crates/shop/src/orders.rs',
@@ -105,6 +111,6 @@ test.for([
   });
 
   expect(reading?.uses).toEqual({
-    parse: line === undefined ? [] : [{ path: file, line, text: 'parse();' }],
+    parse: found === undefined ? [] : [{ path: file, ...found }],
   });
 });
