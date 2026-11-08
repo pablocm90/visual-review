@@ -63,3 +63,48 @@ test('a function reaches the module importing it, where it is first called, and 
     parse: [{ path: 'crates/shop/src/checkout.rs', line: 4, text: 'parse();' }],
   });
 });
+
+const SHOP = {
+  ...crate('shop'),
+  'crates/shop/src/lib.rs': 'pub mod orders;\npub mod billing;\npub mod checkout;\n',
+  'crates/shop/src/orders.rs': 'pub fn parse() {}\npub fn total() {}\n',
+  'crates/shop/src/billing.rs': 'pub fn parse() {}\n',
+  'crates/shop/src/checkout.rs': 'pub mod steps;\n',
+};
+
+test.for([
+  {
+    reason: 'a function of that name in another module',
+    file: 'crates/shop/src/checkout.rs',
+    text: 'use crate::orders::total;\nuse crate::billing::parse;\n\npub fn run() {\n    parse();\n}\n',
+    line: undefined,
+  },
+  {
+    reason: 'the function through `super`',
+    file: 'crates/shop/src/checkout.rs',
+    text: 'use super::orders::parse;\n\npub fn run() {\n    parse();\n}\n',
+    line: 4,
+  },
+  {
+    reason: 'the function through `super` twice',
+    file: 'crates/shop/src/checkout/steps.rs',
+    text: 'use super::super::orders::parse;\n\npub fn run() {\n    parse();\n}\n',
+    line: 4,
+  },
+  {
+    reason: 'the function through `self`',
+    file: 'crates/shop/src/lib.rs',
+    text: 'pub mod orders;\npub mod billing;\nuse self::orders::parse;\n\npub fn run() {\n    parse();\n}\n',
+    line: 6,
+  },
+])('a module importing $reason', async ({ file, text, line }) => {
+  const reading = await usesIn({
+    files: { ...SHOP, [file]: text },
+    target: 'crates/shop/src/orders.rs',
+    names: ['parse'],
+  });
+
+  expect(reading?.uses).toEqual({
+    parse: line === undefined ? [] : [{ path: file, line, text: 'parse();' }],
+  });
+});
