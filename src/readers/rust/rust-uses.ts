@@ -97,15 +97,25 @@ const rowsIn = (
     const paths = root
       .descendantsOfType(['identifier', 'type_identifier', ...PATHS])
       .filter(node => !isInUse(node) && !namesItsParent(node));
+    const formsOf = (item: Segments): ReadonlySet<string> =>
+      new Set(
+        imported
+          .filter(({ segments }) => isPrefix(segments, item))
+          .map(({ segments, local }) => [...local, ...item.slice(segments.length)].join('::')),
+      );
+    const fields = root.descendantsOfType('field_identifier');
     return new Map(
       names.map(name => {
         const item = [...target, ...name.split(/::|\./)];
-        const forms = new Set(
-          imported
-            .filter(({ segments }) => isPrefix(segments, item))
-            .map(({ segments, local }) => [...local, ...item.slice(segments.length)].join('::')),
-        );
-        const first = paths.find(node => forms.has(segmentsOf(node).join('::')));
+        const forms = formsOf(item);
+        const calls =
+          name.includes('.') && formsOf(item.slice(0, -1)).size > 0
+            ? fields.filter(node => node.text === item.at(-1))
+            : [];
+        const [first] = [
+          ...paths.filter(node => forms.has(segmentsOf(node).join('::'))),
+          ...calls,
+        ].toSorted((one, other) => one.startIndex - other.startIndex);
         if (first === undefined) return [name, []];
         const row = first.startPosition.row;
         return [name, [{ path, line: row + 1, text: (lines[row] ?? '').trim() }]];

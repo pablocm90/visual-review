@@ -104,6 +104,12 @@ test.for([
     found: { line: 5, text: 'parse();' },
   },
   {
+    reason: 'its module, beside a value’s field of the function’s name',
+    file: 'crates/shop/src/checkout.rs',
+    text: 'use crate::orders;\n\npub fn run() {\n    config.parse();\n    orders::parse();\n}\n',
+    found: { line: 5, text: 'orders::parse();' },
+  },
+  {
     reason: 'the function through `super`',
     file: 'crates/shop/src/checkout.rs',
     text: 'use super::orders::parse;\n\npub fn run() {\n    parse();\n}\n',
@@ -167,6 +173,30 @@ test.for([
     text: 'use crate::orders::Order;\n\npub fn run(order: Order) {\n    Order::total(&order);\n}\n',
     found: { line: 4, text: 'Order::total(&order);' },
   },
+  {
+    reason: 'a method, called on a value',
+    name: 'Order.total',
+    text: 'use crate::orders::Order;\n\npub fn run(order: Order) {\n    order.total();\n}\n',
+    found: { line: 4, text: 'order.total();' },
+  },
+  {
+    reason: 'a method, called on a value after another',
+    name: 'Order.total',
+    text: 'use crate::orders::Order;\n\npub fn run(order: Order) {\n    order.count();\n    order.total();\n}\n',
+    found: { line: 5, text: 'order.total();' },
+  },
+  {
+    reason: 'a method, called on a value before by its type’s path',
+    name: 'Order.total',
+    text: 'use crate::orders::Order;\n\npub fn run(order: Order) {\n    order.total();\n    Order::total(&order);\n}\n',
+    found: { line: 4, text: 'order.total();' },
+  },
+  {
+    reason: 'a method, called on a value where its type is not imported,',
+    name: 'Order.total',
+    text: 'use crate::orders::parse;\n\npub fn run() {\n    parse();\n    order.total();\n}\n',
+    found: undefined,
+  },
 ])('$reason reaches a module importing it', async ({ name, text, found }) => {
   const reading = await usesIn({
     files: {
@@ -179,7 +209,7 @@ test.for([
   });
 
   expect(reading?.uses).toEqual({
-    [name]: [{ path: 'crates/shop/src/checkout.rs', ...found }],
+    [name]: found === undefined ? [] : [{ path: 'crates/shop/src/checkout.rs', ...found }],
   });
 });
 
