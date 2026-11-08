@@ -3,7 +3,7 @@ import { join } from 'node:path';
 import type { Node } from 'web-tree-sitter';
 import type { GraphNode } from '../../core/graph.ts';
 import type { SymbolUse, UsesAsked, UsesReading } from '../../core/reader.ts';
-import { parseRust } from './rust-syntax.ts';
+import { isTestCode, parseRust } from './rust-syntax.ts';
 import {
   EXTERN_PRELUDE,
   followed,
@@ -88,7 +88,10 @@ const rowsIn = (
         ].toSorted((one, other) => one.startIndex - other.startIndex);
         if (first === undefined) return [name, []];
         const row = first.startPosition.row;
-        return [name, [{ path, line: row + 1, text: (lines[row] ?? '').trim(), test: false }]];
+        return [
+          name,
+          [{ path, line: row + 1, text: (lines[row] ?? '').trim(), test: isTestCode(first) }],
+        ];
       }),
     );
   } finally {

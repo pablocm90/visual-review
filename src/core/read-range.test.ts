@@ -2684,9 +2684,11 @@ test('a removed Rust function reaches the modules of the crate still calling it'
   using workspace = cargoWorkspace();
   const { repo } = workspace;
   const base = commit(repo, {
-    'crates/core/src/lib.rs': 'pub mod orders;\npub mod checkout;\n',
+    'crates/core/src/lib.rs': 'pub mod orders;\npub mod checkout;\npub mod totals;\n',
     'crates/core/src/orders.rs': 'pub fn parse() {}\npub fn kept() {}\n',
     'crates/core/src/checkout.rs': 'use crate::orders::parse;\n\npub fn run() {\n    parse();\n}\n',
+    'crates/core/src/totals.rs':
+      'use crate::orders::parse;\n\n#[cfg(test)]\nmod tests {\n    use super::*;\n\n    #[test]\n    fn parses() {\n        parse();\n    }\n}\n',
   });
   const head = commit(repo, { 'crates/core/src/orders.rs': 'pub fn kept() {}\n' });
 
@@ -2695,7 +2697,10 @@ test('a removed Rust function reaches the modules of the crate still calling it'
   expect(range.reaches.map(({ label, uses }) => ({ label, uses }))).toEqual([
     {
       label: 'function parse',
-      uses: [{ path: 'crates/core/src/checkout.rs', line: 4, text: 'parse();' }],
+      uses: [
+        { path: 'crates/core/src/checkout.rs', line: 4, text: 'parse();' },
+        { path: 'crates/core/src/totals.rs', line: 9, text: 'parse();', test: true },
+      ],
     },
   ]);
 });
