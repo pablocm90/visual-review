@@ -92,7 +92,7 @@ const rowsIn = (
     const imported = importsIn(root, from, target[0] ?? '');
     const lines = text.split('\n');
     const paths = root
-      .descendantsOfType(['identifier', 'scoped_identifier'])
+      .descendantsOfType(['identifier', 'scoped_identifier', 'type_identifier'])
       .filter(node => !isInUse(node) && !namesItsParent(node));
     return new Map(
       names.map(name => {
