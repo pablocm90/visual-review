@@ -103,7 +103,9 @@ const rowsIn = (
           .filter(({ segments }) => isPrefix(segments, item))
           .map(({ segments, local }) => [...local, ...item.slice(segments.length)].join('::')),
       );
-    const fields = root.descendantsOfType('field_identifier');
+    const fields = root
+      .descendantsOfType('field_identifier')
+      .filter(node => node.parent?.type === 'field_expression');
     return new Map(
       names.map(name => {
         const item = [...target, ...name.split(/::|\./)];

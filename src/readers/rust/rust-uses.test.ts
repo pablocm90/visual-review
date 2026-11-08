@@ -186,6 +186,12 @@ test.for([
     found: { line: 5, text: 'order.total();' },
   },
   {
+    reason: 'a method, called on a value after a struct literal setting a field of its name,',
+    name: 'Order.total',
+    text: 'use crate::orders::Order;\n\npub fn run(order: Order) {\n    let _ = Counts { total: 1 };\n    order.total();\n}\n',
+    found: { line: 5, text: 'order.total();' },
+  },
+  {
     reason: 'a method, called on a value before by its type’s path',
     name: 'Order.total',
     text: 'use crate::orders::Order;\n\npub fn run(order: Order) {\n    order.total();\n    Order::total(&order);\n}\n',
