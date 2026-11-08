@@ -2,7 +2,7 @@ import { CONFIG_FILE, type Config, folderOf, stackSettings } from './config.ts';
 import { type Graph, stackOfIn } from './graph.ts';
 import type { DanglingCall, Linker, Links } from './linker.ts';
 import type { Reader } from './reader.ts';
-import type { Skipped } from './skipped.ts';
+import { type Skipped, StackNotRead } from './skipped.ts';
 
 export type Adapters = {
   readonly readers: ReadonlyArray<Reader>;
@@ -142,6 +142,8 @@ export const checkConfig = (
   if (problems.length > 0) throw new Error(problems.join('\n'));
 };
 
+type StackRead = { readonly graph: Graph } | { readonly notRead: Skipped };
+
 const missingToolOf = ({ tool }: Reader, onPath: Adapters['onPath']): string | undefined =>
   tool === undefined || onPath(tool) ? undefined : tool;
 
@@ -218,28 +220,43 @@ export const readStacks = async (options: ReadStacksOptions): Promise<StacksRead
   const { directory, config, readers, onPath } = options;
   const stacks = drawnIn(options);
   const kept = stacks.filter(({ stack }) => config.stacks[stack] !== false);
-  const skipped = readers.flatMap(reader => {
+  const withoutTool = readers.flatMap(reader => {
     const tool = missingToolOf(reader, onPath);
     const ids = kept.filter(drawn => drawn.reader === reader).map(({ stack }) => stack);
     return tool === undefined || ids.length === 0
       ? []
       : [{ reader: reader.name, stacks: ids, reason: `${tool} not found on PATH` }];
   });
-  const graphs = await Promise.all(
+  const read = await Promise.all(
     kept
-      .filter(({ reader }) => !skipped.some(({ reader: name }) => name === reader.name))
+      .filter(({ reader }) => !withoutTool.some(({ reader: name }) => name === reader.name))
       .map(({ reader, root, stack }) =>
-        reader.graph({
-          directory,
-          root,
-          stack,
-          settings: stackSettings(config, stack),
-          stacks: new Map(
-            stacks.filter(drawn => drawn.reader === reader).map(drawn => [drawn.root, drawn.stack]),
+        reader
+          .graph({
+            directory,
+            root,
+            stack,
+            settings: stackSettings(config, stack),
+            stacks: new Map(
+              stacks
+                .filter(drawn => drawn.reader === reader)
+                .map(drawn => [drawn.root, drawn.stack]),
+            ),
+          })
+          .then(
+            (graph): StackRead => ({ graph }),
+            (error: unknown): StackRead => {
+              if (!(error instanceof StackNotRead)) throw error;
+              return { notRead: { reader: reader.name, stacks: [stack], reason: error.message } };
+            },
           ),
-        }),
       ),
   );
+  const graphs = read.flatMap(each => ('graph' in each ? [each.graph] : []));
+  const skipped = [
+    ...withoutTool,
+    ...read.flatMap(each => ('notRead' in each ? [each.notRead] : [])),
+  ];
   const nodes = graphs
     .flatMap(graph => graph.nodes)
     .map(node => ({ ...node, label: stackSettings(config, node.id).label ?? node.label }));

@@ -1,4 +1,4 @@
-import { existsSync, rmSync } from 'node:fs';
+import { existsSync, readFileSync, rmSync } from 'node:fs';
 import { basename, join } from 'node:path';
 import { expect, test, vi } from 'vitest';
 import { rustReader } from '../readers/rust/reader.ts';
@@ -17,6 +17,7 @@ import {
   writeFiles,
 } from '../test-support/repos.ts';
 import { reviewedHead } from '../test-support/reviewed.ts';
+import { StackNotRead } from './skipped.ts';
 
 const rootPackage = { 'package.json': '{}\n', 'src/index.ts': '' };
 
@@ -1496,6 +1497,28 @@ test('a skipped reader lists the stacks it would read on either side, those foun
 
   expect(range.skipped).toEqual([
     { reader: 'rust', stacks: ['rust', 'other'], reason: 'cargo not found on PATH' },
+  ]);
+});
+
+test('a stack not read is listed once for each reason it was not read for, at either side', async () => {
+  using repository = gitRepo({ 'api/broken': 'cargo: api is broken' });
+  const { repo, root } = repository;
+  const head = commit(repo, { 'jobs/broken': 'cargo: jobs is broken' });
+  const reader = fakeReader({
+    name: 'rust',
+    roots: [{ root: 'api' }, { root: 'jobs' }],
+    graph: async ({ directory, root, stack }) => {
+      const broken = join(directory, root, 'broken');
+      if (existsSync(broken)) throw new StackNotRead(readFileSync(broken, 'utf8'));
+      return { nodes: [{ id: stack, kind: 'stack', label: stack, path: root }], edges: [] };
+    },
+  });
+
+  const range = await readRange({ repo, from: root, to: head, readers: [reader] });
+
+  expect(range.skipped).toEqual([
+    { reader: 'rust', stacks: ['api'], reason: 'cargo: api is broken' },
+    { reader: 'rust', stacks: ['jobs'], reason: 'cargo: jobs is broken' },
   ]);
 });
 

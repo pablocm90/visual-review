@@ -10,6 +10,7 @@ What changed in each release of `@pablocm90/visual-review`, newest first. Versio
 
 ### Changed
 
+- A stacks-not-read finding goes by its stacks, `structure:skipped:<stacks>`, not by its reader, so one reader's stacks not read for two reasons are two findings.
 - `SymbolUse`, a row `Reader.uses` gives, takes an optional `test`: whether the use sits in test code. Without it, its file being a test file says so, as before.
 
 ## 0.51.0 — 2026-11-08

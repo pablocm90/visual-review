@@ -132,7 +132,9 @@ const readSide = async ({
 
 const skippedAcross = (skips: ReadonlyArray<Skipped>): ReadonlyArray<Skipped> =>
   skips.reduce<ReadonlyArray<Skipped>>((merged, skip) => {
-    const known = merged.find(({ reader }) => reader === skip.reader);
+    const known = merged.find(
+      ({ reader, reason }) => reader === skip.reader && reason === skip.reason,
+    );
     return known === undefined
       ? [...merged, skip]
       : merged.map(each =>

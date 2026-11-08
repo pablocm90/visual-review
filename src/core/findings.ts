@@ -156,7 +156,7 @@ const namesNotUtf8Finding = (paths: ReadonlyArray<string>): ReadonlyArray<Findin
         },
       ];
 
-export const skippedFindingId = (skip: Skipped) => `structure:skipped:${skip.reader}`;
+export const skippedFindingId = (skip: Skipped) => `structure:skipped:${skip.stacks.join(',')}`;
 
 export const raisedFindings = ({
   skipped,

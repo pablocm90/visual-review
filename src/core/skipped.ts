@@ -8,3 +8,5 @@ export type Skipped = {
 
 export const notReadLine = ({ reason, stacks }: Skipped): string =>
   `${stacks.join(', ')} not read: ${reason}`;
+
+export class StackNotRead extends Error {}

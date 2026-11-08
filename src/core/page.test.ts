@@ -350,9 +350,10 @@ test('a symbol reaching files the change left is a blast radius finding to look 
   expect(shown).toEqual(reaches);
 });
 
-test('stacks a missing tool kept from being read are a structure finding to look at, on no node', () => {
+test('stacks not read are a structure finding to look at per reason, by those stacks, on no node', () => {
   const skipped = [
     { reader: 'rust' as const, stacks: ['api', 'worker'], reason: 'cargo not found on PATH' },
+    { reader: 'rust' as const, stacks: ['jobs'], reason: 'cargo: jobs is broken' },
   ];
 
   expect(
@@ -360,11 +361,18 @@ test('stacks a missing tool kept from being read are a structure finding to look
       .findings,
   ).toStrictEqual([
     {
-      id: 'structure:skipped:rust',
+      id: 'structure:skipped:api,worker',
       check: 'structure:skipped',
       dimension: 'structure',
       level: 'look',
       title: 'api, worker not read: cargo not found on PATH',
+    },
+    {
+      id: 'structure:skipped:jobs',
+      check: 'structure:skipped',
+      dimension: 'structure',
+      level: 'look',
+      title: 'jobs not read: cargo: jobs is broken',
     },
   ]);
 });
