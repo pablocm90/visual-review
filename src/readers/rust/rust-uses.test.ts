@@ -242,6 +242,26 @@ test.for([
   });
 });
 
+test('a function used by a crate under a tests folder is used by test code', async () => {
+  const reading = await usesIn({
+    files: {
+      'Cargo.toml': '[workspace]\nmembers = ["crates/*", "tests/e2e"]\nresolver = "2"\n',
+      ...crate('shop-core'),
+      'tests/e2e/Cargo.toml':
+        '[package]\nname = "e2e"\nversion = "0.1.0"\nedition = "2021"\n\n[dependencies]\nshop-core = { path = "../../crates/shop-core" }\n',
+      'crates/shop-core/src/lib.rs': 'pub mod orders;\n',
+      'crates/shop-core/src/orders.rs': 'pub fn parse() {}\n',
+      'tests/e2e/src/lib.rs': 'use shop_core::orders::parse;\n\npub fn run() {\n    parse();\n}\n',
+    },
+    target: 'crates/shop-core/src/orders.rs',
+    names: ['parse'],
+  });
+
+  expect(reading?.uses).toEqual({
+    parse: [{ path: 'tests/e2e/src/lib.rs', line: 4, text: 'parse();', test: true }],
+  });
+});
+
 test.for([
   {
     reason: 'a method of a trait impl among others is',
