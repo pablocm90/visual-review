@@ -376,9 +376,13 @@ test.for([
   ).toThrow(new RegExp(`^Invalid notes file ${file}: .*"${key}"`, 's'));
 });
 
-test('a note keeps why it changed this way beside what it does', () => {
+test('a note keeps why it changed this way and what to do about it, beside what it does', () => {
   const notes = {
-    'web/module/pages': { text: 'Home now formats dates.', why: 'The API sends ISO strings.' },
+    'web/module/pages': {
+      text: 'Home now formats dates.',
+      why: 'The API sends ISO strings.',
+      recommendation: 'Format them in one helper.',
+    },
   };
 
   expect(parseNotes({ text: JSON.stringify(notesWith({ notes })), file }).notes).toEqual(notes);

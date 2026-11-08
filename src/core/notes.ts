@@ -53,6 +53,10 @@ const ReviewNotesSchema = z
               .string()
               .optional()
               .describe('Why it changed this way, and what follows from it'),
+            recommendation: z
+              .string()
+              .optional()
+              .describe('What to do about it, when something warrants it'),
             flag: z.string().optional().describe('A short label for a structural concern'),
             dimension: z
               .enum(DIMENSIONS)
