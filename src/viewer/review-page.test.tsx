@@ -130,9 +130,12 @@ const inspector = () => screen.getByRole('complementary', { name: 'Inspector' })
 
 const testedBy = () => screen.getByRole('region', { name: 'Tested by' });
 
-const noteShown = () =>
-  within(within(inspector()).getByRole('region', { name: 'Note' })).getByRole('paragraph')
-    .textContent;
+const noteLines = () =>
+  within(within(inspector()).getByRole('region', { name: 'Note' }))
+    .getAllByRole('paragraph')
+    .map(line => line.textContent);
+
+const noteShown = () => noteLines()[0];
 
 const fold = (name: string) => within(inspector()).queryByRole('region', { name });
 
@@ -1661,6 +1664,46 @@ test('clicking a crate or a dependency, or pressing Enter or Space on it, shows 
     .focus();
   await user.keyboard(' ');
   expect(noteShown()).toBe('The CLI drives the use case.');
+});
+
+test('a note says why under its text, on a part and on an edge, and a note without a why or "No note" says none', async () => {
+  const user = userEvent.setup();
+  render(
+    <ReviewPage
+      review={pageWith({ ...review })}
+      notes={{
+        version: 1,
+        tests: '',
+        summary: [],
+        notes: {
+          'rust/crate/application': {
+            text: 'Adds the export use case.',
+            why: 'Exports were done by hand.',
+          },
+          'rust/crate/cli-adapter': { text: 'A second way in.' },
+          'rust/crate/cli-adapter -> rust/crate/application': {
+            text: 'The CLI drives the use case.',
+            why: 'The use case has no other caller yet.',
+          },
+        },
+      }}
+    />,
+  );
+
+  await user.click(await screen.findByRole('button', { name: 'application: modified' }));
+  expect(noteLines()).toEqual(['Adds the export use case.', 'Why Exports were done by hand.']);
+
+  await user.click(screen.getByRole('button', { name: 'cli-adapter → application: added' }));
+  expect(noteLines()).toEqual([
+    'The CLI drives the use case.',
+    'Why The use case has no other caller yet.',
+  ]);
+
+  await user.click(screen.getByRole('button', { name: 'cli-adapter: added' }));
+  expect(noteLines()).toEqual(['A second way in.']);
+
+  await user.click(screen.getByRole('button', { name: 'domain: unchanged' }));
+  expect(noteLines()).toEqual(['No note']);
 });
 
 test("a drawn node's or edge's badge names its findings under the worst level, says so on hover, and clicking it opens its note, which lists them", async () => {
