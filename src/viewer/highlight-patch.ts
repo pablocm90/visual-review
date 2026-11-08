@@ -4,6 +4,7 @@ import ini from 'highlight.js/lib/languages/ini';
 import javascript from 'highlight.js/lib/languages/javascript';
 import json from 'highlight.js/lib/languages/json';
 import markdown from 'highlight.js/lib/languages/markdown';
+import ruby from 'highlight.js/lib/languages/ruby';
 import rust from 'highlight.js/lib/languages/rust';
 import typescript from 'highlight.js/lib/languages/typescript';
 import xml from 'highlight.js/lib/languages/xml';
@@ -13,10 +14,16 @@ import type { FilePatch } from '../core/diff-graphs.ts';
 const LANGUAGE_BY_NAME: Readonly<Record<string, string>> = {
   'Cargo.lock': 'ini',
   '.editorconfig': 'ini',
+  'config.ru': 'ruby',
+  Gemfile: 'ruby',
+  Rakefile: 'ruby',
 };
 
 const LANGUAGE_BY_EXTENSION: Readonly<Record<string, string>> = {
   rs: 'rust',
+  rb: 'ruby',
+  rake: 'ruby',
+  gemspec: 'ruby',
   ts: 'typescript',
   tsx: 'typescript',
   cjs: 'javascript',
@@ -52,7 +59,7 @@ type Side = 'old' | 'new';
 type Lines = ReadonlyArray<ReadonlyArray<Piece>>;
 
 const highlighter = hljs.newInstance();
-Object.entries({ css, ini, javascript, json, markdown, rust, typescript, xml, yaml }).forEach(
+Object.entries({ css, ini, javascript, json, markdown, ruby, rust, typescript, xml, yaml }).forEach(
   ([name, language]) => {
     highlighter.registerLanguage(name, language);
   },
