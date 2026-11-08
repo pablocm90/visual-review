@@ -5,9 +5,12 @@ import {
   holdsFewChanges,
   isExit,
   logicTotalsOf,
+  nextDecision,
   nodesWithChangedLogic,
   runsOf,
+  walkOfDecisions,
 } from './logic-strip.ts';
+import type { SymbolStatement } from './symbol-changes.ts';
 
 const line = (change: LogicLine['change'], kind: LogicLine['kind']): LogicLine => ({
   change,
@@ -139,4 +142,126 @@ test('the totals count the changed decisions by change and exit, the functions a
     removed: 3,
     moved: 4,
   });
+});
+
+const decision = (change: LogicLine['change'], head: string): LogicLine => ({
+  ...line(change, 'if'),
+  head,
+});
+
+const fn = (name: string, logic?: ReadonlyArray<LogicLine>): SymbolStatement => ({
+  name,
+  kind: 'function',
+  lines: {},
+  exported: {},
+  change: 'edited',
+  ...(logic === undefined ? {} : { logic }),
+});
+
+const rowsOf = (walk: ReturnType<typeof walkOfDecisions>) => walk.map(({ row }) => row);
+
+test("the walk goes by reading order's parts, then a file's symbols as What changed lists them, API first, then edited, renamed, moved, added and removed, each's lines in order, and any other file after them", () => {
+  expect(
+    rowsOf(
+      walkOfDecisions({
+        parts: ['first', 'second'],
+        files: [
+          { node: 'other', symbols: [fn('o', [decision('added', 'o1')])] },
+          { node: 'broken', unreadable: 'Unexpected token' },
+          {
+            node: 'second',
+            symbols: [fn('s', [decision('added', 's1'), decision('removed', 's2')])],
+          },
+          {
+            node: 'first',
+            symbols: [
+              { ...fn('f', [decision('moved', 'f1')]), change: 'moved' },
+              fn('none'),
+              fn('g', [decision('changed', 'g1')]),
+              {
+                ...fn('api', [decision('added', 'a1')]),
+                exported: { base: true, head: true },
+                change: 'renamed',
+              },
+            ],
+          },
+        ],
+      }),
+    ),
+  ).toEqual([
+    'decision first#api#a1',
+    'decision first#g#g1',
+    'decision first#f#f1',
+    'decision second#s#s1',
+    'decision second#s#s2',
+    'decision other#o#o1',
+  ]);
+});
+
+const walkOfThree = () =>
+  walkOfDecisions({
+    parts: ['a', 'b'],
+    files: [
+      {
+        node: 'a',
+        symbols: [
+          fn('f', [decision('same', 'kept'), decision('added', 'one'), decision('same', 'also')]),
+        ],
+      },
+      { node: 'b', symbols: [fn('g', [decision('same', 'lead'), decision('added', 'two')])] },
+      { node: 'c', symbols: [fn('h', [decision('same', 'quiet')])] },
+    ],
+  });
+
+test.for([
+  {
+    from: 'nothing selected',
+    at: {},
+    next: 'decision a#f#one',
+  },
+  {
+    from: 'a part with changed decisions',
+    at: { selected: 'b' },
+    next: 'decision b#g#two',
+  },
+  {
+    from: 'a part holding none',
+    at: { selected: 'c' },
+    next: 'decision a#f#one',
+  },
+  {
+    from: 'a landed decision, the next changed one crossing files',
+    at: { selected: 'a', row: 'decision a#f#one' },
+    next: 'decision b#g#two',
+  },
+  {
+    from: 'a landed unchanged decision, skipping unchanged ones',
+    at: { selected: 'a', row: 'decision a#f#kept' },
+    next: 'decision a#f#one',
+  },
+  {
+    from: 'a landed row that is no decision, the part as if none landed',
+    at: { selected: 'b', row: 'finding logic:x' },
+    next: 'decision b#g#two',
+  },
+])('from $from, the next is $next', ({ at, next }) => {
+  expect(nextDecision({ walk: walkOfThree(), ...at })?.row).toBe(next);
+});
+
+test('past the last changed decision there is no next, so the walk stays, as J does at the last part', () => {
+  const walk = walkOfThree();
+
+  expect(nextDecision({ walk, selected: 'b', row: 'decision b#g#two' })).toBeUndefined();
+  expect(nextDecision({ walk, selected: 'c', row: 'decision c#h#quiet' })).toBeUndefined();
+});
+
+test('a range with no changed decision has nowhere to walk', () => {
+  expect(
+    nextDecision({
+      walk: walkOfDecisions({
+        parts: ['a'],
+        files: [{ node: 'a', symbols: [fn('f', [decision('same', 'kept')])] }],
+      }),
+    }),
+  ).toBeUndefined();
 });

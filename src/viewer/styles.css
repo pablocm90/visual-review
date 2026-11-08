@@ -3208,3 +3208,7 @@ main:has(> .review-tray) {
 .logic-legend-mark {
   cursor: default;
 }
+
+.part-actions > .next-logic {
+  margin-inline-start: auto;
+}
