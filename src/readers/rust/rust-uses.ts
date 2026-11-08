@@ -15,6 +15,9 @@ import {
   segmentsOf,
 } from './use-paths.ts';
 
+const UNSEEN =
+  'not followed: a module of its own crate with no `use` into its file, a name re-exported through `pub use`, and a path inside a macro';
+
 const startOf = (from: Segments, first: string, extern: string): Segments => {
   if (first === EXTERN_PRELUDE) return [];
   if (first === 'crate') return from.slice(0, 1);
@@ -146,8 +149,11 @@ export const usesOfRust = async ({ head, graph, node, names }: UsesAsked): Promi
       names.map(name => [name, files.flatMap(rows => rows.get(name) ?? [])]),
     ),
     notRead: [],
-    notFollowed: names.some(name => name.includes(' as '))
-      ? ['not followed: a method of an `impl Trait for`']
-      : [],
+    notFollowed: [
+      UNSEEN,
+      ...(names.some(name => name.includes(' as '))
+        ? ['not followed: a method of an `impl Trait for`']
+        : []),
+    ],
   };
 };

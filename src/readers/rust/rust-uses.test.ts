@@ -303,14 +303,19 @@ test.for([
   {
     reason: 'a method of a trait impl among others is',
     names: ['Order.total', 'Order as Display.fmt'],
-    notFollowed: ['not followed: a method of an `impl Trait for`'],
+    notFollowed: [
+      'not followed: a module of its own crate with no `use` into its file, a name re-exported through `pub use`, and a path inside a macro',
+      'not followed: a method of an `impl Trait for`',
+    ],
   },
   {
     reason: 'a type’s own method or a type is',
     names: ['Order.total', 'Basket'],
-    notFollowed: [],
+    notFollowed: [
+      'not followed: a module of its own crate with no `use` into its file, a name re-exported through `pub use`, and a path inside a macro',
+    ],
   },
-])('$reason not followed', async ({ names, notFollowed }) => {
+])('$reason not followed, beside what no use is', async ({ names, notFollowed }) => {
   const reading = await usesIn({
     files: { ...SHOP, 'crates/shop/src/orders.rs': ORDERS },
     target: 'crates/shop/src/orders.rs',
