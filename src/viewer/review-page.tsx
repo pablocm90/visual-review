@@ -17,7 +17,12 @@ import type { DiffedNode, FilePatch, GraphDiff } from '../core/diff-graphs.ts';
 import { deepestHolding, isAtOrUnder } from '../core/diff-graphs.ts';
 import { type Finding, findingsAt, findingsOf } from '../core/findings.ts';
 import { edgeId } from '../core/graph.ts';
-import { logicTotalsOf, nodesWithChangedLogic } from '../core/logic-strip.ts';
+import {
+  logicTotalsOf,
+  nextDecision,
+  nodesWithChangedLogic,
+  walkOfDecisions,
+} from '../core/logic-strip.ts';
 import { type MetricFinding, metricFindings } from '../core/metric-findings.ts';
 import type { NodeMetrics } from '../core/metrics.ts';
 import { type Note, type ReviewNotes, visibleNotes } from '../core/notes.ts';
@@ -577,6 +582,7 @@ type Walking = {
   readonly onToggleRead: () => void;
   readonly next: DiffNode | undefined;
   readonly onGoTo: (id: string) => void;
+  readonly onNextLogic: (() => void) | undefined;
 };
 
 const KeyHint = ({ letter }: { readonly letter: string }) => (
@@ -588,7 +594,7 @@ const KeyHint = ({ letter }: { readonly letter: string }) => (
 const InspectorHead = ({
   nodes,
   node,
-  walking: { read, onToggleRead, next, onGoTo },
+  walking: { read, onToggleRead, next, onGoTo, onNextLogic },
   anchor,
   comments,
   onComment,
@@ -643,6 +649,11 @@ const InspectorHead = ({
       {next && (
         <button type="button" onClick={() => onGoTo(next.id)}>
           Next: {next.label} <KeyHint letter="J" />
+        </button>
+      )}
+      {onNextLogic && (
+        <button type="button" className="next-logic" onClick={onNextLogic}>
+          Next logic change <KeyHint letter="L" />
         </button>
       )}
     </div>
@@ -991,6 +1002,7 @@ type SidePanelProps = {
   readonly onCloseInspector: (id: string) => void;
   readonly onGoTo: (id: string) => void;
   readonly onWalkTo: (id: string) => void;
+  readonly onNextLogic: (() => void) | undefined;
   readonly landing: LandingIn | undefined;
   readonly onLand: (landing: LandingIn) => void;
   readonly read: ReadonlySet<string>;
@@ -1022,6 +1034,7 @@ const SidePanel = ({
   onCloseInspector,
   onGoTo,
   onWalkTo,
+  onNextLogic,
   landing,
   onLand,
   read,
@@ -1123,6 +1136,7 @@ const SidePanel = ({
           onToggleRead: () => onToggleRead(selected),
           next: review.diff.nodes.find(({ id }) => id === nextId),
           onGoTo: onWalkTo,
+          onNextLogic,
         }}
       />
     </CommentAsked.Provider>
@@ -2148,6 +2162,18 @@ const Page = ({ review, notes, send }: ReviewPageProps) => {
       : (parts.find(part => !read.has(part)) ?? parts[0]);
     if (next !== undefined) walkTo(next);
   };
+  const logicWalk = useMemo(
+    () => walkOfDecisions({ files: review.symbols, parts: review.readingOrder.parts }),
+    [review.symbols, review.readingOrder.parts],
+  );
+  const nextLogic = nextDecision({ walk: logicWalk, selected, row: landing?.row });
+  const walkLogic =
+    nextLogic &&
+    (() => {
+      setReading(true);
+      goToRow(nextLogic.node, nextLogic.row);
+      setFocusTarget({ id: nextLogic.node, inGraph: false });
+    });
   const openMap = () => {
     setReading(false);
     if (selected === undefined) frameElement?.focus();
@@ -2167,6 +2193,7 @@ const Page = ({ review, notes, send }: ReviewPageProps) => {
       if (key === 'escape' && reading) openMap();
       if (key === 'j') walk(1);
       if (key === 'k') walk(-1);
+      if (key === 'l') walkLogic?.();
       if (key === 'c' && selected !== undefined) {
         event.preventDefault();
         setCommentAsked({ on: selected, row: rowCommentedFrom(event.target) });
@@ -2285,6 +2312,7 @@ const Page = ({ review, notes, send }: ReviewPageProps) => {
         onCloseInspector={closeInspector}
         onGoTo={goTo}
         onWalkTo={walkTo}
+        onNextLogic={walkLogic}
         landing={landing}
         onLand={line => landOn(selected, line)}
         read={read}
