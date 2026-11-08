@@ -132,3 +132,23 @@ test.for([
     parse: found === undefined ? [] : [{ path: file, ...found }],
   });
 });
+
+test('a function reaches a module of another crate importing it by that crate’s name', async () => {
+  const reading = await usesIn({
+    files: {
+      ...crate('shop-core'),
+      ...crate('shop', 'shop-core = { path = "../shop-core" }\n'),
+      'crates/shop-core/src/lib.rs': 'pub mod orders;\n',
+      'crates/shop-core/src/orders.rs': 'pub fn parse() {}\n',
+      'crates/shop/src/lib.rs': 'pub mod checkout;\n',
+      'crates/shop/src/checkout.rs':
+        'use shop_core::orders::parse;\n\npub fn run() {\n    parse();\n}\n',
+    },
+    target: 'crates/shop-core/src/orders.rs',
+    names: ['parse'],
+  });
+
+  expect(reading?.uses).toEqual({
+    parse: [{ path: 'crates/shop/src/checkout.rs', line: 4, text: 'parse();' }],
+  });
+});
