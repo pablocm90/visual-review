@@ -9,6 +9,7 @@ import { msFrom } from '../../ms-from.ts';
 import { sourcesIn } from '../sources-in.ts';
 import { crateGraph, crateRoots } from './crate-graph.ts';
 import { crateModules } from './crate-modules.ts';
+import { refuseLeavingPaths } from './manifest-paths.ts';
 import { measureRust } from './rust-measure.ts';
 import { symbolsOfRust } from './rust-symbols.ts';
 import { TEST_FOLDER } from './rust-syntax.ts';
@@ -65,6 +66,7 @@ type GraphAtOptions = {
 
 const graphAt = async ({ checkout, root, stack }: GraphAtOptions): Promise<Graph> => {
   const directory = join(checkout, root);
+  await refuseLeavingPaths({ checkout, root });
   const timeout = msFrom({ variable: 'VISUAL_REVIEW_CARGO_MS', fallback: 60_000 });
   const reading = run(
     ...capped([

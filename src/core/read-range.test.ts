@@ -1,4 +1,4 @@
-import { existsSync, readFileSync, rmSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, rmSync, symlinkSync } from 'node:fs';
 import { basename, join } from 'node:path';
 import { expect, test, vi } from 'vitest';
 import { rustReader } from '../readers/rust/reader.ts';
@@ -1559,16 +1559,105 @@ test.skipIf(process.platform !== 'linux')(
   },
 );
 
+const withZeroManifest = (repo: string): string => {
+  mkdirSync(join(repo, 'zero'));
+  symlinkSync('/dev/zero', join(repo, 'zero', 'Cargo.toml'));
+  return `../../${basename(repo)}/zero`;
+};
+
+const packageNamed = (name: string, rest = '') =>
+  `[package]\nname = "${name}"\nversion = "0.1.0"\nedition = "2021"\n${rest}`;
+
 test.for([
-  { broken: 'a manifest', manifest: '[workspace\n', error: 'unclosed table, expected `]`' },
+  {
+    named: 'a dependency path',
+    manifest: (out: string) => packageNamed('a', `[dependencies]\nb = { path = ${out} }\n`),
+    out: 'relative',
+  },
+  {
+    named: 'an absolute dependency path, also found under its folder',
+    manifest: (out: string) => packageNamed('a', `[dependencies]\nb = { path = ${out} }\n`),
+    out: 'absolute',
+    mirrored: true,
+  },
+  {
+    named: 'a dependency path escaped in TOML',
+    manifest: (out: string) =>
+      packageNamed('a', `[dependencies]\nb = { path = ${out.replaceAll('.', '\\u002e')} }\n`),
+    out: 'relative',
+  },
+] as const)(
+  'a Cargo.toml naming $named that leaves the checkout is not read, and cargo never runs',
+  async ({ manifest, out, ...row }) => {
+    using repository = gitRepo({ 'README.md': '' });
+    const { repo, root } = repository;
+    const outside = { relative: withZeroManifest(repo), absolute: join(repo, 'zero') }[out];
+    const mirror =
+      'mirrored' in row ? { [join(outside, 'Cargo.toml').slice(1)]: packageNamed('b') } : {};
+    const head = commit(repo, {
+      ...mirror,
+      'Cargo.toml': manifest(JSON.stringify(outside)),
+      'src/lib.rs': '',
+    });
+    using bin = pathWithCargo('exit 1');
+    vi.stubEnv('PATH', bin.path);
+
+    const range = await readRange({ repo, from: root, to: head });
+
+    expect(range.skipped).toEqual([
+      {
+        reader: 'rust',
+        stacks: ['rust'],
+        reason: `Cargo.toml: path ${JSON.stringify(outside)} leaves the checkout`,
+      },
+    ]);
+  },
+);
+
+test('a dependency named path, written as a table, is no path and reads', async () => {
+  using repository = gitRepo({ 'README.md': '' });
+  const { repo, root } = repository;
+  const head = commit(repo, {
+    'Cargo.toml': packageNamed('a', '[dependencies.path]\nversion = "1"\n'),
+    'src/lib.rs': '',
+  });
+
+  const range = await readRange({ repo, from: root, to: head });
+
+  expect(range.skipped).toEqual([]);
+});
+
+test("a stack's dependency path is read from its own folder, so one inside the checkout reads", async () => {
+  using repository = gitRepo({ 'README.md': '' });
+  const { repo, root } = repository;
+  const head = commit(repo, {
+    'visual-review.config.json': '{"stacks": {"api": {"reader": "rust", "root": "api"}}}\n',
+    'api/Cargo.toml': packageNamed('a', '[dependencies]\nb = { path = "../shared" }\n'),
+    'api/src/lib.rs': '',
+    'shared/Cargo.toml': packageNamed('b'),
+    'shared/src/lib.rs': '',
+  });
+
+  const range = await readRange({ repo, from: root, to: head });
+
+  expect(range.skipped).toEqual([]);
+  expect(nodeIds(range.after)).toContain('api/crate/a');
+});
+
+test.for([
+  {
+    broken: 'a manifest',
+    manifest: '[workspace\n',
+    reason: 'Cargo.toml: Invalid TOML document: illegal character in key',
+  },
   {
     broken: 'a member, named inside the checkout',
     manifest: '[workspace]\nmembers = ["crates/missing"]\n',
-    error: 'failed to load manifest for workspace member `crates/missing`',
+    reason: 'cargo: failed to load manifest for workspace member `crates/missing`',
   },
 ])(
-  "a stack cargo can't read, for $broken, is not read, named by cargo's error, and the other stacks are drawn",
-  async ({ manifest, error }) => {
+  "a stack whose manifest can't be read, for $broken, is not read, named by the error, and the other stacks are drawn",
+  async ({ manifest, reason }) => {
     using workspace = cargoWorkspace();
     const { repo, root } = workspace;
     const head = commit(repo, {
@@ -1585,7 +1674,7 @@ test.for([
       {
         reader: 'rust',
         stacks: ['rust'],
-        reason: `cargo: ${error}`,
+        reason,
         side: 'head',
       },
     ]);

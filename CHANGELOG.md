@@ -10,6 +10,7 @@ What changed in each release of `@pablocm90/visual-review`, newest first. Versio
 
 - A Rust stack cargo can't read, such as one whose `Cargo.toml` doesn't parse, is listed as not read with cargo's error, saying the side it couldn't be read at, and is dropped from both graphs, so its crates don't all read as added or removed; the review goes on with the other stacks instead of failing.
 - cargo reads no stdin, and one still running after 60 s (`VISUAL_REVIEW_CARGO_MS`) is killed, its stack listed as not read. On Linux it runs under a 2 GB address-space cap, so a manifest linked to `/dev/zero` stops it at that.
+- Before cargo runs, a Rust stack's `Cargo.toml` is read for every value under a key named `path`: one that resolves outside the checkout, or nowhere, leaves the stack not read, naming the manifest and the path, and so does a manifest that isn't TOML.
 
 ### Changed
 
