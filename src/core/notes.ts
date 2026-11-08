@@ -131,15 +131,23 @@ export const parseNotes = ({ text, file }: ParseNotesOptions): ReviewNotes => {
   return notes.data;
 };
 
-const joined = (one: Note, other: Note): Note => {
-  const flags = [one.flag, other.flag].filter(flag => flag !== undefined);
-  const whys = [one.why, other.why].filter(why => why !== undefined);
-  return {
-    text: `${one.text} ${other.text}`,
-    ...(whys.length > 0 ? { why: whys.join(' ') } : {}),
-    ...(flags.length > 0 ? { flag: flags.join(', ') } : {}),
-  };
+type JoinedField = 'why' | 'recommendation' | 'flag';
+
+const joinedField = (
+  key: JoinedField,
+  notes: readonly Note[],
+  separator: string,
+): Partial<Record<JoinedField, string>> => {
+  const values = notes.map(note => note[key]).filter(value => value !== undefined);
+  return values.length > 0 ? { [key]: values.join(separator) } : {};
 };
+
+const joined = (one: Note, other: Note): Note => ({
+  text: `${one.text} ${other.text}`,
+  ...joinedField('why', [one, other], ' '),
+  ...joinedField('recommendation', [one, other], ' '),
+  ...joinedField('flag', [one, other], ', '),
+});
 
 type VisibleNotesOptions = VisibleDiffOptions & {
   readonly notes: Readonly<Record<string, Note>>;
