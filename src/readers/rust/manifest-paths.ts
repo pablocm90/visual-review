@@ -1,6 +1,7 @@
 import { readFile } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
 import { parse, TomlError } from 'smol-toml';
+import { z } from 'zod';
 import { resolvesInside } from '../../core/links-leaving.ts';
 import { StackNotRead } from '../../core/skipped.ts';
 
@@ -13,13 +14,11 @@ const pathsIn = (value: unknown): ReadonlyArray<Named> => {
   );
 };
 
+const Manifest = z.object({ package: z.object({ workspace: z.string().optional() }).optional() });
+
 const workspaceOf = (manifest: unknown): ReadonlyArray<Named> => {
-  if (typeof manifest !== 'object' || manifest === null || !('package' in manifest)) return [];
-  const { package: pkg } = manifest;
-  if (typeof pkg !== 'object' || pkg === null || !('workspace' in pkg)) return [];
-  return typeof pkg.workspace === 'string'
-    ? [{ key: 'package.workspace', path: pkg.workspace }]
-    : [];
+  const workspace = Manifest.safeParse(manifest).data?.package?.workspace;
+  return workspace === undefined ? [] : [{ key: 'package.workspace', path: workspace }];
 };
 
 const parsed = (manifest: string, text: string): unknown => {
