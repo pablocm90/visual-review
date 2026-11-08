@@ -70,6 +70,7 @@ const isInUse = (node: Node): boolean =>
   node.parent !== null && (node.parent.type === 'use_declaration' || isInUse(node.parent));
 
 const namesItsParent = (node: Node): boolean =>
+  node.parent?.type !== 'struct_expression' &&
   node.parent?.childForFieldName('name')?.id === node.id;
 
 const isPrefix = (prefix: Segments, of: Segments): boolean =>

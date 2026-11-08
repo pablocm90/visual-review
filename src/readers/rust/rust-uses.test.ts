@@ -149,6 +149,12 @@ test.for([
     text: 'use crate::orders::Order;\n\npub fn run(order: Order) {}\n',
     found: { line: 3, text: 'pub fn run(order: Order) {}' },
   },
+  {
+    reason: 'a struct, built by name',
+    name: 'Order',
+    text: 'use crate::orders::Order;\n\npub fn run() {\n    let _ = Order {};\n}\n',
+    found: { line: 4, text: 'let _ = Order {};' },
+  },
 ])('$reason reaches a module importing it', async ({ name, text, found }) => {
   const reading = await usesIn({
     files: {
