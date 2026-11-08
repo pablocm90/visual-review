@@ -133,27 +133,43 @@ const readSide = async ({
 
 type SkipsAt = { readonly side: 'base' | 'head'; readonly reading: StacksReading };
 
-const skippedAcross = (sides: ReadonlyArray<SkipsAt>): ReadonlyArray<Skipped> => {
-  const failures = sides.flatMap(({ side, reading }) =>
-    reading.skipped.flatMap(({ reader, reason, stacks }) =>
-      stacks.map(stack => ({ reader, reason, stack, side })),
-    ),
-  );
-  const drawnAt = (stack: string) =>
-    sides.filter(({ reading }) => reading.roots.some(drawn => drawn.stack === stack)).length;
-  return failures.reduce<ReadonlyArray<Skipped>>((merged, { reader, reason, stack, side }) => {
-    const failedAt = failures.filter(
-      each => each.reader === reader && each.reason === reason && each.stack === stack,
-    ).length;
-    const at = failedAt < drawnAt(stack) ? side : undefined;
+type Failure = {
+  readonly reader: ReaderName;
+  readonly reason: string;
+  readonly stack: string;
+  readonly side: Skipped['side'];
+};
+
+const failuresIn = ({ skipped }: StacksReading) =>
+  skipped.flatMap(({ reader, reason, stacks }) => stacks.map(stack => ({ reader, reason, stack })));
+
+const mergedByReason = (failures: ReadonlyArray<Failure>): ReadonlyArray<Skipped> =>
+  failures.reduce<ReadonlyArray<Skipped>>((merged, { reader, reason, stack, side }) => {
     const known = merged.find(
-      each => each.reader === reader && each.reason === reason && each.side === at,
+      each => each.reader === reader && each.reason === reason && each.side === side,
     );
     if (known?.stacks.includes(stack)) return merged;
     return known === undefined
-      ? [...merged, { reader, stacks: [stack], reason, ...(at === undefined ? {} : { side: at }) }]
+      ? [...merged, { reader, stacks: [stack], reason, ...(side === undefined ? {} : { side }) }]
       : merged.map(each => (each === known ? { ...each, stacks: [...each.stacks, stack] } : each));
   }, []);
+
+const skippedAcross = (sides: ReadonlyArray<SkipsAt>): ReadonlyArray<Skipped> => {
+  const failures = sides.flatMap(({ side, reading }) =>
+    failuresIn(reading).map(failure => ({ ...failure, side })),
+  );
+  const drawnAt = (stack: string) =>
+    sides.filter(({ reading }) => reading.roots.some(drawn => drawn.stack === stack)).length;
+  const failedAt = ({ reader, reason, stack }: Failure) =>
+    failures.filter(
+      each => each.reader === reader && each.reason === reason && each.stack === stack,
+    ).length;
+  return mergedByReason(
+    failures.map(failure => ({
+      ...failure,
+      side: failedAt(failure) < drawnAt(failure.stack) ? failure.side : undefined,
+    })),
+  );
 };
 
 const withoutStacks = (reading: StacksReading, stacks: ReadonlySet<string>): StacksReading => {
