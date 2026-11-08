@@ -49,6 +49,10 @@ const ReviewNotesSchema = z
         z
           .strictObject({
             text: z.string(),
+            why: z
+              .string()
+              .optional()
+              .describe('Why it changed this way, and what follows from it'),
             flag: z.string().optional().describe('A short label for a structural concern'),
             dimension: z
               .enum(DIMENSIONS)

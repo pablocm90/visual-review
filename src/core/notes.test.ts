@@ -370,6 +370,14 @@ test.for([
   ).toThrow(new RegExp(`^Invalid notes file ${file}: .*"${key}"`, 's'));
 });
 
+test('a note keeps why it changed this way beside what it does', () => {
+  const notes = {
+    'web/module/pages': { text: 'Home now formats dates.', why: 'The API sends ISO strings.' },
+  };
+
+  expect(parseNotes({ text: JSON.stringify(notesWith({ notes })), file }).notes).toEqual(notes);
+});
+
 test('a notes file may name its schema', () => {
   const text = JSON.stringify({
     $schema: 'https://unpkg.com/@pablocm90/visual-review@0.1/dist/notes.schema.json',
