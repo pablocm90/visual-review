@@ -68,7 +68,7 @@ _Avoid_: note panel, sidebar
 _In code_: `NotePanel` (`src/viewer/review-page.tsx`)
 
 **Reading** (the page's state):
-Walking the parts one at a time: the left column narrows to numbered stops, the reading column takes the middle, and the aside holds the corner map and Next to it. `J`, `K`, Start reading, a row of the reading order and the head's Next enter it; a click in the graph, a finding or Start here keep the graph whole.
+Walking the parts one at a time: the left column narrows to numbered stops, the reading column takes the middle, and the aside holds the corner map and Next to it. `J`, `K`, Start reading, a row of the reading order and the head's Next enter it, as `L` and Next logic change do, walking the changed decisions instead; a click in the graph, a finding or Start here keep the graph whole.
 _In code_: `reading` (`src/viewer/review-page.tsx`)
 
 **Corner map**:
