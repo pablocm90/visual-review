@@ -67,6 +67,9 @@ const importsIn = (root: Node, from: Segments): ReadonlyArray<Imported> =>
 const isInUse = (node: Node): boolean =>
   node.parent !== null && (node.parent.type === 'use_declaration' || isInUse(node.parent));
 
+const isPrefix = (prefix: Segments, of: Segments): boolean =>
+  prefix.every((segment, index) => segment === of[index]);
+
 type Candidate = {
   readonly path: string;
   readonly text: string;
@@ -83,12 +86,18 @@ const rowsIn = (
   try {
     const imported = importsIn(root, from);
     const lines = text.split('\n');
-    const identifiers = root.descendantsOfType('identifier').filter(node => !isInUse(node));
+    const paths = root
+      .descendantsOfType(['identifier', 'scoped_identifier'])
+      .filter(node => !isInUse(node));
     return new Map(
       names.map(name => {
-        const item = [...target, name].join('::');
-        const local = imported.find(({ segments }) => segments.join('::') === item)?.local;
-        const first = identifiers.find(node => node.text === local);
+        const item = [...target, name];
+        const forms = new Set(
+          imported
+            .filter(({ segments }) => isPrefix(segments, item))
+            .map(({ segments, local }) => [local, ...item.slice(segments.length)].join('::')),
+        );
+        const first = paths.find(node => forms.has(segmentsOf(node).join('::')));
         if (first === undefined) return [name, []];
         const row = first.startPosition.row;
         return [name, [{ path, line: row + 1, text: (lines[row] ?? '').trim() }]];
