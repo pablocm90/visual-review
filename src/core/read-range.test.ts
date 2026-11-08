@@ -1510,6 +1510,17 @@ test('a cargo failure that names no error fails the run', async () => {
   await expect(readRange({ repo, from: root, to: root })).rejects.toThrow('Command failed: cargo');
 });
 
+test('cargo reads no stdin, so a manifest it reads from there reads empty and never waits', async () => {
+  using workspace = cargoWorkspace();
+  const { repo, root } = workspace;
+  using bin = pathWithCargo(`read -r line; echo '{"workspace_root": "/", "packages": []}'`);
+  vi.stubEnv('PATH', bin.path);
+
+  const range = await readRange({ repo, from: root, to: root });
+
+  expect(nodeIds(range.after)).toEqual(['rust']);
+});
+
 test.for([
   { broken: 'a manifest', manifest: '[workspace\n', error: 'unclosed table, expected `]`' },
   {

@@ -47,7 +47,7 @@ type GraphAtOptions = {
 
 const graphAt = async ({ checkout, root, stack }: GraphAtOptions): Promise<Graph> => {
   const directory = join(checkout, root);
-  const { stdout } = await run(
+  const reading = run(
     'cargo',
     [
       'metadata',
@@ -58,7 +58,9 @@ const graphAt = async ({ checkout, root, stack }: GraphAtOptions): Promise<Graph
       join(directory, 'Cargo.toml'),
     ],
     { cwd: directory, env: await reviewersToolchain(dirname(checkout)) },
-  ).catch((error: unknown) => notReadBy({ error, checkout }));
+  );
+  reading.child.stdin?.end();
+  const { stdout } = await reading.catch((error: unknown) => notReadBy({ error, checkout }));
   const crates = crateGraph({ metadataJson: stdout, stack, root });
   const modules = await Promise.all(
     crateRoots(stdout).map(async ({ crate, directory: crateDirectory, roots }) => {
