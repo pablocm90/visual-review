@@ -134,17 +134,32 @@ const namedBy = (node: Node, owner: string, classes: Classes): string | undefine
   return resolved(node, classes);
 };
 
+export const namingsIn = (
+  program: Node | undefined,
+  owner: string,
+  classes: Classes,
+): ReadonlyArray<{ readonly at: Node; readonly named: string }> =>
+  (program?.descendantsOfType(['constant', 'scope_resolution', 'call']) ?? []).flatMap(at => {
+    const named = namedBy(at, owner, classes);
+    return named === undefined ? [] : [{ at, named }];
+  });
+
 const classesNamedIn = (
   program: Node | undefined,
   owner: string,
   classes: Classes,
 ): ReadonlyArray<string> => [
-  ...new Set(
-    (program?.descendantsOfType(['constant', 'scope_resolution', 'call']) ?? []).flatMap(
-      node => namedBy(node, owner, classes) ?? [],
-    ),
-  ),
+  ...new Set(namingsIn(program, owner, classes).map(({ named }) => named)),
 ];
+
+export const classesOf = (all: ReadonlyArray<string>): Classes => {
+  const constants = new Set(all);
+  const byLowerCase = new Map(all.map(constant => [constant.toLowerCase(), constant]));
+  return {
+    exactly: candidate => (constants.has(candidate) ? candidate : undefined),
+    ignoringCase: candidate => byLowerCase.get(candidate.toLowerCase()),
+  };
+};
 
 type RailsGraphOptions = {
   readonly stack: string;
@@ -188,12 +203,7 @@ export const railsGraph = ({ stack, root, boxes, files }: RailsGraphOptions): Gr
       })
       .map(node => [node.id, node]),
   );
-  const constants = new Set(classes.map(({ constant }) => constant));
-  const byLowerCase = new Map(classes.map(({ constant }) => [constant.toLowerCase(), constant]));
-  const lookups: Classes = {
-    exactly: candidate => (constants.has(candidate) ? candidate : undefined),
-    ignoringCase: candidate => byLowerCase.get(candidate.toLowerCase()),
-  };
+  const lookups = classesOf(classes.map(({ constant }) => constant));
   const edges = classes.flatMap(({ constant, program }) =>
     classesNamedIn(program, constant, lookups)
       .filter(named => named !== constant && !GENERATED_BASES.has(named))
