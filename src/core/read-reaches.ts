@@ -6,7 +6,7 @@ import type { Reader, SymbolUse, UsesReading } from './reader.ts';
 import { qualified, type SymbolStatement } from './symbol-changes.ts';
 import { anchoredSymbols, removalOf, unbackedExports, unheld } from './symbol-findings.ts';
 
-export type ReachingUse = SymbolUse & { readonly test?: true };
+export type ReachingUse = Omit<SymbolUse, 'test'> & { readonly test?: true };
 
 export type Reach = {
   readonly node: string;
@@ -77,14 +77,17 @@ type RowsOfOptions = {
 const rowsOfIn =
   ({ reader, uses, changedPaths }: RowsOfOptions) =>
   (name: string): ReadonlyArray<ReachingUse> => {
-    const isTest = ({ path }: SymbolUse) => reader.isTestFile(path);
+    const isTest = ({ path, test }: SymbolUse) => test ?? reader.isTestFile(path);
     return (uses[name] ?? [])
       .filter(({ path }) => !changedPaths.includes(path))
       .toSorted(
         (one, other) =>
           Number(isTest(one)) - Number(isTest(other)) || one.path.localeCompare(other.path),
       )
-      .map(use => (isTest(use) ? { ...use, test: true as const } : use));
+      .map(use => {
+        const { test, ...row } = use;
+        return isTest(use) ? { ...row, test: true as const } : row;
+      });
   };
 
 type ReachesInOptions = {

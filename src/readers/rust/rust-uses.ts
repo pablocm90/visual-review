@@ -88,7 +88,7 @@ const rowsIn = (
         ].toSorted((one, other) => one.startIndex - other.startIndex);
         if (first === undefined) return [name, []];
         const row = first.startPosition.row;
-        return [name, [{ path, line: row + 1, text: (lines[row] ?? '').trim() }]];
+        return [name, [{ path, line: row + 1, text: (lines[row] ?? '').trim(), test: false }]];
       }),
     );
   } finally {

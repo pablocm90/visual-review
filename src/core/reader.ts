@@ -82,6 +82,7 @@ export type SymbolUse = {
   readonly line: number;
   readonly text: string;
   readonly unfollowed?: true;
+  readonly test?: boolean;
 };
 
 export type UsesAsked = {
@@ -127,7 +128,8 @@ export type StackOptions = HoldsOptions & {
  * `blindSpots` names the calls and macros in the file that hide logic from this reading.
  * `uses`, if it has one, says where the files around a changed file use the names it exported at the
  * base: it takes the base's graph, since at the head a removed file has no edges into it, and the
- * head's checkout to read what they say now.
+ * head's checkout to read what they say now. A use's `test` says whether it sits in test code;
+ * without it, its file being a test file says so.
  */
 export interface Reader {
   readonly name: ReaderName;

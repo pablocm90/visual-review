@@ -60,7 +60,7 @@ test('a function reaches the module importing it, where it is first called, and 
   });
 
   expect(reading?.uses).toEqual({
-    parse: [{ path: 'crates/shop/src/checkout.rs', line: 4, text: 'parse();' }],
+    parse: [{ path: 'crates/shop/src/checkout.rs', line: 4, text: 'parse();', test: false }],
   });
 });
 
@@ -95,13 +95,13 @@ test.for([
     reason: 'the function, beside calling another of that name by path',
     file: 'crates/shop/src/checkout.rs',
     text: 'use crate::orders::parse;\n\npub fn run() {\n    crate::billing::parse();\n    parse();\n}\n',
-    found: { line: 5, text: 'parse();' },
+    found: { line: 5, text: 'parse();', test: false },
   },
   {
     reason: 'everything its module holds',
     file: 'crates/shop/src/checkout.rs',
     text: 'use crate::orders::*;\n\npub fn run() {\n    total();\n    parse();\n}\n',
-    found: { line: 5, text: 'parse();' },
+    found: { line: 5, text: 'parse();', test: false },
   },
   {
     reason: 'its module, beside a value’s field of the function’s name',
@@ -113,19 +113,19 @@ test.for([
     reason: 'the function through `super`',
     file: 'crates/shop/src/checkout.rs',
     text: 'use super::orders::parse;\n\npub fn run() {\n    parse();\n}\n',
-    found: { line: 4, text: 'parse();' },
+    found: { line: 4, text: 'parse();', test: false },
   },
   {
     reason: 'the function through `super` twice',
     file: 'crates/shop/src/checkout/steps.rs',
     text: 'use super::super::orders::parse;\n\npub fn run() {\n    parse();\n}\n',
-    found: { line: 4, text: 'parse();' },
+    found: { line: 4, text: 'parse();', test: false },
   },
   {
     reason: 'the function through `self`',
     file: 'crates/shop/src/lib.rs',
     text: 'pub mod orders;\npub mod billing;\nuse self::orders::parse;\n\npub fn run() {\n    parse();\n}\n',
-    found: { line: 6, text: 'parse();' },
+    found: { line: 6, text: 'parse();', test: false },
   },
 ])('a module importing $reason', async ({ file, text, found }) => {
   const reading = await usesIn({
@@ -135,7 +135,7 @@ test.for([
   });
 
   expect(reading?.uses).toEqual({
-    parse: found === undefined ? [] : [{ path: file, ...found }],
+    parse: found === undefined ? [] : [{ path: file, ...found, test: false }],
   });
 });
 
@@ -215,7 +215,8 @@ test.for([
   });
 
   expect(reading?.uses).toEqual({
-    [name]: found === undefined ? [] : [{ path: 'crates/shop/src/checkout.rs', ...found }],
+    [name]:
+      found === undefined ? [] : [{ path: 'crates/shop/src/checkout.rs', ...found, test: false }],
   });
 });
 
@@ -237,7 +238,7 @@ test.for([
   });
 
   expect(reading?.uses).toEqual({
-    parse: [{ path: 'crates/shop/src/checkout.rs', line: 4, text: 'parse();' }],
+    parse: [{ path: 'crates/shop/src/checkout.rs', line: 4, text: 'parse();', test: false }],
   });
 });
 

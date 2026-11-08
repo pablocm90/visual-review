@@ -2679,3 +2679,23 @@ test('a type-only re-export and a test outside the source root reach what they n
   ]);
   expect(range.reachesNotRead).toEqual([NOT_DRAWN]);
 });
+
+test('a removed Rust function reaches the modules of the crate still calling it', async () => {
+  using workspace = cargoWorkspace();
+  const { repo } = workspace;
+  const base = commit(repo, {
+    'crates/core/src/lib.rs': 'pub mod orders;\npub mod checkout;\n',
+    'crates/core/src/orders.rs': 'pub fn parse() {}\npub fn kept() {}\n',
+    'crates/core/src/checkout.rs': 'use crate::orders::parse;\n\npub fn run() {\n    parse();\n}\n',
+  });
+  const head = commit(repo, { 'crates/core/src/orders.rs': 'pub fn kept() {}\n' });
+
+  const range = await readRange({ repo, from: base, to: head });
+
+  expect(range.reaches.map(({ label, uses }) => ({ label, uses }))).toEqual([
+    {
+      label: 'function parse',
+      uses: [{ path: 'crates/core/src/checkout.rs', line: 4, text: 'parse();' }],
+    },
+  ]);
+});
