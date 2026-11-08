@@ -370,10 +370,16 @@ test.for([
     changes: ['changed'],
   },
   {
-    reason: 'a catch whose error is renamed',
+    reason: 'a catch whose error is renamed, its spacing changed',
     base: [decision({ kind: 'catch', text: 'catch (e)' })],
-    head: [decision({ kind: 'catch', text: 'catch (error)' })],
+    head: [decision({ kind: 'catch', text: 'catch(error)' })],
     changes: ['changed'],
+  },
+  {
+    reason: 'a logical losing a name and one gaining another, in another shape',
+    base: [decision({ kind: 'logical', text: 'notes && notes.summary.length > 0 &&' })],
+    head: [decision({ kind: 'logical', text: '!reading &&' })],
+    changes: ['removed', 'added'],
   },
   {
     reason: 'a guard whose new name the base already decided on',

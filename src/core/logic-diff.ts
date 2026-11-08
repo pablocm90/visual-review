@@ -116,8 +116,13 @@ const KEYWORDS = new Set([
   'continue',
 ]);
 
+const NAMES = /[A-Za-z_$][\w$]*/g;
+
 const namesOf = (text: string): ReadonlySet<string> =>
-  new Set((text.match(/[A-Za-z_$][\w$]*/g) ?? []).filter(word => !KEYWORDS.has(word)));
+  new Set((text.match(NAMES) ?? []).filter(word => !KEYWORDS.has(word)));
+
+const shapeOf = (text: string, renamed: ReadonlySet<string>): string =>
+  tokensOf(text.replace(NAMES, word => (renamed.has(word) ? '\0' : word)));
 
 type Renames = {
   readonly gone: ReadonlySet<string>;
@@ -143,7 +148,7 @@ const shareAName = (base: Decision, head: Decision, renames: Renames): boolean =
     names.length === 0 ||
     others.size === 0 ||
     names.some(name => others.has(name)) ||
-    (names.some(name => renames.gone.has(name)) && [...others].some(name => renames.new.has(name)))
+    shapeOf(base.text, renames.gone) === shapeOf(head.text, renames.new)
   );
 };
 
