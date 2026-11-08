@@ -44,6 +44,7 @@ What changed in each release of `@pablocm90/visual-review`, newest first. Versio
 
 ### Fixed
 
+- Two unrelated decisions of one kind no longer pair as one changed decision in **What changed** and its strip: a decision now reads changed only against one sharing a name with it, keywords and literal names such as `undefined` or `nil` aside, and otherwise reads removed and added. A decision naming nothing, such as `case 2000:`, still pairs in order.
 - What an import resolves to outside the checkout, by a relative climb, an absolute specifier or an alias, is no longer read or drawn.
 
 ## 0.49.0 — 2026-11-06
