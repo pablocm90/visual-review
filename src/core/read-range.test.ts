@@ -1586,6 +1586,12 @@ test.for([
       packageNamed('a', `[dependencies]\nb = { path = ${out.replaceAll('.', '\\u002e')} }\n`),
     out: 'relative',
   },
+  {
+    named: 'its workspace',
+    manifest: (out: string) => packageNamed('a', `workspace = ${out}\n`),
+    out: 'relative',
+    key: 'package.workspace',
+  },
 ] as const)(
   'a Cargo.toml naming $named that leaves the checkout is not read, and cargo never runs',
   async ({ manifest, out, ...row }) => {
@@ -1608,7 +1614,7 @@ test.for([
       {
         reader: 'rust',
         stacks: ['rust'],
-        reason: `Cargo.toml: path ${JSON.stringify(outside)} leaves the checkout`,
+        reason: `Cargo.toml: ${'key' in row ? row.key : 'path'} ${JSON.stringify(outside)} leaves the checkout`,
       },
     ]);
   },
@@ -1654,6 +1660,11 @@ test.for([
     broken: 'a member, named inside the checkout',
     manifest: '[workspace]\nmembers = ["crates/missing"]\n',
     reason: 'cargo: failed to load manifest for workspace member `crates/missing`',
+  },
+  {
+    broken: 'a package workspace that is no path',
+    manifest: packageNamed('a', 'workspace = 1\n'),
+    reason: 'cargo: invalid type: integer `1`, expected a string',
   },
 ])(
   "a stack whose manifest can't be read, for $broken, is not read, named by the error, and the other stacks are drawn",
