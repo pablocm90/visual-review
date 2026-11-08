@@ -238,3 +238,24 @@ test('a function reaches a module of another crate importing it by that crate’
     parse: [{ path: 'crates/shop/src/checkout.rs', line: 4, text: 'parse();' }],
   });
 });
+
+test.for([
+  {
+    reason: 'a method of a trait impl among others is',
+    names: ['Order.total', 'Order as Display.fmt'],
+    notFollowed: ['not followed: a method of an `impl Trait for`'],
+  },
+  {
+    reason: 'a type’s own method or a type is',
+    names: ['Order.total', 'Basket'],
+    notFollowed: [],
+  },
+])('$reason not followed', async ({ names, notFollowed }) => {
+  const reading = await usesIn({
+    files: { ...SHOP, 'crates/shop/src/orders.rs': ORDERS },
+    target: 'crates/shop/src/orders.rs',
+    names,
+  });
+
+  expect(reading?.notFollowed).toEqual(notFollowed);
+});

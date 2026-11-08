@@ -158,6 +158,8 @@ export const usesOfRust = async ({ head, graph, node, names }: UsesAsked): Promi
       names.map(name => [name, files.flatMap(rows => rows.get(name) ?? [])]),
     ),
     notRead: [],
-    notFollowed: [],
+    notFollowed: names.some(name => name.includes(' as '))
+      ? ['not followed: a method of an `impl Trait for`']
+      : [],
   };
 };
