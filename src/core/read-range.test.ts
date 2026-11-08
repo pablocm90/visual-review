@@ -1507,7 +1507,7 @@ test('a cargo failure that names no error fails the run', async () => {
   using bin = pathWithCargo('exit 1');
   vi.stubEnv('PATH', bin.path);
 
-  await expect(readRange({ repo, from: root, to: root })).rejects.toThrow('Command failed: cargo');
+  await expect(readRange({ repo, from: root, to: root })).rejects.toThrow('cargo metadata');
 });
 
 test('cargo reads no stdin, so a manifest it reads from there reads empty and never waits', async () => {
@@ -1536,6 +1536,28 @@ test('cargo still running at the timeout is killed, even ignoring SIGTERM, and i
     { reader: 'rust', stacks: ['rust'], reason: 'cargo: still running after 300 ms' },
   ]);
 });
+
+test.skipIf(process.platform !== 'linux')(
+  'cargo past 2 GB of memory is stopped, and its stack is not read',
+  async () => {
+    using workspace = cargoWorkspace();
+    const { repo, root } = workspace;
+    using bin = pathWithCargo(
+      [
+        `${process.execPath} -e 'Buffer.alloc(3 * 2 ** 30)' 2>/dev/null ||`,
+        `{ echo 'error: out of memory' >&2; exit 101; }`,
+        `echo '{"workspace_root": "/", "packages": []}'`,
+      ].join('\n'),
+    );
+    vi.stubEnv('PATH', bin.path);
+
+    const range = await readRange({ repo, from: root, to: root });
+
+    expect(range.skipped).toEqual([
+      { reader: 'rust', stacks: ['rust'], reason: 'cargo: out of memory' },
+    ]);
+  },
+);
 
 test.for([
   { broken: 'a manifest', manifest: '[workspace\n', error: 'unclosed table, expected `]`' },

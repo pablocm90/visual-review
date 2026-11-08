@@ -23,6 +23,13 @@ const reviewersToolchain = (outside: string): Promise<NodeJS.ProcessEnv> =>
     () => process.env,
   );
 
+const MOST_KILOBYTES = 2 * 1024 * 1024;
+
+const capped = (args: ReadonlyArray<string>): readonly [string, ReadonlyArray<string>] =>
+  process.platform === 'linux'
+    ? ['/bin/sh', ['-c', `ulimit -v ${MOST_KILOBYTES} && exec cargo "$@"`, 'cargo', ...args]]
+    : ['cargo', args];
+
 const CARGO_ERROR = 'error: ';
 
 const firstErrorOf = (error: unknown): string | undefined =>
@@ -60,15 +67,14 @@ const graphAt = async ({ checkout, root, stack }: GraphAtOptions): Promise<Graph
   const directory = join(checkout, root);
   const timeout = msFrom({ variable: 'VISUAL_REVIEW_CARGO_MS', fallback: 60_000 });
   const reading = run(
-    'cargo',
-    [
+    ...capped([
       'metadata',
       '--no-deps',
       '--format-version',
       '1',
       '--manifest-path',
       join(directory, 'Cargo.toml'),
-    ],
+    ]),
     {
       cwd: directory,
       env: await reviewersToolchain(dirname(checkout)),
