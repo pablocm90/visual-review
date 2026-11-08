@@ -1563,7 +1563,11 @@ const withStacksBrokenSinceReview = (repository: {
 }) => {
   const { repo, root } = repository;
   git(repo, 'rm', '--quiet', 'jobs/broken');
-  const reviewed = commit(repo, { 'api/broken': 'cargo: timed out', 'api/main': 'reviewed' });
+  const reviewed = commit(repo, {
+    'api/broken': 'cargo: timed out',
+    'api/main': 'reviewed',
+    'ops/broken': 'cargo: ops is broken',
+  });
   git(repo, 'reset', '--quiet', '--hard', root);
   git(repo, 'rm', '--quiet', 'jobs/broken');
   const main = commit(repo, { 'ops/broken': 'cargo: ops is broken' });
@@ -1573,7 +1577,7 @@ const withStacksBrokenSinceReview = (repository: {
   return { reviewed, main, to };
 };
 
-test("a stack not read at the last review's head, or where it forked, is dropped from every graph its diffs compare, as are those not read at the base or head", async () => {
+test("a stack not read at the last review's head, or where it forked, is dropped from every graph its diffs compare, as are those not read at the base or head, and listed once per reason as not read at the last review", async () => {
   using repository = gitRepo({ 'jobs/broken': 'cargo: timed out' });
   const { repo } = repository;
   const { reviewed, main, to } = withStacksBrokenSinceReview(repository);
@@ -1594,6 +1598,10 @@ test("a stack not read at the last review's head, or where it forked, is dropped
     symbols: [],
     pullRequest: { before: onlyWeb },
   });
+  expect(range.skipped).toEqual([
+    { reader: 'rust', stacks: ['ops'], reason: 'cargo: ops is broken' },
+    { reader: 'rust', stacks: ['api', 'jobs'], reason: 'cargo: timed out', side: 'reviewed' },
+  ]);
 });
 
 test.for([

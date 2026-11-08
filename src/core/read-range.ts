@@ -172,6 +172,17 @@ const skippedAcross = (sides: ReadonlyArray<SkipsAt>): ReadonlyArray<Skipped> =>
   );
 };
 
+const skippedAtReview = (
+  readings: ReadonlyArray<StacksReading>,
+  notRead: ReadonlySet<string>,
+): ReadonlyArray<Skipped> =>
+  mergedByReason(
+    readings
+      .flatMap(failuresIn)
+      .filter(({ stack }) => !notRead.has(stack))
+      .map(failure => ({ ...failure, side: 'reviewed' })),
+  );
+
 const withoutStacks = (reading: StacksReading, stacks: ReadonlySet<string>): StacksReading => {
   const stackOf = stackOfIn(reading.graph.nodes);
   const nodes = reading.graph.nodes.filter(({ id }) => !stacks.has(stackOf(id)));
@@ -499,6 +510,11 @@ const withoutStacksAt = (side: Side, stacks: ReadonlySet<string>): Side => ({
   reading: withoutStacks(side.reading, stacks),
 });
 
+type ReviewedSide = {
+  readonly reading: ReviewedReading;
+  readonly skipped: ReadonlyArray<Skipped>;
+};
+
 const reviewedSide = async ({
   reviewed,
   from,
@@ -509,9 +525,9 @@ const reviewedSide = async ({
   changedPaths,
   notRead,
   ...side
-}: ReviewedSideOptions): Promise<ReviewedReading> => {
+}: ReviewedSideOptions): Promise<ReviewedSide> => {
   const revision = await resolve(side.repo, reviewed.head).catch(() => undefined);
-  if (revision === undefined) return { ...reviewed, gone: true };
+  if (revision === undefined) return { reading: { ...reviewed, gone: true }, skipped: [] };
   try {
     const read = {
       directory: side.directory,
@@ -534,7 +550,7 @@ const reviewedSide = async ({
     const paths = [...changedPaths, ...pullRequest.changedPaths];
     const changes = await changesBetween(side.repo, revision, to);
     const head = withoutStacksAt(headSide, dropped);
-    return {
+    const reading: ReviewedReading = {
       ...reviewed,
       after: head.reading.graph,
       ...(await changesAcross({
@@ -546,8 +562,9 @@ const reviewedSide = async ({
       pullRequest,
       commits: await commitsBetween(side.repo, revision, to),
     };
+    return { reading, skipped: skippedAtReview([read.reading, readFork.reading], notRead) };
   } catch (error) {
-    return { ...reviewed, unreadable: String(error) };
+    return { reading: { ...reviewed, unreadable: String(error) }, skipped: [] };
   }
 };
 
@@ -635,6 +652,23 @@ export const readRange = async ({
         days: churnDays,
       }),
     };
+    const atReview =
+      reviewed === undefined
+        ? undefined
+        : await reviewedSide({
+            repo,
+            reviewed,
+            from: fromCommit,
+            to: toCommit,
+            base,
+            baseSide,
+            headSide,
+            changedPaths,
+            notRead,
+            directory: join(scratch, 'reviewed'),
+            config,
+            ...adapters,
+          });
     return {
       before: before.graph,
       after: after.graph,
@@ -657,10 +691,13 @@ export const readRange = async ({
       routes: await readRoutes({ repo, base, head: toCommit, changes, routes }),
       danglingCalls: after.danglingCalls,
       linksNotRead: after.linksNotRead,
-      skipped: skippedAcross([
-        { side: 'base', reading: before },
-        { side: 'head', reading: after },
-      ]),
+      skipped: [
+        ...skippedAcross([
+          { side: 'base', reading: before },
+          { side: 'head', reading: after },
+        ]),
+        ...(atReview?.skipped ?? []),
+      ],
       readers: [...new Set([...before.stacks, ...after.stacks].map(({ reader }) => reader.name))],
       thresholds,
       churnDays,
@@ -681,24 +718,7 @@ export const readRange = async ({
           ),
         })),
       ),
-      ...(reviewed === undefined
-        ? {}
-        : {
-            reviewed: await reviewedSide({
-              repo,
-              reviewed,
-              from: fromCommit,
-              to: toCommit,
-              base,
-              baseSide,
-              headSide,
-              changedPaths,
-              notRead,
-              directory: join(scratch, 'reviewed'),
-              config,
-              ...adapters,
-            }),
-          }),
+      ...(atReview === undefined ? {} : { reviewed: atReview.reading }),
     };
   } finally {
     await rm(scratch, { recursive: true });
