@@ -4,6 +4,7 @@ import { expect, test } from 'vitest';
 import { pageData } from '../../core/page.ts';
 import { readRange } from '../../test-support/read-range.ts';
 import { commit, gitRepo } from '../../test-support/repos.ts';
+import { METHODS_NOT_FOLLOWED, NOT_DRAWN, NOT_ITS_FILES_CLASS } from './ruby-uses.ts';
 
 const railsApp = { 'config/application.rb': 'module Shop\n  class Application\n  end\nend\n' };
 
@@ -965,4 +966,95 @@ test('a guard lost from a Rails class needs a test changed alongside it', async 
   expect(await lostGuard(orderTest('stops once paid'))).toEqual([
     { id: 'logic:removed:shop/class/Order#Order.total#return if paid', level: 'look' },
   ]);
+});
+
+test('a changed class and its methods reach the unchanged files using them, each under its own name', async () => {
+  using workspace = gitRepo({
+    ...railsApp,
+    'app/models/order.rb': [
+      'class Order',
+      '  class Item',
+      '    def price',
+      '    end',
+      '  end',
+      '',
+      '  def total',
+      '  end',
+      '',
+      '  def self.active(at)',
+      '  end',
+      '',
+      '  def kept',
+      '  end',
+      'end',
+      '',
+    ].join('\n'),
+    'app/models/refund.rb': 'class Refund\nend\n',
+    'app/services/checkout.rb': [
+      'class Checkout',
+      '  def run(order, item)',
+      '    Order.active(1)',
+      '    order.kept',
+      '    order.total',
+      '    Order::Item',
+      '    item.price',
+      '    Refund.new',
+      '  end',
+      'end',
+      '',
+    ].join('\n'),
+    'app/services/changed.rb':
+      'class Changed\n  def run(order)\n    Order\n    order.total\n  end\nend\n',
+  });
+  const { repo, root } = workspace;
+  rmSync(join(repo, 'app/models/refund.rb'));
+  const head = commit(repo, {
+    'app/models/order.rb': [
+      'class Order',
+      '  class Item',
+      '  end',
+      '',
+      '  def self.active(at, on)',
+      '  end',
+      '',
+      '  def kept',
+      '  end',
+      'end',
+      '',
+    ].join('\n'),
+    'app/services/changed.rb':
+      'class Changed\n  def run(order)\n    Order\n    order.gone\n  end\nend\n',
+  });
+
+  const range = await readRange({ repo, from: root, to: head });
+
+  expect(
+    range.reaches.map(({ label, how, uses }) => ({
+      label,
+      how,
+      uses: uses.map(({ path, line, text }) => `${path}:${line} ${text}`),
+    })),
+  ).toEqual([
+    {
+      label: 'method Order.self.active',
+      how: 'signature changed',
+      uses: ['app/services/checkout.rb:3 Order.active(1)'],
+    },
+    {
+      label: 'method Order::Item.price',
+      how: 'removed',
+      uses: ['app/services/checkout.rb:7 item.price'],
+    },
+    {
+      label: 'method Order.total',
+      how: 'removed',
+      uses: ['app/services/checkout.rb:5 order.total'],
+    },
+    {
+      label: 'class Refund',
+      how: 'removed',
+      uses: ['app/services/checkout.rb:8 Refund.new'],
+    },
+  ]);
+  expect(range.reachesNotRead).toEqual([NOT_DRAWN, METHODS_NOT_FOLLOWED, NOT_ITS_FILES_CLASS]);
 });
