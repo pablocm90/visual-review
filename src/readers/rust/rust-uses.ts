@@ -4,6 +4,7 @@ import type { Node } from 'web-tree-sitter';
 import type { GraphNode } from '../../core/graph.ts';
 import type { SymbolUse, UsesAsked, UsesReading } from '../../core/reader.ts';
 import { isNoFile } from '../no-file.ts';
+import { isTooBig } from '../too-big.ts';
 import { isTestCode, parseRust, TEST_FOLDER } from './rust-syntax.ts';
 import {
   EXTERN_PRELUDE,
@@ -15,6 +16,8 @@ import {
   type Segments,
   segmentsOf,
 } from './use-paths.ts';
+
+const NOT_READ = 'not read';
 
 const UNSEEN =
   'not followed: a module of its own crate with no `use` into its file, a name re-exported through `pub use`, and a path inside a macro';
@@ -60,10 +63,12 @@ const rowsIn = (
   { path, text, from }: Candidate,
   target: Segments,
   names: ReadonlyArray<string>,
-): ReadonlyMap<string, ReadonlyArray<SymbolUse>> => {
+): ReadonlyMap<string, ReadonlyArray<SymbolUse>> | typeof NOT_READ => {
+  if (isTooBig(text)) return NOT_READ;
   const root = parseRust(text);
-  if (root === undefined) return new Map();
+  if (root === undefined) return NOT_READ;
   try {
+    if (root.hasError) return NOT_READ;
     const imported = importsIn(root, from, target[0] ?? '');
     const lines = text.split('\n');
     const paths = root
@@ -147,13 +152,25 @@ export const usesOfRust = async ({ head, graph, node, names }: UsesAsked): Promi
     const text = textAt(join(head, module.path));
     return text === undefined
       ? []
-      : [rowsIn({ path: module.path, text, from: segmentsOfModule(module) }, target, names)];
+      : [
+          {
+            path: module.path,
+            rows: rowsIn(
+              { path: module.path, text, from: segmentsOfModule(module) },
+              target,
+              names,
+            ),
+          },
+        ];
   });
   return {
     uses: Object.fromEntries(
-      names.map(name => [name, files.flatMap(rows => rows.get(name) ?? [])]),
+      names.map(name => [
+        name,
+        files.flatMap(({ rows }) => (rows === NOT_READ ? [] : (rows.get(name) ?? []))),
+      ]),
     ),
-    notRead: [],
+    notRead: files.flatMap(({ path, rows }) => (rows === NOT_READ ? [path] : [])),
     notFollowed: [
       UNSEEN,
       ...(names.some(name => name.includes('.'))

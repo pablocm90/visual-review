@@ -181,6 +181,31 @@ test('a module gone at the head reads as no use, beside one that still uses it',
   expect(reading?.notRead).toEqual([]);
 });
 
+test.for([
+  { reason: 'doesn’t parse', text: 'use crate::orders::parse;\n\npub fn run( {\n    parse();\n' },
+  {
+    reason: 'is too big',
+    text: `use crate::orders::parse;\n\npub fn run() {\n    parse();\n}\n// ${'x'.repeat(1001)}\n`,
+  },
+])('a module that $reason is not read, beside one that uses it', async ({ text }) => {
+  const reading = await usesIn({
+    files: {
+      ...SHOP,
+      'crates/shop/src/lib.rs': 'pub mod orders;\npub mod checkout;\npub mod refund;\n',
+      'crates/shop/src/checkout.rs':
+        'use crate::orders::parse;\n\npub fn run() {\n    parse();\n}\n',
+      'crates/shop/src/refund.rs': text,
+    },
+    target: 'crates/shop/src/orders.rs',
+    names: ['parse'],
+  });
+
+  expect(reading?.uses).toEqual({
+    parse: [{ path: 'crates/shop/src/checkout.rs', line: 4, text: 'parse();', test: false }],
+  });
+  expect(reading?.notRead).toEqual(['crates/shop/src/refund.rs']);
+});
+
 const ORDERS =
   'pub fn parse() {}\npub mod inner {\n    pub fn z() {}\n}\npub struct Order;\nimpl Order {\n    pub fn total(&self) {}\n}\n';
 
