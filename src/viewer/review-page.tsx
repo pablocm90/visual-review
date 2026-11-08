@@ -840,6 +840,11 @@ const NotePanel = ({
               <strong>Why</strong> {note.why}
             </p>
           )}
+          {note?.recommendation !== undefined && (
+            <p className="note-recommendation">
+              <strong>Recommendation</strong> {note.recommendation}
+            </p>
+          )}
         </section>
       )}
       <SaidBefore key={anchorKey(anchor)} on={anchor} landing={onThePart(landing)} />

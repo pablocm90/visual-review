@@ -1666,7 +1666,7 @@ test('clicking a crate or a dependency, or pressing Enter or Space on it, shows 
   expect(noteShown()).toBe('The CLI drives the use case.');
 });
 
-test('a note says why under its text, on a part and on an edge, and a note without a why or "No note" says none', async () => {
+test('a note says why under its text and what to do under that, on a part and on an edge, and a note without them or "No note" says neither', async () => {
   const user = userEvent.setup();
   render(
     <ReviewPage
@@ -1679,11 +1679,13 @@ test('a note says why under its text, on a part and on an edge, and a note witho
           'rust/crate/application': {
             text: 'Adds the export use case.',
             why: 'Exports were done by hand.',
+            recommendation: 'Name the export format in the use case.',
           },
           'rust/crate/cli-adapter': { text: 'A second way in.' },
           'rust/crate/cli-adapter -> rust/crate/application': {
             text: 'The CLI drives the use case.',
             why: 'The use case has no other caller yet.',
+            recommendation: 'Keep the CLI out of the domain.',
           },
         },
       }}
@@ -1691,12 +1693,17 @@ test('a note says why under its text, on a part and on an edge, and a note witho
   );
 
   await user.click(await screen.findByRole('button', { name: 'application: modified' }));
-  expect(noteLines()).toEqual(['Adds the export use case.', 'Why Exports were done by hand.']);
+  expect(noteLines()).toEqual([
+    'Adds the export use case.',
+    'Why Exports were done by hand.',
+    'Recommendation Name the export format in the use case.',
+  ]);
 
   await user.click(screen.getByRole('button', { name: 'cli-adapter → application: added' }));
   expect(noteLines()).toEqual([
     'The CLI drives the use case.',
     'Why The use case has no other caller yet.',
+    'Recommendation Keep the CLI out of the domain.',
   ]);
 
   await user.click(screen.getByRole('button', { name: 'cli-adapter: added' }));
