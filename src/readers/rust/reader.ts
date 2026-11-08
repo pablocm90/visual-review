@@ -10,6 +10,7 @@ import { crateModules } from './crate-modules.ts';
 import { measureRust } from './rust-measure.ts';
 import { symbolsOfRust } from './rust-symbols.ts';
 import { readRustTests } from './rust-tests.ts';
+import { usesOfRust } from './rust-uses.ts';
 
 const run = promisify(execFile);
 
@@ -67,4 +68,5 @@ export const rustReader: Reader = {
   measure: measureRust,
   symbols: (text, path) =>
     path.endsWith('.rs') && !TEST_FOLDER.test(path) ? symbolsOfRust(text) : undefined,
+  uses: usesOfRust,
 };

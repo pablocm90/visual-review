@@ -1,6 +1,7 @@
 import { existsSync, rmSync } from 'node:fs';
 import { basename, join } from 'node:path';
 import { expect, test, vi } from 'vitest';
+import { rustReader } from '../readers/rust/reader.ts';
 import { typeScriptReader } from '../readers/typescript/reader.ts';
 import { NOT_DRAWN } from '../readers/typescript/typescript-uses.ts';
 import { fakeReader } from '../test-support/fakes.ts';
@@ -2313,7 +2314,14 @@ test("a changed file of a stack whose reader follows no uses says so, and a stac
     'web/src/a.ts': 'export const a = 1;\n',
   });
 
-  const range = await readRange({ repo, from: root, to: head });
+  const { uses: _followed, ...followingNone } = rustReader;
+
+  const range = await readRange({
+    repo,
+    from: root,
+    to: head,
+    readers: [followingNone, typeScriptReader],
+  });
 
   expect(range.reachesNotRead).toEqual(['not read for rust']);
 });
