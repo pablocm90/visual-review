@@ -219,7 +219,10 @@ test.for([
   });
 });
 
-test('a function reaches a module of another crate importing it by that crate’s name', async () => {
+test.for([
+  { how: 'that crate’s name', path: 'shop_core::orders::parse' },
+  { how: 'that crate’s name from the extern prelude', path: '::shop_core::orders::parse' },
+])('a function reaches a module of another crate importing it by $how', async ({ path }) => {
   const reading = await usesIn({
     files: {
       ...crate('shop-core'),
@@ -227,8 +230,7 @@ test('a function reaches a module of another crate importing it by that crate’
       'crates/shop-core/src/lib.rs': 'pub mod orders;\n',
       'crates/shop-core/src/orders.rs': 'pub fn parse() {}\n',
       'crates/shop/src/lib.rs': 'pub mod checkout;\n',
-      'crates/shop/src/checkout.rs':
-        'use shop_core::orders::parse;\n\npub fn run() {\n    parse();\n}\n',
+      'crates/shop/src/checkout.rs': `use ${path};\n\npub fn run() {\n    parse();\n}\n`,
     },
     target: 'crates/shop-core/src/orders.rs',
     names: ['parse'],

@@ -4,48 +4,19 @@ import type { Node } from 'web-tree-sitter';
 import type { GraphNode } from '../../core/graph.ts';
 import type { SymbolUse, UsesAsked, UsesReading } from '../../core/reader.ts';
 import { parseRust } from './rust-syntax.ts';
-
-type Segments = ReadonlyArray<string>;
-
-const PATHS: ReadonlySet<string> = new Set(['scoped_identifier', 'scoped_type_identifier']);
-
-const segmentsOf = (node: Node | null): Segments => {
-  if (node === null) return [];
-  if (!PATHS.has(node.type)) return [node.text];
-  return [
-    ...segmentsOf(node.childForFieldName('path')),
-    node.childForFieldName('name')?.text ?? '',
-  ];
-};
-
-type Imported = { readonly segments: Segments; readonly local: Segments };
-
-const importedOf = (segments: Segments, local: Segments = segments.slice(-1)): Imported => ({
-  segments,
-  local,
-});
-
-const importsInUse = (node: Node): ReadonlyArray<Imported> => {
-  if (node.type === 'use_list') return node.namedChildren.flatMap(importsInUse);
-  if (node.type === 'use_as_clause')
-    return [
-      importedOf(
-        segmentsOf(node.childForFieldName('path')),
-        segmentsOf(node.childForFieldName('alias')),
-      ),
-    ];
-  if (node.type === 'use_wildcard') return [importedOf(segmentsOf(node.namedChild(0)), [])];
-  if (node.type === 'scoped_use_list') {
-    const prefix = segmentsOf(node.childForFieldName('path'));
-    const list = node.childForFieldName('list');
-    return (list === null ? [] : importsInUse(list)).map(({ segments, local }) =>
-      importedOf([...prefix, ...segments], local),
-    );
-  }
-  return [importedOf(segmentsOf(node))];
-};
+import {
+  EXTERN_PRELUDE,
+  followed,
+  type Imported,
+  importedOf,
+  importsInUse,
+  PATHS,
+  type Segments,
+  segmentsOf,
+} from './use-paths.ts';
 
 const startOf = (from: Segments, first: string, extern: string): Segments => {
+  if (first === EXTERN_PRELUDE) return [];
   if (first === 'crate') return from.slice(0, 1);
   if (first === extern) return [first];
   if (first === 'self') return from;
@@ -54,10 +25,7 @@ const startOf = (from: Segments, first: string, extern: string): Segments => {
 };
 
 const absoluteFrom = (from: Segments, extern: string, [first = '', ...rest]: Segments): Segments =>
-  rest.reduce<Segments>(
-    (at, segment) => (segment === 'super' ? at.slice(0, -1) : at.concat(segment)),
-    startOf(from, first, extern),
-  );
+  followed(startOf(from, first, extern), rest);
 
 const importsIn = (root: Node, from: Segments, extern: string): ReadonlyArray<Imported> =>
   root
