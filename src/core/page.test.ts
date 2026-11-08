@@ -353,7 +353,12 @@ test('a symbol reaching files the change left is a blast radius finding to look 
 test('stacks not read are a structure finding to look at per reason, by those stacks, on no node', () => {
   const skipped = [
     { reader: 'rust' as const, stacks: ['api', 'worker'], reason: 'cargo not found on PATH' },
-    { reader: 'rust' as const, stacks: ['jobs'], reason: 'cargo: jobs is broken' },
+    {
+      reader: 'rust' as const,
+      stacks: ['jobs'],
+      reason: 'cargo: jobs is broken',
+      side: 'head' as const,
+    },
   ];
 
   expect(
@@ -372,7 +377,7 @@ test('stacks not read are a structure finding to look at per reason, by those st
       check: 'structure:skipped',
       dimension: 'structure',
       level: 'look',
-      title: 'jobs not read: cargo: jobs is broken',
+      title: 'jobs not read at the head: cargo: jobs is broken',
     },
   ]);
 });

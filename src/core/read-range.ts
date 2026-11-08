@@ -130,19 +130,41 @@ const readSide = async ({
   return readStacks({ ...options, repoName: basename(repo) });
 };
 
-const skippedAcross = (skips: ReadonlyArray<Skipped>): ReadonlyArray<Skipped> =>
-  skips.reduce<ReadonlyArray<Skipped>>((merged, skip) => {
+type SkipsAt = { readonly side: 'base' | 'head'; readonly reading: StacksReading };
+
+const skippedAcross = (sides: ReadonlyArray<SkipsAt>): ReadonlyArray<Skipped> => {
+  const failures = sides.flatMap(({ side, reading }) =>
+    reading.skipped.flatMap(({ reader, reason, stacks }) =>
+      stacks.map(stack => ({ reader, reason, stack, side })),
+    ),
+  );
+  const drawnAt = (stack: string) =>
+    sides.filter(({ reading }) => reading.roots.some(drawn => drawn.stack === stack)).length;
+  return failures.reduce<ReadonlyArray<Skipped>>((merged, { reader, reason, stack, side }) => {
+    const failedAt = failures.filter(
+      each => each.reader === reader && each.reason === reason && each.stack === stack,
+    ).length;
+    const at = failedAt < drawnAt(stack) ? side : undefined;
     const known = merged.find(
-      ({ reader, reason }) => reader === skip.reader && reason === skip.reason,
+      each => each.reader === reader && each.reason === reason && each.side === at,
     );
+    if (known?.stacks.includes(stack)) return merged;
     return known === undefined
-      ? [...merged, skip]
-      : merged.map(each =>
-          each === known
-            ? { ...each, stacks: [...new Set([...each.stacks, ...skip.stacks])] }
-            : each,
-        );
+      ? [...merged, { reader, stacks: [stack], reason, ...(at === undefined ? {} : { side: at }) }]
+      : merged.map(each => (each === known ? { ...each, stacks: [...each.stacks, stack] } : each));
   }, []);
+};
+
+const withoutStacks = (reading: StacksReading, stacks: ReadonlySet<string>): StacksReading => {
+  const stackOf = stackOfIn(reading.graph.nodes);
+  const nodes = reading.graph.nodes.filter(({ id }) => !stacks.has(stackOf(id)));
+  const ids = new Set(nodes.map(({ id }) => id));
+  const edges = reading.graph.edges.filter(({ from, to }) => ids.has(from) && ids.has(to));
+  return { ...reading, graph: { nodes, edges } };
+};
+
+const notReadAcross = (...readings: ReadonlyArray<StacksReading>): ReadonlySet<string> =>
+  new Set(readings.flatMap(({ skipped }) => skipped.flatMap(({ stacks }) => stacks)));
 
 const textIn = async (directory: string, path: string): Promise<string | undefined> =>
   existsSync(join(directory, path)) ? readFile(join(directory, path), 'utf8') : undefined;
@@ -518,20 +540,25 @@ export const readRange = async ({
   const scratch = await realpath(await mkdtemp(join(tmpdir(), 'visual-review-')));
   try {
     const sides = { before: join(scratch, 'before'), after: join(scratch, 'after') };
-    const before = await readSide({
-      repo,
-      revision: base,
-      directory: sides.before,
-      config,
-      ...adapters,
-    });
-    const after = await readSide({
-      repo,
-      revision: toCommit,
-      directory: sides.after,
-      config,
-      ...adapters,
-    });
+    const read = {
+      before: await readSide({
+        repo,
+        revision: base,
+        directory: sides.before,
+        config,
+        ...adapters,
+      }),
+      after: await readSide({
+        repo,
+        revision: toCommit,
+        directory: sides.after,
+        config,
+        ...adapters,
+      }),
+    };
+    const notRead = notReadAcross(read.before, read.after);
+    const before = withoutStacks(read.before, notRead);
+    const after = withoutStacks(read.after, notRead);
     checkConfig(config, [...before.stacks, ...after.stacks], adapters.linkers);
     const changes = await changesBetween(repo, base, toCommit);
     const { changedPaths, renames } = pathsIn(changes);
@@ -601,7 +628,10 @@ export const readRange = async ({
       routes: await readRoutes({ repo, base, head: toCommit, changes, routes }),
       danglingCalls: after.danglingCalls,
       linksNotRead: after.linksNotRead,
-      skipped: skippedAcross([...before.skipped, ...after.skipped]),
+      skipped: skippedAcross([
+        { side: 'base', reading: before },
+        { side: 'head', reading: after },
+      ]),
       readers: [...new Set([...before.stacks, ...after.stacks].map(({ reader }) => reader.name))],
       thresholds,
       churnDays,

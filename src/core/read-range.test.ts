@@ -1500,25 +1500,45 @@ test('a skipped reader lists the stacks it would read on either side, those foun
   ]);
 });
 
-test('a stack not read is listed once for each reason it was not read for, at either side', async () => {
-  using repository = gitRepo({ 'api/broken': 'cargo: api is broken' });
+test('a stack not read at either side is dropped from both, and listed once per reason, saying the side when the other side read it', async () => {
+  using repository = gitRepo({
+    'api/broken': 'cargo: timed out',
+    'lib/broken': 'cargo: lib was broken',
+    'ops/broken': 'cargo: ops was broken',
+  });
   const { repo, root } = repository;
-  const head = commit(repo, { 'jobs/broken': 'cargo: jobs is broken' });
+  git(repo, 'rm', '--quiet', 'lib/broken');
+  const head = commit(repo, {
+    'jobs/broken': 'cargo: timed out',
+    'ops/broken': 'cargo: ops is broken',
+  });
   const reader = fakeReader({
     name: 'rust',
-    roots: [{ root: 'api' }, { root: 'jobs' }],
+    roots: ['api', 'jobs', 'lib', 'ops', 'web'].map(root => ({ root })),
     graph: async ({ directory, root, stack }) => {
       const broken = join(directory, root, 'broken');
       if (existsSync(broken)) throw new StackNotRead(readFileSync(broken, 'utf8'));
-      return { nodes: [{ id: stack, kind: 'stack', label: stack, path: root }], edges: [] };
+      const other = stack === 'web' ? 'jobs' : 'web';
+      return {
+        nodes: [{ id: stack, kind: 'stack', label: stack, path: root }],
+        edges: [{ from: stack, to: other }],
+      };
     },
   });
 
   const range = await readRange({ repo, from: root, to: head, readers: [reader] });
 
+  expect(range.before).toEqual({
+    nodes: [{ id: 'web', kind: 'stack', label: 'web', path: 'web' }],
+    edges: [],
+  });
+  expect(nodeIds(range.after)).toEqual(['web']);
   expect(range.skipped).toEqual([
-    { reader: 'rust', stacks: ['api'], reason: 'cargo: api is broken' },
-    { reader: 'rust', stacks: ['jobs'], reason: 'cargo: jobs is broken' },
+    { reader: 'rust', stacks: ['api'], reason: 'cargo: timed out' },
+    { reader: 'rust', stacks: ['lib'], reason: 'cargo: lib was broken', side: 'base' },
+    { reader: 'rust', stacks: ['ops'], reason: 'cargo: ops was broken', side: 'base' },
+    { reader: 'rust', stacks: ['jobs'], reason: 'cargo: timed out', side: 'head' },
+    { reader: 'rust', stacks: ['ops'], reason: 'cargo: ops is broken', side: 'head' },
   ]);
 });
 
