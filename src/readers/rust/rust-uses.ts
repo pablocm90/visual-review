@@ -59,6 +59,57 @@ type Candidate = {
   readonly from: Segments;
 };
 
+type Scope = {
+  readonly paths: ReadonlyArray<Node>;
+  readonly fields: ReadonlyArray<Node>;
+  readonly importedFormsOf: (item: Segments) => ReadonlySet<string>;
+  readonly writtenFormsOf: (item: Segments) => ReadonlySet<string>;
+};
+
+const formsIn =
+  (imports: ReadonlyArray<Imported>) =>
+  (item: Segments): ReadonlySet<string> =>
+    new Set(
+      imports
+        .filter(({ segments }) => isPrefix(segments, item))
+        .map(({ segments, local }) => [...local, ...item.slice(segments.length)].join('::')),
+    );
+
+const scopeOf = (root: Node, from: Segments, target: Segments): Scope => {
+  const imported = importsIn(root, from, target[0] ?? '');
+  return {
+    paths: root
+      .descendantsOfType(['identifier', 'type_identifier', ...PATHS])
+      .filter(node => !isInUse(node) && !namesItsParent(node)),
+    fields: root
+      .descendantsOfType('field_identifier')
+      .filter(node => node.parent?.type === 'field_expression'),
+    importedFormsOf: formsIn(imported),
+    writtenFormsOf: formsIn([
+      ...imported,
+      importedOf(target.slice(0, 1)),
+      importedOf(from.slice(0, 1), ['crate']),
+      importedOf(from, ['self']),
+      importedOf(from.slice(0, -1), ['super']),
+    ]),
+  };
+};
+
+const firstUseIn = (
+  { paths, fields, importedFormsOf, writtenFormsOf }: Scope,
+  item: Segments,
+  isMethod: boolean,
+): Node | undefined => {
+  const forms = writtenFormsOf(item);
+  const calls =
+    isMethod && importedFormsOf(item.slice(0, -1)).size > 0
+      ? fields.filter(node => node.text === item.at(-1))
+      : [];
+  return [...paths.filter(node => forms.has(segmentsOf(node).join('::'))), ...calls].toSorted(
+    (one, other) => one.startIndex - other.startIndex,
+  )[0];
+};
+
 const rowsIn = (
   { path, text, from }: Candidate,
   target: Segments,
@@ -69,55 +120,16 @@ const rowsIn = (
   if (root === undefined) return NOT_READ;
   try {
     if (root.hasError) return NOT_READ;
-    const imported = importsIn(root, from, target[0] ?? '');
+    const scope = scopeOf(root, from, target);
     const lines = text.split('\n');
-    const paths = root
-      .descendantsOfType(['identifier', 'type_identifier', ...PATHS])
-      .filter(node => !isInUse(node) && !namesItsParent(node));
-    const formsIn =
-      (imports: ReadonlyArray<Imported>) =>
-      (item: Segments): ReadonlySet<string> =>
-        new Set(
-          imports
-            .filter(({ segments }) => isPrefix(segments, item))
-            .map(({ segments, local }) => [...local, ...item.slice(segments.length)].join('::')),
-        );
-    const formsOf = formsIn(imported);
-    const writtenFormsOf = formsIn([
-      ...imported,
-      importedOf(target.slice(0, 1)),
-      importedOf(from.slice(0, 1), ['crate']),
-      importedOf(from, ['self']),
-      importedOf(from.slice(0, -1), ['super']),
-    ]);
-    const fields = root
-      .descendantsOfType('field_identifier')
-      .filter(node => node.parent?.type === 'field_expression');
     return new Map(
       names.map(name => {
-        const item = [...target, ...name.split(/::|\./)];
-        const forms = writtenFormsOf(item);
-        const calls =
-          name.includes('.') && formsOf(item.slice(0, -1)).size > 0
-            ? fields.filter(node => node.text === item.at(-1))
-            : [];
-        const [first] = [
-          ...paths.filter(node => forms.has(segmentsOf(node).join('::'))),
-          ...calls,
-        ].toSorted((one, other) => one.startIndex - other.startIndex);
+        const first = firstUseIn(scope, [...target, ...name.split(/::|\./)], name.includes('.'));
         if (first === undefined) return [name, []];
         const row = first.startPosition.row;
-        return [
-          name,
-          [
-            {
-              path,
-              line: row + 1,
-              text: (lines[row] ?? '').trim(),
-              test: TEST_FOLDER.test(path) || isTestCode(first),
-            },
-          ],
-        ];
+        const line = (lines[row] ?? '').trim();
+        const test = TEST_FOLDER.test(path) || isTestCode(first);
+        return [name, [{ path, line: row + 1, text: line, test }]];
       }),
     );
   } finally {
