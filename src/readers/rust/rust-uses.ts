@@ -16,9 +16,9 @@ const segmentsOf = (node: Node | null): Segments => {
   ];
 };
 
-type Imported = { readonly segments: Segments; readonly local: string };
+type Imported = { readonly segments: Segments; readonly local: Segments };
 
-const importedOf = (segments: Segments, local = segments.at(-1) ?? ''): Imported => ({
+const importedOf = (segments: Segments, local = segments.slice(-1)): Imported => ({
   segments,
   local,
 });
@@ -27,8 +27,12 @@ const importsInUse = (node: Node): ReadonlyArray<Imported> => {
   if (node.type === 'use_list') return node.namedChildren.flatMap(importsInUse);
   if (node.type === 'use_as_clause')
     return [
-      importedOf(segmentsOf(node.childForFieldName('path')), node.childForFieldName('alias')?.text),
+      importedOf(
+        segmentsOf(node.childForFieldName('path')),
+        segmentsOf(node.childForFieldName('alias')),
+      ),
     ];
+  if (node.type === 'use_wildcard') return [importedOf(segmentsOf(node.namedChild(0)), [])];
   if (node.type === 'scoped_use_list') {
     const prefix = segmentsOf(node.childForFieldName('path'));
     const list = node.childForFieldName('list');
@@ -95,7 +99,7 @@ const rowsIn = (
         const forms = new Set(
           imported
             .filter(({ segments }) => isPrefix(segments, item))
-            .map(({ segments, local }) => [local, ...item.slice(segments.length)].join('::')),
+            .map(({ segments, local }) => [...local, ...item.slice(segments.length)].join('::')),
         );
         const first = paths.find(node => forms.has(segmentsOf(node).join('::')));
         if (first === undefined) return [name, []];
