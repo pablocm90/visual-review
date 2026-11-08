@@ -305,12 +305,21 @@ test.for([
     names: ['Order.total', 'Order as Display.fmt'],
     notFollowed: [
       'not followed: a module of its own crate with no `use` into its file, a name re-exported through `pub use`, and a path inside a macro',
+      'not followed: a method called on a value in a file not importing its type',
       'not followed: a method of an `impl Trait for`',
     ],
   },
   {
-    reason: 'a type’s own method or a type is',
-    names: ['Order.total', 'Basket'],
+    reason: 'a type’s own method is',
+    names: ['Order.total'],
+    notFollowed: [
+      'not followed: a module of its own crate with no `use` into its file, a name re-exported through `pub use`, and a path inside a macro',
+      'not followed: a method called on a value in a file not importing its type',
+    ],
+  },
+  {
+    reason: 'a type is',
+    names: ['Basket'],
     notFollowed: [
       'not followed: a module of its own crate with no `use` into its file, a name re-exported through `pub use`, and a path inside a macro',
     ],

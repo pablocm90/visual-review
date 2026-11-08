@@ -151,6 +151,9 @@ export const usesOfRust = async ({ head, graph, node, names }: UsesAsked): Promi
     notRead: [],
     notFollowed: [
       UNSEEN,
+      ...(names.some(name => name.includes('.'))
+        ? ['not followed: a method called on a value in a file not importing its type']
+        : []),
       ...(names.some(name => name.includes(' as '))
         ? ['not followed: a method of an `impl Trait for`']
         : []),
