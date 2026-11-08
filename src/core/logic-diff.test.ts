@@ -314,6 +314,14 @@ test.for([
     changes: ['changed', 'same'],
   },
   {
+    reason: 'two guards sharing only an operator word',
+    kind: 'guard',
+    kept: 'if (a || b)',
+    base: 'if (typeof a === b) return',
+    head: 'if (await ready()) return',
+    changes: ['removed', 'added', 'same'],
+  },
+  {
     reason: 'two guards sharing only a literal name',
     kept: 'if (layout)',
     kind: 'guard',
