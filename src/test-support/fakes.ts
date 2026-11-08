@@ -3,7 +3,7 @@ import type { Linker } from '../core/linker.ts';
 import type { Reader } from '../core/reader.ts';
 
 type FakeReaderOptions = Partial<
-  Pick<Reader, 'name' | 'tool' | 'stackFields' | 'holds' | 'graph'>
+  Pick<Reader, 'name' | 'tool' | 'stackFields' | 'holds' | 'graph' | 'symbols'>
 > & {
   readonly roots: ReturnType<Reader['roots']>;
 };

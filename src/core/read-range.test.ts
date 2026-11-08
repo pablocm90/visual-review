@@ -1542,6 +1542,60 @@ test('a stack not read at either side is dropped from both, and listed once per 
   ]);
 });
 
+const brokenStacks = () =>
+  fakeReader({
+    name: 'rust',
+    roots: ['api', 'jobs', 'ops', 'web'].map(root => ({ root })),
+    graph: async ({ directory, root, stack }) => {
+      const broken = join(directory, root, 'broken');
+      if (existsSync(broken)) throw new StackNotRead(readFileSync(broken, 'utf8'));
+      return {
+        nodes: [{ id: stack, kind: 'stack', label: stack, path: `${root}/main` }],
+        edges: stack === 'web' ? [] : [{ from: stack, to: 'web' }],
+      };
+    },
+    symbols: () => ({ symbols: [], exports: [], astHash: 'read' }),
+  });
+
+const withStacksBrokenSinceReview = (repository: {
+  readonly repo: string;
+  readonly root: string;
+}) => {
+  const { repo, root } = repository;
+  git(repo, 'rm', '--quiet', 'jobs/broken');
+  const reviewed = commit(repo, { 'api/broken': 'cargo: timed out', 'api/main': 'reviewed' });
+  git(repo, 'reset', '--quiet', '--hard', root);
+  git(repo, 'rm', '--quiet', 'jobs/broken');
+  const main = commit(repo, { 'ops/broken': 'cargo: ops is broken' });
+  git(repo, 'merge', '--quiet', '--no-edit', '-X', 'no-renames', reviewed);
+  git(repo, 'rm', '--quiet', 'api/broken');
+  const to = commit(repo, { 'api/main': 'edited since' });
+  return { reviewed, main, to };
+};
+
+test("a stack not read at the last review's head, or where it forked, is dropped from every graph its diffs compare, as are those not read at the base or head", async () => {
+  using repository = gitRepo({ 'jobs/broken': 'cargo: timed out' });
+  const { repo } = repository;
+  const { reviewed, main, to } = withStacksBrokenSinceReview(repository);
+
+  const range = await readRange({
+    repo,
+    from: main,
+    to,
+    readers: [brokenStacks()],
+    reviewed: reviewedHead({ head: reviewed }),
+  });
+
+  expect(nodeIds(range.after)).toEqual(['api', 'jobs', 'web']);
+  const onlyWeb = { nodes: [{ id: 'web' }], edges: [] };
+  expect(range.reviewed).toMatchObject({
+    before: onlyWeb,
+    after: onlyWeb,
+    symbols: [],
+    pullRequest: { before: onlyWeb },
+  });
+});
+
 test.for([
   { name: 'a name git would quote', path: 'web/src/café.ts' },
   { name: 'a name git would read as pathspec magic', path: ':(exclude)a.ts' },
@@ -1810,6 +1864,7 @@ test('a reviewed head reads as a side of its own, diffed plainly against the new
   expect(range.reviewed).toEqual({
     ...reviewedHead({ head: reviewed }),
     commits: [{ sha: to, subject: 'docs/new.md', files: ['docs/new.md'] }],
+    after: range.after,
     before: expect.objectContaining({
       nodes: expect.arrayContaining([expect.objectContaining({ id: 'rust/crate/dropped' })]),
     }),

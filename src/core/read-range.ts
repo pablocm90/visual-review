@@ -69,6 +69,7 @@ export type ReviewedReading = ReviewedHead &
     | { readonly gone: true }
     | { readonly unreadable: string }
     | (ReviewedDiff & {
+        readonly after: Graph;
         readonly pullRequest: ReviewedDiff;
         readonly commits: ReadonlyArray<Commit>;
       })
@@ -474,7 +475,13 @@ type ReviewedSideOptions = Omit<ReadSideOptions, 'revision' | 'directory'> & {
   readonly headSide: Side;
   readonly directory: string;
   readonly changedPaths: ReadonlyArray<string>;
+  readonly notRead: ReadonlySet<string>;
 };
+
+const withoutStacksAt = (side: Side, stacks: ReadonlySet<string>): Side => ({
+  ...side,
+  reading: withoutStacks(side.reading, stacks),
+});
 
 const reviewedSide = async ({
   reviewed,
@@ -484,21 +491,25 @@ const reviewedSide = async ({
   baseSide,
   headSide,
   changedPaths,
+  notRead,
   ...side
 }: ReviewedSideOptions): Promise<ReviewedReading> => {
   const revision = await resolve(side.repo, reviewed.head).catch(() => undefined);
   if (revision === undefined) return { ...reviewed, gone: true };
   try {
-    const atReview = {
+    const read = {
       directory: side.directory,
       reading: await readSide({ ...side, revision }),
     };
     const forkedAt = await git(side.repo, 'merge-base', from, revision);
     const directory = `${side.directory}-fork`;
-    const fork =
+    const readFork =
       forkedAt === base
         ? baseSide
         : { directory, reading: await readSide({ ...side, revision: forkedAt, directory }) };
+    const dropped = new Set([...notRead, ...notReadAcross(read.reading, readFork.reading)]);
+    const atReview = withoutStacksAt(read, dropped);
+    const fork = withoutStacksAt(readFork, dropped);
     const pullRequest = await changesAcross({
       before: fork,
       after: atReview,
@@ -506,11 +517,13 @@ const reviewedSide = async ({
     });
     const paths = [...changedPaths, ...pullRequest.changedPaths];
     const changes = await changesBetween(side.repo, revision, to);
+    const head = withoutStacksAt(headSide, dropped);
     return {
       ...reviewed,
+      after: head.reading.graph,
       ...(await changesAcross({
         before: atReview,
-        after: headSide,
+        after: head,
         changes: changes.filter(change => change.some(path => paths.includes(path))),
       })),
       ...pathsIn(changes),
@@ -664,6 +677,7 @@ export const readRange = async ({
               baseSide,
               headSide,
               changedPaths,
+              notRead,
               directory: join(scratch, 'reviewed'),
               config,
               ...adapters,
