@@ -31,6 +31,10 @@ What changed in each release of `@pablocm90/visual-review`, newest first. Versio
 
 - The **Metrics** tab. Each part's **Metrics** fold, **Colour by** and the metrics findings stay, and a link to `#metrics` opens Structure.
 
+### Fixed
+
+- Two unrelated decisions of one kind no longer pair as one changed decision in **What changed** and its strip: a decision now reads changed only against one sharing a name with it, keywords and literal names such as `undefined` or `nil` aside, and otherwise reads removed and added, so a guard or catch so replaced is now named as lost. A decision naming nothing, such as `case 2000:`, still pairs in order, and one whose name is renamed through the function, such as `catch (e)` to `catch (error)`, still reads changed.
+
 ## 0.50.0 — 2026-11-06
 
 ### Added
