@@ -78,6 +78,8 @@ const rowsIn = (
       ...imported,
       importedOf(target.slice(0, 1)),
       importedOf(from.slice(0, 1), ['crate']),
+      importedOf(from, ['self']),
+      importedOf(from.slice(0, -1), ['super']),
     ]);
     const fields = root
       .descendantsOfType('field_identifier')

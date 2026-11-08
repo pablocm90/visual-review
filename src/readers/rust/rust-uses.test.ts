@@ -116,6 +116,18 @@ test.for([
     found: { line: 5, text: 'crate::orders::parse();' },
   },
   {
+    reason: 'another of its functions, then calling the function by its path from `super`',
+    file: 'crates/shop/src/checkout.rs',
+    text: 'use crate::orders::total;\n\npub fn run() {\n    total();\n    super::orders::parse();\n}\n',
+    found: { line: 5, text: 'super::orders::parse();' },
+  },
+  {
+    reason: 'another of its functions, then calling the function by its path from `self`',
+    file: 'crates/shop/src/lib.rs',
+    text: 'pub mod orders;\npub mod billing;\nuse orders::total;\n\npub fn run() {\n    total();\n    self::orders::parse();\n}\n',
+    found: { line: 7, text: 'self::orders::parse();' },
+  },
+  {
     reason: 'the function through `super`',
     file: 'crates/shop/src/checkout.rs',
     text: 'use super::orders::parse;\n\npub fn run() {\n    parse();\n}\n',
