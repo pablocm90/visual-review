@@ -129,8 +129,10 @@ export const parseNotes = ({ text, file }: ParseNotesOptions): ReviewNotes => {
 
 const joined = (one: Note, other: Note): Note => {
   const flags = [one.flag, other.flag].filter(flag => flag !== undefined);
+  const whys = [one.why, other.why].filter(why => why !== undefined);
   return {
     text: `${one.text} ${other.text}`,
+    ...(whys.length > 0 ? { why: whys.join(' ') } : {}),
     ...(flags.length > 0 ? { flag: flags.join(', ') } : {}),
   };
 };
