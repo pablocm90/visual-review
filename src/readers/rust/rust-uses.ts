@@ -20,7 +20,7 @@ import {
 const NOT_READ = 'not read';
 
 const UNSEEN =
-  'not followed: a module of its own crate with no `use` into its file, a name re-exported through `pub use`, and a path inside a macro';
+  'not followed: a module of its own crate with no `use` into its file, a crate named otherwise than by its package, such as through `[lib] name` or a renamed dependency, a binary naming its own package’s library, a name re-exported through `pub use`, and a path inside a macro';
 
 const startOf = (from: Segments, first: string, extern: string): Segments => {
   if (first === EXTERN_PRELUDE) return [];

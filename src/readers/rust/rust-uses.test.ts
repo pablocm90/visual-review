@@ -206,6 +206,9 @@ test.for([
   expect(reading?.notRead).toEqual(['crates/shop/src/refund.rs']);
 });
 
+const UNSEEN =
+  'not followed: a module of its own crate with no `use` into its file, a crate named otherwise than by its package, such as through `[lib] name` or a renamed dependency, a binary naming its own package’s library, a name re-exported through `pub use`, and a path inside a macro';
+
 const ORDERS =
   'pub fn parse() {}\npub mod inner {\n    pub fn z() {}\n}\npub struct Order;\nimpl Order {\n    pub fn total(&self) {}\n}\n';
 
@@ -353,7 +356,7 @@ test.for([
     reason: 'a method of a trait impl among others is',
     names: ['Order.total', 'Order as Display.fmt'],
     notFollowed: [
-      'not followed: a module of its own crate with no `use` into its file, a name re-exported through `pub use`, and a path inside a macro',
+      UNSEEN,
       'not followed: a method called on a value in a file not importing its type',
       'not followed: a method of an `impl Trait for`',
     ],
@@ -362,16 +365,14 @@ test.for([
     reason: 'a type’s own method is',
     names: ['Order.total'],
     notFollowed: [
-      'not followed: a module of its own crate with no `use` into its file, a name re-exported through `pub use`, and a path inside a macro',
+      UNSEEN,
       'not followed: a method called on a value in a file not importing its type',
     ],
   },
   {
     reason: 'a type is',
     names: ['Basket'],
-    notFollowed: [
-      'not followed: a module of its own crate with no `use` into its file, a name re-exported through `pub use`, and a path inside a macro',
-    ],
+    notFollowed: [UNSEEN],
   },
 ])('$reason not followed, beside what no use is', async ({ names, notFollowed }) => {
   const reading = await usesIn({
