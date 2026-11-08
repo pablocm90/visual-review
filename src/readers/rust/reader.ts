@@ -5,6 +5,7 @@ import { promisify } from 'node:util';
 import type { Graph } from '../../core/graph.ts';
 import type { Reader } from '../../core/reader.ts';
 import { StackNotRead } from '../../core/skipped.ts';
+import { msFrom } from '../../ms-from.ts';
 import { sourcesIn } from '../sources-in.ts';
 import { crateGraph, crateRoots } from './crate-graph.ts';
 import { crateModules } from './crate-modules.ts';
@@ -32,7 +33,17 @@ const firstErrorOf = (error: unknown): string | undefined =>
         ?.slice(CARGO_ERROR.length)
     : undefined;
 
-const notReadBy = ({ error, checkout }: { readonly error: unknown; readonly checkout: string }) => {
+type NotReadOptions = {
+  readonly error: unknown;
+  readonly checkout: string;
+  readonly timeout: number;
+};
+
+const killed = (error: unknown): boolean =>
+  error instanceof Error && 'killed' in error && error.killed === true;
+
+const notReadBy = ({ error, checkout, timeout }: NotReadOptions) => {
+  if (killed(error)) throw new StackNotRead(`cargo: still running after ${timeout} ms`);
   const first = firstErrorOf(error);
   throw first === undefined
     ? error
@@ -47,6 +58,7 @@ type GraphAtOptions = {
 
 const graphAt = async ({ checkout, root, stack }: GraphAtOptions): Promise<Graph> => {
   const directory = join(checkout, root);
+  const timeout = msFrom({ variable: 'VISUAL_REVIEW_CARGO_MS', fallback: 60_000 });
   const reading = run(
     'cargo',
     [
@@ -57,10 +69,17 @@ const graphAt = async ({ checkout, root, stack }: GraphAtOptions): Promise<Graph
       '--manifest-path',
       join(directory, 'Cargo.toml'),
     ],
-    { cwd: directory, env: await reviewersToolchain(dirname(checkout)) },
+    {
+      cwd: directory,
+      env: await reviewersToolchain(dirname(checkout)),
+      timeout,
+      killSignal: 'SIGKILL',
+    },
   );
   reading.child.stdin?.end();
-  const { stdout } = await reading.catch((error: unknown) => notReadBy({ error, checkout }));
+  const { stdout } = await reading.catch((error: unknown) =>
+    notReadBy({ error, checkout, timeout }),
+  );
   const crates = crateGraph({ metadataJson: stdout, stack, root });
   const modules = await Promise.all(
     crateRoots(stdout).map(async ({ crate, directory: crateDirectory, roots }) => {

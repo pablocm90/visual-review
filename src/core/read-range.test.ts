@@ -1521,6 +1521,22 @@ test('cargo reads no stdin, so a manifest it reads from there reads empty and ne
   expect(nodeIds(range.after)).toEqual(['rust']);
 });
 
+test('cargo still running at the timeout is killed, even ignoring SIGTERM, and its stack is not read', async () => {
+  using workspace = cargoWorkspace();
+  const { repo, root } = workspace;
+  using bin = pathWithCargo(
+    `exec ${process.execPath} -e 'process.on("SIGTERM", () => {}); setTimeout(() => {}, 30_000)'`,
+  );
+  vi.stubEnv('PATH', bin.path);
+  vi.stubEnv('VISUAL_REVIEW_CARGO_MS', '300');
+
+  const range = await readRange({ repo, from: root, to: root });
+
+  expect(range.skipped).toEqual([
+    { reader: 'rust', stacks: ['rust'], reason: 'cargo: still running after 300 ms' },
+  ]);
+});
+
 test.for([
   { broken: 'a manifest', manifest: '[workspace\n', error: 'unclosed table, expected `]`' },
   {
