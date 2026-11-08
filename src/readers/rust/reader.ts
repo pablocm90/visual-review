@@ -32,9 +32,11 @@ const firstErrorOf = (error: unknown): string | undefined =>
         ?.slice(CARGO_ERROR.length)
     : undefined;
 
-const notReadBy = (error: unknown): never => {
+const notReadBy = ({ error, checkout }: { readonly error: unknown; readonly checkout: string }) => {
   const first = firstErrorOf(error);
-  throw first === undefined ? error : new StackNotRead(`cargo: ${first}`);
+  throw first === undefined
+    ? error
+    : new StackNotRead(`cargo: ${first.replaceAll(`${checkout}/`, '')}`);
 };
 
 type GraphAtOptions = {
@@ -56,7 +58,7 @@ const graphAt = async ({ checkout, root, stack }: GraphAtOptions): Promise<Graph
       join(directory, 'Cargo.toml'),
     ],
     { cwd: directory, env: await reviewersToolchain(dirname(checkout)) },
-  ).catch(notReadBy);
+  ).catch((error: unknown) => notReadBy({ error, checkout }));
   const crates = crateGraph({ metadataJson: stdout, stack, root });
   const modules = await Promise.all(
     crateRoots(stdout).map(async ({ crate, directory: crateDirectory, roots }) => {

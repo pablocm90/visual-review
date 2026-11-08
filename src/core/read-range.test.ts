@@ -1500,24 +1500,38 @@ test('a skipped reader lists the stacks it would read on either side, those foun
   ]);
 });
 
-test("a stack cargo can't read is not read, named by cargo's error, and the other stacks are drawn", async () => {
-  using workspace = cargoWorkspace();
-  const { repo, root } = workspace;
-  const head = commit(repo, { ...rootPackage, 'Cargo.toml': '[workspace\n' });
+test.for([
+  { broken: 'a manifest', manifest: '[workspace\n', error: 'unclosed table, expected `]`' },
+  {
+    broken: 'a member, named inside the checkout',
+    manifest: '[workspace]\nmembers = ["crates/missing"]\n',
+    error: 'failed to load manifest for workspace member `crates/missing`',
+  },
+])(
+  "a stack cargo can't read, for $broken, is not read, named by cargo's error, and the other stacks are drawn",
+  async ({ manifest, error }) => {
+    using workspace = cargoWorkspace();
+    const { repo, root } = workspace;
+    const head = commit(repo, {
+      ...rootPackage,
+      '.cargo/config.toml': '[build]\nunused = 1\n',
+      'Cargo.toml': manifest,
+    });
 
-  const range = await readRange({ repo, from: root, to: head });
+    const range = await readRange({ repo, from: root, to: head });
 
-  expect(nodeIds(range.before)).toEqual([]);
-  expect(nodeIds(range.after)).toEqual([basename(repo), `${basename(repo)}/file/index.ts`]);
-  expect(range.skipped).toEqual([
-    {
-      reader: 'rust',
-      stacks: ['rust'],
-      reason: 'cargo: unclosed table, expected `]`',
-      side: 'head',
-    },
-  ]);
-});
+    expect(nodeIds(range.before)).toEqual([]);
+    expect(nodeIds(range.after)).toEqual([basename(repo), `${basename(repo)}/file/index.ts`]);
+    expect(range.skipped).toEqual([
+      {
+        reader: 'rust',
+        stacks: ['rust'],
+        reason: `cargo: ${error}`,
+        side: 'head',
+      },
+    ]);
+  },
+);
 
 test('a stack not read at either side is dropped from both, and listed once per reason, saying the side when the other side read it', async () => {
   using repository = gitRepo({
