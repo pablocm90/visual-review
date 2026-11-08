@@ -67,8 +67,49 @@ const changed = (old: Decision, decision: Decision): LogicLine => ({
   line: decision.line,
 });
 
+const KEYWORDS = new Set([
+  'if',
+  'else',
+  'elsif',
+  'unless',
+  'return',
+  'throw',
+  'raise',
+  'catch',
+  'rescue',
+  'case',
+  'when',
+  'for',
+  'while',
+  'until',
+  'of',
+  'in',
+  'let',
+  'match',
+  'not',
+  'and',
+  'or',
+  'undefined',
+  'null',
+  'nil',
+  'true',
+  'false',
+  'this',
+  'self',
+]);
+
+const namesOf = (text: string): ReadonlySet<string> =>
+  new Set((text.match(/[A-Za-z_$][\w$]*/g) ?? []).filter(word => !KEYWORDS.has(word)));
+
+const shareAName = (base: Decision, head: Decision): boolean => {
+  const names = namesOf(base.text);
+  const others = namesOf(head.text);
+  return names.size === 0 || others.size === 0 || [...names].some(name => others.has(name));
+};
+
 const canPair = (base: Decision, head: Decision): boolean =>
   base.kind === head.kind &&
+  shareAName(base, head) &&
   (base.subject ?? []).every(name => head.subject?.some(held => tokensOf(held) === tokensOf(name)));
 
 type Pairing = {

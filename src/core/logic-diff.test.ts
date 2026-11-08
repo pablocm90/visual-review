@@ -136,7 +136,7 @@ test('in a gap, decisions of a kind pair in order and the rest of the base are r
           ...ifs('a', 'b'),
           decision({ kind: 'loop', text: 'while (open)' }),
         ],
-        head: [decision({ kind: 'catch', text: 'catch' }), ...ifs('c')],
+        head: [decision({ kind: 'catch', text: 'catch' }), ...ifs('a || b')],
       }),
     ),
   ).toEqual([
@@ -144,7 +144,7 @@ test('in a gap, decisions of a kind pair in order and the rest of the base are r
     'removed if (b)',
     'removed while (open)',
     'added catch',
-    'changed if (c)',
+    'changed if (a || b)',
   ]);
 });
 
@@ -286,4 +286,63 @@ test('names of one subject compare as decisions do, with their spacing ignored',
   expect(logicDiff({ base: [spaced], head: [packed] }).map(({ change }) => change)).toEqual([
     'changed',
   ]);
+});
+
+test.for([
+  {
+    reason: 'two logicals naming nothing in common',
+    kind: 'logical',
+    base: 'filesWithNews.length === 0 && found.length === 0 &&',
+    head: 'reach.node === node.id ||',
+    changes: ['removed', 'added'],
+  },
+  {
+    reason: 'two guards sharing only keywords',
+    kind: 'guard',
+    base: 'if (!order) return',
+    head: 'if (!user) return',
+    changes: ['removed', 'added'],
+  },
+  {
+    reason: 'two guards sharing a name',
+    kind: 'guard',
+    base: 'if (layout === undefined || focusTarget === undefined) return',
+    head: "if (focusTarget === undefined || tab !== 'structure') return",
+    changes: ['changed'],
+  },
+  {
+    reason: 'two guards sharing only a literal name',
+    kind: 'guard',
+    base: 'if (layout === undefined) return',
+    head: 'if (tab === undefined) return',
+    changes: ['removed', 'added'],
+  },
+  {
+    reason: 'a catch naming nothing and one naming its error',
+    kind: 'catch',
+    base: 'catch',
+    head: 'catch (error)',
+    changes: ['changed'],
+  },
+  {
+    reason: 'a catch naming its error and one naming nothing',
+    kind: 'catch',
+    base: 'catch (error)',
+    head: 'catch',
+    changes: ['changed'],
+  },
+  {
+    reason: 'two cases naming nothing, which pair in order',
+    kind: 'case',
+    base: 'case 2000:',
+    head: 'case -1:',
+    changes: ['changed'],
+  },
+] as const)('in a gap, $reason: $changes', ({ kind, base, head, changes }) => {
+  expect(
+    logicDiff({
+      base: [decision({ kind, text: base })],
+      head: [decision({ kind, text: head })],
+    }).map(({ change }) => change),
+  ).toEqual(changes);
 });
