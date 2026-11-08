@@ -65,19 +65,23 @@ const rowsIn = (
     const paths = root
       .descendantsOfType(['identifier', 'type_identifier', ...PATHS])
       .filter(node => !isInUse(node) && !namesItsParent(node));
-    const formsOf = (item: Segments): ReadonlySet<string> =>
-      new Set(
-        imported
-          .filter(({ segments }) => isPrefix(segments, item))
-          .map(({ segments, local }) => [...local, ...item.slice(segments.length)].join('::')),
-      );
+    const formsIn =
+      (imports: ReadonlyArray<Imported>) =>
+      (item: Segments): ReadonlySet<string> =>
+        new Set(
+          imports
+            .filter(({ segments }) => isPrefix(segments, item))
+            .map(({ segments, local }) => [...local, ...item.slice(segments.length)].join('::')),
+        );
+    const formsOf = formsIn(imported);
+    const writtenFormsOf = formsIn([...imported, importedOf(target.slice(0, 1))]);
     const fields = root
       .descendantsOfType('field_identifier')
       .filter(node => node.parent?.type === 'field_expression');
     return new Map(
       names.map(name => {
         const item = [...target, ...name.split(/::|\./)];
-        const forms = formsOf(item);
+        const forms = writtenFormsOf(item);
         const calls =
           name.includes('.') && formsOf(item.slice(0, -1)).size > 0
             ? fields.filter(node => node.text === item.at(-1))

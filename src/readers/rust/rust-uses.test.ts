@@ -221,9 +221,22 @@ test.for([
 });
 
 test.for([
-  { how: 'that crate’s name', path: 'shop_core::orders::parse' },
-  { how: 'that crate’s name from the extern prelude', path: '::shop_core::orders::parse' },
-])('a function reaches a module of another crate importing it by $how', async ({ path }) => {
+  {
+    how: 'importing it by that crate’s name',
+    text: 'use shop_core::orders::parse;\n\npub fn run() {\n    parse();\n}\n',
+    found: { line: 4, text: 'parse();' },
+  },
+  {
+    how: 'importing it by that crate’s name from the extern prelude',
+    text: 'use ::shop_core::orders::parse;\n\npub fn run() {\n    parse();\n}\n',
+    found: { line: 4, text: 'parse();' },
+  },
+  {
+    how: 'calling it by its path from that crate’s name',
+    text: 'pub fn run() {\n    shop_core::orders::parse();\n}\n',
+    found: { line: 2, text: 'shop_core::orders::parse();' },
+  },
+])('a function reaches a module of another crate $how', async ({ text, found }) => {
   const reading = await usesIn({
     files: {
       ...crate('shop-core'),
@@ -231,14 +244,14 @@ test.for([
       'crates/shop-core/src/lib.rs': 'pub mod orders;\n',
       'crates/shop-core/src/orders.rs': 'pub fn parse() {}\n',
       'crates/shop/src/lib.rs': 'pub mod checkout;\n',
-      'crates/shop/src/checkout.rs': `use ${path};\n\npub fn run() {\n    parse();\n}\n`,
+      'crates/shop/src/checkout.rs': text,
     },
     target: 'crates/shop-core/src/orders.rs',
     names: ['parse'],
   });
 
   expect(reading?.uses).toEqual({
-    parse: [{ path: 'crates/shop/src/checkout.rs', line: 4, text: 'parse();', test: false }],
+    parse: [{ path: 'crates/shop/src/checkout.rs', ...found, test: false }],
   });
 });
 
