@@ -71,6 +71,9 @@ const importsIn = (root: Node, from: Segments): ReadonlyArray<Imported> =>
 const isInUse = (node: Node): boolean =>
   node.parent !== null && (node.parent.type === 'use_declaration' || isInUse(node.parent));
 
+const namesItsParent = (node: Node): boolean =>
+  node.parent?.childForFieldName('name')?.id === node.id;
+
 const isPrefix = (prefix: Segments, of: Segments): boolean =>
   prefix.every((segment, index) => segment === of[index]);
 
@@ -92,7 +95,7 @@ const rowsIn = (
     const lines = text.split('\n');
     const paths = root
       .descendantsOfType(['identifier', 'scoped_identifier'])
-      .filter(node => !isInUse(node));
+      .filter(node => !isInUse(node) && !namesItsParent(node));
     return new Map(
       names.map(name => {
         const item = [...target, name];

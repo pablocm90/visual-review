@@ -92,6 +92,12 @@ test.for([
     found: { line: 5, text: 'orders::parse();' },
   },
   {
+    reason: 'the function, beside calling another of that name by path',
+    file: 'crates/shop/src/checkout.rs',
+    text: 'use crate::orders::parse;\n\npub fn run() {\n    crate::billing::parse();\n    parse();\n}\n',
+    found: { line: 5, text: 'parse();' },
+  },
+  {
     reason: 'everything its module holds',
     file: 'crates/shop/src/checkout.rs',
     text: 'use crate::orders::*;\n\npub fn run() {\n    total();\n    parse();\n}\n',
