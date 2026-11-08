@@ -7,9 +7,11 @@ import { parseRust } from './rust-syntax.ts';
 
 type Segments = ReadonlyArray<string>;
 
+const PATHS: ReadonlySet<string> = new Set(['scoped_identifier', 'scoped_type_identifier']);
+
 const segmentsOf = (node: Node | null): Segments => {
   if (node === null) return [];
-  if (node.type !== 'scoped_identifier') return [node.text];
+  if (!PATHS.has(node.type)) return [node.text];
   return [
     ...segmentsOf(node.childForFieldName('path')),
     node.childForFieldName('name')?.text ?? '',
@@ -93,7 +95,7 @@ const rowsIn = (
     const imported = importsIn(root, from, target[0] ?? '');
     const lines = text.split('\n');
     const paths = root
-      .descendantsOfType(['identifier', 'scoped_identifier', 'type_identifier'])
+      .descendantsOfType(['identifier', 'type_identifier', ...PATHS])
       .filter(node => !isInUse(node) && !namesItsParent(node));
     return new Map(
       names.map(name => {

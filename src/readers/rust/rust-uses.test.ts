@@ -155,6 +155,12 @@ test.for([
     text: 'use crate::orders::Order;\n\npub fn run() {\n    let _ = Order {};\n}\n',
     found: { line: 4, text: 'let _ = Order {};' },
   },
+  {
+    reason: 'a type, written by its module’s path',
+    name: 'Order',
+    text: 'use crate::orders;\n\npub fn run(order: orders::Order) {}\n',
+    found: { line: 3, text: 'pub fn run(order: orders::Order) {}' },
+  },
 ])('$reason reaches a module importing it', async ({ name, text, found }) => {
   const reading = await usesIn({
     files: {
