@@ -16,13 +16,7 @@ import type { PreviousComment } from '../core/previous-comments.ts';
 import type { SymbolFile } from '../core/read-range.ts';
 import type { Comment } from '../core/review.ts';
 import { testAnchorsIn } from '../core/since-review.ts';
-import {
-  changesApi,
-  isQuiet,
-  qualified,
-  type SymbolChange,
-  type SymbolStatement,
-} from '../core/symbol-changes.ts';
+import { isQuiet, qualified, SYMBOL_GROUPS, type SymbolStatement } from '../core/symbol-changes.ts';
 import { type AnchoredSymbol, anchoredSymbols, decisionsOf } from '../core/symbol-findings.ts';
 import { boxesAboveIn } from '../core/visible-diff.ts';
 import { ChangedSinceTag, sinceLabel, useIsChangedSince } from './changed-since.tsx';
@@ -33,22 +27,6 @@ import { scrollInPanel } from './scroll-in-panel.ts';
 import { Signature } from './signature-lines.tsx';
 import { otherEndOf } from './symbol-diff.ts';
 import { type SymbolEnd, SymbolLines } from './symbol-lines.tsx';
-
-type Group = readonly [string, (symbol: SymbolStatement) => boolean];
-
-const ofChange =
-  (change: SymbolChange) =>
-  (symbol: SymbolStatement): boolean =>
-    !changesApi(symbol) && symbol.change === change;
-
-const GROUPS: ReadonlyArray<Group> = [
-  ['API', changesApi],
-  ['Edited', ofChange('edited')],
-  ['Renamed', ofChange('renamed')],
-  ['Moved', ofChange('moved')],
-  ['Added', ofChange('added')],
-  ['Removed', ofChange('removed')],
-];
 
 const symbolsIn = (files: ReadonlyArray<SymbolFile>): ReadonlyArray<SymbolStatement> =>
   files.flatMap(file => ('symbols' in file ? file.symbols : []));
@@ -451,7 +429,7 @@ const SymbolFiles = ({ file, ...places }: Places & { readonly file: SymbolFile }
       {'unreadable' in file && (
         <p className="unreadable">Its symbols couldn't be read: {file.unreadable}</p>
       )}
-      {GROUPS.flatMap(([title, holds]) => {
+      {SYMBOL_GROUPS.flatMap(([title, holds]) => {
         const grouped = symbols.filter(({ item }) => holds(item));
         return grouped.length === 0
           ? []

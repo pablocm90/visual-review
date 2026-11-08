@@ -121,6 +121,21 @@ export const changesApi = ({ exported, change, signature }: SymbolStatement): bo
   (exported.base === true || exported.head === true) &&
   (signature !== undefined || change === 'renamed' || exported.base !== exported.head);
 
+const ofChange =
+  (change: SymbolChange) =>
+  (symbol: SymbolStatement): boolean =>
+    !changesApi(symbol) && symbol.change === change;
+
+export const SYMBOL_GROUPS: ReadonlyArray<readonly [string, (symbol: SymbolStatement) => boolean]> =
+  [
+    ['API', changesApi],
+    ['Edited', ofChange('edited')],
+    ['Renamed', ofChange('renamed')],
+    ['Moved', ofChange('moved')],
+    ['Added', ofChange('added')],
+    ['Removed', ofChange('removed')],
+  ];
+
 export const isQuiet = (symbol: SymbolStatement): boolean =>
   !changesApi(symbol) && (symbol.change === 'unchanged' || symbol.change === 'formatting');
 

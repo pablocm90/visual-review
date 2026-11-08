@@ -10582,3 +10582,56 @@ test('Colour by Logic gives a closed box the sum of the decisions inside it, not
     expect(buttonsIn(web)).toEqual(['lib: modified, decisions 5 (4–9)', 'Expand lib']),
   );
 });
+
+const pageOfLogicToWalk = () => ({
+  ...pageOfLogic(),
+  readingOrder: { parts: ['web/file/cart.ts', 'web/file/refund.ts'], cycles: [] },
+});
+
+const landedRow = (name: string) => within(whatChanged()).getByRole('listitem', { name });
+
+test("L from the landing reads the first changed decision by reading order, landing on its row and focusing it; each L goes to the next, across files, then stays at the last; C comments on the row it's on", async () => {
+  const user = userEvent.setup();
+  render(<ReviewPage review={pageOfLogicToWalk()} send={vi.fn(async () => {})} />);
+  await screen.findByRole('group', { name: 'web' });
+
+  await user.keyboard('l');
+  expect(screen.getByRole('group', { name: 'Map' })).toBeDefined();
+  expect(selectedPart()).toBe('cart.ts');
+  expect(landedRow('added if: if (empty)').getAttribute('aria-current')).toBe('true');
+  await waitFor(() => expect(document.activeElement).toBe(landedRow('added if: if (empty)')));
+
+  await user.keyboard('l');
+  expect(selectedPart()).toBe('refund.ts');
+  await waitFor(() => expect(document.activeElement).toBe(landedRow('added if: if (late)')));
+
+  await user.keyboard('l');
+  expect(selectedPart()).toBe('refund.ts');
+  expect(landedRow('added if: if (late)').getAttribute('aria-current')).toBe('true');
+
+  await user.keyboard('c');
+  expect(document.activeElement).toBe(
+    await within(landedRow('added if: if (late)')).findByRole('textbox', { name: 'Your comment' }),
+  );
+});
+
+test("the head's Next logic change goes to the next changed decision, across files, and shows neither at the last nor on a page with none", async () => {
+  const user = userEvent.setup();
+  const { unmount } = render(<ReviewPage review={pageOfLogicToWalk()} />);
+  await screen.findByRole('group', { name: 'web' });
+  const nextLogic = () => within(inspector()).queryByRole('button', { name: 'Next logic change' });
+
+  await user.keyboard('l');
+  expect(selectedPart()).toBe('cart.ts');
+  await user.click(within(inspector()).getByRole('button', { name: 'Next logic change' }));
+  expect(selectedPart()).toBe('refund.ts');
+  expect(landedRow('added if: if (late)').getAttribute('aria-current')).toBe('true');
+  expect(nextLogic()).toBeNull();
+  unmount();
+
+  render(<ReviewPage review={{ ...pageOfLogicToWalk(), symbols: [] }} />);
+  const web = await screen.findByRole('group', { name: 'web' });
+  await user.click(within(web).getByRole('button', { name: /^cart\.ts/ }));
+  await within(inspector()).findByRole('button', { name: /^Next: / });
+  expect(nextLogic()).toBeNull();
+});

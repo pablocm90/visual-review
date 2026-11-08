@@ -67,8 +67,94 @@ const changed = (old: Decision, decision: Decision): LogicLine => ({
   line: decision.line,
 });
 
-const canPair = (base: Decision, head: Decision): boolean =>
+const KEYWORDS = new Set([
+  'if',
+  'else',
+  'elsif',
+  'unless',
+  'return',
+  'throw',
+  'raise',
+  'catch',
+  'rescue',
+  'case',
+  'when',
+  'for',
+  'while',
+  'until',
+  'of',
+  'in',
+  'let',
+  'match',
+  'not',
+  'and',
+  'or',
+  'undefined',
+  'null',
+  'nil',
+  'true',
+  'false',
+  'this',
+  'self',
+  'typeof',
+  'instanceof',
+  'new',
+  'await',
+  'void',
+  'delete',
+  'yield',
+  'const',
+  'var',
+  'then',
+  'do',
+  'end',
+  'defined',
+  'begin',
+  'ensure',
+  'next',
+  'break',
+  'continue',
+]);
+
+const NAMES = /[A-Za-z_$][\w$]*/g;
+
+const namesOf = (text: string): ReadonlySet<string> =>
+  new Set((text.match(NAMES) ?? []).filter(word => !KEYWORDS.has(word)));
+
+const shapeOf = (text: string, renamed: ReadonlySet<string>): string =>
+  tokensOf(text.replace(NAMES, word => (renamed.has(word) ? '\0' : word)));
+
+type Renames = {
+  readonly gone: ReadonlySet<string>;
+  readonly new: ReadonlySet<string>;
+};
+
+const namesIn = (decisions: ReadonlyArray<Decision>): ReadonlySet<string> =>
+  new Set(decisions.flatMap(({ text }) => [...namesOf(text)]));
+
+const renamesOf = ({ base, head }: Sides): Renames => {
+  const before = namesIn(base);
+  const after = namesIn(head);
+  return {
+    gone: new Set([...before].filter(name => !after.has(name))),
+    new: new Set([...after].filter(name => !before.has(name))),
+  };
+};
+
+const shareAName = (base: Decision, head: Decision, renames: Renames): boolean => {
+  const names = [...namesOf(base.text)];
+  const others = namesOf(head.text);
+  return (
+    names.length === 0 ||
+    others.size === 0 ||
+    names.some(name => others.has(name)) ||
+    shapeOf(base.text, renames.gone) === shapeOf(head.text, renames.new)
+  );
+};
+
+const canPair = (base: Decision, head: Decision, renames: Renames): boolean =>
   base.kind === head.kind &&
+  shareAName(base, head, renames) &&
   (base.subject ?? []).every(name => head.subject?.some(held => tokensOf(held) === tokensOf(name)));
 
 type Pairing = {
@@ -76,10 +162,10 @@ type Pairing = {
   readonly lines: ReadonlyArray<LogicLine>;
 };
 
-const linesOfGap = ({ base, head }: Sides): ReadonlyArray<LogicLine> => {
+const linesOfGap = ({ base, head }: Sides, renames: Renames): ReadonlyArray<LogicLine> => {
   const paired = head.reduce<Pairing>(
     ({ left, lines }, decision) => {
-      const partner = left.find(one => canPair(one, decision));
+      const partner = left.find(one => canPair(one, decision, renames));
       return partner === undefined
         ? { left, lines: [...lines, ofHead('added', decision)] }
         : {
@@ -92,7 +178,9 @@ const linesOfGap = ({ base, head }: Sides): ReadonlyArray<LogicLine> => {
   return [...paired.left.map(removed), ...paired.lines];
 };
 
-export const logicDiff = ({ base, head }: Sides): ReadonlyArray<LogicLine> =>
-  aligned({ base, head, same: sameDecision }).flatMap(run =>
-    'kept' in run ? [ofHead('same', run.kept)] : linesOfGap(run),
+export const logicDiff = ({ base, head }: Sides): ReadonlyArray<LogicLine> => {
+  const renames = renamesOf({ base, head });
+  return aligned({ base, head, same: sameDecision }).flatMap(run =>
+    'kept' in run ? [ofHead('same', run.kept)] : linesOfGap(run, renames),
   );
+};

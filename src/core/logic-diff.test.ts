@@ -136,7 +136,7 @@ test('in a gap, decisions of a kind pair in order and the rest of the base are r
           ...ifs('a', 'b'),
           decision({ kind: 'loop', text: 'while (open)' }),
         ],
-        head: [decision({ kind: 'catch', text: 'catch' }), ...ifs('c')],
+        head: [decision({ kind: 'catch', text: 'catch' }), ...ifs('a || b')],
       }),
     ),
   ).toEqual([
@@ -144,7 +144,7 @@ test('in a gap, decisions of a kind pair in order and the rest of the base are r
     'removed if (b)',
     'removed while (open)',
     'added catch',
-    'changed if (c)',
+    'changed if (a || b)',
   ]);
 });
 
@@ -286,4 +286,113 @@ test('names of one subject compare as decisions do, with their spacing ignored',
   expect(logicDiff({ base: [spaced], head: [packed] }).map(({ change }) => change)).toEqual([
     'changed',
   ]);
+});
+
+test.for([
+  {
+    reason: 'two logicals naming nothing in common',
+    kept: 'if (filesWithNews.length && found)',
+    kind: 'logical',
+    base: 'filesWithNews.length === 0 && found.length === 0 &&',
+    head: 'reach.node === node.id ||',
+    changes: ['removed', 'added', 'same'],
+  },
+  {
+    reason: 'two guards sharing only keywords',
+    kept: 'if (order.paid)',
+    kind: 'guard',
+    base: 'if (!order) return',
+    head: 'if (!user) return',
+    changes: ['removed', 'added', 'same'],
+  },
+  {
+    reason: 'two guards sharing a name',
+    kept: 'if (layout)',
+    kind: 'guard',
+    base: 'if (layout === undefined || focusTarget === undefined) return',
+    head: "if (focusTarget === undefined || tab !== 'structure') return",
+    changes: ['changed', 'same'],
+  },
+  {
+    reason: 'two guards sharing only an operator word',
+    kind: 'guard',
+    kept: 'if (a || b)',
+    base: 'if (typeof a === b) return',
+    head: 'if (await ready()) return',
+    changes: ['removed', 'added', 'same'],
+  },
+  {
+    reason: 'two guards sharing only a literal name',
+    kept: 'if (layout)',
+    kind: 'guard',
+    base: 'if (layout === undefined) return',
+    head: 'if (tab === undefined) return',
+    changes: ['removed', 'added', 'same'],
+  },
+  {
+    reason: 'a catch naming nothing and one naming its error',
+    kept: 'if (error)',
+    kind: 'catch',
+    base: 'catch',
+    head: 'catch (error)',
+    changes: ['changed', 'same'],
+  },
+  {
+    reason: 'a catch naming its error and one naming nothing',
+    kept: 'if (error)',
+    kind: 'catch',
+    base: 'catch (error)',
+    head: 'catch',
+    changes: ['changed', 'same'],
+  },
+  {
+    reason: 'two cases naming nothing, which pair in order',
+    kept: 'if (year)',
+    kind: 'case',
+    base: 'case 2000:',
+    head: 'case -1:',
+    changes: ['changed', 'same'],
+  },
+] as const)('in a gap, $reason: $changes', ({ kind, base, head, kept, changes }) => {
+  expect(
+    logicDiff({
+      base: [decision({ kind, text: base }), decision({ text: kept })],
+      head: [decision({ kind, text: head }), decision({ text: kept })],
+    }).map(({ change }) => change),
+  ).toEqual(changes);
+});
+
+test.for([
+  {
+    reason: 'a guard whose name is renamed through the function',
+    base: [decision({ kind: 'guard', text: 'if (!opts) return' })],
+    head: [decision({ kind: 'guard', text: 'if (!options) return' })],
+    changes: ['changed'],
+  },
+  {
+    reason: 'a catch whose error is renamed, its spacing changed',
+    base: [decision({ kind: 'catch', text: 'catch (e)' })],
+    head: [decision({ kind: 'catch', text: 'catch(error)' })],
+    changes: ['changed'],
+  },
+  {
+    reason: 'a logical losing a name and one gaining another, in another shape',
+    base: [decision({ kind: 'logical', text: 'notes && notes.summary.length > 0 &&' })],
+    head: [decision({ kind: 'logical', text: '!reading &&' })],
+    changes: ['removed', 'added'],
+  },
+  {
+    reason: 'a guard whose new name the base already decided on',
+    base: [
+      decision({ kind: 'guard', text: 'if (!order) return' }),
+      decision({ text: 'if (user.admin)' }),
+    ],
+    head: [
+      decision({ kind: 'guard', text: 'if (!user) return' }),
+      decision({ text: 'if (user.admin)' }),
+    ],
+    changes: ['removed', 'added', 'same'],
+  },
+] as const)('in a gap, $reason: $changes', ({ base, head, changes }) => {
+  expect(logicDiff({ base, head }).map(({ change }) => change)).toEqual(changes);
 });

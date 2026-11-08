@@ -2,7 +2,7 @@
 
 What changed in each release of `@pablocm90/visual-review`, newest first. Versions follow [semver](https://semver.org); while it is 0.x, a minor version may change the exported types.
 
-## Unreleased
+## 0.51.0 — 2026-11-08
 
 ### Added
 
@@ -17,6 +17,7 @@ What changed in each release of `@pablocm90/visual-review`, newest first. Versio
 - **Show** offers **Logic only** when a decision changed: the files holding one, their boxes open, with every arrow between them, each a card with a strip of marks per function that changed. A tick opens its row. Start here's first line counts the range's changed decisions, by kind of change and exits, and goes there.
 
 - **What changed**'s heading sums the logic it lists, such as `14 functions decide differently, 45 decisions, 6 exits`, and a legend of the strip's marks sits under it when a strip shows. The same legend sits under Start here on **Logic only**.
+- `L`, or the part's **Next logic change**, walks the range's changed decisions across files, in reading order, from the row you're on: it enters reading, lands on the decision's row with focus there, so `C` comments on it, and stays at the last.
 - **Colour by Logic**, offered when a decision changed, shades each modified part by the decisions changed in it (0, 1–3, 4–9, 10+), a box by the sum inside it. An added or removed part, or one whose symbols weren't read, stays neutral.
 
 ### Changed
@@ -29,6 +30,10 @@ What changed in each release of `@pablocm90/visual-review`, newest first. Versio
 ### Removed
 
 - The **Metrics** tab. Each part's **Metrics** fold, **Colour by** and the metrics findings stay, and a link to `#metrics` opens Structure.
+
+### Fixed
+
+- Two unrelated decisions of one kind no longer pair as one changed decision in **What changed** and its strip: a decision now reads changed only against one sharing a name with it, keywords and literal names such as `undefined` or `nil` aside, and otherwise reads removed and added, so a guard or catch so replaced is now named as lost. A decision naming nothing, such as `case 2000:`, still pairs in order, and one whose name is renamed through the function, such as `catch (e)` to `catch (error)`, still reads changed.
 
 ## 0.50.0 — 2026-11-06
 
