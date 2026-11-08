@@ -2,6 +2,16 @@
 
 What changed in each release of `@pablocm90/visual-review`, newest first. Versions follow [semver](https://semver.org); while it is 0.x, a minor version may change the exported types.
 
+## Unreleased
+
+### Added
+
+- **Reaches** and the `blast-radius` findings follow a changed Rust function, type or method, by name, to the modules importing from its file and the modules of the crates depending on its crate: at its first use by name, through a `use` (`crate`, `self`, `super`, a relative path or the crate's name, aliases, lists and `*`), or by a path written in full; a method by its type's path, or at the first `.total` in a file importing its type. A use in a `tests/` folder or inside a `#[test]` or `#[cfg(test)]` item is marked `test` and listed last. Coverage says what isn't followed: a module of its own crate with no `use` into its file, a name re-exported through `pub use`, a path inside a macro, a method of an `impl Trait for`, and a method called on a value in a file not importing its type.
+
+### Changed
+
+- `SymbolUse`, a row `Reader.uses` gives, takes an optional `test`: whether the use sits in test code. Without it, its file being a test file says so, as before.
+
 ## 0.51.0 — 2026-11-08
 
 ### Added
