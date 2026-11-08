@@ -365,7 +365,7 @@ test('a symbol reaching files the change left is a blast radius finding to look 
   expect(shown).toEqual(reaches);
 });
 
-test('stacks not read are a structure finding to look at per reason, by those stacks, on no node', () => {
+test('stacks not read are a structure finding to look at per reason, by those stacks and the side when it has one, on no node', () => {
   const skipped = [
     { reader: 'rust' as const, stacks: ['api', 'worker'], reason: 'cargo not found on PATH' },
     {
@@ -380,7 +380,7 @@ test('stacks not read are a structure finding to look at per reason, by those st
       reason: 'cargo: timed out',
       side: 'reviewed' as const,
     },
-    { reader: 'rust' as const, stacks: ['ops'], reason: 'cargo: timed out', side: 'base' as const },
+    { reader: 'rust' as const, stacks: ['jobs'], reason: 'cargo: timed out', side: 'base' as const },
   ];
 
   expect(
@@ -395,25 +395,25 @@ test('stacks not read are a structure finding to look at per reason, by those st
       title: 'api, worker not read: cargo not found on PATH',
     },
     {
-      id: 'structure:skipped:jobs',
+      id: 'structure:skipped:jobs:head',
       check: 'structure:skipped',
       dimension: 'structure',
       level: 'look',
       title: 'jobs not read at the head: cargo: jobs is broken',
     },
     {
-      id: 'structure:skipped:lib',
+      id: 'structure:skipped:lib:reviewed',
       check: 'structure:skipped',
       dimension: 'structure',
       level: 'look',
       title: 'lib not read at the last review: cargo: timed out',
     },
     {
-      id: 'structure:skipped:ops',
+      id: 'structure:skipped:jobs:base',
       check: 'structure:skipped',
       dimension: 'structure',
       level: 'look',
-      title: 'ops not read at the base: cargo: timed out',
+      title: 'jobs not read at the base: cargo: timed out',
     },
   ]);
 });
