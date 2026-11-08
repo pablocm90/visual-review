@@ -13,6 +13,7 @@ import {
   git,
   gitRepo,
   pathTo,
+  pathWithCargo,
   symlinkedDirectory,
   writeFiles,
 } from '../test-support/repos.ts';
@@ -1498,6 +1499,15 @@ test('a skipped reader lists the stacks it would read on either side, those foun
   expect(range.skipped).toEqual([
     { reader: 'rust', stacks: ['rust', 'other'], reason: 'cargo not found on PATH' },
   ]);
+});
+
+test('a cargo failure that names no error fails the run', async () => {
+  using workspace = cargoWorkspace();
+  const { repo, root } = workspace;
+  using bin = pathWithCargo('exit 1');
+  vi.stubEnv('PATH', bin.path);
+
+  await expect(readRange({ repo, from: root, to: root })).rejects.toThrow('Command failed: cargo');
 });
 
 test.for([
