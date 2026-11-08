@@ -1,6 +1,7 @@
 import { existsSync, rmSync } from 'node:fs';
 import { basename, join } from 'node:path';
 import { expect, test, vi } from 'vitest';
+import { rustReader } from '../readers/rust/reader.ts';
 import { typeScriptReader } from '../readers/typescript/reader.ts';
 import { NOT_DRAWN } from '../readers/typescript/typescript-uses.ts';
 import { fakeReader } from '../test-support/fakes.ts';
@@ -2313,7 +2314,14 @@ test("a changed file of a stack whose reader follows no uses says so, and a stac
     'web/src/a.ts': 'export const a = 1;\n',
   });
 
-  const range = await readRange({ repo, from: root, to: head });
+  const { uses: _followed, ...followingNone } = rustReader;
+
+  const range = await readRange({
+    repo,
+    from: root,
+    to: head,
+    readers: [followingNone, typeScriptReader],
+  });
 
   expect(range.reachesNotRead).toEqual(['not read for rust']);
 });
@@ -2670,4 +2678,29 @@ test('a type-only re-export and a test outside the source root reach what they n
     },
   ]);
   expect(range.reachesNotRead).toEqual([NOT_DRAWN]);
+});
+
+test('a removed Rust function reaches the modules of the crate still calling it', async () => {
+  using workspace = cargoWorkspace();
+  const { repo } = workspace;
+  const base = commit(repo, {
+    'crates/core/src/lib.rs': 'pub mod orders;\npub mod checkout;\npub mod totals;\n',
+    'crates/core/src/orders.rs': 'pub fn parse() {}\npub fn kept() {}\n',
+    'crates/core/src/checkout.rs': 'use crate::orders::parse;\n\npub fn run() {\n    parse();\n}\n',
+    'crates/core/src/totals.rs':
+      'use crate::orders::parse;\n\n#[cfg(test)]\nmod tests {\n    use super::*;\n\n    #[test]\n    fn parses() {\n        parse();\n    }\n}\n',
+  });
+  const head = commit(repo, { 'crates/core/src/orders.rs': 'pub fn kept() {}\n' });
+
+  const range = await readRange({ repo, from: base, to: head });
+
+  expect(range.reaches.map(({ label, uses }) => ({ label, uses }))).toEqual([
+    {
+      label: 'function parse',
+      uses: [
+        { path: 'crates/core/src/checkout.rs', line: 4, text: 'parse();' },
+        { path: 'crates/core/src/totals.rs', line: 9, text: 'parse();', test: true },
+      ],
+    },
+  ]);
 });

@@ -3,6 +3,7 @@ import type { Node } from 'web-tree-sitter';
 import { edgeId, type Graph, type GraphEdge, type GraphNode } from '../../core/graph.ts';
 import { crateId } from './crate-graph.ts';
 import { isCfgTest, itemsIn, parseRust } from './rust-syntax.ts';
+import { followed, importsInUse, type Segments } from './use-paths.ts';
 
 type CrateModulesOptions = {
   readonly stack: string;
@@ -11,8 +12,6 @@ type CrateModulesOptions = {
   readonly roots: ReadonlyArray<string>;
   readonly sources: Readonly<Record<string, string>>;
 };
-
-type Segments = ReadonlyArray<string>;
 
 type Module = {
   readonly label: string;
@@ -36,33 +35,10 @@ const declaredModules = (items: ReadonlyArray<Node>): Segments =>
       : [],
   );
 
-const EXTERN_PRELUDE = '::';
-
-const segmentsOf = (node: Node | null): Segments => {
-  if (node === null) return [EXTERN_PRELUDE];
-  if (node.type !== 'scoped_identifier') return [node.text];
-  return [
-    ...segmentsOf(node.childForFieldName('path')),
-    node.childForFieldName('name')?.text ?? '',
-  ];
-};
-
-const pathsInUse = (node: Node): ReadonlyArray<Segments> => {
-  if (node.type === 'use_list') return node.namedChildren.flatMap(pathsInUse);
-  if (node.type === 'use_as_clause') return [segmentsOf(node.childForFieldName('path'))];
-  if (node.type === 'use_wildcard') return [segmentsOf(node.namedChildren[0] ?? null)];
-  if (node.type === 'scoped_use_list') {
-    const prefix = segmentsOf(node.childForFieldName('path'));
-    const list = node.childForFieldName('list');
-    return (list === null ? [] : pathsInUse(list)).map(path => [...prefix, ...path]);
-  }
-  return [segmentsOf(node)];
-};
-
 const usedPaths = (items: ReadonlyArray<Node>): ReadonlyArray<Segments> =>
   items.flatMap(node => {
     const argument = node.type === 'use_declaration' ? node.childForFieldName('argument') : null;
-    return argument === null ? [] : pathsInUse(argument);
+    return argument === null ? [] : importsInUse(argument).map(({ segments }) => segments);
   });
 
 type ReadModuleOptions = {
@@ -120,10 +96,7 @@ export const crateModules = ({
       return [...from, first];
     };
     const targetOf = (from: Segments, [first = '', ...rest]: Segments): Module | undefined => {
-      const absolute = rest.reduce<Segments>(
-        (at, segment) => (segment === 'super' ? at.slice(0, -1) : at.concat(segment)),
-        startOf(from, first),
-      );
+      const absolute = followed(startOf(from, first), rest);
       return Array.from({ length: absolute.length + 1 }, (_, index) =>
         moduleAt(absolute.slice(0, absolute.length - index)),
       ).find(module => module !== undefined);

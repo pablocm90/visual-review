@@ -3,6 +3,8 @@ import { isComment, parserOf } from '../tree-sitter.ts';
 
 export const parseRust = await parserOf('tree-sitter-rust');
 
+export const TEST_FOLDER = /(^|\/)tests\//;
+
 type Item = { readonly node: Node; readonly attributes: ReadonlyArray<Node> };
 
 export const itemsIn = (list: Node): ReadonlyArray<Item> =>

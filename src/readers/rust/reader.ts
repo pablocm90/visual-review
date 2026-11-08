@@ -9,11 +9,11 @@ import { crateGraph, crateRoots } from './crate-graph.ts';
 import { crateModules } from './crate-modules.ts';
 import { measureRust } from './rust-measure.ts';
 import { symbolsOfRust } from './rust-symbols.ts';
+import { TEST_FOLDER } from './rust-syntax.ts';
 import { readRustTests } from './rust-tests.ts';
+import { usesOfRust } from './rust-uses.ts';
 
 const run = promisify(execFile);
-
-const TEST_FOLDER = /(^|\/)tests\//;
 
 const reviewersToolchain = (outside: string): Promise<NodeJS.ProcessEnv> =>
   run('rustup', ['show', 'active-toolchain'], { cwd: outside }).then(
@@ -67,4 +67,5 @@ export const rustReader: Reader = {
   measure: measureRust,
   symbols: (text, path) =>
     path.endsWith('.rs') && !TEST_FOLDER.test(path) ? symbolsOfRust(text) : undefined,
+  uses: usesOfRust,
 };
