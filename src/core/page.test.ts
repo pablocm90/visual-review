@@ -374,6 +374,13 @@ test('stacks not read are a structure finding to look at per reason, by those st
       reason: 'cargo: jobs is broken',
       side: 'head' as const,
     },
+    {
+      reader: 'rust' as const,
+      stacks: ['lib'],
+      reason: 'cargo: timed out',
+      side: 'reviewed' as const,
+    },
+    { reader: 'rust' as const, stacks: ['ops'], reason: 'cargo: timed out', side: 'base' as const },
   ];
 
   expect(
@@ -393,6 +400,20 @@ test('stacks not read are a structure finding to look at per reason, by those st
       dimension: 'structure',
       level: 'look',
       title: 'jobs not read at the head: cargo: jobs is broken',
+    },
+    {
+      id: 'structure:skipped:lib',
+      check: 'structure:skipped',
+      dimension: 'structure',
+      level: 'look',
+      title: 'lib not read at the last review: cargo: timed out',
+    },
+    {
+      id: 'structure:skipped:ops',
+      check: 'structure:skipped',
+      dimension: 'structure',
+      level: 'look',
+      title: 'ops not read at the base: cargo: timed out',
     },
   ]);
 });
