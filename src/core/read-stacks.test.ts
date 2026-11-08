@@ -238,7 +238,9 @@ test('a reader whose tool is not on PATH reads none of its stacks and is listed 
   });
 
   expect(nodeIds(side.graph)).toEqual(['web']);
-  expect(side.skipped).toEqual([{ reader: 'rust', tool: 'cargo', stacks: ['api'] }]);
+  expect(side.skipped).toEqual([
+    { reader: 'rust', stacks: ['api'], reason: 'cargo not found on PATH' },
+  ]);
 });
 
 test.for([

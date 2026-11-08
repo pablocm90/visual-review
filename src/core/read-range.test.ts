@@ -1478,7 +1478,9 @@ test('a reader whose tool is not on PATH reads none of its stacks and is listed 
   const range = await readRange({ repo, from: root, to });
 
   expect(nodeIds(range.after)).toEqual([basename(repo), `${basename(repo)}/file/index.ts`]);
-  expect(range.skipped).toEqual([{ reader: 'rust', tool: 'cargo', stacks: ['rust'] }]);
+  expect(range.skipped).toEqual([
+    { reader: 'rust', stacks: ['rust'], reason: 'cargo not found on PATH' },
+  ]);
 });
 
 test('a skipped reader lists the stacks it would read on either side, those found only before the range and those only after', async () => {
@@ -1492,7 +1494,9 @@ test('a skipped reader lists the stacks it would read on either side, those foun
 
   const range = await readRange({ repo, from: root, to, onPath: command => command !== 'cargo' });
 
-  expect(range.skipped).toEqual([{ reader: 'rust', tool: 'cargo', stacks: ['rust', 'other'] }]);
+  expect(range.skipped).toEqual([
+    { reader: 'rust', stacks: ['rust', 'other'], reason: 'cargo not found on PATH' },
+  ]);
 });
 
 test.for([

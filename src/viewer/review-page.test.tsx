@@ -1510,7 +1510,7 @@ test('picking a tab sets the hash and shows it, and back and forward move betwee
 test('a reader skipped for want of its tool is named once, at the top of the findings rail, collapsed or open, with the stacks it did not read', async () => {
   const user = userEvent.setup();
   const skipped: ReadonlyArray<Skipped> = [
-    { reader: 'rust', tool: 'cargo', stacks: ['rust', 'rust~2'] },
+    { reader: 'rust', stacks: ['rust', 'rust~2'], reason: 'cargo not found on PATH' },
   ];
   render(
     <ReviewPage

@@ -223,7 +223,7 @@ export const readStacks = async (options: ReadStacksOptions): Promise<StacksRead
     const ids = kept.filter(drawn => drawn.reader === reader).map(({ stack }) => stack);
     return tool === undefined || ids.length === 0
       ? []
-      : [{ reader: reader.name, tool, stacks: ids }];
+      : [{ reader: reader.name, stacks: ids, reason: `${tool} not found on PATH` }];
   });
   const graphs = await Promise.all(
     kept

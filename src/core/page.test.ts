@@ -126,7 +126,9 @@ test("a reading's page data holds its diff, the reading order of its changed par
 
 test("a pull request's page data names it, and lists the stacks a missing tool kept from being read", () => {
   const pullRequest = { number: 7, title: 'Adds a', url: 'https://github.com/acme/shop/pull/7' };
-  const skipped = [{ reader: 'rust' as const, tool: 'cargo', stacks: ['rust'] }];
+  const skipped = [
+    { reader: 'rust' as const, stacks: ['rust'], reason: 'cargo not found on PATH' },
+  ];
 
   expect(
     pageData({
@@ -349,7 +351,9 @@ test('a symbol reaching files the change left is a blast radius finding to look 
 });
 
 test('stacks a missing tool kept from being read are a structure finding to look at, on no node', () => {
-  const skipped = [{ reader: 'rust' as const, tool: 'cargo', stacks: ['api', 'worker'] }];
+  const skipped = [
+    { reader: 'rust' as const, stacks: ['api', 'worker'], reason: 'cargo not found on PATH' },
+  ];
 
   expect(
     pageData({ repo: 'shop', reading: readingWith({ skipped }), range: 'a..b', version, parsers })
@@ -3268,7 +3272,7 @@ const answersReading = (id: string, reviewed: (graph: Graph) => ReviewedReading)
     before: { nodes: [webStack], edges: [] },
     after: { nodes, edges: [{ from: 'web/file/a.ts', to: 'web/file/b.ts' }] },
     changedPaths: ['web/src/a.ts', 'web/src/b.ts'],
-    skipped: [{ reader: 'rust', tool: 'cargo', stacks: ['rust'] }],
+    skipped: [{ reader: 'rust', stacks: ['rust'], reason: 'cargo not found on PATH' }],
     danglingCalls: [
       { from: 'web/file/a.ts', path: '/api/a' },
       { from: 'web/file/b.ts', path: '/api/b' },
