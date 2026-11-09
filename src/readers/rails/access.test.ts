@@ -375,3 +375,23 @@ end
     ['index', undefined],
   ]);
 });
+
+test.for([
+  { name: 'authenticate_*!', callback: 'authenticate_user!', by: 'authenticate_user!' },
+  { name: 'require_admin', callback: 'require_admins' },
+  { name: 'authenticate_*!', callback: 'reauthenticate_user!' },
+  { name: 'admin?', callback: 'admi' },
+])('the authorize name $name covers $callback: $by', ({ name, callback, by }) => {
+  expect(
+    read(
+      {
+        'app/controllers/users_controller.rb': `class UsersController < ApplicationController
+  before_action :${callback}
+  def index; end
+end
+`,
+      },
+      [name],
+    ).actions.map(({ cover }) => cover?.by),
+  ).toStrictEqual([by]);
+});

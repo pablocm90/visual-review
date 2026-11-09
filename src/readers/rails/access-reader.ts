@@ -122,6 +122,11 @@ const inherited = (
   ];
 };
 
+const literally = (text: string): string => text.replace(/[\\^$.+?()[\]{}|]/g, '\\$&');
+
+const namedBy = (pattern: string): RegExp =>
+  new RegExp(`^${pattern.split('*').map(literally).join('.*')}$`);
+
 type Covering = {
   readonly action: string;
   readonly callbacks: ReadonlyArray<Callback>;
@@ -138,7 +143,7 @@ const coverOf = ({ action, callbacks, calls, authorize }: Covering): { readonly 
       return active.map(kept => (kept.by === name ? { by: name, conditional } : kept));
     }, [])
     .concat(calls.map(name => ({ by: name, conditional: false })))
-    .filter(({ by }) => authorize.includes(by));
+    .filter(({ by }) => authorize.some(name => namedBy(name).test(by)));
   const cover = covers.find(({ conditional }) => !conditional) ?? covers[0];
   return cover === undefined ? {} : { cover };
 };
