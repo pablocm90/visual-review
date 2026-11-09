@@ -98,6 +98,11 @@ test.for([
       eachFile((text, index) => railsReader.symbols?.(text, `app/models/model${index}.rb`)),
   },
   {
+    reading: 'Ruby tests',
+    files: FILES,
+    read: () => eachFile(text => railsReader.readTests(text)),
+  },
+  {
     reading: 'Rails migrations',
     files: FILES,
     read: () => eachFile(text => railsMigrations.risks(text)),

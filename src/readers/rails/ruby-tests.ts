@@ -1,6 +1,6 @@
 import type { Node } from 'web-tree-sitter';
 import type { ReadTest } from '../../core/test-changes.ts';
-import { parseRuby } from './ruby-syntax.ts';
+import { readRuby } from './ruby-syntax.ts';
 
 const TESTS = new Set(['test', 'it', 'specify', 'example', 'scenario']);
 
@@ -74,7 +74,5 @@ const statementsIn = (node: Node, scope: ReadonlyArray<string>): ReadonlyArray<R
     return [{ kind: 'heading', name: groupOf(child), children }];
   });
 
-export const readRubyTests = (text: string): ReadonlyArray<ReadTest> => {
-  const program = parseRuby(text);
-  return program === undefined ? [] : statementsIn(program, []);
-};
+export const readRubyTests = (text: string): ReadonlyArray<ReadTest> =>
+  readRuby(text, program => statementsIn(program, []));
