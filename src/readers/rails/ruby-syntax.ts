@@ -7,6 +7,8 @@ export const parseRuby = ruby.parse;
 
 export const readRuby = ruby.read;
 
+export const parsingRuby = ruby.parsing;
+
 export const nameOf = (node: Node | undefined): string =>
   node?.text.replace(/^:?['"]?|['"]$/g, '') ?? '';
 

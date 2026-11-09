@@ -1,34 +1,51 @@
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { expect, test } from 'vitest';
+import { expect, test, vi } from 'vitest';
+import { Parser, Tree } from 'web-tree-sitter';
 import { writeFiles } from '../test-support/repos.ts';
 import { railsMigrations } from './rails/migration-risks.ts';
 import { railsReader } from './rails/reader.ts';
+import { railsRoutes } from './rails/route-reader.ts';
 import { railsSchema } from './rails/schema-tables.ts';
 
-const FILES = 100;
-
-const MOST_GROWTH = 32_000_000;
+const FILES = 2;
 
 const rubyClass = (index: number): string =>
-  [
-    `class Model${index}`,
-    ...Array.from(
-      { length: 150 },
-      (_, line) => `  def m${line}(a, b) = a.foo(b, Other::Thing.new(${line}), :sym, "str")`,
-    ),
-    'end',
-    '',
-  ].join('\n');
+  `class Model${index}\n  def m(a) = a.foo(Other::Thing.new(${index}))\nend\n`;
 
 const eachFile = (read: (text: string, index: number) => unknown): ReadonlyArray<unknown> =>
   Array.from({ length: FILES }, (_, index) => read(rubyClass(index), index));
 
-const heapGrowthOf = async (read: () => unknown): Promise<number> => {
-  const before = process.memoryUsage().external;
-  await read();
-  return process.memoryUsage().external - before;
+const routeFiles = (): ReadonlyMap<string, string> =>
+  new Map([
+    [
+      'config/routes.rb',
+      [
+        'Rails.application.routes.draw do',
+        ...Array.from({ length: FILES }, (_, index) => `  draw :part${index}`),
+        'end',
+      ].join('\n'),
+    ],
+    ...Array.from({ length: FILES }, (_, index): [string, string] => [
+      `config/routes/part${index}.rb`,
+      `get "/part${index}", to: "pages#show"`,
+    ]),
+  ]);
+
+const treesOf = async (read: () => unknown) => {
+  const parsed = vi.spyOn(Parser.prototype, 'parse');
+  const deleted = vi.spyOn(Tree.prototype, 'delete');
+  try {
+    await read();
+    return {
+      parsed: parsed.mock.results.filter(({ value }) => value instanceof Tree).length,
+      deleted: deleted.mock.calls.length,
+    };
+  } finally {
+    parsed.mockRestore();
+    deleted.mockRestore();
+  }
 };
 
 const inCheckout = async <T>(
@@ -56,6 +73,7 @@ const railsApp = (): Readonly<Record<string, string>> =>
 test.for([
   {
     reading: 'a Rails graph',
+    files: FILES,
     read: () =>
       inCheckout(railsApp(), directory =>
         railsReader.graph({
@@ -69,19 +87,35 @@ test.for([
   },
   {
     reading: 'Ruby measures',
+    files: FILES,
     read: () =>
       eachFile((text, index) => railsReader.measure?.(text, `app/models/model${index}.rb`)),
   },
   {
     reading: 'Ruby symbols',
+    files: FILES,
     read: () =>
       eachFile((text, index) => railsReader.symbols?.(text, `app/models/model${index}.rb`)),
   },
-  { reading: 'Rails migrations', read: () => eachFile(text => railsMigrations.risks(text)) },
-  { reading: 'Rails schema dumps', read: () => eachFile(text => railsSchema.tables(text)) },
+  {
+    reading: 'Rails migrations',
+    files: FILES,
+    read: () => eachFile(text => railsMigrations.risks(text)),
+  },
+  {
+    reading: 'Rails schema dumps',
+    files: FILES,
+    read: () => eachFile(text => railsSchema.tables(text)),
+  },
+  { reading: 'Rails routes', files: FILES + 1, read: () => railsRoutes.routes(routeFiles()) },
+  {
+    reading: 'a schema dump that doesn’t parse',
+    files: 1,
+    read: () => expect(() => railsSchema.tables('create_table "a" do')).toThrow(),
+  },
 ])(
-  'reading $reading frees each file’s tree, so the parser’s heap stays as it was',
-  async ({ read }) => {
-    expect(await heapGrowthOf(read)).toBeLessThan(MOST_GROWTH);
+  'reading $reading deletes every tree it parses, so a big repo can’t fill the parser’s heap',
+  async ({ files, read }) => {
+    expect(await treesOf(read)).toEqual({ parsed: files, deleted: files });
   },
 );
