@@ -21,7 +21,7 @@ test("a flagged note is a finding to look at on the note's id, in the dimension 
   expect(findingsOf({ data: { findings: [raised] }, notes })).toStrictEqual([
     raised,
     {
-      id: 'notes:web/file/a.ts',
+      id: 'notes:part web/file/a.ts',
       check: 'flag',
       dimension: 'failure',
       level: 'look',
@@ -29,7 +29,7 @@ test("a flagged note is a finding to look at on the note's id, in the dimension 
       title: 'no retry',
     },
     {
-      id: 'notes:web -> api',
+      id: 'notes:edge web -> api',
       check: 'flag',
       dimension: 'structure',
       level: 'look',

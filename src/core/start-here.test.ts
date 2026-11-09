@@ -43,11 +43,19 @@ test("a check's findings at one level make one line, counted, with the files the
 test('a line of one finding reads its own title, and a note flag is always a line of its own', () => {
   const flag = (id: string) =>
     findingOn('web/file/0.ts', { id, check: 'flag', title: `said ${id}` });
-  const findings = [flag('notes:a'), flag('notes:b'), ...raisedOver('api:added', 'info', 1, 1)];
+  const findings = [
+    flag('notes:part a'),
+    flag('notes:part b'),
+    ...raisedOver('api:added', 'info', 1, 1),
+  ];
 
   const { lines } = startHere({ findings, metrics: {}, nodes });
 
-  expect(lines.map(line => line.title)).toStrictEqual(['0', 'said notes:a', 'said notes:b']);
+  expect(lines.map(line => line.title)).toStrictEqual([
+    '0',
+    'said notes:part a',
+    'said notes:part b',
+  ]);
 });
 
 const flagOn = (target: string | undefined, id: string): Finding => ({

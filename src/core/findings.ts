@@ -241,8 +241,13 @@ export const raisedFindings = ({
 
 const NOTE_FLAG = 'notes:';
 
-export const targetOfNoteFlag = (id: string): string | undefined =>
-  id.startsWith(NOTE_FLAG) ? id.slice(NOTE_FLAG.length) : undefined;
+const ON_THE_GRAPH = ['part', 'edge'];
+
+export const targetOfNoteFlag = (id: string): string | undefined => {
+  if (!id.startsWith(NOTE_FLAG)) return undefined;
+  const anchor = anchorOfKey(id.slice(NOTE_FLAG.length));
+  return ON_THE_GRAPH.includes(anchor.kind) ? anchor.id : undefined;
+};
 
 type FindingsOfOptions = {
   readonly data: Pick<PageData, 'findings'>;
@@ -256,7 +261,7 @@ export const findingsOf = ({ data, notes }: FindingsOfOptions): ReadonlyArray<Fi
       ? []
       : [
           {
-            id: `${NOTE_FLAG}${anchorOfKey(key).id}`,
+            id: `${NOTE_FLAG}${key}`,
             check: 'flag' as const,
             dimension,
             level: 'look' as const,

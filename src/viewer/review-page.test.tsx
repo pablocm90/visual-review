@@ -2291,7 +2291,10 @@ test("the reading order numbers the changed parts in its order, on the graph too
         },
         findings: [
           findingOn('rust/crate/cli-adapter'),
-          findingOn('rust/crate/cli-adapter', { id: 'notes:cli-adapter', level: 'look' }),
+          findingOn('rust/crate/cli-adapter', {
+            id: 'notes:part rust/crate/cli-adapter',
+            level: 'look',
+          }),
           findingOn('rust/crate/legacy'),
           findingOn('rust/crate/domain'),
         ],
@@ -9109,7 +9112,7 @@ test('a last answer to a finding is listed by its title, going to its row at its
             },
             { anchor: { kind: 'finding', id: 'logic:old' }, kind: 'fix', changedSince: [] },
             {
-              anchor: { kind: 'finding', id: 'notes:dropped' },
+              anchor: { kind: 'finding', id: 'notes:part rust/crate/dropped' },
               kind: 'fix',
               target: 'rust/crate/domain',
             },
@@ -9138,7 +9141,7 @@ test('a last answer to a finding is listed by its title, going to its row at its
     }),
   );
 
-  await user.click(last.getByRole('button', { name: 'notes:dropped' }));
+  await user.click(last.getByRole('button', { name: 'notes:part rust/crate/dropped' }));
 
   expect(selectedPart()).toBe('domain');
   expect(document.activeElement).toBe(screen.getByRole('button', { name: 'domain: unchanged' }));

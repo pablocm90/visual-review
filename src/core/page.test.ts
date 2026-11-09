@@ -3294,18 +3294,23 @@ test.for([
   },
   {
     on: 'a note flag on a part changed since, which the page data does not raise',
-    id: 'notes:web/file/a.ts',
+    id: 'notes:part web/file/a.ts',
     mark: { target: 'web/file/a.ts', changedSince: [commitOnA] },
   },
   {
     on: 'a note flag on a part as it was, which the page data does not raise',
-    id: 'notes:web/file/b.ts',
+    id: 'notes:part web/file/b.ts',
     mark: { target: 'web/file/b.ts' },
   },
   {
     on: 'a note flag on an edge changed since',
-    id: 'notes:web/file/a.ts -> web/file/b.ts',
+    id: 'notes:edge web/file/a.ts -> web/file/b.ts',
     mark: { target: 'web/file/a.ts -> web/file/b.ts', changedSince: [commitOnA] },
+  },
+  {
+    on: 'a version 1 note flag, which finds no part, changed with no commit to name',
+    id: 'notes:web/file/a.ts',
+    mark: { changedSince: [] },
   },
   {
     on: 'a finding with no target, still raised, as it was',
@@ -3337,7 +3342,12 @@ test.for([
     check: 'routes:dangling',
     held: { target: 'web/file/a.ts' },
   },
-  { on: 'a note flag on a part', id: 'notes:web/file/a.ts', held: { target: 'web/file/a.ts' } },
+  {
+    on: 'a note flag on a part',
+    id: 'notes:part web/file/a.ts',
+    held: { target: 'web/file/a.ts' },
+  },
+  { on: 'a version 1 note flag', id: 'notes:web/file/a.ts', held: {} },
   { on: 'a finding no longer raised', id: 'routes:dangling:web/file/gone.ts', held: {} },
 ])('a previous answer to $on on a gone head keeps its target, with no mark', ({ id, held }) => {
   const previous = firstPrevious(answersReading(id, () => ({ ...reviewedHead(), gone: true })));
@@ -3445,7 +3455,7 @@ test.for([
     comments: [{ anchor: { kind: 'symbol', id: `${fileInBox}#f` }, kind: 'change', text: 'Why?' }],
     listed: [],
   },
-  { with: 'an answer on it', comments: [answering(`notes:${fileInBox}`)], listed: [] },
+  { with: 'an answer on it', comments: [answering(`notes:part ${fileInBox}`)], listed: [] },
   {
     with: 'an edge comment from it, which does not count',
     comments: [
@@ -3459,7 +3469,7 @@ test.for([
   },
   {
     with: 'an answer on an edge from it, which does not count',
-    comments: [answering(`notes:${fileInBox} -> ${otherInBox}`)],
+    comments: [answering(`notes:edge ${fileInBox} -> ${otherInBox}`)],
     listed: [fileInBox],
   },
   { with: 'a comment on another part', comments: [onAPart(otherInBox)], listed: [fileInBox] },
