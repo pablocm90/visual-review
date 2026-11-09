@@ -1,5 +1,5 @@
 import type { AccessReader, AccessTable } from './access.ts';
-import { gitUntrimmed } from './git.ts';
+import { filesHeldAt } from './git.ts';
 
 export type AccessReading = { readonly base: AccessTable; readonly head: AccessTable };
 
@@ -20,18 +20,11 @@ export const readAccess = async ({
   access,
   authorize,
 }: ReadAccessOptions): Promise<ReadonlyArray<AccessReading>> => {
-  const tableAt = async (revision: string, reader: AccessReader): Promise<AccessTable> => {
-    const listed = await gitUntrimmed(repo, 'ls-tree', '-r', '-z', '--name-only', revision);
-    const files = await Promise.all(
-      listed
-        .split('\0')
-        .filter(reader.holds)
-        .map(
-          async file => [file, await gitUntrimmed(repo, 'show', `${revision}:${file}`)] as const,
-        ),
-    );
-    return reader.actions({ files: new Map(files), authorize });
-  };
+  const tableAt = async (revision: string, reader: AccessReader): Promise<AccessTable> =>
+    reader.actions({
+      files: await filesHeldAt({ repo, revision, holds: reader.holds }),
+      authorize,
+    });
   return Promise.all(
     access
       .filter(reader => changes.some(paths => paths.some(reader.holds)))
