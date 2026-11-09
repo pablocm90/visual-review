@@ -28,8 +28,11 @@ const Manifest = z.object({
     .optional(),
 });
 
-const workspaceOf = (manifest: unknown): ReadonlyArray<Named> => {
-  const read = Manifest.safeParse(manifest).data;
+const workspaceOf = (manifest: string, toml: unknown): ReadonlyArray<Named> => {
+  const { data: read, error } = Manifest.safeParse(toml);
+  const [issue] = error?.issues ?? [];
+  if (issue !== undefined)
+    throw new StackNotRead(`${manifest}: ${issue.path.join('.')}: ${issue.message}`);
   return [
     ...(['package', 'project'] as const).flatMap(table => {
       const workspace = read?.[table]?.workspace;
@@ -105,7 +108,7 @@ const leaves = async ({ path, pattern }: Named, { checkout, folder }: Place): Pr
 const followedFrom = async ({ checkout, folder }: Place): Promise<ReadonlyArray<string>> => {
   const manifest = relative(checkout, join(folder, 'Cargo.toml'));
   const read = parsed(manifest, await readFile(join(folder, 'Cargo.toml'), 'utf8'));
-  const paths = [...pathsIn(read), ...workspaceOf(read)];
+  const paths = [...pathsIn(read), ...workspaceOf(manifest, read)];
   const left = await Promise.all(paths.map(named => leaves(named, { checkout, folder })));
   const leaving = paths.find((_, index) => left[index]);
   if (leaving !== undefined)

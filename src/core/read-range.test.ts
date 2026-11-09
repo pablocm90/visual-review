@@ -1857,7 +1857,12 @@ test.for([
   {
     broken: 'a package workspace that is no path',
     manifest: packageNamed('a', 'workspace = 1\n'),
-    reason: 'cargo: invalid type: integer `1`, expected a string',
+    reason: 'Cargo.toml: package.workspace: Invalid input: expected string, received number',
+  },
+  {
+    broken: 'a member outside beside default members that are no list',
+    manifest: '[workspace]\nmembers = ["../outside"]\ndefault-members = 5\n',
+    reason: 'Cargo.toml: workspace.default-members: Invalid input: expected array, received number',
   },
 ])(
   "a stack whose manifest can't be read, for $broken, is not read, named by the error, and the other stacks are drawn",
