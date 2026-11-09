@@ -1593,6 +1593,13 @@ test.for([
     key: 'package.workspace',
   },
   {
+    named: 'its workspace, in the project table cargo still reads for package',
+    manifest: (out: string) =>
+      `[project]\nname = "a"\nversion = "0.1.0"\nedition = "2021"\nworkspace = ${out}\n`,
+    out: 'relative',
+    key: 'project.workspace',
+  },
+  {
     named: 'a workspace member',
     manifest: (out: string) => `[workspace]\nmembers = [${out}]\n`,
     out: 'relative',

@@ -19,6 +19,7 @@ const pathsIn = (value: unknown): ReadonlyArray<Named> => {
 
 const Manifest = z.object({
   package: z.object({ workspace: z.string().optional() }).optional(),
+  project: z.object({ workspace: z.string().optional() }).optional(),
   workspace: z
     .object({
       members: z.array(z.string()).optional(),
@@ -29,11 +30,13 @@ const Manifest = z.object({
 
 const workspaceOf = (manifest: unknown): ReadonlyArray<Named> => {
   const read = Manifest.safeParse(manifest).data;
-  const workspace = read?.package?.workspace;
   return [
-    ...(workspace === undefined
-      ? []
-      : [{ key: 'package.workspace', path: workspace, pattern: false }]),
+    ...(['package', 'project'] as const).flatMap(table => {
+      const workspace = read?.[table]?.workspace;
+      return workspace === undefined
+        ? []
+        : [{ key: `${table}.workspace`, path: workspace, pattern: false }];
+    }),
     ...(['members', 'default-members'] as const).flatMap(key =>
       (read?.workspace?.[key] ?? []).map(path => ({
         key: `workspace.${key}`,
