@@ -1,7 +1,12 @@
 import { createContext } from 'react';
 import type { Note } from '../core/notes.ts';
 
-export const SymbolNotes = createContext<Readonly<Record<string, Note>>>({});
+type SymbolNotesOnPage = {
+  readonly notes: Readonly<Record<string, Note>>;
+  readonly onTake: ((id: string, recommendation: string) => void) | undefined;
+};
+
+export const SymbolNotes = createContext<SymbolNotesOnPage>({ notes: {}, onTake: undefined });
 
 type NoteBlockProps = {
   readonly note: Pick<Note, 'text' | 'why' | 'recommendation'>;

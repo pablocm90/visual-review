@@ -20,7 +20,7 @@ import { isQuiet, qualified, SYMBOL_GROUPS, type SymbolStatement } from '../core
 import { type AnchoredSymbol, anchoredSymbols, decisionsOf } from '../core/symbol-findings.ts';
 import { boxesAboveIn } from '../core/visible-diff.ts';
 import { ChangedSinceTag, sinceLabel, useIsChangedSince } from './changed-since.tsx';
-import type { Comments } from './comment-field.tsx';
+import { type Comments, holdsDraft } from './comment-field.tsx';
 import { LogicLegend, LogicStrip } from './logic-strip.tsx';
 import { NoteBlock, SymbolNotes } from './note-block.tsx';
 import { CommentOn, SaidBefore, useHasSaid } from './said-before.tsx';
@@ -296,7 +296,7 @@ const LogicLines = ({
 const useHasSymbolNews = () => {
   const isChangedSince = useIsChangedSince();
   const hasSaid = useHasSaid();
-  const notes = useContext(SymbolNotes);
+  const { notes } = useContext(SymbolNotes);
   return (file: SymbolFile): boolean =>
     'unreadable' in file ||
     changedSymbolCount([file]) > 0 ||
@@ -349,7 +349,9 @@ const SymbolRow = ({
 }: Places & InItsFile & { readonly anchored: AnchoredSymbol }) => {
   const isChangedSince = useIsChangedSince();
   const marksOf = useRowMarks();
-  const note = useContext(SymbolNotes)[id];
+  const { notes, onTake } = useContext(SymbolNotes);
+  const note = notes[id];
+  const drafted = holdsDraft(places.comments, { kind: 'symbol', id });
   const [diffOpen, setDiffOpen] = useState(false);
   const name = `${symbol.kind} ${qualified(symbol)}`;
   const ends = isQuiet(symbol) ? [] : endsOf(symbol, { node, patch, inFile }, places);
@@ -373,7 +375,13 @@ const SymbolRow = ({
         </button>
       )}
       {symbol.signature && <Signature name={name} signature={symbol.signature} />}
-      {note !== undefined && <NoteBlock note={note} onTake={undefined} label={`Note on ${name}`} />}
+      {note !== undefined && (
+        <NoteBlock
+          note={note}
+          onTake={onTake && !drafted ? text => onTake(id, text) : undefined}
+          label={`Note on ${name}`}
+        />
+      )}
       <SaidBefore on={{ kind: 'symbol', id }} />
       {places.onComment && (
         <CommentOn
@@ -429,7 +437,7 @@ const SymbolFiles = ({ file, ...places }: Places & { readonly file: SymbolFile }
   const inItsFile = { node: file.node, patch: patchOfNode(places, file.node), inFile };
   const isChangedSince = useIsChangedSince();
   const hasSaid = useHasSaid();
-  const notes = useContext(SymbolNotes);
+  const { notes } = useContext(SymbolNotes);
   return (
     <>
       {'unreadable' in file && (

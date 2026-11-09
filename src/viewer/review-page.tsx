@@ -2425,7 +2425,21 @@ const Page = ({ review, notes, send }: ReviewPageProps) => {
         }
       }
     >
-      <SymbolNotes value={symbolNotes}>{page}</SymbolNotes>
+      <SymbolNotes
+        value={{
+          notes: symbolNotes,
+          onTake:
+            comment && selected !== undefined
+              ? (id, text) => {
+                  const anchor = { kind: 'symbol', id } as const;
+                  comment({ anchor, kind: 'change', text });
+                  setCommentAsked({ on: selected, row: anchorKey(anchor) });
+                }
+              : undefined,
+        }}
+      >
+        {page}
+      </SymbolNotes>
     </RespondingOnPage>
   );
 };

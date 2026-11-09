@@ -7420,6 +7420,85 @@ test("a symbol's note shows under its row, with its why and recommendation, and 
     'Rounds half up.Why Tax rounds to the cent.Recommendation Round half to even.',
   );
   expect(noteUnder('function tax: edited')).toBeUndefined();
+  expect(
+    within(
+      within(whatChanged()).getByRole('listitem', { name: 'function round: unchanged' }),
+    ).queryByRole('button', { name: 'Take' }),
+  ).toBeNull();
+});
+
+const roundNote = {
+  version: 2,
+  tests: '',
+  summary: [],
+  notes: {
+    'symbol web/file/tax.ts#round': {
+      text: 'Rounds half up.',
+      recommendation: 'Round half to even.',
+    },
+  },
+} as const;
+
+const roundRow = () =>
+  within(whatChanged()).getByRole('listitem', { name: /^function round: unchanged/ });
+
+test("on a served page Take on a symbol's note opens that row's field with the recommendation as a change, focused, and hides while the draft holds text", async () => {
+  const user = userEvent.setup();
+  render(
+    <ReviewPage review={pageWithAnUnchangedSymbol()} notes={roundNote} send={async () => {}} />,
+  );
+  const field = () => within(roundRow()).getByRole('textbox', { name: 'Your comment' });
+  const takeInRow = () => within(roundRow()).queryByRole('button', { name: 'Take' });
+
+  await user.click(await screen.findByRole('button', { name: 'tax.ts: modified' }));
+  await user.click(within(roundRow()).getByRole('button', { name: 'Take' }));
+
+  expect(document.activeElement).toBe(field());
+  expect(field()).toHaveProperty('value', 'Round half to even.');
+  expect(
+    within(within(roundRow()).getByRole('radiogroup', { name: 'Comment kind' })).getByRole(
+      'radio',
+      { name: 'Change this' },
+    ),
+  ).toHaveProperty('checked', true);
+  expect(within(tray()).getByText('1 drafted · 1 change')).toBeDefined();
+  expect(takeInRow()).toBeNull();
+
+  await user.clear(field());
+  expect(takeInRow()).not.toBeNull();
+});
+
+test("Take on a symbol the last review commented on fills that comment's Reply, open and focused", async () => {
+  const user = userEvent.setup();
+  render(
+    <ReviewPage
+      review={{
+        ...pageWithAnUnchangedSymbol(),
+        sinceReview: {
+          ...sinceReview,
+          comments: [
+            {
+              anchor: { kind: 'symbol', id: 'web/file/tax.ts#round' },
+              kind: 'question',
+              text: 'Why?',
+            },
+          ],
+        },
+      }}
+      notes={roundNote}
+      send={async () => {}}
+    />,
+  );
+
+  await user.click(await screen.findByRole('button', { name: 'tax.ts: modified' }));
+  await user.click(within(roundRow()).getByRole('button', { name: 'Take' }));
+
+  expect(
+    within(roundRow()).getByRole('button', { name: 'Reply' }).getAttribute('aria-expanded'),
+  ).toBe('true');
+  const field = within(roundRow()).getByRole('textbox', { name: 'Your comment' });
+  expect(document.activeElement).toBe(field);
+  expect(field).toHaveProperty('value', 'Round half to even.');
 });
 
 test('a box shows a file whose only news is a noted symbol', async () => {
