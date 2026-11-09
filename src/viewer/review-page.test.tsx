@@ -7614,6 +7614,57 @@ const pageWithSameNamedTests = () =>
     ],
   });
 
+test('a note on a test shows under its row in Tested by, an unchanged test kept for it, and on the Tests screen, under no other row', async () => {
+  const user = userEvent.setup();
+  render(
+    <ReviewPage
+      review={{
+        ...pageWithSameNamedTests(),
+        tests: [
+          {
+            path: 'total.test.ts',
+            stack: 'web',
+            statements: [
+              {
+                kind: 'heading',
+                name: 'Cart',
+                children: [
+                  { kind: 'test', name: 'adds tax', change: 'added' },
+                  { kind: 'test', name: 'keeps totals', change: 'unchanged' },
+                ],
+              },
+            ],
+          },
+        ],
+      }}
+      notes={{
+        version: 2,
+        tests: '',
+        summary: [],
+        notes: {
+          'test total.test.ts#Cart › keeps totals': {
+            text: 'Pins the cent.',
+            why: 'Totals round per line.',
+          },
+        },
+      }}
+    />,
+  );
+  const noteIn = (region: HTMLElement) => {
+    const row = within(region).getByRole('listitem', { name: 'keeps totals: unchanged' });
+    expect(within(region).getAllByRole('region', { name: /^Note on/ })).toHaveLength(1);
+    return within(row).getByRole('region', { name: 'Note on Cart › keeps totals' }).textContent;
+  };
+
+  await user.click(await screen.findByRole('button', { name: 'total.ts: modified' }));
+  expect(noteIn(testedBy())).toBe('Pins the cent.Why Totals round per line.');
+
+  await user.click(screen.getByRole('link', { name: /^Tests/ }));
+  expect(noteIn(screen.getByRole('region', { name: 'Test changes' }))).toBe(
+    'Pins the cent.Why Totals round per line.',
+  );
+});
+
 test("a served page's test row in Tested by takes a comment, a removed test too, its id the test's file and headings, so tests of one name keep apart; a page not served has no toggle", async () => {
   const user = userEvent.setup();
   const sent = vi.fn(async () => {});
