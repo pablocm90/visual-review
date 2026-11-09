@@ -6,7 +6,7 @@ What changed in each release of `@pablocm90/visual-review`, newest first. Versio
 
 ### Added
 
-- Architecture rules: `visual-review.config.json` takes `rules`, keyed by name, each `{ from, notTo, reason }`, `from` and `notTo` a node id glob or a list of them. A node matches when it or a box holding it does, and an edge whose start matches `notTo` too breaks nothing. Each edge at the head breaking a rule is a `rules` finding on that edge, `breaks <name>` with the reason and, for a web call to an API route, its paths, needing a look when the change adds the edge and for information when it was already there; a removed edge raises none. The rules coverage says `none configured` with no rules, and names each glob that matches no node at the head.
+- Architecture rules: `visual-review.config.json` takes `rules`, keyed by name, each `{ from, notTo, reason }`, `from` and `notTo` a node id glob or a non-empty list of them. A node matches when it or a box holding it does, and an edge whose start matches `notTo` too breaks nothing. Each edge at the head breaking a rule is a `rules` finding on that edge, `breaks <name>` with the reason and, for a web call to an API route, its paths, needing a look when the change adds the edge and for information when it was already there; a removed edge raises none. The rules coverage says `none configured` with no rules, and names each glob that matches no node at the head.
 - The skill cites a rule's finding by its name rather than flagging a layer skipped on that edge, and flags one only for a direction no rule covers.
 
 ## 0.57.0 — 2026-11-09
