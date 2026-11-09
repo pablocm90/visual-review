@@ -1722,14 +1722,20 @@ test.for([
     named: 'an include table',
     config: (out: string) => `[[include]]\npath = "${out}"\noptional = true\n`,
   },
+  {
+    named: 'an include, in the config file cargo still reads without .toml',
+    config: (out: string) => `include = ["${out}"]\n`,
+    file: '.cargo/config',
+  },
 ])(
   'a cargo config naming $named that leaves the checkout is not read, and cargo never runs',
-  async ({ config }) => {
+  async ({ config, ...row }) => {
     using repository = gitRepo({ 'README.md': '' });
     const { repo, root } = repository;
     const outside = `../${withZeroManifest(repo)}/Cargo.toml`;
+    const file = 'file' in row ? row.file : '.cargo/config.toml';
     const head = commit(repo, {
-      '.cargo/config.toml': config(outside),
+      [file]: config(outside),
       'Cargo.toml': packageNamed('a'),
       'src/lib.rs': '',
     });
@@ -1742,7 +1748,7 @@ test.for([
       {
         reader: 'rust',
         stacks: ['rust'],
-        reason: `.cargo/config.toml: include "${outside}" leaves the checkout`,
+        reason: `${file}: include "${outside}" leaves the checkout`,
       },
     ]);
   },

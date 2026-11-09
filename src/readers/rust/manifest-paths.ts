@@ -169,8 +169,9 @@ const Config = z.object({
     .optional(),
 });
 
-const refuseLeavingIncludes = async ({ checkout, folder }: Place): Promise<void> => {
-  const config = join(folder, '.cargo', 'config.toml');
+type ConfigAt = { readonly checkout: string; readonly config: string };
+
+const refuseLeavingIncludes = async ({ checkout, config }: ConfigAt): Promise<void> => {
   if (!existsSync(config)) return;
   const named = relative(checkout, config);
   const { include = [] } = Config.parse(parsed(named, await readFile(config, 'utf8')));
@@ -186,7 +187,8 @@ export const refuseLeavingPaths = async ({ checkout, root }: ManifestOptions): P
   const folder = resolve(checkout, root);
   const above = foldersAbove(checkout, folder);
   for (const up of new Set([...above, folder]))
-    await refuseLeavingIncludes({ checkout, folder: up });
+    for (const name of ['config.toml', 'config'])
+      await refuseLeavingIncludes({ checkout, config: join(up, '.cargo', name) });
   const manifests = above.filter(up => existsSync(join(up, 'Cargo.toml')));
   return walk({ checkout, folders: [folder, ...manifests], seen: new Set() });
 };
