@@ -1612,6 +1612,12 @@ test.for([
     key: 'workspace.members',
     pattern: (out: string) => `*/../${out}`,
   },
+  {
+    named: 'a default workspace member',
+    manifest: (out: string) => `[workspace]\nmembers = []\ndefault-members = [${out}]\n`,
+    out: 'relative',
+    key: 'workspace.default-members',
+  },
 ] as const)(
   'a Cargo.toml naming $named that leaves the checkout is not read, and cargo never runs',
   async ({ manifest, out, ...row }) => {
