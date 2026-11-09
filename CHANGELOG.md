@@ -2,6 +2,12 @@
 
 What changed in each release of `@pablocm90/visual-review`, newest first. Versions follow [semver](https://semver.org); while it is 0.x, a minor version may change the exported types.
 
+## Unreleased
+
+### Fixed
+
+- Reading a Rails or Rust stack frees each file's syntax tree once it's read: the Rails graph, the Ruby and Rust measures, symbols and tests, a crate's modules, migrations, schema dumps and routes kept every tree, so on a big repo the parser's memory filled and the review hung.
+
 ## 0.55.0 — 2026-11-09
 
 ### Added
