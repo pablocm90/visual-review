@@ -181,6 +181,8 @@ const refuseLeavingIncludes = async ({ checkout, config }: ConfigAt): Promise<vo
   const leaving = include.find((_, index) => left[index]);
   if (leaving !== undefined)
     throw new StackNotRead(`${named}: include ${JSON.stringify(leaving)} leaves the checkout`);
+  for (const path of include)
+    await refuseLeavingIncludes({ checkout, config: resolve(dirname(config), path) });
 };
 
 export const refuseLeavingPaths = async ({ checkout, root }: ManifestOptions): Promise<void> => {

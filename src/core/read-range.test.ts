@@ -1778,6 +1778,26 @@ test.for(['sub/tools', 'sub'])(
   },
 );
 
+test("a cargo config including a file whose own include leaves the checkout, read from that file's folder, is not read", async () => {
+  using repository = gitRepo({ 'README.md': '' });
+  const { repo, root } = repository;
+  const outside = `${withZeroManifest(repo)}/Cargo.toml`;
+  const head = commit(repo, {
+    '.cargo/config.toml': 'include = ["../ci/base.toml"]\n',
+    'ci/base.toml': `include = ["../${outside}"]\n`,
+    'Cargo.toml': packageNamed('a'),
+    'src/lib.rs': '',
+  });
+  using bin = pathWithCargo('exit 1');
+  vi.stubEnv('PATH', bin.path);
+
+  const range = await readRange({ repo, from: root, to: head });
+
+  expect(range.skipped.map(({ reason }) => reason)).toEqual([
+    `ci/base.toml: include "../${outside}" leaves the checkout`,
+  ]);
+});
+
 test('a cargo config including a file inside the checkout, from its .cargo folder, reads', async () => {
   using repository = gitRepo({ 'README.md': '' });
   const { repo, root } = repository;
