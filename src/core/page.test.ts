@@ -276,6 +276,20 @@ test("a lockfile's changes raise their findings on the page", () => {
   ).toContain('dependencies:pnpm-lock.yaml:zod');
 });
 
+test('an edge the change adds breaking an architecture rule raises its finding to look at on the page', () => {
+  const edge = { from: 'web/file/a.ts', to: 'web' };
+  const reading = readingWith({
+    after: { nodes: [webStack, webFile('a.ts')], edges: [edge] },
+    ruleBreaks: [{ rule: 'no-stack', reason: 'Files stay inside.', edge }],
+  });
+
+  expect(
+    pageData({ repo: 'shop', reading, range: 'a..b', version, parsers })
+      .findings.filter(({ check }) => check === 'rules:broken')
+      .map(({ id, level }) => ({ id, level })),
+  ).toStrictEqual([{ id: 'rules:broken:no-stack:web/file/a.ts -> web', level: 'look' }]);
+});
+
 test("an added migration's risks raise their findings on the page, and it keeps the reading", () => {
   const migrations = [{ file: 'db/migrate/1_a.rb', notRead: 'Ruby syntax error' }];
 

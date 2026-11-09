@@ -23,6 +23,7 @@ export const CHECK_TITLES = {
   'logic:removed': 'guards or catches lost',
   'logic:changed': 'functions changed their logic',
   'logic:blind-spot': 'files with logic not read through',
+  'rules:broken': 'edges breaking an architecture rule',
   'dependencies:not-read': 'lockfiles not read',
   'dependencies:direct': 'direct dependencies changed',
   'dependencies:transitive': 'lockfiles with transitive changes',
