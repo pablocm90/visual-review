@@ -8,6 +8,7 @@ import { railsMigrations } from './rails/migration-risks.ts';
 import { railsReader } from './rails/reader.ts';
 import { railsRoutes } from './rails/route-reader.ts';
 import { railsSchema } from './rails/schema-tables.ts';
+import { crateModules } from './rust/crate-modules.ts';
 
 const FILES = 2;
 
@@ -32,6 +33,17 @@ const routeFiles = (): ReadonlyMap<string, string> =>
       `get "/part${index}", to: "pages#show"`,
     ]),
   ]);
+
+const rustModule = (index: number): string =>
+  `mod m${index + 1};\nuse crate::m${index}::Thing;\npub fn f${index}() {}\n`;
+
+const crateSources = (): Readonly<Record<string, string>> =>
+  Object.fromEntries(
+    Array.from({ length: FILES }, (_, index) => [
+      index === 0 ? 'src/lib.rs' : `src/m${index}.rs`,
+      rustModule(index),
+    ]),
+  );
 
 const treesOf = async (read: () => unknown) => {
   const parsed = vi.spyOn(Parser.prototype, 'parse');
@@ -111,6 +123,18 @@ test.for([
     reading: 'Rails schema dumps',
     files: FILES,
     read: () => eachFile(text => railsSchema.tables(text)),
+  },
+  {
+    reading: 'a crate’s modules',
+    files: FILES,
+    read: () =>
+      crateModules({
+        stack: 'rust',
+        root: '.',
+        crate: 'app',
+        roots: ['src/lib.rs'],
+        sources: crateSources(),
+      }),
   },
   { reading: 'Rails routes', files: FILES + 1, read: () => railsRoutes.routes(routeFiles()) },
   {
