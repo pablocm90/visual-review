@@ -1284,6 +1284,26 @@ test('notes that leave a touched part without a note are refused, naming the not
   ).toThrow("Notes in x.notes.json don't match the graph:\nno note on part web/file/a.ts");
 });
 
+test("notes carrying a field the page's notes config switches off are refused, naming the field and the key", () => {
+  const page = pageHtml({
+    viewer,
+    data: pageData({
+      repo: 'shop',
+      reading: readingWith({ notesConfig: { recommendation: false } }),
+      range: 'main..feature',
+      version,
+      parsers,
+    }),
+  });
+  const notes = notesWith({
+    'part web/file/a.ts': { text: 'Reads.', recommendation: 'Split it.' },
+  });
+
+  expect(() => notedPageHtml({ page, notes, notesFile, version })).toThrow(
+    "Notes in x.notes.json don't match the graph:\nrecommendation is switched off on part web/file/a.ts",
+  );
+});
+
 test("notes may key a symbol the page's data holds", () => {
   const page = pageHtml({
     viewer,

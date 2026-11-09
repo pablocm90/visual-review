@@ -101,6 +101,7 @@ test('notes on every touched part of the collapsed view, keyed to nodes or to ed
   expect(
     notesProblems({
       symbols,
+      notesConfig: {},
       tests,
       diff,
       said: [],
@@ -126,6 +127,7 @@ test('a note on a hidden import covers the edge it is drawn into while its modul
   expect(
     notesProblems({
       symbols,
+      notesConfig: {},
       tests,
       diff,
       said: [],
@@ -143,6 +145,7 @@ test('a stack that appears in the change is not asked for a note, since notes ca
   expect(
     notesProblems({
       symbols,
+      notesConfig: {},
       tests,
       diff: { ...diff, nodes: [{ ...stack, state: 'added' }, ...diff.nodes.slice(1)] },
       said: [],
@@ -166,6 +169,7 @@ test('a note may be keyed by an edge between its ends or any of the boxes above 
   expect(
     notesProblems({
       symbols,
+      notesConfig: {},
       tests,
       diff: deep,
       said: [],
@@ -320,7 +324,51 @@ test.for([
     expected: ['no note on edge web/module/pages -> web/module/utils'],
   },
 ])('$problem is a problem', ({ notes, expected }) => {
-  expect(notesProblems({ symbols, tests, diff, notes, said: [] })).toEqual(expected);
+  expect(notesProblems({ symbols, tests, diff, notes, said: [], notesConfig: {} })).toEqual(
+    expected,
+  );
+});
+
+const fullNote = { text: 'Runs once.', why: 'Idempotent.', recommendation: 'Name it.' };
+
+test.for([
+  {
+    switches: 'recommendation off, on a note with both fields',
+    notesConfig: { recommendation: false },
+    note: fullNote,
+    expected: ['recommendation is switched off on symbol web/file/pages/home.tsx#run'],
+  },
+  {
+    switches: 'why off, on a note with both fields',
+    notesConfig: { why: false },
+    note: fullNote,
+    expected: ['why is switched off on symbol web/file/pages/home.tsx#run'],
+  },
+  {
+    switches: 'both off, on a note with neither field',
+    notesConfig: { why: false, recommendation: false },
+    note: { text: 'Runs once.' },
+    expected: [],
+  },
+  {
+    switches: 'both on, on a note with both fields',
+    notesConfig: { why: true, recommendation: true },
+    note: fullNote,
+    expected: [],
+  },
+])('the notes switches with $switches give $expected', ({ notesConfig, note, expected }) => {
+  expect(
+    notesProblems({
+      symbols,
+      tests,
+      diff,
+      said: [],
+      notesConfig,
+      notes: notesWith({
+        notes: { ...notesWith().notes, 'symbol web/file/pages/home.tsx#run': note },
+      }),
+    }),
+  ).toEqual(expected);
 });
 
 const file = 'x.notes.json';
@@ -460,6 +508,7 @@ test("an answer is known by its anchor's kind and id in the last review, whateve
   expect(
     notesProblems({
       symbols,
+      notesConfig: {},
       tests,
       diff,
       said,
@@ -506,7 +555,14 @@ test('an unasked change is keyed as a note is, by a part, an edge, a symbol, a d
   );
 
   expect(
-    notesProblems({ symbols, tests, diff, said: [], notes: parseNotes({ text, file }) }),
+    notesProblems({
+      symbols,
+      tests,
+      diff,
+      said: [],
+      notesConfig: {},
+      notes: parseNotes({ text, file }),
+    }),
   ).toEqual([
     'unknown key part web/module/gone',
     'unknown key decision web/file/pages/home.tsx#run#gone',
@@ -519,11 +575,13 @@ test('an unasked change needs a last review to show under, even one that said no
     unasked: { 'part web/module/pages': { text: 'Renamed the helper.' } },
   });
 
-  expect(notesProblems({ symbols, tests, diff, said: undefined, notes })).toEqual([
+  expect(notesProblems({ symbols, tests, diff, said: undefined, notesConfig: {}, notes })).toEqual([
     'unasked changes show under the last review, and this page has none',
   ]);
-  expect(notesProblems({ symbols, tests, diff, said: undefined, notes: notesWith() })).toEqual([]);
-  expect(notesProblems({ symbols, tests, diff, said: [], notes })).toEqual([]);
+  expect(
+    notesProblems({ symbols, tests, diff, said: undefined, notesConfig: {}, notes: notesWith() }),
+  ).toEqual([]);
+  expect(notesProblems({ symbols, tests, diff, said: [], notesConfig: {}, notes })).toEqual([]);
 });
 
 test('a done answer names its commit', () => {

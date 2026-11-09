@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { anchorKey, anchorOfKey } from './anchors.ts';
+import type { NotesConfig } from './config.ts';
 import type { GraphDiff } from './diff-graphs.ts';
 import { DIMENSIONS } from './findings.ts';
 import { edgeId } from './graph.ts';
@@ -195,11 +196,14 @@ export const visibleNotes = ({
   );
 };
 
+const SWITCHED_FIELDS = ['why', 'recommendation'] as const;
+
 type NotesProblemsOptions = {
   readonly diff: GraphDiff;
   readonly notes: ReviewNotes;
   readonly symbols: ReadonlyArray<SymbolFile>;
   readonly tests: ReadonlyArray<TestFile>;
+  readonly notesConfig: NotesConfig;
   readonly said:
     | ReadonlyArray<{ readonly anchor: { readonly kind: string; readonly id: string } }>
     | undefined;
@@ -225,6 +229,7 @@ export const notesProblems = ({
   notes,
   symbols,
   tests,
+  notesConfig,
   said,
 }: NotesProblemsOptions): ReadonlyArray<string> => {
   const boxesAbove = boxesAboveIn(diff.nodes);
@@ -271,6 +276,11 @@ export const notesProblems = ({
           flag !== undefined && !['part', 'edge'].includes(anchorOfKey(key).kind),
       )
       .map(([key]) => `flag on ${key}: only a part or edge note takes a flag`),
+    ...Object.entries(notes.notes).flatMap(([key, note]) =>
+      SWITCHED_FIELDS.filter(
+        field => notesConfig[field] === false && note[field] !== undefined,
+      ).map(field => `${field} is switched off on ${key}`),
+    ),
     ...notes.summary
       .flatMap(item => item.target ?? [])
       .filter(id => !knownIds.has(id))
