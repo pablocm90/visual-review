@@ -191,7 +191,7 @@ _Avoid_: follow-up, Claude's answer (that's Claude's)
 _In code_: `Reply` (`src/viewer/said-before.tsx`), a `Comment`
 
 **Unasked change**:
-A change Claude made on a later round that nothing in the last review asked for, by part or edge, by part, edge or symbol as notes are keyed, listed in the last review so it isn't read as asked for.
+A change Claude made on a later round that nothing in the last review asked for, keyed as notes are, by part, edge, symbol, logic line or test, listed in the last review so it isn't read as asked for.
 _Avoid_: extra, drive-by
 _In code_: `ReviewNotes['unasked']`
 
