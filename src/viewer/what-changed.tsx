@@ -293,17 +293,20 @@ const LogicLines = ({
   );
 };
 
-const useHasSymbolNews = () => {
+const useSymbolHoldsNews = () => {
   const isChangedSince = useIsChangedSince();
   const hasSaid = useHasSaid();
   const { notes } = useContext(SymbolNotes);
+  return (id: string): boolean =>
+    isChangedSince('symbols', id) || hasSaid({ kind: 'symbol', id }) || notes[id] !== undefined;
+};
+
+const useHasSymbolNews = () => {
+  const holdsNews = useSymbolHoldsNews();
   return (file: SymbolFile): boolean =>
     'unreadable' in file ||
     changedSymbolCount([file]) > 0 ||
-    anchoredSymbols(file.node, file.symbols).some(
-      ({ id }) =>
-        isChangedSince('symbols', id) || hasSaid({ kind: 'symbol', id }) || notes[id] !== undefined,
-    );
+    anchoredSymbols(file.node, file.symbols).some(({ id }) => holdsNews(id));
 };
 
 type InItsFile = {
@@ -446,9 +449,7 @@ const SymbolFiles = ({ file, ...places }: Places & { readonly file: SymbolFile }
   const symbols = anchoredSymbols(file.node, inFile);
   const quiet = symbols.filter(({ item }) => isQuiet(item));
   const inItsFile = { node: file.node, patch: patchOfNode(places, file.node), inFile };
-  const isChangedSince = useIsChangedSince();
-  const hasSaid = useHasSaid();
-  const { notes } = useContext(SymbolNotes);
+  const holdsNews = useSymbolHoldsNews();
   return (
     <>
       {'unreadable' in file && (
@@ -471,10 +472,7 @@ const SymbolFiles = ({ file, ...places }: Places & { readonly file: SymbolFile }
           aria-label="Unchanged symbols"
           open={quiet.some(
             ({ id }) =>
-              places.comments[anchorKey({ kind: 'symbol', id })] !== undefined ||
-              isChangedSince('symbols', id) ||
-              hasSaid({ kind: 'symbol', id }) ||
-              notes[id] !== undefined,
+              places.comments[anchorKey({ kind: 'symbol', id })] !== undefined || holdsNews(id),
           )}
         >
           <summary>{quiet.length} unchanged</summary>
