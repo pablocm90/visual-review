@@ -42,3 +42,28 @@ test.for([
 ])('$path is held: $held', ({ path, held }) => {
   expect(railsAccess.holds(path)).toBe(held);
 });
+
+const coverOf = (body: string, authorize: ReadonlyArray<string> = ['require_admin']) =>
+  read(
+    {
+      'app/controllers/admin/users_controller.rb': `module Admin
+  class UsersController < ApplicationController
+${body}
+    def index; end
+  end
+end
+`,
+    },
+    authorize,
+  ).actions.map(({ cover }) => cover);
+
+test.for([
+  {
+    callback: 'an authorizing before_action',
+    body: '    before_action :set_user, :require_admin',
+    cover: { by: 'require_admin', conditional: false },
+  },
+  { callback: 'a before_action that authorizes nothing', body: '    before_action :set_user' },
+])('the cover $callback gives the actions under it', ({ body, cover }) => {
+  expect(coverOf(body)).toStrictEqual([cover]);
+});
