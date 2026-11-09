@@ -2,6 +2,16 @@
 
 What changed in each release of `@pablocm90/visual-review`, newest first. Versions follow [semver](https://semver.org); while it is 0.x, a minor version may change the exported types.
 
+## Unreleased
+
+### Added
+
+- A note may say what Claude would do about its part or edge: an optional `recommendation` in the notes file, still version 1, shown under the note's text and why in the inspector, labelled **Recommendation**. On a served page, **Take** puts it in that part's or edge's comment field as a **Change this** draft, open and focused, to edit and send as any other comment; it hides while the field holds text. Notes merged onto one drawn edge join their recommendations in order, and such an edge, taking no comment, has no Take.
+
+### Changed
+
+- The skill writes a `recommendation` where something warrants one, and puts a bug it sees while reading in as a recommendation on its part, still naming each bug in its reply.
+
 ## 0.52.0 — 2026-11-08
 
 ### Added
