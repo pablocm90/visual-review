@@ -207,8 +207,10 @@ const refuseLeavingIncludes = async ({ checkout, configs, seen }: Includes): Pro
 export const refuseLeavingPaths = async ({ checkout, root }: ManifestOptions): Promise<void> => {
   const folder = resolve(checkout, root);
   const above = foldersAbove(checkout, folder);
-  const configs = [...new Set([...above, folder])].flatMap(up =>
-    ['config.toml', 'config'].map(name => join(up, '.cargo', name)),
+  const configs = [...new Set([...above, folder])].map(up =>
+    existsSync(join(up, '.cargo', 'config'))
+      ? join(up, '.cargo', 'config')
+      : join(up, '.cargo', 'config.toml'),
   );
   await refuseLeavingIncludes({ checkout, configs, seen: new Set() });
   const manifests = above.filter(up => existsSync(join(up, 'Cargo.toml')));

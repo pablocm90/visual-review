@@ -1871,6 +1871,23 @@ test.for([
   },
 );
 
+test('a cargo config.toml beside a legacy .cargo/config, which cargo reads in its place, is not checked', async () => {
+  using repository = gitRepo({ 'README.md': '' });
+  const { repo, root } = repository;
+  const head = commit(repo, {
+    '.cargo/config': '',
+    '.cargo/config.toml': `include = ["../${withZeroManifest(repo)}/Cargo.toml"]\n`,
+    'Cargo.toml': packageNamed('a'),
+    'src/lib.rs': '',
+  });
+  using bin = pathWithCargo(`echo '{"workspace_root": "/", "packages": []}'`);
+  vi.stubEnv('PATH', bin.path);
+
+  const range = await readRange({ repo, from: root, to: head });
+
+  expect(range.skipped).toEqual([]);
+});
+
 test('a cargo config optionally including a file the checkout lacks, such as a local override, reads', async () => {
   using repository = gitRepo({ 'README.md': '' });
   const { repo, root } = repository;
