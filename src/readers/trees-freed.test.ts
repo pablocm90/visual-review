@@ -9,6 +9,7 @@ import { railsReader } from './rails/reader.ts';
 import { railsRoutes } from './rails/route-reader.ts';
 import { railsSchema } from './rails/schema-tables.ts';
 import { crateModules } from './rust/crate-modules.ts';
+import { rustReader } from './rust/reader.ts';
 
 const FILES = 2;
 
@@ -36,6 +37,9 @@ const routeFiles = (): ReadonlyMap<string, string> =>
 
 const rustModule = (index: number): string =>
   `mod m${index + 1};\nuse crate::m${index}::Thing;\npub fn f${index}() {}\n`;
+
+const eachRustFile = (read: (text: string, index: number) => unknown): ReadonlyArray<unknown> =>
+  Array.from({ length: FILES }, (_, index) => read(rustModule(index), index));
 
 const crateSources = (): Readonly<Record<string, string>> =>
   Object.fromEntries(
@@ -135,6 +139,11 @@ test.for([
         roots: ['src/lib.rs'],
         sources: crateSources(),
       }),
+  },
+  {
+    reading: 'Rust measures',
+    files: FILES,
+    read: () => eachRustFile((text, index) => rustReader.measure?.(text, `src/m${index}.rs`)),
   },
   { reading: 'Rails routes', files: FILES + 1, read: () => railsRoutes.routes(routeFiles()) },
   {
