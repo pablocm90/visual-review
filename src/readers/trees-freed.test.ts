@@ -145,6 +145,11 @@ test.for([
     files: FILES,
     read: () => eachRustFile((text, index) => rustReader.measure?.(text, `src/m${index}.rs`)),
   },
+  {
+    reading: 'Rust symbols',
+    files: FILES,
+    read: () => eachRustFile((text, index) => rustReader.symbols?.(text, `src/m${index}.rs`)),
+  },
   { reading: 'Rails routes', files: FILES + 1, read: () => railsRoutes.routes(routeFiles()) },
   {
     reading: 'a schema dump that doesn’t parse',

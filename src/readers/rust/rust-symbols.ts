@@ -3,7 +3,7 @@ import type { FileSymbols, LineRange, ReadSymbol } from '../../core/reader.ts';
 import { isTooBig, TOO_BIG } from '../too-big.ts';
 import { hashesOf, hashOf, isComment, linesOf, ownText, shapeOf } from '../tree-sitter.ts';
 import { blindSpotsIn, decisionsOfFunction } from './rust-decisions.ts';
-import { attributesOf, isDocText, isTestItem, parseRust, pathOf } from './rust-syntax.ts';
+import { attributesOf, isDocText, isTestItem, pathOf, readRust } from './rust-syntax.ts';
 
 const textOf = (node: Node | null | undefined): string => node?.text ?? '';
 
@@ -323,13 +323,14 @@ const namesExportedBy = (item: Node): ReadonlyArray<string> => {
 
 export const symbolsOfRust = (text: string): FileSymbols => {
   if (isTooBig(text)) throw new Error(TOO_BIG);
-  const root = parseRust(text);
-  if (root === undefined || root.hasError) throw new Error('Rust that does not parse');
-  const items = root.namedChildren.filter(item => !isTestItem(item));
-  return {
-    symbols: symbolsIn(items),
-    exports: items.flatMap(namesExportedBy),
-    astHash: hashOf(shapeOf(root)),
-    blindSpots: blindSpotsIn(root),
-  };
+  return readRust(text, root => {
+    if (root.hasError) throw new Error('Rust that does not parse');
+    const items = root.namedChildren.filter(item => !isTestItem(item));
+    return {
+      symbols: symbolsIn(items),
+      exports: items.flatMap(namesExportedBy),
+      astHash: hashOf(shapeOf(root)),
+      blindSpots: blindSpotsIn(root),
+    };
+  });
 };
