@@ -8627,6 +8627,58 @@ test("a decision's note shows under its logic row and no other, opening its func
   expect(within(whatChanged()).getAllByRole('region', { name: /^Note on/ })).toHaveLength(1);
 });
 
+test("on a served page Take on a decision's note opens that row's field with the recommendation as a change, focused, and hides while the draft holds text", async () => {
+  const user = userEvent.setup();
+  const big = addedIfs('big', 9);
+  render(
+    <ReviewPage
+      review={{
+        ...pageWithManyDecisions(),
+        symbols: [
+          symbolsOf('web/file/many.ts', [
+            { ...big, logic: [...(big.logic ?? []), unchangedIf('kept', 10)] },
+          ]),
+        ],
+      }}
+      notes={{
+        version: 2,
+        tests: '',
+        summary: [],
+        notes: {
+          'decision web/file/many.ts#big#if (kept)': {
+            text: 'Kept for old callers.',
+            recommendation: 'Drop it.',
+          },
+        },
+      }}
+      send={async () => {}}
+    />,
+  );
+  const keptRow = () => within(whatChanged()).getByRole('listitem', { name: 'same if: if (kept)' });
+  const field = () => within(keptRow()).getByRole('textbox', { name: 'Your comment' });
+  const takeInRow = () => within(keptRow()).queryByRole('button', { name: 'Take' });
+
+  await user.click(await screen.findByRole('button', { name: 'many.ts: modified' }));
+  await user.click(within(keptRow()).getByRole('button', { name: 'Take' }));
+
+  expect(document.activeElement).toBe(field());
+  expect(field()).toHaveProperty('value', 'Drop it.');
+  expect(
+    within(within(keptRow()).getByRole('radiogroup', { name: 'Comment kind' })).getByRole('radio', {
+      name: 'Change this',
+    }),
+  ).toHaveProperty('checked', true);
+  expect(within(tray()).getByText('1 drafted · 1 change')).toBeDefined();
+  expect(takeInRow()).toBeNull();
+  await openReview(user);
+  expect(
+    within(screen.getByRole('list', { name: 'Drafts' })).getByRole('button', { name: 'if (kept)' }),
+  ).toBeTruthy();
+
+  await user.clear(field());
+  expect(takeInRow()).not.toBeNull();
+});
+
 test("the last review's comment on an unchanged decision opens its whole run, and no other", async () => {
   const user = userEvent.setup();
   render(
