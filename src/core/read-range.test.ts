@@ -1654,17 +1654,34 @@ test.for([
     folder: 'crates/a',
   },
   {
+    reached: 'a member glob matching a dot folder, as cargo does',
+    manifest: '[workspace]\nmembers = ["crates/*"]\n',
+    folder: 'crates/.hid',
+  },
+  {
+    reached: 'a member glob of two globbed folders, beside a file',
+    manifest: '[workspace]\nmembers = ["crates/*/*"]\n',
+    folder: 'crates/x/a',
+    beside: { 'crates/README.md': '' },
+  },
+  {
+    reached: 'a member glob with a folder after it',
+    manifest: '[workspace]\nmembers = ["crates/*/c"]\n',
+    folder: 'crates/x/c',
+  },
+  {
     reached: 'a dependency path holding glob characters',
     manifest: packageNamed('r', '[dependencies]\nb = { path = "crates/a[1]" }\n'),
     folder: 'crates/a[1]',
   },
 ])(
   'the Cargo.toml of $reached is walked, its paths read from its folder',
-  async ({ manifest, folder }) => {
+  async ({ manifest, folder, ...row }) => {
     using repository = gitRepo({ 'README.md': '' });
     const { repo, root } = repository;
-    const outside = `../../${withZeroManifest(repo)}`;
+    const outside = `${'../'.repeat(folder.split('/').length)}${withZeroManifest(repo)}`;
     const head = commit(repo, {
+      ...('beside' in row ? row.beside : {}),
       'Cargo.toml': manifest,
       [`${folder}/Cargo.toml`]: packageNamed('b', `[dependencies]\nc = { path = "${outside}" }\n`),
       [`${folder}/src/lib.rs`]: '',

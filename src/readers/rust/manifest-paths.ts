@@ -1,4 +1,4 @@
-import { existsSync, globSync } from 'node:fs';
+import { existsSync, globSync, readdirSync, statSync } from 'node:fs';
 import { readFile, realpath } from 'node:fs/promises';
 import { join, relative, resolve } from 'node:path';
 import { parse, TomlError } from 'smol-toml';
@@ -51,10 +51,31 @@ type ManifestOptions = {
   readonly root: string;
 };
 
+const isGlobbed = (segment: string): boolean => /[*?[]/.test(segment);
+
 const literalPrefixOf = (pattern: string): string => {
   const segments = pattern.split('/');
-  const globbed = segments.findIndex(segment => /[*?[]/.test(segment));
+  const globbed = segments.findIndex(isGlobbed);
   return globbed === -1 ? pattern : segments.slice(0, globbed).join('/');
+};
+
+const childFolders = (folder: string): ReadonlyArray<string> =>
+  statSync(folder, { throwIfNoEntry: false })?.isDirectory()
+    ? readdirSync(folder).map(name => join(folder, name))
+    : [];
+
+const foldersMatching = (folder: string, pattern: string): ReadonlyArray<string> => {
+  const prefix = literalPrefixOf(pattern);
+  return pattern
+    .slice(prefix.length)
+    .split('/')
+    .reduce<ReadonlyArray<string>>(
+      (folders, segment) =>
+        isGlobbed(segment)
+          ? folders.flatMap(childFolders)
+          : folders.map(found => join(found, segment)),
+      [resolve(folder, prefix)],
+    );
 };
 
 type Place = { readonly checkout: string; readonly folder: string };
@@ -80,8 +101,7 @@ const followedFrom = async ({ checkout, folder }: Place): Promise<ReadonlyArray<
       `${manifest}: ${leaving.key} ${JSON.stringify(leaving.path)} leaves the checkout`,
     );
   return paths
-    .flatMap(({ path }) => [path, ...globSync(path, { cwd: folder })])
-    .map(path => resolve(folder, path))
+    .flatMap(({ path }) => foldersMatching(folder, path))
     .filter(path => existsSync(join(path, 'Cargo.toml')));
 };
 
