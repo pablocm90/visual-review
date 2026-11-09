@@ -1587,6 +1587,11 @@ test.for([
     out: 'relative',
   },
   {
+    named: 'a patch path',
+    manifest: (out: string) => packageNamed('a', `[patch.crates-io]\nb = { path = ${out} }\n`),
+    out: 'relative',
+  },
+  {
     named: 'its workspace',
     manifest: (out: string) => packageNamed('a', `workspace = ${out}\n`),
     out: 'relative',
