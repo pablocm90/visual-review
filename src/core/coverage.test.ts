@@ -15,6 +15,7 @@ const facts = (overrides: Partial<CoverageFacts> = {}): CoverageFacts => ({
   linksNotRead: [],
   routes: [],
   reachesNotRead: [],
+  rulesNotRead: [],
   ...overrides,
 });
 
@@ -29,6 +30,7 @@ test('with nothing unread, each dimension a check raises is listed as checked, a
     { dimension: 'tests', notRead: [] },
     { dimension: 'metrics', notRead: [] },
     { dimension: 'dependencies', notRead: [] },
+    { dimension: 'rules', notRead: [] },
     { dimension: 'schema', notRead: [] },
     { dimension: 'routes', notRead: [] },
     { dimension: 'blast-radius', notRead: [] },
@@ -41,6 +43,12 @@ test("blast radius names what its reading couldn't, unless no stack was drawn", 
 
   expect(notReadIn('blast-radius', { reachesNotRead })).toEqual(reachesNotRead);
   expect(notReadIn('blast-radius', { reachesNotRead, readers: [] })).toEqual(['no stack drawn']);
+});
+
+test("rules names what the config's rules couldn't read", () => {
+  const rulesNotRead = ['no-invoices: from shop/class/*Controler matches no node'];
+
+  expect(notReadIn('rules', { rulesNotRead })).toEqual(rulesNotRead);
 });
 
 test('structure names a skipped stack, and cohesion stays checked', () => {
