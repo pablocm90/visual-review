@@ -1741,8 +1741,10 @@ test("a stack under a workspace in the checkout is not read when that workspace'
 test.for([
   { members: '"crates/*"', exclude: 'crates', skipped: false },
   { members: '"crates/*", "crates/template"', exclude: 'crates/template', skipped: true },
+  { members: '"crates/*"', exclude: 'crates/x/..', skipped: true },
+  { members: '"x/../crates/*"', exclude: 'crates', skipped: true },
 ])(
-  'a crate a member glob matches under workspace.exclude is walked only when a member names it ($members)',
+  'a crate a member glob matches under workspace.exclude is walked only when a member names it, an exclude or member not comparable as written excluding nothing ($members, $exclude)',
   async ({ members, exclude, skipped }) => {
     using repository = gitRepo({ 'README.md': '' });
     const { repo, root } = repository;

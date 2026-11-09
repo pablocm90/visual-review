@@ -57,10 +57,14 @@ const workspaceOf = (read: Read): ReadonlyArray<Named> => [
 const holds = (folder: string, path: string): boolean =>
   relative(folder, path).split('/')[0] !== '..';
 
+const climbs = (path: string): boolean => path.split('/').includes('..');
+
 const excludedFrom =
   (folder: string, { workspace }: Read) =>
   (path: string): boolean =>
-    (workspace?.exclude ?? []).some(excluded => holds(resolve(folder, excluded), path)) &&
+    (workspace?.exclude ?? [])
+      .filter(excluded => !climbs(excluded))
+      .some(excluded => holds(resolve(folder, excluded), path)) &&
     !(workspace?.members ?? []).some(member => holds(resolve(folder, member), path));
 
 const parsed = (manifest: string, text: string): unknown => {
@@ -133,7 +137,7 @@ const followedFrom = async ({ checkout, folder }: Place): Promise<ReadonlyArray<
   return paths
     .flatMap(({ path, pattern }) =>
       pattern
-        ? foldersMatching(folder, path).filter(match => !excluded(match))
+        ? foldersMatching(folder, path).filter(match => climbs(path) || !excluded(match))
         : [resolve(folder, path)],
     )
     .filter(path => existsSync(join(path, 'Cargo.toml')));
