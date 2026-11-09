@@ -1,6 +1,8 @@
-import { createContext } from 'react';
+import { createContext, useContext } from 'react';
+import { anchorKey } from '../core/anchors.ts';
 import type { Note } from '../core/notes.ts';
 import type { Comment } from '../core/review.ts';
+import { type Comments, holdsDraft } from './comment-field.tsx';
 
 type RowNotesOnPage = {
   readonly notes: Readonly<Record<string, Note>>;
@@ -41,3 +43,22 @@ export const NoteBlock = ({
     )}
   </section>
 );
+
+type RowNoteProps = {
+  readonly anchor: Comment['anchor'];
+  readonly name: string;
+  readonly comments: Comments;
+};
+
+export const RowNote = ({ anchor, name, comments }: RowNoteProps) => {
+  const { notes, onTake } = useContext(RowNotes);
+  const note = notes[anchorKey(anchor)];
+  if (note === undefined) return null;
+  return (
+    <NoteBlock
+      note={note}
+      onTake={onTake && !holdsDraft(comments, anchor) ? text => onTake(anchor, text) : undefined}
+      label={`Note on ${name}`}
+    />
+  );
+};

@@ -20,9 +20,9 @@ import { isQuiet, qualified, SYMBOL_GROUPS, type SymbolStatement } from '../core
 import { type AnchoredSymbol, anchoredSymbols, decisionsOf } from '../core/symbol-findings.ts';
 import { boxesAboveIn } from '../core/visible-diff.ts';
 import { ChangedSinceTag, sinceLabel, useIsChangedSince } from './changed-since.tsx';
-import { type Comments, holdsDraft } from './comment-field.tsx';
+import type { Comments } from './comment-field.tsx';
 import { LogicLegend, LogicStrip } from './logic-strip.tsx';
-import { NoteBlock, RowNotes } from './note-block.tsx';
+import { RowNote, RowNotes } from './note-block.tsx';
 import { CommentOn, SaidBefore, useHasSaid } from './said-before.tsx';
 import { scrollInPanel } from './scroll-in-panel.ts';
 import { Signature } from './signature-lines.tsx';
@@ -350,25 +350,6 @@ const SymbolName = ({ symbol }: { readonly symbol: SymbolStatement }) => {
       <span className="kind">{symbol.kind}</span> <code>{qualified(symbol)}</code>
       {mark !== undefined && <span className="export-mark"> {mark}</span>}
     </>
-  );
-};
-
-type RowNoteProps = {
-  readonly anchor: Comment['anchor'];
-  readonly name: string;
-  readonly comments: Comments;
-};
-
-const RowNote = ({ anchor, name, comments }: RowNoteProps) => {
-  const { notes, onTake } = useContext(RowNotes);
-  const note = notes[anchorKey(anchor)];
-  if (note === undefined) return null;
-  return (
-    <NoteBlock
-      note={note}
-      onTake={onTake && !holdsDraft(comments, anchor) ? text => onTake(anchor, text) : undefined}
-      label={`Note on ${name}`}
-    />
   );
 };
 
