@@ -380,7 +380,12 @@ test('stacks not read are a structure finding to look at per reason, by those st
       reason: 'cargo: timed out',
       side: 'reviewed' as const,
     },
-    { reader: 'rust' as const, stacks: ['jobs'], reason: 'cargo: timed out', side: 'base' as const },
+    {
+      reader: 'rust' as const,
+      stacks: ['jobs'],
+      reason: 'cargo: timed out',
+      side: 'base' as const,
+    },
   ];
 
   expect(
