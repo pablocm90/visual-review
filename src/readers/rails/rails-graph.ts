@@ -94,7 +94,7 @@ export const lookedUp = (
     .map(ignoringCase ? classes.ignoringCase : classes.exactly)
     .find(named => named !== undefined);
 
-const written = (node: Node): Wanted =>
+export const written = (node: Node): Wanted =>
   node.text.startsWith('::')
     ? { name: node.text.slice(2), scopes: [], ignoringCase: false }
     : { name: node.text, scopes: scopesOf(node), ignoringCase: false };

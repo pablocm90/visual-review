@@ -238,6 +238,87 @@ end
     covers: { 'UsersController#index': 'require_admin' },
   },
   {
+    reason: "a concern's included callbacks",
+    files: {
+      'app/controllers/concerns/authorized.rb': `module Authorized
+  extend ActiveSupport::Concern
+
+  included do
+    before_action :require_admin
+  end
+end
+`,
+      'app/controllers/admin/users_controller.rb': `module Admin
+  class UsersController < ApplicationController
+    include Authorized
+    def index; end
+  end
+end
+`,
+    },
+    covers: { 'Admin::UsersController#index': 'require_admin' },
+  },
+  {
+    reason: 'nothing, when it skips a callback a concern gave it before',
+    files: {
+      'app/controllers/concerns/authorized.rb': `module Authorized
+  included { before_action :require_admin }
+end
+`,
+      'app/controllers/users_controller.rb': `class UsersController < ApplicationController
+  include Authorized
+  skip_before_action :require_admin
+  def index; end
+end
+`,
+    },
+    covers: { 'UsersController#index': undefined },
+  },
+  {
+    reason: 'the concern its lexical scope names first',
+    files: {
+      'app/controllers/concerns/authorized.rb': `module Authorized
+end
+`,
+      'app/controllers/concerns/admin/authorized.rb': `module Admin
+  module Authorized
+    included { before_action :require_admin }
+  end
+end
+`,
+      'app/controllers/admin/users_controller.rb': `module Admin
+  class UsersController < ApplicationController
+    include Authorized
+    def index; end
+  end
+end
+`,
+    },
+    covers: { 'Admin::UsersController#index': 'require_admin' },
+  },
+  {
+    reason: 'concerns once each, when they include each other',
+    files: {
+      'app/controllers/concerns/authorized.rb': `module Authorized
+  included do
+    include Audited
+    before_action :require_admin
+  end
+end
+`,
+      'app/controllers/concerns/audited.rb': `module Audited
+  included { include Authorized }
+end
+`,
+      'app/controllers/users_controller.rb': `class UsersController < ApplicationController
+  include Authorized
+  def index; end
+end
+`,
+    },
+    covers: { 'UsersController#index': 'require_admin' },
+  },
+  {
     reason: 'nothing from a parent of the same name in another app',
     files: {
       'apps/a/app/controllers/application_controller.rb': `class ApplicationController < ActionController::Base

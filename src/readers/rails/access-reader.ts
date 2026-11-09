@@ -1,6 +1,6 @@
 import type { Node } from 'web-tree-sitter';
 import type { AccessReader, Action, Cover } from '../../core/access.ts';
-import { classesOf, lookedUp, scopesOf, type Wanted } from './rails-graph.ts';
+import { classesOf, lookedUp, scopesOf, type Wanted, written } from './rails-graph.ts';
 import { NOT_SEARCHED } from './reader.ts';
 import { symbolsOfRuby } from './ruby-symbols.ts';
 import {
@@ -38,10 +38,17 @@ const callbacksOfCall = (call: Node): ReadonlyArray<Callback> => {
   }));
 };
 
-const callbacksOf = (definition: Node): ReadonlyArray<Callback> =>
-  (definition.childForFieldName('body')?.namedChildren ?? [])
-    .filter(node => CALLBACK.test(methodOf(node)))
-    .flatMap(callbacksOfCall);
+type Entry = Callback | { readonly include: Wanted };
+
+const entriesOf = (body: Node | null | undefined): ReadonlyArray<Entry> =>
+  (body?.namedChildren ?? []).flatMap(node => {
+    const method = methodOf(node);
+    if (CALLBACK.test(method)) return callbacksOfCall(node);
+    if (method === 'include') return argsOf(node).map(arg => ({ include: written(arg) }));
+    if (method === 'included')
+      return entriesOf(node.childForFieldName('block')?.childForFieldName('body'));
+    return [];
+  });
 
 const reaches = ({ only, except }: Callback, action: string): boolean =>
   (only === undefined || only.includes(action)) && !except.includes(action);
@@ -49,7 +56,7 @@ const reaches = ({ only, except }: Callback, action: string): boolean =>
 type Controller = {
   readonly constant: string;
   readonly parent: Wanted | undefined;
-  readonly callbacks: ReadonlyArray<Callback>;
+  readonly entries: ReadonlyArray<Entry>;
 };
 
 const parentOf = (definition: Node): Wanted | undefined => {
@@ -65,9 +72,26 @@ const controllersIn = (node: Node, within: string | undefined): ReadonlyArray<Co
     if (!DEFINITIONS.has(child.type)) return controllersIn(child, within);
     const constant = constantWithin(child.childForFieldName('name')?.text ?? '', within);
     return [
-      { constant, parent: parentOf(child), callbacks: callbacksOf(child) },
+      { constant, parent: parentOf(child), entries: entriesOf(child.childForFieldName('body')) },
       ...controllersIn(child, constant),
     ];
+  });
+
+const without = (
+  controllers: ReadonlyMap<string, Controller>,
+  constant: string,
+): ReadonlyMap<string, Controller> =>
+  new Map([...controllers].filter(([other]) => other !== constant));
+
+const expanded = (
+  controllers: ReadonlyMap<string, Controller>,
+  entries: ReadonlyArray<Entry>,
+): ReadonlyArray<Callback> =>
+  entries.flatMap(entry => {
+    if (!('include' in entry)) return [entry];
+    const concern = lookedUp(entry.include, classesOf([...controllers.keys()]));
+    if (concern === undefined) return [];
+    return expanded(without(controllers, concern), controllers.get(concern)?.entries ?? []);
   });
 
 const inherited = (
@@ -76,9 +100,12 @@ const inherited = (
 ): ReadonlyArray<Callback> => {
   const controller = controllers.get(constant);
   if (controller === undefined) return [];
-  const above = new Map([...controllers].filter(([other]) => other !== constant));
+  const above = without(controllers, constant);
   const parent = controller.parent && lookedUp(controller.parent, classesOf([...above.keys()]));
-  return [...(parent === undefined ? [] : inherited(above, parent)), ...controller.callbacks];
+  return [
+    ...(parent === undefined ? [] : inherited(above, parent)),
+    ...expanded(above, controller.entries),
+  ];
 };
 
 const coverOf = (
