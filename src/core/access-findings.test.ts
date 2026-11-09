@@ -2,6 +2,8 @@ import { expect, test } from 'vitest';
 import type { Action } from './access.ts';
 import { accessFindings } from './access-findings.ts';
 import type { AccessReading } from './read-access.ts';
+import type { RouteChange } from './route-diff.ts';
+import type { Route } from './routes.ts';
 
 const FILE = 'app/controllers/users_controller.rb';
 
@@ -35,7 +37,7 @@ const OTHER = {
 } as const;
 
 const findingsOf = (...access: ReadonlyArray<AccessReading>) =>
-  accessFindings({ access, nodes: [OTHER, NODE] });
+  accessFindings({ access, routes: [], nodes: [OTHER, NODE] });
 
 test('a new action nothing authorizes needs a look, on its controller', () => {
   expect(findingsOf(reading([], [action()]))).toStrictEqual([
@@ -59,10 +61,12 @@ test('a new action with a cover raises nothing', () => {
 
 test('an action in a file no node draws opens the file', () => {
   expect(
-    accessFindings({ access: [reading([], [action()])], nodes: [] }).map(({ target, file }) => ({
-      target,
-      file,
-    })),
+    accessFindings({ access: [reading([], [action()])], routes: [], nodes: [] }).map(
+      ({ target, file }) => ({
+        target,
+        file,
+      }),
+    ),
   ).toStrictEqual([{ target: undefined, file: FILE }]);
 });
 
@@ -84,3 +88,59 @@ test('an action the base covered and the head does not needs a look, naming the 
     },
   ]);
 });
+
+const route = (overrides: Partial<Route> = {}): Route => ({
+  verb: 'GET',
+  path: '/users/:id',
+  target: 'users#show',
+  root: '',
+  file: 'config/routes.rb',
+  line: 3,
+  ...overrides,
+});
+
+const routedTo = (routes: ReadonlyArray<RouteChange>) =>
+  accessFindings({ access: [reading([action()], [action()])], routes, nodes: [NODE] });
+
+test('a route the change adds to an action nothing authorizes needs a look, naming the route', () => {
+  expect(
+    routedTo([{ state: 'added', head: route() }]).map(({ id, level, title, detail }) => ({
+      id,
+      level,
+      title,
+      detail,
+    })),
+  ).toStrictEqual([
+    {
+      id: 'security:unauthorized::UsersController#show',
+      level: 'look',
+      title: 'UsersController#show newly routed with no authorization',
+      detail: `At ${FILE}:4. GET /users/:id at config/routes.rb:3 now reaches it; nothing authorizes it.`,
+    },
+  ]);
+});
+
+test('a route the change points at the action needs a look too', () => {
+  expect(
+    routedTo([{ state: 'changed', base: route({ target: 'users#edit' }), head: route() }]).map(
+      ({ title }) => title,
+    ),
+  ).toStrictEqual(['UsersController#show newly routed with no authorization']);
+});
+
+test.for([
+  {
+    reason: 'a route in another root',
+    change: { state: 'added', head: route({ root: 'apps/admin/' }) },
+  },
+  {
+    reason: 'a route to another action',
+    change: { state: 'added', head: route({ target: 'users#edit' }) },
+  },
+  { reason: 'a removed route', change: { state: 'removed', base: route() } },
+] satisfies ReadonlyArray<{ reason: string; change: RouteChange }>)(
+  '$reason raises nothing',
+  ({ change }) => {
+    expect(routedTo([change])).toStrictEqual([]);
+  },
+);

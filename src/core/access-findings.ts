@@ -2,9 +2,12 @@ import type { Action } from './access.ts';
 import type { Finding } from './findings.ts';
 import type { GraphNode } from './graph.ts';
 import type { AccessReading } from './read-access.ts';
+import type { RouteChange } from './route-diff.ts';
+import type { Route } from './routes.ts';
 
 type AccessFindingsOptions = {
   readonly access: ReadonlyArray<AccessReading>;
+  readonly routes: ReadonlyArray<RouteChange>;
   readonly nodes: ReadonlyArray<GraphNode>;
 };
 
@@ -18,10 +21,20 @@ const nodeOf = (
   return node === undefined ? { file } : { target: node.id };
 };
 
-const whatChanged = (
-  action: Action,
-  before: Action | undefined,
-): { readonly title: string; readonly detail: string } | undefined => {
+type Change = {
+  readonly action: Action;
+  readonly before: Action | undefined;
+  readonly routes: ReadonlyArray<Route>;
+};
+
+const reaches = (route: Route, { root, controllerPath, action }: Action): boolean =>
+  route.root === root && route.target === `${controllerPath}#${action}`;
+
+const whatChanged = ({
+  action,
+  before,
+  routes,
+}: Change): { readonly title: string; readonly detail: string } | undefined => {
   const at = `At ${action.file}:${action.line}.`;
   const name = `${action.controller}#${action.action}`;
   if (before === undefined)
@@ -29,20 +42,36 @@ const whatChanged = (
       title: `${name} added with no authorization`,
       detail: `${at} No callback, parent or call of its own authorizes it.`,
     };
-  if (before.cover === undefined) return undefined;
-  return {
-    title: `${name} lost its authorization`,
-    detail: `${at} ${before.cover.by} covered it before; nothing authorizes it now.`,
-  };
+  if (before.cover !== undefined)
+    return {
+      title: `${name} lost its authorization`,
+      detail: `${at} ${before.cover.by} covered it before; nothing authorizes it now.`,
+    };
+  const routed = routes.find(route => reaches(route, action));
+  return routed === undefined
+    ? undefined
+    : {
+        title: `${name} newly routed with no authorization`,
+        detail: `${at} ${routed.verb} ${routed.path} at ${routed.file}:${routed.line} now reaches it; nothing authorizes it.`,
+      };
 };
 
-export const accessFindings = ({ access, nodes }: AccessFindingsOptions): ReadonlyArray<Finding> =>
-  access.flatMap(({ base, head }) => {
+export const accessFindings = ({
+  access,
+  routes,
+  nodes,
+}: AccessFindingsOptions): ReadonlyArray<Finding> => {
+  const routedAnew = routes.flatMap(change => (change.state === 'removed' ? [] : [change.head]));
+  return access.flatMap(({ base, head }) => {
     const before = new Map(base.actions.map(action => [keyOf(action), action]));
     return head.actions
       .filter(action => action.cover === undefined)
       .flatMap((action): ReadonlyArray<Finding> => {
-        const change = whatChanged(action, before.get(keyOf(action)));
+        const change = whatChanged({
+          action,
+          before: before.get(keyOf(action)),
+          routes: routedAnew,
+        });
         return change === undefined
           ? []
           : [
@@ -57,3 +86,4 @@ export const accessFindings = ({ access, nodes }: AccessFindingsOptions): Readon
             ];
       });
   });
+};
