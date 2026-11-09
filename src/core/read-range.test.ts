@@ -1815,6 +1815,24 @@ test('cargo configs including each other are walked once each, and cargo runs', 
   expect(range.skipped).toEqual([]);
 });
 
+test('a cargo config whose include is no list, which cargo refuses, is not read, naming the key', async () => {
+  using repository = gitRepo({ 'README.md': '' });
+  const { repo, root } = repository;
+  const head = commit(repo, {
+    '.cargo/config.toml': 'include = "../ci.toml"\n',
+    'Cargo.toml': packageNamed('a'),
+    'src/lib.rs': '',
+  });
+  using bin = pathWithCargo('exit 1');
+  vi.stubEnv('PATH', bin.path);
+
+  const range = await readRange({ repo, from: root, to: head });
+
+  expect(range.skipped.map(({ reason }) => reason)).toEqual([
+    '.cargo/config.toml: include: Invalid input: expected array, received string',
+  ]);
+});
+
 test('a cargo config including a file inside the checkout, from its .cargo folder, reads', async () => {
   using repository = gitRepo({ 'README.md': '' });
   const { repo, root } = repository;

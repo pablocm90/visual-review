@@ -31,11 +31,11 @@ const Manifest = z.object({
 
 type Read = z.infer<typeof Manifest>;
 
-const manifestOf = (manifest: string, toml: unknown): Read => {
-  const read = Manifest.safeParse(toml);
+const readAs = <T>(schema: z.ZodType<T>, file: string, toml: unknown): T => {
+  const read = schema.safeParse(toml);
   if (read.success) return read.data;
   const [issue] = read.error.issues;
-  throw new StackNotRead(`${manifest}: ${issue?.path.join('.')}: ${issue?.message}`);
+  throw new StackNotRead(`${file}: ${issue?.path.join('.')}: ${issue?.message}`);
 };
 
 const workspaceOf = (read: Read): ReadonlyArray<Named> => [
@@ -125,7 +125,7 @@ const leaves = async ({ path, pattern }: Named, { checkout, folder }: Place): Pr
 const followedFrom = async ({ checkout, folder }: Place): Promise<ReadonlyArray<string>> => {
   const manifest = relative(checkout, join(folder, 'Cargo.toml'));
   const toml = parsed(manifest, await readFile(join(folder, 'Cargo.toml'), 'utf8'));
-  const read = manifestOf(manifest, toml);
+  const read = readAs(Manifest, manifest, toml);
   const excluded = excludedFrom(folder, read);
   const paths = [...pathsIn(toml), ...workspaceOf(read)];
   const left = await Promise.all(paths.map(named => leaves(named, { checkout, folder })));
@@ -182,7 +182,7 @@ const refuseLeavingIncludes = async ({ checkout, configs, seen }: Includes): Pro
   if (real === undefined || seen.has(real))
     return refuseLeavingIncludes({ checkout, configs: rest, seen });
   const named = relative(checkout, config);
-  const { include = [] } = Config.parse(parsed(named, await readFile(config, 'utf8')));
+  const { include = [] } = readAs(Config, named, parsed(named, await readFile(config, 'utf8')));
   const included = include.map(path => resolve(dirname(config), path));
   const left = await Promise.all(
     included.map(async path => !(await resolvesInside(checkout, path))),
