@@ -1,4 +1,5 @@
 import { expect, test } from 'vitest';
+import { z } from 'zod';
 import type { DiffedNode, GraphDiff } from './diff-graphs.ts';
 import {
   type Note,
@@ -517,4 +518,32 @@ test('a notes file with nothing to note may leave out notes', () => {
 
 test('the published notes schema marks no field read-only, since notes are written by hand or by agents', () => {
   expect(JSON.stringify(notesJsonSchema())).not.toContain('readOnly');
+});
+
+test('the published notes schema says version 2 and keys notes and unasked changes by part, edge or symbol', () => {
+  const schema = z.object({
+    properties: z.object({
+      version: z.object({ const: z.number() }),
+      notes: z.object({ propertyNames: z.object({ pattern: z.string() }) }),
+      unasked: z.object({ propertyNames: z.object({ pattern: z.string() }) }),
+    }),
+  });
+  const { properties } = schema.parse(notesJsonSchema());
+  const keys = [
+    'part web/a.ts',
+    'edge a -> b',
+    'symbol web/a.ts#run',
+    'test web/a.ts#x',
+    'web/a.ts',
+  ];
+
+  expect(properties.version.const).toBe(2);
+  expect(
+    [properties.notes, properties.unasked].map(({ propertyNames: { pattern } }) =>
+      keys.filter(key => new RegExp(pattern).test(key)),
+    ),
+  ).toEqual([
+    ['part web/a.ts', 'edge a -> b', 'symbol web/a.ts#run'],
+    ['part web/a.ts', 'edge a -> b', 'symbol web/a.ts#run'],
+  ]);
 });
