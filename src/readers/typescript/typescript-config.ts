@@ -23,13 +23,18 @@ const TsconfigSchema = z.object({
   include: z.array(z.string()).optional(),
 });
 
+const isFile = (path: string): boolean => existsSync(path) && statSync(path).isFile();
+
 const tsconfigAt = (tsconfig: string): z.infer<typeof TsconfigSchema> =>
-  existsSync(tsconfig) && statSync(tsconfig).isFile()
+  isFile(tsconfig)
     ? (TsconfigSchema.safeParse(parse(readFileSync(tsconfig, 'utf8'))).data ?? {})
     : {};
 
+const rootConfigIn = (directory: string): string =>
+  isFile(join(directory, 'tsconfig.json')) ? 'tsconfig.json' : 'jsconfig.json';
+
 export const tsconfigIn = (directory: string): z.infer<typeof TsconfigSchema> =>
-  tsconfigAt(join(directory, 'tsconfig.json'));
+  tsconfigAt(join(directory, rootConfigIn(directory)));
 
 export type RootOptions = {
   readonly checkout: string;
@@ -110,11 +115,9 @@ const holdsNoFiles = ({ files, include }: z.infer<typeof TsconfigSchema>): boole
   (files ?? []).length === 0 &&
   (include ?? []).length === 0;
 
-const ROOT_CONFIG = 'tsconfig.json';
-
 const rootAliases = (reading: AliasReading): Aliases => {
-  const chain = chainAt(reading, ROOT_CONFIG);
-  const root = tsconfigAt(join(reading.directory, ROOT_CONFIG));
+  const chain = chainAt(reading, rootConfigIn(reading.directory));
+  const root = tsconfigIn(reading.directory);
   if (chain.paths !== undefined || !holdsNoFiles(root)) return chain;
   const referenced = (root.references ?? [])
     .map(({ path }) => projectFile(path))
