@@ -205,6 +205,13 @@ const unreadIn = (program: Node, { file, authorize }: Reading): ReadonlyArray<Un
     .filter(call => CALLBACK.test(methodOf(call)) && unreadable(call, authorize))
     .map(call => ({ text: call.text, file, line: call.startPosition.row + 1 }));
 
+const controllerPathOf = (controller: string): string =>
+  controller
+    .replace(/Controller$/, '')
+    .replaceAll('::', '/')
+    .replace(/([A-Z\d]+)(?=[A-Z][a-z])|([a-z\d])(?=[A-Z])/g, '$1$2_')
+    .toLowerCase();
+
 const fileOf = (text: string, { file, authorize }: Reading): ControllerFile => {
   const root = file.slice(0, file.indexOf('app/controllers/'));
   return {
@@ -216,7 +223,16 @@ const fileOf = (text: string, { file, authorize }: Reading): ControllerFile => {
     })),
     actions: symbolsOfRuby(text).symbols.flatMap(({ name, scope, kind, exported, lines }) =>
       kind === 'method' && exported && scope !== undefined && !name.startsWith('self.')
-        ? [{ controller: scope, action: name, root, file, line: lines.start }]
+        ? [
+            {
+              controller: scope,
+              controllerPath: controllerPathOf(scope),
+              action: name,
+              root,
+              file,
+              line: lines.start,
+            },
+          ]
         : [],
     ),
   };

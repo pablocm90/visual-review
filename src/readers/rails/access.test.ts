@@ -22,6 +22,7 @@ end
     actions: [
       {
         controller: 'UsersController',
+        controllerPath: 'users',
         action: 'index',
         root: '',
         file: 'app/controllers/users_controller.rb',
@@ -30,6 +31,18 @@ end
     ],
     unread: [],
   });
+});
+
+test.for([
+  { written: 'Admin::UsersController', path: 'admin/users' },
+  { written: 'OrderItemsController', path: 'order_items' },
+  { written: 'HTMLPagesController', path: 'html_pages' },
+  { written: 'Api::V2OrderItemsController', path: 'api/v2_order_items' },
+])('$written is routed as $path', ({ written, path }) => {
+  const [action] = read({
+    'app/controllers/x_controller.rb': `class ${written} < ActionController::Base\n  def index; end\nend\n`,
+  }).actions;
+  expect(action?.controllerPath).toBe(path);
 });
 
 test.for([

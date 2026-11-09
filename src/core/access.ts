@@ -5,6 +5,7 @@ export type Cover = {
 
 export type Action = {
   readonly controller: string;
+  readonly controllerPath: string;
   readonly action: string;
   readonly root: string;
   readonly file: string;

@@ -14,6 +14,7 @@ const NODE = {
 
 const action = (overrides: Partial<Action> = {}): Action => ({
   controller: 'UsersController',
+  controllerPath: 'users',
   action: 'show',
   root: '',
   file: FILE,
