@@ -1,6 +1,6 @@
 import { expect, test } from 'vitest';
 import type { Graph, GraphNode } from './graph.ts';
-import { ruleBreaks } from './rule-breaks.ts';
+import { ruleBreaks, rulesNotRead } from './rule-breaks.ts';
 
 const shopClass = (constant: string, layer: string): GraphNode => ({
   id: `shop/class/${constant}`,
@@ -77,4 +77,25 @@ test('an edge inside the area a rule forbids breaks nothing, though its start is
   const broken = ruleBreaks({ rules: { fenced }, graph: graphOf(edges) });
 
   expect(broken.map(({ edge }) => edge)).toStrictEqual([edges[1]]);
+});
+
+test('with no rules configured, the rules are not read', () => {
+  expect(rulesNotRead({ rules: {}, graph: graphOf([]) })).toStrictEqual(['none configured']);
+});
+
+test.for([
+  {
+    side: 'from',
+    rule: { ...rule, from: ['shop/class/*Controller', 'shop/class/*Controler'] },
+    line: 'no-invoices: from shop/class/*Controler matches no node',
+  },
+  {
+    side: 'notTo',
+    rule: { ...rule, notTo: ['shop/class/Invoce', 'shop/layer/models'] },
+    line: 'no-invoices: notTo shop/class/Invoce matches no node',
+  },
+])("a rule's $side glob matching no node is read as not read, naming it", ({ rule, line }) => {
+  expect(rulesNotRead({ rules: { 'no-invoices': rule }, graph: graphOf([]) })).toStrictEqual([
+    line,
+  ]);
 });

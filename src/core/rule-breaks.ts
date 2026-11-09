@@ -27,3 +27,13 @@ export const ruleBreaks = ({ rules, graph }: RuleBreaksOptions): ReadonlyArray<R
       .map(edge => ({ rule, reason, edge })),
   );
 };
+
+export const rulesNotRead = ({ rules, graph }: RuleBreaksOptions): ReadonlyArray<string> => {
+  if (Object.keys(rules).length === 0) return ['none configured'];
+  const matchesNone = (glob: string) => !graph.nodes.some(({ id }) => matchesGlob(id, glob));
+  return Object.entries(rules).flatMap(([name, globs]) =>
+    (['from', 'notTo'] as const).flatMap(side =>
+      globs[side].filter(matchesNone).map(glob => `${name}: ${side} ${glob} matches no node`),
+    ),
+  );
+};

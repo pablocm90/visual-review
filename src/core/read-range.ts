@@ -27,7 +27,7 @@ import {
 import type { FileMeasures, FileSymbols, Reader } from './reader.ts';
 import type { Review } from './review.ts';
 import type { RouteReader } from './routes.ts';
-import { type RuleBreak, ruleBreaks } from './rule-breaks.ts';
+import { type RuleBreak, ruleBreaks, rulesNotRead } from './rule-breaks.ts';
 import type { SchemaReader } from './schema.ts';
 import type { Skipped } from './skipped.ts';
 import { type FileSymbolChanges, symbolChangesOf } from './symbol-changes.ts';
@@ -101,6 +101,7 @@ export type RangeReading = {
   readonly thresholds: Omit<Config['metrics'], 'churnDays'>;
   readonly churnDays: number;
   readonly ruleBreaks: ReadonlyArray<RuleBreak>;
+  readonly rulesNotRead: ReadonlyArray<string>;
   readonly reviewed?: ReviewedReading;
 };
 
@@ -710,6 +711,7 @@ export const readRange = async ({
       thresholds,
       churnDays,
       ruleBreaks: ruleBreaks({ rules: config.rules, graph: after.graph }),
+      rulesNotRead: rulesNotRead({ rules: config.rules, graph: after.graph }),
       changedPaths,
       renames,
       patches: await Promise.all(

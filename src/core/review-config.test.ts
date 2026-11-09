@@ -454,7 +454,7 @@ test.for([
   expect(range.thresholds).toEqual(thresholds);
 });
 
-test("the head graph's edges breaking the config's rules are the reading's rule breaks, a rule's single glob read as a list of one; an edge only the base drew breaks nothing", async () => {
+test("the head graph's edges breaking the config's rules are the reading's rule breaks, a rule's single glob read as a list of one; an edge only the base drew breaks nothing, and a glob no head node matches is not read", async () => {
   using repository = gitRepo({
     'package.json': '{"name": "app"}\n',
     'src/a.ts': "import { c } from './c';\nexport const a = c;\n",
@@ -464,11 +464,12 @@ test("the head graph's edges breaking the config's rules are the reading's rule 
   const { repo, root } = repository;
   const head = commit(repo, {
     'src/a.ts': "import { b } from './b';\nexport const a = b;\n",
+    'src/d.ts': 'export const d = 1;\n',
     'visual-review.config.json': JSON.stringify({
       rules: {
         'a-alone': {
           from: 'app/file/a.ts',
-          notTo: ['app/file/b.ts', 'app/file/c.ts'],
+          notTo: ['app/file/b.ts', 'app/file/c.ts', 'app/file/d.ts', 'app/file/e.ts'],
           reason: 'Why.',
         },
       },
@@ -480,4 +481,5 @@ test("the head graph's edges breaking the config's rules are the reading's rule 
   expect(range.ruleBreaks).toStrictEqual([
     { rule: 'a-alone', reason: 'Why.', edge: { from: 'app/file/a.ts', to: 'app/file/b.ts' } },
   ]);
+  expect(range.rulesNotRead).toStrictEqual(['a-alone: notTo app/file/e.ts matches no node']);
 });

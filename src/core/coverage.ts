@@ -22,6 +22,7 @@ export type CoverageFacts = Pick<
   | 'linksNotRead'
   | 'routes'
   | 'reachesNotRead'
+  | 'rulesNotRead'
 >;
 
 const notReadFor = (name: string): string => `not read for ${name}`;
@@ -39,6 +40,7 @@ export const coverageOf = ({
   linksNotRead,
   routes,
   reachesNotRead,
+  rulesNotRead,
 }: CoverageFacts): ReadonlyArray<Coverage> => {
   const skippedStacks = skipped.flatMap(({ stacks }) => stacks);
   const symbolsMissing = [
@@ -80,6 +82,7 @@ export const coverageOf = ({
         'notRead' in change ? [`not read: ${change.lockfile}`] : [],
       ),
     },
+    { dimension: 'rules', notRead: rulesNotRead },
     { dimension: 'schema', notRead: schemaNotRead },
     { dimension: 'routes', notRead: routesNotRead },
     { dimension: 'blast-radius', notRead: ifDrawn([...symbolsMissing, ...reachesNotRead]) },
