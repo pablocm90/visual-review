@@ -2,6 +2,13 @@
 
 What changed in each release of `@pablocm90/visual-review`, newest first. Versions follow [semver](https://semver.org); while it is 0.x, a minor version may change the exported types.
 
+## Unreleased
+
+### Added
+
+- The config's `notes` entry takes `why` and `recommendation`, booleans left on when left out, read at the base with `guidance`. `--notes` refuses a note carrying a field the page's config switches off, one line per field per note: `recommendation is switched off on <key>`. The review data's `notesConfig` carries them as written.
+- The skill leaves a switched-off field out, and with `recommendation` off puts a bug it notices in the note's text.
+
 ## 0.60.0 — 2026-11-09
 
 ### Added
