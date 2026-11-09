@@ -135,6 +135,11 @@ test.for([
     body: '    before_action :require_admin, if: :admin_area?\n    after_action :verify_authorized',
     cover: { by: 'verify_authorized', conditional: false },
   },
+  {
+    callback: 'a before_action skipped under an if',
+    body: '    before_action :require_admin\n    skip_before_action :require_admin, if: :public?',
+    cover: { by: 'require_admin', conditional: true },
+  },
 ])('the cover $callback gives the actions under it', ({ body, cover }) => {
   expect(coverOf(body)).toStrictEqual([cover]);
 });

@@ -132,11 +132,11 @@ type Covering = {
 const coverOf = ({ action, callbacks, calls, authorize }: Covering): { readonly cover?: Cover } => {
   const covers = callbacks
     .filter(callback => reaches(callback, action))
-    .reduce<ReadonlyArray<Cover>>(
-      (active, { skip, name, conditional }) =>
-        skip ? active.filter(kept => kept.by !== name) : active.concat({ by: name, conditional }),
-      [],
-    )
+    .reduce<ReadonlyArray<Cover>>((active, { skip, name, conditional }) => {
+      if (!skip) return active.concat({ by: name, conditional });
+      if (!conditional) return active.filter(kept => kept.by !== name);
+      return active.map(kept => (kept.by === name ? { by: name, conditional } : kept));
+    }, [])
     .concat(calls.map(name => ({ by: name, conditional: false })))
     .filter(({ by }) => authorize.includes(by));
   const cover = covers.find(({ conditional }) => !conditional) ?? covers[0];
