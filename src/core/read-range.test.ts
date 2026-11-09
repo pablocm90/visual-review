@@ -1,4 +1,4 @@
-import { existsSync, rmSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, rmSync, symlinkSync } from 'node:fs';
 import { basename, join } from 'node:path';
 import { expect, test, vi } from 'vitest';
 import { rustReader } from '../readers/rust/reader.ts';
@@ -13,10 +13,12 @@ import {
   git,
   gitRepo,
   pathTo,
+  pathWithCargo,
   symlinkedDirectory,
   writeFiles,
 } from '../test-support/repos.ts';
 import { reviewedHead } from '../test-support/reviewed.ts';
+import { StackNotRead } from './skipped.ts';
 
 const rootPackage = { 'package.json': '{}\n', 'src/index.ts': '' };
 
@@ -1478,7 +1480,9 @@ test('a reader whose tool is not on PATH reads none of its stacks and is listed 
   const range = await readRange({ repo, from: root, to });
 
   expect(nodeIds(range.after)).toEqual([basename(repo), `${basename(repo)}/file/index.ts`]);
-  expect(range.skipped).toEqual([{ reader: 'rust', tool: 'cargo', stacks: ['rust'] }]);
+  expect(range.skipped).toEqual([
+    { reader: 'rust', stacks: ['rust'], reason: 'cargo not found on PATH' },
+  ]);
 });
 
 test('a skipped reader lists the stacks it would read on either side, those found only before the range and those only after', async () => {
@@ -1492,7 +1496,779 @@ test('a skipped reader lists the stacks it would read on either side, those foun
 
   const range = await readRange({ repo, from: root, to, onPath: command => command !== 'cargo' });
 
-  expect(range.skipped).toEqual([{ reader: 'rust', tool: 'cargo', stacks: ['rust', 'other'] }]);
+  expect(range.skipped).toEqual([
+    { reader: 'rust', stacks: ['rust', 'other'], reason: 'cargo not found on PATH' },
+  ]);
+});
+
+test('a cargo failure that names no error fails the run', async () => {
+  using workspace = cargoWorkspace();
+  const { repo, root } = workspace;
+  using bin = pathWithCargo('exit 1');
+  vi.stubEnv('PATH', bin.path);
+
+  await expect(readRange({ repo, from: root, to: root })).rejects.toThrow('cargo metadata');
+});
+
+test('cargo reads no stdin, so a manifest it reads from there reads empty and never waits', async () => {
+  using workspace = cargoWorkspace();
+  const { repo, root } = workspace;
+  using bin = pathWithCargo(`read -r line; echo '{"workspace_root": "/", "packages": []}'`);
+  vi.stubEnv('PATH', bin.path);
+
+  const range = await readRange({ repo, from: root, to: root });
+
+  expect(nodeIds(range.after)).toEqual(['rust']);
+});
+
+test('cargo still running at the timeout is killed, even ignoring SIGTERM, and its stack is not read', async () => {
+  using workspace = cargoWorkspace();
+  const { repo, root } = workspace;
+  using bin = pathWithCargo(
+    `exec ${process.execPath} -e 'process.on("SIGTERM", () => {}); setTimeout(() => {}, 30_000)'`,
+  );
+  vi.stubEnv('PATH', bin.path);
+  vi.stubEnv('VISUAL_REVIEW_CARGO_MS', '300');
+
+  const range = await readRange({ repo, from: root, to: root });
+
+  expect(range.skipped).toEqual([
+    { reader: 'rust', stacks: ['rust'], reason: 'cargo: still running after 300 ms' },
+  ]);
+});
+
+test.skipIf(process.platform !== 'linux')(
+  'cargo past 2 GB of memory is stopped, and its stack is not read',
+  async () => {
+    using workspace = cargoWorkspace();
+    const { repo, root } = workspace;
+    using bin = pathWithCargo(
+      [
+        `${process.execPath} -e 'Buffer.alloc(3 * 2 ** 30)' 2>/dev/null ||`,
+        `{ echo 'error: out of memory' >&2; exit 101; }`,
+        `echo '{"workspace_root": "/", "packages": []}'`,
+      ].join('\n'),
+    );
+    vi.stubEnv('PATH', bin.path);
+
+    const range = await readRange({ repo, from: root, to: root });
+
+    expect(range.skipped).toEqual([
+      { reader: 'rust', stacks: ['rust'], reason: 'cargo: out of memory' },
+    ]);
+  },
+);
+
+const withZeroManifest = (repo: string): string => {
+  mkdirSync(join(repo, 'zero'));
+  symlinkSync('/dev/zero', join(repo, 'zero', 'Cargo.toml'));
+  return `../../${basename(repo)}/zero`;
+};
+
+const packageNamed = (name: string, rest = '') =>
+  `[package]\nname = "${name}"\nversion = "0.1.0"\nedition = "2021"\n${rest}`;
+
+test.for([
+  {
+    named: 'a dependency path',
+    manifest: (out: string) => packageNamed('a', `[dependencies]\nb = { path = ${out} }\n`),
+    out: 'relative',
+  },
+  {
+    named: 'an absolute dependency path, also found under its folder',
+    manifest: (out: string) => packageNamed('a', `[dependencies]\nb = { path = ${out} }\n`),
+    out: 'absolute',
+    mirrored: true,
+  },
+  {
+    named: 'a dependency path escaped in TOML',
+    manifest: (out: string) =>
+      packageNamed('a', `[dependencies]\nb = { path = ${out.replaceAll('.', '\\u002e')} }\n`),
+    out: 'relative',
+  },
+  {
+    named: 'a patch path',
+    manifest: (out: string) => packageNamed('a', `[patch.crates-io]\nb = { path = ${out} }\n`),
+    out: 'relative',
+  },
+  {
+    named: 'its workspace',
+    manifest: (out: string) => packageNamed('a', `workspace = ${out}\n`),
+    out: 'relative',
+    key: 'package.workspace',
+  },
+  {
+    named: 'its workspace, in the project table cargo still reads for package',
+    manifest: (out: string) =>
+      `[project]\nname = "a"\nversion = "0.1.0"\nedition = "2021"\nworkspace = ${out}\n`,
+    out: 'relative',
+    key: 'project.workspace',
+  },
+  {
+    named: 'a workspace member',
+    manifest: (out: string) => `[workspace]\nmembers = [${out}]\n`,
+    out: 'relative',
+    key: 'workspace.members',
+  },
+  {
+    named: 'a workspace member glob whose folder',
+    manifest: (out: string) => `[workspace]\nmembers = [${out}]\n`,
+    out: 'relative',
+    key: 'workspace.members',
+    pattern: (out: string) => `${out}/*`,
+  },
+  {
+    named: 'a workspace member glob matching a folder',
+    manifest: (out: string) => `[workspace]\nmembers = [${out}]\n`,
+    out: 'relative',
+    key: 'workspace.members',
+    pattern: (out: string) => `*/../${out}`,
+  },
+  {
+    named: 'a default workspace member',
+    manifest: (out: string) => `[workspace]\nmembers = []\ndefault-members = [${out}]\n`,
+    out: 'relative',
+    key: 'workspace.default-members',
+  },
+] as const)(
+  'a Cargo.toml naming $named that leaves the checkout is not read, and cargo never runs',
+  async ({ manifest, out, ...row }) => {
+    using repository = gitRepo({ 'README.md': '' });
+    const { repo, root } = repository;
+    const folder = { relative: withZeroManifest(repo), absolute: join(repo, 'zero') }[out];
+    const outside = 'pattern' in row ? row.pattern(folder) : folder;
+    const mirror =
+      'mirrored' in row ? { [join(folder, 'Cargo.toml').slice(1)]: packageNamed('b') } : {};
+    const head = commit(repo, {
+      ...mirror,
+      'Cargo.toml': manifest(JSON.stringify(outside)),
+      'src/lib.rs': '',
+    });
+    using bin = pathWithCargo('exit 1');
+    vi.stubEnv('PATH', bin.path);
+
+    const range = await readRange({ repo, from: root, to: head });
+
+    expect(range.skipped).toEqual([
+      {
+        reader: 'rust',
+        stacks: ['rust'],
+        reason: `Cargo.toml: ${'key' in row ? row.key : 'path'} ${JSON.stringify(outside)} leaves the checkout`,
+      },
+    ]);
+  },
+);
+
+test.for([
+  {
+    reached: 'a member glob',
+    manifest: '[workspace]\nmembers = ["crates/*"]\n',
+    folder: 'crates/a',
+  },
+  {
+    reached: 'a member glob matching a dot folder, as cargo does',
+    manifest: '[workspace]\nmembers = ["crates/*"]\n',
+    folder: 'crates/.hid',
+  },
+  {
+    reached: 'a member glob of two globbed folders, beside a file',
+    manifest: '[workspace]\nmembers = ["crates/*/*"]\n',
+    folder: 'crates/x/a',
+    beside: { 'crates/README.md': '' },
+  },
+  {
+    reached: 'a member glob with a folder after it',
+    manifest: '[workspace]\nmembers = ["crates/*/c"]\n',
+    folder: 'crates/x/c',
+  },
+  {
+    reached: 'a dependency path holding glob characters',
+    manifest: packageNamed('r', '[dependencies]\nb = { path = "crates/a[1]" }\n'),
+    folder: 'crates/a[1]',
+  },
+])(
+  'the Cargo.toml of $reached is walked, its paths read from its folder',
+  async ({ manifest, folder, ...row }) => {
+    using repository = gitRepo({ 'README.md': '' });
+    const { repo, root } = repository;
+    const outside = `${'../'.repeat(folder.split('/').length)}${withZeroManifest(repo)}`;
+    const head = commit(repo, {
+      ...('beside' in row ? row.beside : {}),
+      'Cargo.toml': manifest,
+      [`${folder}/Cargo.toml`]: packageNamed('b', `[dependencies]\nc = { path = "${outside}" }\n`),
+      [`${folder}/src/lib.rs`]: '',
+    });
+    using bin = pathWithCargo('exit 1');
+    vi.stubEnv('PATH', bin.path);
+
+    const range = await readRange({ repo, from: root, to: head });
+
+    expect(range.skipped).toEqual([
+      {
+        reader: 'rust',
+        stacks: ['rust'],
+        reason: `${folder}/Cargo.toml: path "${outside}" leaves the checkout`,
+      },
+    ]);
+  },
+);
+
+test.for([
+  {
+    named: 'an include',
+    config: (out: string) => `include = ["${out}"]\n`,
+  },
+  {
+    named: 'an include table',
+    config: (out: string) => `[[include]]\npath = "${out}"\noptional = true\n`,
+  },
+  {
+    named: 'an include, in the config file cargo still reads without .toml',
+    config: (out: string) => `include = ["${out}"]\n`,
+    file: '.cargo/config',
+  },
+])(
+  'a cargo config naming $named that leaves the checkout is not read, and cargo never runs',
+  async ({ config, ...row }) => {
+    using repository = gitRepo({ 'README.md': '' });
+    const { repo, root } = repository;
+    const outside = `../${withZeroManifest(repo)}/Cargo.toml`;
+    const file = 'file' in row ? row.file : '.cargo/config.toml';
+    const head = commit(repo, {
+      [file]: config(outside),
+      'Cargo.toml': packageNamed('a'),
+      'src/lib.rs': '',
+    });
+    using bin = pathWithCargo('exit 1');
+    vi.stubEnv('PATH', bin.path);
+
+    const range = await readRange({ repo, from: root, to: head });
+
+    expect(range.skipped).toEqual([
+      {
+        reader: 'rust',
+        stacks: ['rust'],
+        reason: `${file}: include "${outside}" leaves the checkout`,
+      },
+    ]);
+  },
+);
+
+test.for(['sub/tools', 'sub'])(
+  'a cargo config in %s, which cargo reads from the stack sub/tools, is not read when its include leaves the checkout',
+  async folder => {
+    using repository = gitRepo({ 'README.md': '' });
+    const { repo, root } = repository;
+    const outside = `${'../'.repeat(folder.split('/').length + 1)}${withZeroManifest(repo)}/Cargo.toml`;
+    const head = commit(repo, {
+      'visual-review.config.json':
+        '{"stacks": {"tools": {"reader": "rust", "root": "sub/tools"}}}\n',
+      [`${folder}/.cargo/config.toml`]: `include = ["${outside}"]\n`,
+      'sub/tools/Cargo.toml': packageNamed('t'),
+      'sub/tools/src/lib.rs': '',
+    });
+    using bin = pathWithCargo('exit 1');
+    vi.stubEnv('PATH', bin.path);
+
+    const range = await readRange({ repo, from: root, to: head });
+
+    expect(range.skipped.map(({ reason }) => reason)).toEqual([
+      `${folder}/.cargo/config.toml: include "${outside}" leaves the checkout`,
+    ]);
+  },
+);
+
+test("a cargo config including a file whose own include leaves the checkout, read from that file's folder, is not read", async () => {
+  using repository = gitRepo({ 'README.md': '' });
+  const { repo, root } = repository;
+  const outside = `${withZeroManifest(repo)}/Cargo.toml`;
+  const head = commit(repo, {
+    '.cargo/config.toml': 'include = ["../ci/base.toml"]\n',
+    'ci/base.toml': `include = ["../${outside}"]\n`,
+    'Cargo.toml': packageNamed('a'),
+    'src/lib.rs': '',
+  });
+  using bin = pathWithCargo('exit 1');
+  vi.stubEnv('PATH', bin.path);
+
+  const range = await readRange({ repo, from: root, to: head });
+
+  expect(range.skipped.map(({ reason }) => reason)).toEqual([
+    `ci/base.toml: include "../${outside}" leaves the checkout`,
+  ]);
+});
+
+test('cargo configs including each other are walked once each, and cargo runs', async () => {
+  using repository = gitRepo({ 'README.md': '' });
+  const { repo, root } = repository;
+  const head = commit(repo, {
+    '.cargo/config.toml': 'include = ["../ci.toml"]\n',
+    'ci.toml': 'include = [".cargo/config.toml"]\n',
+    'Cargo.toml': packageNamed('a'),
+    'src/lib.rs': '',
+  });
+  using bin = pathWithCargo(`echo '{"workspace_root": "/", "packages": []}'`);
+  vi.stubEnv('PATH', bin.path);
+
+  const range = await readRange({ repo, from: root, to: head });
+
+  expect(range.skipped).toEqual([]);
+});
+
+test('a cargo config whose include is no list, which cargo refuses, is not read, naming the key', async () => {
+  using repository = gitRepo({ 'README.md': '' });
+  const { repo, root } = repository;
+  const head = commit(repo, {
+    '.cargo/config.toml': 'include = "../ci.toml"\n',
+    'Cargo.toml': packageNamed('a'),
+    'src/lib.rs': '',
+  });
+  using bin = pathWithCargo('exit 1');
+  vi.stubEnv('PATH', bin.path);
+
+  const range = await readRange({ repo, from: root, to: head });
+
+  expect(range.skipped.map(({ reason }) => reason)).toEqual([
+    '.cargo/config.toml: include: Invalid input: expected array, received string',
+  ]);
+});
+
+test.for([
+  {
+    named: "a dependency's Cargo.toml",
+    files: {
+      'Cargo.toml': packageNamed('a', '[dependencies]\nb = { path = "b" }\n'),
+      'b/Cargo.toml/x': '',
+    },
+    reason: 'b/Cargo.toml: is not a file',
+  },
+  {
+    named: 'a cargo config',
+    files: { 'Cargo.toml': packageNamed('a'), '.cargo/config.toml/x': '' },
+    reason: '.cargo/config.toml: is not a file',
+  },
+  {
+    named: "a cargo config's include",
+    files: {
+      'Cargo.toml': packageNamed('a'),
+      '.cargo/config.toml': 'include = ["d.toml"]\n',
+      '.cargo/d.toml/x': '',
+    },
+    reason: '.cargo/d.toml: is not a file',
+  },
+])(
+  'a stack where $named is a folder, which cargo fails on, is not read',
+  async ({ files, reason }) => {
+    using repository = gitRepo({ 'README.md': '' });
+    const { repo, root } = repository;
+    const head = commit(repo, { ...files, 'src/lib.rs': '' });
+    using bin = pathWithCargo('exit 1');
+    vi.stubEnv('PATH', bin.path);
+
+    const range = await readRange({ repo, from: root, to: head });
+
+    expect(range.skipped.map(({ reason }) => reason)).toEqual([reason]);
+  },
+);
+
+test('a cargo config.toml beside a legacy .cargo/config, which cargo reads in its place, is not checked', async () => {
+  using repository = gitRepo({ 'README.md': '' });
+  const { repo, root } = repository;
+  const head = commit(repo, {
+    '.cargo/config': '',
+    '.cargo/config.toml': `include = ["../${withZeroManifest(repo)}/Cargo.toml"]\n`,
+    'Cargo.toml': packageNamed('a'),
+    'src/lib.rs': '',
+  });
+  using bin = pathWithCargo(`echo '{"workspace_root": "/", "packages": []}'`);
+  vi.stubEnv('PATH', bin.path);
+
+  const range = await readRange({ repo, from: root, to: head });
+
+  expect(range.skipped).toEqual([]);
+});
+
+test('a cargo config optionally including a file the checkout lacks, such as a local override, reads', async () => {
+  using repository = gitRepo({ 'README.md': '' });
+  const { repo, root } = repository;
+  const head = commit(repo, {
+    '.cargo/config.toml': '[[include]]\npath = "local.toml"\noptional = true\n',
+    'Cargo.toml': packageNamed('a'),
+    'src/lib.rs': '',
+  });
+  using bin = pathWithCargo(`echo '{"workspace_root": "/", "packages": []}'`);
+  vi.stubEnv('PATH', bin.path);
+
+  const range = await readRange({ repo, from: root, to: head });
+
+  expect(range.skipped).toEqual([]);
+});
+
+test('a cargo config including a file inside the checkout, from its .cargo folder, reads', async () => {
+  using repository = gitRepo({ 'README.md': '' });
+  const { repo, root } = repository;
+  const head = commit(repo, {
+    '.cargo/config.toml': 'include = ["../ci.toml"]\n',
+    'ci.toml': '',
+    'Cargo.toml': packageNamed('a'),
+    'src/lib.rs': '',
+  });
+  using bin = pathWithCargo(`echo '{"workspace_root": "/", "packages": []}'`);
+  vi.stubEnv('PATH', bin.path);
+
+  const range = await readRange({ repo, from: root, to: head });
+
+  expect(range.skipped).toEqual([]);
+});
+
+test("a stack under a workspace in the checkout is not read when that workspace's members leave it, since cargo searches its folders above for one", async () => {
+  using repository = gitRepo({ 'README.md': '' });
+  const { repo, root } = repository;
+  const outside = withZeroManifest(repo);
+  const head = commit(repo, {
+    'visual-review.config.json':
+      '{"stacks": {"rust": false, "tools": {"reader": "rust", "root": "sub/tools"}}}\n',
+    'Cargo.toml': `[workspace]\nmembers = ["sub/tools", "${outside}"]\n`,
+    'sub/tools/Cargo.toml': packageNamed('t'),
+    'sub/tools/src/lib.rs': '',
+  });
+  using bin = pathWithCargo('exit 1');
+  vi.stubEnv('PATH', bin.path);
+
+  const range = await readRange({ repo, from: root, to: head });
+
+  expect(range.skipped).toEqual([
+    {
+      reader: 'rust',
+      stacks: ['tools'],
+      reason: `Cargo.toml: workspace.members "${outside}" leaves the checkout`,
+    },
+  ]);
+});
+
+test.for([
+  { members: '"crates/*"', exclude: 'crates', skipped: false },
+  { members: '"crates/*", "crates/template"', exclude: 'crates/template', skipped: true },
+  { members: '"crates/*"', exclude: 'crates/x/..', skipped: true },
+  { members: '"x/../crates/*"', exclude: 'crates', skipped: true },
+])(
+  'a crate a member glob matches under workspace.exclude is walked only when a member names it, an exclude or member not comparable as written excluding nothing ($members, $exclude)',
+  async ({ members, exclude, skipped }) => {
+    using repository = gitRepo({ 'README.md': '' });
+    const { repo, root } = repository;
+    const outside = `../../${withZeroManifest(repo)}`;
+    const head = commit(repo, {
+      'Cargo.toml': `[workspace]\nmembers = [${members}]\nexclude = ["${exclude}"]\n`,
+      'crates/a/Cargo.toml': packageNamed('a'),
+      'crates/template/Cargo.toml': packageNamed(
+        't',
+        `[dependencies]\nc = { path = "${outside}" }\n`,
+      ),
+    });
+    using bin = pathWithCargo(`echo '{"workspace_root": "/", "packages": []}'`);
+    vi.stubEnv('PATH', bin.path);
+
+    const range = await readRange({ repo, from: root, to: head });
+
+    expect(range.skipped.map(({ reason }) => reason)).toEqual(
+      skipped ? [`crates/template/Cargo.toml: path "${outside}" leaves the checkout`] : [],
+    );
+  },
+);
+
+test('a link inside the checkout back to its root is walked once, and cargo runs', async () => {
+  using repository = gitRepo({ 'README.md': '' });
+  const { repo, root } = repository;
+  mkdirSync(join(repo, 'crates/a'), { recursive: true });
+  symlinkSync('../..', join(repo, 'crates/a/up'));
+  const head = commit(repo, {
+    'Cargo.toml': '[workspace]\nmembers = ["crates/a"]\n',
+    'crates/a/Cargo.toml': packageNamed('a', '[dependencies]\nr = { path = "up" }\n'),
+  });
+  using bin = pathWithCargo(`echo '{"workspace_root": "/", "packages": []}'`);
+  vi.stubEnv('PATH', bin.path);
+
+  const range = await readRange({ repo, from: root, to: head });
+
+  expect(range.skipped).toEqual([]);
+});
+
+test('a dependency path holding glob characters is followed as written, so a crate it would match as a pattern is not walked', async () => {
+  using repository = gitRepo({ 'README.md': '' });
+  const { repo, root } = repository;
+  const outside = `../../${withZeroManifest(repo)}`;
+  const head = commit(repo, {
+    'Cargo.toml': packageNamed('r', '[dependencies]\nb = { path = "crates/a[1]" }\n'),
+    'crates/a[1]/Cargo.toml': packageNamed('b'),
+    'crates/z/Cargo.toml': packageNamed('z', `[dependencies]\nc = { path = "${outside}" }\n`),
+  });
+  using bin = pathWithCargo(`echo '{"workspace_root": "/", "packages": []}'`);
+  vi.stubEnv('PATH', bin.path);
+
+  const range = await readRange({ repo, from: root, to: head });
+
+  expect(range.skipped).toEqual([]);
+});
+
+test('a workspace member climbing out of a glob is not read, even when it lands inside, since only its prefix is checked', async () => {
+  using repository = gitRepo({ 'README.md': '' });
+  const { repo, root } = repository;
+  const head = commit(repo, {
+    'Cargo.toml': '[workspace]\nmembers = ["crates/*/../a"]\n',
+    'crates/a/Cargo.toml': packageNamed('a'),
+    'crates/a/src/lib.rs': '',
+  });
+  using bin = pathWithCargo('exit 1');
+  vi.stubEnv('PATH', bin.path);
+
+  const range = await readRange({ repo, from: root, to: head });
+
+  expect(range.skipped).toEqual([
+    {
+      reader: 'rust',
+      stacks: ['rust'],
+      reason: 'Cargo.toml: workspace.members "crates/*/../a" leaves the checkout',
+    },
+  ]);
+});
+
+test.for(['crates/a/x/..', 'crates/x/../*'])(
+  'a workspace member %s climbing before any glob is checked where it lands, and reads',
+  async members => {
+    using repository = gitRepo({ 'README.md': '' });
+    const { repo, root } = repository;
+    const head = commit(repo, {
+      'Cargo.toml': `[workspace]\nmembers = ["${members}"]\n`,
+      'crates/x/README.md': '',
+      'crates/a/x/README.md': '',
+      'crates/a/Cargo.toml': packageNamed('a'),
+    });
+    using bin = pathWithCargo(`echo '{"workspace_root": "/", "packages": []}'`);
+    vi.stubEnv('PATH', bin.path);
+
+    const range = await readRange({ repo, from: root, to: head });
+
+    expect(range.skipped).toEqual([]);
+  },
+);
+
+test('a dependency named path, written as a table, is no path and reads', async () => {
+  using repository = gitRepo({ 'README.md': '' });
+  const { repo, root } = repository;
+  const head = commit(repo, {
+    'Cargo.toml': packageNamed('a', '[dependencies.path]\nversion = "1"\n'),
+    'src/lib.rs': '',
+  });
+
+  const range = await readRange({ repo, from: root, to: head });
+
+  expect(range.skipped).toEqual([]);
+});
+
+test("a stack's dependency path is read from its own folder, so one inside the checkout reads", async () => {
+  using repository = gitRepo({ 'README.md': '' });
+  const { repo, root } = repository;
+  const head = commit(repo, {
+    'visual-review.config.json': '{"stacks": {"api": {"reader": "rust", "root": "api"}}}\n',
+    'api/Cargo.toml': packageNamed('a', '[dependencies]\nb = { path = "../shared" }\n'),
+    'api/src/lib.rs': '',
+    'shared/Cargo.toml': packageNamed('b'),
+    'shared/src/lib.rs': '',
+  });
+
+  const range = await readRange({ repo, from: root, to: head });
+
+  expect(range.skipped).toEqual([]);
+  expect(nodeIds(range.after)).toContain('api/crate/a');
+});
+
+test.for(['crates/*', 'crates/?', 'crates/[a]'])(
+  "a workspace member glob %s is matched from the stack's own folder, and its members read",
+  async members => {
+    using repository = gitRepo({ 'README.md': '' });
+    const { repo, root } = repository;
+    const head = commit(repo, {
+      'visual-review.config.json': '{"stacks": {"api": {"reader": "rust", "root": "api"}}}\n',
+      'api/Cargo.toml': `[workspace]\nmembers = ["${members}"]\nresolver = "2"\n`,
+      'api/crates/a/Cargo.toml': packageNamed('a'),
+      'api/crates/a/src/lib.rs': '',
+    });
+
+    const range = await readRange({ repo, from: root, to: head });
+
+    expect(range.skipped).toEqual([]);
+    expect(nodeIds(range.after)).toContain('api/crate/a');
+  },
+);
+
+test.for([
+  {
+    broken: 'a manifest',
+    manifest: '[workspace\n',
+    reason: 'Cargo.toml: Invalid TOML document: illegal character in key',
+  },
+  {
+    broken: 'a member missing from the checkout',
+    manifest: '[workspace]\nmembers = ["crates/missing"]\n',
+    reason: 'Cargo.toml: workspace.members "crates/missing" leaves the checkout',
+  },
+  {
+    broken: 'a dependency path holding glob characters missing from the checkout',
+    manifest: packageNamed('a', '[dependencies]\nb = { path = "crates/b[1]" }\n'),
+    reason: 'Cargo.toml: path "crates/b[1]" leaves the checkout',
+  },
+  {
+    broken: 'a package workspace holding glob characters missing from the checkout',
+    manifest: packageNamed('a', 'workspace = "w[1]"\n'),
+    reason: 'Cargo.toml: package.workspace "w[1]" leaves the checkout',
+  },
+  {
+    broken: 'a package workspace that is no path',
+    manifest: packageNamed('a', 'workspace = 1\n'),
+    reason: 'Cargo.toml: package.workspace: Invalid input: expected string, received number',
+  },
+  {
+    broken: 'a member outside beside default members that are no list',
+    manifest: '[workspace]\nmembers = ["../outside"]\ndefault-members = 5\n',
+    reason: 'Cargo.toml: workspace.default-members: Invalid input: expected array, received number',
+  },
+])(
+  "a stack whose manifest can't be read, for $broken, is not read, named by the error, and the other stacks are drawn",
+  async ({ manifest, reason }) => {
+    using workspace = cargoWorkspace();
+    const { repo, root } = workspace;
+    const head = commit(repo, {
+      ...rootPackage,
+      '.cargo/config.toml': '[build]\nunused = 1\n',
+      'Cargo.toml': manifest,
+    });
+
+    const range = await readRange({ repo, from: root, to: head });
+
+    expect(nodeIds(range.before)).toEqual([]);
+    expect(nodeIds(range.after)).toEqual([basename(repo), `${basename(repo)}/file/index.ts`]);
+    expect(range.skipped).toEqual([
+      {
+        reader: 'rust',
+        stacks: ['rust'],
+        reason,
+        side: 'head',
+      },
+    ]);
+  },
+);
+
+test('a stack not read at either side is dropped from both, and listed once per reader and reason, saying the side when the other side read it', async () => {
+  using repository = gitRepo({
+    'api/broken': 'timed out',
+    'lib/broken': 'cargo: lib was broken',
+    'ops/broken': 'cargo: ops was broken',
+  });
+  const { repo, root } = repository;
+  git(repo, 'rm', '--quiet', 'lib/broken');
+  const head = commit(repo, {
+    'jobs/broken': 'timed out',
+    'ops/broken': 'cargo: ops is broken',
+  });
+  const reader = fakeReader({
+    name: 'rust',
+    roots: ['api', 'jobs', 'lib', 'ops', 'web'].map(root => ({ root })),
+    graph: async ({ directory, root, stack }) => {
+      const broken = join(directory, root, 'broken');
+      if (existsSync(broken)) throw new StackNotRead(readFileSync(broken, 'utf8'));
+      const other = stack === 'web' ? 'jobs' : 'web';
+      return {
+        nodes: [{ id: stack, kind: 'stack', label: stack, path: root }],
+        edges: [{ from: stack, to: other }],
+      };
+    },
+  });
+
+  const site = fakeReader({
+    name: 'typescript',
+    roots: [{ root: 'site' }],
+    graph: async () => {
+      throw new StackNotRead('timed out');
+    },
+  });
+
+  const range = await readRange({ repo, from: root, to: head, readers: [reader, site] });
+
+  expect(range.before).toEqual({
+    nodes: [{ id: 'web', kind: 'stack', label: 'web', path: 'web' }],
+    edges: [],
+  });
+  expect(nodeIds(range.after)).toEqual(['web']);
+  expect(range.skipped).toEqual([
+    { reader: 'rust', stacks: ['api'], reason: 'timed out' },
+    { reader: 'rust', stacks: ['lib'], reason: 'cargo: lib was broken', side: 'base' },
+    { reader: 'rust', stacks: ['ops'], reason: 'cargo: ops was broken', side: 'base' },
+    { reader: 'typescript', stacks: ['site'], reason: 'timed out' },
+    { reader: 'rust', stacks: ['jobs'], reason: 'timed out', side: 'head' },
+    { reader: 'rust', stacks: ['ops'], reason: 'cargo: ops is broken', side: 'head' },
+  ]);
+});
+
+const brokenStacks = () =>
+  fakeReader({
+    name: 'rust',
+    roots: ['api', 'jobs', 'ops', 'web'].map(root => ({ root })),
+    graph: async ({ directory, root, stack }) => {
+      const broken = join(directory, root, 'broken');
+      if (existsSync(broken)) throw new StackNotRead(readFileSync(broken, 'utf8'));
+      return {
+        nodes: [{ id: stack, kind: 'stack', label: stack, path: `${root}/main` }],
+        edges: stack === 'web' ? [] : [{ from: stack, to: 'web' }],
+      };
+    },
+    symbols: () => ({ symbols: [], exports: [], astHash: 'read' }),
+  });
+
+const withStacksBrokenSinceReview = (repository: {
+  readonly repo: string;
+  readonly root: string;
+}) => {
+  const { repo, root } = repository;
+  git(repo, 'rm', '--quiet', 'jobs/broken');
+  const reviewed = commit(repo, {
+    'api/broken': 'cargo: timed out',
+    'api/main': 'reviewed',
+    'ops/broken': 'cargo: ops is broken',
+  });
+  git(repo, 'reset', '--quiet', '--hard', root);
+  git(repo, 'rm', '--quiet', 'jobs/broken');
+  const main = commit(repo, { 'ops/broken': 'cargo: ops is broken' });
+  git(repo, 'merge', '--quiet', '--no-edit', '-X', 'no-renames', reviewed);
+  git(repo, 'rm', '--quiet', 'api/broken');
+  const to = commit(repo, { 'api/main': 'edited since' });
+  return { reviewed, main, to };
+};
+
+test("a stack not read at the last review's head, or where it forked, is dropped from every graph its diffs compare, as are those not read at the base or head, and listed once per reason as not read at the last review", async () => {
+  using repository = gitRepo({ 'jobs/broken': 'cargo: timed out' });
+  const { repo } = repository;
+  const { reviewed, main, to } = withStacksBrokenSinceReview(repository);
+
+  const range = await readRange({
+    repo,
+    from: main,
+    to,
+    readers: [brokenStacks()],
+    reviewed: reviewedHead({ head: reviewed }),
+  });
+
+  expect(nodeIds(range.after)).toEqual(['api', 'jobs', 'web']);
+  const onlyWeb = { nodes: [{ id: 'web' }], edges: [] };
+  expect(range.reviewed).toMatchObject({
+    before: onlyWeb,
+    after: onlyWeb,
+    symbols: [],
+    pullRequest: { before: onlyWeb },
+  });
+  expect(range.skipped).toEqual([
+    { reader: 'rust', stacks: ['ops'], reason: 'cargo: ops is broken' },
+    { reader: 'rust', stacks: ['api', 'jobs'], reason: 'cargo: timed out', side: 'reviewed' },
+  ]);
 });
 
 test.for([
@@ -1734,12 +2510,24 @@ test('a range with no commits in it has no changed paths and no patches', async 
   expect(range.patches).toEqual([]);
 });
 
-test('when reading a graph fails, the error surfaces and no worktree is left behind', async () => {
-  using workspace = cargoWorkspace();
-  const { repo, root } = workspace;
-  const broken = commit(repo, { 'crates/core/Cargo.toml': '[package' });
+const failingWhereBroken = () =>
+  fakeReader({
+    name: 'rust',
+    roots: [{ root: 'api' }],
+    graph: async ({ directory, root, stack }) => {
+      if (existsSync(join(directory, root, 'broken'))) throw new Error('graph failed');
+      return { nodes: [{ id: stack, kind: 'stack', label: stack, path: root }], edges: [] };
+    },
+  });
 
-  await expect(readRange({ repo, from: root, to: broken })).rejects.toThrow(/cargo metadata/);
+test('when reading a graph fails, the error surfaces and no worktree is left behind', async () => {
+  using repository = gitRepo({ 'api/a': '' });
+  const { repo, root } = repository;
+  const broken = commit(repo, { 'api/broken': '' });
+
+  await expect(
+    readRange({ repo, from: root, to: broken, readers: [failingWhereBroken()] }),
+  ).rejects.toThrow('graph failed');
   expect(git(repo, 'worktree', 'list').split('\n')).toHaveLength(1);
 });
 
@@ -1763,6 +2551,7 @@ test('a reviewed head reads as a side of its own, diffed plainly against the new
   expect(range.reviewed).toEqual({
     ...reviewedHead({ head: reviewed }),
     commits: [{ sha: to, subject: 'docs/new.md', files: ['docs/new.md'] }],
+    after: range.after,
     before: expect.objectContaining({
       nodes: expect.arrayContaining([expect.objectContaining({ id: 'rust/crate/dropped' })]),
     }),
@@ -1919,36 +2708,38 @@ test('a reviewed head that no longer resolves is gone, and the range still reads
 });
 
 test('a reviewed head that exists but fails to read is unreadable, saying why, and the range still reads', async () => {
-  using workspace = cargoWorkspace();
-  const { repo, root } = workspace;
-  const head = commit(repo, { 'crates/broken/Cargo.toml': 'not toml' });
+  using repository = gitRepo({ 'api/a': '' });
+  const { repo, root } = repository;
+  const head = commit(repo, { 'api/broken': '' });
   git(repo, 'reset', '--quiet', '--hard', root);
-  const to = commit(repo, crateFiles('cli'));
+  const to = commit(repo, { 'api/b': '' });
 
   const range = await readRange({
     repo,
     from: root,
     to,
     reviewed: reviewedHead({ head, verdict: 'approve' }),
+    readers: [failingWhereBroken()],
   });
 
   expect(range.reviewed).toMatchObject({
     head,
     verdict: 'approve',
-    unreadable: expect.stringContaining('cargo metadata'),
+    unreadable: expect.stringContaining('graph failed'),
   });
-  expect(nodeIds(range.after)).toContain('rust/crate/cli');
+  expect(nodeIds(range.after)).toEqual(['api']);
   expect(git(repo, 'worktree', 'list').split('\n')).toHaveLength(1);
 });
 
 test('a reviewed head whose own fork point fails to read is unreadable too, and the range still reads', async () => {
-  using workspace = cargoWorkspace();
-  const { repo } = workspace;
-  const broken = commit(repo, { 'crates/broken/Cargo.toml': 'not toml' });
-  const fixed = crateFiles('broken');
-  const head = commit(repo, { ...fixed, 'docs/mine.md': 'a long enough line\n' });
+  using repository = gitRepo({ 'api/a': '' });
+  const { repo } = repository;
+  const broken = commit(repo, { 'api/broken': '' });
+  git(repo, 'rm', '--quiet', 'api/broken');
+  const head = commit(repo, { 'docs/mine.md': 'a long enough line\n' });
   git(repo, 'reset', '--quiet', '--hard', broken);
-  const main = commit(repo, fixed);
+  git(repo, 'rm', '--quiet', 'api/broken');
+  const main = commit(repo, { 'api/b': '' });
   git(repo, 'merge', '--quiet', '--no-edit', head);
   const to = git(repo, 'rev-parse', 'HEAD');
 
@@ -1957,14 +2748,15 @@ test('a reviewed head whose own fork point fails to read is unreadable too, and 
     from: main,
     to,
     reviewed: reviewedHead({ head, verdict: 'approve' }),
+    readers: [failingWhereBroken()],
   });
 
   expect(range.reviewed).toMatchObject({
     head,
     verdict: 'approve',
-    unreadable: expect.stringContaining('cargo metadata'),
+    unreadable: expect.stringContaining('graph failed'),
   });
-  expect(nodeIds(range.after)).toContain('rust/crate/broken');
+  expect(nodeIds(range.after)).toEqual(['api']);
 });
 
 test('the commits since the review each name their subject and files, a rename by both names, a non-ASCII name as it is, and a merge by none', async () => {

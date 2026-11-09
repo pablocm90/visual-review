@@ -27,7 +27,7 @@ Each language is read as text, with no compiler or runtime for it, except Rust's
 - Node `^22.20.0 || >=24.8.0`.
 - macOS or Linux. It doesn't run on Windows yet.
 - `git` 2.38 or newer.
-- `cargo` on your `PATH` for Rust crates, which come from `cargo metadata`. Without it, the Rust stacks are skipped and the page says so.
+- `cargo` on your `PATH` for Rust crates, which come from `cargo metadata`. Without it, the Rust stacks are skipped and the page says so. cargo reads only what the checkout holds: a stack whose manifests name a path, workspace or member outside it, or that cargo can't read within 60 s (or 2 GB of memory, on Linux), is listed as not read, with the reason, and the review goes on.
 - For PRs, the GitHub CLI, logged in with `gh auth login`, and a git remote that points at the PR's repository. Any name works, so a fork's `origin` beside an `upstream` is fine.
 
 Nothing needs installing in the reviewed repo.

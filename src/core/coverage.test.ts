@@ -44,7 +44,9 @@ test("blast radius names what its reading couldn't, unless no stack was drawn", 
 });
 
 test('structure names a skipped stack, and cohesion stays checked', () => {
-  const skipped = [{ reader: 'rust' as const, tool: 'cargo', stacks: ['api', 'worker'] }];
+  const skipped = [
+    { reader: 'rust' as const, stacks: ['api', 'worker'], reason: 'cargo not found on PATH' },
+  ];
 
   expect(notReadIn('structure', { skipped })).toEqual([
     'api, worker not read: cargo not found on PATH',
@@ -55,7 +57,9 @@ test('structure names a skipped stack, and cohesion stays checked', () => {
 test.for(['logic', 'api', 'tests', 'blast-radius'] as const)(
   '%s names, once each, the skipped stacks and those whose reader reads no symbols',
   dimension => {
-    const skipped = [{ reader: 'rust' as const, tool: 'cargo', stacks: ['api', 'worker'] }];
+    const skipped = [
+      { reader: 'rust' as const, stacks: ['api', 'worker'], reason: 'cargo not found on PATH' },
+    ];
 
     expect(notReadIn(dimension, { skipped, symbolsNotRead: ['worker', 'web'] })).toEqual([
       'not read for api',
@@ -108,7 +112,9 @@ test('schema names the dump and the migration it could not read, and not those i
 });
 
 test('metrics names, once each, the skipped stacks and those whose reader measures nothing', () => {
-  const skipped = [{ reader: 'rust' as const, tool: 'cargo', stacks: ['api', 'worker'] }];
+  const skipped = [
+    { reader: 'rust' as const, stacks: ['api', 'worker'], reason: 'cargo not found on PATH' },
+  ];
 
   expect(notReadIn('metrics', { skipped, measuresNotRead: ['worker', 'web'] })).toEqual([
     'not read for api',

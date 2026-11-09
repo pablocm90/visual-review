@@ -1,5 +1,5 @@
 import { realpath, rm } from 'node:fs/promises';
-import { join, sep } from 'node:path';
+import { join, resolve, sep } from 'node:path';
 import { git, gitUntrimmed } from './git.ts';
 
 const LINK_MODE = '120000';
@@ -10,8 +10,8 @@ const linksAt = async (repo: string, revision: string): Promise<ReadonlyArray<st
     .filter(entry => entry.startsWith(`${LINK_MODE} `))
     .map(entry => entry.slice(entry.indexOf('\t') + 1));
 
-const resolvesInside = async (root: string, path: string): Promise<boolean> => {
-  const resolved = await realpath(join(root, path)).catch(() => undefined);
+export const resolvesInside = async (root: string, path: string): Promise<boolean> => {
+  const resolved = await realpath(resolve(root, path)).catch(() => undefined);
   return resolved === root || resolved?.startsWith(`${root}${sep}`) === true;
 };
 
