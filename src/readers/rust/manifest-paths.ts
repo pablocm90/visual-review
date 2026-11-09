@@ -1,6 +1,6 @@
-import { globSync } from 'node:fs';
-import { readFile } from 'node:fs/promises';
-import { join, resolve } from 'node:path';
+import { existsSync, globSync } from 'node:fs';
+import { readFile, realpath } from 'node:fs/promises';
+import { join, relative, resolve } from 'node:path';
 import { parse, TomlError } from 'smol-toml';
 import { z } from 'zod';
 import { resolvesInside } from '../../core/links-leaving.ts';
@@ -57,8 +57,9 @@ const literalPrefixOf = (pattern: string): string => {
   return globbed === -1 ? pattern : segments.slice(0, globbed).join('/');
 };
 
-const leaves = async (pattern: string, { checkout, root }: ManifestOptions): Promise<boolean> => {
-  const folder = resolve(checkout, root);
+type Place = { readonly checkout: string; readonly folder: string };
+
+const leaves = async (pattern: string, { checkout, folder }: Place): Promise<boolean> => {
   const prefix = literalPrefixOf(pattern);
   if (!(await resolvesInside(checkout, resolve(folder, prefix)))) return true;
   const matches = globSync(pattern, { cwd: folder });
@@ -68,14 +69,36 @@ const leaves = async (pattern: string, { checkout, root }: ManifestOptions): Pro
   return inside.includes(false);
 };
 
-export const refuseLeavingPaths = async (options: ManifestOptions): Promise<void> => {
-  const manifest = join(options.root, 'Cargo.toml');
-  const read = parsed(manifest, await readFile(join(options.checkout, manifest), 'utf8'));
+const followedFrom = async ({ checkout, folder }: Place): Promise<ReadonlyArray<string>> => {
+  const manifest = relative(checkout, join(folder, 'Cargo.toml'));
+  const read = parsed(manifest, await readFile(join(folder, 'Cargo.toml'), 'utf8'));
   const paths = [...pathsIn(read), ...workspaceOf(read)];
-  const left = await Promise.all(paths.map(({ path }) => leaves(path, options)));
+  const left = await Promise.all(paths.map(({ path }) => leaves(path, { checkout, folder })));
   const leaving = paths.find((_, index) => left[index]);
   if (leaving !== undefined)
     throw new StackNotRead(
       `${manifest}: ${leaving.key} ${JSON.stringify(leaving.path)} leaves the checkout`,
     );
+  return paths
+    .flatMap(({ path }) => [path, ...globSync(path, { cwd: folder })])
+    .map(path => resolve(folder, path))
+    .filter(path => existsSync(join(path, 'Cargo.toml')));
 };
+
+type Walk = {
+  readonly checkout: string;
+  readonly folders: ReadonlyArray<string>;
+  readonly seen: ReadonlySet<string>;
+};
+
+const walk = async ({ checkout, folders, seen }: Walk): Promise<void> => {
+  const [folder, ...rest] = folders;
+  if (folder === undefined) return;
+  const real = await realpath(folder);
+  if (seen.has(real)) return walk({ checkout, folders: rest, seen });
+  const followed = await followedFrom({ checkout, folder });
+  return walk({ checkout, folders: [...rest, ...followed], seen: new Set([...seen, real]) });
+};
+
+export const refuseLeavingPaths = ({ checkout, root }: ManifestOptions): Promise<void> =>
+  walk({ checkout, folders: [resolve(checkout, root)], seen: new Set() });

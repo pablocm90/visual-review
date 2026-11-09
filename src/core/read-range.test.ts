@@ -1647,6 +1647,60 @@ test.for([
   },
 );
 
+test.for([
+  {
+    reached: 'a member glob',
+    manifest: '[workspace]\nmembers = ["crates/*"]\n',
+    folder: 'crates/a',
+  },
+  {
+    reached: 'a dependency path holding glob characters',
+    manifest: packageNamed('r', '[dependencies]\nb = { path = "crates/a[1]" }\n'),
+    folder: 'crates/a[1]',
+  },
+])(
+  'the Cargo.toml of $reached is walked, its paths read from its folder',
+  async ({ manifest, folder }) => {
+    using repository = gitRepo({ 'README.md': '' });
+    const { repo, root } = repository;
+    const outside = `../../${withZeroManifest(repo)}`;
+    const head = commit(repo, {
+      'Cargo.toml': manifest,
+      [`${folder}/Cargo.toml`]: packageNamed('b', `[dependencies]\nc = { path = "${outside}" }\n`),
+      [`${folder}/src/lib.rs`]: '',
+    });
+    using bin = pathWithCargo('exit 1');
+    vi.stubEnv('PATH', bin.path);
+
+    const range = await readRange({ repo, from: root, to: head });
+
+    expect(range.skipped).toEqual([
+      {
+        reader: 'rust',
+        stacks: ['rust'],
+        reason: `${folder}/Cargo.toml: path "${outside}" leaves the checkout`,
+      },
+    ]);
+  },
+);
+
+test('a link inside the checkout back to its root is walked once, and cargo runs', async () => {
+  using repository = gitRepo({ 'README.md': '' });
+  const { repo, root } = repository;
+  mkdirSync(join(repo, 'crates/a'), { recursive: true });
+  symlinkSync('../..', join(repo, 'crates/a/up'));
+  const head = commit(repo, {
+    'Cargo.toml': '[workspace]\nmembers = ["crates/a"]\n',
+    'crates/a/Cargo.toml': packageNamed('a', '[dependencies]\nr = { path = "up" }\n'),
+  });
+  using bin = pathWithCargo(`echo '{"workspace_root": "/", "packages": []}'`);
+  vi.stubEnv('PATH', bin.path);
+
+  const range = await readRange({ repo, from: root, to: head });
+
+  expect(range.skipped).toEqual([]);
+});
+
 test('a dependency named path, written as a table, is no path and reads', async () => {
   using repository = gitRepo({ 'README.md': '' });
   const { repo, root } = repository;
