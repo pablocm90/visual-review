@@ -20,7 +20,10 @@ const rubyClass = (index: number): string =>
     '',
   ].join('\n');
 
-const heapGrowthOf = async (read: () => Promise<unknown>): Promise<number> => {
+const eachFile = (read: (text: string, index: number) => unknown): ReadonlyArray<unknown> =>
+  Array.from({ length: FILES }, (_, index) => read(rubyClass(index), index));
+
+const heapGrowthOf = async (read: () => unknown): Promise<number> => {
   const before = process.memoryUsage().external;
   await read();
   return process.memoryUsage().external - before;
@@ -61,6 +64,11 @@ test.for([
           stacks: new Map([['.', 'shop']]),
         }),
       ),
+  },
+  {
+    reading: 'Ruby measures',
+    read: () =>
+      eachFile((text, index) => railsReader.measure?.(text, `app/models/model${index}.rb`)),
   },
 ])(
   'reading $reading frees each file’s tree, so the parser’s heap stays as it was',

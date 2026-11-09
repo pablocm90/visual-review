@@ -1,7 +1,7 @@
 import type { Node } from 'web-tree-sitter';
 import type { FileMeasures, FunctionMeasures } from '../../core/reader.ts';
 import { codeLines } from '../tree-sitter.ts';
-import { parseRuby } from './ruby-syntax.ts';
+import { readRuby } from './ruby-syntax.ts';
 
 const METHODS = ['method', 'singleton_method'];
 
@@ -85,11 +85,12 @@ const measureMethod = (method: Node): FunctionMeasures => {
   };
 };
 
-export const measureRuby = (text: string): FileMeasures | undefined => {
-  const program = parseRuby(text);
-  if (program === undefined || program.hasError) return undefined;
-  return {
-    lines: codeLines(program, node => NOT_CODE.has(node.type)),
-    functions: program.descendantsOfType(METHODS).map(measureMethod),
-  };
-};
+export const measureRuby = (text: string): FileMeasures | undefined =>
+  readRuby(text, program =>
+    program.hasError
+      ? undefined
+      : {
+          lines: codeLines(program, node => NOT_CODE.has(node.type)),
+          functions: program.descendantsOfType(METHODS).map(measureMethod),
+        },
+  );
