@@ -7712,6 +7712,40 @@ test("on a served page Take on a test's note opens that row's field with the rec
   await takenIn(testChanges);
 });
 
+test("Take on a test's note on the Tests screen needs no node selected, and a page not served offers none", async () => {
+  const user = userEvent.setup();
+  const notes = {
+    version: 2,
+    tests: '',
+    summary: [],
+    notes: {
+      'test total.test.ts#Cart › adds tax': {
+        text: 'Adds tax once.',
+        recommendation: 'Add it per line.',
+      },
+    },
+  } as const;
+  const { rerender } = render(<ReviewPage review={pageWithSameNamedTests()} notes={notes} />);
+  const row = () =>
+    within(
+      within(screen.getByRole('region', { name: 'Test changes' })).getByRole('listitem', {
+        name: 'adds tax: added',
+      }),
+    );
+
+  await user.click(await screen.findByRole('link', { name: /^Tests/ }));
+  expect(row().getByRole('region', { name: 'Note on Cart › adds tax' })).toBeDefined();
+  expect(row().queryByRole('button', { name: 'Take' })).toBeNull();
+
+  rerender(<ReviewPage review={pageWithSameNamedTests()} notes={notes} send={async () => {}} />);
+  await user.click(row().getByRole('button', { name: 'Take' }));
+  expect(document.activeElement).toBe(row().getByRole('textbox', { name: 'Your comment' }));
+  expect(row().getByRole('textbox', { name: 'Your comment' })).toHaveProperty(
+    'value',
+    'Add it per line.',
+  );
+});
+
 test("a served page's test row in Tested by takes a comment, a removed test too, its id the test's file and headings, so tests of one name keep apart; a page not served has no toggle", async () => {
   const user = userEvent.setup();
   const sent = vi.fn(async () => {});

@@ -692,7 +692,7 @@ type InspectorProps = {
 
 type LandingPlace = string | null | undefined;
 
-type CommentAskedOn = { readonly on: string; readonly row: string | undefined };
+type CommentAskedOn = { readonly on: string | undefined; readonly row: string | undefined };
 
 const useLanding = (place: LandingPlace) => {
   const [landed, setLanded] = useState<LandingIn & { readonly on: LandingPlace }>();
@@ -1974,12 +1974,11 @@ type RowNotesOfPageProps = {
 
 const RowNotesOfPage = ({ notes, comment, selected, onAsk, children }: RowNotesOfPageProps) => {
   const onTake =
-    comment && selected !== undefined
-      ? (anchor: Comment['anchor'], text: string) => {
-          comment({ anchor, kind: 'change', text });
-          onAsk({ on: selected, row: anchorKey(anchor) });
-        }
-      : undefined;
+    comment &&
+    ((anchor: Comment['anchor'], text: string) => {
+      comment({ anchor, kind: 'change', text });
+      onAsk({ on: selected, row: anchorKey(anchor) });
+    });
   return <RowNotes value={{ notes: notes?.notes ?? {}, onTake }}>{children}</RowNotes>;
 };
 
