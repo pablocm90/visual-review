@@ -86,6 +86,79 @@ const railsApp = (): Readonly<Record<string, string>> =>
     ]),
   ]);
 
+const IMPORTERS = Array.from({ length: FILES }, (_, index) => index);
+
+const usesInRails = () =>
+  inCheckout(
+    {
+      'config/application.rb': 'module Shop\n  class Application\n  end\nend\n',
+      'app/models/order.rb': 'class Order\nend\n',
+      ...Object.fromEntries(
+        IMPORTERS.map(index => [
+          `app/models/user${index}.rb`,
+          `class User${index}\n  def m = Order.new\nend\n`,
+        ]),
+      ),
+    },
+    async directory => {
+      const stacks = new Map([['.', 'shop']]);
+      const graph = await railsReader.graph({
+        directory,
+        root: '.',
+        stack: 'shop',
+        settings: {},
+        stacks,
+      });
+      const node = graph.nodes.find(({ path }) => path === 'app/models/order.rb');
+      if (node === undefined) throw new Error('no Order');
+      return railsReader.uses?.({
+        base: directory,
+        head: directory,
+        stacks,
+        graph,
+        graphAtHead: graph,
+        node,
+        names: ['Order'],
+      });
+    },
+  );
+
+const usesInRust = () => {
+  const sources = {
+    'src/lib.rs': ['pub mod orders;', ...IMPORTERS.map(index => `pub mod user${index};`)].join(
+      '\n',
+    ),
+    'src/orders.rs': 'pub fn total() {}\n',
+    ...Object.fromEntries(
+      IMPORTERS.map(index => [
+        `src/user${index}.rs`,
+        'use crate::orders::total;\npub fn f() {\n    total();\n}\n',
+      ]),
+    ),
+  };
+  return inCheckout(sources, async directory => {
+    const graph = crateModules({
+      stack: 'rust',
+      root: '.',
+      crate: 'app',
+      roots: ['src/lib.rs'],
+      sources,
+    });
+    const node = graph.nodes.find(({ path }) => path === 'src/orders.rs');
+    if (node === undefined) throw new Error('no orders');
+    const stacks = new Map([['.', 'rust']]);
+    return rustReader.uses?.({
+      base: directory,
+      head: directory,
+      stacks,
+      graph,
+      graphAtHead: graph,
+      node,
+      names: ['total'],
+    });
+  });
+};
+
 test.for([
   {
     reading: 'a Rails graph',
@@ -155,6 +228,8 @@ test.for([
     files: FILES,
     read: () => eachRustFile(text => rustReader.readTests(text)),
   },
+  { reading: 'where a Rails class is used', files: 2 * FILES + 1, read: usesInRails },
+  { reading: 'where a Rust function is used', files: 2 * FILES + 2, read: usesInRust },
   { reading: 'Rails routes', files: FILES + 1, read: () => railsRoutes.routes(routeFiles()) },
   {
     reading: 'a schema dump that doesn’t parse',
