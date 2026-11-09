@@ -82,6 +82,18 @@ const MetricsSchema = z.strictObject({
   ),
 });
 
+const Globs = z.union([z.string().transform(glob => [glob]), z.array(z.string())], {
+  error: 'Invalid input: expected a glob or a list of globs',
+});
+
+const RuleSchema = z.strictObject({
+  from: Globs.describe('The nodes the rule holds for, by id glob; a node under one matches too'),
+  notTo: Globs.describe(
+    'The nodes they may not depend on, by id glob; a node under one matches too',
+  ),
+  reason: z.string().describe("Why: the rule's findings say it"),
+});
+
 const ConfigSchema = z.strictObject({
   $schema: z.string().optional(),
   stacks: z
@@ -103,11 +115,17 @@ const ConfigSchema = z.strictObject({
     .default({})
     .describe('Linkers by name; false turns one off'),
   metrics: MetricsSchema.prefault({}).describe('How node metrics are read'),
+  rules: z
+    .record(z.string(), RuleSchema)
+    .default({})
+    .describe('Architecture rules by name: edges from some nodes to others that break them'),
 });
 
 export type Config = z.infer<typeof ConfigSchema>;
 
 export const configJsonSchema = () => z.toJSONSchema(ConfigSchema, { io: 'input' });
+
+export type Rules = Config['rules'];
 
 export type StackSettings = z.infer<typeof StackSchema>;
 

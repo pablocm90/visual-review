@@ -2,7 +2,7 @@ import { existsSync } from 'node:fs';
 import { mkdtemp, readFile, realpath, rm, stat } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { basename, join, relative } from 'node:path';
-import { CONFIG_FILE, type Config, parseConfig, type ReaderName } from './config.ts';
+import { CONFIG_FILE, type Config, parseConfig, type ReaderName, type Rules } from './config.ts';
 import { diffGraphs, type FilePatch, type GraphDiff, type Rename } from './diff-graphs.ts';
 import { readFileThatEnds } from './file-that-ends.ts';
 import { git } from './git.ts';
@@ -99,6 +99,7 @@ export type RangeReading = {
   readonly readers: ReadonlyArray<ReaderName>;
   readonly thresholds: Omit<Config['metrics'], 'churnDays'>;
   readonly churnDays: number;
+  readonly rules: Rules;
   readonly reviewed?: ReviewedReading;
 };
 
@@ -707,6 +708,7 @@ export const readRange = async ({
       readers: [...new Set([...before.stacks, ...after.stacks].map(({ reader }) => reader.name))],
       thresholds,
       churnDays,
+      rules: config.rules,
       changedPaths,
       renames,
       patches: await Promise.all(
