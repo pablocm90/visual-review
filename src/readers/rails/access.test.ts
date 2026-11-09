@@ -395,3 +395,23 @@ end
     ).actions.map(({ cover }) => cover?.by),
   ).toStrictEqual([by]);
 });
+
+test('a callback list it cannot read is unread, where it is written', () => {
+  expect(
+    read({
+      'app/controllers/users_controller.rb': `class UsersController < ApplicationController
+  helper_method *HELPERS
+  before_action :require_admin
+  before_action *CALLBACKS, :set_user
+  def index; end
+end
+`,
+    }).unread,
+  ).toStrictEqual([
+    {
+      text: 'before_action *CALLBACKS, :set_user',
+      file: 'app/controllers/users_controller.rb',
+      line: 4,
+    },
+  ]);
+});

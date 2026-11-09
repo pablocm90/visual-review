@@ -1,5 +1,5 @@
 import type { Node } from 'web-tree-sitter';
-import type { AccessReader, Action, Cover } from '../../core/access.ts';
+import type { AccessReader, Action, Cover, UnreadAccess } from '../../core/access.ts';
 import { classesOf, lookedUp, scopesOf, type Wanted, written } from './rails-graph.ts';
 import { NOT_SEARCHED } from './reader.ts';
 import { symbolsOfRuby } from './ruby-symbols.ts';
@@ -152,13 +152,26 @@ type ControllerFile = {
   readonly root: string;
   readonly controllers: ReadonlyArray<Controller>;
   readonly actions: ReadonlyArray<Action>;
+  readonly unread: ReadonlyArray<UnreadAccess>;
 };
+
+const unreadIn = (program: Node, file: string): ReadonlyArray<UnreadAccess> =>
+  program
+    .descendantsOfType('call')
+    .filter(
+      call =>
+        CALLBACK.test(methodOf(call)) && argsOf(call).some(({ type }) => type === 'splat_argument'),
+    )
+    .map(call => ({ text: call.text, file, line: call.startPosition.row + 1 }));
 
 const fileOf = (file: string, text: string): ControllerFile => {
   const root = file.slice(0, file.indexOf('app/controllers/'));
   return {
     root,
-    controllers: readRuby(text, program => controllersIn(program, undefined)),
+    ...readRuby(text, program => ({
+      controllers: controllersIn(program, undefined),
+      unread: unreadIn(program, file),
+    })),
     actions: symbolsOfRuby(text).symbols.flatMap(({ name, scope, kind, exported, lines }) =>
       kind === 'method' && exported && scope !== undefined && !name.startsWith('self.')
         ? [{ controller: scope, action: name, root, file, line: lines.start }]
@@ -192,11 +205,8 @@ const coveredIn = (
 export const railsAccess: AccessReader = {
   holds: path =>
     CONTROLLER_FILE.test(path) && !path.split('/').some(folder => NOT_SEARCHED.has(folder)),
-  actions: ({ files, authorize }) => ({
-    actions: coveredIn(
-      [...files].map(([file, text]) => fileOf(file, text)),
-      authorize,
-    ),
-    unread: [],
-  }),
+  actions: ({ files, authorize }) => {
+    const read = [...files].map(([file, text]) => fileOf(file, text));
+    return { actions: coveredIn(read, authorize), unread: read.flatMap(({ unread }) => unread) };
+  },
 };
