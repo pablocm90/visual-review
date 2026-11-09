@@ -54,6 +54,7 @@ export const gitRepo = (files: Readonly<Record<string, string>>) => {
   git(repo, 'config', 'user.email', 'test@example.com');
   git(repo, 'config', 'user.name', 'Test');
   git(repo, 'config', 'core.autocrlf', 'false');
+  git(repo, 'config', 'gc.auto', '0');
   const root = commit(repo, files);
   return { repo, root, [Symbol.dispose]: () => rmSync(repo, { recursive: true, force: true }) };
 };
