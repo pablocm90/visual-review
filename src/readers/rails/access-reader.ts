@@ -133,6 +133,9 @@ const literally = (text: string): string => text.replace(/[\\^$.+?()[\]{}|]/g, '
 const namedBy = (pattern: string): RegExp =>
   new RegExp(`^${pattern.split('*').map(literally).join('.*')}$`);
 
+const authorizes = (authorize: ReadonlyArray<string>, name: string): boolean =>
+  authorize.some(pattern => namedBy(pattern).test(name));
+
 type Covering = {
   readonly action: string;
   readonly callbacks: ReadonlyArray<Callback>;
@@ -149,7 +152,7 @@ const coverOf = ({ action, callbacks, calls, authorize }: Covering): { readonly 
       return active.map(kept => (kept.by === name ? { by: name, conditional } : kept));
     }, [])
     .concat(calls.map(name => ({ by: name, conditional: false })))
-    .filter(({ by }) => authorize.some(name => namedBy(name).test(by)));
+    .filter(({ by }) => authorizes(authorize, by));
   const cover = covers.find(({ conditional }) => !conditional) ?? covers[0];
   return cover === undefined ? {} : { cover };
 };
@@ -161,22 +164,27 @@ type ControllerFile = {
   readonly unread: ReadonlyArray<UnreadAccess>;
 };
 
-const unreadIn = (program: Node, file: string): ReadonlyArray<UnreadAccess> =>
+type Reading = { readonly file: string; readonly authorize: ReadonlyArray<string> };
+
+const unreadable = (call: Node, authorize: ReadonlyArray<string>): boolean => {
+  if (argsOf(call).some(({ type }) => type === 'splat_argument')) return true;
+  const block = call.childForFieldName('block');
+  return block !== null && !namesCalledIn(block).some(name => authorizes(authorize, name));
+};
+
+const unreadIn = (program: Node, { file, authorize }: Reading): ReadonlyArray<UnreadAccess> =>
   program
     .descendantsOfType('call')
-    .filter(
-      call =>
-        CALLBACK.test(methodOf(call)) && argsOf(call).some(({ type }) => type === 'splat_argument'),
-    )
+    .filter(call => CALLBACK.test(methodOf(call)) && unreadable(call, authorize))
     .map(call => ({ text: call.text, file, line: call.startPosition.row + 1 }));
 
-const fileOf = (file: string, text: string): ControllerFile => {
+const fileOf = (text: string, { file, authorize }: Reading): ControllerFile => {
   const root = file.slice(0, file.indexOf('app/controllers/'));
   return {
     root,
     ...readRuby(text, program => ({
       controllers: controllersIn(program, undefined),
-      unread: unreadIn(program, file),
+      unread: unreadIn(program, { file, authorize }),
     })),
     actions: symbolsOfRuby(text).symbols.flatMap(({ name, scope, kind, exported, lines }) =>
       kind === 'method' && exported && scope !== undefined && !name.startsWith('self.')
@@ -212,7 +220,7 @@ export const railsAccess: AccessReader = {
   holds: path =>
     CONTROLLER_FILE.test(path) && !path.split('/').some(folder => NOT_SEARCHED.has(folder)),
   actions: ({ files, authorize }) => {
-    const read = [...files].map(([file, text]) => fileOf(file, text));
+    const read = [...files].map(([file, text]) => fileOf(text, { file, authorize }));
     return { actions: coveredIn(read, authorize), unread: read.flatMap(({ unread }) => unread) };
   },
 };

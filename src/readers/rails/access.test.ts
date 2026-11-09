@@ -406,13 +406,15 @@ end
   ).toStrictEqual([by]);
 });
 
-test('a callback list it cannot read is unread, where it is written', () => {
+test('a callback list it cannot read, or a block calling no authorize name, is unread, where it is written', () => {
   expect(
     read({
       'app/controllers/users_controller.rb': `class UsersController < ApplicationController
   helper_method *HELPERS
   before_action :require_admin
   before_action *CALLBACKS, :set_user
+  before_action { authorize User }
+  before_action { head :forbidden unless admin? }
   def index; end
 end
 `,
@@ -422,6 +424,11 @@ end
       text: 'before_action *CALLBACKS, :set_user',
       file: 'app/controllers/users_controller.rb',
       line: 4,
+    },
+    {
+      text: 'before_action { head :forbidden unless admin? }',
+      file: 'app/controllers/users_controller.rb',
+      line: 6,
     },
   ]);
 });
