@@ -1,4 +1,4 @@
-import { existsSync, globSync, readdirSync, statSync } from 'node:fs';
+import { existsSync, readdirSync, statSync } from 'node:fs';
 import { readFile, realpath } from 'node:fs/promises';
 import { join, relative, resolve } from 'node:path';
 import { parse, TomlError } from 'smol-toml';
@@ -67,11 +67,8 @@ const literalPrefixOf = (pattern: string): string => {
   return globbed === -1 ? pattern : segments.slice(0, globbed).join('/');
 };
 
-const climbsOutOfGlob = (pattern: string): boolean => {
-  const segments = pattern.split('/');
-  const globbed = segments.findIndex(isGlobbed);
-  return globbed !== -1 && segments.slice(globbed).includes('..');
-};
+const climbsOutOfGlob = (pattern: string): boolean =>
+  pattern.slice(literalPrefixOf(pattern).length).split('/').includes('..');
 
 const childFolders = (folder: string): ReadonlyArray<string> =>
   statSync(folder, { throwIfNoEntry: false })?.isDirectory()
@@ -96,14 +93,10 @@ type Place = { readonly checkout: string; readonly folder: string };
 
 const leaves = async ({ path, pattern }: Named, { checkout, folder }: Place): Promise<boolean> => {
   if (!pattern) return !(await resolvesInside(checkout, resolve(folder, path)));
-  if (climbsOutOfGlob(path)) return true;
-  const prefix = literalPrefixOf(path);
-  if (!(await resolvesInside(checkout, resolve(folder, prefix)))) return true;
-  const matches = globSync(path, { cwd: folder });
-  const inside = await Promise.all(
-    matches.map(match => resolvesInside(checkout, resolve(folder, match))),
+  return (
+    climbsOutOfGlob(path) ||
+    !(await resolvesInside(checkout, resolve(folder, literalPrefixOf(path))))
   );
-  return inside.includes(false);
 };
 
 const followedFrom = async ({ checkout, folder }: Place): Promise<ReadonlyArray<string>> => {
