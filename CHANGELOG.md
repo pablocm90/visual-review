@@ -2,7 +2,7 @@
 
 What changed in each release of `@pablocm90/visual-review`, newest first. Versions follow [semver](https://semver.org); while it is 0.x, a minor version may change the exported types.
 
-## 0.54.0 — 2026-11-09
+## 0.55.0 — 2026-11-09
 
 ### Added
 
@@ -12,6 +12,20 @@ What changed in each release of `@pablocm90/visual-review`, newest first. Versio
 
 - Notes are version 2: every key in `notes` and `unasked` names its kind, `part <node id>`, `edge <from> -> <to>` or `symbol <id>`, and `notes.schema.json` checks the shape. A version 1 file is refused with "this visual-review reads version 2". Problems name the key: `unknown key part x`, `no note on part x`, `no note on edge a -> b`. A flag's finding is `notes:<kind> <id>`, so a last review's answer to a version 1 flag (`notes:<id>`) lists under the last review with nowhere to go, and an It's fine given to one no longer keeps that flag out of Start here. An unasked change on a symbol goes to its file's node.
 - The skill writes version 2 keys, may add a note on a symbol where there's something to say about it, and reads a flag's answer as `notes:<kind> <id>`.
+
+## 0.54.0 — 2026-11-09
+
+### Added
+
+- A Rust stack cargo can't read, such as one whose `Cargo.toml` doesn't parse, is listed as not read with cargo's error, saying the side it couldn't be read at, and is dropped from both graphs, so its crates don't all read as added or removed; the review goes on with the other stacks instead of failing.
+- cargo reads no stdin, and one still running after 60 s (`VISUAL_REVIEW_CARGO_MS`) is killed, its stack listed as not read. On Linux it runs under a 2 GB address-space cap, so a manifest linked to `/dev/zero` stops it at that.
+- Before cargo runs, the manifests it would read are walked from a Rust stack's `Cargo.toml`, and from each folder above it in the checkout holding one, following each folder they name that holds one: every value under a key named `path`, and `package.workspace` or `project.workspace`, as written, and each `workspace.members` or `default-members` pattern, by its literal folders, must resolve inside the checkout, or the stack is not read, naming the manifest and the value. So is a manifest that isn't TOML or whose workspace keys aren't what cargo reads, and a member climbing out of a glob (`crates/*/../a`), wherever it lands. A crate a glob matches under `workspace.exclude` isn't walked, as cargo doesn't read it.
+- A Rust stack whose cargo config, `.cargo/config.toml` or `.cargo/config` in its folder or one above it in the checkout, includes a file outside the checkout, directly or through a file it includes, is not read, naming the config and the include; so is one whose `include` isn't a list, which cargo refuses.
+
+### Changed
+
+- `Skipped` (`PageData.skipped`) is `{ reader, stacks, reason, side? }` in place of `{ reader, tool, stacks }`: `reason` reads `cargo not found on PATH` for a missing tool, and `side` is `base`, `head` or `reviewed` when the stack was read elsewhere.
+- A stacks-not-read finding goes by its stacks, `structure:skipped:<stacks>`, not by its reader, so one reader's stacks not read for two reasons are two findings.
 
 ## 0.53.0 — 2026-11-09
 

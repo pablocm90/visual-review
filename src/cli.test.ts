@@ -106,7 +106,7 @@ test('without cargo on PATH, the review still writes its page, says on stderr wh
     stderr: 'rust not read: cargo not found on PATH\n',
   });
   expect(reviewDataIn(readFileSync(page, 'utf8'))).toMatchObject({
-    skipped: [{ reader: 'rust', tool: 'cargo', stacks: ['rust'] }],
+    skipped: [{ reader: 'rust', stacks: ['rust'], reason: 'cargo not found on PATH' }],
   });
 }, 60_000);
 

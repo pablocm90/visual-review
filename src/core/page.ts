@@ -126,7 +126,6 @@ export const pageData = ({
       : {
           sinceReview: sinceReviewOf({
             reviewed: reading.reviewed,
-            after: reading.after,
             diff,
             changedPaths: reading.changedPaths,
             patches: reading.patches,

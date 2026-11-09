@@ -115,7 +115,9 @@ export type StackOptions = HoldsOptions & {
  * nodes and edges under its drawn id, given every root of this reader's drawn stacks and its id.
  * The reader also owns its test files, saying which paths they are and how their tests read.
  * `tool` names the command its `graph` runs, if any: when it isn't on `PATH`, none of the
- * reader's stacks is read, and the review lists them as skipped. `measure`, if it has one,
+ * reader's stacks is read, and the review lists them as skipped. `graph` throws `StackNotRead`,
+ * with the reason, for a stack it can't read: the review lists that stack as not read, and any
+ * other throw fails it. `measure`, if it has one,
  * measures one of its files: its lines of code (not blank, not comment) and each function's
  * cyclomatic complexity and ABC parts; without it, its nodes get no complexity. A file it
  * measures as `undefined` is left unmeasured. `symbols`, if it has one, reads the symbols of one of

@@ -88,6 +88,12 @@ export const pathTo = (...commands: ReadonlyArray<string>) => {
   return { path: bin, [Symbol.dispose]: () => rmSync(bin, { recursive: true, force: true }) };
 };
 
+export const pathWithCargo = (script: string) => {
+  const bin = pathTo('git');
+  writeFileSync(join(bin.path, 'cargo'), `#!/bin/sh\n${script}\n`, { mode: 0o755 });
+  return bin;
+};
+
 export const layOutBareRepository = ({
   directory,
   monitorTouches,

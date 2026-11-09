@@ -214,7 +214,7 @@ export const FindingsRail = (props: FindingsRailProps) => {
     return (
       <aside className="findings" aria-label="Findings">
         {props.review.skipped.map(skip => (
-          <p key={skip.reader} className="skipped" role="alert">
+          <p key={skippedFindingId(skip)} className="skipped" role="alert">
             {notReadLine(skip)}
           </p>
         ))}
@@ -251,7 +251,12 @@ export const FindingsRail = (props: FindingsRailProps) => {
   return (
     <nav className="findings-rail" aria-label="Findings">
       {props.review.skipped.map(skip => (
-        <p key={skip.reader} className="rail-skipped" role="alert" title={notReadLine(skip)}>
+        <p
+          key={skippedFindingId(skip)}
+          className="rail-skipped"
+          role="alert"
+          title={notReadLine(skip)}
+        >
           <span aria-hidden="true">!</span>
           <span className="visually-hidden">{notReadLine(skip)}</span>
         </p>

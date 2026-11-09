@@ -47,7 +47,6 @@ export type SinceReview = Said &
 
 type SinceReviewOptions = {
   readonly reviewed: ReviewedReading;
-  readonly after: Graph;
   readonly diff: GraphDiff;
   readonly changedPaths: ReadonlyArray<string>;
   readonly patches: ReadonlyArray<FilePatch>;
@@ -205,7 +204,6 @@ const withoutComment = ({ nodes, tree, comments }: WithoutCommentOptions) => {
 
 export const sinceReviewOf = ({
   reviewed,
-  after,
   diff,
   changedPaths,
   patches,
@@ -220,10 +218,10 @@ export const sinceReviewOf = ({
   const { pullRequest, ...side } = reviewed;
   const paths = [...changedPaths, ...pullRequest.changedPaths];
   const pathsSince = side.changedPaths.filter(path => paths.includes(path));
-  const sinceDiff = diffGraphs({ ...side, after, changedPaths: pathsSince });
+  const sinceDiff = diffGraphs({ ...side, changedPaths: pathsSince });
   const since = changedIn(sinceDiff);
   const now = changedIn(diff);
-  const named = namedInTheHead({ reviewed: side.before, after, diff: sinceDiff });
+  const named = namedInTheHead({ reviewed: side.before, after: side.after, diff: sinceDiff });
   const atReview = diffGraphs({ ...pullRequest, after: side.before });
   const then = changedIn({
     nodes: atReview.nodes.map(node => ({ ...node, id: named(node.id) })),
@@ -268,7 +266,7 @@ export const sinceReviewOf = ({
       files: files.dropped,
     },
   };
-  const tree = [...side.before.nodes, ...after.nodes];
+  const tree = [...side.before.nodes, ...side.after.nodes];
   const compared: Compared = {
     changed,
     held: { ...anchors.held, tests: testsSince.held, files: patches.map(({ path }) => path) },

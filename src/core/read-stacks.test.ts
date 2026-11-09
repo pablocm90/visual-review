@@ -5,6 +5,7 @@ import type { Graph } from './graph.ts';
 import type { Linker } from './linker.ts';
 import { checkConfig, readStacks } from './read-stacks.ts';
 import type { Reader } from './reader.ts';
+import { StackNotRead } from './skipped.ts';
 
 const shopGraph = (): Graph => ({
   nodes: [
@@ -238,7 +239,37 @@ test('a reader whose tool is not on PATH reads none of its stacks and is listed 
   });
 
   expect(nodeIds(side.graph)).toEqual(['web']);
-  expect(side.skipped).toEqual([{ reader: 'rust', tool: 'cargo', stacks: ['api'] }]);
+  expect(side.skipped).toEqual([
+    { reader: 'rust', stacks: ['api'], reason: 'cargo not found on PATH' },
+  ]);
+});
+
+test('a stack its reader says it cannot read is listed as not read with the reason, while its other stacks still read', async () => {
+  const side = await readSide({
+    readers: [
+      fakeReader({
+        name: 'rust',
+        roots: [{ root: 'api' }, { root: 'jobs' }],
+        graph: async ({ root, stack }) => {
+          if (stack === 'jobs') throw new StackNotRead('cargo: jobs/Cargo.toml is broken');
+          return { nodes: [{ id: stack, kind: 'stack', label: stack, path: root }], edges: [] };
+        },
+      }),
+    ],
+  });
+
+  expect(nodeIds(side.graph)).toEqual(['api']);
+  expect(side.skipped).toEqual([
+    { reader: 'rust', stacks: ['jobs'], reason: 'cargo: jobs/Cargo.toml is broken' },
+  ]);
+});
+
+test('a reader failing otherwise fails the reading', async () => {
+  const reading = readSide({
+    readers: [fakeReader({ name: 'rust', roots: [{ root: 'api' }], graph: unread })],
+  });
+
+  await expect(reading).rejects.toThrow('a graph was read');
 });
 
 test.for([

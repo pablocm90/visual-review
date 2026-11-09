@@ -43,7 +43,22 @@ const webStack: GraphNode = { id: 'web', kind: 'stack', label: 'web', path: '' }
 
 const patch = (path: string) => ({ path, patch: `diff --git a/${path} b/${path}` });
 
-const readingWith = (overrides: Partial<RangeReading>): RangeReading => ({
+type Compared = Extract<ReviewedReading, { readonly pullRequest: unknown }>;
+type ReviewedUpToItsHead = Omit<Compared, 'after'> & Partial<Pick<Compared, 'after'>>;
+type ReadingOverrides = Partial<Omit<RangeReading, 'reviewed'>> & {
+  readonly reviewed?: ReviewedReading | ReviewedUpToItsHead;
+};
+
+const readingWith = ({ reviewed, ...overrides }: ReadingOverrides): RangeReading => {
+  const reading = readingOf(overrides);
+  if (reviewed === undefined) return reading;
+  return {
+    ...reading,
+    reviewed: 'pullRequest' in reviewed ? { after: reading.after, ...reviewed } : reviewed,
+  };
+};
+
+const readingOf = (overrides: Partial<Omit<RangeReading, 'reviewed'>>): RangeReading => ({
   before: { nodes: [webStack], edges: [] },
   after: { nodes: [webStack, webFile('a.ts')], edges: [] },
   churn: { before: {}, after: {} },
@@ -126,7 +141,9 @@ test("a reading's page data holds its diff, the reading order of its changed par
 
 test("a pull request's page data names it, and lists the stacks a missing tool kept from being read", () => {
   const pullRequest = { number: 7, title: 'Adds a', url: 'https://github.com/acme/shop/pull/7' };
-  const skipped = [{ reader: 'rust' as const, tool: 'cargo', stacks: ['rust'] }];
+  const skipped = [
+    { reader: 'rust' as const, stacks: ['rust'], reason: 'cargo not found on PATH' },
+  ];
 
   expect(
     pageData({
@@ -348,19 +365,60 @@ test('a symbol reaching files the change left is a blast radius finding to look 
   expect(shown).toEqual(reaches);
 });
 
-test('stacks a missing tool kept from being read are a structure finding to look at, on no node', () => {
-  const skipped = [{ reader: 'rust' as const, tool: 'cargo', stacks: ['api', 'worker'] }];
+test('stacks not read are a structure finding to look at per reason, by those stacks and the side when it has one, on no node', () => {
+  const skipped = [
+    { reader: 'rust' as const, stacks: ['api', 'worker'], reason: 'cargo not found on PATH' },
+    {
+      reader: 'rust' as const,
+      stacks: ['jobs'],
+      reason: 'cargo: jobs is broken',
+      side: 'head' as const,
+    },
+    {
+      reader: 'rust' as const,
+      stacks: ['lib'],
+      reason: 'cargo: timed out',
+      side: 'reviewed' as const,
+    },
+    {
+      reader: 'rust' as const,
+      stacks: ['jobs'],
+      reason: 'cargo: timed out',
+      side: 'base' as const,
+    },
+  ];
 
   expect(
     pageData({ repo: 'shop', reading: readingWith({ skipped }), range: 'a..b', version, parsers })
       .findings,
   ).toStrictEqual([
     {
-      id: 'structure:skipped:rust',
+      id: 'structure:skipped:api,worker',
       check: 'structure:skipped',
       dimension: 'structure',
       level: 'look',
       title: 'api, worker not read: cargo not found on PATH',
+    },
+    {
+      id: 'structure:skipped:jobs:head',
+      check: 'structure:skipped',
+      dimension: 'structure',
+      level: 'look',
+      title: 'jobs not read at the head: cargo: jobs is broken',
+    },
+    {
+      id: 'structure:skipped:lib:reviewed',
+      check: 'structure:skipped',
+      dimension: 'structure',
+      level: 'look',
+      title: 'lib not read at the last review: cargo: timed out',
+    },
+    {
+      id: 'structure:skipped:jobs:base',
+      check: 'structure:skipped',
+      dimension: 'structure',
+      level: 'look',
+      title: 'jobs not read at the base: cargo: timed out',
     },
   ]);
 });
@@ -1887,9 +1945,9 @@ const reviewedAt = ({
   pullRequest,
   ...overrides
 }: Pick<ReviewedDiff, 'before' | 'changedPaths'> &
-  Partial<Pick<ReviewedDiff, 'renames' | 'symbols' | 'tests'>> & {
+  Partial<Pick<Compared, 'after' | 'renames' | 'symbols' | 'tests'>> & {
     readonly pullRequest?: Partial<ReviewedDiff>;
-  }): ReviewedReading => ({
+  }): ReviewedUpToItsHead => ({
   ...reviewedHead(),
   commits: [],
   renames: [],
@@ -2210,6 +2268,21 @@ test('page data holds apart what the PR added at the last review and has since d
     verdict: 'comment',
     changed: { nodes: [], edges: [], dropped: { nodes: [a], edges: [`${a} -> ${b}`] } },
   });
+});
+
+test("page data lists nothing changed since in a stack the last review's head didn't read", () => {
+  const api: GraphNode = { id: 'api', kind: 'stack', label: 'api', path: 'api' };
+  const read = { nodes: [webStack, webFile('a.ts')], edges: [] };
+  const reading = readingWith({
+    before: read,
+    after: { nodes: [...read.nodes, api], edges: [] },
+    changedPaths: ['api/Cargo.toml'],
+    reviewed: reviewedAt({ before: read, after: read, changedPaths: ['api/Cargo.toml'] }),
+  });
+
+  expect(
+    pageData({ repo: 'shop', reading, range: 'a..b', version: '1.2.3', parsers: {} }).sinceReview,
+  ).toMatchObject({ changed: { nodes: [], edges: [], dropped: nothingDropped } });
 });
 
 test('page data lists an edge the PR removed at the last review and has since put back', () => {
@@ -3283,13 +3356,16 @@ const answering = (id: string): Review['comments'][number] => ({
   kind: 'fine',
 });
 
-const answersReading = (id: string, reviewed: (graph: Graph) => ReviewedReading) => {
+const answersReading = (
+  id: string,
+  reviewed: (graph: Graph) => ReviewedReading | ReviewedUpToItsHead,
+) => {
   const nodes = [webStack, webFile('a.ts'), webFile('b.ts')];
   return readingWith({
     before: { nodes: [webStack], edges: [] },
     after: { nodes, edges: [{ from: 'web/file/a.ts', to: 'web/file/b.ts' }] },
     changedPaths: ['web/src/a.ts', 'web/src/b.ts'],
-    skipped: [{ reader: 'rust', tool: 'cargo', stacks: ['rust'] }],
+    skipped: [{ reader: 'rust', stacks: ['rust'], reason: 'cargo not found on PATH' }],
     danglingCalls: [
       { from: 'web/file/a.ts', path: '/api/a' },
       { from: 'web/file/b.ts', path: '/api/b' },
