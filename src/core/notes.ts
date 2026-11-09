@@ -49,6 +49,14 @@ const ReviewNotesSchema = z
         z
           .strictObject({
             text: z.string(),
+            why: z
+              .string()
+              .optional()
+              .describe('Why it changed this way, and what follows from it'),
+            recommendation: z
+              .string()
+              .optional()
+              .describe('What to do about it, when something warrants it'),
             flag: z.string().optional().describe('A short label for a structural concern'),
             dimension: z
               .enum(DIMENSIONS)
@@ -123,13 +131,23 @@ export const parseNotes = ({ text, file }: ParseNotesOptions): ReviewNotes => {
   return notes.data;
 };
 
-const joined = (one: Note, other: Note): Note => {
-  const flags = [one.flag, other.flag].filter(flag => flag !== undefined);
-  return {
-    text: `${one.text} ${other.text}`,
-    ...(flags.length > 0 ? { flag: flags.join(', ') } : {}),
-  };
+type JoinedField = 'why' | 'recommendation' | 'flag';
+
+const joinedField = (
+  key: JoinedField,
+  notes: readonly Note[],
+  separator: string,
+): Partial<Record<JoinedField, string>> => {
+  const values = notes.map(note => note[key]).filter(value => value !== undefined);
+  return values.length > 0 ? { [key]: values.join(separator) } : {};
 };
+
+const joined = (one: Note, other: Note): Note => ({
+  text: `${one.text} ${other.text}`,
+  ...joinedField('why', [one, other], ' '),
+  ...joinedField('recommendation', [one, other], ' '),
+  ...joinedField('flag', [one, other], ', '),
+});
 
 type VisibleNotesOptions = VisibleDiffOptions & {
   readonly notes: Readonly<Record<string, Note>>;

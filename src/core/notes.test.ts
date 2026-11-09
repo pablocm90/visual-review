@@ -229,27 +229,49 @@ test.for<{
     },
   },
   {
-    rule: 'joins the notes and the flags of the file edges merged into one drawn edge',
+    rule: 'joins the notes, their whys, recommendations and flags of the file edges merged into one drawn edge',
     notes: {
-      'a1 -> b1': { text: 'Reads b1.', flag: 'reaches in' },
-      'a2 -> b1': { text: 'Also reads b1.', flag: 'cycle' },
+      'a1 -> b1': {
+        text: 'Reads b1.',
+        why: 'It owns the rule.',
+        recommendation: 'Import it from B.',
+        flag: 'reaches in',
+      },
+      'a2 -> b1': {
+        text: 'Also reads b1.',
+        why: 'It needs the total.',
+        recommendation: 'Pass the total in.',
+        flag: 'cycle',
+      },
       'a2 -> root': { text: 'Calls root.' },
     },
     shown: {
-      'A -> B': { text: 'Reads b1. Also reads b1.', flag: 'reaches in, cycle' },
+      'A -> B': {
+        text: 'Reads b1. Also reads b1.',
+        why: 'It owns the rule. It needs the total.',
+        recommendation: 'Import it from B. Pass the total in.',
+        flag: 'reaches in, cycle',
+      },
       'A -> root': { text: 'Calls root.' },
     },
   },
   {
-    rule: 'keeps the one flag among merged notes',
+    rule: 'keeps the one flag, the one why and the one recommendation among merged notes',
     notes: {
-      'a1 -> b1': { text: 'Reads b1.' },
-      'a2 -> b1': { text: 'Also reads b1.', flag: 'cycle' },
+      'a1 -> b1': { text: 'Reads b1.', why: 'It owns the rule.' },
+      'a2 -> b1': { text: 'Also reads b1.', recommendation: 'Pass the total in.', flag: 'cycle' },
     },
-    shown: { 'A -> B': { text: 'Reads b1. Also reads b1.', flag: 'cycle' } },
+    shown: {
+      'A -> B': {
+        text: 'Reads b1. Also reads b1.',
+        why: 'It owns the rule.',
+        recommendation: 'Pass the total in.',
+        flag: 'cycle',
+      },
+    },
   },
   {
-    rule: 'gives merged notes without flags no flag',
+    rule: 'gives merged notes without flags, whys or recommendations none',
     notes: {
       'a1 -> b1': { text: 'Reads b1.' },
       'a2 -> b1': { text: 'Also reads b1.' },
@@ -368,6 +390,18 @@ test.for([
   expect(() =>
     parseNotes({ text: JSON.stringify({ ...notesWith(), ...overrides }), file }),
   ).toThrow(new RegExp(`^Invalid notes file ${file}: .*"${key}"`, 's'));
+});
+
+test('a note keeps why it changed this way and what to do about it, beside what it does', () => {
+  const notes = {
+    'web/module/pages': {
+      text: 'Home now formats dates.',
+      why: 'The API sends ISO strings.',
+      recommendation: 'Format them in one helper.',
+    },
+  };
+
+  expect(parseNotes({ text: JSON.stringify(notesWith({ notes })), file }).notes).toEqual(notes);
 });
 
 test('a notes file may name its schema', () => {
