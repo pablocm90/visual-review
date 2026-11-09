@@ -129,6 +129,16 @@ test.for([
     error: 'rules.no-billing.notTo: Too small: expected array to have >=1 items',
   },
   {
+    reason: 'an unknown key in notes',
+    text: '{"notes": {"guidence": "Name the port."}}',
+    error: 'notes: Unrecognized key: "guidence"',
+  },
+  {
+    reason: 'a notes guidance that is no text',
+    text: '{"notes": {"guidance": ["Name the port."]}}',
+    error: 'notes.guidance: Invalid input: expected string, received array',
+  },
+  {
     reason: 'a stack neither false nor an object',
     text: '{"stacks": {"web": true}}',
     error: 'stacks.web: Invalid input: expected false or an object',

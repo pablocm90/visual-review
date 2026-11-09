@@ -94,6 +94,13 @@ const RuleSchema = z.strictObject({
   reason: z.string().describe("Why: the rule's findings say it"),
 });
 
+const NotesConfigSchema = z.strictObject({
+  guidance: z
+    .string()
+    .optional()
+    .describe("What Claude's notes should say and where, followed when it writes them"),
+});
+
 const ConfigSchema = z.strictObject({
   $schema: z.string().optional(),
   stacks: z
@@ -119,6 +126,9 @@ const ConfigSchema = z.strictObject({
     .record(z.string(), RuleSchema)
     .default({})
     .describe('Architecture rules by name: edges from some nodes to others that break them'),
+  notes: NotesConfigSchema.prefault({}).describe(
+    "How Claude writes its notes, read from the range's base revision, so a change can't rewrite it",
+  ),
 });
 
 export type Config = z.infer<typeof ConfigSchema>;
