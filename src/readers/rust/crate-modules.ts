@@ -2,7 +2,7 @@ import { basename, dirname, join } from 'node:path';
 import type { Node } from 'web-tree-sitter';
 import { edgeId, type Graph, type GraphEdge, type GraphNode } from '../../core/graph.ts';
 import { crateId } from './crate-graph.ts';
-import { isCfgTest, itemsIn, parseRust } from './rust-syntax.ts';
+import { isCfgTest, itemsIn, readRust } from './rust-syntax.ts';
 import { followed, importsInUse, type Segments } from './use-paths.ts';
 
 type CrateModulesOptions = {
@@ -17,15 +17,8 @@ type Module = {
   readonly label: string;
   readonly path: string;
   readonly segments: Segments;
-  readonly items: ReadonlyArray<Node>;
-};
-
-const itemsOf = (text: string): ReadonlyArray<Node> => {
-  const root = parseRust(text);
-  if (root === undefined) return [];
-  return itemsIn(root)
-    .filter(({ attributes }) => !attributes.some(isCfgTest))
-    .map(({ node }) => node);
+  readonly declared: Segments;
+  readonly used: ReadonlyArray<Segments>;
 };
 
 const declaredModules = (items: ReadonlyArray<Node>): Segments =>
@@ -39,6 +32,14 @@ const usedPaths = (items: ReadonlyArray<Node>): ReadonlyArray<Segments> =>
   items.flatMap(node => {
     const argument = node.type === 'use_declaration' ? node.childForFieldName('argument') : null;
     return argument === null ? [] : importsInUse(argument).map(({ segments }) => segments);
+  });
+
+const referencesOf = (text: string): Pick<Module, 'declared' | 'used'> =>
+  readRust(text, root => {
+    const items = itemsIn(root)
+      .filter(({ attributes }) => !attributes.some(isCfgTest))
+      .map(({ node }) => node);
+    return { declared: declaredModules(items), used: usedPaths(items) };
   });
 
 type ReadModuleOptions = {
@@ -63,11 +64,11 @@ export const crateModules = ({
     label,
     path,
     segments,
-    items: itemsOf(sources[path] ?? ''),
+    ...referencesOf(sources[path] ?? ''),
   });
   const withChildren = ({ module, directory }: WithChildrenOptions): ReadonlyArray<Module> => [
     module,
-    ...declaredModules(module.items).flatMap(name => {
+    ...module.declared.flatMap(name => {
       const found = [join(directory, `${name}.rs`), join(directory, name, 'mod.rs')].find(
         candidate => sources[candidate] !== undefined,
       );
@@ -102,7 +103,7 @@ export const crateModules = ({
       ).find(module => module !== undefined);
     };
     return tree.flatMap(module =>
-      usedPaths(module.items).flatMap((path): ReadonlyArray<GraphEdge> => {
+      module.used.flatMap((path): ReadonlyArray<GraphEdge> => {
         const target = targetOf(module.segments, path);
         return target === undefined || target === module
           ? []

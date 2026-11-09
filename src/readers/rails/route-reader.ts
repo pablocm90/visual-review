@@ -15,7 +15,7 @@ import {
   nameOf,
   namesIn,
   optionOf,
-  parseRuby,
+  parsingRuby,
   positional,
   writtenIn,
 } from './ruby-syntax.ts';
@@ -387,11 +387,10 @@ const isDraw = (statement: Node): boolean =>
 
 const isBare = (statement: Node): boolean => statement.childForFieldName('receiver') === null;
 
-const programOf = (file: string, text: string): Node => {
+const programOf = (file: string, text: string, parse: (text: string) => Node): Node => {
   if (isTooBig(text)) throw new RouteFileNotRead(file, `${file} ${TOO_BIG}`);
-  const program = parseRuby(text);
-  if (program === undefined || program.hasError)
-    throw new RouteFileNotRead(file, `Ruby syntax error in ${file}`);
+  const program = parse(text);
+  if (program.hasError) throw new RouteFileNotRead(file, `Ruby syntax error in ${file}`);
   return program;
 };
 
@@ -484,10 +483,13 @@ const spendingUpTo = (most: number): Scope['spend'] => {
   };
 };
 
-const parsingOnce = (files: ReadonlyMap<string, string>): Scope['statementsIn'] => {
+const parsingOnce = (
+  files: ReadonlyMap<string, string>,
+  parse: (text: string) => Node,
+): Scope['statementsIn'] => {
   const parsed = new Map<string, ReadonlyArray<Node>>();
   return file => {
-    const statements = parsed.get(file) ?? writtenIn(programOf(file, files.get(file) ?? ''));
+    const statements = parsed.get(file) ?? writtenIn(programOf(file, files.get(file) ?? '', parse));
     parsed.set(file, statements);
     return statements;
   };
@@ -496,22 +498,23 @@ const parsingOnce = (files: ReadonlyMap<string, string>): Scope['statementsIn'] 
 export const railsRoutesUpTo = (most: number): RouteReader => ({
   holds: path =>
     ROUTES_FILE.test(path) && !path.split('/').some(folder => NOT_SEARCHED.has(folder)),
-  routes: files => {
-    const spend = spendingUpTo(most);
-    const statementsIn = parsingOnce(files);
-    const drawn = [...files.keys()].flatMap(file => {
-      const root = ROOT_FILE.exec(file)?.[1];
-      return root === undefined
-        ? []
-        : drawnFrom(file, { ...START, spend, statementsIn, files, root, loading: [], file });
-    });
-    return {
-      routes: drawn
-        .filter(isRoute)
-        .map(route => ({ ...route, path: route.path === '' ? '/' : route.path })),
-      unread: drawn.filter((item): item is UnreadRoute => !isRoute(item)),
-    };
-  },
+  routes: files =>
+    parsingRuby(parse => {
+      const spend = spendingUpTo(most);
+      const statementsIn = parsingOnce(files, parse);
+      const drawn = [...files.keys()].flatMap(file => {
+        const root = ROOT_FILE.exec(file)?.[1];
+        return root === undefined
+          ? []
+          : drawnFrom(file, { ...START, spend, statementsIn, files, root, loading: [], file });
+      });
+      return {
+        routes: drawn
+          .filter(isRoute)
+          .map(route => ({ ...route, path: route.path === '' ? '/' : route.path })),
+        unread: drawn.filter((item): item is UnreadRoute => !isRoute(item)),
+      };
+    }),
 });
 
 export const railsRoutes = railsRoutesUpTo(MOST_SPENT);

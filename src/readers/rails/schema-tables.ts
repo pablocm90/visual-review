@@ -7,8 +7,8 @@ import {
   isOption,
   methodOf,
   nameOf,
-  parseRuby,
   positional,
+  readRuby,
   writtenIn,
 } from './ruby-syntax.ts';
 
@@ -71,12 +71,12 @@ const tableOf = (createTable: Node): SchemaTable => {
 export const railsSchema: SchemaReader = {
   holds: path =>
     SCHEMA_FILE.test(path) && !path.split('/').some(folder => NOT_SEARCHED.has(folder)),
-  tables: text => {
-    const program = parseRuby(text);
-    if (program === undefined || program.hasError) throw new Error('Ruby syntax error');
-    return program
-      .descendantsOfType('call')
-      .filter(call => methodOf(call) === 'create_table')
-      .map(tableOf);
-  },
+  tables: text =>
+    readRuby(text, program => {
+      if (program.hasError) throw new Error('Ruby syntax error');
+      return program
+        .descendantsOfType('call')
+        .filter(call => methodOf(call) === 'create_table')
+        .map(tableOf);
+    }),
 };

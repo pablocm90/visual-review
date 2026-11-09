@@ -8,7 +8,7 @@ import {
   decisionsOfClass,
   decisionsOfMethod,
 } from './ruby-decisions.ts';
-import { parseRuby } from './ruby-syntax.ts';
+import { readRuby } from './ruby-syntax.ts';
 
 const DEFINITIONS = new Set(['class', 'module']);
 
@@ -408,12 +408,13 @@ const walkedChildren = (walk: Walk, node: Node, within: string | undefined): Wal
 
 export const symbolsOfRuby = (text: string): FileSymbols => {
   if (isTooBig(text)) throw new Error(TOO_BIG);
-  const program = parseRuby(text);
-  if (program === undefined || program.hasError) throw new Error('Ruby that does not parse');
-  return {
-    symbols: walked(STARTING, program, undefined).symbols,
-    exports: [],
-    astHash: hashOf(shapeOf(program)),
-    blindSpots: blindSpotsIn(program),
-  };
+  return readRuby(text, program => {
+    if (program.hasError) throw new Error('Ruby that does not parse');
+    return {
+      symbols: walked(STARTING, program, undefined).symbols,
+      exports: [],
+      astHash: hashOf(shapeOf(program)),
+      blindSpots: blindSpotsIn(program),
+    };
+  });
 };

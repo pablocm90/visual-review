@@ -1,7 +1,7 @@
 import type { Node } from 'web-tree-sitter';
 import type { FileMeasures, FunctionMeasures } from '../../core/reader.ts';
 import { codeLines, isComment } from '../tree-sitter.ts';
-import { isTestCode, isTestItem, parseRust } from './rust-syntax.ts';
+import { isTestCode, isTestItem, readRust } from './rust-syntax.ts';
 
 const isTestPart = (node: Node | null): boolean =>
   node !== null &&
@@ -51,14 +51,11 @@ const measureFunction = (item: Node): FunctionMeasures => {
   };
 };
 
-export const measureRust = (text: string): FileMeasures => {
-  const root = parseRust(text);
-  if (root === undefined) return { lines: 0, functions: [] };
-  return {
+export const measureRust = (text: string): FileMeasures =>
+  readRust(text, root => ({
     lines: codeLines(root, node => isComment(node) || isTestPart(node)),
     functions: root
       .descendantsOfType('function_item')
       .filter(item => !isTestCode(item))
       .map(measureFunction),
-  };
-};
+  }));

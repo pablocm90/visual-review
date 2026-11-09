@@ -5,7 +5,7 @@ import type { GraphNode } from '../../core/graph.ts';
 import type { SymbolUse, UsesAsked, UsesReading } from '../../core/reader.ts';
 import { isNoFile } from '../no-file.ts';
 import { isTooBig } from '../too-big.ts';
-import { isTestCode, parseRust, TEST_FOLDER } from './rust-syntax.ts';
+import { isTestCode, readRust, TEST_FOLDER } from './rust-syntax.ts';
 import {
   EXTERN_PRELUDE,
   followed,
@@ -116,9 +116,7 @@ const rowsIn = (
   names: ReadonlyArray<string>,
 ): ReadonlyMap<string, ReadonlyArray<SymbolUse>> | typeof NOT_READ => {
   if (isTooBig(text)) return NOT_READ;
-  const root = parseRust(text);
-  if (root === undefined) return NOT_READ;
-  try {
+  return readRust(text, root => {
     if (root.hasError) return NOT_READ;
     const scope = scopeOf(root, from, target);
     const lines = text.split('\n');
@@ -132,9 +130,7 @@ const rowsIn = (
         return [name, [{ path, line: row + 1, text: line, test }]];
       }),
     );
-  } finally {
-    root.tree.delete();
-  }
+  });
 };
 
 const textAt = (file: string): string | undefined => {

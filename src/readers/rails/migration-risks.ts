@@ -8,8 +8,8 @@ import {
   nameOf,
   namesIn,
   optionOf,
-  parseRuby,
   positional,
+  readRuby,
 } from './ruby-syntax.ts';
 
 const STILL_READ = 'Code still running during the deploy may read it.';
@@ -228,13 +228,15 @@ export const railsMigrations: MigrationReader = {
   holds: path =>
     MIGRATION_FILE.test(path) && !path.split('/').some(folder => NOT_SEARCHED.has(folder)),
   version: path => MIGRATION_FILE.exec(path)?.[1],
-  risks: text => {
-    const program = parseRuby(text);
-    if (program === undefined || program.hasError) throw new Error('Ruby syntax error');
-    const calls = callsIn(program);
-    const newTables = new Set(
-      calls.filter(call => methodOf(call) === 'create_table').map(call => nameOf(argsOf(call)[0])),
-    );
-    return calls.flatMap(risksOf(newTables));
-  },
+  risks: text =>
+    readRuby(text, program => {
+      if (program.hasError) throw new Error('Ruby syntax error');
+      const calls = callsIn(program);
+      const newTables = new Set(
+        calls
+          .filter(call => methodOf(call) === 'create_table')
+          .map(call => nameOf(argsOf(call)[0])),
+      );
+      return calls.flatMap(risksOf(newTables));
+    }),
 };

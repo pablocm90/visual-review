@@ -1,6 +1,6 @@
 import type { Node } from 'web-tree-sitter';
 import type { ReadTest } from '../../core/test-changes.ts';
-import { isCfgTest, isTestAttribute, itemsIn, parseRust, pathOf } from './rust-syntax.ts';
+import { isCfgTest, isTestAttribute, itemsIn, pathOf, readRust } from './rust-syntax.ts';
 
 const isIgnore = (item: Node): boolean => pathOf(item) === 'ignore';
 
@@ -21,6 +21,5 @@ export const readRustTests = (text: string): ReadonlyArray<ReadTest> => {
       if (attributes.some(isCfgTest)) return children;
       return children.length === 0 ? [] : [{ kind: 'heading', name, children }];
     });
-  const root = parseRust(text);
-  return root === undefined ? [] : statementsIn(root);
+  return readRust(text, statementsIn);
 };

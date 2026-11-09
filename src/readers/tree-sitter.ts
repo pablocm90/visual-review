@@ -1,16 +1,32 @@
 import { createHash } from 'node:crypto';
 import { createRequire } from 'node:module';
-import { Language, type Node, Parser } from 'web-tree-sitter';
+import { Language, type Node, Parser, type Tree } from 'web-tree-sitter';
 import type { LineRange } from '../core/reader.ts';
 
 await Parser.init();
 
-export const parserOf = async (grammar: string): Promise<(text: string) => Node | undefined> => {
+export const parserOf = async (grammar: string) => {
   const parser = new Parser();
   parser.setLanguage(
     await Language.load(createRequire(import.meta.url).resolve(`${grammar}/${grammar}.wasm`)),
   );
-  return text => parser.parse(text)?.rootNode;
+  const parsing = <T>(use: (parse: (text: string) => Node) => T): T => {
+    const trees: Array<Tree> = [];
+    try {
+      return use(text => {
+        const tree = parser.parse(text);
+        if (tree === null) throw new Error(`${grammar} gave no tree`);
+        trees.push(tree);
+        return tree.rootNode;
+      });
+    } finally {
+      for (const tree of trees) tree.delete();
+    }
+  };
+  return {
+    parsing,
+    read: <T>(text: string, read: (root: Node) => T): T => parsing(parse => read(parse(text))),
+  };
 };
 
 export const codeLines = (root: Node, isSkipped: (node: Node) => boolean): number => {

@@ -5,7 +5,7 @@ import type { SymbolUse, UsesAsked, UsesReading } from '../../core/reader.ts';
 import { isNoFile } from '../no-file.ts';
 import { isTooBig } from '../too-big.ts';
 import { classesOf, namingsIn } from './rails-graph.ts';
-import { argsOf, methodOf, nameOf, parseRuby, positional } from './ruby-syntax.ts';
+import { argsOf, methodOf, nameOf, positional, readRuby } from './ruby-syntax.ts';
 
 export const NOT_DRAWN =
   'not followed: anything but `.rb` files under `app/` and `lib/`, so views, tests and rake tasks, another Rails root, a file defining a class another file defines too, and a base class the graph draws no edge into, such as `ApplicationRecord`';
@@ -103,13 +103,7 @@ const withRuby = <T>(file: string, read: (ruby: Ruby) => T): T | typeof NOT_READ
   try {
     const text = readFileSync(file, 'utf8');
     if (isTooBig(text)) return NOT_READ;
-    const program = parseRuby(text);
-    if (program === undefined) return NOT_READ;
-    try {
-      return program.hasError ? NOT_READ : read({ text, program });
-    } finally {
-      program.tree.delete();
-    }
+    return readRuby(text, program => (program.hasError ? NOT_READ : read({ text, program })));
   } catch (error) {
     return isNoFile(error) ? undefined : NOT_READ;
   }
