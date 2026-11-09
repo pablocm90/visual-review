@@ -98,7 +98,7 @@ The **Routes** tab lists a Rails app's added, removed and changed routes under e
 
 ## When detection misreads a repo
 
-Stacks are detected: a Cargo workspace at the repo root, every `package.json` whose source root holds TS/JS files, and every Rails app (a `config/application.rb` outside `vendor/`, `node_modules/`, `test/` and `spec/`). A `visual-review.config.json` at the repo root overrides that. It is read from the reviewed head revision, or from your checkout when the head has none, and applies to both sides.
+Stacks are detected: a Cargo workspace at the repo root, every `package.json` whose source root holds TS/JS files, and every Rails app (a `config/application.rb` outside `vendor/`, `node_modules/`, `test/` and `spec/`). A `visual-review.config.json` at the repo root overrides that. It is read from the reviewed head revision, or from your checkout when the head has none, and applies to both sides, all but its `notes` entry, which is read at the base (below).
 
 ```json
 {
@@ -118,6 +118,9 @@ Stacks are detected: a Cargo workspace at the repo root, every `package.json` wh
       "notTo": ["shop/layer/models/billing*", "shop/class/Billing::*"],
       "reason": "Controllers reach billing through BillingService."
     }
+  },
+  "notes": {
+    "guidance": "Say which bounded context each part belongs to; recommend a test for every changed controller."
   }
 }
 ```
@@ -132,6 +135,7 @@ Stacks are detected: a Cargo workspace at the repo root, every `package.json` wh
 - `metrics.splitParts` (4) is the number of parts a group of connected changes must reach to count: two such groups raise the split finding, and smaller groups are only counted in its detail.
 - `linkers.fetch-axum` draws the `fetch` calls of TS stacks to the routes of Rust crates that depend on axum, and lists calls no route matches. `from` and `to` limit it to those stacks, and `false` turns it off.
 - `rules` are architecture rules by name: no edge from a node `from` matches to a node `notTo` matches. Each takes a node id glob or a list of them, `*` stopping at `/` and `**` taking a whole tree, and a node matches when it or a box holding it does, so a layer's glob holds for its classes. An edge whose start matches `notTo` too breaks nothing, so a rule doesn't fire inside the area it guards. Each head edge breaking a rule is a finding on that edge, `breaks <name>` with the `reason`, needing a look when the change adds the edge and for information when it was already there. With no rules, the rules coverage says `none configured`; a glob that matches no node at the head is listed there, so a typo doesn't read as a clean check.
+- `notes.guidance` is free text on what Claude's notes should say and where, which the skill follows when it writes them, within the notes format. It is read from the range's base, the PR's merge base, and only from the file committed there, so a change can't rewrite what reviews it: guidance added or changed by a PR applies once it has merged. Only the `notes` entry is checked at the base.
 
 A key that names no detected stack, an unknown field, or a field the stack's reader doesn't take fails the review, naming the file and the field.
 
