@@ -3,6 +3,8 @@ import { anchorKey, anchorOfKey } from './anchors.ts';
 import type { GraphDiff } from './diff-graphs.ts';
 import { DIMENSIONS } from './findings.ts';
 import { edgeId } from './graph.ts';
+import type { SymbolFile } from './read-range.ts';
+import { anchoredSymbols } from './symbol-findings.ts';
 import {
   boxesAboveIn,
   type VisibleDiffOptions,
@@ -45,7 +47,7 @@ const ReviewNotesSchema = z
     tests: z.string().describe('What the tests pin, and what the change leaves unpinned'),
     notes: z
       .record(
-        z.templateLiteral([z.enum(['part', 'edge']), ' ', z.string()]),
+        z.templateLiteral([z.enum(['part', 'edge', 'symbol']), ' ', z.string()]),
         z
           .strictObject({
             text: z.string(),
@@ -67,7 +69,9 @@ const ReviewNotesSchema = z
       )
       .readonly()
       .default({})
-      .describe('Notes by `part <node id>`, or `edge <from> -> <to>`; left out, there are none'),
+      .describe(
+        'Notes by `part <node id>`, `edge <from> -> <to>` or `symbol <file node id>#<symbol>`; left out, there are none',
+      ),
     answers: z
       .record(z.string(), AnswerSchema)
       .readonly()
@@ -183,6 +187,7 @@ export const visibleNotes = ({
 type NotesProblemsOptions = {
   readonly diff: GraphDiff;
   readonly notes: ReviewNotes;
+  readonly symbols: ReadonlyArray<SymbolFile>;
   readonly said:
     | ReadonlyArray<{ readonly anchor: { readonly kind: string; readonly id: string } }>
     | undefined;
@@ -191,7 +196,7 @@ type NotesProblemsOptions = {
 const lastReviewProblems = ({
   notes,
   said,
-}: Omit<NotesProblemsOptions, 'diff'>): ReadonlyArray<string> => {
+}: Pick<NotesProblemsOptions, 'notes' | 'said'>): ReadonlyArray<string> => {
   const saidAnchors = new Set((said ?? []).map(({ anchor }) => anchorKey(anchor)));
   return [
     ...Object.keys(notes.answers ?? {})
@@ -206,6 +211,7 @@ const lastReviewProblems = ({
 export const notesProblems = ({
   diff,
   notes,
+  symbols,
   said,
 }: NotesProblemsOptions): ReadonlyArray<string> => {
   const boxesAbove = boxesAboveIn(diff.nodes);
@@ -222,6 +228,13 @@ export const notesProblems = ({
   const knownKeys = new Set([
     ...parts.map(id => anchorKey({ kind: 'part', id })),
     ...edges.map(id => anchorKey({ kind: 'edge', id })),
+    ...symbols.flatMap(file =>
+      'symbols' in file
+        ? anchoredSymbols(file.node, file.symbols).map(({ id }) =>
+            anchorKey({ kind: 'symbol', id }),
+          )
+        : [],
+    ),
   ]);
   const collapsed = visibleDiff({ diff, expanded: new Set() });
   const shown = visibleNotes({ diff, expanded: new Set(), notes: notesOnTheGraph(notes.notes) });
@@ -237,6 +250,9 @@ export const notesProblems = ({
     ...Object.keys(notes.notes)
       .filter(key => !knownKeys.has(key))
       .map(key => `unknown key ${key}`),
+    ...Object.entries(notes.notes)
+      .filter(([key, { flag }]) => flag !== undefined && anchorOfKey(key).kind === 'symbol')
+      .map(([key]) => `flag on ${key}: only a part or edge note takes a flag`),
     ...[...notes.summary.flatMap(item => item.target ?? []), ...Object.keys(notes.unasked ?? {})]
       .filter(id => !knownIds.has(id))
       .map(id => `unknown id ${id}`),

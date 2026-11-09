@@ -1207,6 +1207,27 @@ test('notes that leave a touched part without a note are refused, naming the not
   ).toThrow("Notes in x.notes.json don't match the graph:\nno note on part web/file/a.ts");
 });
 
+test("notes may key a symbol the page's data holds", () => {
+  const page = pageHtml({
+    viewer,
+    data: pageData({
+      repo: 'shop',
+      reading: readingWith({
+        symbols: [symbolFile([{ name: 'run', kind: 'function', exported: {}, change: 'edited' }])],
+      }),
+      range: 'main..feature',
+      version,
+      parsers,
+    }),
+  });
+  const notes = notesWith({
+    'part web/file/a.ts': { text: 'Reads well.' },
+    'symbol web/file/a.ts#run': { text: 'Runs once.' },
+  });
+
+  expect(() => notedPageHtml({ page, notes, notesFile, version })).not.toThrow();
+});
+
 test("notes on a later round's page may answer what its last review said, and only that", () => {
   const page = pageHtml({
     viewer,

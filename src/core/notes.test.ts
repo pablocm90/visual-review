@@ -8,6 +8,7 @@ import {
   type ReviewNotes,
   visibleNotes,
 } from './notes.ts';
+import type { SymbolFile } from './read-range.ts';
 
 type NodeState = GraphDiff['nodes'][number]['state'];
 
@@ -49,6 +50,17 @@ const diff: GraphDiff = {
   ],
 };
 
+const symbols: ReadonlyArray<SymbolFile> = [
+  {
+    node: 'web/file/pages/home.tsx',
+    stack: 'web',
+    symbols: [{ name: 'run', kind: 'function', lines: {}, exported: {}, change: 'edited' }],
+    exports: { added: [], removed: [] },
+    kind: 'logic',
+  },
+  { node: 'web/file/pages/header.tsx', stack: 'web', unreadable: 'Unexpected token' },
+];
+
 const notesWith = (overrides: Partial<ReviewNotes> = {}): ReviewNotes => ({
   version: 2,
   summary: [{ text: 'Home formats dates.', target: 'web/module/pages' }, { text: 'Web only.' }],
@@ -63,6 +75,7 @@ const notesWith = (overrides: Partial<ReviewNotes> = {}): ReviewNotes => ({
 test('notes on every touched part of the collapsed view, keyed to nodes or to edges as drawn at any depth, have no problems', () => {
   expect(
     notesProblems({
+      symbols,
       diff,
       said: [],
       notes: notesWith({
@@ -71,6 +84,7 @@ test('notes on every touched part of the collapsed view, keyed to nodes or to ed
           'part web/file/pages/home.tsx': { text: 'Calls format.' },
           'edge web/file/pages/home.tsx -> web/module/utils': { text: 'Imports format.' },
           'edge web/file/pages/home.tsx -> web/file/utils/format.ts': { text: 'Imports format.' },
+          'symbol web/file/pages/home.tsx#run': { text: 'Runs once.', why: 'Idempotent.' },
         },
       }),
     }),
@@ -80,6 +94,7 @@ test('notes on every touched part of the collapsed view, keyed to nodes or to ed
 test('a note on a hidden import covers the edge it is drawn into while its modules are collapsed', () => {
   expect(
     notesProblems({
+      symbols,
       diff,
       said: [],
       notes: notesWith({
@@ -95,6 +110,7 @@ test('a note on a hidden import covers the edge it is drawn into while its modul
 test('a stack that appears in the change is not asked for a note, since notes cannot name a stack', () => {
   expect(
     notesProblems({
+      symbols,
       diff: { ...diff, nodes: [{ ...stack, state: 'added' }, ...diff.nodes.slice(1)] },
       said: [],
       notes: notesWith(),
@@ -116,6 +132,7 @@ test('a note may be keyed by an edge between its ends or any of the boxes above 
 
   expect(
     notesProblems({
+      symbols,
       diff: deep,
       said: [],
       notes: notesWith({
@@ -181,6 +198,30 @@ test.for([
     expected: ['unknown key edge web/module/pages -> web/module/pages'],
   },
   {
+    problem: 'a note on a symbol its file does not hold',
+    notes: notesWith({
+      notes: { ...notesWith().notes, 'symbol web/file/pages/home.tsx#stop': { text: 'Stops.' } },
+    }),
+    expected: ['unknown key symbol web/file/pages/home.tsx#stop'],
+  },
+  {
+    problem: 'a note on a symbol of a file whose symbols were not read',
+    notes: notesWith({
+      notes: { ...notesWith().notes, 'symbol web/file/pages/header.tsx#run': { text: 'Runs.' } },
+    }),
+    expected: ['unknown key symbol web/file/pages/header.tsx#run'],
+  },
+  {
+    problem: 'a flag on a symbol note',
+    notes: notesWith({
+      notes: {
+        ...notesWith().notes,
+        'symbol web/file/pages/home.tsx#run': { text: 'Runs twice.', flag: 'not idempotent' },
+      },
+    }),
+    expected: ['flag on symbol web/file/pages/home.tsx#run: only a part or edge note takes a flag'],
+  },
+  {
     problem: 'a summary item targeting something not in the graph',
     notes: notesWith({ summary: [{ text: 'Gone.', target: 'web/module/gone' }] }),
     expected: ['unknown id web/module/gone'],
@@ -198,7 +239,7 @@ test.for([
     expected: ['no note on edge web/module/pages -> web/module/utils'],
   },
 ])('$problem is a problem', ({ notes, expected }) => {
-  expect(notesProblems({ diff, notes, said: [] })).toEqual(expected);
+  expect(notesProblems({ symbols, diff, notes, said: [] })).toEqual(expected);
 });
 
 const file = 'x.notes.json';
@@ -337,6 +378,7 @@ test("an answer is known by its anchor's kind and id in the last review, whateve
 
   expect(
     notesProblems({
+      symbols,
       diff,
       said,
       notes: notesWith({
@@ -376,7 +418,7 @@ test('an unasked change is known by a node or an edge of the graph', () => {
     }),
   );
 
-  expect(notesProblems({ diff, said: [], notes: parseNotes({ text, file }) })).toEqual([
+  expect(notesProblems({ symbols, diff, said: [], notes: parseNotes({ text, file }) })).toEqual([
     'unknown id web/module/gone',
   ]);
 });
@@ -384,11 +426,11 @@ test('an unasked change is known by a node or an edge of the graph', () => {
 test('an unasked change needs a last review to show under, even one that said nothing', () => {
   const notes = notesWith({ unasked: { 'web/module/pages': { text: 'Renamed the helper.' } } });
 
-  expect(notesProblems({ diff, said: undefined, notes })).toEqual([
+  expect(notesProblems({ symbols, diff, said: undefined, notes })).toEqual([
     'unasked changes show under the last review, and this page has none',
   ]);
-  expect(notesProblems({ diff, said: undefined, notes: notesWith() })).toEqual([]);
-  expect(notesProblems({ diff, said: [], notes })).toEqual([]);
+  expect(notesProblems({ symbols, diff, said: undefined, notes: notesWith() })).toEqual([]);
+  expect(notesProblems({ symbols, diff, said: [], notes })).toEqual([]);
 });
 
 test('a done answer names its commit', () => {
@@ -440,6 +482,12 @@ test('a note keeps why it changed this way and what to do about it, beside what 
       recommendation: 'Format them in one helper.',
     },
   };
+
+  expect(parseNotes({ text: JSON.stringify(notesWith({ notes })), file }).notes).toEqual(notes);
+});
+
+test('a note may be keyed by a symbol', () => {
+  const notes = { 'symbol web/file/pages/home.tsx#run': { text: 'Runs once.' } };
 
   expect(parseNotes({ text: JSON.stringify(notesWith({ notes })), file }).notes).toEqual(notes);
 });
