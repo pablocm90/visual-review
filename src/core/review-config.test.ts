@@ -124,6 +124,11 @@ test.for([
     error: 'rules.no-billing.from: Invalid input: expected a glob or a list of globs',
   },
   {
+    reason: 'a rule whose notTo is an empty list',
+    text: '{"rules": {"no-billing": {"from": "shop/**", "notTo": [], "reason": "x"}}}',
+    error: 'rules.no-billing.notTo: Too small: expected array to have >=1 items',
+  },
+  {
     reason: 'a stack neither false nor an object',
     text: '{"stacks": {"web": true}}',
     error: 'stacks.web: Invalid input: expected false or an object',

@@ -82,7 +82,7 @@ const MetricsSchema = z.strictObject({
   ),
 });
 
-const Globs = z.union([z.string().transform(glob => [glob]), z.array(z.string())], {
+const Globs = z.union([z.string().transform(glob => [glob]), z.array(z.string()).min(1)], {
   error: 'Invalid input: expected a glob or a list of globs',
 });
 
