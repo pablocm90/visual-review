@@ -211,6 +211,11 @@ const LogicRow = ({
         </button>
       )}
       <ChangedSinceTag marked={marked} />
+      <RowNote
+        anchor={{ kind: 'decision', id, text }}
+        name={logicLabel(line, nodes)}
+        comments={comments}
+      />
       <SaidBefore on={{ kind: 'decision', id }} />
       {onComment && (
         <CommentOn
@@ -240,6 +245,7 @@ const LogicLines = ({
   const isChangedSince = useIsChangedSince();
   const hasSaid = useHasSaid();
   const marksOf = useRowMarks();
+  const { notes } = useContext(RowNotes);
   const name = `${symbol.item.kind} ${qualified(symbol.item)}`;
   const rows = decisionsOf(symbol).map(decision => {
     const marked = isChangedSince('decisions', decision.id);
@@ -252,6 +258,7 @@ const LogicLines = ({
   const holdsNews = ({ id, marked }: DecisionRow): boolean =>
     marked ||
     places.comments[anchorKey({ kind: 'decision', id })] !== undefined ||
+    notes[anchorKey({ kind: 'decision', id })] !== undefined ||
     hasSaid({ kind: 'decision', id });
   const rowOf = (row: DecisionRow) => (
     <LogicRow key={row.id} row={row} onShowLine={onShowLine} {...places} />
@@ -345,15 +352,14 @@ const SymbolName = ({ symbol }: { readonly symbol: SymbolStatement }) => {
   );
 };
 
-type SymbolNoteProps = {
-  readonly id: string;
+type RowNoteProps = {
+  readonly anchor: Comment['anchor'];
   readonly name: string;
   readonly comments: Comments;
 };
 
-const SymbolNote = ({ id, name, comments }: SymbolNoteProps) => {
+const RowNote = ({ anchor, name, comments }: RowNoteProps) => {
   const { notes, onTake } = useContext(RowNotes);
-  const anchor = { kind: 'symbol', id } as const;
   const note = notes[anchorKey(anchor)];
   if (note === undefined) return null;
   return (
@@ -397,7 +403,7 @@ const SymbolRow = ({
         </button>
       )}
       {symbol.signature && <Signature name={name} signature={symbol.signature} />}
-      <SymbolNote id={id} name={name} comments={places.comments} />
+      <RowNote anchor={{ kind: 'symbol', id }} name={name} comments={places.comments} />
       <SaidBefore on={{ kind: 'symbol', id }} />
       {places.onComment && (
         <CommentOn

@@ -8587,6 +8587,41 @@ test("a function's unchanged runs fold into their counts, opened by hand, its ch
   expect(within(unchangedRun(2)).getByRole('listitem', { name: 'same if: if (b)' })).toBeTruthy();
 });
 
+test("a decision's note shows under its logic row and no other, opening its function's rows and the run holding it", async () => {
+  const user = userEvent.setup();
+  const big = addedIfs('big', 9);
+  render(
+    <ReviewPage
+      review={{
+        ...pageWithManyDecisions(),
+        symbols: [
+          symbolsOf('web/file/many.ts', [
+            { ...big, logic: [...(big.logic ?? []), unchangedIf('kept', 10)] },
+          ]),
+        ],
+      }}
+      notes={{
+        version: 2,
+        tests: '',
+        summary: [],
+        notes: { 'decision web/file/many.ts#big#if (kept)': { text: 'Kept for old callers.' } },
+      }}
+    />,
+  );
+
+  await user.click(await screen.findByRole('button', { name: 'many.ts: modified' }));
+
+  expect(logicRowsOf('big').hasAttribute('open')).toBe(true);
+  expect(unchangedRun(1).hasAttribute('open')).toBe(true);
+  expect(
+    within(within(whatChanged()).getByRole('listitem', { name: 'same if: if (kept)' })).getByRole(
+      'region',
+      { name: 'Note on same if: if (kept)' },
+    ).textContent,
+  ).toBe('Kept for old callers.');
+  expect(within(whatChanged()).getAllByRole('region', { name: /^Note on/ })).toHaveLength(1);
+});
+
 test("the last review's comment on an unchanged decision opens its whole run, and no other", async () => {
   const user = userEvent.setup();
   render(
