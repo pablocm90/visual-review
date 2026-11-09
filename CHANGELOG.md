@@ -10,7 +10,7 @@ What changed in each release of `@pablocm90/visual-review`, newest first. Versio
 
 ### Changed
 
-- Notes are version 2: every key in `notes` and `unasked` names its kind, `part <node id>`, `edge <from> -> <to>` or `symbol <id>`, and `notes.schema.json` checks the shape. A version 1 file is refused with "this visual-review reads version 2". Problems name the key: `unknown key part x`, `no note on part x`, `no note on edge a -> b`. A flag's finding is `notes:<kind> <id>`, so a last review's answer to a version 1 flag (`notes:<id>`) lists under the last review with nowhere to go. An unasked change on a symbol goes to its file's node.
+- Notes are version 2: every key in `notes` and `unasked` names its kind, `part <node id>`, `edge <from> -> <to>` or `symbol <id>`, and `notes.schema.json` checks the shape. A version 1 file is refused with "this visual-review reads version 2". Problems name the key: `unknown key part x`, `no note on part x`, `no note on edge a -> b`. A flag's finding is `notes:<kind> <id>`, so a last review's answer to a version 1 flag (`notes:<id>`) lists under the last review with nowhere to go, and an It's fine given to one no longer keeps that flag out of Start here. An unasked change on a symbol goes to its file's node.
 - The skill writes version 2 keys, may add a note on a symbol where there's something to say about it, and reads a flag's answer as `notes:<kind> <id>`.
 
 ## 0.53.0 — 2026-11-09
