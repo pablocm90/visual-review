@@ -55,7 +55,16 @@ const symbols: ReadonlyArray<SymbolFile> = [
   {
     node: 'web/file/pages/home.tsx',
     stack: 'web',
-    symbols: [{ name: 'run', kind: 'function', lines: {}, exported: {}, change: 'edited' }],
+    symbols: [
+      {
+        name: 'run',
+        kind: 'function',
+        lines: {},
+        exported: {},
+        change: 'edited',
+        logic: [{ change: 'added', kind: 'if', depth: 0, head: 'ready', line: 3 }],
+      },
+    ],
     exports: { added: [], removed: [] },
     kind: 'logic',
   },
@@ -84,8 +93,12 @@ test('notes on every touched part of the collapsed view, keyed to nodes or to ed
           ...notesWith().notes,
           'part web/file/pages/home.tsx': { text: 'Calls format.' },
           'edge web/file/pages/home.tsx -> web/module/utils': { text: 'Imports format.' },
-          'edge web/file/pages/home.tsx -> web/file/utils/format.ts': { text: 'Imports format.' },
+          'edge web/file/pages/home.tsx -> web/file/utils/format.ts': {
+            text: 'Imports format.',
+            flag: 'a new dependency',
+          },
           'symbol web/file/pages/home.tsx#run': { text: 'Runs once.', why: 'Idempotent.' },
+          'decision web/file/pages/home.tsx#run#ready': { text: 'Waits until ready.' },
         },
       }),
     }),
@@ -211,6 +224,28 @@ test.for([
       notes: { ...notesWith().notes, 'symbol web/file/pages/header.tsx#run': { text: 'Runs.' } },
     }),
     expected: ['unknown key symbol web/file/pages/header.tsx#run'],
+  },
+  {
+    problem: 'a note on a decision its function does not hold',
+    notes: notesWith({
+      notes: {
+        ...notesWith().notes,
+        'decision web/file/pages/home.tsx#run#done': { text: 'Waits.' },
+      },
+    }),
+    expected: ['unknown key decision web/file/pages/home.tsx#run#done'],
+  },
+  {
+    problem: 'a flag on a decision note',
+    notes: notesWith({
+      notes: {
+        ...notesWith().notes,
+        'decision web/file/pages/home.tsx#run#ready': { text: 'Waits.', flag: 'never ready' },
+      },
+    }),
+    expected: [
+      'flag on decision web/file/pages/home.tsx#run#ready: only a part or edge note takes a flag',
+    ],
   },
   {
     problem: 'a flag on a symbol note',
@@ -464,8 +499,8 @@ test.for([
   },
   {
     level: 'the notes, a key of a kind no note takes',
-    overrides: { notes: { 'decision web/file/a.ts#run@0': { text: 'Guards.' } } },
-    key: 'decision web/file/a.ts#run@0',
+    overrides: { notes: { 'line web/src/a.ts@head:12': { text: 'Guards.' } } },
+    key: 'line web/src/a.ts@head:12',
   },
   {
     level: 'the notes, a bare id',
@@ -495,8 +530,11 @@ test('a note keeps why it changed this way and what to do about it, beside what 
   expect(parseNotes({ text: JSON.stringify(notesWith({ notes })), file }).notes).toEqual(notes);
 });
 
-test('a note may be keyed by a symbol', () => {
-  const notes = { 'symbol web/file/pages/home.tsx#run': { text: 'Runs once.' } };
+test('a note may be keyed by a symbol or a decision', () => {
+  const notes = {
+    'symbol web/file/pages/home.tsx#run': { text: 'Runs once.' },
+    'decision web/file/pages/home.tsx#run#ready': { text: 'Waits.' },
+  };
 
   expect(parseNotes({ text: JSON.stringify(notesWith({ notes })), file }).notes).toEqual(notes);
 });
@@ -520,7 +558,7 @@ test('the published notes schema marks no field read-only, since notes are writt
   expect(JSON.stringify(notesJsonSchema())).not.toContain('readOnly');
 });
 
-test('the published notes schema says version 2 and keys notes and unasked changes by part, edge or symbol', () => {
+test('the published notes schema says version 2 and keys notes and unasked changes by part, edge, symbol or decision', () => {
   const schema = z.object({
     properties: z.object({
       version: z.object({ const: z.number() }),
@@ -533,6 +571,7 @@ test('the published notes schema says version 2 and keys notes and unasked chang
     'part web/a.ts',
     'edge a -> b',
     'symbol web/a.ts#run',
+    'decision web/a.ts#run#x',
     'test web/a.ts#x',
     'web/a.ts',
   ];
@@ -543,7 +582,7 @@ test('the published notes schema says version 2 and keys notes and unasked chang
       keys.filter(key => new RegExp(pattern).test(key)),
     ),
   ).toEqual([
-    ['part web/a.ts', 'edge a -> b', 'symbol web/a.ts#run'],
-    ['part web/a.ts', 'edge a -> b', 'symbol web/a.ts#run'],
+    ['part web/a.ts', 'edge a -> b', 'symbol web/a.ts#run', 'decision web/a.ts#run#x'],
+    ['part web/a.ts', 'edge a -> b', 'symbol web/a.ts#run', 'decision web/a.ts#run#x'],
   ]);
 });

@@ -4,7 +4,7 @@ import type { GraphDiff } from './diff-graphs.ts';
 import { DIMENSIONS } from './findings.ts';
 import { edgeId } from './graph.ts';
 import type { SymbolFile } from './read-range.ts';
-import { anchoredSymbols } from './symbol-findings.ts';
+import { anchoredSymbols, decisionsOf } from './symbol-findings.ts';
 import {
   boxesAboveIn,
   type VisibleDiffOptions,
@@ -29,7 +29,11 @@ const AnswerSchema = z.discriminatedUnion('status', [
   answerOf('declined', 'Not taken, and this says why'),
 ]);
 
-const NoteKeySchema = z.templateLiteral([z.enum(['part', 'edge', 'symbol']), ' ', z.string()]);
+const NoteKeySchema = z.templateLiteral([
+  z.enum(['part', 'edge', 'symbol', 'decision']),
+  ' ',
+  z.string(),
+]);
 
 const ReviewNotesSchema = z
   .strictObject({
@@ -72,7 +76,7 @@ const ReviewNotesSchema = z
       .readonly()
       .default({})
       .describe(
-        'Notes by `part <node id>`, `edge <from> -> <to>` or `symbol <file node id>#<symbol>`; left out, there are none',
+        'Notes by `part <node id>`, `edge <from> -> <to>`, `symbol <file node id>#<symbol>` or `decision <file node id>#<symbol>#<decision>`; left out, there are none',
       ),
     answers: z
       .record(z.string(), AnswerSchema)
@@ -241,9 +245,10 @@ export const notesProblems = ({
     ...edges.map(id => anchorKey({ kind: 'edge', id })),
     ...symbols.flatMap(file =>
       'symbols' in file
-        ? anchoredSymbols(file.node, file.symbols).map(({ id }) =>
-            anchorKey({ kind: 'symbol', id }),
-          )
+        ? anchoredSymbols(file.node, file.symbols).flatMap(symbol => [
+            anchorKey({ kind: 'symbol', id: symbol.id }),
+            ...decisionsOf(symbol).map(({ id }) => anchorKey({ kind: 'decision', id })),
+          ])
         : [],
     ),
   ]);
@@ -262,7 +267,10 @@ export const notesProblems = ({
       .filter(key => !knownKeys.has(key))
       .map(key => `unknown key ${key}`),
     ...Object.entries(notes.notes)
-      .filter(([key, { flag }]) => flag !== undefined && anchorOfKey(key).kind === 'symbol')
+      .filter(
+        ([key, { flag }]) =>
+          flag !== undefined && !['part', 'edge'].includes(anchorOfKey(key).kind),
+      )
       .map(([key]) => `flag on ${key}: only a part or edge note takes a flag`),
     ...notes.summary
       .flatMap(item => item.target ?? [])
