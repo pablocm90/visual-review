@@ -79,22 +79,22 @@ type ClassNamed = (candidate: string) => string | undefined;
 
 type Classes = { readonly exactly: ClassNamed; readonly ignoringCase: ClassNamed };
 
-const lookedUp = (
-  name: string,
-  scopes: ReadonlyArray<string>,
-  classNamed: ClassNamed,
-): string | undefined =>
+type Wanted = {
+  readonly name: string;
+  readonly scopes: ReadonlyArray<string>;
+  readonly ignoringCase: boolean;
+};
+
+const lookedUp = ({ name, scopes, ignoringCase }: Wanted, classes: Classes): string | undefined =>
   [...scopes.map(scope => `${scope}::`), '']
     .flatMap(scope => prefixesOf(name.split('::')).map(prefix => `${scope}${prefix}`))
-    .map(classNamed)
+    .map(ignoringCase ? classes.ignoringCase : classes.exactly)
     .find(named => named !== undefined);
 
-const resolved = (node: Node, { exactly }: Classes): string | undefined => {
-  const fromTop = node.text.startsWith('::');
-  return fromTop
-    ? lookedUp(node.text.slice(2), [], exactly)
-    : lookedUp(node.text, scopesOf(node), exactly);
-};
+const written = (node: Node): Wanted =>
+  node.text.startsWith('::')
+    ? { name: node.text.slice(2), scopes: [], ignoringCase: false }
+    : { name: node.text, scopes: scopesOf(node), ignoringCase: false };
 
 const asWritten = (name: string): string => name;
 
@@ -113,7 +113,7 @@ const optionsOf = (args: ReadonlyArray<Node>): ReadonlyMap<string, string> =>
     ]),
   );
 
-const associated = (call: Node, owner: string, { ignoringCase }: Classes): string | undefined => {
+const associated = (call: Node, owner: string): Wanted | undefined => {
   const inflected = ASSOCIATIONS.get(call.childForFieldName('method')?.text ?? '');
   if (inflected === undefined) return undefined;
   const [name, ...rest] = call.childForFieldName('arguments')?.namedChildren ?? [];
@@ -121,17 +121,17 @@ const associated = (call: Node, owner: string, { ignoringCase }: Classes): strin
   if (options.get('polymorphic') === 'true') return undefined;
   const scopes = prefixesOf(owner.split('::'));
   const className = options.get('class_name') ?? options.get('source_type');
-  if (className !== undefined) return lookedUp(className.slice(1, -1), scopes, ignoringCase);
+  if (className !== undefined) return { name: className.slice(1, -1), scopes, ignoringCase: true };
   const source = options.get('source');
   const named =
     source === undefined ? inflected((name?.text ?? '').slice(1)) : singular(source.slice(1));
-  return lookedUp(camelized(named), scopes, ignoringCase);
+  return { name: camelized(named), scopes, ignoringCase: true };
 };
 
-const namedBy = (node: Node, owner: string, classes: Classes): string | undefined => {
-  if (node.type === 'call') return associated(node, owner, classes);
+const wantedBy = (node: Node, owner: string): Wanted | undefined => {
+  if (node.type === 'call') return associated(node, owner);
   if (node.parent?.type === 'scope_resolution' || isDefinedName(node)) return undefined;
-  return resolved(node, classes);
+  return written(node);
 };
 
 export const namingsIn = (
@@ -140,7 +140,8 @@ export const namingsIn = (
   classes: Classes,
 ): ReadonlyArray<{ readonly at: Node; readonly named: string }> =>
   (program?.descendantsOfType(['constant', 'scope_resolution', 'call']) ?? []).flatMap(at => {
-    const named = namedBy(at, owner, classes);
+    const wanted = wantedBy(at, owner);
+    const named = wanted === undefined ? undefined : lookedUp(wanted, classes);
     return named === undefined ? [] : [{ at, named }];
   });
 
