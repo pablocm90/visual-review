@@ -70,6 +70,11 @@ test.for([
     read: () =>
       eachFile((text, index) => railsReader.measure?.(text, `app/models/model${index}.rb`)),
   },
+  {
+    reading: 'Ruby symbols',
+    read: () =>
+      eachFile((text, index) => railsReader.symbols?.(text, `app/models/model${index}.rb`)),
+  },
 ])(
   'reading $reading frees each file’s tree, so the parser’s heap stays as it was',
   async ({ read }) => {
