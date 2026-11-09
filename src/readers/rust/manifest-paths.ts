@@ -137,5 +137,13 @@ const walk = async ({ checkout, folders, seen }: Walk): Promise<void> => {
   return walk({ checkout, folders: [...rest, ...followed], seen: new Set([...seen, real]) });
 };
 
-export const refuseLeavingPaths = ({ checkout, root }: ManifestOptions): Promise<void> =>
-  walk({ checkout, folders: [resolve(checkout, root)], seen: new Set() });
+const foldersAbove = (checkout: string, folder: string): ReadonlyArray<string> => {
+  const segments = relative(checkout, folder).split('/');
+  return segments.map((_, index) => join(checkout, ...segments.slice(0, index)));
+};
+
+export const refuseLeavingPaths = ({ checkout, root }: ManifestOptions): Promise<void> => {
+  const folder = resolve(checkout, root);
+  const above = foldersAbove(checkout, folder).filter(up => existsSync(join(up, 'Cargo.toml')));
+  return walk({ checkout, folders: [folder, ...above], seen: new Set() });
+};

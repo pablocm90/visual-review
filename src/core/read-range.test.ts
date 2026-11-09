@@ -1708,6 +1708,31 @@ test.for([
   },
 );
 
+test("a stack under a workspace in the checkout is not read when that workspace's members leave it, since cargo searches its folders above for one", async () => {
+  using repository = gitRepo({ 'README.md': '' });
+  const { repo, root } = repository;
+  const outside = withZeroManifest(repo);
+  const head = commit(repo, {
+    'visual-review.config.json':
+      '{"stacks": {"rust": false, "tools": {"reader": "rust", "root": "sub/tools"}}}\n',
+    'Cargo.toml': `[workspace]\nmembers = ["sub/tools", "${outside}"]\n`,
+    'sub/tools/Cargo.toml': packageNamed('t'),
+    'sub/tools/src/lib.rs': '',
+  });
+  using bin = pathWithCargo('exit 1');
+  vi.stubEnv('PATH', bin.path);
+
+  const range = await readRange({ repo, from: root, to: head });
+
+  expect(range.skipped).toEqual([
+    {
+      reader: 'rust',
+      stacks: ['tools'],
+      reason: `Cargo.toml: workspace.members "${outside}" leaves the checkout`,
+    },
+  ]);
+});
+
 test('a link inside the checkout back to its root is walked once, and cargo runs', async () => {
   using repository = gitRepo({ 'README.md': '' });
   const { repo, root } = repository;
