@@ -36,7 +36,10 @@ Run every command from the repository root (`git rev-parse --show-toplevel`, whi
          "flag": "layer skipped"
        },
        "web/file/App.tsx -> web/module/modules/AppInfo": {
-         "text": "App reads app info through the module.",
+         "text": "App reads app info through the module."
+       },
+       "web/file/App.tsx": {
+         "text": "Shows the version in the footer.",
          "recommendation": "Bug: App reads the version before the module has fetched it, so it shows undefined on first paint; read it once the fetch resolves."
        }
      }
@@ -49,7 +52,7 @@ Run every command from the repository root (`git rev-parse --show-toplevel`, whi
    - A Rails class has its own id, keyed by its constant, such as `shop/class/Admin::UsersController`, inside its layer (`shop/layer/controllers`); its note shows once the layer is expanded.
    - Each note's `text` says what that part does in the change, in one or two sentences.
    - Add `why` where the change has a reason worth giving: why the part changed this way, and what follows from it, in one or two sentences `text` doesn't already say. Leave it out when the reason is only the text again.
-   - Add `recommendation` only where something warrants it: what you would do about the part, in a sentence the reviewer can take as their own request, not a restatement of `why`. On a served page the reviewer's **Take** turns it into a `change` comment on that part or edge.
+   - Add `recommendation` only where something warrants it: what you would do about the part, in a sentence the reviewer can take as their own request, not a restatement of `why`. On a served page the reviewer's **Take** turns it into a `change` comment on that part, or on an edge drawn for one import; an edge drawn between closed modules or crates takes no comment, so put a recommendation about it on one of its ends.
    - `summary` holds two to five items on the change's shape as a whole, undrawn files included. Give an item a `target` when it is about one node or edge.
    - `tests` is one or two sentences on the tests as a whole: what the listed tests pin, and what the change leaves untested, such as a modified part with no test change under it. When no test changed, say what that leaves unpinned. It heads the Tests tab.
    - Set `flag` to a short label only for a structural concern the graph shows: a new dependency direction, a layer reaching past its neighbour, a cycle, or coupling across the stack edge. The page shows it as a finding that needs a look. Give the note a `dimension` when another one in `notes.schema.json` fits the concern better, such as `dependencies` for coupling across the stack edge; left out, it is `structure`.
