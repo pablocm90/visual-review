@@ -1,5 +1,6 @@
 import type { Node } from 'web-tree-sitter';
 import type { AccessReader, Action, Cover, UnreadAccess } from '../../core/access.ts';
+import { matchesWildcard } from '../../core/wildcard.ts';
 import { classesOf, lookedUp, scopesOf, type Wanted, written } from './rails-graph.ts';
 import { NOT_SEARCHED } from './reader.ts';
 import { symbolsOfRuby } from './ruby-symbols.ts';
@@ -154,13 +155,8 @@ const inherited = (
   ];
 };
 
-const literally = (text: string): string => text.replace(/[\\^$.+?()[\]{}|]/g, '\\$&');
-
-const namedBy = (pattern: string): RegExp =>
-  new RegExp(`^${pattern.split('*').map(literally).join('.*')}$`);
-
 const authorizes = (authorize: ReadonlyArray<string>, name: string): boolean =>
-  authorize.some(pattern => namedBy(pattern).test(name));
+  authorize.some(pattern => matchesWildcard(pattern, name));
 
 type Covering = {
   readonly action: string;
