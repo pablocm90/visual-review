@@ -82,7 +82,7 @@ const readingOf = (overrides: Partial<Omit<RangeReading, 'reviewed'>>): RangeRea
   readers: ['typescript'],
   thresholds: { cyclomatic: 10, splitParts: 4, hotspot: { churn: 6, cyclomatic: 8 } },
   churnDays: 90,
-  rules: {},
+  ruleBreaks: [],
   ...overrides,
 });
 

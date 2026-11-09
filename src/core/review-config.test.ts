@@ -454,34 +454,30 @@ test.for([
   expect(range.thresholds).toEqual(thresholds);
 });
 
-test("the config's rules are the reading's, by name, a single glob read as a list of one", async () => {
-  using repository = gitRepo({ 'package.json': '{}\n', 'src/a.ts': '' });
+test("the head graph's edges breaking the config's rules are the reading's rule breaks, a rule's single glob read as a list of one; an edge only the base drew breaks nothing", async () => {
+  using repository = gitRepo({
+    'package.json': '{"name": "app"}\n',
+    'src/a.ts': "import { c } from './c';\nexport const a = c;\n",
+    'src/b.ts': 'export const b = 1;\n',
+    'src/c.ts': 'export const c = 1;\n',
+  });
   const { repo, root } = repository;
-  const rules = {
-    'no-billing': {
-      from: 'shop/layer/controllers',
-      notTo: 'shop/layer/models/billing*',
-      reason: 'a',
-    },
-    'no-admin': {
-      from: ['web/file/a.ts', 'web/file/b.ts'],
-      notTo: ['web/file/admin/**'],
-      reason: 'b',
-    },
-  };
   const head = commit(repo, {
-    'src/a.ts': '1',
-    'visual-review.config.json': JSON.stringify({ rules }),
+    'src/a.ts': "import { b } from './b';\nexport const a = b;\n",
+    'visual-review.config.json': JSON.stringify({
+      rules: {
+        'a-alone': {
+          from: 'app/file/a.ts',
+          notTo: ['app/file/b.ts', 'app/file/c.ts'],
+          reason: 'Why.',
+        },
+      },
+    }),
   });
 
   const range = await readRange({ repo, from: root, to: head });
 
-  expect(range.rules).toEqual({
-    'no-billing': {
-      from: ['shop/layer/controllers'],
-      notTo: ['shop/layer/models/billing*'],
-      reason: 'a',
-    },
-    'no-admin': rules['no-admin'],
-  });
+  expect(range.ruleBreaks).toStrictEqual([
+    { rule: 'a-alone', reason: 'Why.', edge: { from: 'app/file/a.ts', to: 'app/file/b.ts' } },
+  ]);
 });
