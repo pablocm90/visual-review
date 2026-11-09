@@ -1958,6 +1958,33 @@ const useCommentAsked = (selected: string | undefined, tab: Tab) => {
   return [asked, setAsked] as const;
 };
 
+type SymbolNotesOfPageProps = {
+  readonly notes: ReviewPageProps['notes'];
+  readonly comment: ((written: Comment) => void) | undefined;
+  readonly selected: string | undefined;
+  readonly onAsk: (asked: CommentAskedOn) => void;
+  readonly children: ReactNode;
+};
+
+const SymbolNotesOfPage = ({
+  notes,
+  comment,
+  selected,
+  onAsk,
+  children,
+}: SymbolNotesOfPageProps) => {
+  const symbolNotes = useMemo(() => notesOfKind(notes?.notes ?? {}, ['symbol']), [notes]);
+  const onTake =
+    comment && selected !== undefined
+      ? (id: string, text: string) => {
+          const anchor = { kind: 'symbol', id } as const;
+          comment({ anchor, kind: 'change', text });
+          onAsk({ on: selected, row: anchorKey(anchor) });
+        }
+      : undefined;
+  return <SymbolNotes value={{ notes: symbolNotes, onTake }}>{children}</SymbolNotes>;
+};
+
 const Page = ({ review, notes, send }: ReviewPageProps) => {
   const tab = useTab(review);
   const [layout, setLayout] = useState<Layout>();
@@ -1992,7 +2019,6 @@ const Page = ({ review, notes, send }: ReviewPageProps) => {
   );
   const [allEdges, setAllEdges] = useState(false);
   const noted = useMemo(() => new Set(Object.keys(notesIn(notes))), [notes]);
-  const symbolNotes = useMemo(() => notesOfKind(notes?.notes ?? {}, ['symbol']), [notes]);
   const scopes = useMemo(() => scopesOf(review), [review]);
   const [scope, setScope] = useState(CHANGES_ONLY);
   const boxesAllOpen = scope[0] === LOGIC_ONLY;
@@ -2425,21 +2451,14 @@ const Page = ({ review, notes, send }: ReviewPageProps) => {
         }
       }
     >
-      <SymbolNotes
-        value={{
-          notes: symbolNotes,
-          onTake:
-            comment && selected !== undefined
-              ? (id, text) => {
-                  const anchor = { kind: 'symbol', id } as const;
-                  comment({ anchor, kind: 'change', text });
-                  setCommentAsked({ on: selected, row: anchorKey(anchor) });
-                }
-              : undefined,
-        }}
+      <SymbolNotesOfPage
+        notes={notes}
+        comment={comment}
+        selected={selected}
+        onAsk={setCommentAsked}
       >
         {page}
-      </SymbolNotes>
+      </SymbolNotesOfPage>
     </RespondingOnPage>
   );
 };
