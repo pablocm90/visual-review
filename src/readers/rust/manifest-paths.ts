@@ -1,3 +1,4 @@
+import { globSync } from 'node:fs';
 import { readFile } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
 import { parse, TomlError } from 'smol-toml';
@@ -14,11 +15,18 @@ const pathsIn = (value: unknown): ReadonlyArray<Named> => {
   );
 };
 
-const Manifest = z.object({ package: z.object({ workspace: z.string().optional() }).optional() });
+const Manifest = z.object({
+  package: z.object({ workspace: z.string().optional() }).optional(),
+  workspace: z.object({ members: z.array(z.string()).optional() }).optional(),
+});
 
 const workspaceOf = (manifest: unknown): ReadonlyArray<Named> => {
-  const workspace = Manifest.safeParse(manifest).data?.package?.workspace;
-  return workspace === undefined ? [] : [{ key: 'package.workspace', path: workspace }];
+  const read = Manifest.safeParse(manifest).data;
+  const workspace = read?.package?.workspace;
+  return [
+    ...(workspace === undefined ? [] : [{ key: 'package.workspace', path: workspace }]),
+    ...(read?.workspace?.members ?? []).map(path => ({ key: 'workspace.members', path })),
+  ];
 };
 
 const parsed = (manifest: string, text: string): unknown => {
@@ -36,14 +44,29 @@ type ManifestOptions = {
   readonly root: string;
 };
 
-export const refuseLeavingPaths = async ({ checkout, root }: ManifestOptions): Promise<void> => {
-  const manifest = join(root, 'Cargo.toml');
-  const read = parsed(manifest, await readFile(join(checkout, manifest), 'utf8'));
-  const paths = [...pathsIn(read), ...workspaceOf(read)];
+const literalPrefixOf = (pattern: string): string => {
+  const segments = pattern.split('/');
+  const globbed = segments.findIndex(segment => /[*?[]/.test(segment));
+  return globbed === -1 ? pattern : segments.slice(0, globbed).join('/');
+};
+
+const leaves = async (pattern: string, { checkout, root }: ManifestOptions): Promise<boolean> => {
+  const folder = resolve(checkout, root);
+  const prefix = literalPrefixOf(pattern);
+  if (!(await resolvesInside(checkout, resolve(folder, prefix)))) return true;
+  const matches = globSync(pattern, { cwd: folder });
   const inside = await Promise.all(
-    paths.map(({ path }) => resolvesInside(checkout, resolve(checkout, root, path))),
+    matches.map(match => resolvesInside(checkout, resolve(folder, match))),
   );
-  const leaving = paths.find((_, index) => !inside[index]);
+  return inside.includes(false);
+};
+
+export const refuseLeavingPaths = async (options: ManifestOptions): Promise<void> => {
+  const manifest = join(options.root, 'Cargo.toml');
+  const read = parsed(manifest, await readFile(join(options.checkout, manifest), 'utf8'));
+  const paths = [...pathsIn(read), ...workspaceOf(read)];
+  const left = await Promise.all(paths.map(({ path }) => leaves(path, options)));
+  const leaving = paths.find((_, index) => left[index]);
   if (leaving !== undefined)
     throw new StackNotRead(
       `${manifest}: ${leaving.key} ${JSON.stringify(leaving.path)} leaves the checkout`,

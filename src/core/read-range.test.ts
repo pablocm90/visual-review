@@ -1592,14 +1592,35 @@ test.for([
     out: 'relative',
     key: 'package.workspace',
   },
+  {
+    named: 'a workspace member',
+    manifest: (out: string) => `[workspace]\nmembers = [${out}]\n`,
+    out: 'relative',
+    key: 'workspace.members',
+  },
+  {
+    named: 'a workspace member glob whose folder',
+    manifest: (out: string) => `[workspace]\nmembers = [${out}]\n`,
+    out: 'relative',
+    key: 'workspace.members',
+    pattern: (out: string) => `${out}/*`,
+  },
+  {
+    named: 'a workspace member glob matching a folder',
+    manifest: (out: string) => `[workspace]\nmembers = [${out}]\n`,
+    out: 'relative',
+    key: 'workspace.members',
+    pattern: (out: string) => `*/../${out}`,
+  },
 ] as const)(
   'a Cargo.toml naming $named that leaves the checkout is not read, and cargo never runs',
   async ({ manifest, out, ...row }) => {
     using repository = gitRepo({ 'README.md': '' });
     const { repo, root } = repository;
-    const outside = { relative: withZeroManifest(repo), absolute: join(repo, 'zero') }[out];
+    const folder = { relative: withZeroManifest(repo), absolute: join(repo, 'zero') }[out];
+    const outside = 'pattern' in row ? row.pattern(folder) : folder;
     const mirror =
-      'mirrored' in row ? { [join(outside, 'Cargo.toml').slice(1)]: packageNamed('b') } : {};
+      'mirrored' in row ? { [join(folder, 'Cargo.toml').slice(1)]: packageNamed('b') } : {};
     const head = commit(repo, {
       ...mirror,
       'Cargo.toml': manifest(JSON.stringify(outside)),
@@ -1650,6 +1671,25 @@ test("a stack's dependency path is read from its own folder, so one inside the c
   expect(nodeIds(range.after)).toContain('api/crate/a');
 });
 
+test.for(['crates/*', 'crates/?', 'crates/[a]'])(
+  "a workspace member glob %s is matched from the stack's own folder, and its members read",
+  async members => {
+    using repository = gitRepo({ 'README.md': '' });
+    const { repo, root } = repository;
+    const head = commit(repo, {
+      'visual-review.config.json': '{"stacks": {"api": {"reader": "rust", "root": "api"}}}\n',
+      'api/Cargo.toml': `[workspace]\nmembers = ["${members}"]\nresolver = "2"\n`,
+      'api/crates/a/Cargo.toml': packageNamed('a'),
+      'api/crates/a/src/lib.rs': '',
+    });
+
+    const range = await readRange({ repo, from: root, to: head });
+
+    expect(range.skipped).toEqual([]);
+    expect(nodeIds(range.after)).toContain('api/crate/a');
+  },
+);
+
 test.for([
   {
     broken: 'a manifest',
@@ -1657,9 +1697,9 @@ test.for([
     reason: 'Cargo.toml: Invalid TOML document: illegal character in key',
   },
   {
-    broken: 'a member, named inside the checkout',
+    broken: 'a member missing from the checkout',
     manifest: '[workspace]\nmembers = ["crates/missing"]\n',
-    reason: 'cargo: failed to load manifest for workspace member `crates/missing`',
+    reason: 'Cargo.toml: workspace.members "crates/missing" leaves the checkout',
   },
   {
     broken: 'a package workspace that is no path',
