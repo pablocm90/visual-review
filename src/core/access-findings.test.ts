@@ -68,3 +68,18 @@ test('an action in a file no node draws opens the file', () => {
 test('an action nothing authorized before raises nothing', () => {
   expect(findingsOf(reading([action()], [action()]))).toStrictEqual([]);
 });
+
+test('an action the base covered and the head does not needs a look, naming the lost cover', () => {
+  expect(
+    findingsOf(
+      reading([action({ cover: { by: 'authorize_user', conditional: false } })], [action()]),
+    ).map(({ id, level, title, detail }) => ({ id, level, title, detail })),
+  ).toStrictEqual([
+    {
+      id: 'security:unauthorized::UsersController#show',
+      level: 'look',
+      title: 'UsersController#show lost its authorization',
+      detail: `At ${FILE}:4. authorize_user covered it before; nothing authorizes it now.`,
+    },
+  ]);
+});

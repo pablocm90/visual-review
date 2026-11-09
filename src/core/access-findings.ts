@@ -18,18 +18,42 @@ const nodeOf = (
   return node === undefined ? { file } : { target: node.id };
 };
 
+const whatChanged = (
+  action: Action,
+  before: Action | undefined,
+): { readonly title: string; readonly detail: string } | undefined => {
+  const at = `At ${action.file}:${action.line}.`;
+  const name = `${action.controller}#${action.action}`;
+  if (before === undefined)
+    return {
+      title: `${name} added with no authorization`,
+      detail: `${at} No callback, parent or call of its own authorizes it.`,
+    };
+  if (before.cover === undefined) return undefined;
+  return {
+    title: `${name} lost its authorization`,
+    detail: `${at} ${before.cover.by} covered it before; nothing authorizes it now.`,
+  };
+};
+
 export const accessFindings = ({ access, nodes }: AccessFindingsOptions): ReadonlyArray<Finding> =>
   access.flatMap(({ base, head }) => {
-    const before = new Set(base.actions.map(keyOf));
+    const before = new Map(base.actions.map(action => [keyOf(action), action]));
     return head.actions
-      .filter(action => action.cover === undefined && !before.has(keyOf(action)))
-      .map(action => ({
-        id: `security:unauthorized:${keyOf(action)}`,
-        check: 'security:unauthorized',
-        dimension: 'security',
-        level: 'look',
-        ...nodeOf(nodes, action),
-        title: `${action.controller}#${action.action} added with no authorization`,
-        detail: `At ${action.file}:${action.line}. No callback, parent or call of its own authorizes it.`,
-      }));
+      .filter(action => action.cover === undefined)
+      .flatMap((action): ReadonlyArray<Finding> => {
+        const change = whatChanged(action, before.get(keyOf(action)));
+        return change === undefined
+          ? []
+          : [
+              {
+                id: `security:unauthorized:${keyOf(action)}`,
+                check: 'security:unauthorized',
+                dimension: 'security',
+                level: 'look',
+                ...nodeOf(nodes, action),
+                ...change,
+              },
+            ];
+      });
   });
