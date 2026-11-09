@@ -1276,7 +1276,7 @@ test("notes on a first round's page may not list unasked changes", () => {
   });
   const notes = {
     ...notesWith({ 'part web/file/a.ts': { text: 'Reads well.' } }),
-    unasked: { 'web/file/a.ts': { text: 'Renamed the helper.' } },
+    unasked: { 'part web/file/a.ts': { text: 'Renamed the helper.' } },
   };
 
   expect(() => notedPageHtml({ page, notes, notesFile, version })).toThrow('this page has none');

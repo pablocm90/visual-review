@@ -29,6 +29,8 @@ const AnswerSchema = z.discriminatedUnion('status', [
   answerOf('declined', 'Not taken, and this says why'),
 ]);
 
+const NoteKeySchema = z.templateLiteral([z.enum(['part', 'edge', 'symbol']), ' ', z.string()]);
+
 const ReviewNotesSchema = z
   .strictObject({
     $schema: z.string().optional(),
@@ -47,7 +49,7 @@ const ReviewNotesSchema = z
     tests: z.string().describe('What the tests pin, and what the change leaves unpinned'),
     notes: z
       .record(
-        z.templateLiteral([z.enum(['part', 'edge', 'symbol']), ' ', z.string()]),
+        NoteKeySchema,
         z
           .strictObject({
             text: z.string(),
@@ -80,12 +82,10 @@ const ReviewNotesSchema = z
         "Answers to the last review, by each comment's anchor as `<kind> <id>`; left out, there are none",
       ),
     unasked: z
-      .record(z.string(), z.strictObject({ text: z.string() }).readonly())
+      .record(NoteKeySchema, z.strictObject({ text: z.string() }).readonly())
       .readonly()
       .optional()
-      .describe(
-        'Changes no comment asked for, by node id, or by `<from> -> <to>` for an edge; left out, there are none',
-      ),
+      .describe('Changes no comment asked for, keyed as notes are; left out, there are none'),
   })
   .readonly();
 
@@ -247,13 +247,14 @@ export const notesProblems = ({
       .map(edge => ({ kind: 'edge', id: edgeId(edge) })),
   ];
   return [
-    ...Object.keys(notes.notes)
+    ...[...Object.keys(notes.notes), ...Object.keys(notes.unasked ?? {})]
       .filter(key => !knownKeys.has(key))
       .map(key => `unknown key ${key}`),
     ...Object.entries(notes.notes)
       .filter(([key, { flag }]) => flag !== undefined && anchorOfKey(key).kind === 'symbol')
       .map(([key]) => `flag on ${key}: only a part or edge note takes a flag`),
-    ...[...notes.summary.flatMap(item => item.target ?? []), ...Object.keys(notes.unasked ?? {})]
+    ...notes.summary
+      .flatMap(item => item.target ?? [])
       .filter(id => !knownIds.has(id))
       .map(id => `unknown id ${id}`),
     ...touched

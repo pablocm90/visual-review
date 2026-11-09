@@ -9247,9 +9247,8 @@ test('the last review lists the parts changed since with no comment on them, goi
   );
 });
 
-test('the last review lists what Claude changed unasked, going to each part or edge; with only those it still shows', async () => {
+test('the last review lists what Claude changed unasked, going to each part, edge or symbol; with only those it still shows', async () => {
   const user = userEvent.setup();
-  const edge = 'rust/crate/cli-adapter -> rust/crate/application';
   render(
     <ReviewPage
       review={pageWith({ ...review, sinceReview })}
@@ -9259,8 +9258,9 @@ test('the last review lists what Claude changed unasked, going to each part or e
         summary: [],
         notes: {},
         unasked: {
-          'rust/crate/application': { text: 'Renamed the helper.' },
-          [edge]: { text: 'Dropped a cast.' },
+          'part rust/crate/application': { text: 'Renamed the helper.' },
+          'edge rust/crate/cli-adapter -> rust/crate/application': { text: 'Dropped a cast.' },
+          'symbol rust/crate/cli-adapter#run': { text: 'Inlined a guard.' },
         },
       }}
     />,
@@ -9287,6 +9287,10 @@ test('the last review lists what Claude changed unasked, going to each part or e
   expect(document.activeElement).toBe(
     screen.getByRole('button', { name: 'application: modified' }),
   );
+
+  await user.click(unasked.getByRole('button', { name: 'run in cli-adapter' }));
+
+  expect(document.activeElement).toBe(screen.getByRole('button', { name: 'cli-adapter: added' }));
 });
 
 test('a last comment on a part or an edge shows under its anchor in the Note panel, with no send too', async () => {

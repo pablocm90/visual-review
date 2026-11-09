@@ -407,24 +407,27 @@ test('a notes file keeps its answers, each status with what it carries', () => {
   expect(parseNotes({ text, file }).answers).toEqual(answers);
 });
 
-test('an unasked change is known by a node or an edge of the graph', () => {
+test('an unasked change is keyed as a note is, by a part, an edge or a symbol', () => {
   const text = JSON.stringify(
     notesWith({
       unasked: {
-        'web/module/pages': { text: 'Renamed the helper.' },
-        'web/module/pages -> web/module/utils': { text: 'Dropped a cast.' },
-        'web/module/gone': { text: 'Removed it.' },
+        'part web/module/pages': { text: 'Renamed the helper.' },
+        'edge web/module/pages -> web/module/utils': { text: 'Dropped a cast.' },
+        'symbol web/file/pages/home.tsx#run': { text: 'Inlined a guard.' },
+        'part web/module/gone': { text: 'Removed it.' },
       },
     }),
   );
 
   expect(notesProblems({ symbols, diff, said: [], notes: parseNotes({ text, file }) })).toEqual([
-    'unknown id web/module/gone',
+    'unknown key part web/module/gone',
   ]);
 });
 
 test('an unasked change needs a last review to show under, even one that said nothing', () => {
-  const notes = notesWith({ unasked: { 'web/module/pages': { text: 'Renamed the helper.' } } });
+  const notes = notesWith({
+    unasked: { 'part web/module/pages': { text: 'Renamed the helper.' } },
+  });
 
   expect(notesProblems({ symbols, diff, said: undefined, notes })).toEqual([
     'unasked changes show under the last review, and this page has none',
@@ -466,6 +469,11 @@ test.for([
   {
     level: 'the notes, a bare id',
     overrides: { notes: { 'web/module/pages': { text: 'Formats.' } } },
+    key: 'web/module/pages',
+  },
+  {
+    level: 'the unasked changes, a bare id',
+    overrides: { unasked: { 'web/module/pages': { text: 'Renamed the helper.' } } },
     key: 'web/module/pages',
   },
 ])('an unknown key on $level is rejected naming the file and the key', ({ overrides, key }) => {
