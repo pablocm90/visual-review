@@ -83,6 +83,25 @@ test.for([
     body: '    before_action :require_admin, except: :index',
   },
   {
+    callback: 'a prepend_before_action',
+    body: '    prepend_before_action :require_admin',
+    cover: { by: 'require_admin', conditional: false },
+  },
+  {
+    callback: 'an after_action',
+    body: '    after_action :require_admin',
+    cover: { by: 'require_admin', conditional: false },
+  },
+  {
+    callback: 'an around_action',
+    body: '    around_action :require_admin',
+    cover: { by: 'require_admin', conditional: false },
+  },
+  {
+    callback: 'an after_action skipped later',
+    body: '    append_after_action :require_admin\n    skip_after_action :require_admin',
+  },
+  {
     callback: 'a before_action skipped later',
     body: '    before_action :require_admin\n    skip_before_action :require_admin',
   },
