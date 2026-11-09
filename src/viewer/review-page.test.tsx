@@ -7665,6 +7665,53 @@ test('a note on a test shows under its row in Tested by, an unchanged test kept 
   );
 });
 
+test("on a served page Take on a test's note opens that row's field with the recommendation as a change, focused, in Tested by and on the Tests screen, and hides while the draft holds text", async () => {
+  const user = userEvent.setup();
+  render(
+    <ReviewPage
+      review={pageWithSameNamedTests()}
+      notes={{
+        version: 2,
+        tests: '',
+        summary: [],
+        notes: {
+          'test total.test.ts#Cart › adds tax': {
+            text: 'Adds tax once.',
+            recommendation: 'Add it per line.',
+          },
+        },
+      }}
+      send={async () => {}}
+    />,
+  );
+  const row = (region: HTMLElement) =>
+    within(within(region).getByRole('listitem', { name: 'adds tax: added' }));
+  const field = (region: HTMLElement) => row(region).getByRole('textbox', { name: 'Your comment' });
+  const take = (region: HTMLElement) => row(region).queryByRole('button', { name: 'Take' });
+  const takenIn = async (region: () => HTMLElement) => {
+    await user.click(row(region()).getByRole('button', { name: 'Take' }));
+    expect(document.activeElement).toBe(field(region()));
+    expect(field(region())).toHaveProperty('value', 'Add it per line.');
+    expect(
+      within(row(region()).getByRole('radiogroup', { name: 'Comment kind' })).getByRole('radio', {
+        name: 'Change this',
+      }),
+    ).toHaveProperty('checked', true);
+    expect(within(tray()).getByText('1 drafted · 1 change')).toBeDefined();
+    expect(take(region())).toBeNull();
+    await user.clear(field(region()));
+    expect(take(region())).not.toBeNull();
+  };
+
+  await user.click(await screen.findByRole('button', { name: 'total.ts: modified' }));
+  await takenIn(testedBy);
+
+  await user.click(screen.getByRole('link', { name: /^Tests/ }));
+  const testChanges = () => screen.getByRole('region', { name: 'Test changes' });
+  expect(document.activeElement).not.toBe(field(testChanges()));
+  await takenIn(testChanges);
+});
+
 test("a served page's test row in Tested by takes a comment, a removed test too, its id the test's file and headings, so tests of one name keep apart; a page not served has no toggle", async () => {
   const user = userEvent.setup();
   const sent = vi.fn(async () => {});

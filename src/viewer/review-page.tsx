@@ -1893,10 +1893,12 @@ type OtherScreenProps = {
   readonly routesLanding: RoutesLanding | undefined;
   readonly onRoutesLanded: () => void;
   readonly onShowPatch: (path: string, opener: HTMLButtonElement) => void;
+  readonly commentAsked: CommentAskedOn | undefined;
 };
 
 const OtherScreen = ({
   tab,
+  commentAsked,
   review,
   notes,
   selected,
@@ -1912,14 +1914,22 @@ const OtherScreen = ({
   <>
     {tab === 'tests' && (
       <ChangedSinceMarks value={changedSinceIn(review)}>
-        <TestsScreen
-          review={review}
-          notes={notes}
-          selected={selected}
-          onGoTo={onGoTo}
-          comments={comments}
-          onComment={onComment}
-        />
+        <CommentAsked.Provider
+          value={
+            commentAsked?.row === undefined
+              ? undefined
+              : { anchor: commentAsked.row, request: commentAsked }
+          }
+        >
+          <TestsScreen
+            review={review}
+            notes={notes}
+            selected={selected}
+            onGoTo={onGoTo}
+            comments={comments}
+            onComment={onComment}
+          />
+        </CommentAsked.Provider>
       </ChangedSinceMarks>
     )}
     {tab === 'schema' && (
@@ -1949,9 +1959,9 @@ const rowCommentedFrom = (target: EventTarget | null): string | undefined =>
     : undefined;
 
 const useCommentAsked = (selected: string | undefined, tab: Tab) => {
-  const [asked, setAsked] = useState<CommentAskedOn>();
-  if (asked !== undefined && (asked.on !== selected || tab !== 'structure')) setAsked(undefined);
-  return [asked, setAsked] as const;
+  const [asked, setAsked] = useState<CommentAskedOn & { readonly tab: Tab }>();
+  if (asked !== undefined && (asked.on !== selected || asked.tab !== tab)) setAsked(undefined);
+  return [asked, (on: CommentAskedOn) => setAsked({ ...on, tab })] as const;
 };
 
 type RowNotesOfPageProps = {
@@ -2408,6 +2418,7 @@ const Page = ({ review, notes, send }: ReviewPageProps) => {
         routesLanding={routesLanding}
         onRoutesLanded={() => setRoutesLanding(undefined)}
         onShowPatch={showPatch}
+        commentAsked={commentAsked}
       />
       {send && (
         <ReviewTray
