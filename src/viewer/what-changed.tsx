@@ -340,6 +340,26 @@ const SymbolName = ({ symbol }: { readonly symbol: SymbolStatement }) => {
   );
 };
 
+type SymbolNoteProps = {
+  readonly id: string;
+  readonly name: string;
+  readonly comments: Comments;
+};
+
+const SymbolNote = ({ id, name, comments }: SymbolNoteProps) => {
+  const { notes, onTake } = useContext(SymbolNotes);
+  const note = notes[id];
+  if (note === undefined) return null;
+  const drafted = holdsDraft(comments, { kind: 'symbol', id });
+  return (
+    <NoteBlock
+      note={note}
+      onTake={onTake && !drafted ? text => onTake(id, text) : undefined}
+      label={`Note on ${name}`}
+    />
+  );
+};
+
 const SymbolRow = ({
   anchored: { item: symbol, id },
   node,
@@ -349,9 +369,6 @@ const SymbolRow = ({
 }: Places & InItsFile & { readonly anchored: AnchoredSymbol }) => {
   const isChangedSince = useIsChangedSince();
   const marksOf = useRowMarks();
-  const { notes, onTake } = useContext(SymbolNotes);
-  const note = notes[id];
-  const drafted = holdsDraft(places.comments, { kind: 'symbol', id });
   const [diffOpen, setDiffOpen] = useState(false);
   const name = `${symbol.kind} ${qualified(symbol)}`;
   const ends = isQuiet(symbol) ? [] : endsOf(symbol, { node, patch, inFile }, places);
@@ -375,13 +392,7 @@ const SymbolRow = ({
         </button>
       )}
       {symbol.signature && <Signature name={name} signature={symbol.signature} />}
-      {note !== undefined && (
-        <NoteBlock
-          note={note}
-          onTake={onTake && !drafted ? text => onTake(id, text) : undefined}
-          label={`Note on ${name}`}
-        />
-      )}
+      <SymbolNote id={id} name={name} comments={places.comments} />
       <SaidBefore on={{ kind: 'symbol', id }} />
       {places.onComment && (
         <CommentOn
