@@ -605,6 +605,7 @@ export const readRange = async ({
   const [fromCommit, toCommit] = await Promise.all([resolve(repo, from), resolve(repo, to)]);
   const base = await git(repo, 'merge-base', fromCommit, toCommit);
   const config = await configAt(repo, toCommit);
+  const notesConfig = await notesConfigAt(repo, base);
   const scratch = await realpath(await mkdtemp(join(tmpdir(), 'visual-review-')));
   try {
     const sides = { before: join(scratch, 'before'), after: join(scratch, 'after') };
@@ -725,7 +726,7 @@ export const readRange = async ({
       churnDays,
       ruleBreaks: ruleBreaks({ rules: config.rules, graph: after.graph }),
       rulesNotRead: rulesNotRead({ rules: config.rules, graph: after.graph }),
-      notesConfig: await notesConfigAt(repo, base),
+      notesConfig,
       changedPaths,
       renames,
       patches: await Promise.all(

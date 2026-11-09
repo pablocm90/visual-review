@@ -1,4 +1,5 @@
 import { expect, test } from 'vitest';
+import { fakeReader } from '../test-support/fakes.ts';
 import { readRange } from '../test-support/read-range.ts';
 import { commit, crateFiles, git, gitRepo, writeFiles } from '../test-support/repos.ts';
 
@@ -589,3 +590,23 @@ test.for([
     );
   },
 );
+
+test('a base notes entry that does not parse fails the review before any graph is read', async () => {
+  using workspace = gitRepo({
+    'package.json': '{}\n',
+    'src/a.ts': '',
+    'visual-review.config.json': '{"notes": {"guidance": 1}}\n',
+  });
+  const { repo, root } = workspace;
+  const to = commit(repo, { 'visual-review.config.json': '{}\n' });
+  const reader = fakeReader({
+    roots: [{ root: '.' }],
+    graph: async () => {
+      throw new Error('a graph was read');
+    },
+  });
+
+  await expect(readRange({ repo, from: root, to, readers: [reader] })).rejects.toThrow(
+    'visual-review.config.json at the base: notes.guidance',
+  );
+});
