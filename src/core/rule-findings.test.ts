@@ -53,3 +53,21 @@ test("a call edge's finding says the paths it calls through after the reason", (
     }).map(({ detail }) => detail),
   ).toStrictEqual([`${REASON} (via /api/invoices, /api/refunds)`]);
 });
+
+test('an edge breaking two rules is two findings, each by its own rule', () => {
+  expect(
+    ruleFindings({
+      ruleBreaks: [breaking(intoBilling), { ...breaking(intoBilling), rule: 'no-models' }],
+      edges: [{ ...intoBilling, state: 'added' }],
+    }).map(({ id, title }) => [id, title]),
+  ).toStrictEqual([
+    [
+      'rules:broken:controllers-skip-billing:shop/class/UsersController -> shop/class/Billing::Invoice',
+      'breaks controllers-skip-billing',
+    ],
+    [
+      'rules:broken:no-models:shop/class/UsersController -> shop/class/Billing::Invoice',
+      'breaks no-models',
+    ],
+  ]);
+});

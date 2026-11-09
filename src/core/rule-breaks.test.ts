@@ -99,3 +99,15 @@ test.for([
     line,
   ]);
 });
+
+test('an edge breaking two rules breaks each of them', () => {
+  const breaking = { from: 'shop/class/OrdersController', to: 'shop/class/Invoice' };
+  const models = { ...rule, notTo: ['shop/layer/models'], reason: 'Controllers use services.' };
+
+  expect(
+    ruleBreaks({ rules: { 'no-invoices': rule, 'no-models': models }, graph: graphOf([breaking]) }),
+  ).toStrictEqual([
+    { rule: 'no-invoices', reason: rule.reason, edge: breaking },
+    { rule: 'no-models', reason: models.reason, edge: breaking },
+  ]);
+});
