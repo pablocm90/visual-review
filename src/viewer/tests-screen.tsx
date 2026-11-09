@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useContext, useState } from 'react';
 import { anchorKey } from '../core/anchors.ts';
 import type { GraphNode } from '../core/graph.ts';
 import type { ReviewNotes } from '../core/notes.ts';
@@ -20,6 +20,7 @@ import { ChangedSinceTag, sinceLabel, useIsChangedSince } from './changed-since.
 import type { Comments } from './comment-field.tsx';
 import { LevelMark } from './finding-display.tsx';
 import { FindingRows, type FindingRowsProps } from './finding-rows.tsx';
+import { RowNote, RowNotes } from './note-block.tsx';
 import { CommentOn, SaidBefore, useHasSaid } from './said-before.tsx';
 import { useRowMarks } from './what-changed.tsx';
 
@@ -75,6 +76,7 @@ const TestLine = ({
       {test.label && <span className="label">{test.label}</span>}
       {moved && <span className="moved">{moved.text}</span>}
       <ChangedSinceTag marked={marked} />
+      <RowNote anchor={{ kind: 'test', id }} name={test.trail} comments={comments} />
       <SaidBefore on={{ kind: 'test', id }} />
       {onComment && (
         <CommentOn
@@ -161,6 +163,7 @@ export const useTestsToRead = (
 ): ReadonlyArray<DrawnFile> => {
   const hasSaid = useHasSaid();
   const isChangedSince = useIsChangedSince();
+  const { notes } = useContext(RowNotes);
   return files.map(anchoredIn).map(({ file, statements }) => ({
     file,
     statements: kept(statements, ({ change, trail }) => {
@@ -168,6 +171,7 @@ export const useTestsToRead = (
       return (
         change !== 'unchanged' ||
         comments[anchorKey(anchor)] !== undefined ||
+        notes[anchorKey(anchor)] !== undefined ||
         hasSaid(anchor) ||
         isChangedSince('tests', anchor.id)
       );

@@ -20,9 +20,9 @@ import { isQuiet, qualified, SYMBOL_GROUPS, type SymbolStatement } from '../core
 import { type AnchoredSymbol, anchoredSymbols, decisionsOf } from '../core/symbol-findings.ts';
 import { boxesAboveIn } from '../core/visible-diff.ts';
 import { ChangedSinceTag, sinceLabel, useIsChangedSince } from './changed-since.tsx';
-import { type Comments, holdsDraft } from './comment-field.tsx';
+import type { Comments } from './comment-field.tsx';
 import { LogicLegend, LogicStrip } from './logic-strip.tsx';
-import { NoteBlock, SymbolNotes } from './note-block.tsx';
+import { RowNote, RowNotes } from './note-block.tsx';
 import { CommentOn, SaidBefore, useHasSaid } from './said-before.tsx';
 import { scrollInPanel } from './scroll-in-panel.ts';
 import { Signature } from './signature-lines.tsx';
@@ -211,6 +211,11 @@ const LogicRow = ({
         </button>
       )}
       <ChangedSinceTag marked={marked} />
+      <RowNote
+        anchor={{ kind: 'decision', id, text }}
+        name={logicLabel(line, nodes)}
+        comments={comments}
+      />
       <SaidBefore on={{ kind: 'decision', id }} />
       {onComment && (
         <CommentOn
@@ -240,6 +245,7 @@ const LogicLines = ({
   const isChangedSince = useIsChangedSince();
   const hasSaid = useHasSaid();
   const marksOf = useRowMarks();
+  const { notes } = useContext(RowNotes);
   const name = `${symbol.item.kind} ${qualified(symbol.item)}`;
   const rows = decisionsOf(symbol).map(decision => {
     const marked = isChangedSince('decisions', decision.id);
@@ -252,6 +258,7 @@ const LogicLines = ({
   const holdsNews = ({ id, marked }: DecisionRow): boolean =>
     marked ||
     places.comments[anchorKey({ kind: 'decision', id })] !== undefined ||
+    notes[anchorKey({ kind: 'decision', id })] !== undefined ||
     hasSaid({ kind: 'decision', id });
   const rowOf = (row: DecisionRow) => (
     <LogicRow key={row.id} row={row} onShowLine={onShowLine} {...places} />
@@ -296,9 +303,12 @@ const LogicLines = ({
 const useSymbolHoldsNews = () => {
   const isChangedSince = useIsChangedSince();
   const hasSaid = useHasSaid();
-  const { notes } = useContext(SymbolNotes);
-  return (id: string): boolean =>
-    isChangedSince('symbols', id) || hasSaid({ kind: 'symbol', id }) || notes[id] !== undefined;
+  const { notes } = useContext(RowNotes);
+  return (symbol: AnchoredSymbol): boolean =>
+    isChangedSince('symbols', symbol.id) ||
+    hasSaid({ kind: 'symbol', id: symbol.id }) ||
+    notes[anchorKey({ kind: 'symbol', id: symbol.id })] !== undefined ||
+    decisionsOf(symbol).some(({ id }) => notes[anchorKey({ kind: 'decision', id })] !== undefined);
 };
 
 const useHasSymbolNews = () => {
@@ -306,7 +316,7 @@ const useHasSymbolNews = () => {
   return (file: SymbolFile): boolean =>
     'unreadable' in file ||
     changedSymbolCount([file]) > 0 ||
-    anchoredSymbols(file.node, file.symbols).some(({ id }) => holdsNews(id));
+    anchoredSymbols(file.node, file.symbols).some(holdsNews);
 };
 
 type InItsFile = {
@@ -343,26 +353,6 @@ const SymbolName = ({ symbol }: { readonly symbol: SymbolStatement }) => {
   );
 };
 
-type SymbolNoteProps = {
-  readonly id: string;
-  readonly name: string;
-  readonly comments: Comments;
-};
-
-const SymbolNote = ({ id, name, comments }: SymbolNoteProps) => {
-  const { notes, onTake } = useContext(SymbolNotes);
-  const note = notes[id];
-  if (note === undefined) return null;
-  const drafted = holdsDraft(comments, { kind: 'symbol', id });
-  return (
-    <NoteBlock
-      note={note}
-      onTake={onTake && !drafted ? text => onTake(id, text) : undefined}
-      label={`Note on ${name}`}
-    />
-  );
-};
-
 const SymbolRow = ({
   anchored: { item: symbol, id },
   node,
@@ -395,7 +385,7 @@ const SymbolRow = ({
         </button>
       )}
       {symbol.signature && <Signature name={name} signature={symbol.signature} />}
-      <SymbolNote id={id} name={name} comments={places.comments} />
+      <RowNote anchor={{ kind: 'symbol', id }} name={name} comments={places.comments} />
       <SaidBefore on={{ kind: 'symbol', id }} />
       {places.onComment && (
         <CommentOn
@@ -471,8 +461,9 @@ const SymbolFiles = ({ file, ...places }: Places & { readonly file: SymbolFile }
           className="symbol-group"
           aria-label="Unchanged symbols"
           open={quiet.some(
-            ({ id }) =>
-              places.comments[anchorKey({ kind: 'symbol', id })] !== undefined || holdsNews(id),
+            symbol =>
+              places.comments[anchorKey({ kind: 'symbol', id: symbol.id })] !== undefined ||
+              holdsNews(symbol),
           )}
         >
           <summary>{quiet.length} unchanged</summary>

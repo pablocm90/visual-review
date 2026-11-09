@@ -216,6 +216,7 @@ export const notedPageHtml = ({
     diff: data.diff,
     notes,
     symbols: data.symbols,
+    tests: data.tests,
     said: data.sinceReview?.comments,
   });
   if (problems.length > 0) {

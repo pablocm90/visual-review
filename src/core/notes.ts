@@ -4,7 +4,9 @@ import type { GraphDiff } from './diff-graphs.ts';
 import { DIMENSIONS } from './findings.ts';
 import { edgeId } from './graph.ts';
 import type { SymbolFile } from './read-range.ts';
-import { anchoredSymbols } from './symbol-findings.ts';
+import { testAnchorsIn } from './since-review.ts';
+import { anchoredSymbols, decisionsOf } from './symbol-findings.ts';
+import type { TestFile } from './test-changes.ts';
 import {
   boxesAboveIn,
   type VisibleDiffOptions,
@@ -29,7 +31,11 @@ const AnswerSchema = z.discriminatedUnion('status', [
   answerOf('declined', 'Not taken, and this says why'),
 ]);
 
-const NoteKeySchema = z.templateLiteral([z.enum(['part', 'edge', 'symbol']), ' ', z.string()]);
+const NoteKeySchema = z.templateLiteral([
+  z.enum(['part', 'edge', 'symbol', 'decision', 'test']),
+  ' ',
+  z.string(),
+]);
 
 const ReviewNotesSchema = z
   .strictObject({
@@ -72,7 +78,7 @@ const ReviewNotesSchema = z
       .readonly()
       .default({})
       .describe(
-        'Notes by `part <node id>`, `edge <from> -> <to>` or `symbol <file node id>#<symbol>`; left out, there are none',
+        'Notes by `part <node id>`, `edge <from> -> <to>`, `symbol <file node id>#<symbol>`, `decision <file node id>#<symbol>#<decision>` or `test <test file path>#<heading › test>`; left out, there are none',
       ),
     answers: z
       .record(z.string(), AnswerSchema)
@@ -153,19 +159,13 @@ const joined = (one: Note, other: Note): Note => ({
   ...joinedField('flag', [one, other], ', '),
 });
 
-export const notesOfKind = (
-  notes: ReviewNotes['notes'],
-  kinds: ReadonlyArray<string>,
-): Readonly<Record<string, Note>> =>
+export const notesOnTheGraph = (notes: ReviewNotes['notes']): Readonly<Record<string, Note>> =>
   Object.fromEntries(
     Object.entries(notes).flatMap(([key, note]) => {
       const { kind, id } = anchorOfKey(key);
-      return kinds.includes(kind) ? [[id, note]] : [];
+      return kind === 'part' || kind === 'edge' ? [[id, note]] : [];
     }),
   );
-
-export const notesOnTheGraph = (notes: ReviewNotes['notes']): Readonly<Record<string, Note>> =>
-  notesOfKind(notes, ['part', 'edge']);
 
 type VisibleNotesOptions = VisibleDiffOptions & {
   readonly notes: Readonly<Record<string, Note>>;
@@ -199,6 +199,7 @@ type NotesProblemsOptions = {
   readonly diff: GraphDiff;
   readonly notes: ReviewNotes;
   readonly symbols: ReadonlyArray<SymbolFile>;
+  readonly tests: ReadonlyArray<TestFile>;
   readonly said:
     | ReadonlyArray<{ readonly anchor: { readonly kind: string; readonly id: string } }>
     | undefined;
@@ -223,6 +224,7 @@ export const notesProblems = ({
   diff,
   notes,
   symbols,
+  tests,
   said,
 }: NotesProblemsOptions): ReadonlyArray<string> => {
   const boxesAbove = boxesAboveIn(diff.nodes);
@@ -241,11 +243,13 @@ export const notesProblems = ({
     ...edges.map(id => anchorKey({ kind: 'edge', id })),
     ...symbols.flatMap(file =>
       'symbols' in file
-        ? anchoredSymbols(file.node, file.symbols).map(({ id }) =>
-            anchorKey({ kind: 'symbol', id }),
-          )
+        ? anchoredSymbols(file.node, file.symbols).flatMap(symbol => [
+            anchorKey({ kind: 'symbol', id: symbol.id }),
+            ...decisionsOf(symbol).map(({ id }) => anchorKey({ kind: 'decision', id })),
+          ])
         : [],
     ),
+    ...testAnchorsIn(tests).map(({ id }) => anchorKey({ kind: 'test', id })),
   ]);
   const collapsed = visibleDiff({ diff, expanded: new Set() });
   const shown = visibleNotes({ diff, expanded: new Set(), notes: notesOnTheGraph(notes.notes) });
@@ -262,7 +266,10 @@ export const notesProblems = ({
       .filter(key => !knownKeys.has(key))
       .map(key => `unknown key ${key}`),
     ...Object.entries(notes.notes)
-      .filter(([key, { flag }]) => flag !== undefined && anchorOfKey(key).kind === 'symbol')
+      .filter(
+        ([key, { flag }]) =>
+          flag !== undefined && !['part', 'edge'].includes(anchorOfKey(key).kind),
+      )
       .map(([key]) => `flag on ${key}: only a part or edge note takes a flag`),
     ...notes.summary
       .flatMap(item => item.target ?? [])

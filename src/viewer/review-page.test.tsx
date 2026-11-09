@@ -7503,59 +7503,64 @@ test("Take on a symbol the last review commented on fills that comment's Reply, 
   expect(field).toHaveProperty('value', 'Round half to even.');
 });
 
-test('a box shows a file whose only news is a noted symbol', async () => {
-  const user = userEvent.setup();
-  render(
-    <ReviewPage
-      review={pageWith({
-        range: review.range,
-        diff: {
-          nodes: [
-            { id: 'web', kind: 'stack', label: 'web', path: '', state: 'unchanged' },
-            {
-              id: 'web/module/billing',
-              kind: 'module',
-              label: 'billing',
-              parent: 'web',
-              path: 'web/src/billing',
-              state: 'modified',
-            },
-            {
-              ...topFile('refund.ts', 'modified'),
-              parent: 'web/module/billing',
-              path: 'web/src/billing/refund.ts',
-            },
+test.each([
+  ['symbol web/file/refund.ts#round', 'Note on function round'],
+  ['decision web/file/refund.ts#round#if (half)', 'Note on same if: if (half)'],
+])(
+  'a box shows a file whose only news is a note keyed %s, its unchanged fold open',
+  async (key, region) => {
+    const user = userEvent.setup();
+    render(
+      <ReviewPage
+        review={pageWith({
+          range: review.range,
+          diff: {
+            nodes: [
+              { id: 'web', kind: 'stack', label: 'web', path: '', state: 'unchanged' },
+              {
+                id: 'web/module/billing',
+                kind: 'module',
+                label: 'billing',
+                parent: 'web',
+                path: 'web/src/billing',
+                state: 'modified',
+              },
+              {
+                ...topFile('refund.ts', 'modified'),
+                parent: 'web/module/billing',
+                path: 'web/src/billing/refund.ts',
+              },
+            ],
+            edges: [],
+          },
+          symbols: [
+            symbolsOf('web/file/refund.ts', [
+              {
+                name: 'round',
+                kind: 'function',
+                exported: { base: false, head: false },
+                change: 'unchanged',
+                logic: [unchangedIf('half', 1)],
+              },
+            ]),
           ],
-          edges: [],
-        },
-        symbols: [
-          symbolsOf('web/file/refund.ts', [
-            {
-              name: 'round',
-              kind: 'function',
-              exported: { base: false, head: false },
-              change: 'unchanged',
-            },
-          ]),
-        ],
-      })}
-      notes={{
-        version: 2,
-        tests: '',
-        summary: [],
-        notes: { 'symbol web/file/refund.ts#round': { text: 'Rounds half up.' } },
-      }}
-    />,
-  );
+        })}
+        notes={{
+          version: 2,
+          tests: '',
+          summary: [],
+          notes: { [key]: { text: 'Rounds half up.' } },
+        }}
+      />,
+    );
 
-  await user.click(await screen.findByRole('button', { name: 'billing: modified' }));
+    await user.click(await screen.findByRole('button', { name: 'billing: modified' }));
 
-  expect(
-    within(within(whatChanged()).getByRole('region', { name: 'refund.ts' })).getByRole('region', {
-      name: 'Note on function round',
-    }).textContent,
-  ).toBe('Rounds half up.');
-});
+    const file = within(within(whatChanged()).getByRole('region', { name: 'refund.ts' }));
+    expect(file.getByRole('group', { name: 'Unchanged symbols' }).hasAttribute('open')).toBe(true);
+    expect(file.getByRole('region', { name: region }).textContent).toBe('Rounds half up.');
+  },
+);
 
 test('a page that is not served has no Comment toggle on a symbol or a logic line', async () => {
   const user = userEvent.setup();
@@ -7610,6 +7615,138 @@ const pageWithSameNamedTests = () =>
       },
     ],
   });
+
+test('a note on a test shows under its row in Tested by, an unchanged test kept for it, and on the Tests screen, under no other row', async () => {
+  const user = userEvent.setup();
+  render(
+    <ReviewPage
+      review={{
+        ...pageWithSameNamedTests(),
+        tests: [
+          {
+            path: 'total.test.ts',
+            stack: 'web',
+            statements: [
+              {
+                kind: 'heading',
+                name: 'Cart',
+                children: [
+                  { kind: 'test', name: 'adds tax', change: 'added' },
+                  { kind: 'test', name: 'keeps totals', change: 'unchanged' },
+                ],
+              },
+            ],
+          },
+        ],
+      }}
+      notes={{
+        version: 2,
+        tests: '',
+        summary: [],
+        notes: {
+          'test total.test.ts#Cart › keeps totals': {
+            text: 'Pins the cent.',
+            why: 'Totals round per line.',
+          },
+        },
+      }}
+    />,
+  );
+  const noteIn = (region: HTMLElement) => {
+    const row = within(region).getByRole('listitem', { name: 'keeps totals: unchanged' });
+    expect(within(region).getAllByRole('region', { name: /^Note on/ })).toHaveLength(1);
+    return within(row).getByRole('region', { name: 'Note on Cart › keeps totals' }).textContent;
+  };
+
+  await user.click(await screen.findByRole('button', { name: 'total.ts: modified' }));
+  expect(noteIn(testedBy())).toBe('Pins the cent.Why Totals round per line.');
+
+  await user.click(screen.getByRole('link', { name: /^Tests/ }));
+  expect(noteIn(screen.getByRole('region', { name: 'Test changes' }))).toBe(
+    'Pins the cent.Why Totals round per line.',
+  );
+});
+
+test("on a served page Take on a test's note opens that row's field with the recommendation as a change, focused, in Tested by and on the Tests screen, and hides while the draft holds text", async () => {
+  const user = userEvent.setup();
+  render(
+    <ReviewPage
+      review={pageWithSameNamedTests()}
+      notes={{
+        version: 2,
+        tests: '',
+        summary: [],
+        notes: {
+          'test total.test.ts#Cart › adds tax': {
+            text: 'Adds tax once.',
+            recommendation: 'Add it per line.',
+          },
+        },
+      }}
+      send={async () => {}}
+    />,
+  );
+  const row = (region: HTMLElement) =>
+    within(within(region).getByRole('listitem', { name: 'adds tax: added' }));
+  const field = (region: HTMLElement) => row(region).getByRole('textbox', { name: 'Your comment' });
+  const take = (region: HTMLElement) => row(region).queryByRole('button', { name: 'Take' });
+  const takenIn = async (region: () => HTMLElement) => {
+    await user.click(row(region()).getByRole('button', { name: 'Take' }));
+    expect(document.activeElement).toBe(field(region()));
+    expect(field(region())).toHaveProperty('value', 'Add it per line.');
+    expect(
+      within(row(region()).getByRole('radiogroup', { name: 'Comment kind' })).getByRole('radio', {
+        name: 'Change this',
+      }),
+    ).toHaveProperty('checked', true);
+    expect(within(tray()).getByText('1 drafted · 1 change')).toBeDefined();
+    expect(take(region())).toBeNull();
+    await user.clear(field(region()));
+    expect(take(region())).not.toBeNull();
+  };
+
+  await user.click(await screen.findByRole('button', { name: 'total.ts: modified' }));
+  await takenIn(testedBy);
+
+  await user.click(screen.getByRole('link', { name: /^Tests/ }));
+  const testChanges = () => screen.getByRole('region', { name: 'Test changes' });
+  expect(document.activeElement).not.toBe(field(testChanges()));
+  await takenIn(testChanges);
+});
+
+test("Take on a test's note on the Tests screen needs no node selected, and a page not served offers none", async () => {
+  const user = userEvent.setup();
+  const notes = {
+    version: 2,
+    tests: '',
+    summary: [],
+    notes: {
+      'test total.test.ts#Cart › adds tax': {
+        text: 'Adds tax once.',
+        recommendation: 'Add it per line.',
+      },
+    },
+  } as const;
+  const { rerender } = render(<ReviewPage review={pageWithSameNamedTests()} notes={notes} />);
+  const row = () =>
+    within(
+      within(screen.getByRole('region', { name: 'Test changes' })).getByRole('listitem', {
+        name: 'adds tax: added',
+      }),
+    );
+
+  await user.click(await screen.findByRole('link', { name: /^Tests/ }));
+  expect(row().getByRole('region', { name: 'Note on Cart › adds tax' })).toBeDefined();
+  expect(row().queryByRole('button', { name: 'Take' })).toBeNull();
+
+  rerender(<ReviewPage review={pageWithSameNamedTests()} notes={notes} send={async () => {}} />);
+  await user.click(row().getByRole('button', { name: 'Take' }));
+  expect(document.activeElement).toBe(row().getByRole('textbox', { name: 'Your comment' }));
+  expect(row().getByRole('textbox', { name: 'Your comment' })).toHaveProperty(
+    'value',
+    'Add it per line.',
+  );
+});
 
 test("a served page's test row in Tested by takes a comment, a removed test too, its id the test's file and headings, so tests of one name keep apart; a page not served has no toggle", async () => {
   const user = userEvent.setup();
@@ -8589,6 +8726,93 @@ test("a function's unchanged runs fold into their counts, opened by hand, its ch
   expect(within(unchangedRun(2)).getByRole('listitem', { name: 'same if: if (b)' })).toBeTruthy();
 });
 
+test("a decision's note shows under its logic row and no other, opening its function's rows and the run holding it", async () => {
+  const user = userEvent.setup();
+  const big = addedIfs('big', 9);
+  render(
+    <ReviewPage
+      review={{
+        ...pageWithManyDecisions(),
+        symbols: [
+          symbolsOf('web/file/many.ts', [
+            { ...big, logic: [...(big.logic ?? []), unchangedIf('kept', 10)] },
+          ]),
+        ],
+      }}
+      notes={{
+        version: 2,
+        tests: '',
+        summary: [],
+        notes: { 'decision web/file/many.ts#big#if (kept)': { text: 'Kept for old callers.' } },
+      }}
+    />,
+  );
+
+  await user.click(await screen.findByRole('button', { name: 'many.ts: modified' }));
+
+  expect(logicRowsOf('big').hasAttribute('open')).toBe(true);
+  expect(unchangedRun(1).hasAttribute('open')).toBe(true);
+  expect(
+    within(within(whatChanged()).getByRole('listitem', { name: 'same if: if (kept)' })).getByRole(
+      'region',
+      { name: 'Note on same if: if (kept)' },
+    ).textContent,
+  ).toBe('Kept for old callers.');
+  expect(within(whatChanged()).getAllByRole('region', { name: /^Note on/ })).toHaveLength(1);
+});
+
+test("on a served page Take on a decision's note opens that row's field with the recommendation as a change, focused, and hides while the draft holds text", async () => {
+  const user = userEvent.setup();
+  const big = addedIfs('big', 9);
+  render(
+    <ReviewPage
+      review={{
+        ...pageWithManyDecisions(),
+        symbols: [
+          symbolsOf('web/file/many.ts', [
+            { ...big, logic: [...(big.logic ?? []), unchangedIf('kept', 10)] },
+          ]),
+        ],
+      }}
+      notes={{
+        version: 2,
+        tests: '',
+        summary: [],
+        notes: {
+          'decision web/file/many.ts#big#if (kept)': {
+            text: 'Kept for old callers.',
+            recommendation: 'Drop it.',
+          },
+        },
+      }}
+      send={async () => {}}
+    />,
+  );
+  const keptRow = () => within(whatChanged()).getByRole('listitem', { name: 'same if: if (kept)' });
+  const field = () => within(keptRow()).getByRole('textbox', { name: 'Your comment' });
+  const takeInRow = () => within(keptRow()).queryByRole('button', { name: 'Take' });
+
+  await user.click(await screen.findByRole('button', { name: 'many.ts: modified' }));
+  await user.click(within(keptRow()).getByRole('button', { name: 'Take' }));
+
+  expect(document.activeElement).toBe(field());
+  expect(field()).toHaveProperty('value', 'Drop it.');
+  expect(
+    within(within(keptRow()).getByRole('radiogroup', { name: 'Comment kind' })).getByRole('radio', {
+      name: 'Change this',
+    }),
+  ).toHaveProperty('checked', true);
+  expect(within(tray()).getByText('1 drafted · 1 change')).toBeDefined();
+  expect(takeInRow()).toBeNull();
+  await openReview(user);
+  expect(
+    within(screen.getByRole('list', { name: 'Drafts' })).getByRole('button', { name: 'if (kept)' }),
+  ).toBeTruthy();
+
+  await user.clear(field());
+  expect(takeInRow()).not.toBeNull();
+});
+
 test("the last review's comment on an unchanged decision opens its whole run, and no other", async () => {
   const user = userEvent.setup();
   render(
@@ -9460,6 +9684,52 @@ test('the last review lists what Claude changed unasked, going to each part, edg
 
   expect(document.activeElement).toBe(screen.getByRole('button', { name: 'cli-adapter: added' }));
 });
+
+test.for([
+  {
+    row: 'a decision',
+    page: () => pageWithUnchangedRuns(),
+    key: 'decision web/file/runs.ts#runs#if (c)',
+    name: 'if (c)',
+    node: 'runs.ts: modified',
+  },
+  {
+    row: 'a test',
+    page: () => pageWithSameNamedTests(),
+    key: 'test total.test.ts#drops totals',
+    name: 'drops totals',
+    node: 'total.ts: modified',
+  },
+])(
+  "the last review names what Claude changed unasked on $row by its row, going to its file's node",
+  async ({ page, key, name, node }) => {
+    const user = userEvent.setup();
+    render(
+      <ReviewPage
+        review={{ ...page(), sinceReview }}
+        notes={{
+          version: 2,
+          tests: '',
+          summary: [],
+          notes: {},
+          unasked: { [key]: { text: 'Tidied.' } },
+        }}
+      />,
+    );
+    await screen.findByRole('button', { name: node });
+
+    const unasked = within(
+      within(lastReviewSection()).getByRole('list', { name: 'Claude also changed' }),
+    );
+    await user.click(
+      within(unasked.getByRole('listitem', { name: `${name}: Tidied.` })).getByRole('button', {
+        name,
+      }),
+    );
+
+    expect(document.activeElement).toBe(screen.getByRole('button', { name: node }));
+  },
+);
 
 test('a last comment on a part or an edge shows under its anchor in the Note panel, with no send too', async () => {
   const user = userEvent.setup();

@@ -1,12 +1,15 @@
-import { createContext } from 'react';
+import { createContext, useContext } from 'react';
+import { anchorKey } from '../core/anchors.ts';
 import type { Note } from '../core/notes.ts';
+import type { Comment } from '../core/review.ts';
+import { type Comments, holdsDraft } from './comment-field.tsx';
 
-type SymbolNotesOnPage = {
+type RowNotesOnPage = {
   readonly notes: Readonly<Record<string, Note>>;
-  readonly onTake: ((id: string, recommendation: string) => void) | undefined;
+  readonly onTake: ((anchor: Comment['anchor'], recommendation: string) => void) | undefined;
 };
 
-export const SymbolNotes = createContext<SymbolNotesOnPage>({ notes: {}, onTake: undefined });
+export const RowNotes = createContext<RowNotesOnPage>({ notes: {}, onTake: undefined });
 
 type NoteBlockProps = {
   readonly note: Pick<Note, 'text' | 'why' | 'recommendation'>;
@@ -40,3 +43,22 @@ export const NoteBlock = ({
     )}
   </section>
 );
+
+type RowNoteProps = {
+  readonly anchor: Comment['anchor'];
+  readonly name: string;
+  readonly comments: Comments;
+};
+
+export const RowNote = ({ anchor, name, comments }: RowNoteProps) => {
+  const { notes, onTake } = useContext(RowNotes);
+  const note = notes[anchorKey(anchor)];
+  if (note === undefined) return null;
+  return (
+    <NoteBlock
+      note={note}
+      onTake={onTake && !holdsDraft(comments, anchor) ? text => onTake(anchor, text) : undefined}
+      label={`Note on ${name}`}
+    />
+  );
+};

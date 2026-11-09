@@ -2,6 +2,13 @@
 
 What changed in each release of `@pablocm90/visual-review`, newest first. Versions follow [semver](https://semver.org); while it is 0.x, a minor version may change the exported types.
 
+## 0.59.0 — 2026-11-09
+
+### Added
+
+- A note may be on a logic line or a test: keyed `decision <id>` or `test <id>`, as a comment's anchor of that kind is, it shows under that logic line in **What changed**, or under that test in **Tested by** and on the **Tests** tab, with its why, its recommendation and, on a served page, **Take**, which puts the recommendation in that row's comment field as a **Change this** draft, open and focused. A noted decision opens its function's rows and the unchanged run holding it, and its file counts as news; Tested by keeps an unchanged test with a note. Neither takes a flag. `unasked` takes both kinds, and the last review lists each by its row, going to its file's node.
+- The skill may add a note on a logic line or a test where there's something to say about it.
+
 ## 0.58.0 — 2026-11-09
 
 ### Added

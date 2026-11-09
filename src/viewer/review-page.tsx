@@ -25,13 +25,7 @@ import {
 } from '../core/logic-strip.ts';
 import { type MetricFinding, metricFindings } from '../core/metric-findings.ts';
 import type { NodeMetrics } from '../core/metrics.ts';
-import {
-  type Note,
-  notesOfKind,
-  notesOnTheGraph,
-  type ReviewNotes,
-  visibleNotes,
-} from '../core/notes.ts';
+import { type Note, notesOnTheGraph, type ReviewNotes, visibleNotes } from '../core/notes.ts';
 import { type PageData, UNCOMMITTED } from '../core/page.ts';
 import type { PreviousComment } from '../core/previous-comments.ts';
 import { isReachFinding } from '../core/reach-findings.ts';
@@ -74,7 +68,7 @@ import { type LogicCard, LogicCardBody, logicCardsOf } from './logic-card.tsx';
 import { LogicLegend } from './logic-strip.tsx';
 import { MetricsTable } from './metrics-tab.tsx';
 import { NextToIt } from './next-to-it.tsx';
-import { NoteBlock, SymbolNotes } from './note-block.tsx';
+import { NoteBlock, RowNotes } from './note-block.tsx';
 import {
   type LineComments,
   type LineLanding,
@@ -698,7 +692,7 @@ type InspectorProps = {
 
 type LandingPlace = string | null | undefined;
 
-type CommentAskedOn = { readonly on: string; readonly row: string | undefined };
+type CommentAskedOn = { readonly on: string | undefined; readonly row: string | undefined };
 
 const useLanding = (place: LandingPlace) => {
   const [landed, setLanded] = useState<LandingIn & { readonly on: LandingPlace }>();
@@ -1842,6 +1836,8 @@ const LeftColumn = ({
         since={review.sinceReview}
         unasked={notes?.unasked}
         nodes={review.diff.nodes}
+        tests={review.tests}
+        symbols={review.symbols}
         findings={findings}
         onGoTo={onGoTo}
         onGoToDraft={onGoToDraft}
@@ -1897,10 +1893,12 @@ type OtherScreenProps = {
   readonly routesLanding: RoutesLanding | undefined;
   readonly onRoutesLanded: () => void;
   readonly onShowPatch: (path: string, opener: HTMLButtonElement) => void;
+  readonly commentAsked: CommentAskedOn | undefined;
 };
 
 const OtherScreen = ({
   tab,
+  commentAsked,
   review,
   notes,
   selected,
@@ -1916,14 +1914,22 @@ const OtherScreen = ({
   <>
     {tab === 'tests' && (
       <ChangedSinceMarks value={changedSinceIn(review)}>
-        <TestsScreen
-          review={review}
-          notes={notes}
-          selected={selected}
-          onGoTo={onGoTo}
-          comments={comments}
-          onComment={onComment}
-        />
+        <CommentAsked.Provider
+          value={
+            commentAsked?.row === undefined
+              ? undefined
+              : { anchor: commentAsked.row, request: commentAsked }
+          }
+        >
+          <TestsScreen
+            review={review}
+            notes={notes}
+            selected={selected}
+            onGoTo={onGoTo}
+            comments={comments}
+            onComment={onComment}
+          />
+        </CommentAsked.Provider>
       </ChangedSinceMarks>
     )}
     {tab === 'schema' && (
@@ -1953,12 +1959,12 @@ const rowCommentedFrom = (target: EventTarget | null): string | undefined =>
     : undefined;
 
 const useCommentAsked = (selected: string | undefined, tab: Tab) => {
-  const [asked, setAsked] = useState<CommentAskedOn>();
-  if (asked !== undefined && (asked.on !== selected || tab !== 'structure')) setAsked(undefined);
-  return [asked, setAsked] as const;
+  const [asked, setAsked] = useState<CommentAskedOn & { readonly tab: Tab }>();
+  if (asked !== undefined && (asked.on !== selected || asked.tab !== tab)) setAsked(undefined);
+  return [asked, (on: CommentAskedOn) => setAsked({ ...on, tab })] as const;
 };
 
-type SymbolNotesOfPageProps = {
+type RowNotesOfPageProps = {
   readonly notes: ReviewPageProps['notes'];
   readonly comment: ((written: Comment) => void) | undefined;
   readonly selected: string | undefined;
@@ -1966,23 +1972,14 @@ type SymbolNotesOfPageProps = {
   readonly children: ReactNode;
 };
 
-const SymbolNotesOfPage = ({
-  notes,
-  comment,
-  selected,
-  onAsk,
-  children,
-}: SymbolNotesOfPageProps) => {
-  const symbolNotes = useMemo(() => notesOfKind(notes?.notes ?? {}, ['symbol']), [notes]);
+const RowNotesOfPage = ({ notes, comment, selected, onAsk, children }: RowNotesOfPageProps) => {
   const onTake =
-    comment && selected !== undefined
-      ? (id: string, text: string) => {
-          const anchor = { kind: 'symbol', id } as const;
-          comment({ anchor, kind: 'change', text });
-          onAsk({ on: selected, row: anchorKey(anchor) });
-        }
-      : undefined;
-  return <SymbolNotes value={{ notes: symbolNotes, onTake }}>{children}</SymbolNotes>;
+    comment &&
+    ((anchor: Comment['anchor'], text: string) => {
+      comment({ anchor, kind: 'change', text });
+      onAsk({ on: selected, row: anchorKey(anchor) });
+    });
+  return <RowNotes value={{ notes: notes?.notes ?? {}, onTake }}>{children}</RowNotes>;
 };
 
 const Page = ({ review, notes, send }: ReviewPageProps) => {
@@ -2420,6 +2417,7 @@ const Page = ({ review, notes, send }: ReviewPageProps) => {
         routesLanding={routesLanding}
         onRoutesLanded={() => setRoutesLanding(undefined)}
         onShowPatch={showPatch}
+        commentAsked={commentAsked}
       />
       {send && (
         <ReviewTray
@@ -2451,14 +2449,9 @@ const Page = ({ review, notes, send }: ReviewPageProps) => {
         }
       }
     >
-      <SymbolNotesOfPage
-        notes={notes}
-        comment={comment}
-        selected={selected}
-        onAsk={setCommentAsked}
-      >
+      <RowNotesOfPage notes={notes} comment={comment} selected={selected} onAsk={setCommentAsked}>
         {page}
-      </SymbolNotesOfPage>
+      </RowNotesOfPage>
     </RespondingOnPage>
   );
 };
