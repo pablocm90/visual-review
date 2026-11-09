@@ -57,6 +57,11 @@ What raised a finding, one of a fixed list, each with its own title for several 
 _Avoid_: rule, kind
 _In code_: `Finding['check']`, `Check` (`src/core/checks.ts`)
 
+**Rule**:
+A dependency the config forbids, by node id: edges from one set of nodes to another, a node counting as in a set when it or a node holding it is. An edge drawn across it breaks it, unless its start is in the forbidden set too.
+_Avoid_: constraint, policy, check
+_In code_: `Rules` (`src/core/config.ts`), `ruleBreaks` (`src/core/rule-breaks.ts`)
+
 **Start here**:
 The few lines to begin with above the graph, at most five, each the findings of one check and level, or one flag. Those that need a look come first; within each level, a line ranks by its best finding: the blind spots, then direct dependency changes, risky migrations, removed tables, removed routes and new targets, then what most depends on, then what changes most. Above those, when the range changed a decision and no lens but Behaviour is picked, one more line that is no finding: how many decisions changed, going to **Logic only**.
 _Avoid_: Look first, top findings, priorities
@@ -217,6 +222,7 @@ _In code_: `SinceReview['calledFine']`
 - A **table change** raises a **finding** in the schema dimension, for information, or needing a look when the table is removed; a dump added or removed whole raises one for the file, and none per table.
 - A removed route or a new target at one verb and path raises its own **finding** in the routes dimension that needs a look; a file's added routes raise one for information, with the count. PATCH and PUT of one path and target count as one. A statement not read raises a **finding** that needs a look only when its text is added or removed, so one that stays raises none.
 - A **flag** is answered like any other **finding**, under the id `notes:<kind> <id>`, its note's key.
+- An edge at the head breaking a **rule** raises one **finding** per rule in the rules dimension, on that edge, needing a look when the change adds the edge and for information when it was already there; a removed edge raises none.
 - A removed guard or catch **logic line** raises a **finding** in the logic dimension that needs a look; a function's other **logic lines** that changed, a moved one among them, raise one for information; a file with either and no test changed alongside it raises one in the tests dimension.
 
 ## Flagged ambiguities

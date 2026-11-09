@@ -17,6 +17,8 @@ import type { Reach } from './read-reaches.ts';
 import type { RoutesReading } from './read-routes.ts';
 import type { SchemaReading } from './read-schemas.ts';
 import { routeFindings } from './route-findings.ts';
+import type { RuleBreak } from './rule-breaks.ts';
+import { ruleFindings } from './rule-findings.ts';
 import { schemaFindings } from './schema-findings.ts';
 import { notReadLine, type Skipped } from './skipped.ts';
 import type { SplitSuggestion } from './split-suggestion.ts';
@@ -94,6 +96,8 @@ type RaisedOptions = {
   readonly nodes: ReadonlyArray<GraphNode>;
   readonly tests: ReadonlyArray<TestFile>;
   readonly split: SplitSuggestion | undefined;
+  readonly ruleBreaks: ReadonlyArray<RuleBreak>;
+  readonly edges: GraphDiff['edges'];
 };
 
 type UntestedOptions = Pick<RaisedOptions, 'nodes' | 'tests' | 'symbols'>;
@@ -176,6 +180,8 @@ export const raisedFindings = ({
   nodes,
   tests,
   split,
+  ruleBreaks,
+  edges,
 }: RaisedOptions): ReadonlyArray<Finding> => [
   ...skipped.map(
     (skip): Finding => ({
@@ -234,6 +240,7 @@ export const raisedFindings = ({
     }),
   ),
   ...(split === undefined ? [] : [splitFinding(split)]),
+  ...ruleFindings({ ruleBreaks, edges }),
   ...dependencyFindings(dependencyChanges),
   ...migrationFindings(migrations),
   ...schemaFindings(schemas),
