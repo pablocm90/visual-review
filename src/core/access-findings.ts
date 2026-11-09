@@ -37,34 +37,38 @@ const whatChanged = ({
 }: Change): { readonly title: string; readonly detail: string } | undefined => {
   const at = `At ${action.file}:${action.line}.`;
   const name = `${action.controller}#${action.action}`;
-  if (before === undefined && action.cover !== undefined)
-    return {
-      title: `${name} added, authorized only conditionally`,
-      detail: `${at} ${action.cover.by} covers it only under its if: or unless:.`,
-    };
+  const only =
+    action.cover === undefined
+      ? undefined
+      : `${action.cover.by} covers it only under its if: or unless:`;
+  if (before === undefined && only !== undefined)
+    return { title: `${name} added, authorized only conditionally`, detail: `${at} ${only}.` };
   if (before === undefined)
     return {
       title: `${name} added with no authorization`,
       detail: `${at} No callback, parent or call of its own authorizes it.`,
     };
-  if (action.cover !== undefined)
-    return before.cover?.conditional === false
-      ? {
-          title: `${name} now authorized only conditionally`,
-          detail: `${at} ${before.cover.by} covered it always before; ${action.cover.by} covers it only under its if: or unless: now.`,
-        }
-      : undefined;
-  if (before.cover !== undefined)
+  if (before.cover?.conditional === false && only !== undefined)
+    return {
+      title: `${name} now authorized only conditionally`,
+      detail: `${at} ${before.cover.by} covered it always before; ${only} now.`,
+    };
+  if (before.cover !== undefined && only === undefined)
     return {
       title: `${name} lost its authorization`,
       detail: `${at} ${before.cover.by} covered it before; nothing authorizes it now.`,
     };
   const routed = routes.find(route => reaches(route, action));
-  return routed === undefined
-    ? undefined
-    : {
+  if (routed === undefined) return undefined;
+  const reached = `${at} ${routed.verb} ${routed.path} at ${routed.file}:${routed.line} now reaches it;`;
+  return only === undefined
+    ? {
         title: `${name} newly routed with no authorization`,
-        detail: `${at} ${routed.verb} ${routed.path} at ${routed.file}:${routed.line} now reaches it; nothing authorizes it.`,
+        detail: `${reached} nothing authorizes it.`,
+      }
+    : {
+        title: `${name} newly routed, authorized only conditionally`,
+        detail: `${reached} ${only}.`,
       };
 };
 

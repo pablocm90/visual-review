@@ -187,3 +187,19 @@ test('an action the base always covered and the head only conditionally is for i
 test('an action nothing authorized before that gains a conditional cover raises nothing', () => {
   expect(findingsOf(reading([action()], [action(conditionally)]))).toStrictEqual([]);
 });
+
+test('a route the change adds to an action covered only conditionally is for information', () => {
+  expect(
+    accessFindings({
+      access: [reading([action(conditionally)], [action(conditionally)])],
+      routes: [{ state: 'added', head: route() }],
+      nodes: [NODE],
+    }).map(({ level, title, detail }) => ({ level, title, detail })),
+  ).toStrictEqual([
+    {
+      level: 'info',
+      title: 'UsersController#show newly routed, authorized only conditionally',
+      detail: `At ${FILE}:4. GET /users/:id at config/routes.rb:3 now reaches it; authorize_user covers it only under its if: or unless:.`,
+    },
+  ]);
+});
