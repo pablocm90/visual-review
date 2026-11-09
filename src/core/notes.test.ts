@@ -489,21 +489,29 @@ test('a notes file keeps its answers, each status with what it carries', () => {
   expect(parseNotes({ text, file }).answers).toEqual(answers);
 });
 
-test('an unasked change is keyed as a note is, by a part, an edge or a symbol', () => {
+test('an unasked change is keyed as a note is, by a part, an edge, a symbol, a decision or a test', () => {
   const text = JSON.stringify(
     notesWith({
       unasked: {
         'part web/module/pages': { text: 'Renamed the helper.' },
         'edge web/module/pages -> web/module/utils': { text: 'Dropped a cast.' },
         'symbol web/file/pages/home.tsx#run': { text: 'Inlined a guard.' },
+        'decision web/file/pages/home.tsx#run#ready': { text: 'Kept the guard.' },
+        'test web/src/pages/home.test.tsx#home › formats dates': { text: 'Pinned the zone.' },
         'part web/module/gone': { text: 'Removed it.' },
+        'decision web/file/pages/home.tsx#run#gone': { text: 'Dropped it.' },
+        'test web/src/pages/home.test.tsx#home › gone': { text: 'Dropped it.' },
       },
     }),
   );
 
   expect(
     notesProblems({ symbols, tests, diff, said: [], notes: parseNotes({ text, file }) }),
-  ).toEqual(['unknown key part web/module/gone']);
+  ).toEqual([
+    'unknown key part web/module/gone',
+    'unknown key decision web/file/pages/home.tsx#run#gone',
+    'unknown key test web/src/pages/home.test.tsx#home › gone',
+  ]);
 });
 
 test('an unasked change needs a last review to show under, even one that said nothing', () => {
