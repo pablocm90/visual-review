@@ -1698,6 +1698,7 @@ test('a note says why under its text and what to do under that, on a part and on
     'Why Exports were done by hand.',
     'Recommendation Name the export format in the use case.',
   ]);
+  expect(take()).toBeNull();
 
   await user.click(screen.getByRole('button', { name: 'cli-adapter → application: added' }));
   expect(noteLines()).toEqual([
@@ -1711,6 +1712,82 @@ test('a note says why under its text and what to do under that, on a part and on
 
   await user.click(screen.getByRole('button', { name: 'domain: unchanged' }));
   expect(noteLines()).toEqual(['No note']);
+});
+
+const take = () => within(inspector()).queryByRole('button', { name: 'Take' });
+
+const commentKind = (name: string) =>
+  within(within(inspector()).getByRole('radiogroup', { name: 'Comment kind' })).getByRole('radio', {
+    name,
+  });
+
+test("on a served page Take turns a note's recommendation into a change draft on its part or edge, focused and editable, hidden while the draft holds text but not while it's blank, and an untaken one sends nothing", async () => {
+  const user = userEvent.setup();
+  const sent = vi.fn(async () => {});
+  render(
+    <ReviewPage
+      review={pageWith({ ...review })}
+      notes={{
+        version: 1,
+        tests: '',
+        summary: [],
+        notes: {
+          'rust/crate/application': {
+            text: 'Adds the export use case.',
+            recommendation: 'Name the export format.',
+          },
+          'rust/crate/cli-adapter': { text: 'A second way in.', recommendation: 'Drop it.' },
+          'rust/crate/cli-adapter -> rust/crate/application': {
+            text: 'The CLI drives the use case.',
+            recommendation: 'Keep the CLI out of the domain.',
+          },
+        },
+      }}
+      send={sent}
+    />,
+  );
+  const field = () => within(inspector()).getByRole('textbox', { name: 'Your comment' });
+
+  await user.click(await screen.findByRole('button', { name: 'application: modified' }));
+  await user.click(within(inspector()).getByRole('button', { name: 'Take' }));
+  expect(document.activeElement).toBe(field());
+  expect(field()).toHaveProperty('value', 'Name the export format.');
+  expect(commentKind('Change this')).toHaveProperty('checked', true);
+  expect(within(tray()).getByText('1 drafted · 1 change')).toBeDefined();
+  expect(take()).toBeNull();
+
+  await user.clear(field());
+  await user.type(field(), '  ');
+  expect(take()).not.toBeNull();
+  await user.click(within(inspector()).getByRole('button', { name: 'Take' }));
+  await user.type(field(), ' In the use case.');
+  expect(noteLines()).toContain('Recommendation Name the export format.');
+
+  await user.click(screen.getByRole('button', { name: 'cli-adapter → application: added' }));
+  await user.click(within(inspector()).getByRole('button', { name: 'Take' }));
+  expect(document.activeElement).toBe(field());
+  expect(field()).toHaveProperty('value', 'Keep the CLI out of the domain.');
+  expect(commentKind('Change this')).toHaveProperty('checked', true);
+
+  await openReview(user);
+  await user.click(screen.getByRole('button', { name: 'Send to Claude' }));
+  expect(sent).toHaveBeenCalledExactlyOnceWith(
+    sentReview({
+      verdict: 'request-changes',
+      comments: [
+        {
+          anchor: { kind: 'part', id: 'rust/crate/application' },
+          kind: 'change',
+          text: 'Name the export format. In the use case.',
+        },
+        {
+          anchor: { kind: 'edge', id: 'rust/crate/cli-adapter -> rust/crate/application' },
+          kind: 'change',
+          text: 'Keep the CLI out of the domain.',
+        },
+      ],
+    }),
+  );
 });
 
 test("a drawn node's or edge's badge names its findings under the worst level, says so on hover, and clicking it opens its note, which lists them", async () => {
@@ -3862,7 +3939,7 @@ test("with 'All edges' unticked, an unchanged import between two open modules is
   );
 });
 
-test('a served page offers no comment on an edge drawn between closed modules, which stands for imports and is none of them, and says to open its ends', async () => {
+test('a served page offers no comment and no Take on an edge drawn between closed modules, which stands for imports and is none of them, and says to open its ends', async () => {
   const user = userEvent.setup();
   render(
     <ReviewPage
@@ -3879,6 +3956,17 @@ test('a served page offers no comment on an edge drawn between closed modules, w
           edges: [webImport('orders/cart.ts', 'billing/invoice.ts', 'unchanged')],
         },
       })}
+      notes={{
+        version: 1,
+        tests: '',
+        summary: [],
+        notes: {
+          'web/file/orders/cart.ts -> web/file/billing/invoice.ts': {
+            text: 'Bills the cart.',
+            recommendation: 'Bill through the use case.',
+          },
+        },
+      }}
       send={async () => {}}
     />,
   );
@@ -3893,6 +3981,8 @@ test('a served page offers no comment on an edge drawn between closed modules, w
 
   expect(comment()).toBeNull();
   expect(within(inspector()).getByText(/open its ends/)).not.toBeNull();
+  expect(noteLines()).toContain('Recommendation Bill through the use case.');
+  expect(take()).toBeNull();
 });
 
 test("with 'Changed + 1 hop' shown, going to a merged module edge or to a hidden import near a change keeps it shown", async () => {

@@ -679,6 +679,7 @@ type InspectorProps = {
   readonly comments: Comments;
   readonly onComment: ((comment: Comment) => void) | undefined;
   readonly commentable: boolean;
+  readonly onTake: ((recommendation: string) => void) | undefined;
   readonly saidInPlace: ReadonlyArray<string>;
   readonly answers: Answers;
   readonly onAnswer: AnswerTo | undefined;
@@ -773,6 +774,7 @@ type NotePanelProps = Pick<
   | 'comments'
   | 'onComment'
   | 'commentable'
+  | 'onTake'
   | 'saidInPlace'
   | 'answers'
   | 'onAnswer'
@@ -809,6 +811,7 @@ const NotePanel = ({
   comments,
   onComment,
   commentable,
+  onTake,
   saidInPlace,
   answers,
   onAnswer,
@@ -830,6 +833,7 @@ const NotePanel = ({
     !hasSaid(anchor) &&
     saidInPlace.length === 0;
   const shownNote = note?.text ?? (isBare ? 'No note' : undefined);
+  const recommendation = note?.recommendation;
   return (
     <LandedRows landing={landing}>
       {shownNote !== undefined && (
@@ -840,10 +844,17 @@ const NotePanel = ({
               <strong>Why</strong> {note.why}
             </p>
           )}
-          {note?.recommendation !== undefined && (
-            <p className="note-recommendation">
-              <strong>Recommendation</strong> {note.recommendation}
-            </p>
+          {recommendation !== undefined && (
+            <div className="note-recommendation">
+              <p>
+                <strong>Recommendation</strong> {recommendation}
+              </p>
+              {onTake && (comments[anchorKey(anchor)]?.text.trim() ?? '') === '' && (
+                <button type="button" onClick={() => onTake(recommendation)}>
+                  Take
+                </button>
+              )}
+            </div>
           )}
         </section>
       )}
@@ -1018,6 +1029,7 @@ type SidePanelProps = {
   readonly read: ReadonlySet<string>;
   readonly onToggleRead: (id: string) => void;
   readonly commentAsked: CommentAskedOn | undefined;
+  readonly onAskComment: (id: string) => void;
   readonly heading: RefObject<HTMLHeadingElement | null>;
   readonly reading: boolean;
 };
@@ -1050,6 +1062,7 @@ const SidePanel = ({
   read,
   onToggleRead,
   commentAsked,
+  onAskComment,
   heading,
   reading,
 }: SidePanelProps) => {
@@ -1107,6 +1120,8 @@ const SidePanel = ({
   const anchor = { kind: node === undefined ? 'edge' : 'part', id: selected } as const;
   const { parts } = review.readingOrder;
   const nextId = partFrom(parts, selected, 1);
+  const commentable =
+    node !== undefined || review.diff.edges.some(edge => edgeId(edge) === selected);
   return (
     <CommentAsked.Provider
       value={
@@ -1131,8 +1146,14 @@ const SidePanel = ({
         anchor={anchor}
         comments={comments}
         onComment={onComment}
-        commentable={
-          node !== undefined || review.diff.edges.some(edge => edgeId(edge) === selected)
+        commentable={commentable}
+        onTake={
+          onComment && commentable
+            ? text => {
+                onComment({ anchor, kind: 'change', text });
+                onAskComment(selected);
+              }
+            : undefined
         }
         saidInPlace={saidInPlace}
         answers={answers}
@@ -2328,6 +2349,7 @@ const Page = ({ review, notes, send }: ReviewPageProps) => {
         read={read}
         onToggleRead={toggleRead}
         commentAsked={commentAsked}
+        onAskComment={id => setCommentAsked({ on: id, row: undefined })}
         heading={heading}
         reading={reading}
       />

@@ -3240,3 +3240,7 @@ main:has(> .review-tray) {
   text-transform: uppercase;
   letter-spacing: 0.04em;
 }
+
+.note-recommendation button {
+  margin-top: 6px;
+}
