@@ -1,5 +1,5 @@
 import { existsSync, readdirSync, statSync } from 'node:fs';
-import { readFile, realpath } from 'node:fs/promises';
+import { readFile, realpath, stat } from 'node:fs/promises';
 import { dirname, join, relative, resolve } from 'node:path';
 import { parse, TomlError } from 'smol-toml';
 import { z } from 'zod';
@@ -77,6 +77,11 @@ const parsed = (manifest: string, text: string): unknown => {
   }
 };
 
+const textOf = async (file: string, named: string): Promise<string> => {
+  if (!(await stat(file)).isFile()) throw new StackNotRead(`${named}: is not a file`);
+  return readFile(file, 'utf8');
+};
+
 type ManifestOptions = {
   readonly checkout: string;
   readonly root: string;
@@ -124,7 +129,7 @@ const leaves = async ({ path, pattern }: Named, { checkout, folder }: Place): Pr
 
 const followedFrom = async ({ checkout, folder }: Place): Promise<ReadonlyArray<string>> => {
   const manifest = relative(checkout, join(folder, 'Cargo.toml'));
-  const toml = parsed(manifest, await readFile(join(folder, 'Cargo.toml'), 'utf8'));
+  const toml = parsed(manifest, await textOf(join(folder, 'Cargo.toml'), manifest));
   const read = readAs(Manifest, manifest, toml);
   const excluded = excludedFrom(folder, read);
   const paths = [...pathsIn(toml), ...workspaceOf(read)];
@@ -182,7 +187,7 @@ const refuseLeavingIncludes = async ({ checkout, configs, seen }: Includes): Pro
   if (real === undefined || seen.has(real))
     return refuseLeavingIncludes({ checkout, configs: rest, seen });
   const named = relative(checkout, config);
-  const { include = [] } = readAs(Config, named, parsed(named, await readFile(config, 'utf8')));
+  const { include = [] } = readAs(Config, named, parsed(named, await textOf(config, named)));
   const included = include.map(path => resolve(dirname(config), path));
   const left = await Promise.all(
     included.map(async path =>

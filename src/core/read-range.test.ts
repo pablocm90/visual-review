@@ -1833,6 +1833,44 @@ test('a cargo config whose include is no list, which cargo refuses, is not read,
   ]);
 });
 
+test.for([
+  {
+    named: "a dependency's Cargo.toml",
+    files: {
+      'Cargo.toml': packageNamed('a', '[dependencies]\nb = { path = "b" }\n'),
+      'b/Cargo.toml/x': '',
+    },
+    reason: 'b/Cargo.toml: is not a file',
+  },
+  {
+    named: 'a cargo config',
+    files: { 'Cargo.toml': packageNamed('a'), '.cargo/config.toml/x': '' },
+    reason: '.cargo/config.toml: is not a file',
+  },
+  {
+    named: "a cargo config's include",
+    files: {
+      'Cargo.toml': packageNamed('a'),
+      '.cargo/config.toml': 'include = ["d.toml"]\n',
+      '.cargo/d.toml/x': '',
+    },
+    reason: '.cargo/d.toml: is not a file',
+  },
+])(
+  'a stack where $named is a folder, which cargo fails on, is not read',
+  async ({ files, reason }) => {
+    using repository = gitRepo({ 'README.md': '' });
+    const { repo, root } = repository;
+    const head = commit(repo, { ...files, 'src/lib.rs': '' });
+    using bin = pathWithCargo('exit 1');
+    vi.stubEnv('PATH', bin.path);
+
+    const range = await readRange({ repo, from: root, to: head });
+
+    expect(range.skipped.map(({ reason }) => reason)).toEqual([reason]);
+  },
+);
+
 test('a cargo config optionally including a file the checkout lacks, such as a local override, reads', async () => {
   using repository = gitRepo({ 'README.md': '' });
   const { repo, root } = repository;
