@@ -9459,6 +9459,52 @@ test('the last review lists what Claude changed unasked, going to each part, edg
   expect(document.activeElement).toBe(screen.getByRole('button', { name: 'cli-adapter: added' }));
 });
 
+test.for([
+  {
+    row: 'a decision',
+    page: () => pageWithUnchangedRuns(),
+    key: 'decision web/file/runs.ts#runs#if (c)',
+    name: 'if (c)',
+    node: 'runs.ts: modified',
+  },
+  {
+    row: 'a test',
+    page: () => pageWithSameNamedTests(),
+    key: 'test total.test.ts#drops totals',
+    name: 'drops totals',
+    node: 'total.ts: modified',
+  },
+])(
+  "the last review names what Claude changed unasked on $row by its row, going to its file's node",
+  async ({ page, key, name, node }) => {
+    const user = userEvent.setup();
+    render(
+      <ReviewPage
+        review={{ ...page(), sinceReview }}
+        notes={{
+          version: 2,
+          tests: '',
+          summary: [],
+          notes: {},
+          unasked: { [key]: { text: 'Tidied.' } },
+        }}
+      />,
+    );
+    await screen.findByRole('button', { name: node });
+
+    const unasked = within(
+      within(lastReviewSection()).getByRole('list', { name: 'Claude also changed' }),
+    );
+    await user.click(
+      within(unasked.getByRole('listitem', { name: `${name}: Tidied.` })).getByRole('button', {
+        name,
+      }),
+    );
+
+    expect(document.activeElement).toBe(screen.getByRole('button', { name: node }));
+  },
+);
+
 test('a last comment on a part or an edge shows under its anchor in the Note panel, with no send too', async () => {
   const user = userEvent.setup();
   const sha = 'c0ffee4d5e6fa7b8c9d0a1b2c3d4e5f6a7b8c9d0';
