@@ -57,7 +57,18 @@ type Controller = {
   readonly constant: string;
   readonly parent: Wanted | undefined;
   readonly entries: ReadonlyArray<Entry>;
+  readonly calls: ReadonlyMap<string, ReadonlyArray<string>>;
 };
+
+const callsOf = (body: Node | null): ReadonlyMap<string, ReadonlyArray<string>> =>
+  new Map(
+    (body?.namedChildren ?? [])
+      .filter(({ type }) => type === 'method')
+      .map(method => [
+        method.childForFieldName('name')?.text ?? '',
+        method.descendantsOfType('call').map(methodOf),
+      ]),
+  );
 
 const parentOf = (definition: Node): Wanted | undefined => {
   const written = definition.childForFieldName('superclass')?.namedChildren[0];
@@ -71,8 +82,9 @@ const controllersIn = (node: Node, within: string | undefined): ReadonlyArray<Co
   node.namedChildren.flatMap(child => {
     if (!DEFINITIONS.has(child.type)) return controllersIn(child, within);
     const constant = constantWithin(child.childForFieldName('name')?.text ?? '', within);
+    const body = child.childForFieldName('body');
     return [
-      { constant, parent: parentOf(child), entries: entriesOf(child.childForFieldName('body')) },
+      { constant, parent: parentOf(child), entries: entriesOf(body), calls: callsOf(body) },
       ...controllersIn(child, constant),
     ];
   });
@@ -108,11 +120,14 @@ const inherited = (
   ];
 };
 
-const coverOf = (
-  action: string,
-  callbacks: ReadonlyArray<Callback>,
-  authorize: ReadonlyArray<string>,
-): { readonly cover?: Cover } => {
+type Covering = {
+  readonly action: string;
+  readonly callbacks: ReadonlyArray<Callback>;
+  readonly calls: ReadonlyArray<string>;
+  readonly authorize: ReadonlyArray<string>;
+};
+
+const coverOf = ({ action, callbacks, calls, authorize }: Covering): { readonly cover?: Cover } => {
   const by = callbacks
     .filter(callback => reaches(callback, action))
     .reduce<ReadonlyArray<string>>(
@@ -120,6 +135,7 @@ const coverOf = (
         skip ? active.filter(kept => kept !== name) : active.concat(name),
       [],
     )
+    .concat(calls)
     .find(name => authorize.includes(name));
   return by === undefined ? {} : { cover: { by, conditional: false } };
 };
@@ -156,7 +172,12 @@ const coveredIn = (
     );
     return actions.map(action => ({
       ...action,
-      ...coverOf(action.action, inherited(controllers, action.controller), authorize),
+      ...coverOf({
+        action: action.action,
+        callbacks: inherited(controllers, action.controller),
+        calls: controllers.get(action.controller)?.calls.get(action.action) ?? [],
+        authorize,
+      }),
     }));
   });
 

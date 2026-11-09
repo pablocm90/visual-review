@@ -332,3 +332,26 @@ end
 ])('an action is covered by $reason', ({ files, covers }) => {
   expect(coversIn(files)).toStrictEqual(covers);
 });
+
+test('an action is covered by an authorize call in its own body', () => {
+  expect(
+    read({
+      'app/controllers/users_controller.rb': `class UsersController < ApplicationController
+  def show
+    @user = User.find(params[:id])
+    authorize @user
+  end
+
+  def index; end
+
+  def self.index
+    authorize User
+  end
+end
+`,
+    }).actions.map(({ action, cover }) => [action, cover]),
+  ).toStrictEqual([
+    ['show', { by: 'authorize', conditional: false }],
+    ['index', undefined],
+  ]);
+});
