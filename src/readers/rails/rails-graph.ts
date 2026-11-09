@@ -135,11 +135,11 @@ const wantedBy = (node: Node, owner: string): Wanted | undefined => {
 };
 
 export const namingsIn = (
-  program: Node | undefined,
+  program: Node,
   owner: string,
   classes: Classes,
 ): ReadonlyArray<{ readonly at: Node; readonly named: string }> =>
-  (program?.descendantsOfType(['constant', 'scope_resolution', 'call']) ?? []).flatMap(at => {
+  program.descendantsOfType(['constant', 'scope_resolution', 'call']).flatMap(at => {
     const wanted = wantedBy(at, owner);
     const named = wanted === undefined ? undefined : lookedUp(wanted, classes);
     return named === undefined ? [] : [{ at, named }];
