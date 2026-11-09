@@ -163,7 +163,11 @@ const foldersAbove = (checkout: string, folder: string): ReadonlyArray<string> =
   return segments.map((_, index) => join(checkout, ...segments.slice(0, index)));
 };
 
-const Config = z.object({ include: z.array(z.string()).optional() });
+const Config = z.object({
+  include: z
+    .array(z.union([z.string(), z.object({ path: z.string() }).transform(({ path }) => path)]))
+    .optional(),
+});
 
 const refuseLeavingIncludes = async ({ checkout, folder }: Place): Promise<void> => {
   const config = join(folder, '.cargo', 'config.toml');

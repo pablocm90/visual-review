@@ -1718,6 +1718,10 @@ test.for([
     named: 'an include',
     config: (out: string) => `include = ["${out}"]\n`,
   },
+  {
+    named: 'an include table',
+    config: (out: string) => `[[include]]\npath = "${out}"\noptional = true\n`,
+  },
 ])(
   'a cargo config naming $named that leaves the checkout is not read, and cargo never runs',
   async ({ config }) => {
