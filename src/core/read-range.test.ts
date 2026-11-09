@@ -1798,6 +1798,23 @@ test("a cargo config including a file whose own include leaves the checkout, rea
   ]);
 });
 
+test('cargo configs including each other are walked once each, and cargo runs', async () => {
+  using repository = gitRepo({ 'README.md': '' });
+  const { repo, root } = repository;
+  const head = commit(repo, {
+    '.cargo/config.toml': 'include = ["../ci.toml"]\n',
+    'ci.toml': 'include = [".cargo/config.toml"]\n',
+    'Cargo.toml': packageNamed('a'),
+    'src/lib.rs': '',
+  });
+  using bin = pathWithCargo(`echo '{"workspace_root": "/", "packages": []}'`);
+  vi.stubEnv('PATH', bin.path);
+
+  const range = await readRange({ repo, from: root, to: head });
+
+  expect(range.skipped).toEqual([]);
+});
+
 test('a cargo config including a file inside the checkout, from its .cargo folder, reads', async () => {
   using repository = gitRepo({ 'README.md': '' });
   const { repo, root } = repository;

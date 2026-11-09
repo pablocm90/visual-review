@@ -169,28 +169,41 @@ const Config = z.object({
     .optional(),
 });
 
-type ConfigAt = { readonly checkout: string; readonly config: string };
+type Includes = {
+  readonly checkout: string;
+  readonly configs: ReadonlyArray<string>;
+  readonly seen: ReadonlySet<string>;
+};
 
-const refuseLeavingIncludes = async ({ checkout, config }: ConfigAt): Promise<void> => {
-  if (!existsSync(config)) return;
+const refuseLeavingIncludes = async ({ checkout, configs, seen }: Includes): Promise<void> => {
+  const [config, ...rest] = configs;
+  if (config === undefined) return;
+  const real = existsSync(config) ? await realpath(config) : undefined;
+  if (real === undefined || seen.has(real))
+    return refuseLeavingIncludes({ checkout, configs: rest, seen });
   const named = relative(checkout, config);
   const { include = [] } = Config.parse(parsed(named, await readFile(config, 'utf8')));
+  const included = include.map(path => resolve(dirname(config), path));
   const left = await Promise.all(
-    include.map(async path => !(await resolvesInside(checkout, resolve(dirname(config), path)))),
+    included.map(async path => !(await resolvesInside(checkout, path))),
   );
   const leaving = include.find((_, index) => left[index]);
   if (leaving !== undefined)
     throw new StackNotRead(`${named}: include ${JSON.stringify(leaving)} leaves the checkout`);
-  for (const path of include)
-    await refuseLeavingIncludes({ checkout, config: resolve(dirname(config), path) });
+  return refuseLeavingIncludes({
+    checkout,
+    configs: [...rest, ...included],
+    seen: new Set([...seen, real]),
+  });
 };
 
 export const refuseLeavingPaths = async ({ checkout, root }: ManifestOptions): Promise<void> => {
   const folder = resolve(checkout, root);
   const above = foldersAbove(checkout, folder);
-  for (const up of new Set([...above, folder]))
-    for (const name of ['config.toml', 'config'])
-      await refuseLeavingIncludes({ checkout, config: join(up, '.cargo', name) });
+  const configs = [...new Set([...above, folder])].flatMap(up =>
+    ['config.toml', 'config'].map(name => join(up, '.cargo', name)),
+  );
+  await refuseLeavingIncludes({ checkout, configs, seen: new Set() });
   const manifests = above.filter(up => existsSync(join(up, 'Cargo.toml')));
   return walk({ checkout, folders: [folder, ...manifests], seen: new Set() });
 };
