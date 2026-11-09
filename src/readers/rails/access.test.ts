@@ -223,6 +223,21 @@ end
     covers: { 'Admin::UsersController#index': 'require_admin' },
   },
   {
+    reason: 'its parents once each, when they name each other',
+    files: {
+      'app/controllers/base_controller.rb': `class BaseController < UsersController
+  before_action :require_admin
+end
+`,
+      'app/controllers/users_controller.rb': `class UsersController < BaseController
+  skip_before_action :require_admin, only: :show
+  def index; end
+end
+`,
+    },
+    covers: { 'UsersController#index': 'require_admin' },
+  },
+  {
     reason: 'nothing from a parent of the same name in another app',
     files: {
       'apps/a/app/controllers/application_controller.rb': `class ApplicationController < ActionController::Base

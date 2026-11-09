@@ -76,13 +76,9 @@ const inherited = (
 ): ReadonlyArray<Callback> => {
   const controller = controllers.get(constant);
   if (controller === undefined) return [];
-  const parent =
-    controller.parent &&
-    lookedUp(
-      controller.parent,
-      classesOf([...controllers.keys()].filter(other => other !== constant)),
-    );
-  return [...(parent === undefined ? [] : inherited(controllers, parent)), ...controller.callbacks];
+  const above = new Map([...controllers].filter(([other]) => other !== constant));
+  const parent = controller.parent && lookedUp(controller.parent, classesOf([...above.keys()]));
+  return [...(parent === undefined ? [] : inherited(above, parent)), ...controller.callbacks];
 };
 
 const coverOf = (
