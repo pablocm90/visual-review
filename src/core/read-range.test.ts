@@ -1735,6 +1735,48 @@ test('a dependency path holding glob characters is followed as written, so a cra
   expect(range.skipped).toEqual([]);
 });
 
+test('a workspace member climbing out of a glob is not read, even when it lands inside, since only its prefix is checked', async () => {
+  using repository = gitRepo({ 'README.md': '' });
+  const { repo, root } = repository;
+  const head = commit(repo, {
+    'Cargo.toml': '[workspace]\nmembers = ["crates/*/../a"]\n',
+    'crates/a/Cargo.toml': packageNamed('a'),
+    'crates/a/src/lib.rs': '',
+  });
+  using bin = pathWithCargo('exit 1');
+  vi.stubEnv('PATH', bin.path);
+
+  const range = await readRange({ repo, from: root, to: head });
+
+  expect(range.skipped).toEqual([
+    {
+      reader: 'rust',
+      stacks: ['rust'],
+      reason: 'Cargo.toml: workspace.members "crates/*/../a" leaves the checkout',
+    },
+  ]);
+});
+
+test.for(['crates/a/x/..', 'crates/x/../*'])(
+  'a workspace member %s climbing before any glob is checked where it lands, and reads',
+  async members => {
+    using repository = gitRepo({ 'README.md': '' });
+    const { repo, root } = repository;
+    const head = commit(repo, {
+      'Cargo.toml': `[workspace]\nmembers = ["${members}"]\n`,
+      'crates/x/README.md': '',
+      'crates/a/x/README.md': '',
+      'crates/a/Cargo.toml': packageNamed('a'),
+    });
+    using bin = pathWithCargo(`echo '{"workspace_root": "/", "packages": []}'`);
+    vi.stubEnv('PATH', bin.path);
+
+    const range = await readRange({ repo, from: root, to: head });
+
+    expect(range.skipped).toEqual([]);
+  },
+);
+
 test('a dependency named path, written as a table, is no path and reads', async () => {
   using repository = gitRepo({ 'README.md': '' });
   const { repo, root } = repository;

@@ -67,6 +67,12 @@ const literalPrefixOf = (pattern: string): string => {
   return globbed === -1 ? pattern : segments.slice(0, globbed).join('/');
 };
 
+const climbsOutOfGlob = (pattern: string): boolean => {
+  const segments = pattern.split('/');
+  const globbed = segments.findIndex(isGlobbed);
+  return globbed !== -1 && segments.slice(globbed).includes('..');
+};
+
 const childFolders = (folder: string): ReadonlyArray<string> =>
   statSync(folder, { throwIfNoEntry: false })?.isDirectory()
     ? readdirSync(folder).map(name => join(folder, name))
@@ -90,6 +96,7 @@ type Place = { readonly checkout: string; readonly folder: string };
 
 const leaves = async ({ path, pattern }: Named, { checkout, folder }: Place): Promise<boolean> => {
   if (!pattern) return !(await resolvesInside(checkout, resolve(folder, path)));
+  if (climbsOutOfGlob(path)) return true;
   const prefix = literalPrefixOf(path);
   if (!(await resolvesInside(checkout, resolve(folder, prefix)))) return true;
   const matches = globSync(path, { cwd: folder });
