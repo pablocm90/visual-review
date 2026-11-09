@@ -143,16 +143,22 @@ type Failure = {
 const failuresIn = ({ skipped }: StacksReading) =>
   skipped.flatMap(({ reader, reason, stacks }) => stacks.map(stack => ({ reader, reason, stack })));
 
+const entryOf = ({ reader, reason, side }: Failure): string =>
+  JSON.stringify([reader, reason, side ?? null]);
+
 const mergedByReason = (failures: ReadonlyArray<Failure>): ReadonlyArray<Skipped> =>
-  failures.reduce<ReadonlyArray<Skipped>>((merged, { reader, reason, stack, side }) => {
-    const known = merged.find(
-      each => each.reader === reader && each.reason === reason && each.side === side,
-    );
-    if (known?.stacks.includes(stack)) return merged;
-    return known === undefined
-      ? [...merged, { reader, stacks: [stack], reason, ...(side === undefined ? {} : { side }) }]
-      : merged.map(each => (each === known ? { ...each, stacks: [...each.stacks, stack] } : each));
-  }, []);
+  [...Map.groupBy(failures, entryOf).values()].flatMap(([first, ...rest]) =>
+    first === undefined
+      ? []
+      : [
+          {
+            reader: first.reader,
+            stacks: [...new Set([first, ...rest].map(({ stack }) => stack))],
+            reason: first.reason,
+            ...(first.side === undefined ? {} : { side: first.side }),
+          },
+        ],
+  );
 
 const skippedAcross = (sides: ReadonlyArray<SkipsAt>): ReadonlyArray<Skipped> => {
   const failures = sides.flatMap(({ side, reading }) =>

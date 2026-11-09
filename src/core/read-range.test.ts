@@ -1878,16 +1878,16 @@ test.for([
   },
 );
 
-test('a stack not read at either side is dropped from both, and listed once per reason, saying the side when the other side read it', async () => {
+test('a stack not read at either side is dropped from both, and listed once per reader and reason, saying the side when the other side read it', async () => {
   using repository = gitRepo({
-    'api/broken': 'cargo: timed out',
+    'api/broken': 'timed out',
     'lib/broken': 'cargo: lib was broken',
     'ops/broken': 'cargo: ops was broken',
   });
   const { repo, root } = repository;
   git(repo, 'rm', '--quiet', 'lib/broken');
   const head = commit(repo, {
-    'jobs/broken': 'cargo: timed out',
+    'jobs/broken': 'timed out',
     'ops/broken': 'cargo: ops is broken',
   });
   const reader = fakeReader({
@@ -1904,7 +1904,15 @@ test('a stack not read at either side is dropped from both, and listed once per 
     },
   });
 
-  const range = await readRange({ repo, from: root, to: head, readers: [reader] });
+  const site = fakeReader({
+    name: 'typescript',
+    roots: [{ root: 'site' }],
+    graph: async () => {
+      throw new StackNotRead('timed out');
+    },
+  });
+
+  const range = await readRange({ repo, from: root, to: head, readers: [reader, site] });
 
   expect(range.before).toEqual({
     nodes: [{ id: 'web', kind: 'stack', label: 'web', path: 'web' }],
@@ -1912,10 +1920,11 @@ test('a stack not read at either side is dropped from both, and listed once per 
   });
   expect(nodeIds(range.after)).toEqual(['web']);
   expect(range.skipped).toEqual([
-    { reader: 'rust', stacks: ['api'], reason: 'cargo: timed out' },
+    { reader: 'rust', stacks: ['api'], reason: 'timed out' },
     { reader: 'rust', stacks: ['lib'], reason: 'cargo: lib was broken', side: 'base' },
     { reader: 'rust', stacks: ['ops'], reason: 'cargo: ops was broken', side: 'base' },
-    { reader: 'rust', stacks: ['jobs'], reason: 'cargo: timed out', side: 'head' },
+    { reader: 'typescript', stacks: ['site'], reason: 'timed out' },
+    { reader: 'rust', stacks: ['jobs'], reason: 'timed out', side: 'head' },
     { reader: 'rust', stacks: ['ops'], reason: 'cargo: ops is broken', side: 'head' },
   ]);
 });
