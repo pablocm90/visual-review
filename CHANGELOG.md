@@ -2,6 +2,12 @@
 
 What changed in each release of `@pablocm90/visual-review`, newest first. Versions follow [semver](https://semver.org); while it is 0.x, a minor version may change the exported types.
 
+## Unreleased
+
+### Added
+
+- A folder with no `tsconfig.json` reads its `jsconfig.json`: a JS project's `paths` draw edges, and its `rootDir` or one included folder is its source root. A folder holding both reads `tsconfig.json`, as the TypeScript server does; a project reference still names a folder's `tsconfig.json`.
+
 ## 0.56.0 — 2026-11-09
 
 ### Fixed
