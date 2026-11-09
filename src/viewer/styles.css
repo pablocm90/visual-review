@@ -3224,3 +3224,23 @@ main:has(> .review-tray) {
   text-transform: uppercase;
   letter-spacing: 0.04em;
 }
+
+.note .note-recommendation {
+  margin-top: 6px;
+  padding: 6px 8px;
+  border-inline-start: 3px solid var(--ramp-2);
+  background: var(--ramp-0);
+}
+
+.note-recommendation strong {
+  display: block;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.take {
+  margin-top: 6px;
+}

@@ -9,7 +9,7 @@ argument-hint: [<pr number> | <from>..<to>]
 Each `visual-review` below is shorthand for this command: run the command in full in its place, since nothing puts `visual-review` on `PATH`:
 
 ```sh
-npx -y --prefix="$(mktemp -d)" --package="${VISUAL_REVIEW_PACKAGE:-@pablocm90/visual-review@0.52.0}" visual-review
+npx -y --prefix="$(mktemp -d)" --package="${VISUAL_REVIEW_PACKAGE:-@pablocm90/visual-review@0.53.0}" visual-review
 ```
 
 The empty `--prefix` keeps the reviewed checkout's own `node_modules` and `.npmrc` from choosing what runs; the command still runs in the repo.
@@ -35,7 +35,13 @@ Run every command from the repository root (`git rev-parse --show-toplevel`, whi
          "why": "The page shows the version; the route reads it straight from the build, so nothing in application knows it.",
          "flag": "layer skipped"
        },
-       "web/file/App.tsx -> web/module/modules/AppInfo": { "text": "App reads app info through the module." }
+       "web/file/App.tsx -> web/module/modules/AppInfo": {
+         "text": "App reads app info through the module."
+       },
+       "web/file/App.tsx": {
+         "text": "Shows the version in the footer.",
+         "recommendation": "Bug: App reads the version before the module has fetched it, so it shows undefined on first paint; read it once the fetch resolves."
+       }
      }
    }
    ```
@@ -46,10 +52,11 @@ Run every command from the repository root (`git rev-parse --show-toplevel`, whi
    - A Rails class has its own id, keyed by its constant, such as `shop/class/Admin::UsersController`, inside its layer (`shop/layer/controllers`); its note shows once the layer is expanded.
    - Each note's `text` says what that part does in the change, in one or two sentences.
    - Add `why` where the change has a reason worth giving: why the part changed this way, and what follows from it, in one or two sentences `text` doesn't already say. Leave it out when the reason is only the text again.
+   - Add `recommendation` only where something warrants it: what you would do about the part, in a sentence the reviewer can take as their own request, not a restatement of `why`. On a served page the reviewer's **Take** turns it into a `change` comment on that part, or on an edge drawn for one import; an edge drawn between closed modules or crates takes no comment, so put a recommendation about it on one of its ends.
    - `summary` holds two to five items on the change's shape as a whole, undrawn files included. Give an item a `target` when it is about one node or edge.
    - `tests` is one or two sentences on the tests as a whole: what the listed tests pin, and what the change leaves untested, such as a modified part with no test change under it. When no test changed, say what that leaves unpinned. It heads the Tests tab.
    - Set `flag` to a short label only for a structural concern the graph shows: a new dependency direction, a layer reaching past its neighbour, a cycle, or coupling across the stack edge. The page shows it as a finding that needs a look. Give the note a `dimension` when another one in `notes.schema.json` fits the concern better, such as `dependencies` for coupling across the stack edge; left out, it is `structure`.
-   - Notes explain the design, behaviour, logic and tests of what they're on. Notice, don't hunt: a bug you see while reading goes in the note of the part it's on, named as one; the sweep for bugs and style stays with `/code-review`.
+   - Notes explain the design, behaviour, logic and tests of what they're on. Notice, don't hunt: a bug you see while reading goes in as a `recommendation` on the part it's on, named as a bug; the sweep for bugs and style stays with `/code-review`.
    - When the data has `sinceReview` and you acted on that review, add `answers`, what became of each thing it said, and `unasked`, what you changed that nothing in it asked for:
 
      ```json
@@ -72,7 +79,7 @@ Run every command from the repository root (`git rev-parse --show-toplevel`, whi
    Done when every touched crate, module, root file, Rails layer and class, and every added or removed edge between them as drawn with modules collapsed, has a note. A note on a file import counts for the module edge it is drawn into. With `answers`, also when every comment in `sinceReview.comments` but a `fine` has one.
 4. Run `visual-review '<range>' --notes '<notes file>'`. It fills the notes into the page from step 1 without reading the range again. A non-zero exit names the notes file and either the contract error or one line per problem (`unknown id <id>`, `no note on <id>`, `unknown comment <kind> <id>` for an answer whose anchor isn't in `sinceReview.comments`, or the one line that `unasked` needs a last review): fix the file and rerun. Done when it exits 0.
 5. Run `visual-review serve '<page path>'` in the background, so you are told when it exits. It opens the page in the browser and prints `Serving <url>` on stderr. Done when that line is out, or when it has exited: then go to step 7.
-6. Reply with the page's URL and path and the flags you raised, one line each, or "no flags", then each bug a note names, by its part, and say that a review sent from the page's **Review** panel comes back to you.
+6. Reply with the page's URL and path and the flags you raised, one line each, or "no flags", then each bug a recommendation names, by its part, since an untaken one raises no finding, and say that a review sent from the page's **Review** panel comes back to you.
 7. When `serve` exits, act on how it ended:
    - Exit 0 with a path on stdout: the user sent a review, written at that path. Read it: `verdict` is `approve`, `comment` or `request-changes`, `body`, when present, is the user's general comment on the whole change, and `comments` lists the user's comments and their answers to findings. A comment has an `anchor`, a `kind` and its `text`. The anchor says what it is on: `{ kind: 'part', id }` for a node or `{ kind: 'edge', id }` for an edge (`<from> -> <to>`), with the ids your notes use; `{ kind: 'symbol', id: '<file node id>#<scope.name>' }` for a function, method or class in that file, with `#<n>` after the id from the second symbol of that name there on (the first has none), as a getter and its setter are, counted in the order of that file's entry in the data's `symbols`; `{ kind: 'decision', id: '<symbol id>#<text>', text }` for one logic line of that function, its id built on the symbol's, `#<n>` included, quoting it, with `#<n>` after the id from the second line of that function reading the same on (a removed guard's or catch's id is its `logic:removed:` finding's id without that prefix); `{ kind: 'test', id: '<test file>#<heading › … › name>' }` for one test, with `#<n>` after the id from the second of those headings and that name in the file on (the first has none), counted in the order of that file's entry in the data's `tests`; or `{ kind: 'line', id: '<file>@<base|head>:<n>', text }` for a line of the diff, on the base side for a removed line, the head side otherwise, with the line's `text`: find the line by its text when the number has moved. Act on the narrowest thing the anchor names, not the whole file. A comment's `kind` says what it asks: `change` is a task on its anchor, `question` wants an answer, and `suggestion` is to be weighed: take it or say why not. An answer's anchor is `{ kind: 'finding', id }`, the `id` of one of the data's `findings`, or `notes:<id>` for the flag your note on `<id>` raised. Its `kind` says what it asks: `fix` is a task on what the finding names, `explain` wants an answer on why the change does that, and `fine` closes the finding, with the user's why as `text` when they gave one: name it in your reply with that why, and do nothing else for it. Take `body` first, as a comment on the whole change, under the same verdict. `read` lists the parts of the reading order the user marked read, and `reviewed` says what the page was drawn for, its `range` and, for a PR, its `pullRequest` number. A part in `read` with no comment on it was read and found fine: say nothing of it. `resolved` lists the anchors of the last review's comments and answers the user closed, as they were said: do nothing more on them, and they need no answer. A comment on an anchor in `sinceReview.comments` is a reply: read it with your earlier answer in the last `.notes.json`, a part or edge matched by its `target`, and take it as its `kind` says. A `line` comment is a reply only when its `text` matches too: a row at the old number reading otherwise is a new comment. A comment or answer on an anchor that `resolved` also lists, in the same review, still counts: take it as its `kind` says. In your reply, name the parts of `readingOrder.parts` that are neither in `read` nor commented on as not read, or say that no part was marked read when `read` is empty.
      - `request-changes`: do every `change` and `fix`, answer every `question` and `explain`, and take or turn down every `suggestion`, saying which, as you would a PR review's requested changes. Done when `body`, every comment and every answer are addressed or answered with why not.
