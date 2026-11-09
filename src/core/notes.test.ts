@@ -10,6 +10,7 @@ import {
   visibleNotes,
 } from './notes.ts';
 import type { SymbolFile } from './read-range.ts';
+import type { TestFile } from './test-changes.ts';
 
 type NodeState = GraphDiff['nodes'][number]['state'];
 
@@ -71,6 +72,20 @@ const symbols: ReadonlyArray<SymbolFile> = [
   { node: 'web/file/pages/header.tsx', stack: 'web', unreadable: 'Unexpected token' },
 ];
 
+const tests: ReadonlyArray<TestFile> = [
+  {
+    path: 'web/src/pages/home.test.tsx',
+    stack: 'web',
+    statements: [
+      {
+        kind: 'heading',
+        name: 'home',
+        children: [{ kind: 'test', name: 'formats dates', change: 'added' }],
+      },
+    ],
+  },
+];
+
 const notesWith = (overrides: Partial<ReviewNotes> = {}): ReviewNotes => ({
   version: 2,
   summary: [{ text: 'Home formats dates.', target: 'web/module/pages' }, { text: 'Web only.' }],
@@ -86,6 +101,7 @@ test('notes on every touched part of the collapsed view, keyed to nodes or to ed
   expect(
     notesProblems({
       symbols,
+      tests,
       diff,
       said: [],
       notes: notesWith({
@@ -99,6 +115,7 @@ test('notes on every touched part of the collapsed view, keyed to nodes or to ed
           },
           'symbol web/file/pages/home.tsx#run': { text: 'Runs once.', why: 'Idempotent.' },
           'decision web/file/pages/home.tsx#run#ready': { text: 'Waits until ready.' },
+          'test web/src/pages/home.test.tsx#home › formats dates': { text: 'Pins the format.' },
         },
       }),
     }),
@@ -109,6 +126,7 @@ test('a note on a hidden import covers the edge it is drawn into while its modul
   expect(
     notesProblems({
       symbols,
+      tests,
       diff,
       said: [],
       notes: notesWith({
@@ -125,6 +143,7 @@ test('a stack that appears in the change is not asked for a note, since notes ca
   expect(
     notesProblems({
       symbols,
+      tests,
       diff: { ...diff, nodes: [{ ...stack, state: 'added' }, ...diff.nodes.slice(1)] },
       said: [],
       notes: notesWith(),
@@ -147,6 +166,7 @@ test('a note may be keyed by an edge between its ends or any of the boxes above 
   expect(
     notesProblems({
       symbols,
+      tests,
       diff: deep,
       said: [],
       notes: notesWith({
@@ -248,6 +268,31 @@ test.for([
     ],
   },
   {
+    problem: 'a note on a test its file does not hold',
+    notes: notesWith({
+      notes: {
+        ...notesWith().notes,
+        'test web/src/pages/home.test.tsx#formats dates': { text: 'Pins the format.' },
+      },
+    }),
+    expected: ['unknown key test web/src/pages/home.test.tsx#formats dates'],
+  },
+  {
+    problem: 'a flag on a test note',
+    notes: notesWith({
+      notes: {
+        ...notesWith().notes,
+        'test web/src/pages/home.test.tsx#home › formats dates': {
+          text: 'Pins the format.',
+          flag: 'pins a locale',
+        },
+      },
+    }),
+    expected: [
+      'flag on test web/src/pages/home.test.tsx#home › formats dates: only a part or edge note takes a flag',
+    ],
+  },
+  {
     problem: 'a flag on a symbol note',
     notes: notesWith({
       notes: {
@@ -275,7 +320,7 @@ test.for([
     expected: ['no note on edge web/module/pages -> web/module/utils'],
   },
 ])('$problem is a problem', ({ notes, expected }) => {
-  expect(notesProblems({ symbols, diff, notes, said: [] })).toEqual(expected);
+  expect(notesProblems({ symbols, tests, diff, notes, said: [] })).toEqual(expected);
 });
 
 const file = 'x.notes.json';
@@ -415,6 +460,7 @@ test("an answer is known by its anchor's kind and id in the last review, whateve
   expect(
     notesProblems({
       symbols,
+      tests,
       diff,
       said,
       notes: notesWith({
@@ -455,9 +501,9 @@ test('an unasked change is keyed as a note is, by a part, an edge or a symbol', 
     }),
   );
 
-  expect(notesProblems({ symbols, diff, said: [], notes: parseNotes({ text, file }) })).toEqual([
-    'unknown key part web/module/gone',
-  ]);
+  expect(
+    notesProblems({ symbols, tests, diff, said: [], notes: parseNotes({ text, file }) }),
+  ).toEqual(['unknown key part web/module/gone']);
 });
 
 test('an unasked change needs a last review to show under, even one that said nothing', () => {
@@ -465,11 +511,11 @@ test('an unasked change needs a last review to show under, even one that said no
     unasked: { 'part web/module/pages': { text: 'Renamed the helper.' } },
   });
 
-  expect(notesProblems({ symbols, diff, said: undefined, notes })).toEqual([
+  expect(notesProblems({ symbols, tests, diff, said: undefined, notes })).toEqual([
     'unasked changes show under the last review, and this page has none',
   ]);
-  expect(notesProblems({ symbols, diff, said: undefined, notes: notesWith() })).toEqual([]);
-  expect(notesProblems({ symbols, diff, said: [], notes })).toEqual([]);
+  expect(notesProblems({ symbols, tests, diff, said: undefined, notes: notesWith() })).toEqual([]);
+  expect(notesProblems({ symbols, tests, diff, said: [], notes })).toEqual([]);
 });
 
 test('a done answer names its commit', () => {
@@ -530,10 +576,11 @@ test('a note keeps why it changed this way and what to do about it, beside what 
   expect(parseNotes({ text: JSON.stringify(notesWith({ notes })), file }).notes).toEqual(notes);
 });
 
-test('a note may be keyed by a symbol or a decision', () => {
+test('a note may be keyed by a symbol, a decision or a test', () => {
   const notes = {
     'symbol web/file/pages/home.tsx#run': { text: 'Runs once.' },
     'decision web/file/pages/home.tsx#run#ready': { text: 'Waits.' },
+    'test web/src/pages/home.test.tsx#home › formats dates': { text: 'Pins the format.' },
   };
 
   expect(parseNotes({ text: JSON.stringify(notesWith({ notes })), file }).notes).toEqual(notes);
@@ -558,7 +605,7 @@ test('the published notes schema marks no field read-only, since notes are writt
   expect(JSON.stringify(notesJsonSchema())).not.toContain('readOnly');
 });
 
-test('the published notes schema says version 2 and keys notes and unasked changes by part, edge, symbol or decision', () => {
+test('the published notes schema says version 2 and keys notes and unasked changes by part, edge, symbol, decision or test', () => {
   const schema = z.object({
     properties: z.object({
       version: z.object({ const: z.number() }),
@@ -573,6 +620,7 @@ test('the published notes schema says version 2 and keys notes and unasked chang
     'symbol web/a.ts#run',
     'decision web/a.ts#run#x',
     'test web/a.ts#x',
+    'line web/a.ts@head:1',
     'web/a.ts',
   ];
 
@@ -582,7 +630,19 @@ test('the published notes schema says version 2 and keys notes and unasked chang
       keys.filter(key => new RegExp(pattern).test(key)),
     ),
   ).toEqual([
-    ['part web/a.ts', 'edge a -> b', 'symbol web/a.ts#run', 'decision web/a.ts#run#x'],
-    ['part web/a.ts', 'edge a -> b', 'symbol web/a.ts#run', 'decision web/a.ts#run#x'],
+    [
+      'part web/a.ts',
+      'edge a -> b',
+      'symbol web/a.ts#run',
+      'decision web/a.ts#run#x',
+      'test web/a.ts#x',
+    ],
+    [
+      'part web/a.ts',
+      'edge a -> b',
+      'symbol web/a.ts#run',
+      'decision web/a.ts#run#x',
+      'test web/a.ts#x',
+    ],
   ]);
 });

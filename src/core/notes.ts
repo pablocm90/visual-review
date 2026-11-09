@@ -4,7 +4,9 @@ import type { GraphDiff } from './diff-graphs.ts';
 import { DIMENSIONS } from './findings.ts';
 import { edgeId } from './graph.ts';
 import type { SymbolFile } from './read-range.ts';
+import { testAnchorsIn } from './since-review.ts';
 import { anchoredSymbols, decisionsOf } from './symbol-findings.ts';
+import type { TestFile } from './test-changes.ts';
 import {
   boxesAboveIn,
   type VisibleDiffOptions,
@@ -30,7 +32,7 @@ const AnswerSchema = z.discriminatedUnion('status', [
 ]);
 
 const NoteKeySchema = z.templateLiteral([
-  z.enum(['part', 'edge', 'symbol', 'decision']),
+  z.enum(['part', 'edge', 'symbol', 'decision', 'test']),
   ' ',
   z.string(),
 ]);
@@ -76,7 +78,7 @@ const ReviewNotesSchema = z
       .readonly()
       .default({})
       .describe(
-        'Notes by `part <node id>`, `edge <from> -> <to>`, `symbol <file node id>#<symbol>` or `decision <file node id>#<symbol>#<decision>`; left out, there are none',
+        'Notes by `part <node id>`, `edge <from> -> <to>`, `symbol <file node id>#<symbol>`, `decision <file node id>#<symbol>#<decision>` or `test <test file path>#<heading › test>`; left out, there are none',
       ),
     answers: z
       .record(z.string(), AnswerSchema)
@@ -203,6 +205,7 @@ type NotesProblemsOptions = {
   readonly diff: GraphDiff;
   readonly notes: ReviewNotes;
   readonly symbols: ReadonlyArray<SymbolFile>;
+  readonly tests: ReadonlyArray<TestFile>;
   readonly said:
     | ReadonlyArray<{ readonly anchor: { readonly kind: string; readonly id: string } }>
     | undefined;
@@ -227,6 +230,7 @@ export const notesProblems = ({
   diff,
   notes,
   symbols,
+  tests,
   said,
 }: NotesProblemsOptions): ReadonlyArray<string> => {
   const boxesAbove = boxesAboveIn(diff.nodes);
@@ -251,6 +255,7 @@ export const notesProblems = ({
           ])
         : [],
     ),
+    ...testAnchorsIn(tests).map(({ id }) => anchorKey({ kind: 'test', id })),
   ]);
   const collapsed = visibleDiff({ diff, expanded: new Set() });
   const shown = visibleNotes({ diff, expanded: new Set(), notes: notesOnTheGraph(notes.notes) });
