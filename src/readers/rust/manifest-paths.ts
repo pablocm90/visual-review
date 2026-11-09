@@ -6,12 +6,14 @@ import { z } from 'zod';
 import { resolvesInside } from '../../core/links-leaving.ts';
 import { StackNotRead } from '../../core/skipped.ts';
 
-type Named = { readonly key: string; readonly path: string };
+type Named = { readonly key: string; readonly path: string; readonly pattern: boolean };
 
 const pathsIn = (value: unknown): ReadonlyArray<Named> => {
   if (typeof value !== 'object' || value === null) return [];
   return Object.entries(value).flatMap(([key, inner]) =>
-    key === 'path' && typeof inner === 'string' ? [{ key, path: inner }] : pathsIn(inner),
+    key === 'path' && typeof inner === 'string'
+      ? [{ key, path: inner, pattern: false }]
+      : pathsIn(inner),
   );
 };
 
@@ -29,9 +31,15 @@ const workspaceOf = (manifest: unknown): ReadonlyArray<Named> => {
   const read = Manifest.safeParse(manifest).data;
   const workspace = read?.package?.workspace;
   return [
-    ...(workspace === undefined ? [] : [{ key: 'package.workspace', path: workspace }]),
+    ...(workspace === undefined
+      ? []
+      : [{ key: 'package.workspace', path: workspace, pattern: false }]),
     ...(['members', 'default-members'] as const).flatMap(key =>
-      (read?.workspace?.[key] ?? []).map(path => ({ key: `workspace.${key}`, path })),
+      (read?.workspace?.[key] ?? []).map(path => ({
+        key: `workspace.${key}`,
+        path,
+        pattern: true,
+      })),
     ),
   ];
 };
@@ -80,10 +88,11 @@ const foldersMatching = (folder: string, pattern: string): ReadonlyArray<string>
 
 type Place = { readonly checkout: string; readonly folder: string };
 
-const leaves = async (pattern: string, { checkout, folder }: Place): Promise<boolean> => {
-  const prefix = literalPrefixOf(pattern);
+const leaves = async ({ path, pattern }: Named, { checkout, folder }: Place): Promise<boolean> => {
+  if (!pattern) return !(await resolvesInside(checkout, resolve(folder, path)));
+  const prefix = literalPrefixOf(path);
   if (!(await resolvesInside(checkout, resolve(folder, prefix)))) return true;
-  const matches = globSync(pattern, { cwd: folder });
+  const matches = globSync(path, { cwd: folder });
   const inside = await Promise.all(
     matches.map(match => resolvesInside(checkout, resolve(folder, match))),
   );
@@ -94,14 +103,16 @@ const followedFrom = async ({ checkout, folder }: Place): Promise<ReadonlyArray<
   const manifest = relative(checkout, join(folder, 'Cargo.toml'));
   const read = parsed(manifest, await readFile(join(folder, 'Cargo.toml'), 'utf8'));
   const paths = [...pathsIn(read), ...workspaceOf(read)];
-  const left = await Promise.all(paths.map(({ path }) => leaves(path, { checkout, folder })));
+  const left = await Promise.all(paths.map(named => leaves(named, { checkout, folder })));
   const leaving = paths.find((_, index) => left[index]);
   if (leaving !== undefined)
     throw new StackNotRead(
       `${manifest}: ${leaving.key} ${JSON.stringify(leaving.path)} leaves the checkout`,
     );
   return paths
-    .flatMap(({ path }) => foldersMatching(folder, path))
+    .flatMap(({ path, pattern }) =>
+      pattern ? foldersMatching(folder, path) : [resolve(folder, path)],
+    )
     .filter(path => existsSync(join(path, 'Cargo.toml')));
 };
 

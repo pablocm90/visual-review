@@ -1718,6 +1718,23 @@ test('a link inside the checkout back to its root is walked once, and cargo runs
   expect(range.skipped).toEqual([]);
 });
 
+test('a dependency path holding glob characters is followed as written, so a crate it would match as a pattern is not walked', async () => {
+  using repository = gitRepo({ 'README.md': '' });
+  const { repo, root } = repository;
+  const outside = `../../${withZeroManifest(repo)}`;
+  const head = commit(repo, {
+    'Cargo.toml': packageNamed('r', '[dependencies]\nb = { path = "crates/a[1]" }\n'),
+    'crates/a[1]/Cargo.toml': packageNamed('b'),
+    'crates/z/Cargo.toml': packageNamed('z', `[dependencies]\nc = { path = "${outside}" }\n`),
+  });
+  using bin = pathWithCargo(`echo '{"workspace_root": "/", "packages": []}'`);
+  vi.stubEnv('PATH', bin.path);
+
+  const range = await readRange({ repo, from: root, to: head });
+
+  expect(range.skipped).toEqual([]);
+});
+
 test('a dependency named path, written as a table, is no path and reads', async () => {
   using repository = gitRepo({ 'README.md': '' });
   const { repo, root } = repository;
@@ -1777,6 +1794,16 @@ test.for([
     broken: 'a member missing from the checkout',
     manifest: '[workspace]\nmembers = ["crates/missing"]\n',
     reason: 'Cargo.toml: workspace.members "crates/missing" leaves the checkout',
+  },
+  {
+    broken: 'a dependency path holding glob characters missing from the checkout',
+    manifest: packageNamed('a', '[dependencies]\nb = { path = "crates/b[1]" }\n'),
+    reason: 'Cargo.toml: path "crates/b[1]" leaves the checkout',
+  },
+  {
+    broken: 'a package workspace holding glob characters missing from the checkout',
+    manifest: packageNamed('a', 'workspace = "w[1]"\n'),
+    reason: 'Cargo.toml: package.workspace "w[1]" leaves the checkout',
   },
   {
     broken: 'a package workspace that is no path',
