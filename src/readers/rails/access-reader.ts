@@ -46,13 +46,20 @@ const callbacksOfCall = (call: Node): ReadonlyArray<Callback> => {
     }));
 };
 
-type Entry = Callback | { readonly include: Wanted };
+type Written = { readonly text: string; readonly line: number };
+
+type Entry = Callback | ({ readonly include: Wanted } & Written);
 
 const entriesOf = (body: Node | null | undefined): ReadonlyArray<Entry> =>
   (body?.namedChildren ?? []).flatMap(node => {
     const method = methodOf(node);
     if (CALLBACK.test(method)) return callbacksOfCall(node);
-    if (method === 'include') return argsOf(node).map(arg => ({ include: written(arg) }));
+    if (method === 'include')
+      return argsOf(node).map(arg => ({
+        include: written(arg),
+        text: node.text,
+        line: node.startPosition.row + 1,
+      }));
     if (method === 'included')
       return entriesOf(node.childForFieldName('block')?.childForFieldName('body'));
     return [];
@@ -226,17 +233,26 @@ const RAILS_PARENTS: ReadonlySet<string> = new Set([
   'ActionController::API',
 ]);
 
-const parentsUnread = (read: ReadonlyArray<ControllerFile>): ReadonlyArray<UnreadAccess> =>
+const namedOf = ({ parent, header, line, entries }: Controller) =>
+  (parent === undefined || RAILS_PARENTS.has(parent.name)
+    ? []
+    : [{ wanted: parent, text: header, line }]
+  ).concat(
+    entries.flatMap(entry => ('include' in entry ? [{ ...entry, wanted: entry.include }] : [])),
+  );
+
+const lookupsUnread = (read: ReadonlyArray<ControllerFile>): ReadonlyArray<UnreadAccess> =>
   read.flatMap(({ root, file, controllers }) => {
     const all = controllersAt(read, root);
-    return controllers
-      .filter(
-        controller =>
-          controller.parent !== undefined &&
-          !RAILS_PARENTS.has(controller.parent.name) &&
-          parentIn(without(all, controller.constant), controller) === undefined,
-      )
-      .map(({ header, line }) => ({ text: header, file, line }));
+    return controllers.flatMap(controller =>
+      namedOf(controller)
+        .filter(
+          ({ wanted }) =>
+            lookedUp(wanted, classesOf([...without(all, controller.constant).keys()])) ===
+            undefined,
+        )
+        .map(({ text, line }) => ({ text, file, line })),
+    );
   });
 
 const coveredIn = (
@@ -263,7 +279,7 @@ export const railsAccess: AccessReader = {
     const read = [...files].map(([file, text]) => fileOf(text, { file, authorize }));
     return {
       actions: coveredIn(read, authorize),
-      unread: read.flatMap(({ unread }) => unread).concat(parentsUnread(read)),
+      unread: read.flatMap(({ unread }) => unread).concat(lookupsUnread(read)),
     };
   },
 };

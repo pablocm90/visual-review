@@ -470,3 +470,33 @@ end
     },
   ]);
 });
+
+test('an include naming a concern outside the controllers read is unread, where it is written', () => {
+  expect(
+    read({
+      'app/controllers/concerns/authorized.rb': `module Authorized
+  extend ActiveSupport::Concern
+  included do
+    include Pundit::Authorization
+  end
+end
+`,
+      'app/controllers/users_controller.rb': `class UsersController < ActionController::Base
+  include Authorized, Pagy::Backend
+  def index; end
+end
+`,
+    }).unread,
+  ).toStrictEqual([
+    {
+      text: 'include Pundit::Authorization',
+      file: 'app/controllers/concerns/authorized.rb',
+      line: 4,
+    },
+    {
+      text: 'include Authorized, Pagy::Backend',
+      file: 'app/controllers/users_controller.rb',
+      line: 2,
+    },
+  ]);
+});
