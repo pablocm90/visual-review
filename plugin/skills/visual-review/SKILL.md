@@ -72,7 +72,7 @@ Run every command from the repository root (`git rev-parse --show-toplevel`, whi
          "edge web/file/App.tsx -> web/module/modules/AppInfo": { "status": "declined", "text": "It would widen the port." }
        },
        "unasked": {
-         "rust/crate/application": { "text": "Renamed the helper the split left misnamed." }
+         "part rust/crate/application": { "text": "Renamed the helper the split left misnamed." }
        }
      }
      ```
