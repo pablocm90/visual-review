@@ -47,7 +47,13 @@ const whatChanged = ({
       title: `${name} added with no authorization`,
       detail: `${at} No callback, parent or call of its own authorizes it.`,
     };
-  if (action.cover !== undefined) return undefined;
+  if (action.cover !== undefined)
+    return before.cover?.conditional === false
+      ? {
+          title: `${name} now authorized only conditionally`,
+          detail: `${at} ${before.cover.by} covered it always before; ${action.cover.by} covers it only under its if: or unless: now.`,
+        }
+      : undefined;
   if (before.cover !== undefined)
     return {
       title: `${name} lost its authorization`,

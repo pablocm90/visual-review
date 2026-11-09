@@ -166,3 +166,24 @@ test('a new action covered only under an if: or unless: is for information, sayi
 test('an action covered conditionally on both sides raises nothing', () => {
   expect(findingsOf(reading([action(conditionally)], [action(conditionally)]))).toStrictEqual([]);
 });
+
+test('an action the base always covered and the head only conditionally is for information', () => {
+  expect(
+    findingsOf(
+      reading(
+        [action({ cover: { by: 'authorize', conditional: false } })],
+        [action(conditionally)],
+      ),
+    ).map(({ level, title, detail }) => ({ level, title, detail })),
+  ).toStrictEqual([
+    {
+      level: 'info',
+      title: 'UsersController#show now authorized only conditionally',
+      detail: `At ${FILE}:4. authorize covered it always before; authorize_user covers it only under its if: or unless: now.`,
+    },
+  ]);
+});
+
+test('an action nothing authorized before that gains a conditional cover raises nothing', () => {
+  expect(findingsOf(reading([action()], [action(conditionally)]))).toStrictEqual([]);
+});
