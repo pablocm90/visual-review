@@ -9,7 +9,7 @@ const read = (files: Record<string, string>, authorize: ReadonlyArray<string> = 
 test("a controller's public methods are its actions, with no cover when nothing authorizes them", () => {
   expect(
     read({
-      'app/controllers/users_controller.rb': `class UsersController < ApplicationController
+      'app/controllers/users_controller.rb': `class UsersController < ActionController::Base
   def index; end
 
   private
@@ -409,7 +409,7 @@ end
 test('a callback list it cannot read, or a block calling no authorize name, is unread, where it is written', () => {
   expect(
     read({
-      'app/controllers/users_controller.rb': `class UsersController < ApplicationController
+      'app/controllers/users_controller.rb': `class UsersController < ActionController::Base
   helper_method *HELPERS
   before_action :require_admin
   before_action *CALLBACKS, :set_user
@@ -429,6 +429,44 @@ end
       text: 'before_action { head :forbidden unless admin? }',
       file: 'app/controllers/users_controller.rb',
       line: 6,
+    },
+  ]);
+});
+
+test('a parent outside the controllers read is unread, where the class names it', () => {
+  expect(
+    read({
+      'app/controllers/application_controller.rb': `class ApplicationController < ActionController::Base
+end
+`,
+      'app/controllers/api/base_controller.rb': `module Api
+  class BaseController < ActionController::API
+  end
+end
+`,
+      'app/controllers/users_controller.rb': USERS,
+      'app/controllers/sessions_controller.rb': `module Accounts
+  class SessionsController < Devise::SessionsController
+    def new; end
+  end
+end
+`,
+      'app/controllers/admin/audits_controller.rb': `module Admin
+  class AuditsController < AuditsController
+  end
+end
+`,
+    }).unread,
+  ).toStrictEqual([
+    {
+      text: 'class SessionsController < Devise::SessionsController',
+      file: 'app/controllers/sessions_controller.rb',
+      line: 2,
+    },
+    {
+      text: 'class AuditsController < AuditsController',
+      file: 'app/controllers/admin/audits_controller.rb',
+      line: 2,
     },
   ]);
 });

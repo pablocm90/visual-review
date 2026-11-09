@@ -66,6 +66,8 @@ type Controller = {
   readonly parent: Wanted | undefined;
   readonly entries: ReadonlyArray<Entry>;
   readonly calls: ReadonlyMap<string, ReadonlyArray<string>>;
+  readonly header: string;
+  readonly line: number;
 };
 
 const callsOf = (body: Node | null): ReadonlyMap<string, ReadonlyArray<string>> =>
@@ -92,7 +94,14 @@ const controllersIn = (node: Node, within: string | undefined): ReadonlyArray<Co
     const constant = constantWithin(child.childForFieldName('name')?.text ?? '', within);
     const body = child.childForFieldName('body');
     return [
-      { constant, parent: parentOf(child), entries: entriesOf(body), calls: callsOf(body) },
+      {
+        constant,
+        parent: parentOf(child),
+        entries: entriesOf(body),
+        calls: callsOf(body),
+        header: /^.*/.exec(child.text)?.[0] ?? '',
+        line: child.startPosition.row + 1,
+      },
       ...controllersIn(child, constant),
     ];
   });
@@ -114,6 +123,11 @@ const expanded = (
     return expanded(without(controllers, concern), controllers.get(concern)?.entries ?? []);
   });
 
+const parentIn = (
+  others: ReadonlyMap<string, Controller>,
+  { parent }: Controller,
+): string | undefined => parent && lookedUp(parent, classesOf([...others.keys()]));
+
 const inherited = (
   controllers: ReadonlyMap<string, Controller>,
   constant: string,
@@ -121,7 +135,7 @@ const inherited = (
   const controller = controllers.get(constant);
   if (controller === undefined) return [];
   const above = without(controllers, constant);
-  const parent = controller.parent && lookedUp(controller.parent, classesOf([...above.keys()]));
+  const parent = parentIn(above, controller);
   return [
     ...(parent === undefined ? [] : inherited(above, parent)),
     ...expanded(above, controller.entries),
@@ -159,6 +173,7 @@ const coverOf = ({ action, callbacks, calls, authorize }: Covering): { readonly 
 
 type ControllerFile = {
   readonly root: string;
+  readonly file: string;
   readonly controllers: ReadonlyArray<Controller>;
   readonly actions: ReadonlyArray<Action>;
   readonly unread: ReadonlyArray<UnreadAccess>;
@@ -182,6 +197,7 @@ const fileOf = (text: string, { file, authorize }: Reading): ControllerFile => {
   const root = file.slice(0, file.indexOf('app/controllers/'));
   return {
     root,
+    file,
     ...readRuby(text, program => ({
       controllers: controllersIn(program, undefined),
       unread: unreadIn(program, { file, authorize }),
@@ -194,17 +210,41 @@ const fileOf = (text: string, { file, authorize }: Reading): ControllerFile => {
   };
 };
 
+const controllersAt = (
+  read: ReadonlyArray<ControllerFile>,
+  root: string,
+): ReadonlyMap<string, Controller> =>
+  new Map(
+    read
+      .filter(other => other.root === root)
+      .flatMap(other => other.controllers)
+      .map(controller => [controller.constant, controller]),
+  );
+
+const RAILS_PARENTS: ReadonlySet<string> = new Set([
+  'ActionController::Base',
+  'ActionController::API',
+]);
+
+const parentsUnread = (read: ReadonlyArray<ControllerFile>): ReadonlyArray<UnreadAccess> =>
+  read.flatMap(({ root, file, controllers }) => {
+    const all = controllersAt(read, root);
+    return controllers
+      .filter(
+        controller =>
+          controller.parent !== undefined &&
+          !RAILS_PARENTS.has(controller.parent.name) &&
+          parentIn(without(all, controller.constant), controller) === undefined,
+      )
+      .map(({ header, line }) => ({ text: header, file, line }));
+  });
+
 const coveredIn = (
   read: ReadonlyArray<ControllerFile>,
   authorize: ReadonlyArray<string>,
 ): ReadonlyArray<Action> =>
   read.flatMap(({ root, actions }) => {
-    const controllers = new Map(
-      read
-        .filter(other => other.root === root)
-        .flatMap(other => other.controllers)
-        .map(controller => [controller.constant, controller]),
-    );
+    const controllers = controllersAt(read, root);
     return actions.map(action => ({
       ...action,
       ...coverOf({
@@ -221,6 +261,9 @@ export const railsAccess: AccessReader = {
     CONTROLLER_FILE.test(path) && !path.split('/').some(folder => NOT_SEARCHED.has(folder)),
   actions: ({ files, authorize }) => {
     const read = [...files].map(([file, text]) => fileOf(text, { file, authorize }));
-    return { actions: coveredIn(read, authorize), unread: read.flatMap(({ unread }) => unread) };
+    return {
+      actions: coveredIn(read, authorize),
+      unread: read.flatMap(({ unread }) => unread).concat(parentsUnread(read)),
+    };
   },
 };
