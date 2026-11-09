@@ -5,6 +5,7 @@ import { expect, test } from 'vitest';
 import { writeFiles } from '../test-support/repos.ts';
 import { railsMigrations } from './rails/migration-risks.ts';
 import { railsReader } from './rails/reader.ts';
+import { railsSchema } from './rails/schema-tables.ts';
 
 const FILES = 100;
 
@@ -77,6 +78,7 @@ test.for([
       eachFile((text, index) => railsReader.symbols?.(text, `app/models/model${index}.rb`)),
   },
   { reading: 'Rails migrations', read: () => eachFile(text => railsMigrations.risks(text)) },
+  { reading: 'Rails schema dumps', read: () => eachFile(text => railsSchema.tables(text)) },
 ])(
   'reading $reading frees each file’s tree, so the parser’s heap stays as it was',
   async ({ read }) => {
