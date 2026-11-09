@@ -159,19 +159,13 @@ const joined = (one: Note, other: Note): Note => ({
   ...joinedField('flag', [one, other], ', '),
 });
 
-export const notesOfKind = (
-  notes: ReviewNotes['notes'],
-  kinds: ReadonlyArray<string>,
-): Readonly<Record<string, Note>> =>
+export const notesOnTheGraph = (notes: ReviewNotes['notes']): Readonly<Record<string, Note>> =>
   Object.fromEntries(
     Object.entries(notes).flatMap(([key, note]) => {
       const { kind, id } = anchorOfKey(key);
-      return kinds.includes(kind) ? [[id, note]] : [];
+      return kind === 'part' || kind === 'edge' ? [[id, note]] : [];
     }),
   );
-
-export const notesOnTheGraph = (notes: ReviewNotes['notes']): Readonly<Record<string, Note>> =>
-  notesOfKind(notes, ['part', 'edge']);
 
 type VisibleNotesOptions = VisibleDiffOptions & {
   readonly notes: Readonly<Record<string, Note>>;

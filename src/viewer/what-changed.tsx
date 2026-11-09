@@ -22,7 +22,7 @@ import { boxesAboveIn } from '../core/visible-diff.ts';
 import { ChangedSinceTag, sinceLabel, useIsChangedSince } from './changed-since.tsx';
 import { type Comments, holdsDraft } from './comment-field.tsx';
 import { LogicLegend, LogicStrip } from './logic-strip.tsx';
-import { NoteBlock, SymbolNotes } from './note-block.tsx';
+import { NoteBlock, RowNotes } from './note-block.tsx';
 import { CommentOn, SaidBefore, useHasSaid } from './said-before.tsx';
 import { scrollInPanel } from './scroll-in-panel.ts';
 import { Signature } from './signature-lines.tsx';
@@ -296,9 +296,11 @@ const LogicLines = ({
 const useSymbolHoldsNews = () => {
   const isChangedSince = useIsChangedSince();
   const hasSaid = useHasSaid();
-  const { notes } = useContext(SymbolNotes);
+  const { notes } = useContext(RowNotes);
   return (id: string): boolean =>
-    isChangedSince('symbols', id) || hasSaid({ kind: 'symbol', id }) || notes[id] !== undefined;
+    isChangedSince('symbols', id) ||
+    hasSaid({ kind: 'symbol', id }) ||
+    notes[anchorKey({ kind: 'symbol', id })] !== undefined;
 };
 
 const useHasSymbolNews = () => {
@@ -350,14 +352,14 @@ type SymbolNoteProps = {
 };
 
 const SymbolNote = ({ id, name, comments }: SymbolNoteProps) => {
-  const { notes, onTake } = useContext(SymbolNotes);
-  const note = notes[id];
+  const { notes, onTake } = useContext(RowNotes);
+  const anchor = { kind: 'symbol', id } as const;
+  const note = notes[anchorKey(anchor)];
   if (note === undefined) return null;
-  const drafted = holdsDraft(comments, { kind: 'symbol', id });
   return (
     <NoteBlock
       note={note}
-      onTake={onTake && !drafted ? text => onTake(id, text) : undefined}
+      onTake={onTake && !holdsDraft(comments, anchor) ? text => onTake(anchor, text) : undefined}
       label={`Note on ${name}`}
     />
   );
