@@ -2,21 +2,49 @@ import type { Node } from 'web-tree-sitter';
 import type { AccessReader, Action, Cover } from '../../core/access.ts';
 import { NOT_SEARCHED } from './reader.ts';
 import { symbolsOfRuby } from './ruby-symbols.ts';
-import { argsOf, constantWithin, methodOf, nameOf, readRuby } from './ruby-syntax.ts';
+import {
+  argsOf,
+  constantWithin,
+  methodOf,
+  nameOf,
+  namesIn,
+  optionOf,
+  readRuby,
+} from './ruby-syntax.ts';
 
 const CONTROLLER_FILE = /(^|\/)app\/controllers\/.+\.rb$/;
 
 const DEFINITIONS: ReadonlySet<string> = new Set(['class', 'module']);
 
-const callbacksOf = (definition: Node): ReadonlyArray<string> =>
+type Callback = {
+  readonly name: string;
+  readonly only: ReadonlyArray<string> | undefined;
+  readonly except: ReadonlyArray<string>;
+};
+
+const callbacksOfCall = (call: Node): ReadonlyArray<Callback> => {
+  const args = argsOf(call);
+  const only = optionOf(args, 'only');
+  const except = namesIn(optionOf(args, 'except'));
+  return args.map(arg => ({
+    name: nameOf(arg),
+    only: only === undefined ? undefined : namesIn(only),
+    except,
+  }));
+};
+
+const callbacksOf = (definition: Node): ReadonlyArray<Callback> =>
   (definition.childForFieldName('body')?.namedChildren ?? [])
     .filter(node => methodOf(node) === 'before_action')
-    .flatMap(call => argsOf(call).map(nameOf));
+    .flatMap(callbacksOfCall);
+
+const reaches = ({ only, except }: Callback, action: string): boolean =>
+  (only === undefined || only.includes(action)) && !except.includes(action);
 
 const callbacksIn = (
   node: Node,
   within: string | undefined,
-): ReadonlyArray<[string, ReadonlyArray<string>]> =>
+): ReadonlyArray<[string, ReadonlyArray<Callback>]> =>
   node.namedChildren.flatMap(child => {
     if (!DEFINITIONS.has(child.type)) return callbacksIn(child, within);
     const constant = constantWithin(child.childForFieldName('name')?.text ?? '', within);
@@ -24,11 +52,14 @@ const callbacksIn = (
   });
 
 const coverOf = (
-  callbacks: ReadonlyArray<string>,
+  action: string,
+  callbacks: ReadonlyArray<Callback>,
   authorize: ReadonlyArray<string>,
 ): { readonly cover?: Cover } => {
-  const by = callbacks.find(name => authorize.includes(name));
-  return by === undefined ? {} : { cover: { by, conditional: false } };
+  const by = callbacks.find(
+    callback => authorize.includes(callback.name) && reaches(callback, action),
+  );
+  return by === undefined ? {} : { cover: { by: by.name, conditional: false } };
 };
 
 const actionsIn = (
@@ -47,7 +78,7 @@ const actionsIn = (
             root,
             file,
             line: lines.start,
-            ...coverOf(callbacks.get(scope) ?? [], authorize),
+            ...coverOf(name, callbacks.get(scope) ?? [], authorize),
           },
         ]
       : [],

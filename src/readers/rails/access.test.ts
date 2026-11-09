@@ -64,6 +64,24 @@ test.for([
     cover: { by: 'require_admin', conditional: false },
   },
   { callback: 'a before_action that authorizes nothing', body: '    before_action :set_user' },
+  {
+    callback: 'a before_action only for the action',
+    body: '    before_action :require_admin, only: %i[index show]',
+    cover: { by: 'require_admin', conditional: false },
+  },
+  {
+    callback: 'a before_action only for another action',
+    body: '    before_action :require_admin, only: :show',
+  },
+  {
+    callback: 'a before_action except for another action',
+    body: '    before_action :require_admin, except: [:show]',
+    cover: { by: 'require_admin', conditional: false },
+  },
+  {
+    callback: 'a before_action except for the action',
+    body: '    before_action :require_admin, except: :index',
+  },
 ])('the cover $callback gives the actions under it', ({ body, cover }) => {
   expect(coverOf(body)).toStrictEqual([cover]);
 });
