@@ -27,14 +27,16 @@ type Callback = {
   readonly conditional: boolean;
 };
 
+const namesCalledIn = (node: Node | null): ReadonlyArray<string> =>
+  (node?.descendantsOfType('identifier') ?? []).map(({ text }) => text);
+
 const callbacksOfCall = (call: Node): ReadonlyArray<Callback> => {
   const args = argsOf(call);
   const only = optionOf(args, 'only');
   const except = namesIn(optionOf(args, 'except'));
-  const inBlock = call.childForFieldName('block')?.descendantsOfType('identifier') ?? [];
   return args
     .map(nameOf)
-    .concat(inBlock.map(({ text }) => text))
+    .concat(namesCalledIn(call.childForFieldName('block')))
     .map(name => ({
       skip: methodOf(call).startsWith('skip_'),
       name,
@@ -72,7 +74,7 @@ const callsOf = (body: Node | null): ReadonlyMap<string, ReadonlyArray<string>> 
       .filter(({ type }) => type === 'method')
       .map(method => [
         method.childForFieldName('name')?.text ?? '',
-        method.descendantsOfType('call').map(methodOf),
+        namesCalledIn(method.childForFieldName('body')),
       ]),
   );
 

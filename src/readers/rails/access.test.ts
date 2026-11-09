@@ -369,6 +369,10 @@ test('an action is covered by an authorize call in its own body', () => {
 
   def index; end
 
+  def edit
+    verify_authorized
+  end
+
   def self.index
     authorize User
   end
@@ -378,6 +382,7 @@ end
   ).toStrictEqual([
     ['show', { by: 'authorize', conditional: false }],
     ['index', undefined],
+    ['edit', { by: 'verify_authorized', conditional: false }],
   ]);
 });
 
