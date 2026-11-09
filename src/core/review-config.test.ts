@@ -109,6 +109,26 @@ test.for([
     error: 'metrics.abc: Too small: expected number to be >0',
   },
   {
+    reason: 'a rule with no reason',
+    text: '{"rules": {"no-billing": {"from": "shop/**", "notTo": "shop/layer/models/billing"}}}',
+    error: 'rules.no-billing.reason: Invalid input: expected string, received undefined',
+  },
+  {
+    reason: 'an unknown key in a rule',
+    text: '{"rules": {"no-billing": {"from": "shop/**", "to": "shop/billing", "reason": "x"}}}',
+    error: 'rules.no-billing: Unrecognized key: "to"',
+  },
+  {
+    reason: 'a rule whose from is neither a glob nor a list of them',
+    text: '{"rules": {"no-billing": {"from": 3, "notTo": "shop/billing", "reason": "x"}}}',
+    error: 'rules.no-billing.from: Invalid input: expected a glob or a list of globs',
+  },
+  {
+    reason: 'a rule whose notTo is an empty list',
+    text: '{"rules": {"no-billing": {"from": "shop/**", "notTo": [], "reason": "x"}}}',
+    error: 'rules.no-billing.notTo: Too small: expected array to have >=1 items',
+  },
+  {
     reason: 'a stack neither false nor an object',
     text: '{"stacks": {"web": true}}',
     error: 'stacks.web: Invalid input: expected false or an object',
@@ -437,4 +457,34 @@ test.for([
   const range = await readRange({ repo, from: root, to: head });
 
   expect(range.thresholds).toEqual(thresholds);
+});
+
+test("the head graph's edges breaking the config's rules are the reading's rule breaks, a rule's single glob read as a list of one; an edge only the base drew breaks nothing, and a glob no head node matches is not read", async () => {
+  using repository = gitRepo({
+    'package.json': '{"name": "app"}\n',
+    'src/a.ts': "import { c } from './c';\nexport const a = c;\n",
+    'src/b.ts': 'export const b = 1;\n',
+    'src/c.ts': 'export const c = 1;\n',
+  });
+  const { repo, root } = repository;
+  const head = commit(repo, {
+    'src/a.ts': "import { b } from './b';\nexport const a = b;\n",
+    'src/d.ts': 'export const d = 1;\n',
+    'visual-review.config.json': JSON.stringify({
+      rules: {
+        'a-alone': {
+          from: 'app/file/a.ts',
+          notTo: ['app/file/b.ts', 'app/file/c.ts', 'app/file/d.ts', 'app/file/e.ts'],
+          reason: 'Why.',
+        },
+      },
+    }),
+  });
+
+  const range = await readRange({ repo, from: root, to: head });
+
+  expect(range.ruleBreaks).toStrictEqual([
+    { rule: 'a-alone', reason: 'Why.', edge: { from: 'app/file/a.ts', to: 'app/file/b.ts' } },
+  ]);
+  expect(range.rulesNotRead).toStrictEqual(['a-alone: notTo app/file/e.ts matches no node']);
 });

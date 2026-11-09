@@ -96,6 +96,8 @@ export const pageData = ({
       edges: diff.edges,
       splitParts: reading.thresholds.splitParts,
     }),
+    ruleBreaks: reading.ruleBreaks,
+    edges: diff.edges,
   });
   return {
     repo,

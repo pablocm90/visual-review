@@ -1536,6 +1536,8 @@ test('a reader skipped for want of its tool is named once, at the top of the fin
           tests: [],
           nodes: [],
           split: undefined,
+          ruleBreaks: [],
+          edges: [],
         }),
       })}
     />,
