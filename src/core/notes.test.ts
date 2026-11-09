@@ -50,12 +50,12 @@ const diff: GraphDiff = {
 };
 
 const notesWith = (overrides: Partial<ReviewNotes> = {}): ReviewNotes => ({
-  version: 1,
+  version: 2,
   summary: [{ text: 'Home formats dates.', target: 'web/module/pages' }, { text: 'Web only.' }],
   tests: 'No test pins the date format.',
   notes: {
-    'web/module/pages': { text: 'Home now formats dates.' },
-    'web/module/pages -> web/module/utils': { text: 'Pages starts using utils.' },
+    'part web/module/pages': { text: 'Home now formats dates.' },
+    'edge web/module/pages -> web/module/utils': { text: 'Pages starts using utils.' },
   },
   ...overrides,
 });
@@ -68,9 +68,9 @@ test('notes on every touched part of the collapsed view, keyed to nodes or to ed
       notes: notesWith({
         notes: {
           ...notesWith().notes,
-          'web/file/pages/home.tsx': { text: 'Calls format.' },
-          'web/file/pages/home.tsx -> web/module/utils': { text: 'Imports format.' },
-          'web/file/pages/home.tsx -> web/file/utils/format.ts': { text: 'Imports format.' },
+          'part web/file/pages/home.tsx': { text: 'Calls format.' },
+          'edge web/file/pages/home.tsx -> web/module/utils': { text: 'Imports format.' },
+          'edge web/file/pages/home.tsx -> web/file/utils/format.ts': { text: 'Imports format.' },
         },
       }),
     }),
@@ -84,8 +84,8 @@ test('a note on a hidden import covers the edge it is drawn into while its modul
       said: [],
       notes: notesWith({
         notes: {
-          'web/module/pages': { text: 'Home now formats dates.' },
-          'web/file/pages/home.tsx -> web/file/utils/format.ts': { text: 'Imports format.' },
+          'part web/module/pages': { text: 'Home now formats dates.' },
+          'edge web/file/pages/home.tsx -> web/file/utils/format.ts': { text: 'Imports format.' },
         },
       }),
     }),
@@ -120,40 +120,65 @@ test('a note may be keyed by an edge between its ends or any of the boxes above 
       said: [],
       notes: notesWith({
         notes: {
-          'web/module/pages -> web/module/utils': { text: 'Pages uses utils.' },
-          'web/module/pages/home -> web/module/utils': { text: 'Home uses utils.' },
-          'web/file/pages/home/index.tsx -> web/module/utils': { text: 'Its index does.' },
-          'web/module/utils -> web/module/pages/home': { text: 'Backwards.' },
+          'edge web/module/pages -> web/module/utils': { text: 'Pages uses utils.' },
+          'edge web/module/pages/home -> web/module/utils': { text: 'Home uses utils.' },
+          'edge web/file/pages/home/index.tsx -> web/module/utils': { text: 'Its index does.' },
+          'edge web/module/utils -> web/module/pages/home': { text: 'Backwards.' },
         },
       }),
     }),
-  ).toEqual(['unknown id web/module/utils -> web/module/pages/home']);
+  ).toEqual(['unknown key edge web/module/utils -> web/module/pages/home']);
 });
 
 test.for([
   {
     problem: 'a note on a node that is not in the graph',
-    notes: notesWith({ notes: { ...notesWith().notes, 'web/module/gone': { text: 'Removed.' } } }),
-    expected: ['unknown id web/module/gone'],
+    notes: notesWith({
+      notes: { ...notesWith().notes, 'part web/module/gone': { text: 'Removed.' } },
+    }),
+    expected: ['unknown key part web/module/gone'],
   },
   {
     problem: 'a note on a stack',
-    notes: notesWith({ notes: { ...notesWith().notes, web: { text: 'One stack.' } } }),
-    expected: ['unknown id web'],
+    notes: notesWith({ notes: { ...notesWith().notes, 'part web': { text: 'One stack.' } } }),
+    expected: ['unknown key part web'],
+  },
+  {
+    problem: 'a part note keyed by an edge',
+    notes: notesWith({
+      notes: {
+        ...notesWith().notes,
+        'part web/module/pages -> web/module/utils': { text: 'Uses utils.' },
+      },
+    }),
+    expected: ['unknown key part web/module/pages -> web/module/utils'],
+  },
+  {
+    problem: 'an edge note keyed by a node',
+    notes: notesWith({
+      notes: { ...notesWith().notes, 'edge web/module/pages': { text: 'Formats.' } },
+    }),
+    expected: ['unknown key edge web/module/pages'],
   },
   {
     problem: 'a note on an edge between parts that no import joins',
     notes: notesWith({
-      notes: { ...notesWith().notes, 'web/module/utils -> web/module/pages': { text: 'Back.' } },
+      notes: {
+        ...notesWith().notes,
+        'edge web/module/utils -> web/module/pages': { text: 'Back.' },
+      },
     }),
-    expected: ['unknown id web/module/utils -> web/module/pages'],
+    expected: ['unknown key edge web/module/utils -> web/module/pages'],
   },
   {
     problem: 'a note on a module importing itself, which is never drawn',
     notes: notesWith({
-      notes: { ...notesWith().notes, 'web/module/pages -> web/module/pages': { text: 'Header.' } },
+      notes: {
+        ...notesWith().notes,
+        'edge web/module/pages -> web/module/pages': { text: 'Header.' },
+      },
     }),
-    expected: ['unknown id web/module/pages -> web/module/pages'],
+    expected: ['unknown key edge web/module/pages -> web/module/pages'],
   },
   {
     problem: 'a summary item targeting something not in the graph',
@@ -163,14 +188,14 @@ test.for([
   {
     problem: 'a touched module with no note',
     notes: notesWith({
-      notes: { 'web/module/pages -> web/module/utils': { text: 'Pages starts using utils.' } },
+      notes: { 'edge web/module/pages -> web/module/utils': { text: 'Pages starts using utils.' } },
     }),
-    expected: ['no note on web/module/pages'],
+    expected: ['no note on part web/module/pages'],
   },
   {
     problem: 'a changed edge of the collapsed view with no note',
-    notes: notesWith({ notes: { 'web/module/pages': { text: 'Home now formats dates.' } } }),
-    expected: ['no note on web/module/pages -> web/module/utils'],
+    notes: notesWith({ notes: { 'part web/module/pages': { text: 'Home now formats dates.' } } }),
+    expected: ['no note on edge web/module/pages -> web/module/utils'],
   },
 ])('$problem is a problem', ({ notes, expected }) => {
   expect(notesProblems({ diff, notes, said: [] })).toEqual(expected);
@@ -185,20 +210,25 @@ test.for([
     reason: 'no "version"',
   },
   {
+    problem: 'version 1, whose notes are keyed by bare ids',
+    contents: { version: 1, summary: [], tests: '', notes: { 'web/module/pages': { text: 'x' } } },
+    reason: 'version 1 is unknown',
+  },
+  {
     problem: 'a later version, whatever its shape',
-    contents: { version: 2, comments: [] },
-    reason: 'version 2 is unknown',
+    contents: { version: 3, comments: [] },
+    reason: 'version 3 is unknown',
   },
   {
     problem: 'the version as a string',
-    contents: { version: '1', summary: [], tests: '', notes: {} },
-    reason: 'version "1" is unknown',
+    contents: { version: '2', summary: [], tests: '', notes: {} },
+    reason: 'version "2" is unknown',
   },
 ])(
   'a notes file with $problem is rejected naming the file and the version this CLI reads',
   ({ contents, reason }) => {
     expect(() => parseNotes({ text: JSON.stringify(contents), file })).toThrow(
-      new Error(`Invalid notes file ${file}: ${reason}; this visual-review reads version 1`),
+      new Error(`Invalid notes file ${file}: ${reason}; this visual-review reads version 2`),
     );
   },
 );
@@ -369,7 +399,7 @@ test('a done answer names its commit', () => {
 });
 
 test('a notes file that is not JSON is rejected naming the file', () => {
-  expect(() => parseNotes({ text: '{ "version": 1,', file })).toThrow(
+  expect(() => parseNotes({ text: '{ "version": 2,', file })).toThrow(
     `Invalid notes file ${file}: SyntaxError`,
   );
 });
@@ -383,8 +413,18 @@ test.for([
   },
   {
     level: 'a note',
-    overrides: { notes: { 'web/module/pages': { text: 'Formats.', flags: 'cycle' } } },
+    overrides: { notes: { 'part web/module/pages': { text: 'Formats.', flags: 'cycle' } } },
     key: 'flags',
+  },
+  {
+    level: 'the notes, a key of a kind no note takes',
+    overrides: { notes: { 'decision web/file/a.ts#run@0': { text: 'Guards.' } } },
+    key: 'decision web/file/a.ts#run@0',
+  },
+  {
+    level: 'the notes, a bare id',
+    overrides: { notes: { 'web/module/pages': { text: 'Formats.' } } },
+    key: 'web/module/pages',
   },
 ])('an unknown key on $level is rejected naming the file and the key', ({ overrides, key }) => {
   expect(() =>
@@ -394,7 +434,7 @@ test.for([
 
 test('a note keeps why it changed this way and what to do about it, beside what it does', () => {
   const notes = {
-    'web/module/pages': {
+    'part web/module/pages': {
       text: 'Home now formats dates.',
       why: 'The API sends ISO strings.',
       recommendation: 'Format them in one helper.',

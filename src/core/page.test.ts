@@ -1100,7 +1100,7 @@ test('a file whose only changed logic lines are tries raises no tests finding, y
 const notesFile = 'x.notes.json';
 
 const notesWith = (notes: ReviewNotes['notes']): ReviewNotes => ({
-  version: 1,
+  version: 2,
   summary: [],
   tests: '',
   notes,
@@ -1137,7 +1137,7 @@ test('a served page gives back the token serve filled in, beside its data and no
     version,
     parsers,
   });
-  const notes = notesWith({ 'web/file/a.ts': { text: 'Reads well.' } });
+  const notes = notesWith({ 'part web/file/a.ts': { text: 'Reads well.' } });
   const page = notedPageHtml({ page: pageHtml({ viewer, data }), notes, notesFile, version });
 
   expect(pageIn(slotsOf(servedPageHtml({ page, token: 'f00d', version })))).toStrictEqual({
@@ -1155,7 +1155,7 @@ test('notes filled into a page come back whole, a note holding replacement patte
     version,
     parsers,
   });
-  const notes = notesWith({ 'web/file/a.ts': { text: "Costs $& more, and $' too." } });
+  const notes = notesWith({ 'part web/file/a.ts': { text: "Costs $& more, and $' too." } });
 
   const page = notedPageHtml({ page: pageHtml({ viewer, data }), notes, notesFile, version });
 
@@ -1204,7 +1204,7 @@ test('notes for a page written before pages named their version are refused', ()
 test('notes that leave a touched part without a note are refused, naming the notes file and the part', () => {
   expect(() =>
     notedPageHtml({ page: pageFor(version), notes: notesWith({}), notesFile, version }),
-  ).toThrow("Notes in x.notes.json don't match the graph:\nno note on web/file/a.ts");
+  ).toThrow("Notes in x.notes.json don't match the graph:\nno note on part web/file/a.ts");
 });
 
 test("notes on a later round's page may answer what its last review said, and only that", () => {
@@ -1230,7 +1230,7 @@ test("notes on a later round's page may answer what its last review said, and on
     },
   });
   const answering = (key: string) => ({
-    ...notesWith({ 'web/file/a.ts': { text: 'Reads well.' } }),
+    ...notesWith({ 'part web/file/a.ts': { text: 'Reads well.' } }),
     answers: { [key]: { status: 'answered', text: 'To keep the format.' } as const },
   });
 
@@ -1254,7 +1254,7 @@ test("notes on a first round's page may not list unasked changes", () => {
     }),
   });
   const notes = {
-    ...notesWith({ 'web/file/a.ts': { text: 'Reads well.' } }),
+    ...notesWith({ 'part web/file/a.ts': { text: 'Reads well.' } }),
     unasked: { 'web/file/a.ts': { text: 'Renamed the helper.' } },
   };
 

@@ -25,7 +25,7 @@ import {
 } from '../core/logic-strip.ts';
 import { type MetricFinding, metricFindings } from '../core/metric-findings.ts';
 import type { NodeMetrics } from '../core/metrics.ts';
-import { type Note, type ReviewNotes, visibleNotes } from '../core/notes.ts';
+import { type Note, notesOnTheGraph, type ReviewNotes, visibleNotes } from '../core/notes.ts';
 import { type PageData, UNCOMMITTED } from '../core/page.ts';
 import type { PreviousComment } from '../core/previous-comments.ts';
 import { isReachFinding } from '../core/reach-findings.ts';
@@ -1952,7 +1952,7 @@ const OtherScreen = ({
   </>
 );
 
-const notesIn = (notes: ReviewPageProps['notes']) => notes?.notes ?? {};
+const notesIn = (notes: ReviewPageProps['notes']) => notesOnTheGraph(notes?.notes ?? {});
 
 const reviewedIn = ({ range, pullRequest }: PageData) => ({
   range,

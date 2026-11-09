@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { anchorKey } from './anchors.ts';
+import { anchorKey, anchorOfKey } from './anchors.ts';
 import type { GraphDiff } from './diff-graphs.ts';
 import { DIMENSIONS } from './findings.ts';
 import { edgeId } from './graph.ts';
@@ -10,7 +10,7 @@ import {
   visibleNodeOf,
 } from './visible-diff.ts';
 
-const notesVersion = 1;
+const notesVersion = 2;
 
 const answerOf = <Status extends string>(status: Status, means: string) =>
   z.strictObject({ status: z.literal(status).describe(means), text: z.string() }).readonly();
@@ -45,7 +45,7 @@ const ReviewNotesSchema = z
     tests: z.string().describe('What the tests pin, and what the change leaves unpinned'),
     notes: z
       .record(
-        z.string(),
+        z.templateLiteral([z.enum(['part', 'edge']), ' ', z.string()]),
         z
           .strictObject({
             text: z.string(),
@@ -67,7 +67,7 @@ const ReviewNotesSchema = z
       )
       .readonly()
       .default({})
-      .describe('Notes by node id, or by `<from> -> <to>` for an edge; left out, there are none'),
+      .describe('Notes by `part <node id>`, or `edge <from> -> <to>`; left out, there are none'),
     answers: z
       .record(z.string(), AnswerSchema)
       .readonly()
@@ -87,7 +87,7 @@ const ReviewNotesSchema = z
 
 export type ReviewNotes = z.infer<typeof ReviewNotesSchema>;
 
-export type Note = ReviewNotes['notes'][string];
+export type Note = ReviewNotes['notes'][keyof ReviewNotes['notes']];
 
 export const notesJsonSchema = () =>
   z.toJSONSchema(ReviewNotesSchema, {
@@ -149,6 +149,9 @@ const joined = (one: Note, other: Note): Note => ({
   ...joinedField('flag', [one, other], ', '),
 });
 
+export const notesOnTheGraph = (notes: ReviewNotes['notes']): Readonly<Record<string, Note>> =>
+  Object.fromEntries(Object.entries(notes).map(([key, note]) => [anchorOfKey(key).id, note]));
+
 type VisibleNotesOptions = VisibleDiffOptions & {
   readonly notes: Readonly<Record<string, Note>>;
 };
@@ -207,33 +210,39 @@ export const notesProblems = ({
 }: NotesProblemsOptions): ReadonlyArray<string> => {
   const boxesAbove = boxesAboveIn(diff.nodes);
   const endsOf = (id: string): ReadonlyArray<string> => [id, ...boxesAbove(id)];
-  const known = new Set([
-    ...diff.nodes.filter(node => node.kind !== 'stack').map(node => node.id),
-    ...diff.edges.flatMap(edge =>
-      endsOf(edge.from).flatMap(from =>
-        endsOf(edge.to)
-          .filter(to => to !== from)
-          .map(to => edgeId({ from, to })),
-      ),
+  const parts = diff.nodes.filter(node => node.kind !== 'stack').map(node => node.id);
+  const edges = diff.edges.flatMap(edge =>
+    endsOf(edge.from).flatMap(from =>
+      endsOf(edge.to)
+        .filter(to => to !== from)
+        .map(to => edgeId({ from, to })),
     ),
+  );
+  const knownIds = new Set([...parts, ...edges]);
+  const knownKeys = new Set([
+    ...parts.map(id => anchorKey({ kind: 'part', id })),
+    ...edges.map(id => anchorKey({ kind: 'edge', id })),
   ]);
   const collapsed = visibleDiff({ diff, expanded: new Set() });
-  const shown = visibleNotes({ diff, expanded: new Set(), notes: notes.notes });
+  const shown = visibleNotes({ diff, expanded: new Set(), notes: notesOnTheGraph(notes.notes) });
   const touched = [
     ...collapsed.nodes
       .filter(node => node.kind !== 'stack' && node.state !== 'unchanged')
-      .map(node => node.id),
-    ...collapsed.edges.filter(edge => edge.state !== 'unchanged').map(edgeId),
+      .map(node => ({ kind: 'part', id: node.id })),
+    ...collapsed.edges
+      .filter(edge => edge.state !== 'unchanged')
+      .map(edge => ({ kind: 'edge', id: edgeId(edge) })),
   ];
   return [
-    ...[
-      ...Object.keys(notes.notes),
-      ...notes.summary.flatMap(item => item.target ?? []),
-      ...Object.keys(notes.unasked ?? {}),
-    ]
-      .filter(id => !known.has(id))
+    ...Object.keys(notes.notes)
+      .filter(key => !knownKeys.has(key))
+      .map(key => `unknown key ${key}`),
+    ...[...notes.summary.flatMap(item => item.target ?? []), ...Object.keys(notes.unasked ?? {})]
+      .filter(id => !knownIds.has(id))
       .map(id => `unknown id ${id}`),
-    ...touched.filter(id => shown[id] === undefined).map(id => `no note on ${id}`),
+    ...touched
+      .filter(({ id }) => shown[id] === undefined)
+      .map(anchor => `no note on ${anchorKey(anchor)}`),
     ...lastReviewProblems({ notes, said }),
   ];
 };

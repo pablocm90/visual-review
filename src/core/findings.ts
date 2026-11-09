@@ -1,3 +1,4 @@
+import { anchorOfKey } from './anchors.ts';
 import type { Check } from './checks.ts';
 import { dependencyFindings } from './dependency-findings.ts';
 import type { FilePatch, GraphDiff } from './diff-graphs.ts';
@@ -250,16 +251,16 @@ type FindingsOfOptions = {
 
 export const findingsOf = ({ data, notes }: FindingsOfOptions): ReadonlyArray<Finding> => [
   ...data.findings,
-  ...Object.entries(notes?.notes ?? {}).flatMap(([id, { flag, dimension = 'structure' }]) =>
+  ...Object.entries(notes?.notes ?? {}).flatMap(([key, { flag, dimension = 'structure' }]) =>
     flag === undefined
       ? []
       : [
           {
-            id: `${NOTE_FLAG}${id}`,
+            id: `${NOTE_FLAG}${anchorOfKey(key).id}`,
             check: 'flag' as const,
             dimension,
             level: 'look' as const,
-            target: id,
+            target: anchorOfKey(key).id,
             title: flag,
           },
         ],
