@@ -4,11 +4,13 @@ import type { GraphNode } from './graph.ts';
 import type { AccessReading } from './read-access.ts';
 import type { RouteChange } from './route-diff.ts';
 import type { Route } from './routes.ts';
+import { matchesWildcard } from './wildcard.ts';
 
 type AccessFindingsOptions = {
   readonly access: ReadonlyArray<AccessReading>;
   readonly routes: ReadonlyArray<RouteChange>;
   readonly nodes: ReadonlyArray<GraphNode>;
+  readonly open: ReadonlyArray<string>;
 };
 
 const keyOf = ({ root, controller, action }: Action): string => `${root}:${controller}#${action}`;
@@ -76,12 +78,17 @@ export const accessFindings = ({
   access,
   routes,
   nodes,
+  open,
 }: AccessFindingsOptions): ReadonlyArray<Finding> => {
   const routedAnew = routes.flatMap(change => (change.state === 'removed' ? [] : [change.head]));
   return access.flatMap(({ base, head }) => {
     const before = new Map(base.actions.map(action => [keyOf(action), action]));
     return head.actions
       .filter(action => action.cover?.conditional !== false)
+      .filter(
+        ({ controller, action }) =>
+          !open.some(pattern => matchesWildcard(pattern, `${controller}#${action}`)),
+      )
       .flatMap((action): ReadonlyArray<Finding> => {
         const change = whatChanged({
           action,

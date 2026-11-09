@@ -37,7 +37,7 @@ const OTHER = {
 } as const;
 
 const findingsOf = (...access: ReadonlyArray<AccessReading>) =>
-  accessFindings({ access, routes: [], nodes: [OTHER, NODE] });
+  accessFindings({ access, routes: [], nodes: [OTHER, NODE], open: [] });
 
 test('a new action nothing authorizes needs a look, on its controller', () => {
   expect(findingsOf(reading([], [action()]))).toStrictEqual([
@@ -61,7 +61,7 @@ test('a new action with a cover raises nothing', () => {
 
 test('an action in a file no node draws opens the file', () => {
   expect(
-    accessFindings({ access: [reading([], [action()])], routes: [], nodes: [] }).map(
+    accessFindings({ access: [reading([], [action()])], routes: [], nodes: [], open: [] }).map(
       ({ target, file }) => ({
         target,
         file,
@@ -100,7 +100,7 @@ const route = (overrides: Partial<Route> = {}): Route => ({
 });
 
 const routedTo = (routes: ReadonlyArray<RouteChange>) =>
-  accessFindings({ access: [reading([action()], [action()])], routes, nodes: [NODE] });
+  accessFindings({ access: [reading([action()], [action()])], routes, nodes: [NODE], open: [] });
 
 test('a route the change adds to an action nothing authorizes needs a look, naming the route', () => {
   expect(
@@ -194,6 +194,7 @@ test('a route the change adds to an action covered only conditionally is for inf
       access: [reading([action(conditionally)], [action(conditionally)])],
       routes: [{ state: 'added', head: route() }],
       nodes: [NODE],
+      open: [],
     }).map(({ level, title, detail }) => ({ level, title, detail })),
   ).toStrictEqual([
     {
@@ -202,4 +203,13 @@ test('a route the change adds to an action covered only conditionally is for inf
       detail: `At ${FILE}:4. GET /users/:id at config/routes.rb:3 now reaches it; authorize_user covers it only under its if: or unless:.`,
     },
   ]);
+});
+
+test.for([
+  { reason: 'by its name', open: 'UsersController#show' },
+  { reason: 'by a glob', open: 'Users*#*' },
+])('an action listed open, $reason, raises nothing', ({ open }) => {
+  expect(
+    accessFindings({ access: [reading([], [action()])], routes: [], nodes: [NODE], open: [open] }),
+  ).toStrictEqual([]);
 });
