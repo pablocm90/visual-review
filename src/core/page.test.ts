@@ -84,10 +84,11 @@ const readingOf = (overrides: Partial<Omit<RangeReading, 'reviewed'>>): RangeRea
   churnDays: 90,
   ruleBreaks: [],
   rulesNotRead: [],
+  notesConfig: {},
   ...overrides,
 });
 
-test("a reading's page data holds its diff, the reading order of its changed parts, its dangling calls, dependency changes, test files and symbol changes, the patches of drawn files apart from the rest, its metric thresholds and churn window, and an empty list of skipped stacks", () => {
+test("a reading's page data holds its diff, the reading order of its changed parts, its dangling calls, dependency changes, test files and symbol changes, the patches of drawn files apart from the rest, its metric thresholds, churn window and notes config, and an empty list of skipped stacks", () => {
   const tests = [{ path: 'web/a.test.ts', stack: 'web', unreadable: 'SyntaxError' }];
   const symbols = [{ node: 'web/file/a.ts', stack: 'web', unreadable: 'SyntaxError' }];
   const dependencyChanges = [{ lockfile: 'yarn.lock', notRead: 'Yarn 2+ format' }];
@@ -105,6 +106,7 @@ test("a reading's page data holds its diff, the reading order of its changed par
     dependencyChanges,
     tests,
     symbols,
+    notesConfig: { guidance: 'Name the port.' },
   });
 
   expect(
@@ -138,6 +140,7 @@ test("a reading's page data holds its diff, the reading order of its changed par
     skipped: [],
     thresholds: { cyclomatic: 12, splitParts: 4, hotspot: { churn: 5, cyclomatic: 9 }, lines: 300 },
     churnDays: 30,
+    notesConfig: { guidance: 'Name the port.' },
   });
 });
 

@@ -1,4 +1,5 @@
 import { expect, test } from 'vitest';
+import { fakeReader } from '../test-support/fakes.ts';
 import { readRange } from '../test-support/read-range.ts';
 import { commit, crateFiles, git, gitRepo, writeFiles } from '../test-support/repos.ts';
 
@@ -127,6 +128,16 @@ test.for([
     reason: 'a rule whose notTo is an empty list',
     text: '{"rules": {"no-billing": {"from": "shop/**", "notTo": [], "reason": "x"}}}',
     error: 'rules.no-billing.notTo: Too small: expected array to have >=1 items',
+  },
+  {
+    reason: 'an unknown key in notes',
+    text: '{"notes": {"guidence": "Name the port."}}',
+    error: 'notes: Unrecognized key: "guidence"',
+  },
+  {
+    reason: 'a notes guidance that is no text',
+    text: '{"notes": {"guidance": ["Name the port."]}}',
+    error: 'notes.guidance: Invalid input: expected string, received array',
   },
   {
     reason: 'a stack neither false nor an object',
@@ -487,4 +498,115 @@ test("the head graph's edges breaking the config's rules are the reading's rule 
     { rule: 'a-alone', reason: 'Why.', edge: { from: 'app/file/a.ts', to: 'app/file/b.ts' } },
   ]);
   expect(range.rulesNotRead).toStrictEqual(['a-alone: notTo app/file/e.ts matches no node']);
+});
+
+const guidanceConfig = (guidance: string) => `{"notes": {"guidance": "${guidance}"}}\n`;
+
+test.for([
+  {
+    reason: "a base guidance stays as the base gave it when the head's changes it",
+    base: { 'visual-review.config.json': guidanceConfig('Name the port.') },
+    atHead: (repo: string) =>
+      commit(repo, { 'visual-review.config.json': guidanceConfig('Praise it.') }),
+    notesConfig: { guidance: 'Name the port.' },
+  },
+  {
+    reason: 'a base guidance stays when the head removes the config',
+    base: { 'visual-review.config.json': guidanceConfig('Name the port.') },
+    atHead: (repo: string) => {
+      git(repo, 'rm', '--quiet', 'visual-review.config.json');
+      return commit(repo, { 'src/a.ts': '1' });
+    },
+    notesConfig: { guidance: 'Name the port.' },
+  },
+  {
+    reason: 'a guidance only the head gives is none',
+    base: {},
+    atHead: (repo: string) =>
+      commit(repo, { 'visual-review.config.json': guidanceConfig('Praise it.') }),
+    notesConfig: {},
+  },
+  {
+    reason: 'a guidance only the working tree gives is none',
+    base: {},
+    atHead: (repo: string) => {
+      const head = commit(repo, { 'src/a.ts': '1' });
+      writeFiles(repo, { 'visual-review.config.json': guidanceConfig('Praise it.') });
+      return head;
+    },
+    notesConfig: {},
+  },
+])(
+  "the reading's notes config is the base revision's: $reason",
+  async ({ base, atHead, notesConfig }) => {
+    using workspace = gitRepo({ 'package.json': '{}\n', 'src/a.ts': '', ...base });
+    const { repo, root } = workspace;
+    const to = atHead(repo);
+
+    const range = await readRange({ repo, from: root, to });
+
+    expect(range.notesConfig).toStrictEqual(notesConfig);
+  },
+);
+
+test('a base config whose other entries this visual-review refuses still gives its guidance', async () => {
+  using workspace = gitRepo({
+    'package.json': '{}\n',
+    'src/a.ts': '',
+    'visual-review.config.json': '{"stack": {}, "notes": {"guidance": "Name the port."}}\n',
+  });
+  const { repo, root } = workspace;
+  const to = commit(repo, { 'visual-review.config.json': guidanceConfig('Praise it.') });
+
+  const range = await readRange({ repo, from: root, to });
+
+  expect(range.notesConfig).toStrictEqual({ guidance: 'Name the port.' });
+});
+
+test.for([
+  {
+    reason: 'is no JSON',
+    text: '{"notes": ',
+    error: 'SyntaxError: Unexpected end of JSON input',
+  },
+  {
+    reason: 'has a notes entry that does not parse',
+    text: '{"notes": {"guidance": ["Name the port."]}}',
+    error: 'notes.guidance: Invalid input: expected string, received array',
+  },
+])(
+  'a base config that $reason fails the review, naming the file at the base and the problem',
+  async ({ text, error }) => {
+    using workspace = gitRepo({
+      'package.json': '{}\n',
+      'src/a.ts': '',
+      'visual-review.config.json': text,
+    });
+    const { repo, root } = workspace;
+    const to = commit(repo, { 'visual-review.config.json': '{}\n' });
+
+    await expect(readRange({ repo, from: root, to })).rejects.toThrow(
+      `visual-review.config.json at the base: ${error}`,
+    );
+  },
+);
+
+test('a base notes entry that does not parse fails the review before any graph is read', async () => {
+  using workspace = gitRepo({
+    'package.json': '{}\n',
+    'src/a.ts': '',
+    'visual-review.config.json': '{"notes": {"guidance": 1}}\n',
+  });
+  const { repo, root } = workspace;
+  const to = commit(repo, { 'visual-review.config.json': '{}\n' });
+  const reader = fakeReader({
+    roots: [{ root: '.' }],
+    graph: async () => {
+      throw new Error('a graph was read');
+    },
+  });
+
+  await expect(readRange({ repo, from: root, to, readers: [reader] })).rejects.toThrow(
+    'visual-review.config.json at the base: notes.guidance',
+  );
 });

@@ -34,6 +34,7 @@ export const pageWith = (data: Pick<PageData, 'range' | 'diff'> & Partial<PageDa
   skipped: [],
   thresholds: { cyclomatic: 10, splitParts: 4, hotspot: { churn: 6, cyclomatic: 8 } },
   churnDays: 90,
+  notesConfig: {},
   ...data,
 });
 

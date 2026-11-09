@@ -2,6 +2,13 @@
 
 What changed in each release of `@pablocm90/visual-review`, newest first. Versions follow [semver](https://semver.org); while it is 0.x, a minor version may change the exported types.
 
+## 0.60.0 — 2026-11-09
+
+### Added
+
+- `visual-review.config.json` takes `notes.guidance`, free text on what Claude's notes should say and where. It is read from the range's base, from the file committed there only, so a change can't guide its own review, and only that entry is checked there: a base file that isn't JSON, or whose `notes` entry doesn't parse, fails the review naming the file at the base. The review data carries it as `notesConfig`, `{}` with no guidance.
+- The skill follows `notesConfig.guidance` when writing notes, within the notes format, the checks and its steps.
+
 ## 0.59.0 — 2026-11-09
 
 ### Added

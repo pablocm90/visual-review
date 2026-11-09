@@ -94,6 +94,13 @@ const RuleSchema = z.strictObject({
   reason: z.string().describe("Why: the rule's findings say it"),
 });
 
+const NotesConfigSchema = z.strictObject({
+  guidance: z
+    .string()
+    .optional()
+    .describe("What Claude's notes should say and where, followed when it writes them"),
+});
+
 const ConfigSchema = z.strictObject({
   $schema: z.string().optional(),
   stacks: z
@@ -119,6 +126,9 @@ const ConfigSchema = z.strictObject({
     .record(z.string(), RuleSchema)
     .default({})
     .describe('Architecture rules by name: edges from some nodes to others that break them'),
+  notes: NotesConfigSchema.prefault({}).describe(
+    "How Claude writes its notes, read from the range's base revision, so a change can't rewrite it",
+  ),
 });
 
 export type Config = z.infer<typeof ConfigSchema>;
@@ -127,16 +137,18 @@ export const configJsonSchema = () => z.toJSONSchema(ConfigSchema, { io: 'input'
 
 export type Rules = Config['rules'];
 
+export type NotesConfig = Config['notes'];
+
 export type StackSettings = z.infer<typeof StackSchema>;
 
 export const stackSettings = (config: Config, stack: string): StackSettings =>
   config.stacks[stack] || {};
 
-const jsonIn = (text: string): unknown => {
+const jsonIn = (text: string, file: string): unknown => {
   try {
     return JSON.parse(text.replace(/^\uFEFF/, ''));
   } catch (error) {
-    throw new Error(`${CONFIG_FILE}: ${String(error)}`);
+    throw new Error(`${file}: ${String(error)}`);
   }
 };
 
@@ -149,15 +161,26 @@ const withinUnions = (issue: z.core.$ZodIssue): ReadonlyArray<z.core.$ZodIssue> 
   return within.length > 0 ? within : [issue];
 };
 
-export const parseConfig = (text: string): Config => {
-  const result = ConfigSchema.safeParse(jsonIn(text));
+const parsedBy = <Schema extends z.ZodType>(
+  schema: Schema,
+  text: string,
+  file: string,
+): z.output<Schema> => {
+  const result = schema.safeParse(jsonIn(text, file));
   if (result.success) return result.data;
   throw new Error(
     result.error.issues
       .flatMap(withinUnions)
       .map(({ path, message }) =>
-        [CONFIG_FILE, ...(path.length === 0 ? [] : [path.join('.')]), message].join(': '),
+        [file, ...(path.length === 0 ? [] : [path.join('.')]), message].join(': '),
       )
       .join('\n'),
   );
 };
+
+export const parseConfig = (text: string): Config => parsedBy(ConfigSchema, text, CONFIG_FILE);
+
+const BaseNotesSchema = z.object({ notes: NotesConfigSchema.prefault({}) });
+
+export const parseBaseNotesConfig = (text: string): NotesConfig =>
+  parsedBy(BaseNotesSchema, text, `${CONFIG_FILE} at the base`).notes;

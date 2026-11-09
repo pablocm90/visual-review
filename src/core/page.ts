@@ -48,6 +48,7 @@ export type PageData = {
   readonly skipped: ReadonlyArray<Skipped>;
   readonly thresholds: RangeReading['thresholds'];
   readonly churnDays: number;
+  readonly notesConfig: RangeReading['notesConfig'];
   readonly sinceReview?: SinceReview;
 };
 
@@ -123,6 +124,7 @@ export const pageData = ({
     skipped: reading.skipped,
     thresholds: reading.thresholds,
     churnDays: reading.churnDays,
+    notesConfig: reading.notesConfig,
     ...(reading.reviewed === undefined
       ? {}
       : {
