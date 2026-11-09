@@ -24,6 +24,7 @@ type Callback = {
   readonly name: string;
   readonly only: ReadonlyArray<string> | undefined;
   readonly except: ReadonlyArray<string>;
+  readonly conditional: boolean;
 };
 
 const callbacksOfCall = (call: Node): ReadonlyArray<Callback> => {
@@ -35,6 +36,7 @@ const callbacksOfCall = (call: Node): ReadonlyArray<Callback> => {
     name: nameOf(arg),
     only: only === undefined ? undefined : namesIn(only),
     except,
+    conditional: optionOf(args, 'if') !== undefined || optionOf(args, 'unless') !== undefined,
   }));
 };
 
@@ -128,16 +130,16 @@ type Covering = {
 };
 
 const coverOf = ({ action, callbacks, calls, authorize }: Covering): { readonly cover?: Cover } => {
-  const by = callbacks
+  const cover = callbacks
     .filter(callback => reaches(callback, action))
-    .reduce<ReadonlyArray<string>>(
-      (active, { skip, name }) =>
-        skip ? active.filter(kept => kept !== name) : active.concat(name),
+    .reduce<ReadonlyArray<Cover>>(
+      (active, { skip, name, conditional }) =>
+        skip ? active.filter(kept => kept.by !== name) : active.concat({ by: name, conditional }),
       [],
     )
-    .concat(calls)
-    .find(name => authorize.includes(name));
-  return by === undefined ? {} : { cover: { by, conditional: false } };
+    .concat(calls.map(name => ({ by: name, conditional: false })))
+    .find(({ by }) => authorize.includes(by));
+  return cover === undefined ? {} : { cover };
 };
 
 type ControllerFile = {
