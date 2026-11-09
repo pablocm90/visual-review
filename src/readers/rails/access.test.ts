@@ -207,6 +207,22 @@ end
     covers: { 'Admin::UsersController#index': 'require_admin' },
   },
   {
+    reason: 'the outer class of its own name it inherits from',
+    files: {
+      'app/controllers/users_controller.rb': `class UsersController < ApplicationController
+  before_action :require_admin
+end
+`,
+      'app/controllers/admin/users_controller.rb': `module Admin
+  class UsersController < UsersController
+    def index; end
+  end
+end
+`,
+    },
+    covers: { 'Admin::UsersController#index': 'require_admin' },
+  },
+  {
     reason: 'nothing from a parent of the same name in another app',
     files: {
       'apps/a/app/controllers/application_controller.rb': `class ApplicationController < ActionController::Base

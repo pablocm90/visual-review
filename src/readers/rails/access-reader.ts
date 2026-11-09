@@ -77,7 +77,11 @@ const inherited = (
   const controller = controllers.get(constant);
   if (controller === undefined) return [];
   const parent =
-    controller.parent && lookedUp(controller.parent, classesOf([...controllers.keys()]));
+    controller.parent &&
+    lookedUp(
+      controller.parent,
+      classesOf([...controllers.keys()].filter(other => other !== constant)),
+    );
   return [...(parent === undefined ? [] : inherited(controllers, parent)), ...controller.callbacks];
 };
 
