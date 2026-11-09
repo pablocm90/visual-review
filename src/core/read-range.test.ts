@@ -1733,6 +1733,34 @@ test("a stack under a workspace in the checkout is not read when that workspace'
   ]);
 });
 
+test.for([
+  { members: '"crates/*"', exclude: 'crates', skipped: false },
+  { members: '"crates/*", "crates/template"', exclude: 'crates/template', skipped: true },
+])(
+  'a crate a member glob matches under workspace.exclude is walked only when a member names it ($members)',
+  async ({ members, exclude, skipped }) => {
+    using repository = gitRepo({ 'README.md': '' });
+    const { repo, root } = repository;
+    const outside = `../../${withZeroManifest(repo)}`;
+    const head = commit(repo, {
+      'Cargo.toml': `[workspace]\nmembers = [${members}]\nexclude = ["${exclude}"]\n`,
+      'crates/a/Cargo.toml': packageNamed('a'),
+      'crates/template/Cargo.toml': packageNamed(
+        't',
+        `[dependencies]\nc = { path = "${outside}" }\n`,
+      ),
+    });
+    using bin = pathWithCargo(`echo '{"workspace_root": "/", "packages": []}'`);
+    vi.stubEnv('PATH', bin.path);
+
+    const range = await readRange({ repo, from: root, to: head });
+
+    expect(range.skipped.map(({ reason }) => reason)).toEqual(
+      skipped ? [`crates/template/Cargo.toml: path "${outside}" leaves the checkout`] : [],
+    );
+  },
+);
+
 test('a link inside the checkout back to its root is walked once, and cargo runs', async () => {
   using repository = gitRepo({ 'README.md': '' });
   const { repo, root } = repository;

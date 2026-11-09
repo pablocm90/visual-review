@@ -24,31 +24,44 @@ const Manifest = z.object({
     .object({
       members: z.array(z.string()).optional(),
       'default-members': z.array(z.string()).optional(),
+      exclude: z.array(z.string()).optional(),
     })
     .optional(),
 });
 
-const workspaceOf = (manifest: string, toml: unknown): ReadonlyArray<Named> => {
-  const { data: read, error } = Manifest.safeParse(toml);
-  const [issue] = error?.issues ?? [];
-  if (issue !== undefined)
-    throw new StackNotRead(`${manifest}: ${issue.path.join('.')}: ${issue.message}`);
-  return [
-    ...(['package', 'project'] as const).flatMap(table => {
-      const workspace = read?.[table]?.workspace;
-      return workspace === undefined
-        ? []
-        : [{ key: `${table}.workspace`, path: workspace, pattern: false }];
-    }),
-    ...(['members', 'default-members'] as const).flatMap(key =>
-      (read?.workspace?.[key] ?? []).map(path => ({
-        key: `workspace.${key}`,
-        path,
-        pattern: true,
-      })),
-    ),
-  ];
+type Read = z.infer<typeof Manifest>;
+
+const manifestOf = (manifest: string, toml: unknown): Read => {
+  const read = Manifest.safeParse(toml);
+  if (read.success) return read.data;
+  const [issue] = read.error.issues;
+  throw new StackNotRead(`${manifest}: ${issue?.path.join('.')}: ${issue?.message}`);
 };
+
+const workspaceOf = (read: Read): ReadonlyArray<Named> => [
+  ...(['package', 'project'] as const).flatMap(table => {
+    const workspace = read[table]?.workspace;
+    return workspace === undefined
+      ? []
+      : [{ key: `${table}.workspace`, path: workspace, pattern: false }];
+  }),
+  ...(['members', 'default-members'] as const).flatMap(key =>
+    (read.workspace?.[key] ?? []).map(path => ({
+      key: `workspace.${key}`,
+      path,
+      pattern: true,
+    })),
+  ),
+];
+
+const holds = (folder: string, path: string): boolean =>
+  relative(folder, path).split('/')[0] !== '..';
+
+const excludedFrom =
+  (folder: string, { workspace }: Read) =>
+  (path: string): boolean =>
+    (workspace?.exclude ?? []).some(excluded => holds(resolve(folder, excluded), path)) &&
+    !(workspace?.members ?? []).some(member => holds(resolve(folder, member), path));
 
 const parsed = (manifest: string, text: string): unknown => {
   try {
@@ -107,8 +120,10 @@ const leaves = async ({ path, pattern }: Named, { checkout, folder }: Place): Pr
 
 const followedFrom = async ({ checkout, folder }: Place): Promise<ReadonlyArray<string>> => {
   const manifest = relative(checkout, join(folder, 'Cargo.toml'));
-  const read = parsed(manifest, await readFile(join(folder, 'Cargo.toml'), 'utf8'));
-  const paths = [...pathsIn(read), ...workspaceOf(manifest, read)];
+  const toml = parsed(manifest, await readFile(join(folder, 'Cargo.toml'), 'utf8'));
+  const read = manifestOf(manifest, toml);
+  const excluded = excludedFrom(folder, read);
+  const paths = [...pathsIn(toml), ...workspaceOf(read)];
   const left = await Promise.all(paths.map(named => leaves(named, { checkout, folder })));
   const leaving = paths.find((_, index) => left[index]);
   if (leaving !== undefined)
@@ -117,7 +132,9 @@ const followedFrom = async ({ checkout, folder }: Place): Promise<ReadonlyArray<
     );
   return paths
     .flatMap(({ path, pattern }) =>
-      pattern ? foldersMatching(folder, path) : [resolve(folder, path)],
+      pattern
+        ? foldersMatching(folder, path).filter(match => !excluded(match))
+        : [resolve(folder, path)],
     )
     .filter(path => existsSync(join(path, 'Cargo.toml')));
 };
