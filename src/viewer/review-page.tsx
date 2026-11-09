@@ -68,6 +68,7 @@ import { type LogicCard, LogicCardBody, logicCardsOf } from './logic-card.tsx';
 import { LogicLegend } from './logic-strip.tsx';
 import { MetricsTable } from './metrics-tab.tsx';
 import { NextToIt } from './next-to-it.tsx';
+import { NoteBlock } from './note-block.tsx';
 import {
   type LineComments,
   type LineLanding,
@@ -832,31 +833,12 @@ const NotePanel = ({
     reachesHere.length === 0 &&
     !hasSaid(anchor) &&
     saidInPlace.length === 0;
-  const shownNote = note?.text ?? (isBare ? 'No note' : undefined);
-  const recommendation = note?.recommendation;
+  const shownNote = note ?? (isBare ? { text: 'No note' } : undefined);
+  const drafted = (comments[anchorKey(anchor)]?.text.trim() ?? '') !== '';
   return (
     <LandedRows landing={landing}>
       {shownNote !== undefined && (
-        <section aria-label="Note">
-          <p>{shownNote}</p>
-          {note?.why !== undefined && (
-            <p className="note-why">
-              <strong>Why</strong> {note.why}
-            </p>
-          )}
-          {recommendation !== undefined && (
-            <div className="note-recommendation">
-              <p>
-                <strong>Recommendation</strong> {recommendation}
-              </p>
-              {onTake && (comments[anchorKey(anchor)]?.text.trim() ?? '') === '' && (
-                <button type="button" className="take" onClick={() => onTake(recommendation)}>
-                  Take
-                </button>
-              )}
-            </div>
-          )}
-        </section>
+        <NoteBlock note={shownNote} onTake={drafted ? undefined : onTake} />
       )}
       <SaidBefore key={anchorKey(anchor)} on={anchor} landing={onThePart(landing)} />
       {saidInPlace.map(id => (
