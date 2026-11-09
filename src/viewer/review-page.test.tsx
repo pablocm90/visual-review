@@ -7389,6 +7389,93 @@ test('the unchanged symbols open by themselves when one holds a draft', async ()
   expect(unchangedSymbols().hasAttribute('open')).toBe(true);
 });
 
+test("a symbol's note shows under its row, with its why and recommendation, and opens the unchanged fold holding it", async () => {
+  const user = userEvent.setup();
+  render(
+    <ReviewPage
+      review={pageWithAnUnchangedSymbol()}
+      notes={{
+        version: 2,
+        tests: '',
+        summary: [],
+        notes: {
+          'symbol web/file/tax.ts#round': {
+            text: 'Rounds half up.',
+            why: 'Tax rounds to the cent.',
+            recommendation: 'Round half to even.',
+          },
+        },
+      }}
+    />,
+  );
+  const noteUnder = (name: string) =>
+    within(within(whatChanged()).getByRole('listitem', { name })).queryByRole('region', {
+      name: /^Note/,
+    })?.textContent;
+
+  await user.click(await screen.findByRole('button', { name: 'tax.ts: modified' }));
+
+  expect(unchangedSymbols().hasAttribute('open')).toBe(true);
+  expect(noteUnder('function round: unchanged')).toBe(
+    'Rounds half up.Why Tax rounds to the cent.Recommendation Round half to even.',
+  );
+  expect(noteUnder('function tax: edited')).toBeUndefined();
+});
+
+test('a box shows a file whose only news is a noted symbol', async () => {
+  const user = userEvent.setup();
+  render(
+    <ReviewPage
+      review={pageWith({
+        range: review.range,
+        diff: {
+          nodes: [
+            { id: 'web', kind: 'stack', label: 'web', path: '', state: 'unchanged' },
+            {
+              id: 'web/module/billing',
+              kind: 'module',
+              label: 'billing',
+              parent: 'web',
+              path: 'web/src/billing',
+              state: 'modified',
+            },
+            {
+              ...topFile('refund.ts', 'modified'),
+              parent: 'web/module/billing',
+              path: 'web/src/billing/refund.ts',
+            },
+          ],
+          edges: [],
+        },
+        symbols: [
+          symbolsOf('web/file/refund.ts', [
+            {
+              name: 'round',
+              kind: 'function',
+              exported: { base: false, head: false },
+              change: 'unchanged',
+            },
+          ]),
+        ],
+      })}
+      notes={{
+        version: 2,
+        tests: '',
+        summary: [],
+        notes: { 'symbol web/file/refund.ts#round': { text: 'Rounds half up.' } },
+      }}
+    />,
+  );
+
+  await user.click(await screen.findByRole('button', { name: 'billing: modified' }));
+
+  expect(
+    within(within(whatChanged()).getByRole('region', { name: 'refund.ts' })).getByRole('region', {
+      name: 'Note on function round',
+    }).textContent,
+  ).toBe('Rounds half up.');
+});
+
 test('a page that is not served has no Comment toggle on a symbol or a logic line', async () => {
   const user = userEvent.setup();
   const page = pageWithAnUnchangedSymbol();

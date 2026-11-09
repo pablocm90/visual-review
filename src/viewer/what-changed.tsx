@@ -22,6 +22,7 @@ import { boxesAboveIn } from '../core/visible-diff.ts';
 import { ChangedSinceTag, sinceLabel, useIsChangedSince } from './changed-since.tsx';
 import type { Comments } from './comment-field.tsx';
 import { LogicLegend, LogicStrip } from './logic-strip.tsx';
+import { NoteBlock, SymbolNotes } from './note-block.tsx';
 import { CommentOn, SaidBefore, useHasSaid } from './said-before.tsx';
 import { scrollInPanel } from './scroll-in-panel.ts';
 import { Signature } from './signature-lines.tsx';
@@ -295,11 +296,13 @@ const LogicLines = ({
 const useHasSymbolNews = () => {
   const isChangedSince = useIsChangedSince();
   const hasSaid = useHasSaid();
+  const notes = useContext(SymbolNotes);
   return (file: SymbolFile): boolean =>
     'unreadable' in file ||
     changedSymbolCount([file]) > 0 ||
     anchoredSymbols(file.node, file.symbols).some(
-      ({ id }) => isChangedSince('symbols', id) || hasSaid({ kind: 'symbol', id }),
+      ({ id }) =>
+        isChangedSince('symbols', id) || hasSaid({ kind: 'symbol', id }) || notes[id] !== undefined,
     );
 };
 
@@ -346,6 +349,7 @@ const SymbolRow = ({
 }: Places & InItsFile & { readonly anchored: AnchoredSymbol }) => {
   const isChangedSince = useIsChangedSince();
   const marksOf = useRowMarks();
+  const note = useContext(SymbolNotes)[id];
   const [diffOpen, setDiffOpen] = useState(false);
   const name = `${symbol.kind} ${qualified(symbol)}`;
   const ends = isQuiet(symbol) ? [] : endsOf(symbol, { node, patch, inFile }, places);
@@ -369,6 +373,7 @@ const SymbolRow = ({
         </button>
       )}
       {symbol.signature && <Signature name={name} signature={symbol.signature} />}
+      {note !== undefined && <NoteBlock note={note} onTake={undefined} label={`Note on ${name}`} />}
       <SaidBefore on={{ kind: 'symbol', id }} />
       {places.onComment && (
         <CommentOn
@@ -424,6 +429,7 @@ const SymbolFiles = ({ file, ...places }: Places & { readonly file: SymbolFile }
   const inItsFile = { node: file.node, patch: patchOfNode(places, file.node), inFile };
   const isChangedSince = useIsChangedSince();
   const hasSaid = useHasSaid();
+  const notes = useContext(SymbolNotes);
   return (
     <>
       {'unreadable' in file && (
@@ -448,7 +454,8 @@ const SymbolFiles = ({ file, ...places }: Places & { readonly file: SymbolFile }
             ({ id }) =>
               places.comments[anchorKey({ kind: 'symbol', id })] !== undefined ||
               isChangedSince('symbols', id) ||
-              hasSaid({ kind: 'symbol', id }),
+              hasSaid({ kind: 'symbol', id }) ||
+              notes[id] !== undefined,
           )}
         >
           <summary>{quiet.length} unchanged</summary>

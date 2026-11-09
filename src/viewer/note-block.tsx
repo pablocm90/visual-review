@@ -1,12 +1,20 @@
+import { createContext } from 'react';
 import type { Note } from '../core/notes.ts';
+
+export const SymbolNotes = createContext<Readonly<Record<string, Note>>>({});
 
 type NoteBlockProps = {
   readonly note: Pick<Note, 'text' | 'why' | 'recommendation'>;
   readonly onTake: ((recommendation: string) => void) | undefined;
+  readonly label?: string;
 };
 
-export const NoteBlock = ({ note: { text, why, recommendation }, onTake }: NoteBlockProps) => (
-  <section aria-label="Note">
+export const NoteBlock = ({
+  note: { text, why, recommendation },
+  onTake,
+  label = 'Note',
+}: NoteBlockProps) => (
+  <section aria-label={label}>
     <p>{text}</p>
     {why !== undefined && (
       <p className="note-why">

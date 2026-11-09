@@ -25,7 +25,13 @@ import {
 } from '../core/logic-strip.ts';
 import { type MetricFinding, metricFindings } from '../core/metric-findings.ts';
 import type { NodeMetrics } from '../core/metrics.ts';
-import { type Note, notesOnTheGraph, type ReviewNotes, visibleNotes } from '../core/notes.ts';
+import {
+  type Note,
+  notesOfKind,
+  notesOnTheGraph,
+  type ReviewNotes,
+  visibleNotes,
+} from '../core/notes.ts';
 import { type PageData, UNCOMMITTED } from '../core/page.ts';
 import type { PreviousComment } from '../core/previous-comments.ts';
 import { isReachFinding } from '../core/reach-findings.ts';
@@ -68,7 +74,7 @@ import { type LogicCard, LogicCardBody, logicCardsOf } from './logic-card.tsx';
 import { LogicLegend } from './logic-strip.tsx';
 import { MetricsTable } from './metrics-tab.tsx';
 import { NextToIt } from './next-to-it.tsx';
-import { NoteBlock } from './note-block.tsx';
+import { NoteBlock, SymbolNotes } from './note-block.tsx';
 import {
   type LineComments,
   type LineLanding,
@@ -1986,6 +1992,7 @@ const Page = ({ review, notes, send }: ReviewPageProps) => {
   );
   const [allEdges, setAllEdges] = useState(false);
   const noted = useMemo(() => new Set(Object.keys(notesIn(notes))), [notes]);
+  const symbolNotes = useMemo(() => notesOfKind(notes?.notes ?? {}, ['symbol']), [notes]);
   const scopes = useMemo(() => scopesOf(review), [review]);
   const [scope, setScope] = useState(CHANGES_ONLY);
   const boxesAllOpen = scope[0] === LOGIC_ONLY;
@@ -2418,7 +2425,7 @@ const Page = ({ review, notes, send }: ReviewPageProps) => {
         }
       }
     >
-      {page}
+      <SymbolNotes value={symbolNotes}>{page}</SymbolNotes>
     </RespondingOnPage>
   );
 };
