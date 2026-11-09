@@ -3,8 +3,6 @@ import { parserOf } from '../tree-sitter.ts';
 
 const ruby = await parserOf('tree-sitter-ruby');
 
-export const parseRuby = ruby.parse;
-
 export const readRuby = ruby.read;
 
 export const parsingRuby = ruby.parsing;

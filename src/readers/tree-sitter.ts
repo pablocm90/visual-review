@@ -24,7 +24,6 @@ export const parserOf = async (grammar: string) => {
     }
   };
   return {
-    parse: (text: string): Node | undefined => parser.parse(text)?.rootNode,
     parsing,
     read: <T>(text: string, read: (root: Node) => T): T => parsing(parse => read(parse(text))),
   };

@@ -3,8 +3,6 @@ import { isComment, parserOf } from '../tree-sitter.ts';
 
 const rust = await parserOf('tree-sitter-rust');
 
-export const parseRust = rust.parse;
-
 export const readRust = rust.read;
 
 export const TEST_FOLDER = /(^|\/)tests\//;
