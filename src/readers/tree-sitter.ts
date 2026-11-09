@@ -5,12 +5,23 @@ import type { LineRange } from '../core/reader.ts';
 
 await Parser.init();
 
-export const parserOf = async (grammar: string): Promise<(text: string) => Node | undefined> => {
+export const parserOf = async (grammar: string) => {
   const parser = new Parser();
   parser.setLanguage(
     await Language.load(createRequire(import.meta.url).resolve(`${grammar}/${grammar}.wasm`)),
   );
-  return text => parser.parse(text)?.rootNode;
+  return {
+    parse: (text: string): Node | undefined => parser.parse(text)?.rootNode,
+    read: <T>(text: string, read: (root: Node) => T): T => {
+      const tree = parser.parse(text);
+      if (tree === null) throw new Error(`${grammar} gave no tree`);
+      try {
+        return read(tree.rootNode);
+      } finally {
+        tree.delete();
+      }
+    },
+  };
 };
 
 export const codeLines = (root: Node, isSkipped: (node: Node) => boolean): number => {

@@ -3,7 +3,7 @@ import type { Node } from 'web-tree-sitter';
 import type { Graph, GraphNode } from '../../core/graph.ts';
 import type { SourceFile } from '../sources-in.ts';
 import { singular } from './inflection.ts';
-import { parseRuby } from './ruby-syntax.ts';
+import { readRuby } from './ruby-syntax.ts';
 
 const namesOf = (file: string): ReadonlyArray<string> => {
   const [top = '', layer = '', ...rest] = file.split('/');
@@ -48,8 +48,8 @@ const definitionsIn = (node: Node, scope: ReadonlyArray<string>): ReadonlyArray<
     return [defined.join('::'), ...(body === null ? [] : definitionsIn(body, defined))];
   });
 
-const definedConstant = (program: Node | undefined, names: ReadonlyArray<string>): string => {
-  const defined = program === undefined ? [] : definitionsIn(program, []);
+const definedConstant = (program: Node, names: ReadonlyArray<string>): string => {
+  const defined = definitionsIn(program, []);
   const tails = names.map((_, start) => constantOf(names.slice(start)).toLowerCase());
   const [named] = tails.flatMap(tail =>
     defined.filter(constant => constant.toLowerCase() === tail),
@@ -145,13 +145,10 @@ export const namingsIn = (
     return named === undefined ? [] : [{ at, named }];
   });
 
-const classesNamedIn = (
-  program: Node | undefined,
-  owner: string,
-  classes: Classes,
-): ReadonlyArray<string> => [
-  ...new Set(namingsIn(program, owner, classes).map(({ named }) => named)),
-];
+const wantedIn = (program: Node, owner: string): ReadonlyArray<Wanted> =>
+  program
+    .descendantsOfType(['constant', 'scope_resolution', 'call'])
+    .flatMap(at => wantedBy(at, owner) ?? []);
 
 export const classesOf = (all: ReadonlyArray<string>): Classes => {
   const constants = new Set(all);
@@ -173,9 +170,15 @@ export const railsGraph = ({ stack, root, boxes, files }: RailsGraphOptions): Gr
   const classes = files
     .toSorted((a, b) => (a.file < b.file ? -1 : 1))
     .map(({ file, text }) => {
-      const program = parseRuby(text);
-      const folder = boxOf(file, boxes);
-      return { file, folder, program, constant: definedConstant(program, namesOf(file)) };
+      const names = namesOf(file);
+      return {
+        file,
+        folder: boxOf(file, boxes),
+        ...readRuby(text, program => {
+          const constant = definedConstant(program, names);
+          return { constant, wanted: wantedIn(program, constant) };
+        }),
+      };
     })
     .filter(
       ({ constant }, index, all) => all.findIndex(other => other.constant === constant) === index,
@@ -205,8 +208,8 @@ export const railsGraph = ({ stack, root, boxes, files }: RailsGraphOptions): Gr
       .map(node => [node.id, node]),
   );
   const lookups = classesOf(classes.map(({ constant }) => constant));
-  const edges = classes.flatMap(({ constant, program }) =>
-    classesNamedIn(program, constant, lookups)
+  const edges = classes.flatMap(({ constant, wanted }) =>
+    [...new Set(wanted.flatMap(asked => lookedUp(asked, lookups) ?? []))]
       .filter(named => named !== constant && !GENERATED_BASES.has(named))
       .map(named => ({ from: `${stack}/class/${constant}`, to: `${stack}/class/${named}` })),
   );

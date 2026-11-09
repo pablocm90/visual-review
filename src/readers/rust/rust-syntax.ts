@@ -1,7 +1,7 @@
 import type { Node } from 'web-tree-sitter';
 import { isComment, parserOf } from '../tree-sitter.ts';
 
-export const parseRust = await parserOf('tree-sitter-rust');
+export const parseRust = (await parserOf('tree-sitter-rust')).parse;
 
 export const TEST_FOLDER = /(^|\/)tests\//;
 

@@ -1,7 +1,11 @@
 import type { Node } from 'web-tree-sitter';
 import { parserOf } from '../tree-sitter.ts';
 
-export const parseRuby = await parserOf('tree-sitter-ruby');
+const ruby = await parserOf('tree-sitter-ruby');
+
+export const parseRuby = ruby.parse;
+
+export const readRuby = ruby.read;
 
 export const nameOf = (node: Node | undefined): string =>
   node?.text.replace(/^:?['"]?|['"]$/g, '') ?? '';
