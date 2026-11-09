@@ -304,10 +304,11 @@ const useSymbolHoldsNews = () => {
   const isChangedSince = useIsChangedSince();
   const hasSaid = useHasSaid();
   const { notes } = useContext(RowNotes);
-  return (id: string): boolean =>
-    isChangedSince('symbols', id) ||
-    hasSaid({ kind: 'symbol', id }) ||
-    notes[anchorKey({ kind: 'symbol', id })] !== undefined;
+  return (symbol: AnchoredSymbol): boolean =>
+    isChangedSince('symbols', symbol.id) ||
+    hasSaid({ kind: 'symbol', id: symbol.id }) ||
+    notes[anchorKey({ kind: 'symbol', id: symbol.id })] !== undefined ||
+    decisionsOf(symbol).some(({ id }) => notes[anchorKey({ kind: 'decision', id })] !== undefined);
 };
 
 const useHasSymbolNews = () => {
@@ -315,7 +316,7 @@ const useHasSymbolNews = () => {
   return (file: SymbolFile): boolean =>
     'unreadable' in file ||
     changedSymbolCount([file]) > 0 ||
-    anchoredSymbols(file.node, file.symbols).some(({ id }) => holdsNews(id));
+    anchoredSymbols(file.node, file.symbols).some(holdsNews);
 };
 
 type InItsFile = {
@@ -479,8 +480,9 @@ const SymbolFiles = ({ file, ...places }: Places & { readonly file: SymbolFile }
           className="symbol-group"
           aria-label="Unchanged symbols"
           open={quiet.some(
-            ({ id }) =>
-              places.comments[anchorKey({ kind: 'symbol', id })] !== undefined || holdsNews(id),
+            symbol =>
+              places.comments[anchorKey({ kind: 'symbol', id: symbol.id })] !== undefined ||
+              holdsNews(symbol),
           )}
         >
           <summary>{quiet.length} unchanged</summary>

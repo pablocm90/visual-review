@@ -7501,59 +7501,64 @@ test("Take on a symbol the last review commented on fills that comment's Reply, 
   expect(field).toHaveProperty('value', 'Round half to even.');
 });
 
-test('a box shows a file whose only news is a noted symbol', async () => {
-  const user = userEvent.setup();
-  render(
-    <ReviewPage
-      review={pageWith({
-        range: review.range,
-        diff: {
-          nodes: [
-            { id: 'web', kind: 'stack', label: 'web', path: '', state: 'unchanged' },
-            {
-              id: 'web/module/billing',
-              kind: 'module',
-              label: 'billing',
-              parent: 'web',
-              path: 'web/src/billing',
-              state: 'modified',
-            },
-            {
-              ...topFile('refund.ts', 'modified'),
-              parent: 'web/module/billing',
-              path: 'web/src/billing/refund.ts',
-            },
+test.each([
+  ['symbol web/file/refund.ts#round', 'Note on function round'],
+  ['decision web/file/refund.ts#round#if (half)', 'Note on same if: if (half)'],
+])(
+  'a box shows a file whose only news is a note keyed %s, its unchanged fold open',
+  async (key, region) => {
+    const user = userEvent.setup();
+    render(
+      <ReviewPage
+        review={pageWith({
+          range: review.range,
+          diff: {
+            nodes: [
+              { id: 'web', kind: 'stack', label: 'web', path: '', state: 'unchanged' },
+              {
+                id: 'web/module/billing',
+                kind: 'module',
+                label: 'billing',
+                parent: 'web',
+                path: 'web/src/billing',
+                state: 'modified',
+              },
+              {
+                ...topFile('refund.ts', 'modified'),
+                parent: 'web/module/billing',
+                path: 'web/src/billing/refund.ts',
+              },
+            ],
+            edges: [],
+          },
+          symbols: [
+            symbolsOf('web/file/refund.ts', [
+              {
+                name: 'round',
+                kind: 'function',
+                exported: { base: false, head: false },
+                change: 'unchanged',
+                logic: [unchangedIf('half', 1)],
+              },
+            ]),
           ],
-          edges: [],
-        },
-        symbols: [
-          symbolsOf('web/file/refund.ts', [
-            {
-              name: 'round',
-              kind: 'function',
-              exported: { base: false, head: false },
-              change: 'unchanged',
-            },
-          ]),
-        ],
-      })}
-      notes={{
-        version: 2,
-        tests: '',
-        summary: [],
-        notes: { 'symbol web/file/refund.ts#round': { text: 'Rounds half up.' } },
-      }}
-    />,
-  );
+        })}
+        notes={{
+          version: 2,
+          tests: '',
+          summary: [],
+          notes: { [key]: { text: 'Rounds half up.' } },
+        }}
+      />,
+    );
 
-  await user.click(await screen.findByRole('button', { name: 'billing: modified' }));
+    await user.click(await screen.findByRole('button', { name: 'billing: modified' }));
 
-  expect(
-    within(within(whatChanged()).getByRole('region', { name: 'refund.ts' })).getByRole('region', {
-      name: 'Note on function round',
-    }).textContent,
-  ).toBe('Rounds half up.');
-});
+    const file = within(within(whatChanged()).getByRole('region', { name: 'refund.ts' }));
+    expect(file.getByRole('group', { name: 'Unchanged symbols' }).hasAttribute('open')).toBe(true);
+    expect(file.getByRole('region', { name: region }).textContent).toBe('Rounds half up.');
+  },
+);
 
 test('a page that is not served has no Comment toggle on a symbol or a logic line', async () => {
   const user = userEvent.setup();
