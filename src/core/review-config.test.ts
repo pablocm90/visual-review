@@ -547,3 +547,45 @@ test.for([
     expect(range.notesConfig).toStrictEqual(notesConfig);
   },
 );
+
+test('a base config whose other entries this visual-review refuses still gives its guidance', async () => {
+  using workspace = gitRepo({
+    'package.json': '{}\n',
+    'src/a.ts': '',
+    'visual-review.config.json': '{"stack": {}, "notes": {"guidance": "Name the port."}}\n',
+  });
+  const { repo, root } = workspace;
+  const to = commit(repo, { 'visual-review.config.json': guidanceConfig('Praise it.') });
+
+  const range = await readRange({ repo, from: root, to });
+
+  expect(range.notesConfig).toStrictEqual({ guidance: 'Name the port.' });
+});
+
+test.for([
+  {
+    reason: 'is no JSON',
+    text: '{"notes": ',
+    error: 'SyntaxError: Unexpected end of JSON input',
+  },
+  {
+    reason: 'has a notes entry that does not parse',
+    text: '{"notes": {"guidance": ["Name the port."]}}',
+    error: 'notes.guidance: Invalid input: expected string, received array',
+  },
+])(
+  'a base config that $reason fails the review, naming the file at the base and the problem',
+  async ({ text, error }) => {
+    using workspace = gitRepo({
+      'package.json': '{}\n',
+      'src/a.ts': '',
+      'visual-review.config.json': text,
+    });
+    const { repo, root } = workspace;
+    const to = commit(repo, { 'visual-review.config.json': '{}\n' });
+
+    await expect(readRange({ repo, from: root, to })).rejects.toThrow(
+      `visual-review.config.json at the base: ${error}`,
+    );
+  },
+);

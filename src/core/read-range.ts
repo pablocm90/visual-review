@@ -6,6 +6,7 @@ import {
   CONFIG_FILE,
   type Config,
   type NotesConfig,
+  parseBaseNotesConfig,
   parseConfig,
   type ReaderName,
 } from './config.ts';
@@ -287,7 +288,7 @@ const configAt = async (repo: string, revision: string): Promise<Config> => {
 const notesConfigAt = async (repo: string, revision: string): Promise<NotesConfig> =>
   (await git(repo, 'ls-tree', '--name-only', revision, '--', CONFIG_FILE)) === ''
     ? {}
-    : parseConfig(await git(repo, 'show', `${revision}:${CONFIG_FILE}`)).notes;
+    : parseBaseNotesConfig(await git(repo, 'show', `${revision}:${CONFIG_FILE}`));
 
 type ChurnOptions = {
   readonly repo: string;
