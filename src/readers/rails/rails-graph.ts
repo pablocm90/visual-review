@@ -70,7 +70,7 @@ const definitionsAround = (node: Node): ReadonlyArray<Node> => {
 const prefixesOf = (parts: ReadonlyArray<string>): ReadonlyArray<string> =>
   parts.map((_, end) => parts.slice(0, parts.length - end).join('::'));
 
-const scopesOf = (node: Node): ReadonlyArray<string> =>
+export const scopesOf = (node: Node): ReadonlyArray<string> =>
   prefixesOf(
     definitionsAround(node).map(definition => definition.childForFieldName('name')?.text ?? ''),
   );
@@ -79,13 +79,16 @@ type ClassNamed = (candidate: string) => string | undefined;
 
 type Classes = { readonly exactly: ClassNamed; readonly ignoringCase: ClassNamed };
 
-type Wanted = {
+export type Wanted = {
   readonly name: string;
   readonly scopes: ReadonlyArray<string>;
   readonly ignoringCase: boolean;
 };
 
-const lookedUp = ({ name, scopes, ignoringCase }: Wanted, classes: Classes): string | undefined =>
+export const lookedUp = (
+  { name, scopes, ignoringCase }: Wanted,
+  classes: Classes,
+): string | undefined =>
   [...scopes.map(scope => `${scope}::`), '']
     .flatMap(scope => prefixesOf(name.split('::')).map(prefix => `${scope}${prefix}`))
     .map(ignoringCase ? classes.ignoringCase : classes.exactly)

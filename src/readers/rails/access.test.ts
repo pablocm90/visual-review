@@ -123,3 +123,100 @@ test.for([
 ])('the cover $callback gives the actions under it', ({ body, cover }) => {
   expect(coverOf(body)).toStrictEqual([cover]);
 });
+
+const coversIn = (files: Record<string, string>) =>
+  Object.fromEntries(
+    read(files, ['require_admin']).actions.map(({ controller, action, cover }) => [
+      `${controller}#${action}`,
+      cover?.by,
+    ]),
+  );
+
+const USERS = `class UsersController < ApplicationController
+  def index; end
+end
+`;
+
+test.for([
+  {
+    reason: "its parent's callback",
+    files: {
+      'app/controllers/application_controller.rb': `class ApplicationController < ActionController::Base
+  before_action :require_admin
+end
+`,
+      'app/controllers/users_controller.rb': USERS,
+    },
+    covers: { 'UsersController#index': 'require_admin' },
+  },
+  {
+    reason: "nothing, when it skips its parent's callback",
+    files: {
+      'app/controllers/application_controller.rb': `class ApplicationController < ActionController::Base
+  before_action :require_admin
+end
+`,
+      'app/controllers/users_controller.rb': `class UsersController < ApplicationController
+  skip_before_action :require_admin
+  def index; end
+end
+`,
+    },
+    covers: { 'UsersController#index': undefined },
+  },
+  {
+    reason: 'the parent its lexical scope names first',
+    files: {
+      'app/controllers/base_controller.rb': `class BaseController < ActionController::Base
+end
+`,
+      'app/controllers/admin/base_controller.rb': `module Admin
+  class BaseController < ActionController::Base
+    before_action :require_admin
+  end
+end
+`,
+      'app/controllers/admin/users_controller.rb': `module Admin
+  class UsersController < BaseController
+    def index; end
+  end
+end
+`,
+    },
+    covers: { 'Admin::UsersController#index': 'require_admin' },
+  },
+  {
+    reason: 'the top-level parent a leading :: names',
+    files: {
+      'app/controllers/base_controller.rb': `class BaseController < ActionController::Base
+  before_action :require_admin
+end
+`,
+      'app/controllers/admin/base_controller.rb': `module Admin
+  class BaseController < ActionController::Base
+  end
+end
+`,
+      'app/controllers/admin/users_controller.rb': `module Admin
+  class UsersController < ::BaseController
+    def index; end
+  end
+end
+`,
+    },
+    covers: { 'Admin::UsersController#index': 'require_admin' },
+  },
+  {
+    reason: 'nothing from a parent of the same name in another app',
+    files: {
+      'apps/a/app/controllers/application_controller.rb': `class ApplicationController < ActionController::Base
+  before_action :require_admin
+end
+`,
+      'apps/b/app/controllers/users_controller.rb': USERS,
+    },
+    covers: { 'UsersController#index': undefined },
+  },
+])('an action is covered by $reason', ({ files, covers }) => {
+  expect(coversIn(files)).toStrictEqual(covers);
+});

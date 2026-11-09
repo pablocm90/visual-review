@@ -1,5 +1,6 @@
 import type { Node } from 'web-tree-sitter';
 import type { AccessReader, Action, Cover } from '../../core/access.ts';
+import { classesOf, lookedUp, scopesOf, type Wanted } from './rails-graph.ts';
 import { NOT_SEARCHED } from './reader.ts';
 import { symbolsOfRuby } from './ruby-symbols.ts';
 import {
@@ -45,15 +46,40 @@ const callbacksOf = (definition: Node): ReadonlyArray<Callback> =>
 const reaches = ({ only, except }: Callback, action: string): boolean =>
   (only === undefined || only.includes(action)) && !except.includes(action);
 
-const callbacksIn = (
-  node: Node,
-  within: string | undefined,
-): ReadonlyArray<[string, ReadonlyArray<Callback>]> =>
+type Controller = {
+  readonly constant: string;
+  readonly parent: Wanted | undefined;
+  readonly callbacks: ReadonlyArray<Callback>;
+};
+
+const parentOf = (definition: Node): Wanted | undefined => {
+  const written = definition.childForFieldName('superclass')?.namedChildren[0];
+  if (written === undefined) return undefined;
+  return written.text.startsWith('::')
+    ? { name: written.text.slice(2), scopes: [], ignoringCase: false }
+    : { name: written.text, scopes: scopesOf(definition), ignoringCase: false };
+};
+
+const controllersIn = (node: Node, within: string | undefined): ReadonlyArray<Controller> =>
   node.namedChildren.flatMap(child => {
-    if (!DEFINITIONS.has(child.type)) return callbacksIn(child, within);
+    if (!DEFINITIONS.has(child.type)) return controllersIn(child, within);
     const constant = constantWithin(child.childForFieldName('name')?.text ?? '', within);
-    return [[constant, callbacksOf(child)], ...callbacksIn(child, constant)];
+    return [
+      { constant, parent: parentOf(child), callbacks: callbacksOf(child) },
+      ...controllersIn(child, constant),
+    ];
   });
+
+const inherited = (
+  controllers: ReadonlyMap<string, Controller>,
+  constant: string,
+): ReadonlyArray<Callback> => {
+  const controller = controllers.get(constant);
+  if (controller === undefined) return [];
+  const parent =
+    controller.parent && lookedUp(controller.parent, classesOf([...controllers.keys()]));
+  return [...(parent === undefined ? [] : inherited(controllers, parent)), ...controller.callbacks];
+};
 
 const coverOf = (
   action: string,
@@ -71,34 +97,50 @@ const coverOf = (
   return by === undefined ? {} : { cover: { by, conditional: false } };
 };
 
-const actionsIn = (
-  file: string,
-  text: string,
-  authorize: ReadonlyArray<string>,
-): ReadonlyArray<Action> => {
-  const root = file.slice(0, file.indexOf('app/controllers/'));
-  const callbacks = new Map(readRuby(text, program => callbacksIn(program, undefined)));
-  return symbolsOfRuby(text).symbols.flatMap(({ name, scope, kind, exported, lines }) =>
-    kind === 'method' && exported && scope !== undefined && !name.startsWith('self.')
-      ? [
-          {
-            controller: scope,
-            action: name,
-            root,
-            file,
-            line: lines.start,
-            ...coverOf(name, callbacks.get(scope) ?? [], authorize),
-          },
-        ]
-      : [],
-  );
+type ControllerFile = {
+  readonly root: string;
+  readonly controllers: ReadonlyArray<Controller>;
+  readonly actions: ReadonlyArray<Action>;
 };
+
+const fileOf = (file: string, text: string): ControllerFile => {
+  const root = file.slice(0, file.indexOf('app/controllers/'));
+  return {
+    root,
+    controllers: readRuby(text, program => controllersIn(program, undefined)),
+    actions: symbolsOfRuby(text).symbols.flatMap(({ name, scope, kind, exported, lines }) =>
+      kind === 'method' && exported && scope !== undefined && !name.startsWith('self.')
+        ? [{ controller: scope, action: name, root, file, line: lines.start }]
+        : [],
+    ),
+  };
+};
+
+const coveredIn = (
+  read: ReadonlyArray<ControllerFile>,
+  authorize: ReadonlyArray<string>,
+): ReadonlyArray<Action> =>
+  read.flatMap(({ root, actions }) => {
+    const controllers = new Map(
+      read
+        .filter(other => other.root === root)
+        .flatMap(other => other.controllers)
+        .map(controller => [controller.constant, controller]),
+    );
+    return actions.map(action => ({
+      ...action,
+      ...coverOf(action.action, inherited(controllers, action.controller), authorize),
+    }));
+  });
 
 export const railsAccess: AccessReader = {
   holds: path =>
     CONTROLLER_FILE.test(path) && !path.split('/').some(folder => NOT_SEARCHED.has(folder)),
   actions: ({ files, authorize }) => ({
-    actions: [...files].flatMap(([file, text]) => actionsIn(file, text, authorize)),
+    actions: coveredIn(
+      [...files].map(([file, text]) => fileOf(file, text)),
+      authorize,
+    ),
     unread: [],
   }),
 };
