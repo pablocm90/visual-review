@@ -119,13 +119,18 @@ const without = (
 ): ReadonlyMap<string, Controller> =>
   new Map([...controllers].filter(([other]) => other !== constant));
 
+const foundIn = (
+  controllers: ReadonlyMap<string, Controller>,
+  wanted: Wanted,
+): string | undefined => lookedUp(wanted, classesOf([...controllers.keys()]));
+
 const expanded = (
   controllers: ReadonlyMap<string, Controller>,
   entries: ReadonlyArray<Entry>,
 ): ReadonlyArray<Callback> =>
   entries.flatMap(entry => {
     if (!('include' in entry)) return [entry];
-    const concern = lookedUp(entry.include, classesOf([...controllers.keys()]));
+    const concern = foundIn(controllers, entry.include);
     if (concern === undefined) return [];
     return expanded(without(controllers, concern), controllers.get(concern)?.entries ?? []);
   });
@@ -133,7 +138,7 @@ const expanded = (
 const parentIn = (
   others: ReadonlyMap<string, Controller>,
   { parent }: Controller,
-): string | undefined => parent && lookedUp(parent, classesOf([...others.keys()]));
+): string | undefined => parent && foundIn(others, parent);
 
 const inherited = (
   controllers: ReadonlyMap<string, Controller>,
@@ -246,11 +251,7 @@ const lookupsUnread = (read: ReadonlyArray<ControllerFile>): ReadonlyArray<Unrea
     const all = controllersAt(read, root);
     return controllers.flatMap(controller =>
       namedOf(controller)
-        .filter(
-          ({ wanted }) =>
-            lookedUp(wanted, classesOf([...without(all, controller.constant).keys()])) ===
-            undefined,
-        )
+        .filter(({ wanted }) => foundIn(without(all, controller.constant), wanted) === undefined)
         .map(({ text, line }) => ({ text, file, line })),
     );
   });
