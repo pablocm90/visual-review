@@ -1790,6 +1790,42 @@ test("on a served page Take turns a note's recommendation into a change draft on
   );
 });
 
+test("Take on a part the last review commented on fills that comment's Reply, open and focused", async () => {
+  const user = userEvent.setup();
+  render(
+    <ReviewPage
+      review={pageWith({
+        ...review,
+        sinceReview: { ...sinceReview, comments: [saidOnPart('rust/crate/application')] },
+      })}
+      notes={{
+        version: 1,
+        tests: '',
+        summary: [],
+        notes: {
+          'rust/crate/application': {
+            text: 'Adds the export use case.',
+            recommendation: 'Name the export format.',
+          },
+        },
+      }}
+      send={async () => {}}
+    />,
+  );
+
+  await user.click(await screen.findByRole('button', { name: 'application: modified' }));
+  await user.click(within(inspector()).getByRole('button', { name: 'Take' }));
+  const underAnchor = within(within(inspector()).getByRole('note', { name: /^Last review/ }));
+  expect(underAnchor.getByRole('button', { name: 'Reply' }).getAttribute('aria-expanded')).toBe(
+    'true',
+  );
+  const field = underAnchor.getByRole('textbox', { name: 'Your comment' });
+  expect(document.activeElement).toBe(field);
+  expect(field).toHaveProperty('value', 'Name the export format.');
+  expect(commentKind('Change this')).toHaveProperty('checked', true);
+  expect(take()).toBeNull();
+});
+
 test("a drawn node's or edge's badge names its findings under the worst level, says so on hover, and clicking it opens its note, which lists them", async () => {
   const user = userEvent.setup();
   render(
