@@ -48,3 +48,22 @@ test("a changed controller reads every controller at both sides, its parent's co
     },
   });
 });
+
+test('no controller changed: no reading', async () => {
+  using workspace = gitRepo({ [USERS]: users('  def index; end'), 'app/a.rb': '' });
+  const { repo, root } = workspace;
+  const to = commit(repo, { 'app/a.rb': 'class A; end\n' });
+
+  expect(await read(repo, root, to)).toStrictEqual([]);
+});
+
+test('a controller moved out of the controllers still reads, at the side that held it', async () => {
+  using workspace = gitRepo({ [USERS]: users('  def index; end') });
+  const { repo, root } = workspace;
+  git(repo, 'mv', USERS, 'app/users_controller.rb');
+  const to = commit(repo, { 'app/users_controller.rb': users('  def index; end') });
+
+  expect(await read(repo, root, to)).toMatchObject([
+    { base: { actions: [{ action: 'index' }] }, head: { actions: [] } },
+  ]);
+});

@@ -16,6 +16,7 @@ export const readAccess = async ({
   repo,
   base,
   head,
+  changes,
   access,
   authorize,
 }: ReadAccessOptions): Promise<ReadonlyArray<AccessReading>> => {
@@ -32,9 +33,11 @@ export const readAccess = async ({
     return reader.actions({ files: new Map(files), authorize });
   };
   return Promise.all(
-    access.map(async reader => ({
-      base: await tableAt(base, reader),
-      head: await tableAt(head, reader),
-    })),
+    access
+      .filter(reader => changes.some(paths => paths.some(reader.holds)))
+      .map(async reader => ({
+        base: await tableAt(base, reader),
+        head: await tableAt(head, reader),
+      })),
   );
 };
