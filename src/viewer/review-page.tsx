@@ -850,7 +850,7 @@ const NotePanel = ({
                 <strong>Recommendation</strong> {recommendation}
               </p>
               {onTake && (comments[anchorKey(anchor)]?.text.trim() ?? '') === '' && (
-                <button type="button" onClick={() => onTake(recommendation)}>
+                <button type="button" className="take" onClick={() => onTake(recommendation)}>
                   Take
                 </button>
               )}
