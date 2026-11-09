@@ -185,7 +185,9 @@ const refuseLeavingIncludes = async ({ checkout, configs, seen }: Includes): Pro
   const { include = [] } = readAs(Config, named, parsed(named, await readFile(config, 'utf8')));
   const included = include.map(path => resolve(dirname(config), path));
   const left = await Promise.all(
-    included.map(async path => !(await resolvesInside(checkout, path))),
+    included.map(async path =>
+      existsSync(path) ? !(await resolvesInside(checkout, path)) : !holds(checkout, path),
+    ),
   );
   const leaving = include.find((_, index) => left[index]);
   if (leaving !== undefined)

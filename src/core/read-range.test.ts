@@ -1833,6 +1833,22 @@ test('a cargo config whose include is no list, which cargo refuses, is not read,
   ]);
 });
 
+test('a cargo config optionally including a file the checkout lacks, such as a local override, reads', async () => {
+  using repository = gitRepo({ 'README.md': '' });
+  const { repo, root } = repository;
+  const head = commit(repo, {
+    '.cargo/config.toml': '[[include]]\npath = "local.toml"\noptional = true\n',
+    'Cargo.toml': packageNamed('a'),
+    'src/lib.rs': '',
+  });
+  using bin = pathWithCargo(`echo '{"workspace_root": "/", "packages": []}'`);
+  vi.stubEnv('PATH', bin.path);
+
+  const range = await readRange({ repo, from: root, to: head });
+
+  expect(range.skipped).toEqual([]);
+});
+
 test('a cargo config including a file inside the checkout, from its .cargo folder, reads', async () => {
   using repository = gitRepo({ 'README.md': '' });
   const { repo, root } = repository;
