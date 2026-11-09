@@ -2,6 +2,17 @@
 
 What changed in each release of `@pablocm90/visual-review`, newest first. Versions follow [semver](https://semver.org); while it is 0.x, a minor version may change the exported types.
 
+## 0.55.0 — 2026-11-09
+
+### Added
+
+- A note may be on a function, method, class or type: keyed `symbol <file node id>#<symbol>`, as a comment's symbol anchor is, it shows under that symbol's row in **What changed**, with its why, its recommendation and, on a served page, **Take**, which puts the recommendation in that row's comment field as a **Change this** draft, open and focused, or in its Reply where the last review said something on it. A file holding a noted symbol counts as news: a box lists it, and the unchanged fold holding the symbol opens. A symbol's note takes no flag.
+
+### Changed
+
+- Notes are version 2: every key in `notes` and `unasked` names its kind, `part <node id>`, `edge <from> -> <to>` or `symbol <id>`, and `notes.schema.json` checks the shape. A version 1 file is refused with "this visual-review reads version 2". Problems name the key: `unknown key part x`, `no note on part x`, `no note on edge a -> b`. A flag's finding is `notes:<kind> <id>`, so a last review's answer to a version 1 flag (`notes:<id>`) lists under the last review with nowhere to go, and an It's fine given to one no longer keeps that flag out of Start here. An unasked change on a symbol goes to its file's node.
+- The skill writes version 2 keys, may add a note on a symbol where there's something to say about it, and reads a flag's answer as `notes:<kind> <id>`.
+
 ## 0.54.0 — 2026-11-09
 
 ### Added

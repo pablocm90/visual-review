@@ -1,4 +1,5 @@
 import { expect, test } from 'vitest';
+import { z } from 'zod';
 import type { DiffedNode, GraphDiff } from './diff-graphs.ts';
 import {
   type Note,
@@ -8,6 +9,7 @@ import {
   type ReviewNotes,
   visibleNotes,
 } from './notes.ts';
+import type { SymbolFile } from './read-range.ts';
 
 type NodeState = GraphDiff['nodes'][number]['state'];
 
@@ -49,13 +51,24 @@ const diff: GraphDiff = {
   ],
 };
 
+const symbols: ReadonlyArray<SymbolFile> = [
+  {
+    node: 'web/file/pages/home.tsx',
+    stack: 'web',
+    symbols: [{ name: 'run', kind: 'function', lines: {}, exported: {}, change: 'edited' }],
+    exports: { added: [], removed: [] },
+    kind: 'logic',
+  },
+  { node: 'web/file/pages/header.tsx', stack: 'web', unreadable: 'Unexpected token' },
+];
+
 const notesWith = (overrides: Partial<ReviewNotes> = {}): ReviewNotes => ({
-  version: 1,
+  version: 2,
   summary: [{ text: 'Home formats dates.', target: 'web/module/pages' }, { text: 'Web only.' }],
   tests: 'No test pins the date format.',
   notes: {
-    'web/module/pages': { text: 'Home now formats dates.' },
-    'web/module/pages -> web/module/utils': { text: 'Pages starts using utils.' },
+    'part web/module/pages': { text: 'Home now formats dates.' },
+    'edge web/module/pages -> web/module/utils': { text: 'Pages starts using utils.' },
   },
   ...overrides,
 });
@@ -63,14 +76,16 @@ const notesWith = (overrides: Partial<ReviewNotes> = {}): ReviewNotes => ({
 test('notes on every touched part of the collapsed view, keyed to nodes or to edges as drawn at any depth, have no problems', () => {
   expect(
     notesProblems({
+      symbols,
       diff,
       said: [],
       notes: notesWith({
         notes: {
           ...notesWith().notes,
-          'web/file/pages/home.tsx': { text: 'Calls format.' },
-          'web/file/pages/home.tsx -> web/module/utils': { text: 'Imports format.' },
-          'web/file/pages/home.tsx -> web/file/utils/format.ts': { text: 'Imports format.' },
+          'part web/file/pages/home.tsx': { text: 'Calls format.' },
+          'edge web/file/pages/home.tsx -> web/module/utils': { text: 'Imports format.' },
+          'edge web/file/pages/home.tsx -> web/file/utils/format.ts': { text: 'Imports format.' },
+          'symbol web/file/pages/home.tsx#run': { text: 'Runs once.', why: 'Idempotent.' },
         },
       }),
     }),
@@ -80,12 +95,13 @@ test('notes on every touched part of the collapsed view, keyed to nodes or to ed
 test('a note on a hidden import covers the edge it is drawn into while its modules are collapsed', () => {
   expect(
     notesProblems({
+      symbols,
       diff,
       said: [],
       notes: notesWith({
         notes: {
-          'web/module/pages': { text: 'Home now formats dates.' },
-          'web/file/pages/home.tsx -> web/file/utils/format.ts': { text: 'Imports format.' },
+          'part web/module/pages': { text: 'Home now formats dates.' },
+          'edge web/file/pages/home.tsx -> web/file/utils/format.ts': { text: 'Imports format.' },
         },
       }),
     }),
@@ -95,6 +111,7 @@ test('a note on a hidden import covers the edge it is drawn into while its modul
 test('a stack that appears in the change is not asked for a note, since notes cannot name a stack', () => {
   expect(
     notesProblems({
+      symbols,
       diff: { ...diff, nodes: [{ ...stack, state: 'added' }, ...diff.nodes.slice(1)] },
       said: [],
       notes: notesWith(),
@@ -116,44 +133,94 @@ test('a note may be keyed by an edge between its ends or any of the boxes above 
 
   expect(
     notesProblems({
+      symbols,
       diff: deep,
       said: [],
       notes: notesWith({
         notes: {
-          'web/module/pages -> web/module/utils': { text: 'Pages uses utils.' },
-          'web/module/pages/home -> web/module/utils': { text: 'Home uses utils.' },
-          'web/file/pages/home/index.tsx -> web/module/utils': { text: 'Its index does.' },
-          'web/module/utils -> web/module/pages/home': { text: 'Backwards.' },
+          'edge web/module/pages -> web/module/utils': { text: 'Pages uses utils.' },
+          'edge web/module/pages/home -> web/module/utils': { text: 'Home uses utils.' },
+          'edge web/file/pages/home/index.tsx -> web/module/utils': { text: 'Its index does.' },
+          'edge web/module/utils -> web/module/pages/home': { text: 'Backwards.' },
         },
       }),
     }),
-  ).toEqual(['unknown id web/module/utils -> web/module/pages/home']);
+  ).toEqual(['unknown key edge web/module/utils -> web/module/pages/home']);
 });
 
 test.for([
   {
     problem: 'a note on a node that is not in the graph',
-    notes: notesWith({ notes: { ...notesWith().notes, 'web/module/gone': { text: 'Removed.' } } }),
-    expected: ['unknown id web/module/gone'],
+    notes: notesWith({
+      notes: { ...notesWith().notes, 'part web/module/gone': { text: 'Removed.' } },
+    }),
+    expected: ['unknown key part web/module/gone'],
   },
   {
     problem: 'a note on a stack',
-    notes: notesWith({ notes: { ...notesWith().notes, web: { text: 'One stack.' } } }),
-    expected: ['unknown id web'],
+    notes: notesWith({ notes: { ...notesWith().notes, 'part web': { text: 'One stack.' } } }),
+    expected: ['unknown key part web'],
+  },
+  {
+    problem: 'a part note keyed by an edge',
+    notes: notesWith({
+      notes: {
+        ...notesWith().notes,
+        'part web/module/pages -> web/module/utils': { text: 'Uses utils.' },
+      },
+    }),
+    expected: ['unknown key part web/module/pages -> web/module/utils'],
+  },
+  {
+    problem: 'an edge note keyed by a node',
+    notes: notesWith({
+      notes: { ...notesWith().notes, 'edge web/module/pages': { text: 'Formats.' } },
+    }),
+    expected: ['unknown key edge web/module/pages'],
   },
   {
     problem: 'a note on an edge between parts that no import joins',
     notes: notesWith({
-      notes: { ...notesWith().notes, 'web/module/utils -> web/module/pages': { text: 'Back.' } },
+      notes: {
+        ...notesWith().notes,
+        'edge web/module/utils -> web/module/pages': { text: 'Back.' },
+      },
     }),
-    expected: ['unknown id web/module/utils -> web/module/pages'],
+    expected: ['unknown key edge web/module/utils -> web/module/pages'],
   },
   {
     problem: 'a note on a module importing itself, which is never drawn',
     notes: notesWith({
-      notes: { ...notesWith().notes, 'web/module/pages -> web/module/pages': { text: 'Header.' } },
+      notes: {
+        ...notesWith().notes,
+        'edge web/module/pages -> web/module/pages': { text: 'Header.' },
+      },
     }),
-    expected: ['unknown id web/module/pages -> web/module/pages'],
+    expected: ['unknown key edge web/module/pages -> web/module/pages'],
+  },
+  {
+    problem: 'a note on a symbol its file does not hold',
+    notes: notesWith({
+      notes: { ...notesWith().notes, 'symbol web/file/pages/home.tsx#stop': { text: 'Stops.' } },
+    }),
+    expected: ['unknown key symbol web/file/pages/home.tsx#stop'],
+  },
+  {
+    problem: 'a note on a symbol of a file whose symbols were not read',
+    notes: notesWith({
+      notes: { ...notesWith().notes, 'symbol web/file/pages/header.tsx#run': { text: 'Runs.' } },
+    }),
+    expected: ['unknown key symbol web/file/pages/header.tsx#run'],
+  },
+  {
+    problem: 'a flag on a symbol note',
+    notes: notesWith({
+      notes: {
+        ...notesWith().notes,
+        'symbol web/file/pages/home.tsx#run': { text: 'Runs twice.', flag: 'not idempotent' },
+      },
+    }),
+    expected: ['flag on symbol web/file/pages/home.tsx#run: only a part or edge note takes a flag'],
   },
   {
     problem: 'a summary item targeting something not in the graph',
@@ -163,17 +230,17 @@ test.for([
   {
     problem: 'a touched module with no note',
     notes: notesWith({
-      notes: { 'web/module/pages -> web/module/utils': { text: 'Pages starts using utils.' } },
+      notes: { 'edge web/module/pages -> web/module/utils': { text: 'Pages starts using utils.' } },
     }),
-    expected: ['no note on web/module/pages'],
+    expected: ['no note on part web/module/pages'],
   },
   {
     problem: 'a changed edge of the collapsed view with no note',
-    notes: notesWith({ notes: { 'web/module/pages': { text: 'Home now formats dates.' } } }),
-    expected: ['no note on web/module/pages -> web/module/utils'],
+    notes: notesWith({ notes: { 'part web/module/pages': { text: 'Home now formats dates.' } } }),
+    expected: ['no note on edge web/module/pages -> web/module/utils'],
   },
 ])('$problem is a problem', ({ notes, expected }) => {
-  expect(notesProblems({ diff, notes, said: [] })).toEqual(expected);
+  expect(notesProblems({ symbols, diff, notes, said: [] })).toEqual(expected);
 });
 
 const file = 'x.notes.json';
@@ -185,20 +252,25 @@ test.for([
     reason: 'no "version"',
   },
   {
+    problem: 'version 1, whose notes are keyed by bare ids',
+    contents: { version: 1, summary: [], tests: '', notes: { 'web/module/pages': { text: 'x' } } },
+    reason: 'version 1 is unknown',
+  },
+  {
     problem: 'a later version, whatever its shape',
-    contents: { version: 2, comments: [] },
-    reason: 'version 2 is unknown',
+    contents: { version: 3, comments: [] },
+    reason: 'version 3 is unknown',
   },
   {
     problem: 'the version as a string',
-    contents: { version: '1', summary: [], tests: '', notes: {} },
-    reason: 'version "1" is unknown',
+    contents: { version: '2', summary: [], tests: '', notes: {} },
+    reason: 'version "2" is unknown',
   },
 ])(
   'a notes file with $problem is rejected naming the file and the version this CLI reads',
   ({ contents, reason }) => {
     expect(() => parseNotes({ text: JSON.stringify(contents), file })).toThrow(
-      new Error(`Invalid notes file ${file}: ${reason}; this visual-review reads version 1`),
+      new Error(`Invalid notes file ${file}: ${reason}; this visual-review reads version 2`),
     );
   },
 );
@@ -307,6 +379,7 @@ test("an answer is known by its anchor's kind and id in the last review, whateve
 
   expect(
     notesProblems({
+      symbols,
       diff,
       said,
       notes: notesWith({
@@ -335,30 +408,33 @@ test('a notes file keeps its answers, each status with what it carries', () => {
   expect(parseNotes({ text, file }).answers).toEqual(answers);
 });
 
-test('an unasked change is known by a node or an edge of the graph', () => {
+test('an unasked change is keyed as a note is, by a part, an edge or a symbol', () => {
   const text = JSON.stringify(
     notesWith({
       unasked: {
-        'web/module/pages': { text: 'Renamed the helper.' },
-        'web/module/pages -> web/module/utils': { text: 'Dropped a cast.' },
-        'web/module/gone': { text: 'Removed it.' },
+        'part web/module/pages': { text: 'Renamed the helper.' },
+        'edge web/module/pages -> web/module/utils': { text: 'Dropped a cast.' },
+        'symbol web/file/pages/home.tsx#run': { text: 'Inlined a guard.' },
+        'part web/module/gone': { text: 'Removed it.' },
       },
     }),
   );
 
-  expect(notesProblems({ diff, said: [], notes: parseNotes({ text, file }) })).toEqual([
-    'unknown id web/module/gone',
+  expect(notesProblems({ symbols, diff, said: [], notes: parseNotes({ text, file }) })).toEqual([
+    'unknown key part web/module/gone',
   ]);
 });
 
 test('an unasked change needs a last review to show under, even one that said nothing', () => {
-  const notes = notesWith({ unasked: { 'web/module/pages': { text: 'Renamed the helper.' } } });
+  const notes = notesWith({
+    unasked: { 'part web/module/pages': { text: 'Renamed the helper.' } },
+  });
 
-  expect(notesProblems({ diff, said: undefined, notes })).toEqual([
+  expect(notesProblems({ symbols, diff, said: undefined, notes })).toEqual([
     'unasked changes show under the last review, and this page has none',
   ]);
-  expect(notesProblems({ diff, said: undefined, notes: notesWith() })).toEqual([]);
-  expect(notesProblems({ diff, said: [], notes })).toEqual([]);
+  expect(notesProblems({ symbols, diff, said: undefined, notes: notesWith() })).toEqual([]);
+  expect(notesProblems({ symbols, diff, said: [], notes })).toEqual([]);
 });
 
 test('a done answer names its commit', () => {
@@ -369,7 +445,7 @@ test('a done answer names its commit', () => {
 });
 
 test('a notes file that is not JSON is rejected naming the file', () => {
-  expect(() => parseNotes({ text: '{ "version": 1,', file })).toThrow(
+  expect(() => parseNotes({ text: '{ "version": 2,', file })).toThrow(
     `Invalid notes file ${file}: SyntaxError`,
   );
 });
@@ -383,8 +459,23 @@ test.for([
   },
   {
     level: 'a note',
-    overrides: { notes: { 'web/module/pages': { text: 'Formats.', flags: 'cycle' } } },
+    overrides: { notes: { 'part web/module/pages': { text: 'Formats.', flags: 'cycle' } } },
     key: 'flags',
+  },
+  {
+    level: 'the notes, a key of a kind no note takes',
+    overrides: { notes: { 'decision web/file/a.ts#run@0': { text: 'Guards.' } } },
+    key: 'decision web/file/a.ts#run@0',
+  },
+  {
+    level: 'the notes, a bare id',
+    overrides: { notes: { 'web/module/pages': { text: 'Formats.' } } },
+    key: 'web/module/pages',
+  },
+  {
+    level: 'the unasked changes, a bare id',
+    overrides: { unasked: { 'web/module/pages': { text: 'Renamed the helper.' } } },
+    key: 'web/module/pages',
   },
 ])('an unknown key on $level is rejected naming the file and the key', ({ overrides, key }) => {
   expect(() =>
@@ -394,12 +485,18 @@ test.for([
 
 test('a note keeps why it changed this way and what to do about it, beside what it does', () => {
   const notes = {
-    'web/module/pages': {
+    'part web/module/pages': {
       text: 'Home now formats dates.',
       why: 'The API sends ISO strings.',
       recommendation: 'Format them in one helper.',
     },
   };
+
+  expect(parseNotes({ text: JSON.stringify(notesWith({ notes })), file }).notes).toEqual(notes);
+});
+
+test('a note may be keyed by a symbol', () => {
+  const notes = { 'symbol web/file/pages/home.tsx#run': { text: 'Runs once.' } };
 
   expect(parseNotes({ text: JSON.stringify(notesWith({ notes })), file }).notes).toEqual(notes);
 });
@@ -421,4 +518,32 @@ test('a notes file with nothing to note may leave out notes', () => {
 
 test('the published notes schema marks no field read-only, since notes are written by hand or by agents', () => {
   expect(JSON.stringify(notesJsonSchema())).not.toContain('readOnly');
+});
+
+test('the published notes schema says version 2 and keys notes and unasked changes by part, edge or symbol', () => {
+  const schema = z.object({
+    properties: z.object({
+      version: z.object({ const: z.number() }),
+      notes: z.object({ propertyNames: z.object({ pattern: z.string() }) }),
+      unasked: z.object({ propertyNames: z.object({ pattern: z.string() }) }),
+    }),
+  });
+  const { properties } = schema.parse(notesJsonSchema());
+  const keys = [
+    'part web/a.ts',
+    'edge a -> b',
+    'symbol web/a.ts#run',
+    'test web/a.ts#x',
+    'web/a.ts',
+  ];
+
+  expect(properties.version.const).toBe(2);
+  expect(
+    [properties.notes, properties.unasked].map(({ propertyNames: { pattern } }) =>
+      keys.filter(key => new RegExp(pattern).test(key)),
+    ),
+  ).toEqual([
+    ['part web/a.ts', 'edge a -> b', 'symbol web/a.ts#run'],
+    ['part web/a.ts', 'edge a -> b', 'symbol web/a.ts#run'],
+  ]);
 });

@@ -1,3 +1,4 @@
+import { anchorOfKey, split } from '../core/anchors.ts';
 import type { Finding } from '../core/findings.ts';
 import type { GraphNode } from '../core/graph.ts';
 import type { ReviewNotes } from '../core/notes.ts';
@@ -48,11 +49,13 @@ const UnaskedChanges = ({ changes, nodes, onGoTo }: UnaskedChangesProps) => {
     <>
       <h3 className="last-review-subtitle">{UNASKED_TITLE}</h3>
       <ul aria-label={UNASKED_TITLE} className="last-review-list">
-        {changes.map(([id, { text }]) => {
-          const name = anchorName({ kind: 'part', id }, nodes);
+        {changes.map(([key, { text }]) => {
+          const { kind, id } = anchorOfKey(key);
+          const name = anchorName(kind === 'symbol' ? { kind, id } : { kind: 'part', id }, nodes);
+          const target = kind === 'symbol' ? split(id, '#')[0] : id;
           return (
-            <li key={id} className="last-comment" aria-label={`${name}: ${text}`}>
-              <button type="button" className="draft-target" onClick={() => onGoTo(id)}>
+            <li key={key} className="last-comment" aria-label={`${name}: ${text}`}>
+              <button type="button" className="draft-target" onClick={() => onGoTo(target)}>
                 {name}
               </button>
               <p className="last-said">{text}</p>

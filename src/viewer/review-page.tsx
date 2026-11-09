@@ -25,7 +25,13 @@ import {
 } from '../core/logic-strip.ts';
 import { type MetricFinding, metricFindings } from '../core/metric-findings.ts';
 import type { NodeMetrics } from '../core/metrics.ts';
-import { type Note, type ReviewNotes, visibleNotes } from '../core/notes.ts';
+import {
+  type Note,
+  notesOfKind,
+  notesOnTheGraph,
+  type ReviewNotes,
+  visibleNotes,
+} from '../core/notes.ts';
 import { type PageData, UNCOMMITTED } from '../core/page.ts';
 import type { PreviousComment } from '../core/previous-comments.ts';
 import { isReachFinding } from '../core/reach-findings.ts';
@@ -50,7 +56,7 @@ import {
 import { anchorName, placeOfLine } from './anchors.ts';
 import { ChangedSinceMarks, ChangedSinceTag, useIsChangedSince } from './changed-since.tsx';
 import { ColourBy, type Colouring, ScaleLegend, type Shade, shadeOf } from './colour-by.tsx';
-import { CommentAsked, type Comments } from './comment-field.tsx';
+import { CommentAsked, type Comments, holdsDraft } from './comment-field.tsx';
 import { type Answers, type AnswerTo, findingLine, LEVELS, worstOf } from './finding-display.tsx';
 import { FindingRows, type FindingRowsProps } from './finding-rows.tsx';
 import { FindingsRail, LensChips, LensRow, StartHere } from './findings-rail.tsx';
@@ -68,6 +74,7 @@ import { type LogicCard, LogicCardBody, logicCardsOf } from './logic-card.tsx';
 import { LogicLegend } from './logic-strip.tsx';
 import { MetricsTable } from './metrics-tab.tsx';
 import { NextToIt } from './next-to-it.tsx';
+import { NoteBlock, SymbolNotes } from './note-block.tsx';
 import {
   type LineComments,
   type LineLanding,
@@ -832,31 +839,12 @@ const NotePanel = ({
     reachesHere.length === 0 &&
     !hasSaid(anchor) &&
     saidInPlace.length === 0;
-  const shownNote = note?.text ?? (isBare ? 'No note' : undefined);
-  const recommendation = note?.recommendation;
+  const shownNote = note ?? (isBare ? { text: 'No note' } : undefined);
+  const drafted = holdsDraft(comments, anchor);
   return (
     <LandedRows landing={landing}>
       {shownNote !== undefined && (
-        <section aria-label="Note">
-          <p>{shownNote}</p>
-          {note?.why !== undefined && (
-            <p className="note-why">
-              <strong>Why</strong> {note.why}
-            </p>
-          )}
-          {recommendation !== undefined && (
-            <div className="note-recommendation">
-              <p>
-                <strong>Recommendation</strong> {recommendation}
-              </p>
-              {onTake && (comments[anchorKey(anchor)]?.text.trim() ?? '') === '' && (
-                <button type="button" className="take" onClick={() => onTake(recommendation)}>
-                  Take
-                </button>
-              )}
-            </div>
-          )}
-        </section>
+        <NoteBlock note={shownNote} onTake={drafted ? undefined : onTake} />
       )}
       <SaidBefore key={anchorKey(anchor)} on={anchor} landing={onThePart(landing)} />
       {saidInPlace.map(id => (
@@ -1952,7 +1940,7 @@ const OtherScreen = ({
   </>
 );
 
-const notesIn = (notes: ReviewPageProps['notes']) => notes?.notes ?? {};
+const notesIn = (notes: ReviewPageProps['notes']) => notesOnTheGraph(notes?.notes ?? {});
 
 const reviewedIn = ({ range, pullRequest }: PageData) => ({
   range,
@@ -1968,6 +1956,33 @@ const useCommentAsked = (selected: string | undefined, tab: Tab) => {
   const [asked, setAsked] = useState<CommentAskedOn>();
   if (asked !== undefined && (asked.on !== selected || tab !== 'structure')) setAsked(undefined);
   return [asked, setAsked] as const;
+};
+
+type SymbolNotesOfPageProps = {
+  readonly notes: ReviewPageProps['notes'];
+  readonly comment: ((written: Comment) => void) | undefined;
+  readonly selected: string | undefined;
+  readonly onAsk: (asked: CommentAskedOn) => void;
+  readonly children: ReactNode;
+};
+
+const SymbolNotesOfPage = ({
+  notes,
+  comment,
+  selected,
+  onAsk,
+  children,
+}: SymbolNotesOfPageProps) => {
+  const symbolNotes = useMemo(() => notesOfKind(notes?.notes ?? {}, ['symbol']), [notes]);
+  const onTake =
+    comment && selected !== undefined
+      ? (id: string, text: string) => {
+          const anchor = { kind: 'symbol', id } as const;
+          comment({ anchor, kind: 'change', text });
+          onAsk({ on: selected, row: anchorKey(anchor) });
+        }
+      : undefined;
+  return <SymbolNotes value={{ notes: symbolNotes, onTake }}>{children}</SymbolNotes>;
 };
 
 const Page = ({ review, notes, send }: ReviewPageProps) => {
@@ -2436,7 +2451,14 @@ const Page = ({ review, notes, send }: ReviewPageProps) => {
         }
       }
     >
-      {page}
+      <SymbolNotesOfPage
+        notes={notes}
+        comment={comment}
+        selected={selected}
+        onAsk={setCommentAsked}
+      >
+        {page}
+      </SymbolNotesOfPage>
     </RespondingOnPage>
   );
 };

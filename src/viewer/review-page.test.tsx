@@ -1115,7 +1115,7 @@ test('going to a hidden file from the summary opens its module and lands it cent
       width: 120,
       windowHeight: 108,
       notes: {
-        version: 1,
+        version: 2,
         tests: '',
         summary: [{ text: 'Check y.ts', target: 'web/file/utils/y.ts' }],
         notes: {},
@@ -1274,7 +1274,7 @@ test("the Tests tab heads the test changes with what the notes say they pin, and
           { path: 'tools/review/x.test.ts', stack: 'tools/review', statements: added },
         ],
       })}
-      notes={{ version: 1, summary: [], tests: 'The export is pinned.', notes: {} }}
+      notes={{ version: 2, summary: [], tests: 'The export is pinned.', notes: {} }}
     />,
   );
 
@@ -1618,13 +1618,13 @@ test('clicking a crate or a dependency, or pressing Enter or Space on it, shows 
         ...review,
       })}
       notes={{
-        version: 1,
+        version: 2,
         tests: '',
         summary: [],
         notes: {
-          'rust/crate/application': { text: 'Adds the export use case.' },
-          'rust/crate/cli-adapter': { text: 'A second way in.', flag: 'new entry point' },
-          'rust/crate/cli-adapter -> rust/crate/application': {
+          'part rust/crate/application': { text: 'Adds the export use case.' },
+          'part rust/crate/cli-adapter': { text: 'A second way in.', flag: 'new entry point' },
+          'edge rust/crate/cli-adapter -> rust/crate/application': {
             text: 'The CLI drives the use case.',
             flag: 'new dependency direction',
           },
@@ -1672,17 +1672,17 @@ test('a note says why under its text and what to do under that, on a part and on
     <ReviewPage
       review={pageWith({ ...review })}
       notes={{
-        version: 1,
+        version: 2,
         tests: '',
         summary: [],
         notes: {
-          'rust/crate/application': {
+          'part rust/crate/application': {
             text: 'Adds the export use case.',
             why: 'Exports were done by hand.',
             recommendation: 'Name the export format in the use case.',
           },
-          'rust/crate/cli-adapter': { text: 'A second way in.' },
-          'rust/crate/cli-adapter -> rust/crate/application': {
+          'part rust/crate/cli-adapter': { text: 'A second way in.' },
+          'edge rust/crate/cli-adapter -> rust/crate/application': {
             text: 'The CLI drives the use case.',
             why: 'The use case has no other caller yet.',
             recommendation: 'Keep the CLI out of the domain.',
@@ -1728,16 +1728,16 @@ test("on a served page Take turns a note's recommendation into a change draft on
     <ReviewPage
       review={pageWith({ ...review })}
       notes={{
-        version: 1,
+        version: 2,
         tests: '',
         summary: [],
         notes: {
-          'rust/crate/application': {
+          'part rust/crate/application': {
             text: 'Adds the export use case.',
             recommendation: 'Name the export format.',
           },
-          'rust/crate/cli-adapter': { text: 'A second way in.', recommendation: 'Drop it.' },
-          'rust/crate/cli-adapter -> rust/crate/application': {
+          'part rust/crate/cli-adapter': { text: 'A second way in.', recommendation: 'Drop it.' },
+          'edge rust/crate/cli-adapter -> rust/crate/application': {
             text: 'The CLI drives the use case.',
             recommendation: 'Keep the CLI out of the domain.',
           },
@@ -1799,11 +1799,11 @@ test("Take on a part the last review commented on fills that comment's Reply, op
         sinceReview: { ...sinceReview, comments: [saidOnPart('rust/crate/application')] },
       })}
       notes={{
-        version: 1,
+        version: 2,
         tests: '',
         summary: [],
         notes: {
-          'rust/crate/application': {
+          'part rust/crate/application': {
             text: 'Adds the export use case.',
             recommendation: 'Name the export format.',
           },
@@ -1838,12 +1838,12 @@ test("a drawn node's or edge's badge names its findings under the worst level, s
         ],
       })}
       notes={{
-        version: 1,
+        version: 2,
         tests: '',
         summary: [],
         notes: {
-          'rust/crate/cli-adapter': { text: 'A second way in.', flag: 'new entry point' },
-          'rust/crate/cli-adapter -> rust/crate/application': {
+          'part rust/crate/cli-adapter': { text: 'A second way in.', flag: 'new entry point' },
+          'edge rust/crate/cli-adapter -> rust/crate/application': {
             text: 'The CLI drives the use case.',
             flag: 'new dependency direction',
           },
@@ -1907,19 +1907,19 @@ test('the summary lists its items, not the flagged notes, and an item with a tar
         ...review,
       })}
       notes={{
-        version: 1,
+        version: 2,
         tests: '',
         summary: [
           { text: 'The CLI is a new adapter.', target: 'rust/crate/cli-adapter' },
           { text: 'Domain is untouched.' },
         ],
         notes: {
-          'rust/crate/cli-adapter': { text: 'A second way in.' },
-          'rust/crate/cli-adapter -> rust/crate/application': {
+          'part rust/crate/cli-adapter': { text: 'A second way in.' },
+          'edge rust/crate/cli-adapter -> rust/crate/application': {
             text: 'The CLI drives the use case.',
             flag: 'new dependency direction',
           },
-          'rust/crate/legacy': {
+          'part rust/crate/legacy': {
             text: 'Domain still reaches it.',
             flag: 'removed but depended on',
           },
@@ -1952,7 +1952,7 @@ test('the summary lists its items, not the flagged notes, and an item with a tar
   rerender(
     <ReviewPage
       review={pageWith(review)}
-      notes={{ version: 1, tests: '', summary: [], notes: {} }}
+      notes={{ version: 2, tests: '', summary: [], notes: {} }}
     />,
   );
   expect(screen.queryByRole('region', { name: 'Summary' })).toBeNull();
@@ -1999,13 +1999,13 @@ test("the findings rail starts collapsed to their total and how many need a look
         undrawn: [{ path: 'README.md', patch: '' }],
       })}
       notes={{
-        version: 1,
+        version: 2,
         tests: '',
         summary: [],
         notes: {
-          'rust/crate/cli-adapter': { text: 'A second way in.', flag: 'new entry point' },
-          'rust/crate/domain': { text: 'Untouched.' },
-          'rust/crate/cli-adapter -> rust/crate/application': {
+          'part rust/crate/cli-adapter': { text: 'A second way in.', flag: 'new entry point' },
+          'part rust/crate/domain': { text: 'Untouched.' },
+          'edge rust/crate/cli-adapter -> rust/crate/application': {
             text: 'The CLI drives the use case.',
             flag: 'new dependency direction',
           },
@@ -2115,11 +2115,11 @@ test("a lens counts each of its dimensions' findings, a note's flag among them, 
         ],
       })}
       notes={{
-        version: 1,
+        version: 2,
         tests: '',
         summary: [],
         notes: {
-          'rust/crate/cli-adapter': {
+          'part rust/crate/cli-adapter': {
             text: 'Reads a token.',
             flag: 'reads a token',
             dimension: 'security',
@@ -2240,11 +2240,11 @@ test("a note's or a metric finding in the rail goes to its node or edge as the s
         findings: [findingOn('rust/crate/domain')],
       })}
       notes={{
-        version: 1,
+        version: 2,
         tests: '',
         summary: [],
         notes: {
-          'rust/crate/cli-adapter -> rust/crate/application': {
+          'edge rust/crate/cli-adapter -> rust/crate/application': {
             text: 'The CLI drives the use case.',
             flag: 'new dependency direction',
           },
@@ -2291,7 +2291,10 @@ test("the reading order numbers the changed parts in its order, on the graph too
         },
         findings: [
           findingOn('rust/crate/cli-adapter'),
-          findingOn('rust/crate/cli-adapter', { id: 'notes:cli-adapter', level: 'look' }),
+          findingOn('rust/crate/cli-adapter', {
+            id: 'notes:part rust/crate/cli-adapter',
+            level: 'look',
+          }),
           findingOn('rust/crate/legacy'),
           findingOn('rust/crate/domain'),
         ],
@@ -2850,10 +2853,12 @@ test('on the map an arrow and its badge go nowhere: the part stays, and they go 
     <ReviewPage
       review={walkedReview()}
       notes={{
-        version: 1,
+        version: 2,
         tests: '',
         summary: [],
-        notes: { [edge]: { text: 'The CLI drives the use case.', flag: 'new direction' } },
+        notes: {
+          [`edge ${edge}`]: { text: 'The CLI drives the use case.', flag: 'new direction' },
+        },
       }}
     />,
   );
@@ -3417,7 +3422,7 @@ test("C pressed before going to a part has finished drawing keeps the focus in t
         },
       })}
       notes={{
-        version: 1,
+        version: 2,
         tests: '',
         summary: [{ text: 'Check y.ts', target: 'web/file/utils/y.ts' }],
         notes: {},
@@ -3822,15 +3827,15 @@ test("modules open collapsed, joined by their files' imports; a module's toggle 
         },
       })}
       notes={{
-        version: 1,
+        version: 2,
         tests: '',
         summary: [{ text: 'Check y.ts', target: 'web/file/utils/y.ts' }],
         notes: {
-          'web/file/modules/AppInfo/api/app-info.ts -> web/file/utils/x.ts': {
+          'edge web/file/modules/AppInfo/api/app-info.ts -> web/file/utils/x.ts': {
             text: 'New helper.',
             flag: 'reaches into utils',
           },
-          'web/file/utils/y.ts': { text: 'Untouched, but read it.' },
+          'part web/file/utils/y.ts': { text: 'Untouched, but read it.' },
         },
       }}
     />,
@@ -3927,7 +3932,7 @@ test("with 'All edges' unticked, an unchanged import between two open modules is
         },
       })}
       notes={{
-        version: 1,
+        version: 2,
         tests: '',
         summary: [
           {
@@ -3936,7 +3941,7 @@ test("with 'All edges' unticked, an unchanged import between two open modules is
           },
         ],
         notes: {
-          'web/file/orders/cart.ts -> web/file/billing/invoice.ts': { text: 'Totals.' },
+          'edge web/file/orders/cart.ts -> web/file/billing/invoice.ts': { text: 'Totals.' },
         },
       }}
     />,
@@ -3993,11 +3998,11 @@ test('a served page offers no comment and no Take on an edge drawn between close
         },
       })}
       notes={{
-        version: 1,
+        version: 2,
         tests: '',
         summary: [],
         notes: {
-          'web/file/orders/cart.ts -> web/file/billing/invoice.ts': {
+          'edge web/file/orders/cart.ts -> web/file/billing/invoice.ts': {
             text: 'Bills the cart.',
             recommendation: 'Bill through the use case.',
           },
@@ -4044,7 +4049,7 @@ test("with 'Changed + 1 hop' shown, going to a merged module edge or to a hidden
         },
       })}
       notes={{
-        version: 1,
+        version: 2,
         tests: '',
         summary: [
           { text: 'See the coupling.', target: 'web/module/orders -> web/module/billing' },
@@ -4110,11 +4115,11 @@ test("web calls to API routes are drawn between the stacks, named by their paths
         ],
       })}
       notes={{
-        version: 1,
+        version: 2,
         tests: '',
         summary: [],
         notes: {
-          'web/file/modules/AppInfo/api/users.ts -> rust/crate/http-adapter': {
+          'edge web/file/modules/AppInfo/api/users.ts -> rust/crate/http-adapter': {
             text: 'Lists users.',
           },
         },
@@ -5161,7 +5166,7 @@ test("'Changes only' is shown first, hiding a neighbour joined by an unchanged e
         },
       })}
       notes={{
-        version: 1,
+        version: 2,
         tests: '',
         summary: [
           { text: 'Read the use case.', target: 'rust/crate/application' },
@@ -7075,12 +7080,12 @@ test("the column reads a part's note, then What changed, then Why look; an edge'
         ],
       })}
       notes={{
-        version: 1,
+        version: 2,
         tests: '',
         summary: [],
         notes: {
-          'web/file/tax.ts': { text: 'Rounds now.' },
-          [edge]: { text: 'A new way in.' },
+          'part web/file/tax.ts': { text: 'Rounds now.' },
+          [`edge ${edge}`]: { text: 'A new way in.' },
         },
       }}
     />,
@@ -7382,6 +7387,172 @@ test('the unchanged symbols open by themselves when one holds a draft', async ()
   await closeAndReopen(user, 'tax.ts: modified');
 
   expect(unchangedSymbols().hasAttribute('open')).toBe(true);
+});
+
+test("a symbol's note shows under its row, with its why and recommendation, and opens the unchanged fold holding it", async () => {
+  const user = userEvent.setup();
+  render(
+    <ReviewPage
+      review={pageWithAnUnchangedSymbol()}
+      notes={{
+        version: 2,
+        tests: '',
+        summary: [],
+        notes: {
+          'symbol web/file/tax.ts#round': {
+            text: 'Rounds half up.',
+            why: 'Tax rounds to the cent.',
+            recommendation: 'Round half to even.',
+          },
+        },
+      }}
+    />,
+  );
+  const noteUnder = (name: string) =>
+    within(within(whatChanged()).getByRole('listitem', { name })).queryByRole('region', {
+      name: /^Note/,
+    })?.textContent;
+
+  await user.click(await screen.findByRole('button', { name: 'tax.ts: modified' }));
+
+  expect(unchangedSymbols().hasAttribute('open')).toBe(true);
+  expect(noteUnder('function round: unchanged')).toBe(
+    'Rounds half up.Why Tax rounds to the cent.Recommendation Round half to even.',
+  );
+  expect(noteUnder('function tax: edited')).toBeUndefined();
+  expect(
+    within(
+      within(whatChanged()).getByRole('listitem', { name: 'function round: unchanged' }),
+    ).queryByRole('button', { name: 'Take' }),
+  ).toBeNull();
+});
+
+const roundNote = {
+  version: 2,
+  tests: '',
+  summary: [],
+  notes: {
+    'symbol web/file/tax.ts#round': {
+      text: 'Rounds half up.',
+      recommendation: 'Round half to even.',
+    },
+  },
+} as const;
+
+const roundRow = () =>
+  within(whatChanged()).getByRole('listitem', { name: /^function round: unchanged/ });
+
+test("on a served page Take on a symbol's note opens that row's field with the recommendation as a change, focused, and hides while the draft holds text", async () => {
+  const user = userEvent.setup();
+  render(
+    <ReviewPage review={pageWithAnUnchangedSymbol()} notes={roundNote} send={async () => {}} />,
+  );
+  const field = () => within(roundRow()).getByRole('textbox', { name: 'Your comment' });
+  const takeInRow = () => within(roundRow()).queryByRole('button', { name: 'Take' });
+
+  await user.click(await screen.findByRole('button', { name: 'tax.ts: modified' }));
+  await user.click(within(roundRow()).getByRole('button', { name: 'Take' }));
+
+  expect(document.activeElement).toBe(field());
+  expect(field()).toHaveProperty('value', 'Round half to even.');
+  expect(
+    within(within(roundRow()).getByRole('radiogroup', { name: 'Comment kind' })).getByRole(
+      'radio',
+      { name: 'Change this' },
+    ),
+  ).toHaveProperty('checked', true);
+  expect(within(tray()).getByText('1 drafted · 1 change')).toBeDefined();
+  expect(takeInRow()).toBeNull();
+
+  await user.clear(field());
+  expect(takeInRow()).not.toBeNull();
+});
+
+test("Take on a symbol the last review commented on fills that comment's Reply, open and focused", async () => {
+  const user = userEvent.setup();
+  render(
+    <ReviewPage
+      review={{
+        ...pageWithAnUnchangedSymbol(),
+        sinceReview: {
+          ...sinceReview,
+          comments: [
+            {
+              anchor: { kind: 'symbol', id: 'web/file/tax.ts#round' },
+              kind: 'question',
+              text: 'Why?',
+            },
+          ],
+        },
+      }}
+      notes={roundNote}
+      send={async () => {}}
+    />,
+  );
+
+  await user.click(await screen.findByRole('button', { name: 'tax.ts: modified' }));
+  await user.click(within(roundRow()).getByRole('button', { name: 'Take' }));
+
+  expect(
+    within(roundRow()).getByRole('button', { name: 'Reply' }).getAttribute('aria-expanded'),
+  ).toBe('true');
+  const field = within(roundRow()).getByRole('textbox', { name: 'Your comment' });
+  expect(document.activeElement).toBe(field);
+  expect(field).toHaveProperty('value', 'Round half to even.');
+});
+
+test('a box shows a file whose only news is a noted symbol', async () => {
+  const user = userEvent.setup();
+  render(
+    <ReviewPage
+      review={pageWith({
+        range: review.range,
+        diff: {
+          nodes: [
+            { id: 'web', kind: 'stack', label: 'web', path: '', state: 'unchanged' },
+            {
+              id: 'web/module/billing',
+              kind: 'module',
+              label: 'billing',
+              parent: 'web',
+              path: 'web/src/billing',
+              state: 'modified',
+            },
+            {
+              ...topFile('refund.ts', 'modified'),
+              parent: 'web/module/billing',
+              path: 'web/src/billing/refund.ts',
+            },
+          ],
+          edges: [],
+        },
+        symbols: [
+          symbolsOf('web/file/refund.ts', [
+            {
+              name: 'round',
+              kind: 'function',
+              exported: { base: false, head: false },
+              change: 'unchanged',
+            },
+          ]),
+        ],
+      })}
+      notes={{
+        version: 2,
+        tests: '',
+        summary: [],
+        notes: { 'symbol web/file/refund.ts#round': { text: 'Rounds half up.' } },
+      }}
+    />,
+  );
+
+  await user.click(await screen.findByRole('button', { name: 'billing: modified' }));
+
+  expect(
+    within(within(whatChanged()).getByRole('region', { name: 'refund.ts' })).getByRole('region', {
+      name: 'Note on function round',
+    }).textContent,
+  ).toBe('Rounds half up.');
 });
 
 test('a page that is not served has no Comment toggle on a symbol or a logic line', async () => {
@@ -8573,7 +8744,7 @@ test("a later round offers 'Since last review' first in Show, Changes only still
     <ReviewPage
       review={pageWith({ ...review, sinceReview })}
       notes={{
-        version: 1,
+        version: 2,
         tests: '',
         summary: [{ text: 'Check the CLI.', target: 'rust/crate/cli-adapter' }],
         notes: {},
@@ -9107,7 +9278,7 @@ test('a last answer to a finding is listed by its title, going to its row at its
             },
             { anchor: { kind: 'finding', id: 'logic:old' }, kind: 'fix', changedSince: [] },
             {
-              anchor: { kind: 'finding', id: 'notes:dropped' },
+              anchor: { kind: 'finding', id: 'notes:part rust/crate/dropped' },
               kind: 'fix',
               target: 'rust/crate/domain',
             },
@@ -9136,7 +9307,7 @@ test('a last answer to a finding is listed by its title, going to its row at its
     }),
   );
 
-  await user.click(last.getByRole('button', { name: 'notes:dropped' }));
+  await user.click(last.getByRole('button', { name: 'notes:part rust/crate/dropped' }));
 
   expect(selectedPart()).toBe('domain');
   expect(document.activeElement).toBe(screen.getByRole('button', { name: 'domain: unchanged' }));
@@ -9242,20 +9413,20 @@ test('the last review lists the parts changed since with no comment on them, goi
   );
 });
 
-test('the last review lists what Claude changed unasked, going to each part or edge; with only those it still shows', async () => {
+test('the last review lists what Claude changed unasked, going to each part, edge or symbol; with only those it still shows', async () => {
   const user = userEvent.setup();
-  const edge = 'rust/crate/cli-adapter -> rust/crate/application';
   render(
     <ReviewPage
       review={pageWith({ ...review, sinceReview })}
       notes={{
-        version: 1,
+        version: 2,
         tests: '',
         summary: [],
         notes: {},
         unasked: {
-          'rust/crate/application': { text: 'Renamed the helper.' },
-          [edge]: { text: 'Dropped a cast.' },
+          'part rust/crate/application': { text: 'Renamed the helper.' },
+          'edge rust/crate/cli-adapter -> rust/crate/application': { text: 'Dropped a cast.' },
+          'symbol rust/crate/cli-adapter#run': { text: 'Inlined a guard.' },
         },
       }}
     />,
@@ -9282,6 +9453,10 @@ test('the last review lists what Claude changed unasked, going to each part or e
   expect(document.activeElement).toBe(
     screen.getByRole('button', { name: 'application: modified' }),
   );
+
+  await user.click(unasked.getByRole('button', { name: 'run in cli-adapter' }));
+
+  expect(document.activeElement).toBe(screen.getByRole('button', { name: 'cli-adapter: added' }));
 });
 
 test('a last comment on a part or an edge shows under its anchor in the Note panel, with no send too', async () => {
@@ -9349,7 +9524,7 @@ test("Claude's answer shows under its comment, in the last review and under the 
         },
       })}
       notes={{
-        version: 1,
+        version: 2,
         tests: '',
         summary: [],
         notes: {},
@@ -9824,7 +9999,12 @@ test('a last comment on an edge shows on the arrow drawn in its place, closed bo
           ],
         },
       })}
-      notes={{ version: 1, tests: '', summary: [], notes: { [checkout]: { text: 'Paid.' } } }}
+      notes={{
+        version: 2,
+        tests: '',
+        summary: [],
+        notes: { [`edge ${checkout}`]: { text: 'Paid.' } },
+      }}
     />,
   );
   await showEverything(user);
@@ -10337,7 +10517,7 @@ test("on 'Logic only', going to a part it holds stays, and to one it doesn't goe
     <ReviewPage
       review={pageOfLogic()}
       notes={{
-        version: 1,
+        version: 2,
         tests: '',
         summary: [
           { text: 'The refund.', target: 'web/file/refund.ts' },
@@ -10461,7 +10641,12 @@ test("on 'Logic only' a last comment on an edge stays on its own arrow, not on t
           ],
         },
       })}
-      notes={{ version: 1, tests: '', summary: [], notes: { [cart]: { text: 'The cart bills.' } } }}
+      notes={{
+        version: 2,
+        tests: '',
+        summary: [],
+        notes: { [`edge ${cart}`]: { text: 'The cart bills.' } },
+      }}
     />,
   );
 

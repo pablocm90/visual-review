@@ -543,7 +543,7 @@ test('--notes on a page linked to a device says there is no page', async () => {
   commit(repo, { 'src/a.ts': 'export const a = 2;\n' });
   mkdirSync(join(repo, '.reviews'));
   symlinkSync('/dev/stdin', join(repo, '.reviews', 'HEAD~1..HEAD.html'));
-  writeFileSync(join(repo, 'notes.json'), '{"version":1,"summary":[],"tests":"None.","notes":{}}');
+  writeFileSync(join(repo, 'notes.json'), '{"version":2,"summary":[],"tests":"None.","notes":{}}');
 
   const run = await runCliOnBoundedMemory(
     repo,
@@ -579,7 +579,7 @@ test('--notes replaces a link standing at the page with the noted page, what it 
   rmSync(page);
   symlinkSync(elsewhere, page);
   const notesFile = join(repo, 'notes.json');
-  const notes = { version: 1, summary: [{ text: 'Nothing moves.' }], tests: 'None.', notes: {} };
+  const notes = { version: 2, summary: [{ text: 'Nothing moves.' }], tests: 'None.', notes: {} };
   writeFileSync(notesFile, JSON.stringify(notes));
 
   const run = await runCli(repo, 'main..main', '--notes', notesFile);
@@ -674,10 +674,10 @@ test('--notes fills the notes into the page already written for the range, witho
   await runCli(repo, 'main..feature');
   commit(repo, crateFiles('later'));
   const notes = {
-    version: 1,
+    version: 2,
     summary: [{ text: 'Adds a CLI.', target: 'rust/crate/cli' }, { text: 'Nothing else moves.' }],
     tests: 'No test pins the new CLI.',
-    notes: { 'rust/crate/cli': { text: 'A second way in.', flag: 'new entry point' } },
+    notes: { 'part rust/crate/cli': { text: 'A second way in.', flag: 'new entry point' } },
   };
   const notesFile = join(repo, 'notes.json');
   writeFileSync(notesFile, JSON.stringify(notes));
@@ -695,7 +695,7 @@ test('--notes fills the notes into the page already written for the range, witho
 test('--notes before any page for the range exits non-zero saying to run without --notes first', async () => {
   using workspace = cargoWorkspace();
   const notesFile = join(workspace.repo, 'notes.json');
-  writeFileSync(notesFile, JSON.stringify({ version: 1, summary: [], tests: '', notes: {} }));
+  writeFileSync(notesFile, JSON.stringify({ version: 2, summary: [], tests: '', notes: {} }));
 
   const run = await runCli(workspace.repo, 'main..main', '--notes', notesFile);
 
@@ -712,7 +712,7 @@ test('a notes file without a version exits non-zero with the contract error and 
 
   expect(run.code).not.toBe(0);
   expect(run.stderr).toContain(
-    `Invalid notes file ${notesFile}: no "version"; this visual-review reads version 1`,
+    `Invalid notes file ${notesFile}: no "version"; this visual-review reads version 2`,
   );
   expect(existsSync(join(workspace.repo, '.reviews'))).toBe(false);
 }, 60_000);
@@ -720,13 +720,13 @@ test('a notes file without a version exits non-zero with the contract error and 
 test.for([
   {
     problem: 'name a part not in the graph',
-    notes: { 'rust/crate/gone': { text: 'Removed.' } },
+    notes: { 'part rust/crate/gone': { text: 'Removed.' } },
     pageFrom: (html: string) => html,
-    says: "notes.json don't match the graph:\nunknown id rust/crate/gone",
+    says: "notes.json don't match the graph:\nunknown key part rust/crate/gone",
   },
   {
     problem: 'are for a page another visual-review wrote',
-    notes: { 'rust/crate/cli': { text: 'A second way in.' } },
+    notes: { 'part rust/crate/cli': { text: 'A second way in.' } },
     pageFrom: (html: string) => html.replace(/"version":"[^"]*"/, '"version":"0.0.1"'),
     says: 'written by visual-review 0.0.1',
   },
@@ -743,7 +743,7 @@ test.for([
     const page = pageFrom(readFileSync(pagePath, 'utf8'));
     writeFileSync(pagePath, page);
     const notesFile = join(repo, 'notes.json');
-    writeFileSync(notesFile, JSON.stringify({ version: 1, summary: [], tests: '', notes }));
+    writeFileSync(notesFile, JSON.stringify({ version: 2, summary: [], tests: '', notes }));
 
     const run = await runCli(repo, 'main..feature', '--notes', notesFile);
 

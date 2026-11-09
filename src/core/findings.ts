@@ -1,3 +1,4 @@
+import { anchorOfKey } from './anchors.ts';
 import type { Check } from './checks.ts';
 import { dependencyFindings } from './dependency-findings.ts';
 import type { FilePatch, GraphDiff } from './diff-graphs.ts';
@@ -241,8 +242,13 @@ export const raisedFindings = ({
 
 const NOTE_FLAG = 'notes:';
 
-export const targetOfNoteFlag = (id: string): string | undefined =>
-  id.startsWith(NOTE_FLAG) ? id.slice(NOTE_FLAG.length) : undefined;
+const ON_THE_GRAPH = ['part', 'edge'];
+
+export const targetOfNoteFlag = (id: string): string | undefined => {
+  if (!id.startsWith(NOTE_FLAG)) return undefined;
+  const anchor = anchorOfKey(id.slice(NOTE_FLAG.length));
+  return ON_THE_GRAPH.includes(anchor.kind) ? anchor.id : undefined;
+};
 
 type FindingsOfOptions = {
   readonly data: Pick<PageData, 'findings'>;
@@ -251,16 +257,16 @@ type FindingsOfOptions = {
 
 export const findingsOf = ({ data, notes }: FindingsOfOptions): ReadonlyArray<Finding> => [
   ...data.findings,
-  ...Object.entries(notes?.notes ?? {}).flatMap(([id, { flag, dimension = 'structure' }]) =>
+  ...Object.entries(notes?.notes ?? {}).flatMap(([key, { flag, dimension = 'structure' }]) =>
     flag === undefined
       ? []
       : [
           {
-            id: `${NOTE_FLAG}${id}`,
+            id: `${NOTE_FLAG}${key}`,
             check: 'flag' as const,
             dimension,
             level: 'look' as const,
-            target: id,
+            target: anchorOfKey(key).id,
             title: flag,
           },
         ],

@@ -137,7 +137,7 @@ A choice of Show drawing only the files with a changed decision, their boxes ope
 _In code_: `logicOnly`, `LogicCardBody`
 
 **Anchor**:
-What a reviewer's comment or answer is on, by its kind and id: a part the graph draws (a crate, module, file, class or box) or an edge, by the id notes are keyed by; a **symbol** in a file (`<file>#<scope.name>`, `#<n>` after it from the second of that name in the file on, as a getter and its setter are); a **logic line** (`<symbol id>#<text>`, `#<n>` after it from the second reading the same on, carrying its text; a removed guard's or catch's id is its finding's without `logic:removed:`); a test (`<test file>#<heading › … › name>`, `#<n>` after it from the second of those headings and that name in the file on); a diff line (`<file>@<base|head>:<n>`, carrying its text, since its number drifts); or, for an answer, a finding, by its id. Two anchors of different kinds never share a comment, whatever their ids.
+What a reviewer's comment or answer is on, by its kind and id: a part the graph draws (a crate, module, file, class or box) or an edge, by its node id or `<from> -> <to>`; a **symbol** in a file (`<file>#<scope.name>`, `#<n>` after it from the second of that name in the file on, as a getter and its setter are); a **logic line** (`<symbol id>#<text>`, `#<n>` after it from the second reading the same on, carrying its text; a removed guard's or catch's id is its finding's without `logic:removed:`); a test (`<test file>#<heading › … › name>`, `#<n>` after it from the second of those headings and that name in the file on); a diff line (`<file>@<base|head>:<n>`, carrying its text, since its number drifts); or, for an answer, a finding, by its id. Two anchors of different kinds never share a comment, whatever their ids.
 _Avoid_: target (a finding's), key
 _In code_: `Review['comments'][number]['anchor']`, `{ kind: 'part' | 'edge' | 'symbol' | 'decision' | 'test' | 'line' | 'finding', id }`; `anchorKey`, `anchorName`, `anchorTarget` (`anchors.ts`)
 
@@ -191,7 +191,7 @@ _Avoid_: follow-up, Claude's answer (that's Claude's)
 _In code_: `Reply` (`src/viewer/said-before.tsx`), a `Comment`
 
 **Unasked change**:
-A change Claude made on a later round that nothing in the last review asked for, by part or edge, listed in the last review so it isn't read as asked for.
+A change Claude made on a later round that nothing in the last review asked for, by part or edge, by part, edge or symbol as notes are keyed, listed in the last review so it isn't read as asked for.
 _Avoid_: extra, drive-by
 _In code_: `ReviewNotes['unasked']`
 
@@ -216,7 +216,7 @@ _In code_: `SinceReview['calledFine']`
 - A **direct** package's **dependency change** raises its own **finding** that needs a look; a lockfile's transitive ones roll up into one **finding** for information.
 - A **table change** raises a **finding** in the schema dimension, for information, or needing a look when the table is removed; a dump added or removed whole raises one for the file, and none per table.
 - A removed route or a new target at one verb and path raises its own **finding** in the routes dimension that needs a look; a file's added routes raise one for information, with the count. PATCH and PUT of one path and target count as one. A statement not read raises a **finding** that needs a look only when its text is added or removed, so one that stays raises none.
-- A **flag** is answered like any other **finding**, under the id `notes:<node or edge id>`.
+- A **flag** is answered like any other **finding**, under the id `notes:<kind> <id>`, its note's key.
 - A removed guard or catch **logic line** raises a **finding** in the logic dimension that needs a look; a function's other **logic lines** that changed, a moved one among them, raise one for information; a file with either and no test changed alongside it raises one in the tests dimension.
 
 ## Flagged ambiguities

@@ -6,22 +6,22 @@ import { parseNotes } from './notes.ts';
 
 const notesWith = (notes: Readonly<Record<string, unknown>>) =>
   parseNotes({
-    text: JSON.stringify({ version: 1, summary: [], tests: 'None.', notes }),
+    text: JSON.stringify({ version: 2, summary: [], tests: 'None.', notes }),
     file: 'notes.json',
   });
 
 test("a flagged note is a finding to look at on the note's id, in the dimension it names, else structure; a note without a flag raises none", () => {
   const raised = findingOn('web/file/a.ts');
   const notes = notesWith({
-    'web/file/a.ts': { text: 'Calls the api.', flag: 'no retry', dimension: 'failure' },
-    'web -> api': { text: 'Reaches in.', flag: 'layer skipped' },
-    'web/file/b.ts': { text: 'Formats.' },
+    'part web/file/a.ts': { text: 'Calls the api.', flag: 'no retry', dimension: 'failure' },
+    'edge web -> api': { text: 'Reaches in.', flag: 'layer skipped' },
+    'part web/file/b.ts': { text: 'Formats.' },
   });
 
   expect(findingsOf({ data: { findings: [raised] }, notes })).toStrictEqual([
     raised,
     {
-      id: 'notes:web/file/a.ts',
+      id: 'notes:part web/file/a.ts',
       check: 'flag',
       dimension: 'failure',
       level: 'look',
@@ -29,7 +29,7 @@ test("a flagged note is a finding to look at on the note's id, in the dimension 
       title: 'no retry',
     },
     {
-      id: 'notes:web -> api',
+      id: 'notes:edge web -> api',
       check: 'flag',
       dimension: 'structure',
       level: 'look',

@@ -1158,7 +1158,7 @@ test('a file whose only changed logic lines are tries raises no tests finding, y
 const notesFile = 'x.notes.json';
 
 const notesWith = (notes: ReviewNotes['notes']): ReviewNotes => ({
-  version: 1,
+  version: 2,
   summary: [],
   tests: '',
   notes,
@@ -1195,7 +1195,7 @@ test('a served page gives back the token serve filled in, beside its data and no
     version,
     parsers,
   });
-  const notes = notesWith({ 'web/file/a.ts': { text: 'Reads well.' } });
+  const notes = notesWith({ 'part web/file/a.ts': { text: 'Reads well.' } });
   const page = notedPageHtml({ page: pageHtml({ viewer, data }), notes, notesFile, version });
 
   expect(pageIn(slotsOf(servedPageHtml({ page, token: 'f00d', version })))).toStrictEqual({
@@ -1213,7 +1213,7 @@ test('notes filled into a page come back whole, a note holding replacement patte
     version,
     parsers,
   });
-  const notes = notesWith({ 'web/file/a.ts': { text: "Costs $& more, and $' too." } });
+  const notes = notesWith({ 'part web/file/a.ts': { text: "Costs $& more, and $' too." } });
 
   const page = notedPageHtml({ page: pageHtml({ viewer, data }), notes, notesFile, version });
 
@@ -1262,7 +1262,28 @@ test('notes for a page written before pages named their version are refused', ()
 test('notes that leave a touched part without a note are refused, naming the notes file and the part', () => {
   expect(() =>
     notedPageHtml({ page: pageFor(version), notes: notesWith({}), notesFile, version }),
-  ).toThrow("Notes in x.notes.json don't match the graph:\nno note on web/file/a.ts");
+  ).toThrow("Notes in x.notes.json don't match the graph:\nno note on part web/file/a.ts");
+});
+
+test("notes may key a symbol the page's data holds", () => {
+  const page = pageHtml({
+    viewer,
+    data: pageData({
+      repo: 'shop',
+      reading: readingWith({
+        symbols: [symbolFile([{ name: 'run', kind: 'function', exported: {}, change: 'edited' }])],
+      }),
+      range: 'main..feature',
+      version,
+      parsers,
+    }),
+  });
+  const notes = notesWith({
+    'part web/file/a.ts': { text: 'Reads well.' },
+    'symbol web/file/a.ts#run': { text: 'Runs once.' },
+  });
+
+  expect(() => notedPageHtml({ page, notes, notesFile, version })).not.toThrow();
 });
 
 test("notes on a later round's page may answer what its last review said, and only that", () => {
@@ -1288,7 +1309,7 @@ test("notes on a later round's page may answer what its last review said, and on
     },
   });
   const answering = (key: string) => ({
-    ...notesWith({ 'web/file/a.ts': { text: 'Reads well.' } }),
+    ...notesWith({ 'part web/file/a.ts': { text: 'Reads well.' } }),
     answers: { [key]: { status: 'answered', text: 'To keep the format.' } as const },
   });
 
@@ -1312,8 +1333,8 @@ test("notes on a first round's page may not list unasked changes", () => {
     }),
   });
   const notes = {
-    ...notesWith({ 'web/file/a.ts': { text: 'Reads well.' } }),
-    unasked: { 'web/file/a.ts': { text: 'Renamed the helper.' } },
+    ...notesWith({ 'part web/file/a.ts': { text: 'Reads well.' } }),
+    unasked: { 'part web/file/a.ts': { text: 'Renamed the helper.' } },
   };
 
   expect(() => notedPageHtml({ page, notes, notesFile, version })).toThrow('this page has none');
@@ -3370,18 +3391,23 @@ test.for([
   },
   {
     on: 'a note flag on a part changed since, which the page data does not raise',
-    id: 'notes:web/file/a.ts',
+    id: 'notes:part web/file/a.ts',
     mark: { target: 'web/file/a.ts', changedSince: [commitOnA] },
   },
   {
     on: 'a note flag on a part as it was, which the page data does not raise',
-    id: 'notes:web/file/b.ts',
+    id: 'notes:part web/file/b.ts',
     mark: { target: 'web/file/b.ts' },
   },
   {
     on: 'a note flag on an edge changed since',
-    id: 'notes:web/file/a.ts -> web/file/b.ts',
+    id: 'notes:edge web/file/a.ts -> web/file/b.ts',
     mark: { target: 'web/file/a.ts -> web/file/b.ts', changedSince: [commitOnA] },
+  },
+  {
+    on: 'a version 1 note flag, which finds no part, changed with no commit to name',
+    id: 'notes:web/file/a.ts',
+    mark: { changedSince: [] },
   },
   {
     on: 'a finding with no target, still raised, as it was',
@@ -3413,7 +3439,12 @@ test.for([
     check: 'routes:dangling',
     held: { target: 'web/file/a.ts' },
   },
-  { on: 'a note flag on a part', id: 'notes:web/file/a.ts', held: { target: 'web/file/a.ts' } },
+  {
+    on: 'a note flag on a part',
+    id: 'notes:part web/file/a.ts',
+    held: { target: 'web/file/a.ts' },
+  },
+  { on: 'a version 1 note flag', id: 'notes:web/file/a.ts', held: {} },
   { on: 'a finding no longer raised', id: 'routes:dangling:web/file/gone.ts', held: {} },
 ])('a previous answer to $on on a gone head keeps its target, with no mark', ({ id, held }) => {
   const previous = firstPrevious(answersReading(id, () => ({ ...reviewedHead(), gone: true })));
@@ -3521,7 +3552,7 @@ test.for([
     comments: [{ anchor: { kind: 'symbol', id: `${fileInBox}#f` }, kind: 'change', text: 'Why?' }],
     listed: [],
   },
-  { with: 'an answer on it', comments: [answering(`notes:${fileInBox}`)], listed: [] },
+  { with: 'an answer on it', comments: [answering(`notes:part ${fileInBox}`)], listed: [] },
   {
     with: 'an edge comment from it, which does not count',
     comments: [
@@ -3535,7 +3566,7 @@ test.for([
   },
   {
     with: 'an answer on an edge from it, which does not count',
-    comments: [answering(`notes:${fileInBox} -> ${otherInBox}`)],
+    comments: [answering(`notes:edge ${fileInBox} -> ${otherInBox}`)],
     listed: [fileInBox],
   },
   { with: 'a comment on another part', comments: [onAPart(otherInBox)], listed: [fileInBox] },

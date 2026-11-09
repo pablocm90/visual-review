@@ -1,8 +1,10 @@
 import { z } from 'zod';
-import { anchorKey } from './anchors.ts';
+import { anchorKey, anchorOfKey } from './anchors.ts';
 import type { GraphDiff } from './diff-graphs.ts';
 import { DIMENSIONS } from './findings.ts';
 import { edgeId } from './graph.ts';
+import type { SymbolFile } from './read-range.ts';
+import { anchoredSymbols } from './symbol-findings.ts';
 import {
   boxesAboveIn,
   type VisibleDiffOptions,
@@ -10,7 +12,7 @@ import {
   visibleNodeOf,
 } from './visible-diff.ts';
 
-const notesVersion = 1;
+const notesVersion = 2;
 
 const answerOf = <Status extends string>(status: Status, means: string) =>
   z.strictObject({ status: z.literal(status).describe(means), text: z.string() }).readonly();
@@ -26,6 +28,8 @@ const AnswerSchema = z.discriminatedUnion('status', [
   answerOf('answered', 'It wanted an answer, and this is it'),
   answerOf('declined', 'Not taken, and this says why'),
 ]);
+
+const NoteKeySchema = z.templateLiteral([z.enum(['part', 'edge', 'symbol']), ' ', z.string()]);
 
 const ReviewNotesSchema = z
   .strictObject({
@@ -45,7 +49,7 @@ const ReviewNotesSchema = z
     tests: z.string().describe('What the tests pin, and what the change leaves unpinned'),
     notes: z
       .record(
-        z.string(),
+        NoteKeySchema,
         z
           .strictObject({
             text: z.string(),
@@ -67,7 +71,9 @@ const ReviewNotesSchema = z
       )
       .readonly()
       .default({})
-      .describe('Notes by node id, or by `<from> -> <to>` for an edge; left out, there are none'),
+      .describe(
+        'Notes by `part <node id>`, `edge <from> -> <to>` or `symbol <file node id>#<symbol>`; left out, there are none',
+      ),
     answers: z
       .record(z.string(), AnswerSchema)
       .readonly()
@@ -76,18 +82,16 @@ const ReviewNotesSchema = z
         "Answers to the last review, by each comment's anchor as `<kind> <id>`; left out, there are none",
       ),
     unasked: z
-      .record(z.string(), z.strictObject({ text: z.string() }).readonly())
+      .record(NoteKeySchema, z.strictObject({ text: z.string() }).readonly())
       .readonly()
       .optional()
-      .describe(
-        'Changes no comment asked for, by node id, or by `<from> -> <to>` for an edge; left out, there are none',
-      ),
+      .describe('Changes no comment asked for, keyed as notes are; left out, there are none'),
   })
   .readonly();
 
 export type ReviewNotes = z.infer<typeof ReviewNotesSchema>;
 
-export type Note = ReviewNotes['notes'][string];
+export type Note = ReviewNotes['notes'][keyof ReviewNotes['notes']];
 
 export const notesJsonSchema = () =>
   z.toJSONSchema(ReviewNotesSchema, {
@@ -149,6 +153,20 @@ const joined = (one: Note, other: Note): Note => ({
   ...joinedField('flag', [one, other], ', '),
 });
 
+export const notesOfKind = (
+  notes: ReviewNotes['notes'],
+  kinds: ReadonlyArray<string>,
+): Readonly<Record<string, Note>> =>
+  Object.fromEntries(
+    Object.entries(notes).flatMap(([key, note]) => {
+      const { kind, id } = anchorOfKey(key);
+      return kinds.includes(kind) ? [[id, note]] : [];
+    }),
+  );
+
+export const notesOnTheGraph = (notes: ReviewNotes['notes']): Readonly<Record<string, Note>> =>
+  notesOfKind(notes, ['part', 'edge']);
+
 type VisibleNotesOptions = VisibleDiffOptions & {
   readonly notes: Readonly<Record<string, Note>>;
 };
@@ -180,6 +198,7 @@ export const visibleNotes = ({
 type NotesProblemsOptions = {
   readonly diff: GraphDiff;
   readonly notes: ReviewNotes;
+  readonly symbols: ReadonlyArray<SymbolFile>;
   readonly said:
     | ReadonlyArray<{ readonly anchor: { readonly kind: string; readonly id: string } }>
     | undefined;
@@ -188,7 +207,7 @@ type NotesProblemsOptions = {
 const lastReviewProblems = ({
   notes,
   said,
-}: Omit<NotesProblemsOptions, 'diff'>): ReadonlyArray<string> => {
+}: Pick<NotesProblemsOptions, 'notes' | 'said'>): ReadonlyArray<string> => {
   const saidAnchors = new Set((said ?? []).map(({ anchor }) => anchorKey(anchor)));
   return [
     ...Object.keys(notes.answers ?? {})
@@ -203,37 +222,55 @@ const lastReviewProblems = ({
 export const notesProblems = ({
   diff,
   notes,
+  symbols,
   said,
 }: NotesProblemsOptions): ReadonlyArray<string> => {
   const boxesAbove = boxesAboveIn(diff.nodes);
   const endsOf = (id: string): ReadonlyArray<string> => [id, ...boxesAbove(id)];
-  const known = new Set([
-    ...diff.nodes.filter(node => node.kind !== 'stack').map(node => node.id),
-    ...diff.edges.flatMap(edge =>
-      endsOf(edge.from).flatMap(from =>
-        endsOf(edge.to)
-          .filter(to => to !== from)
-          .map(to => edgeId({ from, to })),
-      ),
+  const parts = diff.nodes.filter(node => node.kind !== 'stack').map(node => node.id);
+  const edges = diff.edges.flatMap(edge =>
+    endsOf(edge.from).flatMap(from =>
+      endsOf(edge.to)
+        .filter(to => to !== from)
+        .map(to => edgeId({ from, to })),
+    ),
+  );
+  const knownIds = new Set([...parts, ...edges]);
+  const knownKeys = new Set([
+    ...parts.map(id => anchorKey({ kind: 'part', id })),
+    ...edges.map(id => anchorKey({ kind: 'edge', id })),
+    ...symbols.flatMap(file =>
+      'symbols' in file
+        ? anchoredSymbols(file.node, file.symbols).map(({ id }) =>
+            anchorKey({ kind: 'symbol', id }),
+          )
+        : [],
     ),
   ]);
   const collapsed = visibleDiff({ diff, expanded: new Set() });
-  const shown = visibleNotes({ diff, expanded: new Set(), notes: notes.notes });
+  const shown = visibleNotes({ diff, expanded: new Set(), notes: notesOnTheGraph(notes.notes) });
   const touched = [
     ...collapsed.nodes
       .filter(node => node.kind !== 'stack' && node.state !== 'unchanged')
-      .map(node => node.id),
-    ...collapsed.edges.filter(edge => edge.state !== 'unchanged').map(edgeId),
+      .map(node => ({ kind: 'part', id: node.id })),
+    ...collapsed.edges
+      .filter(edge => edge.state !== 'unchanged')
+      .map(edge => ({ kind: 'edge', id: edgeId(edge) })),
   ];
   return [
-    ...[
-      ...Object.keys(notes.notes),
-      ...notes.summary.flatMap(item => item.target ?? []),
-      ...Object.keys(notes.unasked ?? {}),
-    ]
-      .filter(id => !known.has(id))
+    ...[...Object.keys(notes.notes), ...Object.keys(notes.unasked ?? {})]
+      .filter(key => !knownKeys.has(key))
+      .map(key => `unknown key ${key}`),
+    ...Object.entries(notes.notes)
+      .filter(([key, { flag }]) => flag !== undefined && anchorOfKey(key).kind === 'symbol')
+      .map(([key]) => `flag on ${key}: only a part or edge note takes a flag`),
+    ...notes.summary
+      .flatMap(item => item.target ?? [])
+      .filter(id => !knownIds.has(id))
       .map(id => `unknown id ${id}`),
-    ...touched.filter(id => shown[id] === undefined).map(id => `no note on ${id}`),
+    ...touched
+      .filter(({ id }) => shown[id] === undefined)
+      .map(anchor => `no note on ${anchorKey(anchor)}`),
     ...lastReviewProblems({ notes, said }),
   ];
 };

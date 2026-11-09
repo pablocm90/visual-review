@@ -12,6 +12,9 @@ import type { Comment } from '../core/review.ts';
 
 export type Comments = Readonly<Record<string, Comment>>;
 
+export const holdsDraft = (comments: Comments, anchor: Comment['anchor']): boolean =>
+  (comments[anchorKey(anchor)]?.text.trim() ?? '') !== '';
+
 export const COMMENT_KINDS: ReadonlyArray<readonly [Comment['kind'], string]> = [
   ['change', 'Change this'],
   ['question', 'Question'],
