@@ -17,10 +17,12 @@ const filesGitSamplesAsTooManyLooseObjects = (): Readonly<Record<string, string>
       .map((content, n) => [`file-${n}.txt`, content]),
   );
 
-test("git's automatic maintenance packs nothing in a test's repo, which its disposal could race", () => {
+test("git's automatic gc packs nothing in a test's repo, which its disposal could race", () => {
   using workspace = gitRepo(filesGitSamplesAsTooManyLooseObjects());
+  const objects = join(workspace.repo, '.git', 'objects');
+  expect(readdirSync(join(objects, '17')).length).toBeGreaterThan(27);
 
-  git(workspace.repo, 'maintenance', 'run', '--auto', '--no-detach');
+  git(workspace.repo, '-c', 'gc.autoDetach=false', 'gc', '--auto', '--quiet');
 
-  expect(readdirSync(join(workspace.repo, '.git', 'objects', 'pack'))).toEqual([]);
+  expect(readdirSync(join(objects, 'pack'))).toEqual([]);
 });
