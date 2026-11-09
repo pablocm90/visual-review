@@ -255,6 +255,36 @@ test.for([
   expect(range.after.edges).toEqual([{ from: 'shop/file/b.ts', to: 'shop/file/lib/a.ts' }]);
 });
 
+test('an import through a jsconfig path draws its edge when no tsconfig is there', async () => {
+  using workspace = gitRepo({
+    'package.json': '{ "name": "shop" }\n',
+    'jsconfig.json': `${JSON.stringify(aliasTo('./src/*'))}\n`,
+    'src/lib/a.js': 'export const a = 1;\n',
+    'src/b.js': "import { a } from '@/lib/a';\nexport const b = a;\n",
+  });
+  const { repo, root } = workspace;
+
+  const range = await readRange({ repo, from: root, to: root });
+
+  expect(range.after.edges).toEqual([{ from: 'shop/file/b.js', to: 'shop/file/lib/a.js' }]);
+});
+
+test('a tsconfig beside a jsconfig is the one read', async () => {
+  using workspace = gitRepo({
+    'package.json': '{ "name": "shop" }\n',
+    'tsconfig.json': `${JSON.stringify(aliasTo('./src/*'))}\n`,
+    'jsconfig.json': `${JSON.stringify(aliasTo('./src/vendored/*'))}\n`,
+    'src/lib/a.ts': 'export const a = 1;\n',
+    'src/vendored/lib/a.ts': 'export const a = 2;\n',
+    'src/b.ts': "import { a } from '@/lib/a';\nexport const b = a;\n",
+  });
+  const { repo, root } = workspace;
+
+  const range = await readRange({ repo, from: root, to: root });
+
+  expect(range.after.edges).toEqual([{ from: 'shop/file/b.ts', to: 'shop/file/lib/a.ts' }]);
+});
+
 test.for([
   { order: 'shorter first', paths: { '@/*': ['./src/*'], '@/lib/*': ['./src/vendored/*'] } },
   { order: 'longer first', paths: { '@/lib/*': ['./src/vendored/*'], '@/*': ['./src/*'] } },
@@ -1057,6 +1087,23 @@ test.for([
     ]);
   },
 );
+
+test("a package with no tsconfig takes its source root from its jsconfig's included folder", async () => {
+  using workspace = gitRepo({
+    'apps/a/package.json': '{}\n',
+    'apps/a/jsconfig.json': '{ "include": ["./lib"] }\n',
+    'apps/a/lib/a.js': 'export const a = 1;\n',
+    'apps/a/src/b.js': 'export const b = 1;\n',
+  });
+  const { repo, root } = workspace;
+
+  const range = await readRange({ repo, from: root, to: root });
+
+  expect(range.after.nodes.map(({ id, path }) => [id, path])).toEqual([
+    ['apps/a', ''],
+    ['apps/a/file/a.js', 'apps/a/lib/a.js'],
+  ]);
+});
 
 test('a package.json at the root of the repo names its stack, while its paths stay those of the repo', async () => {
   using workspace = gitRepo({
