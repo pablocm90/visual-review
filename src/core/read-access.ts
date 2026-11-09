@@ -8,6 +8,7 @@ type ReadAccessOptions = {
   readonly base: string;
   readonly head: string;
   readonly changes: ReadonlyArray<ReadonlyArray<string>>;
+  readonly routed: boolean;
   readonly access: ReadonlyArray<AccessReader>;
   readonly authorize: ReadonlyArray<string>;
 };
@@ -17,6 +18,7 @@ export const readAccess = async ({
   base,
   head,
   changes,
+  routed,
   access,
   authorize,
 }: ReadAccessOptions): Promise<ReadonlyArray<AccessReading>> => {
@@ -27,7 +29,7 @@ export const readAccess = async ({
     });
   return Promise.all(
     access
-      .filter(reader => changes.some(paths => paths.some(reader.holds)))
+      .filter(reader => routed || changes.some(paths => paths.some(reader.holds)))
       .map(async reader => ({
         base: await tableAt(base, reader),
         head: await tableAt(head, reader),

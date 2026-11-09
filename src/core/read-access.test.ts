@@ -13,12 +13,13 @@ const changesOf = (repo: string, from: string, to: string): ReadonlyArray<Readon
     .filter(line => line !== '')
     .map(line => line.split('\t').slice(1));
 
-const read = (repo: string, base: string, head: string) =>
+const read = (repo: string, base: string, head: string, routed = false) =>
   readAccess({
     repo,
     base,
     head,
     changes: changesOf(repo, base, head),
+    routed,
     access: [railsAccess],
     authorize: ['authorize'],
   });
@@ -55,6 +56,16 @@ test('no controller changed: no reading', async () => {
   const to = commit(repo, { 'app/a.rb': 'class A; end\n' });
 
   expect(await read(repo, root, to)).toStrictEqual([]);
+});
+
+test('no controller changed but a route added or repointed: every controller reads', async () => {
+  using workspace = gitRepo({ [USERS]: users('  def index; end'), 'config/routes.rb': '' });
+  const { repo, root } = workspace;
+  const to = commit(repo, { 'config/routes.rb': 'Rails.application.routes.draw do\nend\n' });
+
+  expect(await read(repo, root, to, true)).toMatchObject([
+    { base: { actions: [{ action: 'index' }] }, head: { actions: [{ action: 'index' }] } },
+  ]);
 });
 
 test('a controller moved out of the controllers still reads, at the side that held it', async () => {
