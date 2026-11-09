@@ -16,7 +16,10 @@ const CONTROLLER_FILE = /(^|\/)app\/controllers\/.+\.rb$/;
 
 const DEFINITIONS: ReadonlySet<string> = new Set(['class', 'module']);
 
+const CALLBACKS: ReadonlySet<string> = new Set(['before_action', 'skip_before_action']);
+
 type Callback = {
+  readonly skip: boolean;
   readonly name: string;
   readonly only: ReadonlyArray<string> | undefined;
   readonly except: ReadonlyArray<string>;
@@ -27,6 +30,7 @@ const callbacksOfCall = (call: Node): ReadonlyArray<Callback> => {
   const only = optionOf(args, 'only');
   const except = namesIn(optionOf(args, 'except'));
   return args.map(arg => ({
+    skip: methodOf(call) === 'skip_before_action',
     name: nameOf(arg),
     only: only === undefined ? undefined : namesIn(only),
     except,
@@ -35,7 +39,7 @@ const callbacksOfCall = (call: Node): ReadonlyArray<Callback> => {
 
 const callbacksOf = (definition: Node): ReadonlyArray<Callback> =>
   (definition.childForFieldName('body')?.namedChildren ?? [])
-    .filter(node => methodOf(node) === 'before_action')
+    .filter(node => CALLBACKS.has(methodOf(node)))
     .flatMap(callbacksOfCall);
 
 const reaches = ({ only, except }: Callback, action: string): boolean =>
@@ -56,10 +60,15 @@ const coverOf = (
   callbacks: ReadonlyArray<Callback>,
   authorize: ReadonlyArray<string>,
 ): { readonly cover?: Cover } => {
-  const by = callbacks.find(
-    callback => authorize.includes(callback.name) && reaches(callback, action),
-  );
-  return by === undefined ? {} : { cover: { by: by.name, conditional: false } };
+  const by = callbacks
+    .filter(callback => reaches(callback, action))
+    .reduce<ReadonlyArray<string>>(
+      (active, { skip, name }) =>
+        skip ? active.filter(kept => kept !== name) : active.concat(name),
+      [],
+    )
+    .find(name => authorize.includes(name));
+  return by === undefined ? {} : { cover: { by, conditional: false } };
 };
 
 const actionsIn = (

@@ -82,6 +82,25 @@ test.for([
     callback: 'a before_action except for the action',
     body: '    before_action :require_admin, except: :index',
   },
+  {
+    callback: 'a before_action skipped later',
+    body: '    before_action :require_admin\n    skip_before_action :require_admin',
+  },
+  {
+    callback: 'a before_action skipped for another action',
+    body: '    before_action :require_admin\n    skip_before_action :require_admin, only: :show',
+    cover: { by: 'require_admin', conditional: false },
+  },
+  {
+    callback: 'a before_action beside a skip of another callback',
+    body: '    before_action :require_admin\n    skip_before_action :set_user',
+    cover: { by: 'require_admin', conditional: false },
+  },
+  {
+    callback: 'a before_action set again after its skip',
+    body: '    skip_before_action :require_admin\n    before_action :require_admin',
+    cover: { by: 'require_admin', conditional: false },
+  },
 ])('the cover $callback gives the actions under it', ({ body, cover }) => {
   expect(coverOf(body)).toStrictEqual([cover]);
 });
