@@ -116,9 +116,8 @@ const holdsNoFiles = ({ files, include }: z.infer<typeof TsconfigSchema>): boole
   (include ?? []).length === 0;
 
 const rootAliases = (reading: AliasReading): Aliases => {
-  const config = rootConfigIn(reading.directory);
-  const chain = chainAt(reading, config);
-  const root = tsconfigAt(join(reading.directory, config));
+  const chain = chainAt(reading, rootConfigIn(reading.directory));
+  const root = tsconfigIn(reading.directory);
   if (chain.paths !== undefined || !holdsNoFiles(root)) return chain;
   const referenced = (root.references ?? [])
     .map(({ path }) => projectFile(path))
