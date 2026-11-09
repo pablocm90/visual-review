@@ -56,7 +56,7 @@ import {
 import { anchorName, placeOfLine } from './anchors.ts';
 import { ChangedSinceMarks, ChangedSinceTag, useIsChangedSince } from './changed-since.tsx';
 import { ColourBy, type Colouring, ScaleLegend, type Shade, shadeOf } from './colour-by.tsx';
-import { CommentAsked, type Comments } from './comment-field.tsx';
+import { CommentAsked, type Comments, holdsDraft } from './comment-field.tsx';
 import { type Answers, type AnswerTo, findingLine, LEVELS, worstOf } from './finding-display.tsx';
 import { FindingRows, type FindingRowsProps } from './finding-rows.tsx';
 import { FindingsRail, LensChips, LensRow, StartHere } from './findings-rail.tsx';
@@ -840,7 +840,7 @@ const NotePanel = ({
     !hasSaid(anchor) &&
     saidInPlace.length === 0;
   const shownNote = note ?? (isBare ? { text: 'No note' } : undefined);
-  const drafted = (comments[anchorKey(anchor)]?.text.trim() ?? '') !== '';
+  const drafted = holdsDraft(comments, anchor);
   return (
     <LandedRows landing={landing}>
       {shownNote !== undefined && (
