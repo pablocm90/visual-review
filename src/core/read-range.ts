@@ -2,7 +2,13 @@ import { existsSync } from 'node:fs';
 import { mkdtemp, readFile, realpath, rm, stat } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { basename, join, relative } from 'node:path';
-import { CONFIG_FILE, type Config, parseConfig, type ReaderName } from './config.ts';
+import {
+  CONFIG_FILE,
+  type Config,
+  type NotesConfig,
+  parseConfig,
+  type ReaderName,
+} from './config.ts';
 import { diffGraphs, type FilePatch, type GraphDiff, type Rename } from './diff-graphs.ts';
 import { readFileThatEnds } from './file-that-ends.ts';
 import { git } from './git.ts';
@@ -102,6 +108,7 @@ export type RangeReading = {
   readonly churnDays: number;
   readonly ruleBreaks: ReadonlyArray<RuleBreak>;
   readonly rulesNotRead: ReadonlyArray<string>;
+  readonly notesConfig: NotesConfig;
   readonly reviewed?: ReviewedReading;
 };
 
@@ -276,6 +283,11 @@ const configAt = async (repo: string, revision: string): Promise<Config> => {
     throw new Error(`${CONFIG_FILE}: a tracked link leaving the repo is not read`);
   return parseConfig(await readFileThatEnds(inWorkingTree));
 };
+
+const notesConfigAt = async (repo: string, revision: string): Promise<NotesConfig> =>
+  (await git(repo, 'ls-tree', '--name-only', revision, '--', CONFIG_FILE)) === ''
+    ? {}
+    : parseConfig(await git(repo, 'show', `${revision}:${CONFIG_FILE}`)).notes;
 
 type ChurnOptions = {
   readonly repo: string;
@@ -712,6 +724,7 @@ export const readRange = async ({
       churnDays,
       ruleBreaks: ruleBreaks({ rules: config.rules, graph: after.graph }),
       rulesNotRead: rulesNotRead({ rules: config.rules, graph: after.graph }),
+      notesConfig: await notesConfigAt(repo, base),
       changedPaths,
       renames,
       patches: await Promise.all(

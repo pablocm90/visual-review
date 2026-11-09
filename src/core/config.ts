@@ -137,6 +137,8 @@ export const configJsonSchema = () => z.toJSONSchema(ConfigSchema, { io: 'input'
 
 export type Rules = Config['rules'];
 
+export type NotesConfig = Config['notes'];
+
 export type StackSettings = z.infer<typeof StackSchema>;
 
 export const stackSettings = (config: Config, stack: string): StackSettings =>

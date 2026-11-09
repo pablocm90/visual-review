@@ -84,6 +84,7 @@ const readingOf = (overrides: Partial<Omit<RangeReading, 'reviewed'>>): RangeRea
   churnDays: 90,
   ruleBreaks: [],
   rulesNotRead: [],
+  notesConfig: {},
   ...overrides,
 });
 

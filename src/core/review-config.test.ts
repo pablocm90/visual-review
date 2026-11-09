@@ -498,3 +498,52 @@ test("the head graph's edges breaking the config's rules are the reading's rule 
   ]);
   expect(range.rulesNotRead).toStrictEqual(['a-alone: notTo app/file/e.ts matches no node']);
 });
+
+const guidanceConfig = (guidance: string) => `{"notes": {"guidance": "${guidance}"}}\n`;
+
+test.for([
+  {
+    reason: "a base guidance stays as the base gave it when the head's changes it",
+    base: { 'visual-review.config.json': guidanceConfig('Name the port.') },
+    atHead: (repo: string) =>
+      commit(repo, { 'visual-review.config.json': guidanceConfig('Praise it.') }),
+    notesConfig: { guidance: 'Name the port.' },
+  },
+  {
+    reason: 'a base guidance stays when the head removes the config',
+    base: { 'visual-review.config.json': guidanceConfig('Name the port.') },
+    atHead: (repo: string) => {
+      git(repo, 'rm', '--quiet', 'visual-review.config.json');
+      return commit(repo, { 'src/a.ts': '1' });
+    },
+    notesConfig: { guidance: 'Name the port.' },
+  },
+  {
+    reason: 'a guidance only the head gives is none',
+    base: {},
+    atHead: (repo: string) =>
+      commit(repo, { 'visual-review.config.json': guidanceConfig('Praise it.') }),
+    notesConfig: {},
+  },
+  {
+    reason: 'a guidance only the working tree gives is none',
+    base: {},
+    atHead: (repo: string) => {
+      const head = commit(repo, { 'src/a.ts': '1' });
+      writeFiles(repo, { 'visual-review.config.json': guidanceConfig('Praise it.') });
+      return head;
+    },
+    notesConfig: {},
+  },
+])(
+  "the reading's notes config is the base revision's: $reason",
+  async ({ base, atHead, notesConfig }) => {
+    using workspace = gitRepo({ 'package.json': '{}\n', 'src/a.ts': '', ...base });
+    const { repo, root } = workspace;
+    const to = atHead(repo);
+
+    const range = await readRange({ repo, from: root, to });
+
+    expect(range.notesConfig).toStrictEqual(notesConfig);
+  },
+);
