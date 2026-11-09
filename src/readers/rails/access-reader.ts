@@ -31,13 +31,17 @@ const callbacksOfCall = (call: Node): ReadonlyArray<Callback> => {
   const args = argsOf(call);
   const only = optionOf(args, 'only');
   const except = namesIn(optionOf(args, 'except'));
-  return args.map(arg => ({
-    skip: methodOf(call).startsWith('skip_'),
-    name: nameOf(arg),
-    only: only === undefined ? undefined : namesIn(only),
-    except,
-    conditional: optionOf(args, 'if') !== undefined || optionOf(args, 'unless') !== undefined,
-  }));
+  const inBlock = call.childForFieldName('block')?.descendantsOfType('identifier') ?? [];
+  return args
+    .map(nameOf)
+    .concat(inBlock.map(({ text }) => text))
+    .map(name => ({
+      skip: methodOf(call).startsWith('skip_'),
+      name,
+      only: only === undefined ? undefined : namesIn(only),
+      except,
+      conditional: optionOf(args, 'if') !== undefined || optionOf(args, 'unless') !== undefined,
+    }));
 };
 
 type Entry = Callback | { readonly include: Wanted };
