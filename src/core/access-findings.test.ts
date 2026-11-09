@@ -144,3 +144,25 @@ test.for([
     expect(routedTo([change])).toStrictEqual([]);
   },
 );
+
+const conditionally = { cover: { by: 'authorize_user', conditional: true } } as const;
+
+test('a new action covered only under an if: or unless: is for information, saying so', () => {
+  expect(
+    findingsOf(reading([], [action(conditionally)])).map(({ level, title, detail }) => ({
+      level,
+      title,
+      detail,
+    })),
+  ).toStrictEqual([
+    {
+      level: 'info',
+      title: 'UsersController#show added, authorized only conditionally',
+      detail: `At ${FILE}:4. authorize_user covers it only under its if: or unless:.`,
+    },
+  ]);
+});
+
+test('an action covered conditionally on both sides raises nothing', () => {
+  expect(findingsOf(reading([action(conditionally)], [action(conditionally)]))).toStrictEqual([]);
+});

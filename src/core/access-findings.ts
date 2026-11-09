@@ -37,11 +37,17 @@ const whatChanged = ({
 }: Change): { readonly title: string; readonly detail: string } | undefined => {
   const at = `At ${action.file}:${action.line}.`;
   const name = `${action.controller}#${action.action}`;
+  if (before === undefined && action.cover !== undefined)
+    return {
+      title: `${name} added, authorized only conditionally`,
+      detail: `${at} ${action.cover.by} covers it only under its if: or unless:.`,
+    };
   if (before === undefined)
     return {
       title: `${name} added with no authorization`,
       detail: `${at} No callback, parent or call of its own authorizes it.`,
     };
+  if (action.cover !== undefined) return undefined;
   if (before.cover !== undefined)
     return {
       title: `${name} lost its authorization`,
@@ -65,7 +71,7 @@ export const accessFindings = ({
   return access.flatMap(({ base, head }) => {
     const before = new Map(base.actions.map(action => [keyOf(action), action]));
     return head.actions
-      .filter(action => action.cover === undefined)
+      .filter(action => action.cover?.conditional !== false)
       .flatMap((action): ReadonlyArray<Finding> => {
         const change = whatChanged({
           action,
@@ -79,7 +85,7 @@ export const accessFindings = ({
                 id: `security:unauthorized:${keyOf(action)}`,
                 check: 'security:unauthorized',
                 dimension: 'security',
-                level: 'look',
+                level: action.cover === undefined ? 'look' : 'info',
                 ...nodeOf(nodes, action),
                 ...change,
               },
