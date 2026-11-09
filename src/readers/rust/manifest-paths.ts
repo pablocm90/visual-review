@@ -1,6 +1,6 @@
 import { existsSync, readdirSync, statSync } from 'node:fs';
 import { readFile, realpath } from 'node:fs/promises';
-import { join, relative, resolve } from 'node:path';
+import { dirname, join, relative, resolve } from 'node:path';
 import { parse, TomlError } from 'smol-toml';
 import { z } from 'zod';
 import { resolvesInside } from '../../core/links-leaving.ts';
@@ -163,8 +163,26 @@ const foldersAbove = (checkout: string, folder: string): ReadonlyArray<string> =
   return segments.map((_, index) => join(checkout, ...segments.slice(0, index)));
 };
 
-export const refuseLeavingPaths = ({ checkout, root }: ManifestOptions): Promise<void> => {
+const Config = z.object({ include: z.array(z.string()).optional() });
+
+const refuseLeavingIncludes = async ({ checkout, folder }: Place): Promise<void> => {
+  const config = join(folder, '.cargo', 'config.toml');
+  if (!existsSync(config)) return;
+  const named = relative(checkout, config);
+  const { include = [] } = Config.parse(parsed(named, await readFile(config, 'utf8')));
+  const left = await Promise.all(
+    include.map(async path => !(await resolvesInside(checkout, resolve(dirname(config), path)))),
+  );
+  const leaving = include.find((_, index) => left[index]);
+  if (leaving !== undefined)
+    throw new StackNotRead(`${named}: include ${JSON.stringify(leaving)} leaves the checkout`);
+};
+
+export const refuseLeavingPaths = async ({ checkout, root }: ManifestOptions): Promise<void> => {
   const folder = resolve(checkout, root);
-  const above = foldersAbove(checkout, folder).filter(up => existsSync(join(up, 'Cargo.toml')));
-  return walk({ checkout, folders: [folder, ...above], seen: new Set() });
+  const above = foldersAbove(checkout, folder);
+  for (const up of new Set([...above, folder]))
+    await refuseLeavingIncludes({ checkout, folder: up });
+  const manifests = above.filter(up => existsSync(join(up, 'Cargo.toml')));
+  return walk({ checkout, folders: [folder, ...manifests], seen: new Set() });
 };

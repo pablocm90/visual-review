@@ -1713,6 +1713,37 @@ test.for([
   },
 );
 
+test.for([
+  {
+    named: 'an include',
+    config: (out: string) => `include = ["${out}"]\n`,
+  },
+])(
+  'a cargo config naming $named that leaves the checkout is not read, and cargo never runs',
+  async ({ config }) => {
+    using repository = gitRepo({ 'README.md': '' });
+    const { repo, root } = repository;
+    const outside = `../${withZeroManifest(repo)}/Cargo.toml`;
+    const head = commit(repo, {
+      '.cargo/config.toml': config(outside),
+      'Cargo.toml': packageNamed('a'),
+      'src/lib.rs': '',
+    });
+    using bin = pathWithCargo('exit 1');
+    vi.stubEnv('PATH', bin.path);
+
+    const range = await readRange({ repo, from: root, to: head });
+
+    expect(range.skipped).toEqual([
+      {
+        reader: 'rust',
+        stacks: ['rust'],
+        reason: `.cargo/config.toml: include "${outside}" leaves the checkout`,
+      },
+    ]);
+  },
+);
+
 test("a stack under a workspace in the checkout is not read when that workspace's members leave it, since cargo searches its folders above for one", async () => {
   using repository = gitRepo({ 'README.md': '' });
   const { repo, root } = repository;
