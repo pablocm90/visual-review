@@ -266,6 +266,8 @@ test.for([
   'lib/load_testing.rb',
   'lib/specs.rb',
   'web/src/latest.ts',
+  '.env.test.local',
+  'web/.env.spec.json',
 ])('a secret in %s, no test file, needs a look', path => {
   expect(
     secretFindings([{ ...patchAdding(AWS), path }, addedFile(`${path}.pem`)]).map(
