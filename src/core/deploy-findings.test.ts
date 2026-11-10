@@ -255,3 +255,23 @@ test('a configured name with a wildcard reads every call it matches', () => {
 test('no configured name reads no flag', () => {
   expect(flagsOf({ removed: [], added: ['Flipper.enabled?(:x)'] }, [])).toEqual([]);
 });
+
+test.for([
+  { path: 'CHANGELOG.md', ids: [] },
+  { path: 'config/storage.yml', ids: [] },
+  { path: 'app/views/charges/new.html.erb', ids: ['deploy:env:STRIPE_KEY', 'deploy:flag-added:x'] },
+  { path: 'web/src/pay.tsx', ids: ['deploy:env:STRIPE_KEY', 'deploy:flag-added:x'] },
+  { path: 'web/src/pay.mjs', ids: ['deploy:env:STRIPE_KEY', 'deploy:flag-added:x'] },
+  { path: 'api/src/main.rs', ids: ['deploy:env:STRIPE_KEY', 'deploy:flag-added:x'] },
+])('the code of $path raises $ids', ({ path, ids }) => {
+  const patches = [{ ...patchAdding('ENV["STRIPE_KEY"] && Flipper.enabled?(:x)'), path }];
+  expect(
+    [...deployKeys(patches), ...deployFlagFindings({ patches, flags: FLIPPER_FLAGS })].map(
+      ({ id }) => id,
+    ),
+  ).toStrictEqual(ids);
+});
+
+test('a key read through a variable outside code leaves nothing unread', () => {
+  expect(deployKeysNotRead([{ ...patchAdding('ENV[name]'), path: 'README.md' }])).toEqual([]);
+});

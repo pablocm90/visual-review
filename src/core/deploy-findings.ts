@@ -40,36 +40,42 @@ const pathOf = (chain: string): string =>
 const credentialReads = (code: string): ReadonlyArray<Read> =>
   [...code.matchAll(CHAIN)].map(([, chain]) => ({ kind: 'credentials', key: pathOf(chain ?? '') }));
 
+const CODE = /\.(?:rb|erb|rs|[cm]?[jt]sx?)$/;
+
+const rowsOf = ({ path, patch }: FilePatch, kind: 'added' | 'removed') =>
+  CODE.test(path)
+    ? patchHunks(patch)
+        .flatMap(hunk => hunk.rows)
+        .filter(row => row.kind === kind)
+    : [];
+
 const keysOn = ({
   path,
   patch,
 }: FilePatch): ReadonlyArray<{ readonly key: string; readonly finding: Finding }> =>
-  patchHunks(patch)
-    .flatMap(hunk => hunk.rows)
-    .filter(row => row.kind === 'added')
-    .flatMap(row =>
-      [...envReads(row.code), ...credentialReads(row.code)].flatMap(({ kind, key }) => {
-        const line = lineIdOf(path, row);
-        const check: Check = `deploy:${kind}`;
-        return line === undefined
-          ? []
-          : [
-              {
-                key,
-                finding: {
-                  id: `${check}:${key}`,
-                  check,
-                  dimension: 'deploy',
-                  level: levelOf(path),
-                  file: path,
-                  line,
-                  title: `${path} reads the ${kind} key ${key}`,
-                  detail: 'Set it in every environment before this deploys.',
-                },
+  rowsOf({ path, patch }, 'added').flatMap(row =>
+    [...envReads(row.code), ...credentialReads(row.code)].flatMap(({ kind, key }) => {
+      const line = lineIdOf(path, row);
+      const check: Check = `deploy:${kind}`;
+      return line === undefined
+        ? []
+        : [
+            {
+              key,
+              finding: {
+                id: `${check}:${key}`,
+                check,
+                dimension: 'deploy',
+                level: levelOf(path),
+                file: path,
+                line,
+                title: `${path} reads the ${kind} key ${key}`,
+                detail: 'Set it in every environment before this deploys.',
               },
-            ];
-      }),
-    );
+            },
+          ];
+    }),
+  );
 
 export const deployKeysIn = (patches: ReadonlyArray<FilePatch>): ReadonlyArray<string> =>
   patches.flatMap(keysOn).map(({ key }) => key);
@@ -92,11 +98,10 @@ const THROUGH_A_VARIABLE =
   /\b(?:ENV(?:\[|\.fetch\(|\.key\?\()|(?:process|import\.meta)\.env\[|env::var(?:_os)?\()(?!["'])/;
 
 export const deployKeysNotRead = (patches: ReadonlyArray<FilePatch>): ReadonlyArray<string> =>
-  patches.flatMap(({ path, patch }) =>
-    patchHunks(patch)
-      .flatMap(hunk => hunk.rows)
-      .filter(row => row.kind === 'added' && THROUGH_A_VARIABLE.test(row.code))
-      .map(row => `${path}:${row.head} reads an env key through a variable`),
+  patches.flatMap(filePatch =>
+    rowsOf(filePatch, 'added')
+      .filter(row => THROUGH_A_VARIABLE.test(row.code))
+      .map(row => `${filePatch.path}:${row.head} reads an env key through a variable`),
   );
 
 type FlagRead = { readonly name: string; readonly path: string; readonly line: string };
@@ -119,20 +124,18 @@ const flagReads = ({
   readonly flags: RegExp;
   readonly kind: 'added' | 'removed';
 }): ReadonlyArray<FlagRead> =>
-  patches.flatMap(({ path, patch }) =>
-    patchHunks(patch)
-      .flatMap(hunk => hunk.rows)
-      .filter(row => row.kind === kind)
-      .flatMap(row => {
-        const line = lineIdOf(path, row);
-        return line === undefined
-          ? []
-          : [...row.code.matchAll(flags)].map(([, symbol, quoted]) => ({
-              name: symbol ?? quoted ?? '',
-              path,
-              line,
-            }));
-      }),
+  patches.flatMap(filePatch =>
+    rowsOf(filePatch, kind).flatMap(row => {
+      const { path } = filePatch;
+      const line = lineIdOf(path, row);
+      return line === undefined
+        ? []
+        : [...row.code.matchAll(flags)].map(([, symbol, quoted]) => ({
+            name: symbol ?? quoted ?? '',
+            path,
+            line,
+          }));
+    }),
   );
 
 type DeployFlagsOptions = {
