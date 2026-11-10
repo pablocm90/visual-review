@@ -6514,6 +6514,61 @@ test("a note on a diff line shows under its row in Full diff, open by itself, an
   expect(noteIn(whatChanged())).toBe('Three was the old default.');
 });
 
+test("on a served page Take on a diff line's note opens that row's field with the recommendation as a change, focused, and hides while the draft holds text", async () => {
+  const user = userEvent.setup();
+  render(
+    <ReviewPage
+      review={pageWith({
+        range: review.range,
+        diff: {
+          nodes: [
+            { id: 'web', kind: 'stack', label: 'web', path: '', state: 'unchanged' },
+            topFile('two.ts', 'modified'),
+          ],
+          edges: [],
+        },
+        patches: [twoFunctionsPatch()],
+      })}
+      notes={{
+        version: 2,
+        tests: '',
+        summary: [],
+        notes: {
+          'line web/src/two.ts@base:5': {
+            text: 'Three was the old default.',
+            recommendation: 'Keep 3 behind a flag.',
+          },
+        },
+      }}
+      send={async () => {}}
+    />,
+  );
+  const row = () =>
+    within(
+      within(diffTab())
+        .getAllByRole('deletion')
+        .find(deleted => deleted.textContent?.startsWith('-  return 3;')) ?? document.body,
+    );
+  const field = () => row().getByRole('textbox', { name: 'Your comment' });
+  const takeInRow = () => row().queryByRole('button', { name: 'Take' });
+
+  await user.click(await screen.findByRole('button', { name: 'two.ts: modified' }));
+  await user.click(row().getByRole('button', { name: 'Take' }));
+
+  expect(document.activeElement).toBe(field());
+  expect(field()).toHaveProperty('value', 'Keep 3 behind a flag.');
+  expect(
+    within(row().getByRole('radiogroup', { name: 'Comment kind' })).getByRole('radio', {
+      name: 'Change this',
+    }),
+  ).toHaveProperty('checked', true);
+  expect(within(tray()).getByText('1 drafted · 1 change')).toBeDefined();
+  expect(takeInRow()).toBeNull();
+
+  await user.clear(field());
+  expect(takeInRow()).not.toBeNull();
+});
+
 test("a box's patch holding a line note opens by itself, its other patches closed", async () => {
   const user = userEvent.setup();
   render(
