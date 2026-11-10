@@ -316,3 +316,23 @@ test.for([
 ])('tenancy, with an Apartment config at $side, reads $notRead', ({ base, head, notRead }) => {
   expect(notReadIn('tenancy', { tenancy: [{ base, head }] })).toEqual(notRead);
 });
+
+const notParsing = (file: string) => ({ root: '', file, reason: `Ruby syntax error in ${file}` });
+
+test('tenancy names each Apartment config not read, at the base only when the head read it', () => {
+  const both = 'config/initializers/apartment.rb';
+  const baseOnly = 'config/initializers/tenants.rb';
+  expect(
+    notReadIn('tenancy', {
+      tenancy: [
+        {
+          base: { configs: [], notRead: [notParsing(both), notParsing(baseOnly)] },
+          head: { configs: [], notRead: [notParsing(both)] },
+        },
+      ],
+    }),
+  ).toEqual([
+    `not read: Ruby syntax error in ${both}`,
+    `not read at the base: Ruby syntax error in ${baseOnly}`,
+  ]);
+});

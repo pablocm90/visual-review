@@ -41,7 +41,19 @@ export const tenancyFindings = (tenancy: ReadonlyArray<TenancyReading>): Readonl
     }),
   );
 
+const filesNotRead = ({ base, head }: TenancyReading): ReadonlyArray<string> => {
+  const atHead = head.notRead ?? [];
+  const onlyAtBase = (base.notRead ?? []).filter(
+    ({ file }) => !atHead.some(other => other.file === file),
+  );
+  return [
+    ...atHead.map(({ reason }) => `not read: ${reason}`),
+    ...onlyAtBase.map(({ reason }) => `not read at the base: ${reason}`),
+  ];
+};
+
+const foundNone = ({ base, head }: TenancyReading): boolean =>
+  [base, head].every(({ configs, notRead = [] }) => configs.length === 0 && notRead.length === 0);
+
 export const tenancyNotRead = (tenancy: ReadonlyArray<TenancyReading>): ReadonlyArray<string> =>
-  tenancy.every(({ base, head }) => base.configs.length === 0 && head.configs.length === 0)
-    ? ['Apartment only']
-    : [];
+  tenancy.every(foundNone) ? ['Apartment only'] : tenancy.flatMap(filesNotRead);
