@@ -463,6 +463,27 @@ end
   ]);
 });
 
+test.for([
+  { option: 'only: %i[index show]', unread: false },
+  { option: "only: [:index, 'show']", unread: false },
+  { option: 'except: :show', unread: false },
+  { option: 'only: %w[index]', unread: false },
+  { option: 'except: PUBLIC', unread: true },
+  { option: 'only: actions', unread: true },
+  { option: 'only: [*AUTHED, :index]', unread: true },
+  { option: 'only: %I[#{name}]', unread: true },
+  { option: 'except: "a#{name}"', unread: true },
+])('a callback given $option is unread: $unread', ({ option, unread }) => {
+  const line = `  before_action :authorize, ${option}`;
+  expect(
+    unreadOf({
+      'app/controllers/users_controller.rb': `class UsersController < ActionController::Base\n${line}\n  def index; end\nend\n`,
+    }),
+  ).toStrictEqual([
+    ['index', unread ? [[line.trim(), 'app/controllers/users_controller.rb', 2]] : undefined],
+  ]);
+});
+
 test('an unread callback written over several lines is named by its first', () => {
   expect(
     unreadOf({

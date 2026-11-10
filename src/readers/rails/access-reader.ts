@@ -7,11 +7,13 @@ import { symbolsOfRuby } from './ruby-symbols.ts';
 import {
   argsOf,
   constantWithin,
+  isNameList,
   methodOf,
   nameOf,
   namesIn,
   optionOf,
   readRuby,
+  writtenIn,
 } from './ruby-syntax.ts';
 
 const CONTROLLER_FILE = /(^|\/)app\/controllers\/.+\.rb$/;
@@ -58,8 +60,23 @@ type Reading = { readonly file: string; readonly authorize: ReadonlyArray<string
 const authorizes = (authorize: ReadonlyArray<string>, name: string): boolean =>
   authorize.some(pattern => matchesWildcard(pattern, name));
 
+const NAMES: ReadonlySet<string> = new Set([
+  'simple_symbol',
+  'bare_symbol',
+  'bare_string',
+  'string',
+]);
+
+const readsAsName = ({ type, namedChildren }: Node): boolean =>
+  NAMES.has(type) && namedChildren.every(child => child.type === 'string_content');
+
+const readsAsNames = (node: Node | undefined): boolean =>
+  node === undefined || (isNameList(node) ? writtenIn(node).every(readsAsName) : readsAsName(node));
+
 const unreadable = (call: Node, authorize: ReadonlyArray<string>): boolean => {
-  if (argsOf(call).some(({ type }) => type === 'splat_argument')) return true;
+  const args = argsOf(call);
+  if (args.some(({ type }) => type === 'splat_argument')) return true;
+  if (!readsAsNames(optionOf(args, 'only')) || !readsAsNames(optionOf(args, 'except'))) return true;
   const block = call.childForFieldName('block');
   return block !== null && !namesCalledIn(block).some(name => authorizes(authorize, name));
 };
