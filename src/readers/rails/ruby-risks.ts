@@ -41,7 +41,27 @@ const asWritten =
 const firstArgument = (call: Node): Node | undefined =>
   call.childForFieldName('arguments')?.namedChildren[0];
 
-const WRITTEN = new Set(['string', 'delimited_symbol']);
+const heredocBody = (beginning: Node): Node | undefined => {
+  const row = beginning.startPosition.row;
+  const { rootNode } = beginning.tree;
+  const before = rootNode
+    .descendantsOfType('heredoc_beginning')
+    .filter(other => other.startPosition.row === row && other.startIndex < beginning.startIndex);
+  return rootNode
+    .descendantsOfType('heredoc_body')
+    .filter(body => body.startIndex > beginning.endIndex)[before.length];
+};
+
+const asGiven = (node: Node | undefined): Node | undefined => {
+  if (node?.type === 'heredoc_beginning') return heredocBody(node);
+  if (node?.type !== 'call') return node;
+  const receiver = asGiven(receiverOf(node));
+  return isString(receiver) ? receiver : node;
+};
+
+const givenOf = (call: Node): Node | undefined => asGiven(firstArgument(call));
+
+const WRITTEN = new Set(['string', 'delimited_symbol', 'heredoc_body']);
 
 const isLiteral = (node: Node | undefined): boolean =>
   node?.type === 'simple_symbol' ||
@@ -54,7 +74,7 @@ const sqlDetail = (given: Node | undefined): Pick<Risk, 'detail'> => {
 };
 
 const rawSql: Reading = call => [
-  { kind: 'raw-sql', text: codeOf(call), ...sqlDetail(firstArgument(call)) },
+  { kind: 'raw-sql', text: codeOf(call), ...sqlDetail(givenOf(call)) },
 ];
 
 const RAW_SQL = [
@@ -72,12 +92,12 @@ const arelSql: Reading = call =>
 const QUERIES = ['where', 'order', 'group', 'having', 'joins', 'pluck', 'select'];
 
 const isString = (node: Node | undefined): boolean => {
-  if (node?.type === 'string') return true;
+  if (node?.type === 'string' || node?.type === 'heredoc_body') return true;
   if (node?.type !== 'binary') return false;
   return ['left', 'right'].some(side => isString(node.childForFieldName(side) ?? undefined));
 };
 
-const givenAString: Reading = call => (isString(firstArgument(call)) ? rawSql(call) : []);
+const givenAString: Reading = call => (isString(givenOf(call)) ? rawSql(call) : []);
 
 const bareRaw: Reading = call =>
   call.childForFieldName('receiver') === null ? asWritten('html-safe')(call) : [];

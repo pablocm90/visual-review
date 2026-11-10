@@ -67,6 +67,31 @@ test.for([
   expect(risksIn(call)).toEqual([{ kind: 'raw-sql', text: call, detail }]);
 });
 
+test.for([
+  { call: 'User.where(<<~SQL)', body: ['name = #{name}'], detail: 'interpolated' },
+  { call: 'User.find_by_sql(<<~SQL)', body: ['SELECT 1'], detail: 'literal, no interpolation' },
+  { call: 'User.where(<<~SQL.squish)', body: ['active'], detail: 'literal, no interpolation' },
+  { call: 'User.where("a = #{a}".squish)', body: [], detail: 'interpolated' },
+])('$call reads its heredoc or string as given, $detail', ({ call, body, detail }) => {
+  const lines = body.length === 0 ? [call] : [call, ...body, 'SQL'];
+  expect(risksIn(...lines)).toEqual([{ kind: 'raw-sql', text: call, detail }]);
+});
+
+test.for([
+  {
+    layout: 'on its line',
+    lines: ['log(<<~ONE); connection.execute(<<~TWO)', '#{a}', 'ONE', 'SELECT 1', 'TWO'],
+  },
+  {
+    layout: 'a line above',
+    lines: ['log(<<~ONE)', '#{a}', 'ONE', 'connection.execute(<<~TWO)', 'SELECT 1', 'TWO'],
+  },
+])('a heredoc after another $layout reads its own body', ({ lines }) => {
+  expect(risksIn(...lines)).toEqual([
+    { kind: 'raw-sql', text: 'connection.execute(<<~TWO)', detail: 'literal, no interpolation' },
+  ]);
+});
+
 test.for(['User.where(active: true)', 'User.order(:name)', 'User.select { |u| u.active }'])(
   '%s is no raw SQL, given no string',
   call => {
