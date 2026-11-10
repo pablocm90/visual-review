@@ -114,6 +114,7 @@ export type RangeReading = {
   readonly churnDays: number;
   readonly ruleBreaks: ReadonlyArray<RuleBreak>;
   readonly rulesNotRead: ReadonlyArray<string>;
+  readonly deployKeysAtBase: ReadonlyArray<string>;
   readonly notesConfig: NotesConfig;
   readonly reviewed?: ReviewedReading;
 };
@@ -746,6 +747,7 @@ export const readRange = async ({
       churnDays,
       ruleBreaks: ruleBreaks({ rules: config.rules, graph: after.graph }),
       rulesNotRead: rulesNotRead({ rules: config.rules, graph: after.graph }),
+      deployKeysAtBase: [],
       notesConfig,
       changedPaths,
       renames,

@@ -109,6 +109,7 @@ type RaisedOptions = {
   readonly split: SplitSuggestion | undefined;
   readonly ruleBreaks: ReadonlyArray<RuleBreak>;
   readonly edges: GraphDiff['edges'];
+  readonly keysAtBase: ReadonlyArray<string>;
 };
 
 type UntestedOptions = Pick<RaisedOptions, 'nodes' | 'tests' | 'symbols'>;
@@ -196,6 +197,7 @@ export const raisedFindings = ({
   split,
   ruleBreaks,
   edges,
+  keysAtBase,
 }: RaisedOptions): ReadonlyArray<Finding> => [
   ...skipped.map(
     (skip): Finding => ({
@@ -244,7 +246,7 @@ export const raisedFindings = ({
   ...riskFindings(symbols),
   ...viewRiskFindings(patches),
   ...secretFindings(patches),
-  ...deployKeyFindings(patches),
+  ...deployKeyFindings({ patches, keysAtBase }),
   ...reachFindings(reaches),
   ...untestedLogicFindings({ nodes, tests, symbols }),
   ...symbolsNotRead.map(

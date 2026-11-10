@@ -39,19 +39,23 @@ const pathOf = (chain: string): string =>
 const credentialReads = (code: string): ReadonlyArray<Read> =>
   [...code.matchAll(CHAIN)].map(([, chain]) => ({ kind: 'credentials', key: pathOf(chain ?? '') }));
 
-const keysOn = ({ path, patch }: FilePatch): ReadonlyArray<Finding> =>
+const keysOn = ({
+  path,
+  patch,
+}: FilePatch): ReadonlyArray<{ readonly key: string; readonly finding: Finding }> =>
   patchHunks(patch)
     .flatMap(hunk => hunk.rows)
     .filter(row => row.kind === 'added')
     .flatMap(row =>
-      [...envReads(row.code), ...credentialReads(row.code)].flatMap(
-        ({ kind, key }): ReadonlyArray<Finding> => {
-          const line = lineIdOf(path, row);
-          const check: Check = `deploy:${kind}`;
-          return line === undefined
-            ? []
-            : [
-                {
+      [...envReads(row.code), ...credentialReads(row.code)].flatMap(({ kind, key }) => {
+        const line = lineIdOf(path, row);
+        const check: Check = `deploy:${kind}`;
+        return line === undefined
+          ? []
+          : [
+              {
+                key,
+                finding: {
                   id: `${check}:${key}`,
                   check,
                   dimension: 'deploy',
@@ -61,12 +65,21 @@ const keysOn = ({ path, patch }: FilePatch): ReadonlyArray<Finding> =>
                   title: `${path} reads the ${kind} key ${key}`,
                   detail: 'Set it in every environment before this deploys.',
                 },
-              ];
-        },
-      ),
+              },
+            ];
+      }),
     );
 
-export const deployKeyFindings = (patches: ReadonlyArray<FilePatch>): ReadonlyArray<Finding> =>
+type DeployKeysOptions = {
+  readonly patches: ReadonlyArray<FilePatch>;
+  readonly keysAtBase: ReadonlyArray<string>;
+};
+
+export const deployKeyFindings = ({
+  patches,
+  keysAtBase,
+}: DeployKeysOptions): ReadonlyArray<Finding> =>
   patches
-    .flatMap(keysOn)
+    .flatMap(patch => keysOn(patch).filter(({ key }) => !keysAtBase.includes(key)))
+    .map(({ finding }) => finding)
     .filter((finding, index, all) => all.findIndex(({ id }) => id === finding.id) === index);

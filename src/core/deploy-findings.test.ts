@@ -1,5 +1,9 @@
 import { expect, test } from 'vitest';
 import { deployKeyFindings } from './deploy-findings.ts';
+import type { FilePatch } from './diff-graphs.ts';
+
+const deployKeys = (patches: ReadonlyArray<FilePatch>) =>
+  deployKeyFindings({ patches, keysAtBase: [] });
 
 const FILE = 'config/initializers/stripe.rb';
 
@@ -16,7 +20,7 @@ const patchAdding = (...added: ReadonlyArray<string>) => ({
 });
 
 test('an env key a line gains needs a look on its row, to be set before the deploy', () => {
-  expect(deployKeyFindings([patchAdding('  config.api_key = ENV["STRIPE_KEY"]')])).toStrictEqual([
+  expect(deployKeys([patchAdding('  config.api_key = ENV["STRIPE_KEY"]')])).toStrictEqual([
     {
       id: 'deploy:env:STRIPE_KEY',
       check: 'deploy:env',
@@ -43,9 +47,9 @@ test.for([
   'env!("STRIPE_KEY")',
   'option_env!("STRIPE_KEY")',
 ])('reading the key as %s raises it too', read => {
-  expect(
-    deployKeyFindings([patchAdding(`  config.api_key = ${read}`)]).map(({ id }) => id),
-  ).toStrictEqual(['deploy:env:STRIPE_KEY']);
+  expect(deployKeys([patchAdding(`  config.api_key = ${read}`)]).map(({ id }) => id)).toStrictEqual(
+    ['deploy:env:STRIPE_KEY'],
+  );
 });
 
 test.for([
@@ -59,15 +63,13 @@ test.for([
   },
 ])('$reason raises nothing', ({ prefix, code }) => {
   const patch = patchAdding();
-  expect(deployKeyFindings([{ ...patch, patch: `${patch.patch}\n${prefix}  ${code}` }])).toEqual(
-    [],
-  );
+  expect(deployKeys([{ ...patch, patch: `${patch.patch}\n${prefix}  ${code}` }])).toEqual([]);
 });
 
 test('a key read on several rows and files raises once, on its first row', () => {
   const other = { ...patchAdding('ENV["STRIPE_KEY"]'), path: 'app/jobs/charge.rb' };
   expect(
-    deployKeyFindings([
+    deployKeys([
       patchAdding('  config.api_key = ENV["STRIPE_KEY"]', '  config.key = ENV.fetch("STRIPE_KEY")'),
       other,
     ]).map(({ file, line }) => ({ file, line })),
@@ -76,7 +78,7 @@ test('a key read on several rows and files raises once, on its first row', () =>
 
 test('a key read in a test file is for information', () => {
   const inTest = { ...patchAdding('ENV["STRIPE_KEY"]'), path: 'spec/stripe_spec.rb' };
-  expect(deployKeyFindings([inTest]).map(({ level }) => level)).toStrictEqual(['info']);
+  expect(deployKeys([inTest]).map(({ level }) => level)).toStrictEqual(['info']);
 });
 
 test.for([
@@ -87,11 +89,22 @@ test.for([
   { read: 'credentials.dig(:stripe, :secret_key)', key: 'stripe.secret_key' },
   { read: 'credentials.fetch(:stripe)', key: 'stripe' },
 ])('reading credentials as $read raises the path $key', ({ read, key }) => {
-  expect(deployKeyFindings([patchAdding(`  config.api_key = ${read}`)])).toMatchObject([
+  expect(deployKeys([patchAdding(`  config.api_key = ${read}`)])).toMatchObject([
     {
       id: `deploy:credentials:${key}`,
       check: 'deploy:credentials',
       title: `${FILE} reads the credentials key ${key}`,
     },
   ]);
+});
+
+test('a key the base already reads somewhere is no new key', () => {
+  expect(
+    deployKeyFindings({
+      patches: [
+        patchAdding('  config.api_key = ENV["STRIPE_KEY"]', '  config.id = ENV["STRIPE_ID"]'),
+      ],
+      keysAtBase: ['STRIPE_KEY'],
+    }).map(({ id }) => id),
+  ).toStrictEqual(['deploy:env:STRIPE_ID']);
 });

@@ -115,6 +115,7 @@ export const pageData = ({
     }),
     ruleBreaks: reading.ruleBreaks,
     edges: diff.edges,
+    keysAtBase: reading.deployKeysAtBase,
   });
   const data: PageData = {
     repo,
