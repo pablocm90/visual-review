@@ -2,6 +2,14 @@
 
 What changed in each release of `@pablocm90/visual-review`, newest first. Versions follow [semver](https://semver.org); while it is 0.x, a minor version may change the exported types.
 
+## Unreleased
+
+### Added
+
+- An env variable or Rails credentials path a line the change adds reads by its literal name, and that the base names nowhere, raises `deploy:env` or `deploy:credentials` to look at, on the first row reading it, for every stack and in files outside the graph too: `ENV["KEY"]`, `ENV.fetch`, `ENV.key?`, `process.env.KEY`, `import.meta.env.KEY`, `env::var("KEY")`, `env::var_os`, `env!` and `option_env!`, and `credentials.aws.key`, `credentials[:aws][:key]`, `credentials.fetch(:aws)` or `credentials.dig(:aws, :key)`, read as `aws.key`. One read only in a test file or fixture is for information. The skill lists them in the summary, so they're set before the merge.
+- A feature flag the change starts or stops reading raises `deploy:flag-added` or `deploy:flag-removed` for information, a flag counting only when the rows reading it added and removed differ in number. The calls are Flipper's by default; the config's `deploy.flags`, read from the range's base, replaces them, `*` a wildcard within a name.
+- The deploy coverage lists each added line reading an env key through a variable, and says `flags: Flipper only` when no `deploy.flags` is set and no Flipper call is in the patches.
+
 ## 0.66.0 — 2026-11-10
 
 ### Added
