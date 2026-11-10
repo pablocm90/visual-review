@@ -248,5 +248,16 @@ test.for([
 ])('an action $reason lists its unread rows: $listed', ({ base, cover, listed }) => {
   const head = action({ ...(cover === undefined ? {} : { cover }), unread: [UNREAD] });
 
-  expect(accessNotRead([reading(base, [head])]).length > 0).toBe(listed);
+  expect(accessNotRead({ access: [reading(base, [head])], routes: [] }).length > 0).toBe(listed);
+});
+
+test('an unchanged action a route the change adds reaches lists its unread rows, and one a route left is not', () => {
+  const unread = (routes: ReadonlyArray<RouteChange>) =>
+    accessNotRead({
+      access: [reading([action()], [action({ unread: [UNREAD] })])],
+      routes,
+    });
+
+  expect(unread([{ state: 'added', head: route() }])).toHaveLength(1);
+  expect(unread([{ state: 'removed', base: route() }])).toHaveLength(0);
 });

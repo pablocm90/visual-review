@@ -76,6 +76,9 @@ const whatChanged = ({
 
 type Paired = Pick<Change, 'action' | 'before'>;
 
+const routedAnew = (routes: ReadonlyArray<RouteChange>): ReadonlyArray<Route> =>
+  routes.flatMap(change => (change.state === 'removed' ? [] : [change.head]));
+
 const pairedIn = (access: ReadonlyArray<AccessReading>): ReadonlyArray<Paired> =>
   access.flatMap(({ base, head }) => {
     const before = new Map(base.actions.map(action => [keyOf(action), action]));
@@ -88,7 +91,7 @@ export const accessFindings = ({
   nodes,
   open,
 }: AccessFindingsOptions): ReadonlyArray<Finding> => {
-  const routedAnew = routes.flatMap(change => (change.state === 'removed' ? [] : [change.head]));
+  const routed = routedAnew(routes);
   return pairedIn(access)
     .filter(({ action }) => action.cover?.conditional !== false)
     .filter(
@@ -96,7 +99,7 @@ export const accessFindings = ({
         !open.some(pattern => matchesWildcard(pattern, `${controller}#${action}`)),
     )
     .flatMap(({ action, before }): ReadonlyArray<Finding> => {
-      const change = whatChanged({ action, before, routes: routedAnew });
+      const change = whatChanged({ action, before, routes: routed });
       return change === undefined
         ? []
         : [
@@ -112,14 +115,20 @@ export const accessFindings = ({
     });
 };
 
-export const accessNotRead = (access: ReadonlyArray<AccessReading>): ReadonlyArray<string> =>
-  pairedIn(access)
+export const accessNotRead = ({
+  access,
+  routes,
+}: Pick<AccessFindingsOptions, 'access' | 'routes'>): ReadonlyArray<string> => {
+  const routed = routedAnew(routes);
+  return pairedIn(access)
     .filter(
       ({ action, before }) =>
         before === undefined ||
         before.cover?.by !== action.cover?.by ||
-        before.cover?.conditional !== action.cover?.conditional,
+        before.cover?.conditional !== action.cover?.conditional ||
+        routed.some(route => reaches(route, action)),
     )
     .flatMap(({ action: { unread } }) =>
       (unread ?? []).map(({ text, file, line }) => `${file}:${line} not read: ${text}`),
     );
+};

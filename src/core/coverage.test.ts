@@ -197,20 +197,42 @@ test('routes names a route file it could not read, and not one it could', () => 
   ).toEqual(['not read: config/routes.rb']);
 });
 
+const unreadAction = {
+  controller: 'UsersController',
+  controllerPath: 'users',
+  action: 'show',
+  root: '',
+  file: 'app/controllers/users_controller.rb',
+  line: 4,
+  unread: [
+    { text: 'before_action *GLOBAL', file: 'app/controllers/application_controller.rb', line: 2 },
+  ],
+};
+
 test('security names, where it is written, what a new action was read through and could not be', () => {
-  const action = {
-    controller: 'UsersController',
-    controllerPath: 'users',
-    action: 'show',
+  expect(
+    notReadIn('security', {
+      access: [{ base: { actions: [] }, head: { actions: [unreadAction] } }],
+    }),
+  ).toEqual(['app/controllers/application_controller.rb:2 not read: before_action *GLOBAL']);
+});
+
+test('security names what an unchanged action was read through when a route the change adds reaches it', () => {
+  const route = {
+    verb: 'GET',
+    path: '/users/:id',
+    target: 'users#show',
     root: '',
-    file: 'app/controllers/users_controller.rb',
-    line: 4,
-    unread: [
-      { text: 'before_action *GLOBAL', file: 'app/controllers/application_controller.rb', line: 2 },
-    ],
+    file: 'config/routes.rb',
+    line: 3,
   };
 
   expect(
-    notReadIn('security', { access: [{ base: { actions: [] }, head: { actions: [action] } }] }),
-  ).toEqual(['app/controllers/application_controller.rb:2 not read: before_action *GLOBAL']);
+    notReadIn('security', {
+      access: [{ base: { actions: [unreadAction] }, head: { actions: [unreadAction] } }],
+      routes: [
+        { routes: [{ state: 'added', head: route, patch: 'config/routes.rb' }], unread: [] },
+      ],
+    }),
+  ).toHaveLength(1);
 });

@@ -93,7 +93,12 @@ export const coverageOf = ({
     {
       dimension: 'security',
       notRead:
-        access.length === 0 && !readers.includes('rails') ? ['Rails only'] : accessNotRead(access),
+        access.length === 0 && !readers.includes('rails')
+          ? ['Rails only']
+          : accessNotRead({
+              access,
+              routes: routes.flatMap(reading => ('routes' in reading ? reading.routes : [])),
+            }),
     },
   ];
 };
