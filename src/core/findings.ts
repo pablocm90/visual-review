@@ -22,6 +22,7 @@ import { routeFindings } from './route-findings.ts';
 import type { RuleBreak } from './rule-breaks.ts';
 import { ruleFindings } from './rule-findings.ts';
 import { schemaFindings } from './schema-findings.ts';
+import { riskFindings } from './security-findings.ts';
 import { notReadLine, type Skipped } from './skipped.ts';
 import type { SplitSuggestion } from './split-suggestion.ts';
 import { partsWithLogicToTest, symbolFindings } from './symbol-findings.ts';
@@ -236,6 +237,7 @@ export const raisedFindings = ({
     }),
   ),
   ...symbolFindings({ files: symbols, nodes }),
+  ...riskFindings(symbols),
   ...reachFindings(reaches),
   ...untestedLogicFindings({ nodes, tests, symbols }),
   ...symbolsNotRead.map(

@@ -553,6 +553,26 @@ const findingsOfSymbols = (
     parsers,
   }).findings;
 
+test('a risky call a symbol gains raises its security finding to look at on the page', () => {
+  const symbols = [
+    symbolFile([
+      {
+        name: 'create',
+        kind: 'method',
+        exported: { base: true, head: true },
+        change: 'edited',
+        risks: [{ kind: 'permit!', text: 'params.permit!' }],
+      },
+    ]),
+  ];
+
+  expect(
+    findingsOfSymbols(symbols)
+      .filter(({ dimension }) => dimension === 'security')
+      .map(({ id, level }) => ({ id, level })),
+  ).toStrictEqual([{ id: 'security:permit!:web/file/a.ts#create', level: 'look' }]);
+});
+
 test('an exported symbol removed, or no longer exported, is an api finding to look at on its file, named by its kind and qualified name', () => {
   const symbols = [
     symbolFile([
