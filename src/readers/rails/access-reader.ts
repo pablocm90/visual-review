@@ -34,22 +34,6 @@ type Callback = {
 const namesCalledIn = (node: Node | null): ReadonlyArray<string> =>
   (node?.descendantsOfType('identifier') ?? []).map(({ text }) => text);
 
-const callbacksOfCall = (call: Node): ReadonlyArray<Callback> => {
-  const args = argsOf(call);
-  const only = optionOf(args, 'only');
-  const except = namesIn(optionOf(args, 'except'));
-  return positional(args)
-    .map(nameOf)
-    .concat(namesCalledIn(call.childForFieldName('block')))
-    .map(name => ({
-      skip: methodOf(call).startsWith('skip_'),
-      name,
-      only: only === undefined ? undefined : namesIn(only),
-      except,
-      conditional: optionOf(args, 'if') !== undefined || optionOf(args, 'unless') !== undefined,
-    }));
-};
-
 type Unread = { readonly unread: UnreadAccess };
 
 type Step = Callback | Unread;
@@ -78,8 +62,31 @@ const unreadable = (call: Node, authorize: ReadonlyArray<string>): boolean => {
   const args = argsOf(call);
   if (args.some(({ type }) => type === 'splat_argument')) return true;
   if (!readsAsNames(optionOf(args, 'only')) || !readsAsNames(optionOf(args, 'except'))) return true;
-  const block = call.childForFieldName('block');
-  return block !== null && !namesCalledIn(block).some(name => authorizes(authorize, name));
+  return bodiesOf(call).some(
+    body => !namesCalledIn(body).some(name => authorizes(authorize, name)),
+  );
+};
+
+const bodiesOf = (call: Node): ReadonlyArray<Node> => [
+  ...positional(argsOf(call)).filter(arg => !readsAsName(arg)),
+  ...[call.childForFieldName('block') ?? []].flat(),
+];
+
+const callbacksOfCall = (call: Node): ReadonlyArray<Callback> => {
+  const args = argsOf(call);
+  const only = optionOf(args, 'only');
+  const except = namesIn(optionOf(args, 'except'));
+  return positional(args)
+    .filter(readsAsName)
+    .map(nameOf)
+    .concat(bodiesOf(call).flatMap(namesCalledIn))
+    .map(name => ({
+      skip: methodOf(call).startsWith('skip_'),
+      name,
+      only: only === undefined ? undefined : namesIn(only),
+      except,
+      conditional: optionOf(args, 'if') !== undefined || optionOf(args, 'unless') !== undefined,
+    }));
 };
 
 const rowOf = (node: Node, file: string): UnreadAccess => ({

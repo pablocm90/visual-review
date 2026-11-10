@@ -479,6 +479,28 @@ end
 });
 
 test.for([
+  { callback: '-> { authorize User }', by: 'authorize' },
+  { callback: 'lambda { authorize User }', by: 'authorize' },
+  { callback: '-> { head :forbidden }' },
+  { callback: 'AdminOnly.new' },
+  { callback: 'AuthorizeAdmin.new' },
+])(
+  'a callback given as $callback covers by $by, and is unread when it calls no authorize name',
+  ({ callback, by }) => {
+    const line = `  before_action ${callback}`;
+    const [action] = read(
+      {
+        'app/controllers/users_controller.rb': `class UsersController < ActionController::Base\n${line}\n  def index; end\nend\n`,
+      },
+      [...PUNDIT, 'Authorize*'],
+    ).actions;
+    expect([action?.cover?.by, action?.unread?.map(({ text }) => text)]).toStrictEqual(
+      by === undefined ? [undefined, [line.trim()]] : [by, undefined],
+    );
+  },
+);
+
+test.for([
   { option: 'only: %i[index show]', unread: false },
   { option: "only: [:index, 'show']", unread: false },
   { option: 'except: :show', unread: false },
