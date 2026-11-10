@@ -130,18 +130,21 @@ test.for([
   expect(secretFindings([patchAdding(code)])).toEqual([]);
 });
 
-const addedFile = (path: string) => ({
-  path,
-  patch: [
-    `diff --git a/${path} b/${path}`,
-    'new file mode 100644',
-    'index 0000000..e69de29',
-    '--- /dev/null',
-    `+++ b/${path}`,
-    '@@ -0,0 +1,1 @@',
-    '+# nothing to see',
-  ].join('\n'),
-});
+const addedFile = (path: string, ...lines: ReadonlyArray<string>) => {
+  const added = lines.length === 0 ? ['# nothing to see'] : lines;
+  return {
+    path,
+    patch: [
+      `diff --git a/${path} b/${path}`,
+      'new file mode 100644',
+      'index 0000000..e69de29',
+      '--- /dev/null',
+      `+++ b/${path}`,
+      `@@ -0,0 +1,${added.length} @@`,
+      ...added.map(line => `+${line}`),
+    ].join('\n'),
+  };
+};
 
 test.for([
   '.env',
@@ -326,4 +329,35 @@ test('a private key written on one line, as a service account JSON holds it, has
       ),
     ]),
   ).toStrictEqual([body, tail]);
+});
+
+test("what a secret file the change adds holds is a value to mask: a variable's value, else its whole line, of 8 characters or more", () => {
+  expect(
+    secretValues([
+      addedFile(
+        '.env.production',
+        '# keys for production',
+        'DATABASE_URL=postgres://shop:hunter22@db/shop',
+        'export API_TOKEN="plainlowercasevalue"',
+        'DEBUG=true',
+        'SHORT=abcdefg',
+        'PIN=abcdefgh',
+        '',
+      ),
+      addedFile('config/master.key', '9f2c0a1b7e4d3c5a8b6f0e2d1c3b5a79'),
+    ]),
+  ).toStrictEqual([
+    'postgres://shop:hunter22@db/shop',
+    'plainlowercasevalue',
+    'abcdefgh',
+    '9f2c0a1b7e4d3c5a8b6f0e2d1c3b5a79',
+  ]);
+});
+
+test('what a secret file the change only edits holds is masked only where a secret is found', () => {
+  expect(
+    secretValues([
+      { ...patchAdding('DATABASE_URL=postgres://shop:hunter22@db/shop'), path: '.env' },
+    ]),
+  ).toEqual([]);
 });

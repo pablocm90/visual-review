@@ -82,8 +82,11 @@ const levelOf = (path: string): Finding['level'] => (TEST_FILE.test(path) ? 'inf
 const SECRET_FILE =
   /(?:^|\/)(?:\.env(?!\.example)[^/]*|config\/master\.key|config\/credentials\/[^/]+\.key|[^/]+\.pem|id_rsa(?!\.pub)[^/]*)$/;
 
+const isAddedSecretFile = ({ path, patch }: FilePatch): boolean =>
+  SECRET_FILE.test(path) && /^new file mode /m.test(patch);
+
 const secretFile = ({ path, patch }: FilePatch): ReadonlyArray<Finding> =>
-  SECRET_FILE.test(path) && /^new file mode /m.test(patch)
+  isAddedSecretFile({ path, patch })
     ? [
         {
           id: `security:secret:${path}#secret-file`,
@@ -159,8 +162,24 @@ const keyBodies = ({ patch }: FilePatch): ReadonlyArray<string> =>
       { inKey: false, lines: [] },
     ).lines;
 
+const VARIABLE = /^(?:export\s+)?\w+\s*[=:]\s*["']?(.*?)["']?$/;
+
+const SHORTEST_HELD = 8;
+
+const heldIn = (patch: FilePatch): ReadonlyArray<string> =>
+  isAddedSecretFile(patch)
+    ? patchHunks(patch.patch)
+        .flatMap(hunk => hunk.rows)
+        .filter(row => row.kind === 'added')
+        .map(({ code }) => code)
+        .filter(line => !line.startsWith('#'))
+        .map(line => VARIABLE.exec(line)?.[1] ?? line)
+        .filter(value => value.length >= SHORTEST_HELD)
+    : [];
+
 export const secretValues = (patches: ReadonlyArray<FilePatch>): ReadonlyArray<string> =>
   patches.flatMap(patch => [
     ...foundOn(patch).flatMap(({ found }) => found.hidden),
     ...keyBodies(patch),
+    ...heldIn(patch),
   ]);
