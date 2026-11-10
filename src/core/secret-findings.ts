@@ -3,7 +3,14 @@ import type { FilePatch } from './diff-graphs.ts';
 import type { Finding } from './findings.ts';
 import { lineIdOf, patchHunks } from './patch-lines.ts';
 
-const FORMATS = [
+type Format = {
+  readonly name: string;
+  readonly said: string;
+  readonly pattern: RegExp;
+  readonly shown?: (value: string) => string;
+};
+
+const FORMATS: ReadonlyArray<Format> = [
   { name: 'aws-access-key', said: 'an AWS access key', pattern: /AKIA[0-9A-Z]{16}/ },
   {
     name: 'github-token',
@@ -13,6 +20,12 @@ const FORMATS = [
   { name: 'slack-token', said: 'a Slack token', pattern: /xox[abprs]-[A-Za-z0-9-]{10,}/ },
   { name: 'stripe-key', said: 'a Stripe live key', pattern: /[rs]k_live_[A-Za-z0-9]{16,}/ },
   { name: 'google-api-key', said: 'a Google API key', pattern: /AIza[\w-]{35}/ },
+  {
+    name: 'private-key',
+    said: 'a private key',
+    pattern: /-----BEGIN [A-Z ]*PRIVATE KEY-----/,
+    shown: header => header,
+  },
 ];
 
 const ROTATE = 'Rotate it: it stays in git history once removed.';
@@ -45,7 +58,7 @@ export const secretFindings = (patches: ReadonlyArray<FilePatch>): ReadonlyArray
               file: path,
               line,
               title: `${path} adds ${format.said}`,
-              detail: `${masked(value)}. ${ROTATE}`,
+              detail: `${(format.shown ?? masked)(value)}. ${ROTATE}`,
             },
           ];
     }),

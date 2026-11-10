@@ -78,3 +78,22 @@ test.for([
 ])('%s, a test key, another prefix or a placeholder too short for a key, raises nothing', value => {
   expect(secretFindings([patchAdding(`  token = "${value}"`)])).toEqual([]);
 });
+
+test.for(['RSA ', 'EC ', 'OPENSSH ', ''])(
+  'a %sPRIVATE KEY header a line gains needs a look, its header shown',
+  kind => {
+    const header = `-----BEGIN ${kind}PRIVATE KEY-----`;
+    expect(
+      secretFindings([patchAdding(header, 'MIIEowIBAAKCAQEA0Z3VS5JJcds3xfn')]).map(
+        ({ id, line, title, detail }) => ({ id, line, title, detail }),
+      ),
+    ).toStrictEqual([
+      {
+        id: `security:secret:${FILE}#private-key`,
+        line: `${FILE}@head:2`,
+        title: `${FILE} adds a private key`,
+        detail: `${header}. Rotate it: it stays in git history once removed.`,
+      },
+    ]);
+  },
+);
