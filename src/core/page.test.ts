@@ -570,7 +570,7 @@ test('a risky call a symbol gains raises its security finding to look at on the 
     findingsOfSymbols(symbols)
       .filter(({ dimension }) => dimension === 'security')
       .map(({ id, level }) => ({ id, level })),
-  ).toStrictEqual([{ id: 'security:permit!:web/file/a.ts#create', level: 'look' }]);
+  ).toStrictEqual([{ id: 'security:permit!:web/file/a.ts#create#params.permit!', level: 'look' }]);
 });
 
 test('an exported symbol removed, or no longer exported, is an api finding to look at on its file, named by its kind and qualified name', () => {
@@ -3760,7 +3760,7 @@ test('a line marked safe in a view raises its security finding, whether the view
       .findings.filter(({ dimension }) => dimension === 'security')
       .map(({ id }) => id),
   ).toStrictEqual([
-    'security:html-safe:web/src/views/show.html.erb',
-    'security:html-safe:app/views/index.html.erb',
+    'security:html-safe:web/src/views/show.html.erb#<%== bio %>',
+    'security:html-safe:app/views/index.html.erb#<%== bio %>',
   ]);
 });

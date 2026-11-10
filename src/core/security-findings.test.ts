@@ -27,7 +27,7 @@ const file = (...symbols: ReadonlyArray<SymbolStatement>): SymbolFile => ({
 test('a key a method gains to permit needs a look, on its file, found by name', () => {
   expect(riskFindings([file(create([{ kind: 'permit', text: 'admin' }]))])).toStrictEqual([
     {
-      id: `security:permit:${NODE}#UsersController.create`,
+      id: `security:permit:${NODE}#UsersController.create#admin`,
       check: 'security:permit',
       dimension: 'security',
       level: 'look',
@@ -64,7 +64,7 @@ test.for([
   ({ risk, title, detail }) => {
     expect(riskFindings([file(create([risk]))])).toStrictEqual([
       {
-        id: `security:${risk.kind}:${NODE}#UsersController.create`,
+        id: `security:${risk.kind}:${NODE}#UsersController.create#${risk.text}`,
         check: `security:${risk.kind}`,
         dimension: 'security',
         level: 'look',
@@ -76,21 +76,23 @@ test.for([
   },
 );
 
-test('a second gain of one kind in one method is counted in its id, as a repeated symbol is', () => {
+test('a call is known by its text, so one gained before it leaves its id as it was; the same call twice is counted', () => {
   expect(
     riskFindings([
       file(
         create([
+          { kind: 'permit', text: 'role' },
           { kind: 'permit', text: 'admin' },
           { kind: 'raw-sql', text: 'User.where("a")' },
-          { kind: 'permit', text: 'role' },
+          { kind: 'permit', text: 'admin' },
         ]),
       ),
     ]).map(({ id }) => id),
   ).toEqual([
-    `security:permit:${NODE}#UsersController.create`,
-    `security:raw-sql:${NODE}#UsersController.create`,
-    `security:permit:${NODE}#UsersController.create#2`,
+    `security:permit:${NODE}#UsersController.create#role`,
+    `security:permit:${NODE}#UsersController.create#admin`,
+    `security:raw-sql:${NODE}#UsersController.create#User.where("a")`,
+    `security:permit:${NODE}#UsersController.create#admin#2`,
   ]);
 });
 
@@ -108,7 +110,7 @@ const viewPatch = (...added: ReadonlyArray<string>) => ({
 test('a line a view gains marking HTML safe needs a look on its row, by heuristic', () => {
   expect(viewRiskFindings([viewPatch('  <%= user.bio.html_safe %>')])).toStrictEqual([
     {
-      id: `security:html-safe:${VIEW}`,
+      id: `security:html-safe:${VIEW}#<%= user.bio.html_safe %>`,
       check: 'security:html-safe',
       dimension: 'security',
       level: 'look',
@@ -146,14 +148,15 @@ test('a file that is no view is not scanned: its symbols are read', () => {
   ).toEqual([]);
 });
 
-test('a second line in one view is counted in its id, on its own row', () => {
+test('a view line is known by its text, so one gained above it leaves its id as it was; the same text twice is counted', () => {
   expect(
-    viewRiskFindings([viewPatch('<%= raw(a) %>', '<p>plain</p>', '<%== b %>')]).map(
+    viewRiskFindings([viewPatch('<%== b %>', '<p>plain</p>', '<%= raw(a) %>', '<%== b %>')]).map(
       ({ id, line }) => ({ id, line }),
     ),
   ).toEqual([
-    { id: `security:html-safe:${VIEW}`, line: `${VIEW}@head:2` },
-    { id: `security:html-safe:${VIEW}#2`, line: `${VIEW}@head:4` },
+    { id: `security:html-safe:${VIEW}#<%== b %>`, line: `${VIEW}@head:2` },
+    { id: `security:html-safe:${VIEW}#<%= raw(a) %>`, line: `${VIEW}@head:4` },
+    { id: `security:html-safe:${VIEW}#<%== b %>#2`, line: `${VIEW}@head:5` },
   ]);
 });
 

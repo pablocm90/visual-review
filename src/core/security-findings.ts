@@ -1,4 +1,4 @@
-import { countedId } from './counted-id.ts';
+import { countingRepeats } from './counted-id.ts';
 import type { FilePatch } from './diff-graphs.ts';
 import type { Finding } from './findings.ts';
 import { lineIdOf, patchHunks } from './patch-lines.ts';
@@ -27,11 +27,13 @@ export const riskFindings = (files: ReadonlyArray<SymbolFile>): ReadonlyArray<Fi
     'unreadable' in file
       ? []
       : anchoredSymbols(file.node, file.symbols).flatMap(({ item: statement, id }) =>
-          (statement.risks ?? []).map((risk, index, risks) => {
+          countingRepeats(
+            statement.risks ?? [],
+            risk => `security:${risk.kind}:${id}#${risk.text}`,
+          ).map(({ item: risk, id: riskId }) => {
             const { does, detail } = said(risk);
-            const before = risks.slice(0, index).filter(({ kind }) => kind === risk.kind).length;
             return {
-              id: countedId(`security:${risk.kind}:${id}`, before),
+              id: riskId,
               check: `security:${risk.kind}` as const,
               dimension: 'security' as const,
               level: 'look' as const,
@@ -51,24 +53,26 @@ export const viewRiskFindings = (patches: ReadonlyArray<FilePatch>): ReadonlyArr
   patches
     .filter(({ path }) => VIEW.test(path))
     .flatMap(({ path, patch }) =>
-      patchHunks(patch)
-        .flatMap(hunk => hunk.rows)
-        .filter(row => row.kind === 'added' && MARKS_SAFE.test(row.code))
-        .flatMap((row, index): ReadonlyArray<Finding> => {
-          const line = lineIdOf(path, row);
-          return line === undefined
-            ? []
-            : [
-                {
-                  id: countedId(`security:html-safe:${path}`, index),
-                  check: 'security:html-safe',
-                  dimension: 'security',
-                  level: 'look',
-                  file: path,
-                  line,
-                  title: `${path} marks HTML safe`,
-                  detail: `${row.code.trim()} (heuristic, view not parsed)`,
-                },
-              ];
-        }),
+      countingRepeats(
+        patchHunks(patch)
+          .flatMap(hunk => hunk.rows)
+          .filter(row => row.kind === 'added' && MARKS_SAFE.test(row.code)),
+        row => `security:html-safe:${path}#${row.code.trim()}`,
+      ).flatMap(({ item: row, id }): ReadonlyArray<Finding> => {
+        const line = lineIdOf(path, row);
+        return line === undefined
+          ? []
+          : [
+              {
+                id,
+                check: 'security:html-safe',
+                dimension: 'security',
+                level: 'look',
+                file: path,
+                line,
+                title: `${path} marks HTML safe`,
+                detail: `${row.code.trim()} (heuristic, view not parsed)`,
+              },
+            ];
+      }),
     );
