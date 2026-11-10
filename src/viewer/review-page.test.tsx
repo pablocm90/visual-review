@@ -9952,6 +9952,24 @@ test.for([
     name: 'drops totals',
     node: 'total.ts: modified',
   },
+  {
+    row: 'a diff line',
+    page: () =>
+      pageWith({
+        range: review.range,
+        diff: {
+          nodes: [
+            { id: 'web', kind: 'stack', label: 'web', path: '', state: 'unchanged' },
+            topFile('two.ts', 'modified'),
+          ],
+          edges: [],
+        },
+        patches: [twoFunctionsPatch()],
+      }),
+    key: 'line web/src/two.ts@base:5',
+    name: 'two.ts:5 "return 3;"',
+    node: 'two.ts: modified',
+  },
 ])(
   "the last review names what Claude changed unasked on $row by its row, going to its file's node",
   async ({ page, key, name, node }) => {

@@ -1861,6 +1861,7 @@ const LeftColumn = ({
         nodes={review.diff.nodes}
         tests={review.tests}
         symbols={review.symbols}
+        patches={[...review.patches, ...review.undrawn]}
         findings={findings}
         onGoTo={onGoTo}
         onGoToDraft={onGoToDraft}
