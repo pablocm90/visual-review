@@ -104,3 +104,14 @@ test.for([
 ])('%s, sending a literal, is no dynamic send', call => {
   expect(risksIn(call)).toEqual([]);
 });
+
+test('a scope reads the risky calls of its body', () => {
+  expect(
+    railsReader
+      .symbols?.(
+        ['class User', '  scope :named, ->(name) { where("name = #{name}") }', 'end'].join('\n'),
+        'app/models/user.rb',
+      )
+      ?.symbols.find(({ name }) => name === 'self.named')?.risks,
+  ).toEqual([{ kind: 'raw-sql', text: 'where("name = #{name}")', detail: 'interpolated' }]);
+});

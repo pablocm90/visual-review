@@ -212,6 +212,7 @@ const scopeSymbols = (call: Node, within: string | undefined): ReadonlyArray<Rea
         exported: true,
         signature: '',
         decisions: decisionsOfBody(body),
+        risks: body.flatMap(risksIn),
         ...hashesOf({ signed: [], body, text: call.text }),
       },
       within,
