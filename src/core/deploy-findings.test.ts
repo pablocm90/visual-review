@@ -35,7 +35,14 @@ test.for([
   'ENV.fetch("STRIPE_KEY")',
   `ENV.fetch('STRIPE_KEY', nil)`,
   'ENV.key?("STRIPE_KEY")',
-])('Ruby reading the key as %s raises it too', read => {
+  'process.env.STRIPE_KEY',
+  'process.env["STRIPE_KEY"]',
+  'import.meta.env.STRIPE_KEY',
+  'env::var("STRIPE_KEY")',
+  'std::env::var_os("STRIPE_KEY")',
+  'env!("STRIPE_KEY")',
+  'option_env!("STRIPE_KEY")',
+])('reading the key as %s raises it too', read => {
   expect(
     deployKeyFindings([patchAdding(`  config.api_key = ${read}`)]).map(({ id }) => id),
   ).toStrictEqual(['deploy:env:STRIPE_KEY']);
