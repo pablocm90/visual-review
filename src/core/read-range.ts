@@ -104,6 +104,7 @@ export type RangeReading = {
   readonly schemas: ReadonlyArray<SchemaReading>;
   readonly routes: ReadonlyArray<RoutesReading>;
   readonly access: ReadonlyArray<AccessReading>;
+  readonly openActions: ReadonlyArray<string>;
   readonly danglingCalls: ReadonlyArray<DanglingCall>;
   readonly linksNotRead: ReadonlyArray<string>;
   readonly skipped: ReadonlyArray<Skipped>;
@@ -727,6 +728,7 @@ export const readRange = async ({
         access,
         authorize: config.security.authorize,
       }),
+      openActions: config.security.open,
       danglingCalls: after.danglingCalls,
       linksNotRead: after.linksNotRead,
       skipped: [

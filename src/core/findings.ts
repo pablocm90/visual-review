@@ -92,6 +92,7 @@ type RaisedOptions = {
   readonly schemas: ReadonlyArray<SchemaReading>;
   readonly routes: ReadonlyArray<RoutesReading>;
   readonly access: ReadonlyArray<AccessReading>;
+  readonly openActions: ReadonlyArray<string>;
   readonly metricFindings: ReadonlyArray<MetricFinding>;
   readonly symbols: ReadonlyArray<SymbolFile>;
   readonly symbolsNotRead: ReadonlyArray<string>;
@@ -177,6 +178,7 @@ export const raisedFindings = ({
   schemas,
   routes,
   access,
+  openActions,
   metricFindings,
   symbols,
   symbolsNotRead,
@@ -253,7 +255,7 @@ export const raisedFindings = ({
     access,
     routes: routes.flatMap(reading => ('routes' in reading ? reading.routes : [])),
     nodes,
-    open: [],
+    open: openActions,
   }),
 ];
 

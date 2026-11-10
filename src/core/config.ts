@@ -122,6 +122,10 @@ const SecuritySchema = z.strictObject({
     .describe(
       'The callbacks and calls that authorize an action, * a wildcard; replaces the defaults',
     ),
+  open: z
+    .array(z.string())
+    .default([])
+    .describe('Actions meant to be public, as Controller#action globs: they raise nothing'),
 });
 
 const ConfigSchema = z.strictObject({
