@@ -33,6 +33,7 @@ export const CHECK_TITLES = {
   'schema:table-changed': 'tables added or changed',
   'schema:whole': 'schema dumps added or removed whole',
   'security:unauthorized': 'actions with no authorization',
+  'security:permit': 'parameters newly permitted',
 } as const;
 
 export type Check = keyof typeof CHECK_TITLES;
