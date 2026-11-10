@@ -2,6 +2,13 @@
 
 What changed in each release of `@pablocm90/visual-review`, newest first. Versions follow [semver](https://semver.org); while it is 0.x, a minor version may change the exported types.
 
+## Unreleased
+
+### Added
+
+- A note on a function, logic line or test takes a `flag`, as a part's or edge's does: `--notes` no longer refuses it. Its finding, `notes:symbol <id>`, `notes:decision <id>` or `notes:test <id>`, needs a look in the note's dimension and sits on the node holding the anchor: the file's node for a symbol or decision, the node whose **Tested by** shows the test for a test. Going to it from the findings rail or **Start here** selects that node and lands on the row, opening the folds around it. A last review's answer to one is placed on its anchor, as a comment on it is, and marked changed since when its file changed.
+- The skill may flag a function, logic line or test note, on the narrowest anchor that shows the concern.
+
 ## 0.61.1 — 2026-11-10
 
 ### Changed
