@@ -553,6 +553,26 @@ const findingsOfSymbols = (
     parsers,
   }).findings;
 
+test('a risky call a symbol gains raises its security finding to look at on the page', () => {
+  const symbols = [
+    symbolFile([
+      {
+        name: 'create',
+        kind: 'method',
+        exported: { base: true, head: true },
+        change: 'edited',
+        risks: [{ kind: 'permit!', text: 'params.permit!' }],
+      },
+    ]),
+  ];
+
+  expect(
+    findingsOfSymbols(symbols)
+      .filter(({ dimension }) => dimension === 'security')
+      .map(({ id, level }) => ({ id, level })),
+  ).toStrictEqual([{ id: 'security:permit!:web/file/a.ts#create#params.permit!', level: 'look' }]);
+});
+
 test('an exported symbol removed, or no longer exported, is an api finding to look at on its file, named by its kind and qualified name', () => {
   const symbols = [
     symbolFile([
@@ -3723,4 +3743,24 @@ test.for([
   { part: 'holding one changed since', read: 'web', stillRead: [] },
 ])('a part read last round and $part', ({ read, stillRead }) => {
   expect(sinceWith({ since: ['web/src/cart/a.ts'], read: [read] })).toMatchObject({ stillRead });
+});
+
+test('a line marked safe in a view raises its security finding, whether the view is drawn or not', () => {
+  const viewPatch = (path: string) => ({
+    path,
+    patch: ['@@ -0,0 +1,1 @@', '+<%== bio %>'].join('\n'),
+  });
+  const reading = readingWith({
+    after: { nodes: [webStack, webFile('a.ts'), box('views')], edges: [] },
+    patches: [viewPatch('web/src/views/show.html.erb'), viewPatch('app/views/index.html.erb')],
+  });
+
+  expect(
+    pageData({ repo: 'shop', reading, range: 'main..feature', version: '1.2.3', parsers })
+      .findings.filter(({ dimension }) => dimension === 'security')
+      .map(({ id }) => id),
+  ).toStrictEqual([
+    'security:html-safe:web/src/views/show.html.erb#<%== bio %>',
+    'security:html-safe:app/views/index.html.erb#<%== bio %>',
+  ]);
 });

@@ -2,6 +2,15 @@
 
 What changed in each release of `@pablocm90/visual-review`, newest first. Versions follow [semver](https://semver.org); while it is 0.x, a minor version may change the exported types.
 
+## 0.65.0 — 2026-11-10
+
+### Added
+
+- A Rails method or scope gaining a risky call raises a `security` finding to look at on its file's row, one check per kind: a key newly permitted (`security:permit`, nested keys as `address.street`), `permit!`, raw SQL (`find_by_sql`, `execute` and their kin, `Arel.sql`, or `where`, `order`, `pluck` and the like given a string or heredoc, the detail saying whether it is interpolated), HTML marked safe (`html_safe`, bare `raw`, `safe_concat`) and a `send`, `public_send`, `constantize` or `safe_constantize` of a name it doesn't write. Each is found by name, and the detail says so. A call the base method already made raises nothing, nor does a method moved whole to another file.
+- A line an `.erb`, `.haml` or `.slim` view gains holding `html_safe`, `raw(` or `<%==` (not `html_safe?`) raises `security:html-safe` on that row, by heuristic, since views aren't parsed; the rail lands on the row.
+- The security coverage names each other reader (`risky calls not read for typescript`) and each changed file whose symbols weren't read.
+- The skill cites those findings, reading the call before saying what it lets in.
+
 ## 0.64.0 — 2026-11-10
 
 ### Added

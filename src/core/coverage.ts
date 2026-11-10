@@ -30,19 +30,32 @@ export type CoverageFacts = Pick<
 
 const notReadFor = (name: string): string => `not read for ${name}`;
 
+const unreadIn = (symbols: CoverageFacts['symbols']): ReadonlyArray<string> =>
+  symbols.flatMap(file => ('unreadable' in file ? [notReadFor(file.node)] : []));
+
 const securityNotRead = ({
   access,
   readers,
   routes,
   openActions,
-}: Pick<CoverageFacts, 'access' | 'readers' | 'routes' | 'openActions'>): ReadonlyArray<string> =>
+  symbols,
+}: Pick<
+  CoverageFacts,
+  'access' | 'readers' | 'routes' | 'openActions' | 'symbols'
+>): ReadonlyArray<string> =>
   access.length === 0 && !readers.includes('rails')
     ? ['Rails only']
-    : accessNotRead({
-        access,
-        routes: routes.flatMap(reading => ('routes' in reading ? reading.routes : [])),
-        open: openActions,
-      });
+    : [
+        ...accessNotRead({
+          access,
+          routes: routes.flatMap(reading => ('routes' in reading ? reading.routes : [])),
+          open: openActions,
+        }),
+        ...unreadIn(symbols),
+        ...readers
+          .filter(reader => reader !== 'rails')
+          .map(reader => `risky calls not read for ${reader}`),
+      ];
 
 export const coverageOf = ({
   skipped,
@@ -64,7 +77,7 @@ export const coverageOf = ({
   const skippedStacks = skipped.flatMap(({ stacks }) => stacks);
   const symbolsMissing = [
     ...[...new Set([...skippedStacks, ...symbolsNotRead])].map(notReadFor),
-    ...symbols.flatMap(file => ('unreadable' in file ? [notReadFor(file.node)] : [])),
+    ...unreadIn(symbols),
   ];
   const ifDrawn = (notRead: ReadonlyArray<string>): ReadonlyArray<string> =>
     readers.length === 0 ? ['no stack drawn'] : notRead;
@@ -106,6 +119,9 @@ export const coverageOf = ({
     { dimension: 'routes', notRead: routesNotRead },
     { dimension: 'blast-radius', notRead: ifDrawn([...symbolsMissing, ...reachesNotRead]) },
     { dimension: 'cohesion', notRead: [] },
-    { dimension: 'security', notRead: securityNotRead({ access, readers, routes, openActions }) },
+    {
+      dimension: 'security',
+      notRead: securityNotRead({ access, readers, routes, openActions, symbols }),
+    },
   ];
 };

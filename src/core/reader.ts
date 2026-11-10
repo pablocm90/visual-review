@@ -68,6 +68,15 @@ export type ReadSymbol = {
   readonly textHash: string;
   readonly bodyTokens: ReadonlyArray<string>;
   readonly decisions?: ReadonlyArray<Decision>;
+  readonly risks?: ReadonlyArray<Risk>;
+};
+
+export type RiskKind = 'permit' | 'permit!' | 'raw-sql' | 'html-safe' | 'dynamic-send';
+
+export type Risk = {
+  readonly kind: RiskKind;
+  readonly text: string;
+  readonly detail?: string;
 };
 
 export type FileSymbols = {

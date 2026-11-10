@@ -80,6 +80,7 @@ export const pageData = ({
   const findings = raisedFindings({
     skipped: reading.skipped,
     changedPaths: reading.changedPaths,
+    patches: reading.patches,
     undrawn,
     dangling: reading.danglingCalls,
     dependencyChanges: reading.dependencyChanges,

@@ -8,6 +8,7 @@ import {
   decisionsOfClass,
   decisionsOfMethod,
 } from './ruby-decisions.ts';
+import { risksIn } from './ruby-risks.ts';
 import { constantWithin, readRuby } from './ruby-syntax.ts';
 
 const DEFINITIONS = new Set(['class', 'module']);
@@ -92,6 +93,7 @@ const methodSymbol = (method: Node, within: string | undefined, walk: Walk): Rea
     signature: parameterText(method),
     ...hashesOf({ signed: parametersOf(method), body: fieldOf(method, 'body'), text: method.text }),
     decisions: decisionsOfMethod(method),
+    risks: risksIn(method),
   };
 };
 
@@ -210,6 +212,7 @@ const scopeSymbols = (call: Node, within: string | undefined): ReadonlyArray<Rea
         exported: true,
         signature: '',
         decisions: decisionsOfBody(body),
+        risks: body.flatMap(risksIn),
         ...hashesOf({ signed: [], body, text: call.text }),
       },
       within,

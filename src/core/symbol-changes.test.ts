@@ -1,4 +1,5 @@
 import { expect, test } from 'vitest';
+import { symbolsOfRuby } from '../readers/rails/ruby-symbols.ts';
 import { symbolsOfTypeScript } from '../readers/typescript/typescript-symbols.ts';
 import {
   type FileSymbolChanges,
@@ -915,4 +916,71 @@ test("a file's blind spots are its head's", () => {
       after: { ...read(), blindSpots: ['define_method'] },
     }).blindSpots,
   ).toEqual(['define_method']);
+});
+
+const readRuby = (...lines: ReadonlyArray<string>) => symbolsOfRuby(lines.join('\n'));
+
+const risksOf = (changes: Pick<SymbolChanges, 'symbols'>, name: string) =>
+  changes.symbols.find(statement => statement.name === name)?.risks;
+
+test('a paired symbol carries the risks its head gains over its base, counted as a multiset by kind and text', () => {
+  const before = readRuby(
+    'class UsersController',
+    '  def create',
+    '    params.permit(:name, :legacy)',
+    '    User.where("a = 1")',
+    '  end',
+    'end',
+  );
+  const after = readRuby(
+    'class UsersController',
+    '  def create',
+    '    params.permit(:name, :admin)',
+    '    User.where("a = 1")',
+    '    User.where("a = 1")',
+    '  end',
+    'end',
+  );
+
+  expect(risksOf(symbolChanges({ before, after }), 'create')).toEqual([
+    { kind: 'permit', text: 'admin' },
+    { kind: 'raw-sql', text: 'User.where("a = 1")', detail: 'literal, no interpolation' },
+  ]);
+});
+
+test('an added symbol carries every risk it holds', () => {
+  const before = readRuby('class UsersController', 'end');
+  const after = readRuby(
+    'class UsersController',
+    '  def update',
+    '    params.permit!',
+    '  end',
+    'end',
+  );
+
+  expect(risksOf(symbolChanges({ before, after }), 'update')).toEqual([
+    { kind: 'permit!', text: 'params.permit!' },
+  ]);
+});
+
+test('a symbol moved whole to another file gains none of its risks', () => {
+  const update = ['  def update', '    params.permit!', '  end'];
+  const files = symbolChangesOf([
+    {
+      node: 'shop/class/UsersController',
+      before: readRuby('class UsersController', ...update, 'end'),
+      after: readRuby('class UsersController', 'end'),
+    },
+    {
+      node: 'shop/file/app/controllers/users_actions.rb',
+      before: readRuby('class UsersController', 'end'),
+      after: readRuby('class UsersController', ...update, 'end'),
+    },
+  ]);
+
+  expect(files[1]?.symbols.find(({ name }) => name === 'update')).toMatchObject({
+    change: 'moved',
+    movedFrom: 'shop/class/UsersController',
+  });
+  expect(risksOf(files[1] ?? { symbols: [] }, 'update')).toBeUndefined();
 });

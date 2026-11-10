@@ -1,4 +1,4 @@
-import { countedId } from './counted-id.ts';
+import { countingRepeats } from './counted-id.ts';
 import type { Finding } from './findings.ts';
 import type { GraphNode } from './graph.ts';
 import { decisionText, type LogicLine } from './logic-diff.ts';
@@ -158,16 +158,6 @@ const changedFinding = (
     },
   ];
 };
-
-const countingRepeats = <T>(
-  items: ReadonlyArray<T>,
-  idOf: (item: T) => string,
-): ReadonlyArray<{ readonly item: T; readonly id: string }> =>
-  items.map((item, index) => {
-    const id = idOf(item);
-    const before = items.slice(0, index).filter(other => idOf(other) === id).length;
-    return { item, id: countedId(id, before) };
-  });
 
 export type AnchoredSymbol = {
   readonly item: SymbolStatement;
