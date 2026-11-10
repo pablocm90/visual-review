@@ -66,6 +66,9 @@ test.for([
     prefix: '+',
     code: 'aws_credentials.access_key',
   },
+  { reason: "OmniAuth's credentials", prefix: '+', code: 'token = auth.credentials.token' },
+  { reason: "the AWS SDK's credentials", prefix: '+', code: 'const id = credentials.accessKeyId;' },
+  { reason: 'an attribute named credentials', prefix: '+', code: '@credentials.present?' },
 ])('$reason raises nothing', ({ prefix, code }) => {
   const patch = patchAdding();
   expect(deployKeys([{ ...patch, patch: `${patch.patch}\n${prefix}  ${code}` }])).toEqual([]);
@@ -88,11 +91,12 @@ test('a key read in a test file is for information', () => {
 
 test.for([
   { read: 'Rails.application.credentials.stripe.secret_key', key: 'stripe.secret_key' },
-  { read: 'credentials.stripe![:secret_key]', key: 'stripe.secret_key' },
-  { read: 'credentials[:stripe][:secret_key]', key: 'stripe.secret_key' },
-  { read: 'credentials.stripe["secret_key"]', key: 'stripe.secret_key' },
-  { read: 'credentials.dig(:stripe, :secret_key)', key: 'stripe.secret_key' },
-  { read: 'credentials.fetch(:stripe)', key: 'stripe' },
+  { read: 'Rails.app.credentials.stripe.secret_key', key: 'stripe.secret_key' },
+  { read: 'Rails.application.credentials.stripe![:secret_key]', key: 'stripe.secret_key' },
+  { read: 'Rails.application.credentials[:stripe][:secret_key]', key: 'stripe.secret_key' },
+  { read: 'Rails.application.credentials.stripe["secret_key"]', key: 'stripe.secret_key' },
+  { read: 'Rails.application.credentials.dig(:stripe, :secret_key)', key: 'stripe.secret_key' },
+  { read: 'Rails.application.credentials.fetch(:stripe)', key: 'stripe' },
 ])('reading credentials as $read raises the path $key', ({ read, key }) => {
   expect(deployKeys([patchAdding(`  config.api_key = ${read}`)])).toMatchObject([
     {

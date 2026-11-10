@@ -23,7 +23,10 @@ const NAME = String.raw`[:"']?(\w+)["']?`;
 
 const STEP = new RegExp(String.raw`\.dig\(([^)]*)\)|\.fetch\(${NAME}|\.(\w+)!?|\[${NAME}\]`, 'g');
 
-const CHAIN = new RegExp(String.raw`\bcredentials((?:${STEP.source})+)`, 'g');
+const CHAIN = new RegExp(
+  String.raw`\bRails\.app(?:lication)?\.credentials((?:${STEP.source})+)`,
+  'g',
+);
 
 const namesIn = (args: string): ReadonlyArray<string> =>
   [...args.matchAll(new RegExp(NAME, 'g'))].flatMap(([, name]) =>

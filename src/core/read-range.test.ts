@@ -2550,7 +2550,7 @@ test.for([
 test.for([
   {
     reason: 'the ones the base names',
-    added: 'ENV["OLD_KEY"]\nENV["NEW_KEY"]\ncredentials.stripe.secret_key\n',
+    added: 'ENV["OLD_KEY"]\nENV["NEW_KEY"]\nRails.application.credentials.stripe.secret_key\n',
     atBase: ['OLD_KEY', 'stripe.secret_key'],
   },
   { reason: 'none when the base names none', added: 'ENV["NEW_KEY"]\n', atBase: [] },
