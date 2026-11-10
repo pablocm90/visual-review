@@ -33,7 +33,7 @@ const FORMATS: ReadonlyArray<Format> = [
 
 const ROTATE = 'Rotate it: it stays in git history once removed.';
 
-const masked = (value: string): string => `${value.slice(0, 4)}…(${value.length} chars)`;
+export const masked = (value: string): string => `${value.slice(0, 4)}…(${value.length} chars)`;
 
 type Found = {
   readonly name: string;
