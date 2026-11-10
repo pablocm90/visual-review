@@ -25,6 +25,7 @@ const CALLBACK = /^((prepend|append|skip)_)?(before|around|after)_action$/;
 
 type Callback = {
   readonly skip: boolean;
+  readonly after: boolean;
   readonly name: string;
   readonly only: ReadonlyArray<string> | undefined;
   readonly except: ReadonlyArray<string>;
@@ -41,6 +42,8 @@ type Step = Callback | Unread;
 type Entry = Step | { readonly include: Wanted; readonly at: UnreadAccess };
 
 type Reading = { readonly file: string; readonly authorize: ReadonlyArray<string> };
+
+const AFTER_THE_ACTION = 'verify_authorized';
 
 const authorizes = (authorize: ReadonlyArray<string>, name: string): boolean =>
   authorize.some(pattern => matchesWildcard(pattern, name));
@@ -82,6 +85,7 @@ const reachOf = (call: Node): Reach => {
   const only = optionOf(args, 'only');
   return {
     skip: calledName(call).startsWith('skip_'),
+    after: calledName(call).endsWith('after_action'),
     only: only === undefined ? undefined : namesIn(only),
     except: namesIn(optionOf(args, 'except')),
     conditional: optionOf(args, 'if') !== undefined || optionOf(args, 'unless') !== undefined,
@@ -233,6 +237,7 @@ type Covering = {
 const coverOf = ({ action, callbacks, calls, authorize }: Covering): { readonly cover?: Cover } => {
   const covers = callbacks
     .filter(callback => reaches(callback, action))
+    .filter(({ after, name }) => !after || name === AFTER_THE_ACTION)
     .reduce<ReadonlyArray<Cover>>((active, { skip, name, conditional }) => {
       if (!skip) return active.concat({ by: name, conditional });
       if (!conditional) return active.filter(kept => kept.by !== name);

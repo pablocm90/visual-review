@@ -110,10 +110,12 @@ test.for([
     body: '    prepend_before_action :require_admin',
     cover: { by: 'require_admin', conditional: false },
   },
+  { callback: 'an after_action, run once the action has', body: '    after_action :require_admin' },
+  { callback: 'an append_after_action', body: '    append_after_action :require_admin' },
   {
-    callback: 'an after_action',
-    body: '    after_action :require_admin',
-    cover: { by: 'require_admin', conditional: false },
+    callback: 'an after_action verifying an authorize call',
+    body: '    after_action :verify_authorized',
+    cover: { by: 'verify_authorized', conditional: false },
   },
   {
     callback: 'an around_action',
@@ -122,7 +124,7 @@ test.for([
   },
   {
     callback: 'an after_action skipped later',
-    body: '    append_after_action :require_admin\n    skip_after_action :require_admin',
+    body: '    append_after_action :verify_authorized\n    skip_after_action :verify_authorized',
   },
   {
     callback: 'a before_action skipped later',

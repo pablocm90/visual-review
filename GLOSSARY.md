@@ -206,7 +206,7 @@ _Avoid_: dismissed, suppressed
 _In code_: `SinceReview['calledFine']`
 
 **Cover**:
-What authorizes a controller action: an authorizing callback that reaches it, from its controller, a parent or an included concern, under its `only` and `except`, with no later skip removing it, or its own call of an authorizing name. It is conditional when it holds only under an `if:` or `unless:`.
+What authorizes a controller action: an authorizing `before_action` or `around_action` that reaches it (an `after_action` runs once the action has, so only `verify_authorized`, which checks an authorize call was made, counts), from its controller, a parent or an included concern, under its `only` and `except`, with no later skip removing it, or its own call of an authorizing name. It is conditional when it holds only under an `if:` or `unless:`.
 _Avoid_: guard (a logic line), protection, auth
 _In code_: `Cover` (`src/core/access.ts`), `security.authorize`
 
