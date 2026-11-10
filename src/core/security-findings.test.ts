@@ -156,3 +156,8 @@ test('a second line in one view is counted in its id, on its own row', () => {
     { id: `security:html-safe:${VIEW}#2`, line: `${VIEW}@head:4` },
   ]);
 });
+
+test('a view line marked safe that the change removes or keeps raises nothing', () => {
+  const patch = ['@@ -1,2 +1,1 @@', ' <%= raw(a) %>', '-<%== b %>'].join('\n');
+  expect(viewRiskFindings([{ path: VIEW, patch }])).toEqual([]);
+});
