@@ -2,6 +2,18 @@
 
 What changed in each release of `@pablocm90/visual-review`, newest first. Versions follow [semver](https://semver.org); while it is 0.x, a minor version may change the exported types.
 
+## Unreleased
+
+### Added
+
+- A secret a line gains raises `security:secret` on its row, for every stack and in files outside the graph too: an AWS access key, a GitHub, Slack or Google token, a Stripe live key or a private key header, and, by heuristic, a long, varied literal assigned under a name such as `password`, `token` or `api_key`. Lockfiles skip the heuristic, their hashes reading as keys. A secret file the change adds (`.env` but `.env.example`, `config/master.key`, `config/credentials/*.key`, `*.pem`, a private `id_rsa`) raises one for the file. In a test file or fixture each is for information. The detail says to rotate it, since it stays in git history once removed.
+- The page data, and the `.json` beside the page, mask every secret value found, in every string they hold (patches, symbols, findings), as its first four characters and its length; a private key's body lines are masked too.
+- `permit(*FIELDS)`, `permit(FIELDS)` and the like are listed under the security coverage (`<node> not read: permit(*FIELDS) in UsersController.create`) when a method gains one, rather than read as permitting nothing.
+
+### Changed
+
+- With no Rails stack, the security coverage reads `authorization and risky calls: Rails only`, since secrets are read for every stack.
+
 ## 0.65.0 — 2026-11-10
 
 ### Added
