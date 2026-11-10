@@ -16,7 +16,13 @@ import {
 import { anchorKey, anchorOfKey, fileOfLine } from '../core/anchors.ts';
 import type { DiffedNode, FilePatch, GraphDiff } from '../core/diff-graphs.ts';
 import { deepestHolding, isAtOrUnder } from '../core/diff-graphs.ts';
-import { anchorOfNoteFlag, type Finding, findingsAt, findingsOf } from '../core/findings.ts';
+import {
+  anchorOfNoteFlag,
+  type Finding,
+  findingsAt,
+  findingsOf,
+  type PlaceInFile,
+} from '../core/findings.ts';
 import { edgeId } from '../core/graph.ts';
 import {
   logicTotalsOf,
@@ -1726,7 +1732,7 @@ type LandingHeadProps = GraphControlsProps &
     readonly onGoTo: (id: string) => void;
     readonly onGoToFinding: (id: string, finding: string) => void;
     readonly onShowOutside: (opener: HTMLButtonElement) => void;
-    readonly onShowFile: (path: string, opener: HTMLButtonElement, place?: string) => void;
+    readonly onShowFile: (path: string, opener: HTMLButtonElement, place: PlaceInFile) => void;
   };
 
 const logicLineOf = ({
@@ -1828,7 +1834,7 @@ type LeftColumnProps = {
   readonly onGoToFinding: (id: string, finding: string) => void;
   readonly onGoToOutside: (place: LandingIn, opener: HTMLButtonElement) => void;
   readonly onShowOutside: (opener: HTMLButtonElement) => void;
-  readonly onShowFile: (path: string, opener: HTMLButtonElement, place?: string) => void;
+  readonly onShowFile: (path: string, opener: HTMLButtonElement, place: PlaceInFile) => void;
 };
 
 const LeftColumn = ({
@@ -2207,18 +2213,26 @@ const Page = ({ review, notes, send }: ReviewPageProps) => {
     landOn(holder.id, place);
     goToOnStructure(holder.id);
   };
-  const showFile = (path: string, opener: HTMLButtonElement, place?: string) => {
+  const showFile = (
+    path: string,
+    opener: HTMLButtonElement,
+    { table, route, line }: PlaceInFile,
+  ) => {
+    if (line !== undefined) {
+      showPatch(path, opener, line);
+      return;
+    }
     if (review.schemas.some(({ file }) => file === path)) {
-      setSchemaLanding({ file: path, table: place });
+      setSchemaLanding({ file: path, table });
       location.hash = '#schema';
       return;
     }
     if (routesHold(review.routes, path)) {
-      setRoutesLanding({ file: path, route: place });
+      setRoutesLanding({ file: path, route });
       location.hash = '#routes';
       return;
     }
-    showPatch(path, opener, place);
+    showPatch(path, opener);
   };
   const [read, setRead] = useState(() => storedReadMarks(review.range, stillReadIn(review)));
   useEffect(() => storeReadMarks(review.range, read), [review.range, read]);

@@ -6607,54 +6607,69 @@ test("the rail's flag on a diff line's note goes to its file and outlines that r
   );
 });
 
-test("the rail's flag on a line note in a file outside the graph opens those files on that row, the note under it, as its answer in the tray does", async () => {
-  const user = userEvent.setup();
-  render(
-    <ReviewPage
-      review={pageWith({
-        ...review,
-        undrawn: [
-          {
-            path: 'README.md',
-            patch: '--- a/README.md\n+++ b/README.md\n@@ -1,2 +1,2 @@\n one\n-old\n+new',
-          },
-        ],
-      })}
-      notes={{
-        version: 2,
-        tests: '',
-        summary: [],
-        notes: { 'line README.md@head:2': { text: 'Newer.', flag: 'stale wording' } },
-      }}
-      send={vi.fn(async () => {})}
-    />,
-  );
-  const landedRow = () => within(inspector()).getByRole('insertion', { current: true });
+test.for([
+  { path: 'README.md', reading: {} },
+  {
+    path: 'config/routes.rb',
+    reading: { routes: [{ file: 'config/routes.rb', notRead: 'Ruby syntax error' }] },
+  },
+  {
+    path: 'db/schema.rb',
+    reading: { schemas: [{ file: 'db/schema.rb', notRead: 'Ruby syntax error' }] },
+  },
+])(
+  "the rail's flag on a line note in $path, outside the graph, opens those files on that row, the note under it, as its answer in the tray does",
+  async ({ path, reading }) => {
+    const user = userEvent.setup();
+    render(
+      <ReviewPage
+        review={pageWith({
+          ...review,
+          ...reading,
+          undrawn: [
+            {
+              path,
+              patch: `--- a/${path}\n+++ b/${path}\n@@ -1,2 +1,2 @@\n one\n-old\n+new`,
+            },
+          ],
+        })}
+        notes={{
+          version: 2,
+          tests: '',
+          summary: [],
+          notes: { [`line ${path}@head:2`]: { text: 'Newer.', flag: 'stale wording' } },
+        }}
+        send={vi.fn(async () => {})}
+      />,
+    );
+    const landedRow = () => within(inspector()).getByRole('insertion', { current: true });
 
-  await user.click(await screen.findByRole('button', { name: 'Show 1 finding' }));
-  const rail = screen.getByRole('complementary', { name: 'Findings' });
-  await user.click(within(rail).getByRole('button', { name: /stale wording/ }));
+    await user.click(await screen.findByRole('button', { name: /^Show \d+ findings?$/ }));
+    const rail = screen.getByRole('complementary', { name: 'Findings' });
+    await user.click(within(rail).getByRole('button', { name: /stale wording/ }));
 
-  expect(within(inspector()).getByRole('heading', { level: 2 }).textContent).toBe(
-    'Changed files outside the graph',
-  );
-  expect(landedRow().textContent).toContain('new');
-  expect(
-    within(landedRow()).getByRole('region', { name: /^Note on README\.md:2/ }).textContent,
-  ).toBe('Newer.');
+    expect(within(inspector()).getByRole('heading', { level: 2 }).textContent).toBe(
+      'Changed files outside the graph',
+    );
+    expect(landedRow().textContent).toContain('new');
+    expect(
+      within(landedRow()).getByRole('region', { name: new RegExp(`^Note on ${path}:2`) })
+        .textContent,
+    ).toBe('Newer.');
 
-  const finding = within(rail).getByText('stale wording').closest('li') ?? rail;
-  await user.click(within(finding).getByRole('button', { name: 'Fix this' }));
-  await user.click(within(inspector()).getByRole('button', { name: 'Close inspector' }));
-  await openReview(user);
-  await user.click(
-    within(screen.getByRole('list', { name: 'Drafts' })).getByRole('button', {
-      name: 'stale wording',
-    }),
-  );
+    const finding = within(rail).getByText('stale wording').closest('li') ?? rail;
+    await user.click(within(finding).getByRole('button', { name: 'Fix this' }));
+    await user.click(within(inspector()).getByRole('button', { name: 'Close inspector' }));
+    await openReview(user);
+    await user.click(
+      within(screen.getByRole('list', { name: 'Drafts' })).getByRole('button', {
+        name: 'stale wording',
+      }),
+    );
 
-  expect(landedRow().textContent).toContain('new');
-});
+    expect(landedRow().textContent).toContain('new');
+  },
+);
 
 test("a box's patch holding a line note opens by itself, its other patches closed", async () => {
   const user = userEvent.setup();

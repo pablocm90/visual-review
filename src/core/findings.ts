@@ -64,11 +64,7 @@ export type Finding = {
   readonly groups?: SplitSuggestion['groups'];
 };
 
-export const placeInFile = ({
-  table,
-  route,
-  line,
-}: Pick<Finding, 'table' | 'route' | 'line'>): string | undefined => table ?? route ?? line;
+export type PlaceInFile = Pick<Finding, 'table' | 'route' | 'line'>;
 
 const METRIC_NAMES = { cyclomatic: 'cyclomatic', lines: 'lines', abc: 'ABC size' } as const;
 

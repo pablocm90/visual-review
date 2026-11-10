@@ -4,7 +4,7 @@ import {
   DIMENSIONS,
   type Dimension,
   type Finding,
-  placeInFile,
+  type PlaceInFile,
   skippedFindingId,
 } from '../core/findings.ts';
 import { endsOfId } from '../core/graph.ts';
@@ -31,7 +31,7 @@ type FindingsRailProps = {
   readonly onGoTo: (id: string) => void;
   readonly onGoToFinding: (id: string, finding: string) => void;
   readonly onShowOutside: (opener: HTMLButtonElement) => void;
-  readonly onShowFile: (path: string, opener: HTMLButtonElement, place?: string) => void;
+  readonly onShowFile: (path: string, opener: HTMLButtonElement, place: PlaceInFile) => void;
   readonly answers: Answers;
   readonly onAnswer: AnswerTo | undefined;
 };
@@ -67,7 +67,7 @@ type LineOptions = {
   readonly onGoTo: (id: string) => void;
   readonly onGoToFinding: (id: string, finding: string) => void;
   readonly onShowOutside: (opener: HTMLButtonElement) => void;
-  readonly onShowFile: (path: string, opener: HTMLButtonElement, place?: string) => void;
+  readonly onShowFile: (path: string, opener: HTMLButtonElement, place: PlaceInFile) => void;
 };
 
 const linesOf = ({ review, onGoTo, onGoToFinding, onShowOutside, onShowFile }: LineOptions) => {
@@ -95,7 +95,7 @@ const linesOf = ({ review, onGoTo, onGoToFinding, onShowOutside, onShowFile }: L
       target: detail ?? '',
       ...(id === 'structure:undrawn' && { act: onShowOutside }),
       ...(file !== undefined && {
-        act: (opener: HTMLButtonElement) => onShowFile(file, opener, placeInFile(finding)),
+        act: (opener: HTMLButtonElement) => onShowFile(file, opener, finding),
       }),
       ...(groups && {
         groups: groups.flatMap(group =>
