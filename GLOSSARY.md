@@ -225,6 +225,11 @@ A credential a line the change adds holds, in any file: a known key or token for
 _Avoid_: leak (nothing is checked to be live), credential scan
 _In code_: `secretFindings` and `secretValues` (`src/core/secret-findings.ts`), `pageData` (`src/core/page.ts`)
 
+**Excluded model**:
+A model Apartment keeps in the public schema, shared by every tenant, as its app's `Apartment.configure` names it under `excluded_models`.
+_Avoid_: global model, shared table
+_In code_: `TenantConfig.excluded` (`src/core/tenant.ts`), `railsTenant` (`src/readers/rails/tenant-reader.ts`)
+
 ## Relationships
 
 - A **fact** may raise **findings**; a **finding** is never the only record of a fact.
@@ -243,6 +248,7 @@ _In code_: `secretFindings` and `secretValues` (`src/core/secret-findings.ts`), 
 - A removed route or a new target at one verb and path raises its own **finding** in the routes dimension that needs a look; a file's added routes raise one for information, with the count. PATCH and PUT of one path and target count as one. A statement not read raises a **finding** that needs a look only when its text is added or removed, so one that stays raises none.
 - A controller action with no **cover** raises a **finding** in the security dimension that needs a look when it is new, lost its cover, or a route the change adds reaches it; one covered only conditionally raises one for information; an **open action** raises none, and an action already uncovered raises none.
 - A **secret** raises a **finding** in the security dimension that needs a look, for information in a test file or fixture; a known format in a lockfile counts, the heuristic doesn't.
+- A model added to or removed from an app's **excluded models** raises a **finding** in the tenancy dimension that needs a look, either way; an app with no Apartment config at one side raises none.
 - A **flag** is answered like any other **finding**, under the id `notes:<kind> <id>`, its note's key.
 - An edge at the head breaking a **rule** raises one **finding** per rule in the rules dimension, on that edge, needing a look when the change adds the edge and for information when it was already there; a removed edge raises none.
 - A removed guard or catch **logic line** raises a **finding** in the logic dimension that needs a look; a function's other **logic lines** that changed, a moved one among them, raise one for information; a file with either and no test changed alongside it raises one in the tests dimension.
