@@ -64,7 +64,7 @@ const ReviewNotesSchema = z
               .string()
               .optional()
               .describe('What to do about it, when something warrants it'),
-            flag: z.string().optional().describe('A short label for a structural concern'),
+            flag: z.string().optional().describe('A short label for a concern that needs a look'),
             dimension: z
               .enum(DIMENSIONS)
               .optional()
