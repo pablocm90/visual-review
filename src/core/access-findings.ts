@@ -85,7 +85,9 @@ const pairedIn = ({
 }: Pick<AccessFindingsOptions, 'access' | 'open'>): ReadonlyArray<Paired> =>
   access.flatMap(({ base, head }) => {
     const before = new Map(base.actions.map(action => [keyOf(action), action]));
+    const unreadBefore = new Set((base.notRead ?? []).map(({ file }) => file));
     return head.actions
+      .filter(({ file }) => !unreadBefore.has(file))
       .filter(
         ({ controller, action }) =>
           !open.some(pattern => matchesWildcard(pattern, `${controller}#${action}`)),

@@ -53,6 +53,15 @@ test('a new action nothing authorizes needs a look, on its controller', () => {
   ]);
 });
 
+test('an action whose file was not read at the base is not taken for new', () => {
+  expect(
+    findingsOf({
+      base: { actions: [], notRead: [{ file: FILE, reason: 'Ruby that does not parse' }] },
+      head: { actions: [action()] },
+    }),
+  ).toStrictEqual([]);
+});
+
 test('a new action with a cover raises nothing', () => {
   expect(
     findingsOf(reading([], [action({ cover: { by: 'authorize', conditional: false } })])),
