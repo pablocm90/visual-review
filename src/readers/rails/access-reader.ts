@@ -49,12 +49,32 @@ const callbacksOfCall = (call: Node): ReadonlyArray<Callback> => {
 
 type Written = { readonly text: string; readonly line: number };
 
-type Entry = Callback | ({ readonly include: Wanted } & Written);
+type Unread = { readonly unread: UnreadAccess };
 
-const entriesOf = (body: Node | null | undefined): ReadonlyArray<Entry> =>
+type Step = Callback | Unread;
+
+type Entry = Step | ({ readonly include: Wanted } & Written);
+
+type Reading = { readonly file: string; readonly authorize: ReadonlyArray<string> };
+
+const authorizes = (authorize: ReadonlyArray<string>, name: string): boolean =>
+  authorize.some(pattern => matchesWildcard(pattern, name));
+
+const unreadable = (call: Node, authorize: ReadonlyArray<string>): boolean => {
+  if (argsOf(call).some(({ type }) => type === 'splat_argument')) return true;
+  const block = call.childForFieldName('block');
+  return block !== null && !namesCalledIn(block).some(name => authorizes(authorize, name));
+};
+
+const unreadOf = (call: Node, { file, authorize }: Reading): ReadonlyArray<Unread> =>
+  unreadable(call, authorize)
+    ? [{ unread: { text: call.text, file, line: call.startPosition.row + 1 } }]
+    : [];
+
+const entriesOf = (body: Node | null | undefined, reading: Reading): ReadonlyArray<Entry> =>
   (body?.namedChildren ?? []).flatMap(node => {
     const method = methodOf(node);
-    if (CALLBACK.test(method)) return callbacksOfCall(node);
+    if (CALLBACK.test(method)) return [...callbacksOfCall(node), ...unreadOf(node, reading)];
     if (method === 'include')
       return argsOf(node).map(arg => ({
         include: written(arg),
@@ -62,7 +82,7 @@ const entriesOf = (body: Node | null | undefined): ReadonlyArray<Entry> =>
         line: node.startPosition.row + 1,
       }));
     if (method === 'included')
-      return entriesOf(node.childForFieldName('block')?.childForFieldName('body'));
+      return entriesOf(node.childForFieldName('block')?.childForFieldName('body'), reading);
     return [];
   });
 
@@ -96,21 +116,25 @@ const parentOf = (definition: Node): Wanted | undefined => {
     : { name: written.text, scopes: scopesOf(definition), ignoringCase: false };
 };
 
-const controllersIn = (node: Node, within: string | undefined): ReadonlyArray<Controller> =>
+const controllersIn = (
+  node: Node,
+  within: string | undefined,
+  reading: Reading,
+): ReadonlyArray<Controller> =>
   node.namedChildren.flatMap(child => {
-    if (!DEFINITIONS.has(child.type)) return controllersIn(child, within);
+    if (!DEFINITIONS.has(child.type)) return controllersIn(child, within, reading);
     const constant = constantWithin(child.childForFieldName('name')?.text ?? '', within);
     const body = child.childForFieldName('body');
     return [
       {
         constant,
         parent: parentOf(child),
-        entries: entriesOf(body),
+        entries: entriesOf(body, reading),
         calls: callsOf(body),
         header: /^.*/.exec(child.text)?.[0] ?? '',
         line: child.startPosition.row + 1,
       },
-      ...controllersIn(child, constant),
+      ...controllersIn(child, constant, reading),
     ];
   });
 
@@ -128,7 +152,7 @@ const foundIn = (
 const expanded = (
   controllers: ReadonlyMap<string, Controller>,
   entries: ReadonlyArray<Entry>,
-): ReadonlyArray<Callback> =>
+): ReadonlyArray<Step> =>
   entries.flatMap(entry => {
     if (!('include' in entry)) return [entry];
     const concern = foundIn(controllers, entry.include);
@@ -144,7 +168,7 @@ const parentIn = (
 const inherited = (
   controllers: ReadonlyMap<string, Controller>,
   constant: string,
-): ReadonlyArray<Callback> => {
+): ReadonlyArray<Step> => {
   const controller = controllers.get(constant);
   if (controller === undefined) return [];
   const above = without(controllers, constant);
@@ -154,9 +178,6 @@ const inherited = (
     ...expanded(above, controller.entries),
   ];
 };
-
-const authorizes = (authorize: ReadonlyArray<string>, name: string): boolean =>
-  authorize.some(pattern => matchesWildcard(pattern, name));
 
 type Covering = {
   readonly action: string;
@@ -187,14 +208,6 @@ type ControllerFile = {
   readonly unread: ReadonlyArray<UnreadAccess>;
 };
 
-type Reading = { readonly file: string; readonly authorize: ReadonlyArray<string> };
-
-const unreadable = (call: Node, authorize: ReadonlyArray<string>): boolean => {
-  if (argsOf(call).some(({ type }) => type === 'splat_argument')) return true;
-  const block = call.childForFieldName('block');
-  return block !== null && !namesCalledIn(block).some(name => authorizes(authorize, name));
-};
-
 const unreadIn = (program: Node, { file, authorize }: Reading): ReadonlyArray<UnreadAccess> =>
   program
     .descendantsOfType('call')
@@ -214,7 +227,7 @@ const fileOf = (text: string, { file, authorize }: Reading): ControllerFile => {
     root,
     file,
     ...readRuby(text, program => ({
-      controllers: controllersIn(program, undefined),
+      controllers: controllersIn(program, undefined, { file, authorize }),
       unread: unreadIn(program, { file, authorize }),
     })),
     actions: symbolsOfRuby(text).symbols.flatMap(({ name, scope, kind, exported, lines }) =>
@@ -274,15 +287,20 @@ const coveredIn = (
 ): ReadonlyArray<Action> =>
   read.flatMap(({ root, actions }) => {
     const controllers = controllersAt(read, root);
-    return actions.map(action => ({
-      ...action,
-      ...coverOf({
-        action: action.action,
-        callbacks: inherited(controllers, action.controller),
-        calls: controllers.get(action.controller)?.calls.get(action.action) ?? [],
-        authorize,
-      }),
-    }));
+    return actions.map(action => {
+      const steps = inherited(controllers, action.controller);
+      const unread = steps.flatMap(step => ('unread' in step ? [step.unread] : []));
+      return {
+        ...action,
+        ...coverOf({
+          action: action.action,
+          callbacks: steps.flatMap(step => ('unread' in step ? [] : [step])),
+          calls: controllers.get(action.controller)?.calls.get(action.action) ?? [],
+          authorize,
+        }),
+        ...(unread.length === 0 ? {} : { unread }),
+      };
+    });
   });
 
 export const railsAccess: AccessReader = {

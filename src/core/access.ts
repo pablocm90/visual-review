@@ -3,6 +3,12 @@ export type Cover = {
   readonly conditional: boolean;
 };
 
+export type UnreadAccess = {
+  readonly text: string;
+  readonly file: string;
+  readonly line: number;
+};
+
 export type Action = {
   readonly controller: string;
   readonly controllerPath: string;
@@ -11,12 +17,7 @@ export type Action = {
   readonly file: string;
   readonly line: number;
   readonly cover?: Cover;
-};
-
-export type UnreadAccess = {
-  readonly text: string;
-  readonly file: string;
-  readonly line: number;
+  readonly unread?: ReadonlyArray<UnreadAccess>;
 };
 
 export type AccessTable = {

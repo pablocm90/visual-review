@@ -513,3 +513,44 @@ end
     },
   ]);
 });
+
+test("an action carries the unread rows its cover was read through, its parents' and concerns' too, and no other controller's", () => {
+  const { actions } = read({
+    'app/controllers/application_controller.rb': `class ApplicationController < ActionController::Base
+  before_action *GLOBAL
+end
+`,
+    'app/controllers/concerns/audited.rb': `module Audited
+  extend ActiveSupport::Concern
+  included do
+    before_action { head :forbidden unless admin? }
+  end
+end
+`,
+    'app/controllers/users_controller.rb': `class UsersController < ApplicationController
+  include Audited
+  before_action *USERS
+  def index; end
+end
+`,
+    'app/controllers/reports_controller.rb': `class ReportsController < ActionController::Base
+  before_action *REPORTS
+  def show; end
+end
+`,
+  });
+
+  expect(
+    actions.map(({ action, unread }) => [action, unread?.map(({ text, file }) => [text, file])]),
+  ).toStrictEqual([
+    [
+      'index',
+      [
+        ['before_action *GLOBAL', 'app/controllers/application_controller.rb'],
+        ['before_action { head :forbidden unless admin? }', 'app/controllers/concerns/audited.rb'],
+        ['before_action *USERS', 'app/controllers/users_controller.rb'],
+      ],
+    ],
+    ['show', [['before_action *REPORTS', 'app/controllers/reports_controller.rb']]],
+  ]);
+});
