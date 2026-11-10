@@ -452,6 +452,20 @@ end
   ]);
 });
 
+test('an unread callback written over several lines is named by its first', () => {
+  expect(
+    unreadOf({
+      'app/controllers/users_controller.rb': `class UsersController < ActionController::Base
+  before_action do
+    head :forbidden unless admin?
+  end
+  def index; end
+end
+`,
+    }),
+  ).toStrictEqual([['index', [['before_action do', 'app/controllers/users_controller.rb', 2]]]]);
+});
+
 test('a parent outside the controllers read is unread, where the class names it', () => {
   expect(
     unreadOf({

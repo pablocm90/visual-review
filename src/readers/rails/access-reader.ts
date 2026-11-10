@@ -64,10 +64,14 @@ const unreadable = (call: Node, authorize: ReadonlyArray<string>): boolean => {
   return block !== null && !namesCalledIn(block).some(name => authorizes(authorize, name));
 };
 
+const rowOf = (node: Node, file: string): UnreadAccess => ({
+  text: /^.*/.exec(node.text)?.[0] ?? '',
+  file,
+  line: node.startPosition.row + 1,
+});
+
 const unreadOf = (call: Node, { file, authorize }: Reading): ReadonlyArray<Unread> =>
-  unreadable(call, authorize)
-    ? [{ unread: { text: call.text, file, line: call.startPosition.row + 1 } }]
-    : [];
+  unreadable(call, authorize) ? [{ unread: rowOf(call, file) }] : [];
 
 const entriesOf = (body: Node | null | undefined, reading: Reading): ReadonlyArray<Entry> =>
   (body?.namedChildren ?? []).flatMap(node => {
@@ -76,7 +80,7 @@ const entriesOf = (body: Node | null | undefined, reading: Reading): ReadonlyArr
     if (method === 'include')
       return argsOf(node).map(arg => ({
         include: written(arg),
-        at: { text: node.text, file: reading.file, line: node.startPosition.row + 1 },
+        at: rowOf(node, reading.file),
       }));
     if (method === 'included')
       return entriesOf(node.childForFieldName('block')?.childForFieldName('body'), reading);
@@ -127,11 +131,7 @@ const controllersIn = (
         parent: parentOf(child),
         entries: entriesOf(body, reading),
         calls: callsOf(body),
-        header: {
-          text: /^.*/.exec(child.text)?.[0] ?? '',
-          file: reading.file,
-          line: child.startPosition.row + 1,
-        },
+        header: rowOf(child, reading.file),
       },
       ...controllersIn(child, constant, reading),
     ];
