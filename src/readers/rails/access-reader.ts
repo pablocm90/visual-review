@@ -12,6 +12,7 @@ import {
   nameOf,
   namesIn,
   optionOf,
+  positional,
   readRuby,
   writtenIn,
 } from './ruby-syntax.ts';
@@ -37,7 +38,7 @@ const callbacksOfCall = (call: Node): ReadonlyArray<Callback> => {
   const args = argsOf(call);
   const only = optionOf(args, 'only');
   const except = namesIn(optionOf(args, 'except'));
-  return args
+  return positional(args)
     .map(nameOf)
     .concat(namesCalledIn(call.childForFieldName('block')))
     .map(name => ({

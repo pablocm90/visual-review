@@ -429,6 +429,21 @@ end
   ).toStrictEqual([by]);
 });
 
+test("a callback's options are no callbacks of their own", () => {
+  expect(
+    read(
+      {
+        'app/controllers/users_controller.rb': `class UsersController < ApplicationController
+  before_action :load_user, if: :authorized?
+  def index; end
+end
+`,
+      },
+      ['*authorized*'],
+    ).actions.map(({ cover }) => cover),
+  ).toStrictEqual([undefined]);
+});
+
 const unreadOf = (files: Record<string, string>) =>
   read(files).actions.map(({ action, unread }) => [
     action,
