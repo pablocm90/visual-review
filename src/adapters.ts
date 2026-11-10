@@ -5,6 +5,7 @@ import type { MigrationReader } from './core/migration.ts';
 import type { Reader } from './core/reader.ts';
 import type { RouteReader } from './core/routes.ts';
 import type { SchemaReader } from './core/schema.ts';
+import type { TenantReader } from './core/tenant.ts';
 import { fetchAxumLinker } from './linkers/fetch-axum/linker.ts';
 import { bundlerLockfile } from './lockfiles/bundler.ts';
 import { cargoLockfile } from './lockfiles/cargo.ts';
@@ -16,6 +17,7 @@ import { railsMigrations } from './readers/rails/migration-risks.ts';
 import { railsReader } from './readers/rails/reader.ts';
 import { railsRoutes } from './readers/rails/route-reader.ts';
 import { railsSchema } from './readers/rails/schema-tables.ts';
+import { railsTenant } from './readers/rails/tenant-reader.ts';
 import { rustReader } from './readers/rust/reader.ts';
 import { typeScriptReader } from './readers/typescript/reader.ts';
 
@@ -38,3 +40,5 @@ export const schemas: ReadonlyArray<SchemaReader> = [railsSchema];
 export const routes: ReadonlyArray<RouteReader> = [railsRoutes];
 
 export const access: ReadonlyArray<AccessReader> = [railsAccess];
+
+export const tenancy: ReadonlyArray<TenantReader> = [railsTenant];

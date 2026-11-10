@@ -34,6 +34,7 @@ import {
   readStacks,
   type StacksReading,
 } from './read-stacks.ts';
+import { readTenancy, type TenancyReading } from './read-tenancy.ts';
 import type { FileMeasures, FileSymbols, Reader } from './reader.ts';
 import type { Review } from './review.ts';
 import type { RouteReader } from './routes.ts';
@@ -41,6 +42,7 @@ import { type RuleBreak, ruleBreaks, rulesNotRead } from './rule-breaks.ts';
 import type { SchemaReader } from './schema.ts';
 import type { Skipped } from './skipped.ts';
 import { type FileSymbolChanges, symbolChangesOf } from './symbol-changes.ts';
+import type { TenantReader } from './tenant.ts';
 import { type TestFile, testChanges, withMovedTests } from './test-changes.ts';
 
 export type Churn = Readonly<Record<string, number>>;
@@ -105,6 +107,7 @@ export type RangeReading = {
   readonly schemas: ReadonlyArray<SchemaReading>;
   readonly routes: ReadonlyArray<RoutesReading>;
   readonly access: ReadonlyArray<AccessReading>;
+  readonly tenancy: ReadonlyArray<TenancyReading>;
   readonly openActions: ReadonlyArray<string>;
   readonly danglingCalls: ReadonlyArray<DanglingCall>;
   readonly linksNotRead: ReadonlyArray<string>;
@@ -124,6 +127,7 @@ type ReadRangeOptions = Adapters & {
   readonly schemas: ReadonlyArray<SchemaReader>;
   readonly routes: ReadonlyArray<RouteReader>;
   readonly access: ReadonlyArray<AccessReader>;
+  readonly tenancy: ReadonlyArray<TenantReader>;
   readonly repo: string;
   readonly from: string;
   readonly to: string;
@@ -609,6 +613,7 @@ export const readRange = async ({
   schemas,
   routes,
   access,
+  tenancy,
   ...adapters
 }: ReadRangeOptions): Promise<RangeReading> => {
   const [fromCommit, toCommit] = await Promise.all([resolve(repo, from), resolve(repo, to)]);
@@ -731,6 +736,7 @@ export const readRange = async ({
         access,
         authorize: security.authorize,
       }),
+      tenancy: await readTenancy({ repo, base, head: toCommit, tenancy }),
       openActions: security.open,
       danglingCalls: after.danglingCalls,
       linksNotRead: after.linksNotRead,
