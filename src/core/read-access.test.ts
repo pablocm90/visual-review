@@ -138,3 +138,38 @@ test("an action the config's security.open lists raises no finding on the page",
       .map(({ id }) => id),
   ).toStrictEqual(['security:unauthorized::UsersController#index']);
 });
+
+const unauthorizedOn = async (repo: string, from: string, to: string) =>
+  pageData({
+    reading: await readRange({ repo, from, to }),
+    repo: 'shop',
+    range: 'a..b',
+    version: '0',
+    parsers: {},
+  })
+    .findings.filter(({ check }) => check === 'security:unauthorized')
+    .map(({ id }) => id);
+
+test.for([
+  {
+    reason: 'opens the action it adds',
+    config: '{"security": {"open": ["UsersController#index"]}}',
+    actions: '  def index; end',
+  },
+  {
+    reason: 'names the callback it adds as authorizing',
+    config: '{"security": {"authorize": ["anything"]}}',
+    actions: '  before_action :anything\n  def index; end',
+  },
+])(
+  "security is read from the base, so a head config that $reason still raises the action's finding",
+  async ({ config, actions }) => {
+    using workspace = gitRepo({ [USERS]: users('') });
+    const { repo, root } = workspace;
+    const to = commit(repo, { 'visual-review.config.json': config, [USERS]: users(actions) });
+
+    expect(await unauthorizedOn(repo, root, to)).toStrictEqual([
+      'security:unauthorized::UsersController#index',
+    ]);
+  },
+);

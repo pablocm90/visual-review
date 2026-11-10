@@ -156,7 +156,9 @@ const ConfigSchema = z.strictObject({
   notes: NotesConfigSchema.prefault({}).describe(
     "How Claude writes its notes, read from the range's base revision, so a change can't rewrite it",
   ),
-  security: SecuritySchema.prefault({}).describe('How access to controller actions is read'),
+  security: SecuritySchema.prefault({}).describe(
+    "How access to controller actions is read, from the range's base revision, so a change can't open its own actions",
+  ),
 });
 
 export type Config = z.infer<typeof ConfigSchema>;
@@ -219,7 +221,12 @@ const parsedBy = <Schema extends z.ZodType>(
 export const parseConfig = (text: string): Config =>
   parsedBy(ConfigSchema, jsonIn(text, CONFIG_FILE), CONFIG_FILE);
 
-const BaseNotesSchema = z.object({ notes: NotesConfigSchema.prefault({}) });
+const BaseConfigSchema = z.object({
+  notes: NotesConfigSchema.prefault({}),
+  security: SecuritySchema.prefault({}),
+});
 
-export const parseBaseNotesConfig = (text: string): NotesConfig =>
-  parsedBy(BaseNotesSchema, jsonOrNothing(text), `${CONFIG_FILE} at the base`).notes;
+export type BaseConfig = Pick<Config, 'notes' | 'security'>;
+
+export const parseBaseConfig = (text: string): BaseConfig =>
+  parsedBy(BaseConfigSchema, jsonOrNothing(text), `${CONFIG_FILE} at the base`);

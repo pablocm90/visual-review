@@ -4,10 +4,11 @@ import { tmpdir } from 'node:os';
 import { basename, join, relative } from 'node:path';
 import type { AccessReader } from './access.ts';
 import {
+  type BaseConfig,
   CONFIG_FILE,
   type Config,
   type NotesConfig,
-  parseBaseNotesConfig,
+  parseBaseConfig,
   parseConfig,
   type ReaderName,
 } from './config.ts';
@@ -290,10 +291,12 @@ const configAt = async (repo: string, revision: string): Promise<Config> => {
   return parseConfig(await readFileThatEnds(inWorkingTree));
 };
 
-const notesConfigAt = async (repo: string, revision: string): Promise<NotesConfig> =>
-  (await git(repo, 'ls-tree', '--name-only', revision, '--', CONFIG_FILE)) === ''
-    ? {}
-    : parseBaseNotesConfig(await git(repo, 'show', `${revision}:${CONFIG_FILE}`));
+const baseConfigAt = async (repo: string, revision: string): Promise<BaseConfig> =>
+  parseBaseConfig(
+    (await git(repo, 'ls-tree', '--name-only', revision, '--', CONFIG_FILE)) === ''
+      ? '{}'
+      : await git(repo, 'show', `${revision}:${CONFIG_FILE}`),
+  );
 
 type ChurnOptions = {
   readonly repo: string;
@@ -611,7 +614,7 @@ export const readRange = async ({
   const [fromCommit, toCommit] = await Promise.all([resolve(repo, from), resolve(repo, to)]);
   const base = await git(repo, 'merge-base', fromCommit, toCommit);
   const config = await configAt(repo, toCommit);
-  const notesConfig = await notesConfigAt(repo, base);
+  const { notes: notesConfig, security } = await baseConfigAt(repo, base);
   const scratch = await realpath(await mkdtemp(join(tmpdir(), 'visual-review-')));
   try {
     const sides = { before: join(scratch, 'before'), after: join(scratch, 'after') };
@@ -726,9 +729,9 @@ export const readRange = async ({
         changes,
         routed: routesRead.length > 0,
         access,
-        authorize: config.security.authorize,
+        authorize: security.authorize,
       }),
-      openActions: config.security.open,
+      openActions: security.open,
       danglingCalls: after.danglingCalls,
       linksNotRead: after.linksNotRead,
       skipped: [
