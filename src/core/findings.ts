@@ -22,7 +22,7 @@ import { routeFindings } from './route-findings.ts';
 import type { RuleBreak } from './rule-breaks.ts';
 import { ruleFindings } from './rule-findings.ts';
 import { schemaFindings } from './schema-findings.ts';
-import { riskFindings } from './security-findings.ts';
+import { riskFindings, viewRiskFindings } from './security-findings.ts';
 import { notReadLine, type Skipped } from './skipped.ts';
 import type { SplitSuggestion } from './split-suggestion.ts';
 import { partsWithLogicToTest, symbolFindings } from './symbol-findings.ts';
@@ -89,6 +89,7 @@ export const counted = (count: number, one: string, many: string) =>
 type RaisedOptions = {
   readonly skipped: ReadonlyArray<Skipped>;
   readonly changedPaths: ReadonlyArray<string>;
+  readonly patches: ReadonlyArray<FilePatch>;
   readonly undrawn: ReadonlyArray<FilePatch>;
   readonly dangling: ReadonlyArray<DanglingCall>;
   readonly dependencyChanges: ReadonlyArray<DependencyChanges>;
@@ -175,6 +176,7 @@ export const skippedFindingId = ({ stacks, side }: Skipped) =>
 export const raisedFindings = ({
   skipped,
   changedPaths,
+  patches,
   undrawn,
   dangling,
   dependencyChanges,
@@ -238,6 +240,7 @@ export const raisedFindings = ({
   ),
   ...symbolFindings({ files: symbols, nodes }),
   ...riskFindings(symbols),
+  ...viewRiskFindings(patches),
   ...reachFindings(reaches),
   ...untestedLogicFindings({ nodes, tests, symbols }),
   ...symbolsNotRead.map(

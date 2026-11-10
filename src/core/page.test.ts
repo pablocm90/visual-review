@@ -3744,3 +3744,23 @@ test.for([
 ])('a part read last round and $part', ({ read, stillRead }) => {
   expect(sinceWith({ since: ['web/src/cart/a.ts'], read: [read] })).toMatchObject({ stillRead });
 });
+
+test('a line marked safe in a view raises its security finding, whether the view is drawn or not', () => {
+  const viewPatch = (path: string) => ({
+    path,
+    patch: ['@@ -0,0 +1,1 @@', '+<%== bio %>'].join('\n'),
+  });
+  const reading = readingWith({
+    after: { nodes: [webStack, webFile('a.ts'), box('views')], edges: [] },
+    patches: [viewPatch('web/src/views/show.html.erb'), viewPatch('app/views/index.html.erb')],
+  });
+
+  expect(
+    pageData({ repo: 'shop', reading, range: 'main..feature', version: '1.2.3', parsers })
+      .findings.filter(({ dimension }) => dimension === 'security')
+      .map(({ id }) => id),
+  ).toStrictEqual([
+    'security:html-safe:web/src/views/show.html.erb',
+    'security:html-safe:app/views/index.html.erb',
+  ]);
+});
