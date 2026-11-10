@@ -19,12 +19,18 @@ const envReads = (code: string): ReadonlyArray<Read> =>
     key === undefined ? [] : [{ kind: 'env', key }],
   );
 
-const NAME = String.raw`[:"']?(\w+)["']?`;
+const NAME = String.raw`(?::|["'])(\w+)["']?`;
 
-const STEP = new RegExp(String.raw`\.dig\(([^)]*)\)|\.fetch\(${NAME}|\.(\w+)!?|\[${NAME}\]`, 'g');
+const NOT_A_KEY = String.raw`(?:presence|freeze|dup|map|keys|values|to_\w+|each\w*)\b`;
+
+const DOT = String.raw`\.(?!${NOT_A_KEY})(\w+)!?(?![\w?(])`;
+
+const INDEX = String.raw`\.dig\(([^)]*)\)|\.fetch\(${NAME}|\[${NAME}\]`;
+
+const STEP = new RegExp(`${DOT}|${INDEX}`, 'g');
 
 const CHAIN = new RegExp(
-  String.raw`\bRails\.app(?:lication)?\.credentials((?:${STEP.source})+)`,
+  String.raw`\bRails\.app(?:lication)?\.credentials((?:${DOT})*(?:${INDEX})*)`,
   'g',
 );
 
@@ -35,13 +41,15 @@ const namesIn = (args: string): ReadonlyArray<string> =>
 
 const pathOf = (chain: string): string =>
   [...chain.matchAll(STEP)]
-    .flatMap(([, dug, fetched, called, indexed]) =>
-      dug === undefined ? [fetched ?? called ?? indexed ?? ''] : namesIn(dug),
+    .flatMap(([, called, dug, fetched, indexed]) =>
+      dug === undefined ? [called ?? fetched ?? indexed ?? ''] : namesIn(dug),
     )
     .join('.');
 
 const credentialReads = (code: string): ReadonlyArray<Read> =>
-  [...code.matchAll(CHAIN)].map(([, chain]) => ({ kind: 'credentials', key: pathOf(chain ?? '') }));
+  [...code.matchAll(CHAIN)]
+    .map(([, chain]) => pathOf(chain ?? ''))
+    .flatMap(key => (key === '' ? [] : [{ kind: 'credentials', key }]));
 
 const CODE = /\.(?:rb|rake|erb|rs|[cm]?[jt]sx?)$/;
 
