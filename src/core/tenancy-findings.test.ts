@@ -77,3 +77,23 @@ test('an app whose config was not read at the base raises nothing', () => {
     ]),
   ).toStrictEqual([]);
 });
+
+const unread = [{ text: 'EXCLUDED', file: FILE, line: 2 }];
+
+test.for([
+  {
+    side: 'the head',
+    base: config({ excluded: ['Company', 'Plan'] }),
+    head: config({ excluded: ['Company'], unread }),
+  },
+  {
+    side: 'the base',
+    base: config({ unread }),
+    head: config({ excluded: ['Company', 'Plan'] }),
+  },
+])(
+  'an excluded_models entry not read at $side may hold the model, so it raises nothing',
+  ({ base, head }) => {
+    expect(tenancyFindings([reading(base, head)])).toStrictEqual([]);
+  },
+);

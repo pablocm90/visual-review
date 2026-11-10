@@ -1,6 +1,6 @@
 import type { Finding } from './findings.ts';
 import type { TenancyReading } from './read-tenancy.ts';
-import type { TenantTable } from './tenant.ts';
+import type { TenantConfig, TenantTable } from './tenant.ts';
 
 type Said = { readonly model: string; readonly title: string; readonly detail: string };
 
@@ -23,13 +23,19 @@ const gained = (
   others: ReadonlyArray<string>,
 ): ReadonlyArray<string> => models.filter(model => !others.includes(model));
 
+const hidesModels = ({ unread = [] }: Pick<TenantConfig, 'unread'>): boolean => unread.length > 0;
+
 export const tenancyFindings = (tenancy: ReadonlyArray<TenancyReading>): ReadonlyArray<Finding> =>
   tenancy.flatMap(({ base, head }) =>
-    head.configs.flatMap(({ root, file, excluded }) => {
+    head.configs.flatMap(atHead => {
+      const { root, file, excluded } = atHead;
       const atBase = base.configs.filter(config => config.root === root);
       if (atBase.length === 0) return [];
       const before = atBase.flatMap(config => config.excluded);
-      return [...gained(excluded, before).map(added), ...gained(before, excluded).map(removed)].map(
+      return [
+        ...(atBase.some(hidesModels) ? [] : gained(excluded, before).map(added)),
+        ...(hidesModels(atHead) ? [] : gained(before, excluded).map(removed)),
+      ].map(
         ({ model, ...said }): Finding => ({
           id: `tenancy:excluded:${root}:${model}`,
           check: 'tenancy:excluded',
