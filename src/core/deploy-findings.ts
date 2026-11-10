@@ -88,8 +88,12 @@ const keysOn = ({
     }),
   );
 
-export const deployKeysIn = (patches: ReadonlyArray<FilePatch>): ReadonlyArray<string> =>
-  patches.flatMap(keysOn).map(({ key }) => key);
+export const deployKeysIn = (patches: ReadonlyArray<FilePatch>): ReadonlyArray<string> => [
+  ...new Set(patches.flatMap(keysOn).map(({ key }) => key)),
+];
+
+export const credentialKeysIn = (code: string): ReadonlyArray<string> =>
+  credentialReads(code).map(({ key }) => key);
 
 type DeployKeysOptions = {
   readonly patches: ReadonlyArray<FilePatch>;

@@ -2553,6 +2553,16 @@ test.for([
     added: 'ENV["OLD_KEY"]\nENV["NEW_KEY"]\nRails.application.credentials.stripe.secret_key\n',
     atBase: ['OLD_KEY', 'stripe.secret_key'],
   },
+  {
+    reason: 'a credentials key the base digs for',
+    added: 'Rails.application.credentials.aws.access_key\n',
+    atBase: ['aws.access_key'],
+  },
+  {
+    reason: 'a key read twice once',
+    added: 'ENV["OLD_KEY"]\nENV["OLD_KEY"]\n',
+    atBase: ['OLD_KEY'],
+  },
   { reason: 'none when the base names none', added: 'ENV["NEW_KEY"]\n', atBase: [] },
   {
     reason: 'none when the base names one inside a longer name',
@@ -2562,7 +2572,8 @@ test.for([
   { reason: 'none when no line reads a key', added: 'nothing\n', atBase: [] },
 ])('of the keys the change reads, the reading holds $reason', async ({ added, atBase }) => {
   using workspace = gitRepo({
-    'config/old.rb': 'ENV["OLD_KEY"]\nRails.application.credentials.stripe.secret_key\n',
+    'config/old.rb':
+      'ENV["OLD_KEY"]\nRails.application.credentials.stripe.secret_key\nRails.application.credentials.dig(:aws, :access_key)\n',
   });
   const { repo, root } = workspace;
   git(repo, 'config', 'grep.lineNumber', 'true');

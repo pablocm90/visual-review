@@ -13,7 +13,7 @@ import {
   parseConfig,
   type ReaderName,
 } from './config.ts';
-import { deployKeysIn } from './deploy-findings.ts';
+import { credentialKeysIn, deployKeysIn } from './deploy-findings.ts';
 import { diffGraphs, type FilePatch, type GraphDiff, type Rename } from './diff-graphs.ts';
 import { readFileThatEnds } from './file-that-ends.ts';
 import { git } from './git.ts';
@@ -169,7 +169,8 @@ const keysNamedAt = async ({ repo, revision, keys }: KeysNamedAt) => {
     revision,
     '--',
   ).catch(noneFound);
-  const found = new Set(named.split('\n'));
+  const credentials = await git(repo, 'grep', 'credentials', revision, '--').catch(noneFound);
+  const found = new Set([...named.split('\n'), ...credentialKeysIn(credentials)]);
   return keys.filter(key => found.has(key));
 };
 
