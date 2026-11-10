@@ -75,3 +75,21 @@ test.for([
     ]);
   },
 );
+
+test('a second gain of one kind in one method is counted in its id, as a repeated symbol is', () => {
+  expect(
+    riskFindings([
+      file(
+        create([
+          { kind: 'permit', text: 'admin' },
+          { kind: 'raw-sql', text: 'User.where("a")' },
+          { kind: 'permit', text: 'role' },
+        ]),
+      ),
+    ]).map(({ id }) => id),
+  ).toEqual([
+    `security:permit:${NODE}#UsersController.create`,
+    `security:raw-sql:${NODE}#UsersController.create`,
+    `security:permit:${NODE}#UsersController.create#2`,
+  ]);
+});

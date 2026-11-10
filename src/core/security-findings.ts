@@ -1,3 +1,4 @@
+import { countedId } from './counted-id.ts';
 import type { Finding } from './findings.ts';
 import type { SymbolFile } from './read-range.ts';
 import type { Risk, RiskKind } from './reader.ts';
@@ -24,10 +25,11 @@ export const riskFindings = (files: ReadonlyArray<SymbolFile>): ReadonlyArray<Fi
     'unreadable' in file
       ? []
       : anchoredSymbols(file.node, file.symbols).flatMap(({ item: statement, id }) =>
-          (statement.risks ?? []).map(risk => {
+          (statement.risks ?? []).map((risk, index, risks) => {
             const { does, detail } = said(risk);
+            const before = risks.slice(0, index).filter(({ kind }) => kind === risk.kind).length;
             return {
-              id: `security:${risk.kind}:${id}`,
+              id: countedId(`security:${risk.kind}:${id}`, before),
               check: `security:${risk.kind}` as const,
               dimension: 'security' as const,
               level: 'look' as const,
