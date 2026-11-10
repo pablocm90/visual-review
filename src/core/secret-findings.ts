@@ -11,7 +11,7 @@ type Format = {
 };
 
 const KEY_HEADER = /-----BEGIN [A-Z ]*PRIVATE KEY-----/;
-const KEY_FOOTER = /-----END [A-Z ]*PRIVATE KEY-----/;
+const KEY_EDGE = /(-----(?:BEGIN|END) [A-Z ]*PRIVATE KEY-----)/;
 
 const FORMATS: ReadonlyArray<Format> = [
   { name: 'aws-access-key', said: 'an AWS access key', pattern: /AKIA[0-9A-Z]{16}/ },
@@ -140,16 +140,21 @@ const KEY_LINE = /^[A-Za-z0-9+/]{16,}={0,2}$/;
 
 type KeyBody = { readonly inKey: boolean; readonly lines: ReadonlyArray<string> };
 
+const bodyLinesIn = (text: string): ReadonlyArray<string> =>
+  text
+    .split('\\n')
+    .map(line => line.trim())
+    .filter(line => KEY_LINE.test(line));
+
 const keyBodies = ({ patch }: FilePatch): ReadonlyArray<string> =>
   patchHunks(patch)
     .flatMap(hunk => hunk.rows)
     .filter(row => row.kind === 'added')
+    .flatMap(({ code }) => code.split(KEY_EDGE))
     .reduce<KeyBody>(
-      ({ inKey, lines }, { code }) => {
-        if (KEY_HEADER.test(code)) return { inKey: true, lines };
-        if (KEY_FOOTER.test(code)) return { inKey: false, lines };
-        const line = code.trim();
-        return { inKey, lines: inKey && KEY_LINE.test(line) ? [...lines, line] : lines };
+      ({ inKey, lines }, piece) => {
+        if (KEY_EDGE.test(piece)) return { inKey: piece.includes('BEGIN'), lines };
+        return { inKey, lines: inKey ? [...lines, ...bodyLinesIn(piece)] : lines };
       },
       { inKey: false, lines: [] },
     ).lines;

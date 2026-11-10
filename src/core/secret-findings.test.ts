@@ -314,3 +314,16 @@ test("a private key's body line is a value to mask only when it reads as base64 
     ]),
   ).toStrictEqual(['AAAA+BBB/CCCDDDD', 'Zm9vYmFyYmF6cXV4cXV1eA==']);
 });
+
+test('a private key written on one line, as a service account JSON holds it, has its body masked and ends there', () => {
+  const body = 'MIIEvQIBADANBgkqhkiG9w0BAQEFAASCBKcwggSjAgEAAoIBAQC7';
+  const tail = 'VJTUt9Us8cKjMzEfYyjiWA4R4/M2bS1GB4t7NXp98C3SC6dVMvDu';
+  expect(
+    secretValues([
+      patchAdding(
+        `  "private_key": "-----BEGIN PRIVATE KEY-----\\n${body}\\n${tail}\\n-----END PRIVATE KEY-----\\n",`,
+        '  src/generated/apiclient',
+      ),
+    ]),
+  ).toStrictEqual([body, tail]);
+});
