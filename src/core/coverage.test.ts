@@ -16,6 +16,7 @@ const facts = (overrides: Partial<CoverageFacts> = {}): CoverageFacts => ({
   routes: [],
   reachesNotRead: [],
   rulesNotRead: [],
+  access: [],
   ...overrides,
 });
 
@@ -35,6 +36,7 @@ test('with nothing unread, each dimension a check raises is listed as checked, a
     { dimension: 'routes', notRead: [] },
     { dimension: 'blast-radius', notRead: [] },
     { dimension: 'cohesion', notRead: [] },
+    { dimension: 'security', notRead: [] },
   ]);
 });
 
@@ -145,6 +147,17 @@ test.for([
   },
 ])('with $reason and no Rails reader, schema reads $notRead', ({ overrides, notRead }) => {
   expect(notReadIn('schema', { readers: ['typescript'], ...overrides })).toEqual(notRead);
+});
+
+test.for([
+  { reason: 'no Rails stack on either side', overrides: {}, notRead: ['Rails only'] },
+  {
+    reason: 'controllers read',
+    overrides: { access: [{ base: { actions: [] }, head: { actions: [] } }] },
+    notRead: [],
+  },
+])('with $reason and no Rails reader, security reads $notRead', ({ overrides, notRead }) => {
+  expect(notReadIn('security', { readers: ['typescript'], ...overrides })).toEqual(notRead);
 });
 
 test.for(['logic', 'api', 'tests', 'metrics'] as const)(
