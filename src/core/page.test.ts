@@ -3790,6 +3790,18 @@ test('a secret a line gains raises its security finding, whether its file is dra
   ]);
 });
 
+test('an env key a line gains raises its deploy finding, whether its file is drawn or not', () => {
+  const reading = readingWith({
+    patches: [addingLine('lib/tasks/sync.rake', 'token = ENV["SYNC_TOKEN"]')],
+  });
+
+  expect(
+    pageData({ repo: 'shop', reading, range: 'main..feature', version: '1.2.3', parsers })
+      .findings.filter(({ dimension }) => dimension === 'deploy')
+      .map(({ id }) => id),
+  ).toStrictEqual(['deploy:env:SYNC_TOKEN']);
+});
+
 const symbolsIn = (file: SymbolFile | undefined) =>
   file !== undefined && 'symbols' in file ? file.symbols : [];
 

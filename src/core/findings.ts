@@ -2,6 +2,7 @@ import { accessFindings } from './access-findings.ts';
 import { anchorOfKey, anchorTarget, fileOfLine, isNoted, type Noted } from './anchors.ts';
 import type { Check } from './checks.ts';
 import { dependencyFindings } from './dependency-findings.ts';
+import { deployKeyFindings } from './deploy-findings.ts';
 import type { FilePatch, GraphDiff } from './diff-graphs.ts';
 import { endsOfId, type GraphNode } from './graph.ts';
 import type { DanglingCall } from './linker.ts';
@@ -243,6 +244,7 @@ export const raisedFindings = ({
   ...riskFindings(symbols),
   ...viewRiskFindings(patches),
   ...secretFindings(patches),
+  ...deployKeyFindings(patches),
   ...reachFindings(reaches),
   ...untestedLogicFindings({ nodes, tests, symbols }),
   ...symbolsNotRead.map(
