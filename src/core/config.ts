@@ -99,6 +99,14 @@ const NotesConfigSchema = z.strictObject({
     .string()
     .optional()
     .describe("What Claude's notes should say and where, followed when it writes them"),
+  why: z
+    .boolean()
+    .optional()
+    .describe('Whether a note may say why; false refuses one, left out it may'),
+  recommendation: z
+    .boolean()
+    .optional()
+    .describe('Whether a note may recommend; false refuses one, left out it may'),
 });
 
 const ConfigSchema = z.strictObject({

@@ -140,6 +140,11 @@ test.for([
     error: 'notes.guidance: Invalid input: expected string, received array',
   },
   {
+    reason: 'a notes switch that is no boolean',
+    text: '{"notes": {"why": "no"}}',
+    error: 'notes.why: Invalid input: expected boolean, received string',
+  },
+  {
     reason: 'a stack neither false nor an object',
     text: '{"stacks": {"web": true}}',
     error: 'stacks.web: Invalid input: expected false or an object',
@@ -509,6 +514,13 @@ test.for([
     atHead: (repo: string) =>
       commit(repo, { 'visual-review.config.json': guidanceConfig('Praise it.') }),
     notesConfig: { guidance: 'Name the port.' },
+  },
+  {
+    reason: "a base switch stays off when the head's turns it on",
+    base: { 'visual-review.config.json': '{"notes": {"recommendation": false}}\n' },
+    atHead: (repo: string) =>
+      commit(repo, { 'visual-review.config.json': '{"notes": {"recommendation": true}}\n' }),
+    notesConfig: { recommendation: false },
   },
   {
     reason: 'a base guidance stays when the head removes the config',
