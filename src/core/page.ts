@@ -102,6 +102,7 @@ export const pageData = ({
     routes: reading.routes,
     access: reading.access,
     openActions: reading.openActions,
+    tenancy: reading.tenancy,
     metricFindings: metricFindings({ metrics, thresholds: reading.thresholds }),
     symbols: reading.symbols,
     symbolsNotRead: reading.symbolsNotRead,

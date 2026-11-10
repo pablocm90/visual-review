@@ -18,6 +18,7 @@ import type { SymbolFile } from './read-range.ts';
 import type { Reach } from './read-reaches.ts';
 import type { RoutesReading } from './read-routes.ts';
 import type { SchemaReading } from './read-schemas.ts';
+import type { TenancyReading } from './read-tenancy.ts';
 import { routeFindings } from './route-findings.ts';
 import type { RuleBreak } from './rule-breaks.ts';
 import { ruleFindings } from './rule-findings.ts';
@@ -27,6 +28,7 @@ import { riskFindings, viewRiskFindings } from './security-findings.ts';
 import { notReadLine, type Skipped } from './skipped.ts';
 import type { SplitSuggestion } from './split-suggestion.ts';
 import { partsWithLogicToTest, symbolFindings } from './symbol-findings.ts';
+import { tenancyFindings } from './tenancy-findings.ts';
 import { anyChanged, type TestFile } from './test-changes.ts';
 import { testsAlongside } from './tests-alongside.ts';
 import { visibleNodeOf } from './visible-diff.ts';
@@ -99,6 +101,7 @@ type RaisedOptions = {
   readonly routes: ReadonlyArray<RoutesReading>;
   readonly access: ReadonlyArray<AccessReading>;
   readonly openActions: ReadonlyArray<string>;
+  readonly tenancy: ReadonlyArray<TenancyReading>;
   readonly metricFindings: ReadonlyArray<MetricFinding>;
   readonly symbols: ReadonlyArray<SymbolFile>;
   readonly symbolsNotRead: ReadonlyArray<string>;
@@ -186,6 +189,7 @@ export const raisedFindings = ({
   routes,
   access,
   openActions,
+  tenancy,
   metricFindings,
   symbols,
   symbolsNotRead,
@@ -267,6 +271,7 @@ export const raisedFindings = ({
     nodes,
     open: openActions,
   }),
+  ...tenancyFindings(tenancy),
 ];
 
 const NOTE_FLAG = 'notes:';

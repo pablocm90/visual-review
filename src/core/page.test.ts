@@ -297,6 +297,23 @@ test('an edge the change adds breaking an architecture rule raises its finding t
   ).toStrictEqual([{ id: 'rules:broken:no-stack:web/file/a.ts -> web', level: 'look' }]);
 });
 
+test('a model the change adds to excluded_models raises its finding to look at on the page', () => {
+  const apartment = (excluded: ReadonlyArray<string>) => ({
+    configs: [
+      { root: '', file: 'config/initializers/apartment.rb', excluded, jobsCarryTenant: false },
+    ],
+  });
+  const reading = readingWith({
+    tenancy: [{ base: apartment(['Company']), head: apartment(['Company', 'Plan']) }],
+  });
+
+  expect(
+    pageData({ repo: 'shop', reading, range: 'a..b', version, parsers })
+      .findings.filter(({ check }) => check === 'tenancy:excluded')
+      .map(({ id, level }) => ({ id, level })),
+  ).toStrictEqual([{ id: 'tenancy:excluded::Plan', level: 'look' }]);
+});
+
 const controllerAction = {
   controller: 'UsersController',
   controllerPath: 'users',
