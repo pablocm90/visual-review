@@ -47,13 +47,11 @@ const callbacksOfCall = (call: Node): ReadonlyArray<Callback> => {
     }));
 };
 
-type Written = { readonly text: string; readonly line: number };
-
 type Unread = { readonly unread: UnreadAccess };
 
 type Step = Callback | Unread;
 
-type Entry = Step | ({ readonly include: Wanted } & Written);
+type Entry = Step | { readonly include: Wanted; readonly at: UnreadAccess };
 
 type Reading = { readonly file: string; readonly authorize: ReadonlyArray<string> };
 
@@ -78,8 +76,7 @@ const entriesOf = (body: Node | null | undefined, reading: Reading): ReadonlyArr
     if (method === 'include')
       return argsOf(node).map(arg => ({
         include: written(arg),
-        text: node.text,
-        line: node.startPosition.row + 1,
+        at: { text: node.text, file: reading.file, line: node.startPosition.row + 1 },
       }));
     if (method === 'included')
       return entriesOf(node.childForFieldName('block')?.childForFieldName('body'), reading);
@@ -94,8 +91,7 @@ type Controller = {
   readonly parent: Wanted | undefined;
   readonly entries: ReadonlyArray<Entry>;
   readonly calls: ReadonlyMap<string, ReadonlyArray<string>>;
-  readonly header: string;
-  readonly line: number;
+  readonly header: UnreadAccess;
 };
 
 const callsOf = (body: Node | null): ReadonlyMap<string, ReadonlyArray<string>> =>
@@ -131,8 +127,11 @@ const controllersIn = (
         parent: parentOf(child),
         entries: entriesOf(body, reading),
         calls: callsOf(body),
-        header: /^.*/.exec(child.text)?.[0] ?? '',
-        line: child.startPosition.row + 1,
+        header: {
+          text: /^.*/.exec(child.text)?.[0] ?? '',
+          file: reading.file,
+          line: child.startPosition.row + 1,
+        },
       },
       ...controllersIn(child, constant, reading),
     ];
@@ -156,14 +155,23 @@ const expanded = (
   entries.flatMap(entry => {
     if (!('include' in entry)) return [entry];
     const concern = foundIn(controllers, entry.include);
-    if (concern === undefined) return [];
+    if (concern === undefined) return [{ unread: entry.at }];
     return expanded(without(controllers, concern), controllers.get(concern)?.entries ?? []);
   });
 
-const parentIn = (
-  others: ReadonlyMap<string, Controller>,
-  { parent }: Controller,
-): string | undefined => parent && foundIn(others, parent);
+const RAILS_PARENTS: ReadonlySet<string> = new Set([
+  'ActionController::Base',
+  'ActionController::API',
+]);
+
+const above = (
+  controllers: ReadonlyMap<string, Controller>,
+  { parent, header }: Controller,
+): ReadonlyArray<Step> => {
+  if (parent === undefined || RAILS_PARENTS.has(parent.name)) return [];
+  const found = foundIn(controllers, parent);
+  return found === undefined ? [{ unread: header }] : inherited(controllers, found);
+};
 
 const inherited = (
   controllers: ReadonlyMap<string, Controller>,
@@ -171,12 +179,8 @@ const inherited = (
 ): ReadonlyArray<Step> => {
   const controller = controllers.get(constant);
   if (controller === undefined) return [];
-  const above = without(controllers, constant);
-  const parent = parentIn(above, controller);
-  return [
-    ...(parent === undefined ? [] : inherited(above, parent)),
-    ...expanded(above, controller.entries),
-  ];
+  const others = without(controllers, constant);
+  return [...above(others, controller), ...expanded(others, controller.entries)];
 };
 
 type Covering = {
@@ -258,17 +262,12 @@ const controllersAt = (
       .map(controller => [controller.constant, controller]),
   );
 
-const RAILS_PARENTS: ReadonlySet<string> = new Set([
-  'ActionController::Base',
-  'ActionController::API',
-]);
-
-const namedOf = ({ parent, header, line, entries }: Controller) =>
+const namedOf = ({ parent, header, entries }: Controller) =>
   (parent === undefined || RAILS_PARENTS.has(parent.name)
     ? []
-    : [{ wanted: parent, text: header, line }]
+    : [{ wanted: parent, ...header }]
   ).concat(
-    entries.flatMap(entry => ('include' in entry ? [{ ...entry, wanted: entry.include }] : [])),
+    entries.flatMap(entry => ('include' in entry ? [{ ...entry.at, wanted: entry.include }] : [])),
   );
 
 const lookupsUnread = (read: ReadonlyArray<ControllerFile>): ReadonlyArray<UnreadAccess> =>

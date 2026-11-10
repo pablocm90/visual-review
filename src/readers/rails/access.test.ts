@@ -554,3 +554,41 @@ end
     ['show', [['before_action *REPORTS', 'app/controllers/reports_controller.rb']]],
   ]);
 });
+
+test('an action carries the parent and the includes it could not find, where they are written', () => {
+  const { actions } = read({
+    'app/controllers/concerns/authorized.rb': `module Authorized
+  extend ActiveSupport::Concern
+  included do
+    include Pundit::Authorization
+  end
+end
+`,
+    'app/controllers/sessions_controller.rb': `class SessionsController < Devise::SessionsController
+  include Authorized
+  def new; end
+end
+`,
+    'app/controllers/users_controller.rb': `class UsersController < ActionController::Base
+  include Pagy::Backend
+  def index; end
+end
+`,
+  });
+
+  expect(
+    actions.map(({ action, unread }) => [action, unread?.map(({ text, file }) => [text, file])]),
+  ).toStrictEqual([
+    [
+      'new',
+      [
+        [
+          'class SessionsController < Devise::SessionsController',
+          'app/controllers/sessions_controller.rb',
+        ],
+        ['include Pundit::Authorization', 'app/controllers/concerns/authorized.rb'],
+      ],
+    ],
+    ['index', [['include Pagy::Backend', 'app/controllers/users_controller.rb']]],
+  ]);
+});
