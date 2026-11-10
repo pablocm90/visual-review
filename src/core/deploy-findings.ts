@@ -3,6 +3,7 @@ import type { FilePatch } from './diff-graphs.ts';
 import type { Finding } from './findings.ts';
 import { lineIdOf, patchHunks } from './patch-lines.ts';
 import { levelOf } from './secret-findings.ts';
+import { literally } from './wildcard.ts';
 
 type Read = { readonly kind: 'env' | 'credentials'; readonly key: string };
 
@@ -97,3 +98,86 @@ export const deployKeysNotRead = (patches: ReadonlyArray<FilePatch>): ReadonlyAr
       .filter(row => row.kind === 'added' && THROUGH_A_VARIABLE.test(row.code))
       .map(row => `${path}:${row.head} reads an env key through a variable`),
   );
+
+type FlagRead = { readonly name: string; readonly path: string; readonly line: string };
+
+const callSource = (flag: string): string =>
+  flag.split('*').map(literally).join(String.raw`[\w?!]*`);
+
+const flagCalls = (flags: ReadonlyArray<string>): RegExp =>
+  new RegExp(
+    String.raw`(?<!\w)(?:${flags.map(callSource).join('|')})(?:\(\s*|\s+|\[)(?::(\w+)|["'](\w+)["'])`,
+    'g',
+  );
+
+const flagReads = ({
+  patches,
+  flags,
+  kind,
+}: {
+  readonly patches: ReadonlyArray<FilePatch>;
+  readonly flags: RegExp;
+  readonly kind: 'added' | 'removed';
+}): ReadonlyArray<FlagRead> =>
+  patches.flatMap(({ path, patch }) =>
+    patchHunks(patch)
+      .flatMap(hunk => hunk.rows)
+      .filter(row => row.kind === kind)
+      .flatMap(row => {
+        const line = lineIdOf(path, row);
+        return line === undefined
+          ? []
+          : [...row.code.matchAll(flags)].map(([, symbol, quoted]) => ({
+              name: symbol ?? quoted ?? '',
+              path,
+              line,
+            }));
+      }),
+  );
+
+type DeployFlagsOptions = {
+  readonly patches: ReadonlyArray<FilePatch>;
+  readonly flags: ReadonlyArray<string>;
+};
+
+const flagFinding = (
+  { name, path, line }: FlagRead,
+  check: 'deploy:flag-added' | 'deploy:flag-removed',
+): Finding => ({
+  id: `${check}:${name}`,
+  check,
+  dimension: 'deploy',
+  level: 'info',
+  file: path,
+  line,
+  ...(check === 'deploy:flag-added'
+    ? {
+        title: `${path} reads the flag ${name}`,
+        detail: 'Check it is set as this needs wherever this deploys.',
+      }
+    : {
+        title: `${path} no longer reads the flag ${name}`,
+        detail: 'Check nothing still reads it before deleting it.',
+      }),
+});
+
+export const deployFlagFindings = ({
+  patches,
+  flags,
+}: DeployFlagsOptions): ReadonlyArray<Finding> => {
+  if (flags.length === 0) return [];
+  const calls = flagCalls(flags);
+  const added = flagReads({ patches, flags: calls, kind: 'added' });
+  const removed = flagReads({ patches, flags: calls, kind: 'removed' });
+  const named = (reads: ReadonlyArray<FlagRead>, name: string) =>
+    reads.filter(read => read.name === name);
+  return [...new Set([...added, ...removed].map(({ name }) => name))].flatMap(name => {
+    const gained = named(added, name);
+    const lost = named(removed, name);
+    const gains = gained.length > lost.length;
+    const [first] = gains ? gained : lost;
+    return first === undefined || gained.length === lost.length
+      ? []
+      : [flagFinding(first, gains ? 'deploy:flag-added' : 'deploy:flag-removed')];
+  });
+};

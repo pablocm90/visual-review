@@ -1,5 +1,5 @@
 import { expect, test } from 'vitest';
-import { deployKeyFindings, deployKeysNotRead } from './deploy-findings.ts';
+import { deployFlagFindings, deployKeyFindings, deployKeysNotRead } from './deploy-findings.ts';
 import type { FilePatch } from './diff-graphs.ts';
 
 const deployKeys = (patches: ReadonlyArray<FilePatch>) =>
@@ -128,4 +128,126 @@ test.for([
 test('a key read through a variable on a line the change keeps leaves nothing unread', () => {
   const patch = patchAdding();
   expect(deployKeysNotRead([{ ...patch, patch: `${patch.patch}\n   x = ENV[name]` }])).toEqual([]);
+});
+
+const patchChanging = ({
+  removed,
+  added,
+}: {
+  readonly removed: ReadonlyArray<string>;
+  readonly added: ReadonlyArray<string>;
+}) => ({
+  path: FILE,
+  patch: [
+    `diff --git a/${FILE} b/${FILE}`,
+    `--- a/${FILE}`,
+    `+++ b/${FILE}`,
+    `@@ -1,${removed.length + 1} +1,${added.length + 1} @@`,
+    ' def charge',
+    ...removed.map(line => `-${line}`),
+    ...added.map(line => `+${line}`),
+  ].join('\n'),
+});
+
+const FLIPPER = ['Flipper.enabled?', 'Flipper.enable', 'Flipper'];
+
+const flagsOf = (change: Parameters<typeof patchChanging>[0], flags = FLIPPER) =>
+  deployFlagFindings({ patches: [patchChanging(change)], flags });
+
+test('a flag the change starts reading is for information, on its first added row', () => {
+  expect(
+    flagsOf({ removed: [], added: ['  return unless Flipper.enabled?(:new_checkout, user)'] }),
+  ).toStrictEqual([
+    {
+      id: 'deploy:flag-added:new_checkout',
+      check: 'deploy:flag-added',
+      dimension: 'deploy',
+      level: 'info',
+      file: FILE,
+      line: `${FILE}@head:2`,
+      title: `${FILE} reads the flag new_checkout`,
+      detail: 'Check it is set as this needs wherever this deploys.',
+    },
+  ]);
+});
+
+test('a flag the change stops reading is for information, on its first removed row', () => {
+  expect(
+    flagsOf({ removed: ['  return unless Flipper.enabled?(:old_checkout)'], added: [] }),
+  ).toStrictEqual([
+    {
+      id: 'deploy:flag-removed:old_checkout',
+      check: 'deploy:flag-removed',
+      dimension: 'deploy',
+      level: 'info',
+      file: FILE,
+      line: `${FILE}@base:2`,
+      title: `${FILE} no longer reads the flag old_checkout`,
+      detail: 'Check nothing still reads it before deleting it.',
+    },
+  ]);
+});
+
+test.for([
+  {
+    reason: 'a line rewritten around the flag',
+    removed: ['if Flipper.enabled?(:x)'],
+    added: ['if Flipper.enabled?(:x) && ok'],
+    ids: [],
+  },
+  {
+    reason: 'a second read of a flag',
+    removed: [],
+    added: ['Flipper.enabled?(:x)', 'Flipper.enabled?(:x)'],
+    ids: ['deploy:flag-added:x'],
+  },
+  {
+    reason: 'one of two reads removed',
+    removed: ['Flipper.enabled?(:x)', 'Flipper.enabled?(:x)'],
+    added: ['Flipper.enabled?(:x)'],
+    ids: ['deploy:flag-removed:x'],
+  },
+  {
+    reason: 'one read gained over one kept',
+    removed: ['Flipper.enabled?(:x)'],
+    added: ['Flipper.enabled?(:x)', 'Flipper.enable :x'],
+    ids: ['deploy:flag-added:x'],
+  },
+])('$reason raises $ids', ({ removed, added, ids }) => {
+  expect(flagsOf({ removed, added }).map(({ id }) => id)).toStrictEqual(ids);
+});
+
+test.for([
+  'Flipper.enabled?(:x)',
+  'Flipper.enabled? :x',
+  'Flipper.enabled?("x")',
+  `Flipper.enable('x')`,
+  'Flipper[:x].enabled?',
+  '::Flipper.enabled?(:x)',
+  'Flipper.enabled?( :x )',
+])('reading the flag as %s raises it', read => {
+  expect(flagsOf({ removed: [], added: [read] }).map(({ id }) => id)).toStrictEqual([
+    'deploy:flag-added:x',
+  ]);
+});
+
+test.for([
+  'MyFlipper.enabled?(:x)',
+  'flipper.enabled?(:x)',
+  'Flipper.enabled_for?(:x)',
+  'Flipper.enabled?(name)',
+])('%s reads no flag', read => {
+  expect(flagsOf({ removed: [], added: [read] })).toEqual([]);
+});
+
+test('a configured name with a wildcard reads every call it matches', () => {
+  expect(
+    flagsOf({ removed: [], added: ['features.isEnabled("x") && this.features.isOn?("y")'] }, [
+      'features.is*',
+    ]).map(({ id }) => id),
+  ).toStrictEqual(['deploy:flag-added:x', 'deploy:flag-added:y']);
+});
+
+test('no configured name reads no flag', () => {
+  expect(flagsOf({ removed: [], added: ['Flipper.enabled?(:x)'] }, [])).toEqual([]);
 });
