@@ -270,12 +270,6 @@ export const notesProblems = ({
     ...[...Object.keys(notes.notes), ...Object.keys(notes.unasked ?? {})]
       .filter(key => !knownKeys.has(key))
       .map(key => `unknown key ${key}`),
-    ...Object.entries(notes.notes)
-      .filter(
-        ([key, { flag }]) =>
-          flag !== undefined && !['part', 'edge'].includes(anchorOfKey(key).kind),
-      )
-      .map(([key]) => `flag on ${key}: only a part or edge note takes a flag`),
     ...Object.entries(notes.notes).flatMap(([key, note]) =>
       SWITCHED_FIELDS.filter(
         field => notesConfig[field] === false && note[field] !== undefined,

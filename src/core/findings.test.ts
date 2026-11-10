@@ -10,15 +10,37 @@ const notesWith = (notes: Readonly<Record<string, unknown>>) =>
     file: 'notes.json',
   });
 
+const webFile = (name: string) => ({
+  id: `web/file/${name}`,
+  kind: 'file' as const,
+  label: name,
+  parent: 'web',
+  path: `web/src/${name}`,
+  state: 'modified' as const,
+});
+
+const dataWith = (findings: ReadonlyArray<Finding>) => ({
+  findings,
+  diff: {
+    nodes: [
+      { id: 'web', kind: 'stack' as const, label: 'web', path: '', state: 'unchanged' as const },
+      webFile('a.ts'),
+      webFile('b.ts'),
+    ],
+    edges: [],
+  },
+  tests: [{ path: 'web/src/a.test.ts', stack: 'web', statements: [] }],
+});
+
 test("a flagged note is a finding to look at on the note's id, in the dimension it names, else structure; a note without a flag raises none", () => {
   const raised = findingOn('web/file/a.ts');
   const notes = notesWith({
     'part web/file/a.ts': { text: 'Calls the api.', flag: 'no retry', dimension: 'failure' },
-    'edge web -> api': { text: 'Reaches in.', flag: 'layer skipped' },
+    'edge web/file/a.ts -> web/file/b.ts': { text: 'Reaches in.', flag: 'layer skipped' },
     'part web/file/b.ts': { text: 'Formats.' },
   });
 
-  expect(findingsOf({ data: { findings: [raised] }, notes })).toStrictEqual([
+  expect(findingsOf({ data: dataWith([raised]), notes })).toStrictEqual([
     raised,
     {
       id: 'notes:part web/file/a.ts',
@@ -29,11 +51,11 @@ test("a flagged note is a finding to look at on the note's id, in the dimension 
       title: 'no retry',
     },
     {
-      id: 'notes:edge web -> api',
+      id: 'notes:edge web/file/a.ts -> web/file/b.ts',
       check: 'flag',
       dimension: 'structure',
       level: 'look',
-      target: 'web -> api',
+      target: 'web/file/a.ts -> web/file/b.ts',
       title: 'layer skipped',
     },
   ]);
@@ -42,7 +64,23 @@ test("a flagged note is a finding to look at on the note's id, in the dimension 
 test('without notes, the findings are the raised ones', () => {
   const raised = findingOn('web/file/a.ts');
 
-  expect(findingsOf({ data: { findings: [raised] }, notes: undefined })).toStrictEqual([raised]);
+  expect(findingsOf({ data: dataWith([raised]), notes: undefined })).toStrictEqual([raised]);
+});
+
+test("a flag on a function or one of its logic lines is a finding on the function's file, and one on a test a finding on the node its file tests", () => {
+  const notes = notesWith({
+    'symbol web/file/b.ts#run': { text: 'Runs twice.', flag: 'not idempotent' },
+    'decision web/file/b.ts#run#ready': { text: 'Waits.', flag: 'never ready' },
+    'test web/src/a.test.ts#formats dates': { text: 'Pins it.', flag: 'pins a locale' },
+  });
+
+  expect(
+    findingsOf({ data: dataWith([]), notes }).map(({ id, target }) => ({ id, target })),
+  ).toStrictEqual([
+    { id: 'notes:symbol web/file/b.ts#run', target: 'web/file/b.ts' },
+    { id: 'notes:decision web/file/b.ts#run#ready', target: 'web/file/b.ts' },
+    { id: 'notes:test web/src/a.test.ts#formats dates', target: 'web/file/a.ts' },
+  ]);
 });
 
 const boxed = (id: string, parent: string) => ({

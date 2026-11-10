@@ -97,7 +97,7 @@ const notesWith = (overrides: Partial<ReviewNotes> = {}): ReviewNotes => ({
   ...overrides,
 });
 
-test('notes on every touched part of the collapsed view, keyed to nodes or to edges as drawn at any depth, have no problems', () => {
+test('notes on every touched part of the collapsed view, keyed to nodes or to edges as drawn at any depth, flagged on any anchor or not, have no problems', () => {
   expect(
     notesProblems({
       symbols,
@@ -114,9 +114,19 @@ test('notes on every touched part of the collapsed view, keyed to nodes or to ed
             text: 'Imports format.',
             flag: 'a new dependency',
           },
-          'symbol web/file/pages/home.tsx#run': { text: 'Runs once.', why: 'Idempotent.' },
-          'decision web/file/pages/home.tsx#run#ready': { text: 'Waits until ready.' },
-          'test web/src/pages/home.test.tsx#home › formats dates': { text: 'Pins the format.' },
+          'symbol web/file/pages/home.tsx#run': {
+            text: 'Runs once.',
+            why: 'Idempotent.',
+            flag: 'not idempotent',
+          },
+          'decision web/file/pages/home.tsx#run#ready': {
+            text: 'Waits until ready.',
+            flag: 'never ready',
+          },
+          'test web/src/pages/home.test.tsx#home › formats dates': {
+            text: 'Pins the format.',
+            flag: 'pins a locale',
+          },
         },
       }),
     }),
@@ -260,18 +270,6 @@ test.for([
     expected: ['unknown key decision web/file/pages/home.tsx#run#done'],
   },
   {
-    problem: 'a flag on a decision note',
-    notes: notesWith({
-      notes: {
-        ...notesWith().notes,
-        'decision web/file/pages/home.tsx#run#ready': { text: 'Waits.', flag: 'never ready' },
-      },
-    }),
-    expected: [
-      'flag on decision web/file/pages/home.tsx#run#ready: only a part or edge note takes a flag',
-    ],
-  },
-  {
     problem: 'a note on a test its file does not hold',
     notes: notesWith({
       notes: {
@@ -280,31 +278,6 @@ test.for([
       },
     }),
     expected: ['unknown key test web/src/pages/home.test.tsx#formats dates'],
-  },
-  {
-    problem: 'a flag on a test note',
-    notes: notesWith({
-      notes: {
-        ...notesWith().notes,
-        'test web/src/pages/home.test.tsx#home › formats dates': {
-          text: 'Pins the format.',
-          flag: 'pins a locale',
-        },
-      },
-    }),
-    expected: [
-      'flag on test web/src/pages/home.test.tsx#home › formats dates: only a part or edge note takes a flag',
-    ],
-  },
-  {
-    problem: 'a flag on a symbol note',
-    notes: notesWith({
-      notes: {
-        ...notesWith().notes,
-        'symbol web/file/pages/home.tsx#run': { text: 'Runs twice.', flag: 'not idempotent' },
-      },
-    }),
-    expected: ['flag on symbol web/file/pages/home.tsx#run: only a part or edge note takes a flag'],
   },
   {
     problem: 'a summary item targeting something not in the graph',
