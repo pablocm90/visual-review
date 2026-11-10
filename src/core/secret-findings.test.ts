@@ -195,18 +195,25 @@ test.for([
   'Gemfile.lock',
   'Cargo.lock',
   'api/poetry.lock',
-])('%s, a lockfile, is not scanned: its hashes would read as keys', path => {
-  expect(
-    secretFindings([{ ...patchAdding(`  token: "aB3dE5fG7hJ9kL1mN0pQ" ${AWS}`), path }]),
-  ).toEqual([]);
-});
+])(
+  '%s, a lockfile, is not read by heuristic, its hashes reading as keys, but known keys still raise',
+  path => {
+    expect(
+      secretFindings([
+        { ...patchAdding('  token: "aB3dE5fG7hJ9kL1mN0pQ"', `  key: ${AWS}`), path },
+      ]).map(({ id }) => id),
+    ).toStrictEqual([`security:secret:${path}#aws-access-key`]);
+  },
+);
 
 test.for(['lock.rb', 'bin/unlock', 'app/services/redis.lock.rb', 'config/lockfile.yml'])(
-  '%s, named like a lock but no lockfile, is scanned',
+  '%s, named like a lock but no lockfile, is read by heuristic too',
   path => {
-    expect(secretFindings([{ ...patchAdding(AWS), path }]).map(({ id }) => id)).toStrictEqual([
-      `security:secret:${path}#aws-access-key`,
-    ]);
+    expect(
+      secretFindings([{ ...patchAdding('  token: "aB3dE5fG7hJ9kL1mN0pQ"'), path }]).map(
+        ({ id }) => id,
+      ),
+    ).toStrictEqual([`security:secret:${path}#assigned-secret`]);
   },
 );
 

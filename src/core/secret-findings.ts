@@ -90,16 +90,19 @@ const secretFile = ({ path, patch }: FilePatch): ReadonlyArray<Finding> =>
       ]
     : [];
 
+const LOCKFILE = /(?:\.lock|-lock\.json|-lock\.yaml|npm-shrinkwrap\.json)$/;
+
+const foundIn = (code: string, path: string): ReadonlyArray<Found> => {
+  const known = knownFormat(code);
+  return known.length > 0 || LOCKFILE.test(path) ? known : assignedSecret(code);
+};
+
 const secretLines = ({ path, patch }: FilePatch): ReadonlyArray<Finding> =>
   countingRepeats(
     patchHunks(patch)
       .flatMap(hunk => hunk.rows)
       .filter(row => row.kind === 'added')
-      .flatMap(row =>
-        (knownFormat(row.code).length > 0 ? knownFormat(row.code) : assignedSecret(row.code)).map(
-          found => ({ row, found }),
-        ),
-      ),
+      .flatMap(row => foundIn(row.code, path).map(found => ({ row, found }))),
     ({ found }) => `security:secret:${path}#${found.name}`,
   ).flatMap(({ item: { row, found }, id }): ReadonlyArray<Finding> => {
     const line = lineIdOf(path, row);
@@ -119,9 +122,5 @@ const secretLines = ({ path, patch }: FilePatch): ReadonlyArray<Finding> =>
         ];
   });
 
-const LOCKFILE = /(?:\.lock|-lock\.json|-lock\.yaml|npm-shrinkwrap\.json)$/;
-
 export const secretFindings = (patches: ReadonlyArray<FilePatch>): ReadonlyArray<Finding> =>
-  patches
-    .filter(({ path }) => !LOCKFILE.test(path))
-    .flatMap(patch => [...secretFile(patch), ...secretLines(patch)]);
+  patches.flatMap(patch => [...secretFile(patch), ...secretLines(patch)]);
