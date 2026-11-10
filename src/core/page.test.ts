@@ -3847,3 +3847,20 @@ test('a private key line holding another of its lines is masked whole, not aroun
     ].join('\n'),
   );
 });
+
+test('a secret held in a node id is masked in the keys keyed by that id too, so its metrics are still found', () => {
+  const named = webFile(`${AWS_KEY}.ts`);
+  const reading = readingWith({
+    after: { nodes: [webStack, webFile('a.ts'), named], edges: [] },
+    changedPaths: ['web/src/a.ts', named.path],
+    churn: { before: {}, after: { [named.path]: 3 } },
+    patches: [addingLine('config/aws.yml', `key: ${AWS_KEY}`)],
+  });
+
+  const data = pageData({ repo: 'shop', reading, range: 'main..feature', version, parsers });
+
+  expect({
+    holdsKey: JSON.stringify(data).includes(AWS_KEY),
+    metricsFound: data.metrics['web/file/AKIA…(20 chars).ts'] !== undefined,
+  }).toStrictEqual({ holdsKey: false, metricsFound: true });
+});
