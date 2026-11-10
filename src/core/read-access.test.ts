@@ -98,3 +98,25 @@ test('a range changing no controller and no route reads no access', async () => 
 
   expect(access).toStrictEqual([]);
 });
+
+test("the config's security.authorize replaces the default names", async () => {
+  using workspace = gitRepo({
+    'visual-review.config.json': '{"security": {"authorize": ["require_*!"]}}',
+    [USERS]: users('  def index; end'),
+  });
+  const { repo, root } = workspace;
+  const to = commit(repo, {
+    [USERS]: users(
+      '  before_action :require_admin!, only: :index\n  def index; end\n  def show; authorize User; end',
+    ),
+  });
+
+  const { access } = await readRange({ repo, from: root, to });
+
+  expect(
+    access.flatMap(({ head }) => head.actions.map(({ action, cover }) => [action, cover?.by])),
+  ).toStrictEqual([
+    ['index', 'require_admin!'],
+    ['show', undefined],
+  ]);
+});
