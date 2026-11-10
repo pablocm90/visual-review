@@ -1,6 +1,13 @@
 import { expect, test } from 'vitest';
 import { type CoverageFacts, coverageOf } from './coverage.ts';
 import type { Dimension } from './findings.ts';
+import type { TenantTable } from './tenant.ts';
+
+const APARTMENT = 'config/initializers/apartment.rb';
+
+const apartment = (): TenantTable => ({
+  configs: [{ root: '', file: APARTMENT, excluded: ['Company'], jobsCarryTenant: false }],
+});
 
 const facts = (overrides: Partial<CoverageFacts> = {}): CoverageFacts => ({
   skipped: [],
@@ -18,6 +25,7 @@ const facts = (overrides: Partial<CoverageFacts> = {}): CoverageFacts => ({
   rulesNotRead: [],
   access: [],
   openActions: [],
+  tenancy: [{ base: apartment(), head: apartment() }],
   ...overrides,
 });
 
@@ -38,6 +46,7 @@ test('with nothing unread, each dimension a check raises is listed as checked, a
     { dimension: 'blast-radius', notRead: [] },
     { dimension: 'cohesion', notRead: [] },
     { dimension: 'security', notRead: [] },
+    { dimension: 'tenancy', notRead: [] },
   ]);
 });
 
@@ -293,4 +302,17 @@ test('security names what an unchanged action was read through when a route the 
       ],
     }),
   ).toHaveLength(1);
+});
+
+test.for([
+  {
+    side: 'neither side',
+    base: { configs: [] },
+    head: { configs: [] },
+    notRead: ['Apartment only'],
+  },
+  { side: 'the head only', base: { configs: [] }, head: apartment(), notRead: [] },
+  { side: 'the base only', base: apartment(), head: { configs: [] }, notRead: [] },
+])('tenancy, with an Apartment config at $side, reads $notRead', ({ base, head, notRead }) => {
+  expect(notReadIn('tenancy', { tenancy: [{ base, head }] })).toEqual(notRead);
 });

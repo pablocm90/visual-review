@@ -40,3 +40,8 @@ export const tenancyFindings = (tenancy: ReadonlyArray<TenancyReading>): Readonl
       );
     }),
   );
+
+export const tenancyNotRead = (tenancy: ReadonlyArray<TenancyReading>): ReadonlyArray<string> =>
+  tenancy.every(({ base, head }) => base.configs.length === 0 && head.configs.length === 0)
+    ? ['Apartment only']
+    : [];
