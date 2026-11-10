@@ -15,8 +15,10 @@ const nestedKeys = (pair: Node, path: string): ReadonlyArray<Risk> => {
   const value = pair.childForFieldName('value');
   if (key === null) return [];
   const named = `${path}${keyName(key)}`;
-  if (value?.type !== 'array' || value.namedChildCount === 0)
-    return [{ kind: 'permit', text: named }];
+  if (value === null) return [{ kind: 'permit', text: named }];
+  if (value.type !== 'array' && value.type !== 'hash')
+    return [{ kind: 'permit', text: `${named}.${value.text}`, unread: true }];
+  if (value.namedChildCount === 0) return [{ kind: 'permit', text: named }];
   return keysIn(value.namedChildren, `${named}.`);
 };
 

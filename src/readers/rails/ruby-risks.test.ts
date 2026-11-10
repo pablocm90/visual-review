@@ -33,6 +33,8 @@ test.for([
   { permitted: 'FIELDS', texts: ['FIELDS'] },
   { permitted: '**OPTIONS', texts: ['**OPTIONS'] },
   { permitted: 'address: [:street, *ADDRESS]', texts: ['address.*ADDRESS'] },
+  { permitted: 'address: ADDRESS_FIELDS', texts: ['address.ADDRESS_FIELDS'] },
+  { permitted: 'address: { geo: GEO }', texts: ['address.geo.GEO'] },
 ])('permit($permitted) reads what it cannot name as unread', ({ permitted, texts }) => {
   expect(risksIn(`params.permit(${permitted})`)?.filter(risk => risk.unread)).toEqual(
     texts.map(text => ({ kind: 'permit', text, unread: true })),
