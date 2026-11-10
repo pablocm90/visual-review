@@ -20,8 +20,14 @@ export type Action = {
   readonly unread?: ReadonlyArray<UnreadAccess>;
 };
 
+export type FileNotRead = {
+  readonly file: string;
+  readonly reason: string;
+};
+
 export type AccessTable = {
   readonly actions: ReadonlyArray<Action>;
+  readonly notRead?: ReadonlyArray<FileNotRead>;
 };
 
 export type AccessAsked = {

@@ -571,3 +571,17 @@ end
     ['show', [['before_action *REPORTS', 'app/controllers/reports_controller.rb']]],
   ]);
 });
+
+test('a controller that does not parse is named, and the others still read', () => {
+  expect(
+    read({
+      'app/controllers/broken_controller.rb':
+        'class BrokenController < ActionController::Base\n  def index(\nend\n',
+      'app/controllers/users_controller.rb':
+        'class UsersController < ActionController::Base\n  def index; end\nend\n',
+    }),
+  ).toMatchObject({
+    actions: [{ controller: 'UsersController', action: 'index' }],
+    notRead: [{ file: 'app/controllers/broken_controller.rb', reason: 'Ruby that does not parse' }],
+  });
+});

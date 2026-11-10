@@ -219,10 +219,11 @@ const controllerPathOf = (controller: string): string =>
 
 const fileOf = (text: string, { file, authorize }: Reading): ControllerFile => {
   const root = file.slice(0, file.indexOf('app/controllers/'));
+  const { symbols } = symbolsOfRuby(text);
   return {
     root,
     controllers: readRuby(text, program => controllersIn(program, undefined, { file, authorize })),
-    actions: symbolsOfRuby(text).symbols.flatMap(({ name, scope, kind, exported, lines }) =>
+    actions: symbols.flatMap(({ name, scope, kind, exported, lines }) =>
       kind === 'method' && exported && scope !== undefined && !name.startsWith('self.')
         ? [
             {
@@ -276,7 +277,20 @@ export const railsAccess: AccessReader = {
   holds: path =>
     CONTROLLER_FILE.test(path) && !path.split('/').some(folder => NOT_SEARCHED.has(folder)),
   actions: ({ files, authorize }) => {
-    const read = [...files].map(([file, text]) => fileOf(text, { file, authorize }));
-    return { actions: coveredIn(read, authorize) };
+    const read = [...files].map(([file, text]) => {
+      try {
+        return fileOf(text, { file, authorize });
+      } catch (error) {
+        return { file, reason: error instanceof Error ? error.message : String(error) };
+      }
+    });
+    const notRead = read.flatMap(each => ('reason' in each ? [each] : []));
+    return {
+      actions: coveredIn(
+        read.flatMap(each => ('reason' in each ? [] : [each])),
+        authorize,
+      ),
+      ...(notRead.length === 0 ? {} : { notRead }),
+    };
   },
 };
