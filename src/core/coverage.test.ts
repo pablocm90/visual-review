@@ -151,7 +151,11 @@ test.for([
 });
 
 test.for([
-  { reason: 'no Rails stack on either side', overrides: {}, notRead: ['Rails only'] },
+  {
+    reason: 'no Rails stack on either side',
+    overrides: {},
+    notRead: ['authorization and risky calls: Rails only'],
+  },
   {
     reason: 'controllers read',
     overrides: { access: [{ base: { actions: [] }, head: { actions: [] } }] },

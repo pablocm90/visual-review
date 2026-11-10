@@ -44,7 +44,7 @@ const securityNotRead = ({
   'access' | 'readers' | 'routes' | 'openActions' | 'symbols'
 >): ReadonlyArray<string> =>
   access.length === 0 && !readers.includes('rails')
-    ? ['Rails only']
+    ? ['authorization and risky calls: Rails only']
     : [
         ...accessNotRead({
           access,
