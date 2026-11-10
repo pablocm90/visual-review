@@ -72,22 +72,33 @@ const bodiesOf = (call: Node): ReadonlyArray<Node> => [
   ...[call.childForFieldName('block') ?? []].flat(),
 ];
 
-const callbacksOfCall = (call: Node): ReadonlyArray<Callback> => {
+type Reach = Omit<Callback, 'name'>;
+
+const calledName = (node: Node): string =>
+  node.type === 'identifier' ? node.text : methodOf(node);
+
+const reachOf = (call: Node): Reach => {
   const args = argsOf(call);
   const only = optionOf(args, 'only');
-  const except = namesIn(optionOf(args, 'except'));
-  return positional(args)
+  return {
+    skip: calledName(call).startsWith('skip_'),
+    only: only === undefined ? undefined : namesIn(only),
+    except: namesIn(optionOf(args, 'except')),
+    conditional: optionOf(args, 'if') !== undefined || optionOf(args, 'unless') !== undefined,
+  };
+};
+
+const callbacksOfCall = (call: Node): ReadonlyArray<Callback> =>
+  positional(argsOf(call))
     .filter(readsAsName)
     .map(nameOf)
     .concat(bodiesOf(call).flatMap(namesCalledIn))
-    .map(name => ({
-      skip: methodOf(call).startsWith('skip_'),
-      name,
-      only: only === undefined ? undefined : namesIn(only),
-      except,
-      conditional: optionOf(args, 'if') !== undefined || optionOf(args, 'unless') !== undefined,
-    }));
-};
+    .map(name => ({ ...reachOf(call), name }));
+
+const macroOf = (call: Node): Callback => ({
+  ...reachOf(call),
+  name: calledName(call).replace(/^skip_/, ''),
+});
 
 const rowOf = (node: Node, file: string): UnreadAccess => ({
   text: /^.*/.exec(node.text)?.[0] ?? '',
@@ -100,8 +111,10 @@ const unreadOf = (call: Node, { file, authorize }: Reading): ReadonlyArray<Unrea
 
 const entriesOf = (body: Node | null | undefined, reading: Reading): ReadonlyArray<Entry> =>
   (body?.namedChildren ?? []).flatMap(node => {
-    const method = methodOf(node);
+    const method = calledName(node);
     if (CALLBACK.test(method)) return [...callbacksOfCall(node), ...unreadOf(node, reading)];
+    if (authorizes(reading.authorize, method.replace(/^skip_/, '')))
+      return [macroOf(node), ...unreadOf(node, reading)];
     if (method === 'include')
       return argsOf(node).map(arg => ({
         include: written(arg),

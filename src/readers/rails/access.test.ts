@@ -429,6 +429,35 @@ end
   ).toStrictEqual([by]);
 });
 
+test.for([
+  { body: '  load_and_authorize_resource', covers: ['index', 'show'] },
+  { body: '  authorize_resource only: :show', covers: ['show'] },
+  {
+    body: '  load_and_authorize_resource\n  skip_load_and_authorize_resource only: :index',
+    covers: ['show'],
+  },
+  { body: '  load_and_authorize_resource\n  skip_load_and_authorize_resource', covers: [] },
+  {
+    body: '  load_and_authorize_resource if: :signed_in?',
+    covers: ['index', 'show'],
+    conditional: true,
+  },
+])(
+  'a class macro naming an authorize method, $body, covers $covers',
+  ({ body, covers, conditional = false }) => {
+    expect(
+      read(
+        {
+          'app/controllers/users_controller.rb': `class UsersController < ApplicationController\n${body}\n  def index; end\n  def show; end\nend\n`,
+        },
+        ['load_and_authorize_resource', 'authorize_resource'],
+      ).actions.flatMap(({ action, cover }) =>
+        cover === undefined ? [] : [[action, cover.conditional]],
+      ),
+    ).toStrictEqual(covers.map(action => [action, conditional]));
+  },
+);
+
 test("a callback's options are no callbacks of their own", () => {
   expect(
     read(
