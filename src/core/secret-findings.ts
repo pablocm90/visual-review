@@ -43,15 +43,15 @@ type Found = {
 };
 
 const knownFormat = (code: string): ReadonlyArray<Found> =>
-  FORMATS.flatMap(({ name, said, pattern, shown }) => {
-    const value = pattern.exec(code)?.[0];
-    if (value === undefined) return [];
-    const detail = `${shown ? value : masked(value)}. ${ROTATE}`;
-    return [{ name, said, detail, hidden: shown ? [] : [value] }];
-  });
+  FORMATS.flatMap(({ name, said, pattern, shown }) =>
+    [...code.matchAll(new RegExp(pattern, 'g'))].map(([value]): Found => {
+      const detail = `${shown ? value : masked(value)}. ${ROTATE}`;
+      return { name, said, detail, hidden: shown ? [] : [value] };
+    }),
+  );
 
 const ASSIGNED =
-  /(\w*(?:password|secret|token|api_?key)\w*)["']?\s*(?:=>|:|=)\s*["']([^"'\s]{16,})["']/i;
+  /(\w*(?:password|secret|token|api_?key)\w*)["']?\s*(?:=>|:|=)\s*["']([^"'\s]{16,})["']/gi;
 
 const MOST_ORDERLY = 3.5;
 
@@ -60,19 +60,20 @@ const entropy = (value: string): number =>
     .map(({ length }) => length / value.length)
     .reduce((sum, share) => sum - share * Math.log2(share), 0);
 
-const assignedSecret = (code: string): ReadonlyArray<Found> => {
-  const [, name, value] = ASSIGNED.exec(code) ?? [];
-  return name === undefined || value === undefined || entropy(value) <= MOST_ORDERLY
-    ? []
-    : [
-        {
-          name: 'assigned-secret',
-          said: `a secret-like value for ${name}`,
-          detail: `${masked(value)}, heuristic: a long, varied literal under a secret-like name. ${ROTATE}`,
-          hidden: [value],
-        },
-      ];
-};
+const assignedSecret = (code: string): ReadonlyArray<Found> =>
+  [...code.matchAll(ASSIGNED)].flatMap(
+    ([, name, value]): ReadonlyArray<Found> =>
+      name === undefined || value === undefined || entropy(value) <= MOST_ORDERLY
+        ? []
+        : [
+            {
+              name: 'assigned-secret',
+              said: `a secret-like value for ${name}`,
+              detail: `${masked(value)}, heuristic: a long, varied literal under a secret-like name. ${ROTATE}`,
+              hidden: [value],
+            },
+          ],
+  );
 
 const TEST_FILE = /(?:^|\/)(?:tests?|spec|__tests__|fixtures)\/|[._](?:test|spec)\./;
 

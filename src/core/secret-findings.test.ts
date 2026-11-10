@@ -187,6 +187,21 @@ test('a secret file the change edits, not adds, raises nothing for the file', ()
 
 const AWS = 'AKIAIOSFODNN7EXAMPLE';
 
+test('every key of a format a line gains raises and is masked, not only its first', () => {
+  const other = 'AKIAJ7Q2EXAMPLEKEY99';
+  const twice = patchAdding(`  keys: ['${AWS}', '${other}']`);
+  expect(secretFindings([twice]).map(({ id }) => id)).toStrictEqual([
+    `security:secret:${FILE}#aws-access-key`,
+    `security:secret:${FILE}#aws-access-key#2`,
+  ]);
+  expect(secretValues([twice])).toStrictEqual([AWS, other]);
+});
+
+test('every secret-like value a line gains under a secret-like name raises and is masked', () => {
+  const twice = patchAdding('  token: "aB3dE5fG7hJ9kL1mN0pQ", api_key: "Zx8Yw7Vu6Ts5Rq4Po3Nm"');
+  expect(secretValues([twice])).toStrictEqual(['aB3dE5fG7hJ9kL1mN0pQ', 'Zx8Yw7Vu6Ts5Rq4Po3Nm']);
+});
+
 test.for([
   'pnpm-lock.yaml',
   'web/package-lock.json',
