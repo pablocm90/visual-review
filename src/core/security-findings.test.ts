@@ -132,3 +132,16 @@ test.for([
 test('a call whose name only ends in raw marks nothing safe', () => {
   expect(viewRiskFindings([viewPatch('<%= withdraw(amount) %>')])).toEqual([]);
 });
+
+test.for(['show.html.haml', 'show.slim'])('a %s view is scanned too', name => {
+  const path = `app/views/users/${name}`;
+  expect(
+    viewRiskFindings([{ ...viewPatch('= raw(user.bio)'), path }]).map(({ file }) => file),
+  ).toEqual([path]);
+});
+
+test('a file that is no view is not scanned: its symbols are read', () => {
+  expect(
+    viewRiskFindings([{ ...viewPatch('name.html_safe'), path: 'app/helpers/users_helper.rb' }]),
+  ).toEqual([]);
+});
