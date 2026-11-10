@@ -43,11 +43,13 @@ export const riskFindings = (files: ReadonlyArray<SymbolFile>): ReadonlyArray<Fi
         ),
   );
 
+const MARKS_SAFE = /html_safe|\braw\(|<%==/;
+
 export const viewRiskFindings = (patches: ReadonlyArray<FilePatch>): ReadonlyArray<Finding> =>
   patches.flatMap(({ path, patch }) =>
     patchHunks(patch)
       .flatMap(hunk => hunk.rows)
-      .filter(row => row.kind === 'added' && row.code.includes('html_safe'))
+      .filter(row => row.kind === 'added' && MARKS_SAFE.test(row.code))
       .flatMap((row): ReadonlyArray<Finding> => {
         const line = lineIdOf(path, row);
         return line === undefined

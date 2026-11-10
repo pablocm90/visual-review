@@ -119,3 +119,16 @@ test('a line a view gains marking HTML safe needs a look on its row, by heuristi
     },
   ]);
 });
+
+test.for([
+  { code: '<%= raw(user.bio) %>', name: 'raw(' },
+  { code: '<%== user.bio %>', name: '<%==' },
+])('a line a view gains with $name marks HTML safe too', ({ code }) => {
+  expect(viewRiskFindings([viewPatch(code)]).map(({ detail }) => detail)).toEqual([
+    `${code} (heuristic, view not parsed)`,
+  ]);
+});
+
+test('a call whose name only ends in raw marks nothing safe', () => {
+  expect(viewRiskFindings([viewPatch('<%= withdraw(amount) %>')])).toEqual([]);
+});
