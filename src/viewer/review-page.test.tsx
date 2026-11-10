@@ -6607,7 +6607,7 @@ test("the rail's flag on a diff line's note goes to its file and outlines that r
   );
 });
 
-test("the rail's flag on a line note in a file outside the graph opens those files on that row, as its answer in the tray does", async () => {
+test("the rail's flag on a line note in a file outside the graph opens those files on that row, the note under it, as its answer in the tray does", async () => {
   const user = userEvent.setup();
   render(
     <ReviewPage
@@ -6639,6 +6639,9 @@ test("the rail's flag on a line note in a file outside the graph opens those fil
     'Changed files outside the graph',
   );
   expect(landedRow().textContent).toContain('new');
+  expect(
+    within(landedRow()).getByRole('region', { name: /^Note on README\.md:2/ }).textContent,
+  ).toBe('Newer.');
 
   const finding = within(rail).getByText('stale wording').closest('li') ?? rail;
   await user.click(within(finding).getByRole('button', { name: 'Fix this' }));
