@@ -62,6 +62,11 @@ test.for([
   { reason: 'a key on a line the change removes', prefix: '-', code: 'ENV["STRIPE_KEY"]' },
   { reason: 'a hash merely named like ENV', prefix: '+', code: 'MY_ENV["STRIPE_KEY"]' },
   {
+    reason: 'a constant merely named like Rails',
+    prefix: '+',
+    code: 'NotRails.application.credentials.stripe',
+  },
+  {
     reason: 'a method merely named like credentials',
     prefix: '+',
     code: 'aws_credentials.access_key',
@@ -85,6 +90,11 @@ test.for([
     code: 'Rails.application.credentials.dig()',
   },
   { reason: 'credentials read whole', prefix: '+', code: 'Rails.application.credentials.to_h' },
+  {
+    reason: 'credentials walked whole',
+    prefix: '+',
+    code: 'Rails.application.credentials.each do |key, value|',
+  },
 ])('$reason raises nothing', ({ prefix, code }) => {
   const patch = patchAdding();
   expect(deployKeys([{ ...patch, patch: `${patch.patch}\n${prefix}  ${code}` }])).toEqual([]);
@@ -119,6 +129,7 @@ test.for([
   { read: 'Rails.application.credentials.stripe[:key].to_i', key: 'stripe.key' },
   { read: 'Rails.application.credentials.stripe.fetch(:key)', key: 'stripe.key' },
   { read: 'Rails.application.credentials.stripe[name]', key: 'stripe' },
+  { read: 'Rails.application.credentials.mapbox.token', key: 'mapbox.token' },
 ])('reading credentials as $read raises the path $key', ({ read, key }) => {
   expect(deployKeys([patchAdding(`  config.api_key = ${read}`)])).toMatchObject([
     {
@@ -285,6 +296,8 @@ test('no configured name reads no flag', () => {
 test.for([
   { path: 'CHANGELOG.md', ids: [] },
   { path: 'config/storage.yml', ids: [] },
+  { path: 'docs/deploy.rst', ids: [] },
+  { path: 'lib/tasks/sync.rake', ids: ['deploy:env:STRIPE_KEY', 'deploy:flag-added:x'] },
   { path: 'app/views/charges/new.html.erb', ids: ['deploy:env:STRIPE_KEY', 'deploy:flag-added:x'] },
   { path: 'web/src/pay.tsx', ids: ['deploy:env:STRIPE_KEY', 'deploy:flag-added:x'] },
   { path: 'web/src/pay.mjs', ids: ['deploy:env:STRIPE_KEY', 'deploy:flag-added:x'] },
