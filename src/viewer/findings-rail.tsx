@@ -77,7 +77,7 @@ const linesOf = ({ review, onGoTo, onGoToFinding, onShowOutside, onShowFile }: L
       .join(' → ');
   const placeOf = new Map(review.diff.nodes.map(node => [node.id, node.path || node.label]));
   const lineOf = (finding: Finding): Line => {
-    const { id, level, target, file, table, route, title, detail, groups } = finding;
+    const { id, level, target, file, table, route, line, title, detail, groups } = finding;
     if (target !== undefined) {
       return {
         id,
@@ -94,7 +94,7 @@ const linesOf = ({ review, onGoTo, onGoToFinding, onShowOutside, onShowFile }: L
       target: detail ?? '',
       ...(id === 'structure:undrawn' && { act: onShowOutside }),
       ...(file !== undefined && {
-        act: (opener: HTMLButtonElement) => onShowFile(file, opener, table ?? route),
+        act: (opener: HTMLButtonElement) => onShowFile(file, opener, table ?? route ?? line),
       }),
       ...(groups && {
         groups: groups.flatMap(group =>

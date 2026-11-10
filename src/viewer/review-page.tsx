@@ -2196,13 +2196,14 @@ const Page = ({ review, notes, send }: ReviewPageProps) => {
   };
   const [schemaLanding, setSchemaLanding] = useState<SchemaLanding>();
   const [routesLanding, setRoutesLanding] = useState<RoutesLanding>();
-  const showPatch = (path: string, opener: HTMLButtonElement) => {
+  const showPatch = (path: string, opener: HTMLButtonElement, line?: string) => {
+    const place = line === undefined ? { path } : lineAt(line);
     const holder = deepestHolding(path, review.diff.nodes);
     if (holder === undefined) {
-      showOutsideAt({ path }, opener);
+      showOutsideAt(place, opener);
       return;
     }
-    landOn(holder.id, { path });
+    landOn(holder.id, place);
     goToOnStructure(holder.id);
   };
   const showFile = (path: string, opener: HTMLButtonElement, place?: string) => {
@@ -2216,7 +2217,7 @@ const Page = ({ review, notes, send }: ReviewPageProps) => {
       location.hash = '#routes';
       return;
     }
-    showPatch(path, opener);
+    showPatch(path, opener, place);
   };
   const [read, setRead] = useState(() => storedReadMarks(review.range, stillReadIn(review)));
   useEffect(() => storeReadMarks(review.range, read), [review.range, read]);
