@@ -12,3 +12,16 @@ test('each key a method permits reads as a permit risk', () => {
     { kind: 'permit', text: 'email' },
   ]);
 });
+
+test.for([
+  { permitted: 'address: [:street, :city]', texts: ['address.street', 'address.city'] },
+  { permitted: 'address: [:street, geo: [:lat]]', texts: ['address.street', 'address.geo.lat'] },
+  { permitted: ':address => [:street]', texts: ['address.street'] },
+  { permitted: '"address" => [:street]', texts: ['address.street'] },
+  { permitted: 'tags: []', texts: ['tags'] },
+  { permitted: 'meta: {}', texts: ['meta'] },
+])('permit($permitted) reads its nested keys by path', ({ permitted, texts }) => {
+  expect(risksIn(`params.permit(${permitted})`)).toEqual(
+    texts.map(text => ({ kind: 'permit', text })),
+  );
+});
