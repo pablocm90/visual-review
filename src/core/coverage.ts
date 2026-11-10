@@ -38,11 +38,16 @@ const securityNotRead = ({
 }: Pick<CoverageFacts, 'access' | 'readers' | 'routes' | 'openActions'>): ReadonlyArray<string> =>
   access.length === 0 && !readers.includes('rails')
     ? ['Rails only']
-    : accessNotRead({
-        access,
-        routes: routes.flatMap(reading => ('routes' in reading ? reading.routes : [])),
-        open: openActions,
-      });
+    : [
+        ...accessNotRead({
+          access,
+          routes: routes.flatMap(reading => ('routes' in reading ? reading.routes : [])),
+          open: openActions,
+        }),
+        ...readers
+          .filter(reader => reader !== 'rails')
+          .map(reader => `risky calls not read for ${reader}`),
+      ];
 
 export const coverageOf = ({
   skipped,

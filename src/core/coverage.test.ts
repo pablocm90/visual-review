@@ -155,7 +155,7 @@ test.for([
   {
     reason: 'controllers read',
     overrides: { access: [{ base: { actions: [] }, head: { actions: [] } }] },
-    notRead: [],
+    notRead: ['risky calls not read for typescript'],
   },
 ])('with $reason and no Rails reader, security reads $notRead', ({ overrides, notRead }) => {
   expect(notReadIn('security', { readers: ['typescript'], ...overrides })).toEqual(notRead);
@@ -209,6 +209,13 @@ const unreadAction = {
     { text: 'before_action *GLOBAL', file: 'app/controllers/application_controller.rb', line: 2 },
   ],
 };
+
+test('security names each other reader whose stacks it reads no risky calls for, beside Rails', () => {
+  expect(notReadIn('security', { readers: ['rails', 'typescript', 'rust'] })).toEqual([
+    'risky calls not read for typescript',
+    'risky calls not read for rust',
+  ]);
+});
 
 test('security names, where it is written, what a new action was read through and could not be', () => {
   expect(
