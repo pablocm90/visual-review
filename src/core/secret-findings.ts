@@ -115,5 +115,9 @@ const secretLines = ({ path, patch }: FilePatch): ReadonlyArray<Finding> =>
         ];
   });
 
+const LOCKFILE = /(?:\.lock|-lock\.json|-lock\.yaml|npm-shrinkwrap\.json)$/;
+
 export const secretFindings = (patches: ReadonlyArray<FilePatch>): ReadonlyArray<Finding> =>
-  patches.flatMap(patch => [...secretFile(patch), ...secretLines(patch)]);
+  patches
+    .filter(({ path }) => !LOCKFILE.test(path))
+    .flatMap(patch => [...secretFile(patch), ...secretLines(patch)]);

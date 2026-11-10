@@ -184,3 +184,28 @@ test.for([
 test('a secret file the change edits, not adds, raises nothing for the file', () => {
   expect(secretFindings([{ ...patchAdding('new file mode 100644'), path: '.env' }])).toEqual([]);
 });
+
+const AWS = 'AKIAIOSFODNN7EXAMPLE';
+
+test.for([
+  'pnpm-lock.yaml',
+  'web/package-lock.json',
+  'npm-shrinkwrap.json',
+  'yarn.lock',
+  'Gemfile.lock',
+  'Cargo.lock',
+  'api/poetry.lock',
+])('%s, a lockfile, is not scanned: its hashes would read as keys', path => {
+  expect(
+    secretFindings([{ ...patchAdding(`  token: "aB3dE5fG7hJ9kL1mN0pQ" ${AWS}`), path }]),
+  ).toEqual([]);
+});
+
+test.for(['lock.rb', 'bin/unlock', 'app/services/redis.lock.rb', 'config/lockfile.yml'])(
+  '%s, named like a lock but no lockfile, is scanned',
+  path => {
+    expect(secretFindings([{ ...patchAdding(AWS), path }]).map(({ id }) => id)).toStrictEqual([
+      `security:secret:${path}#aws-access-key`,
+    ]);
+  },
+);
