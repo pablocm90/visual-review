@@ -97,6 +97,7 @@ const excludedAs = (list: string) =>
 test.for([
   { list: '["Company", "Admin::User"]', excluded: ['Company', 'Admin::User'] },
   { list: '[Company, ::Admin::User]', excluded: ['Company', 'Admin::User'] },
+  { list: "['Company', 'Admin::User']", excluded: ['Company', 'Admin::User'] },
 ])('$list is read as its constants', ({ list, excluded }) => {
   expect(excludedAs(list)).toMatchObject({ excluded });
   expect(excludedAs(list)).not.toHaveProperty('unread');

@@ -32,7 +32,7 @@ const CONSTANTS: ReadonlySet<string> = new Set(['constant', 'scope_resolution'])
 
 const nameIn = (node: Node): string | undefined => {
   if (STRINGS.has(node.type) && node.namedChildren.every(({ type }) => type === 'string_content'))
-    return node.text.replace(/^"|"$/g, '');
+    return node.namedChildren.map(({ text }) => text).join('');
   if (CONSTANTS.has(node.type) && node.descendantsOfType('identifier').length === 0)
     return node.text.replace(/^::/, '');
   return undefined;
