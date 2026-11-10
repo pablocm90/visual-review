@@ -98,7 +98,7 @@ const logicOf = (old: ReadSymbol, symbol: ReadSymbol) => {
 
 const riskKey = ({ kind, text }: Risk): string => `${kind} ${text}`;
 
-const gainedRisks = (old: ReadSymbol, symbol: ReadSymbol) => {
+const gainedRisks = (old: Pick<ReadSymbol, 'risks'>, symbol: ReadSymbol) => {
   const risks = (old.risks ?? []).reduce((left, lost) => {
     const at = left.findIndex(risk => riskKey(risk) === riskKey(lost));
     return at === -1 ? left : left.toSpliced(at, 1);
@@ -238,6 +238,7 @@ const readStatements = ({ before, after }: SymbolChangesOptions): ReadonlyArray<
       lines: { head: symbol.lines },
       exported: { head: symbol.exported },
       change: 'added',
+      ...gainedRisks({}, symbol),
     };
   };
   return [

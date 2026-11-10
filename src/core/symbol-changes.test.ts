@@ -920,7 +920,7 @@ test("a file's blind spots are its head's", () => {
 
 const readRuby = (...lines: ReadonlyArray<string>) => symbolsOfRuby(lines.join('\n'));
 
-const risksOf = (changes: SymbolChanges, name: string) =>
+const risksOf = (changes: Pick<SymbolChanges, 'symbols'>, name: string) =>
   changes.symbols.find(statement => statement.name === name)?.risks;
 
 test('a paired symbol carries the risks its head gains over its base, counted as a multiset by kind and text', () => {
@@ -945,5 +945,20 @@ test('a paired symbol carries the risks its head gains over its base, counted as
   expect(risksOf(symbolChanges({ before, after }), 'create')).toEqual([
     { kind: 'permit', text: 'admin' },
     { kind: 'raw-sql', text: 'User.where("a = 1")', detail: 'literal, no interpolation' },
+  ]);
+});
+
+test('an added symbol carries every risk it holds', () => {
+  const before = readRuby('class UsersController', 'end');
+  const after = readRuby(
+    'class UsersController',
+    '  def update',
+    '    params.permit!',
+    '  end',
+    'end',
+  );
+
+  expect(risksOf(symbolChanges({ before, after }), 'update')).toEqual([
+    { kind: 'permit!', text: 'params.permit!' },
   ]);
 });
