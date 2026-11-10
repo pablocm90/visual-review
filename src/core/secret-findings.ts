@@ -7,7 +7,7 @@ type Format = {
   readonly name: string;
   readonly said: string;
   readonly pattern: RegExp;
-  readonly shown?: (value: string) => string;
+  readonly shown?: true;
 };
 
 const FORMATS: ReadonlyArray<Format> = [
@@ -24,7 +24,7 @@ const FORMATS: ReadonlyArray<Format> = [
     name: 'private-key',
     said: 'a private key',
     pattern: /-----BEGIN [A-Z ]*PRIVATE KEY-----/,
-    shown: header => header,
+    shown: true,
   },
 ];
 
@@ -36,12 +36,15 @@ type Found = {
   readonly name: string;
   readonly said: string;
   readonly detail: string;
+  readonly hidden: ReadonlyArray<string>;
 };
 
 const knownFormat = (code: string): ReadonlyArray<Found> =>
-  FORMATS.flatMap(({ name, said, pattern, shown = masked }) => {
+  FORMATS.flatMap(({ name, said, pattern, shown }) => {
     const value = pattern.exec(code)?.[0];
-    return value === undefined ? [] : [{ name, said, detail: `${shown(value)}. ${ROTATE}` }];
+    if (value === undefined) return [];
+    const detail = `${shown ? value : masked(value)}. ${ROTATE}`;
+    return [{ name, said, detail, hidden: shown ? [] : [value] }];
   });
 
 const ASSIGNED =
@@ -63,6 +66,7 @@ const assignedSecret = (code: string): ReadonlyArray<Found> => {
           name: 'assigned-secret',
           said: `a secret-like value for ${name}`,
           detail: `${masked(value)}, heuristic: a long, varied literal under a secret-like name. ${ROTATE}`,
+          hidden: [value],
         },
       ];
 };
@@ -97,12 +101,15 @@ const foundIn = (code: string, path: string): ReadonlyArray<Found> => {
   return known.length > 0 || LOCKFILE.test(path) ? known : assignedSecret(code);
 };
 
+const foundOn = ({ path, patch }: FilePatch) =>
+  patchHunks(patch)
+    .flatMap(hunk => hunk.rows)
+    .filter(row => row.kind === 'added')
+    .flatMap(row => foundIn(row.code, path).map(found => ({ row, found })));
+
 const secretLines = ({ path, patch }: FilePatch): ReadonlyArray<Finding> =>
   countingRepeats(
-    patchHunks(patch)
-      .flatMap(hunk => hunk.rows)
-      .filter(row => row.kind === 'added')
-      .flatMap(row => foundIn(row.code, path).map(found => ({ row, found }))),
+    foundOn({ path, patch }),
     ({ found }) => `security:secret:${path}#${found.name}`,
   ).flatMap(({ item: { row, found }, id }): ReadonlyArray<Finding> => {
     const line = lineIdOf(path, row);
@@ -124,3 +131,6 @@ const secretLines = ({ path, patch }: FilePatch): ReadonlyArray<Finding> =>
 
 export const secretFindings = (patches: ReadonlyArray<FilePatch>): ReadonlyArray<Finding> =>
   patches.flatMap(patch => [...secretFile(patch), ...secretLines(patch)]);
+
+export const secretValues = (patches: ReadonlyArray<FilePatch>): ReadonlyArray<string> =>
+  patches.flatMap(patch => foundOn(patch).flatMap(({ found }) => found.hidden));

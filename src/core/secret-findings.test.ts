@@ -1,5 +1,5 @@
 import { expect, test } from 'vitest';
-import { secretFindings } from './secret-findings.ts';
+import { secretFindings, secretValues } from './secret-findings.ts';
 
 const FILE = 'config/initializers/aws.rb';
 
@@ -250,4 +250,18 @@ test.for([
       ({ level }) => level,
     ),
   ).toStrictEqual(['look', 'look']);
+});
+
+test('the values a change adds that raise a finding are known, to mask them, whatever level they raise at', () => {
+  expect(
+    secretValues([
+      patchAdding(
+        `  key: ${AWS}`,
+        '  token: "aB3dE5fG7hJ9kL1mN0pQ"',
+        '  name: "plain"',
+        '-----BEGIN RSA PRIVATE KEY-----',
+      ),
+      { ...patchAdding(`  stripe: "sk_live_${'4eC39HqLyjWD'.repeat(2)}"`), path: 'spec/keys.rb' },
+    ]),
+  ).toStrictEqual([AWS, 'aB3dE5fG7hJ9kL1mN0pQ', `sk_live_${'4eC39HqLyjWD'.repeat(2)}`]);
 });
