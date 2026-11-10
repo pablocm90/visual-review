@@ -265,3 +265,22 @@ test('the values a change adds that raise a finding are known, to mask them, wha
     ]),
   ).toStrictEqual([AWS, 'aB3dE5fG7hJ9kL1mN0pQ', `sk_live_${'4eC39HqLyjWD'.repeat(2)}`]);
 });
+
+test('the body lines of a private key a change adds are values to mask, up to its footer, a blank one aside', () => {
+  expect(
+    secretValues([
+      patchAdding(
+        'key = <<~PEM',
+        '  -----BEGIN OPENSSH PRIVATE KEY-----',
+        '  b3BlbnNzaC1rZXktdjEAAAAABG5vbmUAAAAEbm9uZQAAAAAAAAABAAAAMwAAAAtzc2gtZW',
+        '',
+        '  QyNTUxOQAAACBhc2RmYXNkZmFzZGZhc2RmYXNkZmFzZGZhc2RmYXNkZgAAAJgAAAAA',
+        '  -----END OPENSSH PRIVATE KEY-----',
+        'PEM',
+      ),
+    ]),
+  ).toStrictEqual([
+    'b3BlbnNzaC1rZXktdjEAAAAABG5vbmUAAAAEbm9uZQAAAAAAAAABAAAAMwAAAAtzc2gtZW',
+    'QyNTUxOQAAACBhc2RmYXNkZmFzZGZhc2RmYXNkZmFzZGZhc2RmYXNkZgAAAJgAAAAA',
+  ]);
+});

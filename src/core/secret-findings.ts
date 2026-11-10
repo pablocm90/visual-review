@@ -10,6 +10,9 @@ type Format = {
   readonly shown?: true;
 };
 
+const KEY_HEADER = /-----BEGIN [A-Z ]*PRIVATE KEY-----/;
+const KEY_FOOTER = /-----END [A-Z ]*PRIVATE KEY-----/;
+
 const FORMATS: ReadonlyArray<Format> = [
   { name: 'aws-access-key', said: 'an AWS access key', pattern: /AKIA[0-9A-Z]{16}/ },
   {
@@ -23,7 +26,7 @@ const FORMATS: ReadonlyArray<Format> = [
   {
     name: 'private-key',
     said: 'a private key',
-    pattern: /-----BEGIN [A-Z ]*PRIVATE KEY-----/,
+    pattern: KEY_HEADER,
     shown: true,
   },
 ];
@@ -132,5 +135,24 @@ const secretLines = ({ path, patch }: FilePatch): ReadonlyArray<Finding> =>
 export const secretFindings = (patches: ReadonlyArray<FilePatch>): ReadonlyArray<Finding> =>
   patches.flatMap(patch => [...secretFile(patch), ...secretLines(patch)]);
 
+type KeyBody = { readonly inKey: boolean; readonly lines: ReadonlyArray<string> };
+
+const keyBodies = ({ patch }: FilePatch): ReadonlyArray<string> =>
+  patchHunks(patch)
+    .flatMap(hunk => hunk.rows)
+    .filter(row => row.kind === 'added')
+    .reduce<KeyBody>(
+      ({ inKey, lines }, { code }) => {
+        if (KEY_HEADER.test(code)) return { inKey: true, lines };
+        if (KEY_FOOTER.test(code)) return { inKey: false, lines };
+        const line = code.trim();
+        return { inKey, lines: inKey && line !== '' ? [...lines, line] : lines };
+      },
+      { inKey: false, lines: [] },
+    ).lines;
+
 export const secretValues = (patches: ReadonlyArray<FilePatch>): ReadonlyArray<string> =>
-  patches.flatMap(patch => foundOn(patch).flatMap(({ found }) => found.hidden));
+  patches.flatMap(patch => [
+    ...foundOn(patch).flatMap(({ found }) => found.hidden),
+    ...keyBodies(patch),
+  ]);
