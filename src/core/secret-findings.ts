@@ -80,7 +80,7 @@ const TEST_FILE = /(?:^|\/)(?:tests?|spec|__tests__|fixtures)\/|[._](?:test|spec
 const levelOf = (path: string): Finding['level'] => (TEST_FILE.test(path) ? 'info' : 'look');
 
 const SECRET_FILE =
-  /(?:^|\/)(?:\.env(?!\.example)[^/]*|config\/master\.key|config\/credentials\/[^/]+\.key|[^/]+\.pem|id_rsa(?!\.pub)[^/]*)$/;
+  /(?:^|\/)(?:\.env(?![^/]*\.(?:example|sample|template|dist)$)[^/]*|config\/master\.key|config\/credentials\/[^/]+\.key|[^/]+\.pem|id_rsa(?!\.pub)[^/]*)$/;
 
 const isAddedSecretFile = ({ path, patch }: FilePatch): boolean =>
   SECRET_FILE.test(path) && /^new file mode /m.test(patch);

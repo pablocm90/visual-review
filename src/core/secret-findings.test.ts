@@ -172,6 +172,10 @@ test.for([
 
 test.for([
   '.env.example',
+  '.env.sample',
+  'web/.env.template',
+  '.env.dist',
+  '.env.local.example',
   'deploy/id_rsa.pub',
   'config/credentials.yml.enc',
   'config/credentials/production.yml.enc',
