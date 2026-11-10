@@ -146,5 +146,19 @@ export const accessNotRead = ({
               matchesWildcard(pattern, `${controller}#${action}`),
             ),
         );
-  return [...new Set(lines), ...unmatched.map(pattern => `open ${pattern} matches no action`)];
+  const files = access.flatMap(({ base, head }) => {
+    const headFiles = head.notRead ?? [];
+    const onlyAtBase = (base.notRead ?? []).filter(
+      ({ file }) => !headFiles.some(other => other.file === file),
+    );
+    return [
+      ...headFiles.map(({ file, reason }) => `${file} not read: ${reason}`),
+      ...onlyAtBase.map(({ file, reason }) => `${file} not read at the base: ${reason}`),
+    ];
+  });
+  return [
+    ...files,
+    ...new Set(lines),
+    ...unmatched.map(pattern => `open ${pattern} matches no action`),
+  ];
 };

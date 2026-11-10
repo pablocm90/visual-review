@@ -296,3 +296,27 @@ test('a row two actions were read through is listed once', () => {
     }),
   ).toStrictEqual(['app/controllers/application_controller.rb:2 not read: before_action *GLOBAL']);
 });
+
+test('a controller not read is a line, at the base only when the head read it', () => {
+  const notRead = (file: string) => ({ file, reason: 'Ruby that does not parse' });
+  const both = 'app/controllers/both_controller.rb';
+  const atBase = 'app/controllers/base_controller.rb';
+  const atHead = 'app/controllers/head_controller.rb';
+
+  expect(
+    accessNotRead({
+      access: [
+        {
+          base: { actions: [], notRead: [notRead(both), notRead(atBase)] },
+          head: { actions: [], notRead: [notRead(both), notRead(atHead)] },
+        },
+      ],
+      routes: [],
+      open: [],
+    }),
+  ).toStrictEqual([
+    `${both} not read: Ruby that does not parse`,
+    `${atHead} not read: Ruby that does not parse`,
+    `${atBase} not read at the base: Ruby that does not parse`,
+  ]);
+});
