@@ -1,5 +1,11 @@
 import type { Node } from 'web-tree-sitter';
-import type { TenantConfig, TenantReader, TenantUnread } from '../../core/tenant.ts';
+import type {
+  TenantConfig,
+  TenantFileNotRead,
+  TenantReader,
+  TenantUnread,
+} from '../../core/tenant.ts';
+import { isTooBig, TOO_BIG } from '../too-big.ts';
 import { NOT_SEARCHED } from './reader.ts';
 import { argsOf, methodOf, readRuby, writtenIn } from './ruby-syntax.ts';
 
@@ -71,26 +77,39 @@ const carries = (root: Node): boolean =>
       call => methodOf(call) === 'include' && argsOf(call).some(({ text }) => CARRIER.has(text)),
     );
 
-type HeldFile = {
-  readonly root: string;
-  readonly configs: ReadonlyArray<Omit<TenantConfig, 'jobsCarryTenant'>>;
-  readonly carries: boolean;
-};
+type HeldFile =
+  | {
+      readonly root: string;
+      readonly configs: ReadonlyArray<Omit<TenantConfig, 'jobsCarryTenant'>>;
+      readonly carries: boolean;
+    }
+  | TenantFileNotRead;
 
 const heldFileOf = (file: string, text: string): HeldFile => {
   const root = HELD.exec(file)?.[1] ?? '';
   if (!text.includes('Apartment')) return { root, configs: [], carries: false };
-  return readRuby(text, tree => ({
-    root,
-    configs: configuresIn(tree).map(configure => ({ root, file, ...excludedIn(file, configure) })),
-    carries: carries(tree),
-  }));
+  if (isTooBig(text)) return { file, reason: `${file} ${TOO_BIG}` };
+  return readRuby(text, tree =>
+    tree.hasError
+      ? { file, reason: `Ruby syntax error in ${file}` }
+      : {
+          root,
+          configs: configuresIn(tree).map(configure => ({
+            root,
+            file,
+            ...excludedIn(file, configure),
+          })),
+          carries: carries(tree),
+        },
+  );
 };
 
 export const railsTenant: TenantReader = {
   holds: path => HELD.test(path) && !path.split('/').some(folder => NOT_SEARCHED.has(folder)),
   configs: files => {
-    const held = [...files].map(([file, text]) => heldFileOf(file, text));
+    const read = [...files].map(([file, text]) => heldFileOf(file, text));
+    const held = read.flatMap(each => ('reason' in each ? [] : [each]));
+    const notRead = read.flatMap(each => ('reason' in each ? [each] : []));
     return {
       configs: held.flatMap(({ configs }) =>
         configs.map(config => ({
@@ -98,6 +117,7 @@ export const railsTenant: TenantReader = {
           jobsCarryTenant: held.some(other => other.root === config.root && other.carries),
         })),
       ),
+      ...(notRead.length === 0 ? {} : { notRead }),
     };
   },
 };

@@ -114,3 +114,26 @@ test('the last excluded_models written is the one Apartment keeps', () => {
     }).configs[0]?.excluded,
   ).toStrictEqual(['User']);
 });
+
+test.for([
+  {
+    reason: 'a syntax error',
+    text: 'Apartment.configure do |config|\n  config.excluded_models = %w[Company\n',
+    said: 'Ruby syntax error in config/initializers/apartment.rb',
+  },
+  {
+    reason: 'a line too long',
+    text: `Apartment.configure do |config|\n  config.excluded_models = %w[${'Company '.repeat(200)}]\nend\n`,
+    said: 'config/initializers/apartment.rb too big to read: over 262,144 characters or a line over 1,000',
+  },
+])('an Apartment config with $reason is not read, the others still are', ({ text, said }) => {
+  expect(
+    read({
+      'config/initializers/apartment.rb': text,
+      'apps/admin/config/initializers/apartment.rb': APARTMENT,
+    }),
+  ).toStrictEqual({
+    configs: [expect.objectContaining({ root: 'apps/admin/', excluded: ['Company'] })],
+    notRead: [{ file: 'config/initializers/apartment.rb', reason: said }],
+  });
+});
