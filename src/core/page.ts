@@ -1,4 +1,5 @@
 import { type Coverage, coverageOf } from './coverage.ts';
+import { FLIPPER_FLAGS } from './deploy-findings.ts';
 import { diffGraphs, type FilePatch, type GraphDiff, isAtOrUnder } from './diff-graphs.ts';
 import { type Finding, raisedFindings } from './findings.ts';
 import type { DanglingCall } from './linker.ts';
@@ -116,6 +117,7 @@ export const pageData = ({
     ruleBreaks: reading.ruleBreaks,
     edges: diff.edges,
     keysAtBase: reading.deployKeysAtBase,
+    flags: reading.deployConfig.flags ?? FLIPPER_FLAGS,
   });
   const data: PageData = {
     repo,

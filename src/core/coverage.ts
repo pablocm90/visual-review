@@ -1,5 +1,5 @@
 import { accessNotRead } from './access-findings.ts';
-import { deployKeysNotRead } from './deploy-findings.ts';
+import { deployNotRead } from './deploy-findings.ts';
 import type { Dimension } from './findings.ts';
 import { NO_AXUM_CRATE } from './linker.ts';
 import type { RangeReading } from './read-range.ts';
@@ -29,6 +29,7 @@ export type CoverageFacts = Pick<
   | 'access'
   | 'openActions'
   | 'patches'
+  | 'deployConfig'
 >;
 
 const notReadFor = (name: string): string => `not read for ${name}`;
@@ -89,6 +90,7 @@ export const coverageOf = ({
   access,
   openActions,
   patches,
+  deployConfig,
 }: CoverageFacts): ReadonlyArray<Coverage> => {
   const skippedStacks = skipped.flatMap(({ stacks }) => stacks);
   const symbolsMissing = [
@@ -139,6 +141,6 @@ export const coverageOf = ({
       dimension: 'security',
       notRead: securityNotRead({ access, readers, routes, openActions, symbols }),
     },
-    { dimension: 'deploy', notRead: deployKeysNotRead(patches) },
+    { dimension: 'deploy', notRead: deployNotRead({ patches, flags: deployConfig.flags }) },
   ];
 };

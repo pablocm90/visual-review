@@ -1,5 +1,10 @@
 import { expect, test } from 'vitest';
-import { deployFlagFindings, deployKeyFindings, deployKeysNotRead } from './deploy-findings.ts';
+import {
+  deployFlagFindings,
+  deployKeyFindings,
+  deployKeysNotRead,
+  FLIPPER_FLAGS,
+} from './deploy-findings.ts';
 import type { FilePatch } from './diff-graphs.ts';
 
 const deployKeys = (patches: ReadonlyArray<FilePatch>) =>
@@ -149,9 +154,7 @@ const patchChanging = ({
   ].join('\n'),
 });
 
-const FLIPPER = ['Flipper.enabled?', 'Flipper.enable', 'Flipper'];
-
-const flagsOf = (change: Parameters<typeof patchChanging>[0], flags = FLIPPER) =>
+const flagsOf = (change: Parameters<typeof patchChanging>[0], flags = FLIPPER_FLAGS) =>
   deployFlagFindings({ patches: [patchChanging(change)], flags });
 
 test('a flag the change starts reading is for information, on its first added row', () => {
@@ -225,6 +228,7 @@ test.for([
   'Flipper[:x].enabled?',
   '::Flipper.enabled?(:x)',
   'Flipper.enabled?( :x )',
+  'Flipper.disable(:x)',
 ])('reading the flag as %s raises it', read => {
   expect(flagsOf({ removed: [], added: [read] }).map(({ id }) => id)).toStrictEqual([
     'deploy:flag-added:x',

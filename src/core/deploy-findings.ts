@@ -161,6 +161,13 @@ const flagFinding = (
       }),
 });
 
+export const FLIPPER_FLAGS: ReadonlyArray<string> = [
+  'Flipper.enabled?',
+  'Flipper.enable',
+  'Flipper.disable',
+  'Flipper',
+];
+
 export const deployFlagFindings = ({
   patches,
   flags,
@@ -181,3 +188,15 @@ export const deployFlagFindings = ({
       : [flagFinding(first, gains ? 'deploy:flag-added' : 'deploy:flag-removed')];
   });
 };
+
+type DeployNotReadOptions = {
+  readonly patches: ReadonlyArray<FilePatch>;
+  readonly flags: ReadonlyArray<string> | undefined;
+};
+
+export const deployNotRead = ({ patches, flags }: DeployNotReadOptions): ReadonlyArray<string> => [
+  ...deployKeysNotRead(patches),
+  ...(flags === undefined && !patches.some(({ patch }) => flagCalls(FLIPPER_FLAGS).test(patch))
+    ? ['flags: Flipper only']
+    : []),
+];

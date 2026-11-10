@@ -87,6 +87,7 @@ const readingOf = (overrides: Partial<Omit<RangeReading, 'reviewed'>>): RangeRea
   ruleBreaks: [],
   rulesNotRead: [],
   deployKeysAtBase: [],
+  deployConfig: {},
   notesConfig: {},
   ...overrides,
 });
@@ -3801,6 +3802,26 @@ test('an env key a line gains raises its deploy finding, whether its file is dra
       .findings.filter(({ dimension }) => dimension === 'deploy')
       .map(({ id }) => id),
   ).toStrictEqual(['deploy:env:SYNC_TOKEN']);
+});
+
+test.for([
+  {
+    reason: "the base config's",
+    deployConfig: { flags: ['Feature.on?'] },
+    ids: ['deploy:flag-added:x'],
+  },
+  { reason: "Flipper's, with none configured", deployConfig: {}, ids: ['deploy:flag-added:y'] },
+])('the flags a change starts reading are read by $reason call names', ({ deployConfig, ids }) => {
+  const reading = readingWith({
+    patches: [addingLine('app/a.rb', 'Feature.on?(:x)', 'Flipper.enabled?(:y)')],
+    deployConfig,
+  });
+
+  expect(
+    pageData({ repo: 'shop', reading, range: 'main..feature', version: '1.2.3', parsers })
+      .findings.filter(({ dimension }) => dimension === 'deploy')
+      .map(({ id }) => id),
+  ).toStrictEqual(ids);
 });
 
 const symbolsIn = (file: SymbolFile | undefined) =>

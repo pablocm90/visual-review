@@ -7,6 +7,7 @@ import {
   type BaseConfig,
   CONFIG_FILE,
   type Config,
+  type DeployConfig,
   type NotesConfig,
   parseBaseConfig,
   parseConfig,
@@ -116,6 +117,7 @@ export type RangeReading = {
   readonly ruleBreaks: ReadonlyArray<RuleBreak>;
   readonly rulesNotRead: ReadonlyArray<string>;
   readonly deployKeysAtBase: ReadonlyArray<string>;
+  readonly deployConfig: DeployConfig;
   readonly notesConfig: NotesConfig;
   readonly reviewed?: ReviewedReading;
 };
@@ -647,7 +649,7 @@ export const readRange = async ({
   const [fromCommit, toCommit] = await Promise.all([resolve(repo, from), resolve(repo, to)]);
   const base = await git(repo, 'merge-base', fromCommit, toCommit);
   const config = await configAt(repo, toCommit);
-  const { notes: notesConfig, security } = await baseConfigAt(repo, base);
+  const { notes: notesConfig, security, deploy: deployConfig } = await baseConfigAt(repo, base);
   const scratch = await realpath(await mkdtemp(join(tmpdir(), 'visual-review-')));
   try {
     const sides = { before: join(scratch, 'before'), after: join(scratch, 'after') };
@@ -795,6 +797,7 @@ export const readRange = async ({
       ruleBreaks: ruleBreaks({ rules: config.rules, graph: after.graph }),
       rulesNotRead: rulesNotRead({ rules: config.rules, graph: after.graph }),
       deployKeysAtBase: await keysNamedAt({ repo, revision: base, keys: deployKeysIn(patches) }),
+      deployConfig,
       notesConfig,
       changedPaths,
       renames,
