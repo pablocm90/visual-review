@@ -1,7 +1,7 @@
 import { expect, test } from 'vitest';
 import type { SymbolFile } from './read-range.ts';
 import type { Risk } from './reader.ts';
-import { riskFindings } from './security-findings.ts';
+import { riskFindings, viewRiskFindings } from './security-findings.ts';
 import type { SymbolStatement } from './symbol-changes.ts';
 
 const NODE = 'shop/class/UsersController';
@@ -91,5 +91,31 @@ test('a second gain of one kind in one method is counted in its id, as a repeate
     `security:permit:${NODE}#UsersController.create`,
     `security:raw-sql:${NODE}#UsersController.create`,
     `security:permit:${NODE}#UsersController.create#2`,
+  ]);
+});
+
+const VIEW = 'app/views/users/show.html.erb';
+
+const viewPatch = (...added: ReadonlyArray<string>) => ({
+  path: VIEW,
+  patch: [
+    `@@ -1,1 +1,${added.length + 1} @@`,
+    ' <h1>User</h1>',
+    ...added.map(line => `+${line}`),
+  ].join('\n'),
+});
+
+test('a line a view gains marking HTML safe needs a look on its row, by heuristic', () => {
+  expect(viewRiskFindings([viewPatch('  <%= user.bio.html_safe %>')])).toStrictEqual([
+    {
+      id: `security:html-safe:${VIEW}`,
+      check: 'security:html-safe',
+      dimension: 'security',
+      level: 'look',
+      file: VIEW,
+      line: `${VIEW}@head:2`,
+      title: `${VIEW} marks HTML safe`,
+      detail: '<%= user.bio.html_safe %> (heuristic, view not parsed)',
+    },
   ]);
 });

@@ -1,5 +1,7 @@
 import { countedId } from './counted-id.ts';
+import type { FilePatch } from './diff-graphs.ts';
 import type { Finding } from './findings.ts';
+import { lineIdOf, patchHunks } from './patch-lines.ts';
 import type { SymbolFile } from './read-range.ts';
 import type { Risk, RiskKind } from './reader.ts';
 import { qualified } from './symbol-changes.ts';
@@ -39,4 +41,28 @@ export const riskFindings = (files: ReadonlyArray<SymbolFile>): ReadonlyArray<Fi
             };
           }),
         ),
+  );
+
+export const viewRiskFindings = (patches: ReadonlyArray<FilePatch>): ReadonlyArray<Finding> =>
+  patches.flatMap(({ path, patch }) =>
+    patchHunks(patch)
+      .flatMap(hunk => hunk.rows)
+      .filter(row => row.kind === 'added' && row.code.includes('html_safe'))
+      .flatMap((row): ReadonlyArray<Finding> => {
+        const line = lineIdOf(path, row);
+        return line === undefined
+          ? []
+          : [
+              {
+                id: `security:html-safe:${path}`,
+                check: 'security:html-safe',
+                dimension: 'security',
+                level: 'look',
+                file: path,
+                line,
+                title: `${path} marks HTML safe`,
+                detail: `${row.code.trim()} (heuristic, view not parsed)`,
+              },
+            ];
+      }),
   );
