@@ -4,6 +4,7 @@ import {
   DIMENSIONS,
   type Dimension,
   type Finding,
+  placeInFile,
   skippedFindingId,
 } from '../core/findings.ts';
 import { endsOfId } from '../core/graph.ts';
@@ -77,7 +78,7 @@ const linesOf = ({ review, onGoTo, onGoToFinding, onShowOutside, onShowFile }: L
       .join(' → ');
   const placeOf = new Map(review.diff.nodes.map(node => [node.id, node.path || node.label]));
   const lineOf = (finding: Finding): Line => {
-    const { id, level, target, file, table, route, line, title, detail, groups } = finding;
+    const { id, level, target, file, title, detail, groups } = finding;
     if (target !== undefined) {
       return {
         id,
@@ -94,7 +95,7 @@ const linesOf = ({ review, onGoTo, onGoToFinding, onShowOutside, onShowFile }: L
       target: detail ?? '',
       ...(id === 'structure:undrawn' && { act: onShowOutside }),
       ...(file !== undefined && {
-        act: (opener: HTMLButtonElement) => onShowFile(file, opener, table ?? route ?? line),
+        act: (opener: HTMLButtonElement) => onShowFile(file, opener, placeInFile(finding)),
       }),
       ...(groups && {
         groups: groups.flatMap(group =>

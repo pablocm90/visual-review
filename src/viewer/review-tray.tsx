@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { anchorKey, anchorTarget, type TargetsOf } from '../core/anchors.ts';
-import type { Finding } from '../core/findings.ts';
+import { type Finding, placeInFile } from '../core/findings.ts';
 import type { GraphNode } from '../core/graph.ts';
 import type { PreviousComment } from '../core/previous-comments.ts';
 import type { Answer, Comment, Review } from '../core/review.ts';
@@ -179,7 +179,7 @@ const DraftList = ({
     {answered.flatMap(({ anchor, kind, text }) =>
       findings
         .filter(finding => finding.id === anchor.id)
-        .map(({ id, title, target, file, table, route, line }) => (
+        .map(({ id, title, target, file, ...place }) => (
           <Draft
             key={id}
             name={title}
@@ -187,7 +187,7 @@ const DraftList = ({
               target !== undefined
                 ? () => onGoToDraft(target, anchor)
                 : file !== undefined
-                  ? opener => onGoToFile(file, opener, table ?? route ?? line)
+                  ? opener => onGoToFile(file, opener, placeInFile(place))
                   : undefined
             }
             label={answerLabels.get(kind)}
