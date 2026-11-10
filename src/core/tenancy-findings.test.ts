@@ -34,3 +34,18 @@ test('a model newly excluded needs a look, on the config at the head', () => {
     },
   ]);
 });
+
+test('a model no longer excluded needs a look too', () => {
+  expect(
+    tenancyFindings([reading(config({ excluded: ['Company', 'Plan'] }), config())]),
+  ).toMatchObject([
+    {
+      id: 'tenancy:excluded::Plan',
+      level: 'look',
+      file: FILE,
+      title: 'Plan no longer excluded',
+      detail:
+        'Each tenant now reads its own table of it; the rows in the public schema are no longer read there.',
+    },
+  ]);
+});
