@@ -215,6 +215,11 @@ A controller action the repo says is meant to be public, by a `Controller#action
 _Avoid_: public action (any action Rails routes), skipped
 _In code_: `security.open`, `RangeReading.openActions`
 
+**Risky call**:
+A call a Rails method or scope gains that can open what authorization or escaping guards, found by its name: a key newly permitted (`address.street` when nested), `permit!`, raw SQL (a query given a string, `find_by_sql` and its kin, `Arel.sql`), HTML marked safe (`html_safe`, bare `raw`, `safe_concat`) and a send of a name it doesn't write (`send`, `public_send`, `constantize`). A view isn't parsed: a line it gains holding `html_safe`, `raw(` or `<%==` counts, by heuristic. A call the base symbol already made, or a symbol moved whole, gains none.
+_Avoid_: vulnerability (nothing is checked to be exploitable), unsafe call
+_In code_: `Risk` (`src/core/reader.ts`), `SymbolStatement.risks`, `riskFindings` and `viewRiskFindings` (`src/core/security-findings.ts`)
+
 ## Relationships
 
 - A **fact** may raise **findings**; a **finding** is never the only record of a fact.
