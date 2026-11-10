@@ -229,6 +229,35 @@ test('security names each file whose symbols, and so whose risky calls, were not
   ).toEqual(['not read for shop/class/User']);
 });
 
+test('security names each permit a changed method gained and could not name, by its node and method', () => {
+  expect(
+    notReadIn('security', {
+      symbols: [
+        {
+          stack: 'shop',
+          node: 'shop/class/UsersController',
+          symbols: [
+            {
+              name: 'create',
+              scope: 'UsersController',
+              kind: 'method',
+              lines: { head: { start: 2, end: 4 } },
+              exported: { head: true },
+              change: 'added',
+              risks: [
+                { kind: 'permit', text: 'name' },
+                { kind: 'permit', text: '*FIELDS', unread: true },
+              ],
+            },
+          ],
+          exports: { added: [], removed: [] },
+          kind: 'logic',
+        },
+      ],
+    }),
+  ).toEqual(['shop/class/UsersController not read: permit(*FIELDS) in UsersController.create']);
+});
+
 test('security names, where it is written, what a new action was read through and could not be', () => {
   expect(
     notReadIn('security', {
