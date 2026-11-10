@@ -209,3 +209,38 @@ test.for(['lock.rb', 'bin/unlock', 'app/services/redis.lock.rb', 'config/lockfil
     ]);
   },
 );
+
+test.for([
+  'spec/fixtures/aws.yml',
+  'test/fixtures/files/keys.txt',
+  'web/src/__tests__/client.ts',
+  'web/src/client.test.ts',
+  'web/src/client.spec.tsx',
+  'test/models/user_test.rb',
+  'spec/models/user_spec.rb',
+  'crates/api/tests/keys.rs',
+  'fixtures/keys.json',
+  'spec/support/keys.rb',
+  'pkg/client_test.go',
+])('a secret in %s, a test file or fixture, is for information', path => {
+  expect(
+    secretFindings([{ ...patchAdding(AWS), path }, addedFile(`${path}.pem`)]).map(
+      ({ level }) => level,
+    ),
+  ).toStrictEqual(['info', 'info']);
+});
+
+test.for([
+  'app/models/contest.rb',
+  'app/contests/entry.rb',
+  'web/src/testing.ts',
+  'lib/load_testing.rb',
+  'lib/specs.rb',
+  'web/src/latest.ts',
+])('a secret in %s, no test file, needs a look', path => {
+  expect(
+    secretFindings([{ ...patchAdding(AWS), path }, addedFile(`${path}.pem`)]).map(
+      ({ level }) => level,
+    ),
+  ).toStrictEqual(['look', 'look']);
+});

@@ -67,6 +67,10 @@ const assignedSecret = (code: string): ReadonlyArray<Found> => {
       ];
 };
 
+const TEST_FILE = /(?:^|\/)(?:tests?|spec|__tests__|fixtures)\/|[._](?:test|spec)\./;
+
+const levelOf = (path: string): Finding['level'] => (TEST_FILE.test(path) ? 'info' : 'look');
+
 const SECRET_FILE =
   /(?:^|\/)(?:\.env(?!\.example)[^/]*|config\/master\.key|config\/credentials\/[^/]+\.key|[^/]+\.pem|id_rsa(?!\.pub)[^/]*)$/;
 
@@ -77,7 +81,7 @@ const secretFile = ({ path, patch }: FilePatch): ReadonlyArray<Finding> =>
           id: `security:secret:${path}#secret-file`,
           check: 'security:secret',
           dimension: 'security',
-          level: 'look',
+          level: levelOf(path),
           file: path,
           title: `${path} is a secret file the change adds`,
           detail:
@@ -106,7 +110,7 @@ const secretLines = ({ path, patch }: FilePatch): ReadonlyArray<Finding> =>
             id,
             check: 'security:secret',
             dimension: 'security',
-            level: 'look',
+            level: levelOf(path),
             file: path,
             line,
             title: `${path} adds ${found.said}`,
