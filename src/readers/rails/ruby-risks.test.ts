@@ -71,3 +71,14 @@ test.for(['User.where(active: true)', 'User.order(:name)', 'User.select { |u| u.
     expect(risksIn(call)).toEqual([]);
   },
 );
+
+test.for(['name.html_safe', 'raw(name)', 'raw name', 'buffer.safe_concat(name)'])(
+  '%s reads as HTML marked safe',
+  call => {
+    expect(risksIn(call)).toEqual([{ kind: 'html-safe', text: call }]);
+  },
+);
+
+test('raw on a receiver is no HTML marked safe', () => {
+  expect(risksIn('response.raw(name)')).toEqual([]);
+});

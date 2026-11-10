@@ -74,12 +74,18 @@ const isString = (node: Node | undefined): boolean => {
 
 const givenAString: Reading = call => (isString(firstArgument(call)) ? rawSql(call) : []);
 
+const bareRaw: Reading = call =>
+  call.childForFieldName('receiver') === null ? asWritten('html-safe')(call) : [];
+
 const RISKS = new Map<string, Reading>([
   ...QUERIES.map((name): [string, Reading] => [name, givenAString]),
   ['permit', permittedKeys],
   ['permit!', asWritten('permit!')],
   ...RAW_SQL.map((name): [string, Reading] => [name, rawSql]),
   ['sql', arelSql],
+  ['html_safe', asWritten('html-safe')],
+  ['safe_concat', asWritten('html-safe')],
+  ['raw', bareRaw],
 ]);
 
 export const risksIn = (body: Node): ReadonlyArray<Risk> =>
