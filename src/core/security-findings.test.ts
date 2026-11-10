@@ -161,3 +161,7 @@ test('a view line marked safe that the change removes or keeps raises nothing', 
   const patch = ['@@ -1,2 +1,1 @@', ' <%= raw(a) %>', '-<%== b %>'].join('\n');
   expect(viewRiskFindings([{ path: VIEW, patch }])).toEqual([]);
 });
+
+test('a view asking html_safe? marks nothing safe', () => {
+  expect(viewRiskFindings([viewPatch('<% if bio.html_safe? %>')])).toEqual([]);
+});

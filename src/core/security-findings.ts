@@ -45,7 +45,7 @@ export const riskFindings = (files: ReadonlyArray<SymbolFile>): ReadonlyArray<Fi
 
 const VIEW = /\.(erb|haml|slim)$/;
 
-const MARKS_SAFE = /html_safe|\braw\(|<%==/;
+const MARKS_SAFE = /html_safe(?!\?)|\braw\(|<%==/;
 
 export const viewRiskFindings = (patches: ReadonlyArray<FilePatch>): ReadonlyArray<Finding> =>
   patches
