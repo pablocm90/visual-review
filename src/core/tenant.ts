@@ -13,6 +13,7 @@ export type TenantConfig = {
 };
 
 export type TenantFileNotRead = {
+  readonly root: string;
   readonly file: string;
   readonly reason: string;
 };

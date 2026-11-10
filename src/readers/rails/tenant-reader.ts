@@ -88,10 +88,10 @@ type HeldFile =
 const heldFileOf = (file: string, text: string): HeldFile => {
   const root = HELD.exec(file)?.[1] ?? '';
   if (!text.includes('Apartment')) return { root, configs: [], carries: false };
-  if (isTooBig(text)) return { file, reason: `${file} ${TOO_BIG}` };
+  if (isTooBig(text)) return { root, file, reason: `${file} ${TOO_BIG}` };
   return readRuby(text, tree =>
     tree.hasError
-      ? { file, reason: `Ruby syntax error in ${file}` }
+      ? { root, file, reason: `Ruby syntax error in ${file}` }
       : {
           root,
           configs: configuresIn(tree).map(configure => ({

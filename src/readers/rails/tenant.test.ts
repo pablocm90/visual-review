@@ -134,6 +134,6 @@ test.for([
     }),
   ).toStrictEqual({
     configs: [expect.objectContaining({ root: 'apps/admin/', excluded: ['Company'] })],
-    notRead: [{ file: 'config/initializers/apartment.rb', reason: said }],
+    notRead: [{ root: '', file: 'config/initializers/apartment.rb', reason: said }],
   });
 });
