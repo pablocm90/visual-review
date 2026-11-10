@@ -39,6 +39,7 @@ export const CHECK_TITLES = {
   'security:html-safe': 'HTML newly marked safe',
   'security:dynamic-send': 'sends of a name not written',
   'security:secret': 'secrets added',
+  'deploy:env': 'env keys a deploy must set',
 } as const;
 
 export type Check = keyof typeof CHECK_TITLES;
