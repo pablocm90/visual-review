@@ -17,6 +17,7 @@ const facts = (overrides: Partial<CoverageFacts> = {}): CoverageFacts => ({
   reachesNotRead: [],
   rulesNotRead: [],
   access: [],
+  openActions: [],
   ...overrides,
 });
 
@@ -215,6 +216,15 @@ test('security names, where it is written, what a new action was read through an
       access: [{ base: { actions: [] }, head: { actions: [unreadAction] } }],
     }),
   ).toEqual(['app/controllers/application_controller.rb:2 not read: before_action *GLOBAL']);
+});
+
+test("security leaves out what an action the config's security.open lists was read through", () => {
+  expect(
+    notReadIn('security', {
+      access: [{ base: { actions: [] }, head: { actions: [unreadAction] } }],
+      openActions: ['UsersController#show'],
+    }),
+  ).toEqual([]);
 });
 
 test('security names what an unchanged action was read through when a route the change adds reaches it', () => {

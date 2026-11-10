@@ -79,10 +79,18 @@ type Paired = Pick<Change, 'action' | 'before'>;
 const routedAnew = (routes: ReadonlyArray<RouteChange>): ReadonlyArray<Route> =>
   routes.flatMap(change => (change.state === 'removed' ? [] : [change.head]));
 
-const pairedIn = (access: ReadonlyArray<AccessReading>): ReadonlyArray<Paired> =>
+const pairedIn = ({
+  access,
+  open,
+}: Pick<AccessFindingsOptions, 'access' | 'open'>): ReadonlyArray<Paired> =>
   access.flatMap(({ base, head }) => {
     const before = new Map(base.actions.map(action => [keyOf(action), action]));
-    return head.actions.map(action => ({ action, before: before.get(keyOf(action)) }));
+    return head.actions
+      .filter(
+        ({ controller, action }) =>
+          !open.some(pattern => matchesWildcard(pattern, `${controller}#${action}`)),
+      )
+      .map(action => ({ action, before: before.get(keyOf(action)) }));
   });
 
 export const accessFindings = ({
@@ -92,12 +100,8 @@ export const accessFindings = ({
   open,
 }: AccessFindingsOptions): ReadonlyArray<Finding> => {
   const routed = routedAnew(routes);
-  return pairedIn(access)
+  return pairedIn({ access, open })
     .filter(({ action }) => action.cover?.conditional !== false)
-    .filter(
-      ({ action: { controller, action } }) =>
-        !open.some(pattern => matchesWildcard(pattern, `${controller}#${action}`)),
-    )
     .flatMap(({ action, before }): ReadonlyArray<Finding> => {
       const change = whatChanged({ action, before, routes: routed });
       return change === undefined
@@ -118,9 +122,10 @@ export const accessFindings = ({
 export const accessNotRead = ({
   access,
   routes,
-}: Pick<AccessFindingsOptions, 'access' | 'routes'>): ReadonlyArray<string> => {
+  open,
+}: Omit<AccessFindingsOptions, 'nodes'>): ReadonlyArray<string> => {
   const routed = routedAnew(routes);
-  return pairedIn(access)
+  return pairedIn({ access, open })
     .filter(
       ({ action, before }) =>
         before === undefined ||

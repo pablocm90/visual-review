@@ -25,6 +25,7 @@ export type CoverageFacts = Pick<
   | 'reachesNotRead'
   | 'rulesNotRead'
   | 'access'
+  | 'openActions'
 >;
 
 const notReadFor = (name: string): string => `not read for ${name}`;
@@ -44,6 +45,7 @@ export const coverageOf = ({
   reachesNotRead,
   rulesNotRead,
   access,
+  openActions,
 }: CoverageFacts): ReadonlyArray<Coverage> => {
   const skippedStacks = skipped.flatMap(({ stacks }) => stacks);
   const symbolsMissing = [
@@ -98,6 +100,7 @@ export const coverageOf = ({
           : accessNotRead({
               access,
               routes: routes.flatMap(reading => ('routes' in reading ? reading.routes : [])),
+              open: openActions,
             }),
     },
   ];

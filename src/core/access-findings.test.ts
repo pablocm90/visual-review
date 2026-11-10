@@ -248,7 +248,9 @@ test.for([
 ])('an action $reason lists its unread rows: $listed', ({ base, cover, listed }) => {
   const head = action({ ...(cover === undefined ? {} : { cover }), unread: [UNREAD] });
 
-  expect(accessNotRead({ access: [reading(base, [head])], routes: [] }).length > 0).toBe(listed);
+  expect(accessNotRead({ access: [reading(base, [head])], routes: [], open: [] }).length > 0).toBe(
+    listed,
+  );
 });
 
 test('an unchanged action a route the change adds reaches lists its unread rows, and one a route left is not', () => {
@@ -256,8 +258,17 @@ test('an unchanged action a route the change adds reaches lists its unread rows,
     accessNotRead({
       access: [reading([action()], [action({ unread: [UNREAD] })])],
       routes,
+      open: [],
     });
 
   expect(unread([{ state: 'added', head: route() }])).toHaveLength(1);
   expect(unread([{ state: 'removed', base: route() }])).toHaveLength(0);
+});
+
+test('a new action listed open lists no unread rows', () => {
+  const unread = (open: ReadonlyArray<string>) =>
+    accessNotRead({ access: [reading([], [action({ unread: [UNREAD] })])], routes: [], open });
+
+  expect(unread(['UsersController#*'])).toHaveLength(0);
+  expect(unread(['UsersController#edit'])).toHaveLength(1);
 });
