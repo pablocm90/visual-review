@@ -12,6 +12,7 @@ import {
   parseConfig,
   type ReaderName,
 } from './config.ts';
+import { deployKeysIn } from './deploy-findings.ts';
 import { diffGraphs, type FilePatch, type GraphDiff, type Rename } from './diff-graphs.ts';
 import { readFileThatEnds } from './file-that-ends.ts';
 import { git } from './git.ts';
@@ -137,6 +138,37 @@ type ReadSideOptions = Adapters & {
   readonly revision: string;
   readonly directory: string;
   readonly config: Config;
+};
+
+type KeysNamedAt = {
+  readonly repo: string;
+  readonly revision: string;
+  readonly keys: ReadonlyArray<string>;
+};
+
+const noneFound = (error: unknown): string => {
+  if (error instanceof Error && 'code' in error && error.code === 1) return '';
+  throw error;
+};
+
+const keysNamedAt = async ({ repo, revision, keys }: KeysNamedAt) => {
+  if (keys.length === 0) return [];
+  const named = await git(
+    repo,
+    'grep',
+    '-F',
+    '-w',
+    '-o',
+    '-h',
+    '-I',
+    '--no-line-number',
+    '--no-column',
+    ...keys.flatMap(key => ['-e', key]),
+    revision,
+    '--',
+  ).catch(noneFound);
+  const found = new Set(named.split('\n'));
+  return keys.filter(key => found.has(key));
 };
 
 const readSide = async ({
@@ -703,6 +735,21 @@ export const readRange = async ({
             ...adapters,
           });
     const routesRead = await readRoutes({ repo, base, head: toCommit, changes, routes });
+    const patches = await Promise.all(
+      changes.map(async paths => ({
+        path: paths.at(-1) ?? '',
+        patch: await git(
+          repo,
+          '--literal-pathspecs',
+          'diff',
+          '--find-renames',
+          base,
+          toCommit,
+          '--',
+          ...paths,
+        ),
+      })),
+    );
     return {
       before: before.graph,
       after: after.graph,
@@ -747,25 +794,11 @@ export const readRange = async ({
       churnDays,
       ruleBreaks: ruleBreaks({ rules: config.rules, graph: after.graph }),
       rulesNotRead: rulesNotRead({ rules: config.rules, graph: after.graph }),
-      deployKeysAtBase: [],
+      deployKeysAtBase: await keysNamedAt({ repo, revision: base, keys: deployKeysIn(patches) }),
       notesConfig,
       changedPaths,
       renames,
-      patches: await Promise.all(
-        changes.map(async paths => ({
-          path: paths.at(-1) ?? '',
-          patch: await git(
-            repo,
-            '--literal-pathspecs',
-            'diff',
-            '--find-renames',
-            base,
-            toCommit,
-            '--',
-            ...paths,
-          ),
-        })),
-      ),
+      patches,
       ...(atReview === undefined ? {} : { reviewed: atReview.reading }),
     };
   } finally {

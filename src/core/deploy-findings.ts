@@ -70,6 +70,9 @@ const keysOn = ({
       }),
     );
 
+export const deployKeysIn = (patches: ReadonlyArray<FilePatch>): ReadonlyArray<string> =>
+  patches.flatMap(keysOn).map(({ key }) => key);
+
 type DeployKeysOptions = {
   readonly patches: ReadonlyArray<FilePatch>;
   readonly keysAtBase: ReadonlyArray<string>;

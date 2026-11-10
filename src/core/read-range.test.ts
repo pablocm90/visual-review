@@ -2547,6 +2547,33 @@ test.for([
   );
 });
 
+test.for([
+  {
+    reason: 'the ones the base names',
+    added: 'ENV["OLD_KEY"]\nENV["NEW_KEY"]\ncredentials.stripe.secret_key\n',
+    atBase: ['OLD_KEY', 'stripe.secret_key'],
+  },
+  { reason: 'none when the base names none', added: 'ENV["NEW_KEY"]\n', atBase: [] },
+  {
+    reason: 'none when the base names one inside a longer name',
+    added: 'ENV["OLD"]\n',
+    atBase: [],
+  },
+  { reason: 'none when no line reads a key', added: 'nothing\n', atBase: [] },
+])('of the keys the change reads, the reading holds $reason', async ({ added, atBase }) => {
+  using workspace = gitRepo({
+    'config/old.rb': 'ENV["OLD_KEY"]\nRails.application.credentials.stripe.secret_key\n',
+  });
+  const { repo, root } = workspace;
+  git(repo, 'config', 'grep.lineNumber', 'true');
+  git(repo, 'config', 'grep.column', 'true');
+  const to = commit(repo, { 'config/new.rb': added });
+
+  const range = await readRange({ repo, from: root, to });
+
+  expect(range.deployKeysAtBase).toEqual(atBase);
+});
+
 test('a range with no commits in it has no changed paths and no patches', async () => {
   using workspace = cargoWorkspace();
   const { repo, root } = workspace;
