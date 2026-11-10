@@ -1529,6 +1529,7 @@ test('a reader skipped for want of its tool is named once, at the top of the fin
           migrations: [],
           schemas: [],
           routes: [],
+          access: [],
           metricFindings: [],
           symbols: [],
           symbolsNotRead: [],

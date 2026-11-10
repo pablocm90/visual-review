@@ -295,6 +295,29 @@ test('an edge the change adds breaking an architecture rule raises its finding t
   ).toStrictEqual([{ id: 'rules:broken:no-stack:web/file/a.ts -> web', level: 'look' }]);
 });
 
+const controllerAction = {
+  controller: 'UsersController',
+  controllerPath: 'users',
+  action: 'show',
+  root: '',
+  file: 'app/controllers/users_controller.rb',
+  line: 2,
+};
+
+test('an action the change adds with no authorization raises its finding to look at on the page', () => {
+  const reading = readingWith({
+    access: [
+      { base: { actions: [], unread: [] }, head: { actions: [controllerAction], unread: [] } },
+    ],
+  });
+
+  expect(
+    pageData({ repo: 'shop', reading, range: 'a..b', version, parsers })
+      .findings.filter(({ check }) => check === 'security:unauthorized')
+      .map(({ id, level }) => ({ id, level })),
+  ).toStrictEqual([{ id: 'security:unauthorized::UsersController#show', level: 'look' }]);
+});
+
 test("an added migration's risks raise their findings on the page, and it keeps the reading", () => {
   const migrations = [{ file: 'db/migrate/1_a.rb', notRead: 'Ruby syntax error' }];
 
