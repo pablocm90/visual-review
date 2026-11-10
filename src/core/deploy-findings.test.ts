@@ -58,3 +58,13 @@ test.for([
     [],
   );
 });
+
+test('a key read on several rows and files raises once, on its first row', () => {
+  const other = { ...patchAdding('ENV["STRIPE_KEY"]'), path: 'app/jobs/charge.rb' };
+  expect(
+    deployKeyFindings([
+      patchAdding('  config.api_key = ENV["STRIPE_KEY"]', '  config.key = ENV.fetch("STRIPE_KEY")'),
+      other,
+    ]).map(({ file, line }) => ({ file, line })),
+  ).toStrictEqual([{ file: FILE, line: `${FILE}@head:2` }]);
+});

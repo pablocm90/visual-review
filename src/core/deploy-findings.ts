@@ -36,4 +36,6 @@ const keysOn = ({ path, patch }: FilePatch): ReadonlyArray<Finding> =>
     );
 
 export const deployKeyFindings = (patches: ReadonlyArray<FilePatch>): ReadonlyArray<Finding> =>
-  patches.flatMap(keysOn);
+  patches
+    .flatMap(keysOn)
+    .filter((finding, index, all) => all.findIndex(({ id }) => id === finding.id) === index);
