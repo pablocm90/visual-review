@@ -1,5 +1,6 @@
 import type { Finding } from './findings.ts';
 import type { TenancyReading } from './read-tenancy.ts';
+import type { TenantTable } from './tenant.ts';
 
 type Said = { readonly model: string; readonly title: string; readonly detail: string };
 
@@ -41,19 +42,36 @@ export const tenancyFindings = (tenancy: ReadonlyArray<TenancyReading>): Readonl
     }),
   );
 
-const filesNotRead = ({ base, head }: TenancyReading): ReadonlyArray<string> => {
-  const atHead = head.notRead ?? [];
-  const onlyAtBase = (base.notRead ?? []).filter(
-    ({ file }) => !atHead.some(other => other.file === file),
+type Unsaid = { readonly key: string; readonly said: (atSide: string) => string };
+
+const sideLines = (
+  atBase: ReadonlyArray<Unsaid>,
+  atHead: ReadonlyArray<Unsaid>,
+): ReadonlyArray<string> => [
+  ...atHead.map(({ said }) => said('not read')),
+  ...atBase
+    .filter(({ key }) => !atHead.some(other => other.key === key))
+    .map(({ said }) => said('not read at the base')),
+];
+
+const filesOf = ({ notRead = [] }: TenantTable): ReadonlyArray<Unsaid> =>
+  notRead.map(({ file, reason }) => ({ key: file, said: atSide => `${atSide}: ${reason}` }));
+
+const entriesOf = ({ configs }: TenantTable): ReadonlyArray<Unsaid> =>
+  configs.flatMap(({ unread = [] }) =>
+    unread.map(({ file, line, text }) => ({
+      key: JSON.stringify([file, text]),
+      said: atSide => `${file}:${line} ${atSide}: ${text}`,
+    })),
   );
-  return [
-    ...atHead.map(({ reason }) => `not read: ${reason}`),
-    ...onlyAtBase.map(({ reason }) => `not read at the base: ${reason}`),
-  ];
-};
+
+const linesOf = ({ base, head }: TenancyReading): ReadonlyArray<string> => [
+  ...sideLines(filesOf(base), filesOf(head)),
+  ...sideLines(entriesOf(base), entriesOf(head)),
+];
 
 const foundNone = ({ base, head }: TenancyReading): boolean =>
   [base, head].every(({ configs, notRead = [] }) => configs.length === 0 && notRead.length === 0);
 
 export const tenancyNotRead = (tenancy: ReadonlyArray<TenancyReading>): ReadonlyArray<string> =>
-  tenancy.every(foundNone) ? ['Apartment only'] : tenancy.flatMap(filesNotRead);
+  tenancy.every(foundNone) ? ['Apartment only'] : tenancy.flatMap(linesOf);

@@ -336,3 +336,33 @@ test('tenancy names each Apartment config not read, at the base only when the he
     `not read at the base: Ruby syntax error in ${baseOnly}`,
   ]);
 });
+
+test('tenancy names each excluded_models entry not read, at the base only when the head reads it', () => {
+  const config = (unread: ReadonlyArray<{ text: string; line: number }>): TenantTable => ({
+    configs: [
+      {
+        root: '',
+        file: APARTMENT,
+        excluded: [],
+        jobsCarryTenant: false,
+        unread: unread.map(each => ({ ...each, file: APARTMENT })),
+      },
+    ],
+  });
+  expect(
+    notReadIn('tenancy', {
+      tenancy: [
+        {
+          base: config([
+            { text: 'MODELS', line: 3 },
+            { text: 'Billing.models', line: 4 },
+          ]),
+          head: config([{ text: 'MODELS', line: 5 }]),
+        },
+      ],
+    }),
+  ).toEqual([
+    `${APARTMENT}:5 not read: MODELS`,
+    `${APARTMENT}:4 not read at the base: Billing.models`,
+  ]);
+});
