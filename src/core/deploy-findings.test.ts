@@ -275,3 +275,13 @@ test.for([
 test('a key read through a variable outside code leaves nothing unread', () => {
   expect(deployKeysNotRead([{ ...patchAdding('ENV[name]'), path: 'README.md' }])).toEqual([]);
 });
+
+test('a key read in a test file and in the app raises once, on the app row, to look at', () => {
+  const inTest = { ...patchAdding('ENV["STRIPE_KEY"]'), path: 'spec/stripe_spec.rb' };
+  expect(
+    deployKeys([inTest, patchAdding('ENV["STRIPE_KEY"]')]).map(({ file, level }) => ({
+      file,
+      level,
+    })),
+  ).toStrictEqual([{ file: FILE, level: 'look' }]);
+});

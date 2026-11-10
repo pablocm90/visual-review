@@ -92,6 +92,7 @@ export const deployKeyFindings = ({
   patches
     .flatMap(patch => keysOn(patch).filter(({ key }) => !keysAtBase.includes(key)))
     .map(({ finding }) => finding)
+    .toSorted((a, b) => Number(a.level === 'info') - Number(b.level === 'info'))
     .filter((finding, index, all) => all.findIndex(({ id }) => id === finding.id) === index);
 
 const THROUGH_A_VARIABLE =
