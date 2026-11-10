@@ -697,6 +697,7 @@ export const readRange = async ({
             config,
             ...adapters,
           });
+    const routesRead = await readRoutes({ repo, base, head: toCommit, changes, routes });
     return {
       before: before.graph,
       after: after.graph,
@@ -716,13 +717,13 @@ export const readRange = async ({
       dependencyChanges: await readLockfiles({ repo, base, head: toCommit, changes, lockfiles }),
       migrations: await readMigrations({ repo, base, head: toCommit, changes, migrations }),
       schemas: await readSchemas({ repo, base, head: toCommit, changes, schemas }),
-      routes: await readRoutes({ repo, base, head: toCommit, changes, routes }),
+      routes: routesRead,
       access: await readAccess({
         repo,
         base,
         head: toCommit,
         changes,
-        routed: false,
+        routed: routesRead.length > 0,
         access,
         authorize: config.security.authorize,
       }),

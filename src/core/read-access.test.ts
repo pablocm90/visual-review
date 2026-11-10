@@ -14,13 +14,13 @@ const changesOf = (repo: string, from: string, to: string): ReadonlyArray<Readon
     .filter(line => line !== '')
     .map(line => line.split('\t').slice(1));
 
-const read = (repo: string, base: string, head: string, routed = false) =>
+const read = (repo: string, base: string, head: string) =>
   readAccess({
     repo,
     base,
     head,
     changes: changesOf(repo, base, head),
-    routed,
+    routed: false,
     access: [railsAccess],
     authorize: ['authorize'],
   });
@@ -51,24 +51,6 @@ test("a changed controller reads every controller at both sides, its parent's co
   });
 });
 
-test('no controller changed: no reading', async () => {
-  using workspace = gitRepo({ [USERS]: users('  def index; end'), 'app/a.rb': '' });
-  const { repo, root } = workspace;
-  const to = commit(repo, { 'app/a.rb': 'class A; end\n' });
-
-  expect(await read(repo, root, to)).toStrictEqual([]);
-});
-
-test('no controller changed but a route added or repointed: every controller reads', async () => {
-  using workspace = gitRepo({ [USERS]: users('  def index; end'), 'config/routes.rb': '' });
-  const { repo, root } = workspace;
-  const to = commit(repo, { 'config/routes.rb': 'Rails.application.routes.draw do\nend\n' });
-
-  expect(await read(repo, root, to, true)).toMatchObject([
-    { base: { actions: [{ action: 'index' }] }, head: { actions: [{ action: 'index' }] } },
-  ]);
-});
-
 test('a controller moved out of the controllers still reads, at the side that held it', async () => {
   using workspace = gitRepo({ [USERS]: users('  def index; end') });
   const { repo, root } = workspace;
@@ -93,4 +75,26 @@ test("a range reading reads access at the defaults' authorize names, Pundit's am
       head: { actions: [{ action: 'index', cover: { by: 'authorize' } }] },
     },
   ]);
+});
+
+test('a range adding a route and no controller reads access too', async () => {
+  using workspace = gitRepo({ [USERS]: users('  def show; end'), 'config/routes.rb': '' });
+  const { repo, root } = workspace;
+  const to = commit(repo, {
+    'config/routes.rb': 'Rails.application.routes.draw do\n  get "u", to: "users#show"\nend\n',
+  });
+
+  const { access } = await readRange({ repo, from: root, to });
+
+  expect(access).toHaveLength(1);
+});
+
+test('a range changing no controller and no route reads no access', async () => {
+  using workspace = gitRepo({ [USERS]: users('  def show; end'), 'app/a.rb': '' });
+  const { repo, root } = workspace;
+  const to = commit(repo, { 'app/a.rb': 'class A; end\n' });
+
+  const { access } = await readRange({ repo, from: root, to });
+
+  expect(access).toStrictEqual([]);
 });
