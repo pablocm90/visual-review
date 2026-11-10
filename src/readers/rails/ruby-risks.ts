@@ -49,7 +49,19 @@ const RAW_SQL = [
 const arelSql: Reading = call =>
   call.childForFieldName('receiver')?.text === 'Arel' ? asWritten('raw-sql')(call) : [];
 
+const QUERIES = ['where', 'order', 'group', 'having', 'joins', 'pluck', 'select'];
+
+const isString = (node: Node | undefined): boolean => {
+  if (node?.type === 'string') return true;
+  if (node?.type !== 'binary') return false;
+  return ['left', 'right'].some(side => isString(node.childForFieldName(side) ?? undefined));
+};
+
+const givenAString: Reading = call =>
+  isString(call.childForFieldName('arguments')?.namedChildren[0]) ? asWritten('raw-sql')(call) : [];
+
 const RISKS = new Map<string, Reading>([
+  ...QUERIES.map((name): [string, Reading] => [name, givenAString]),
   ['permit', permittedKeys],
   ['permit!', asWritten('permit!')],
   ...RAW_SQL.map((name): [string, Reading] => [name, asWritten('raw-sql')]),

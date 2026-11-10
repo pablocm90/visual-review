@@ -47,3 +47,26 @@ test.for([
 test('a method named sql on another receiver than Arel is no raw SQL', () => {
   expect(risksIn('report.sql(query)')).toEqual([]);
 });
+
+test.for([
+  'User.where("active")',
+  'User.where("name = ?", name)',
+  'User.order("name desc")',
+  'User.group("kind")',
+  'User.having("count(*) > 1")',
+  'User.joins("JOIN a ON a.id = b.id")',
+  'User.pluck("lower(name)")',
+  'User.select("name")',
+  'User.where("name = #{name}")',
+  'User.where("name = " + name)',
+  'User.where(column + " = 1")',
+])('%s reads as raw SQL, given a string', call => {
+  expect(risksIn(call)).toEqual([{ kind: 'raw-sql', text: call }]);
+});
+
+test.for(['User.where(active: true)', 'User.order(:name)', 'User.select { |u| u.active }'])(
+  '%s is no raw SQL, given no string',
+  call => {
+    expect(risksIn(call)).toEqual([]);
+  },
+);
