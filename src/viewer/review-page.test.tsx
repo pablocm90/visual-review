@@ -6474,6 +6474,47 @@ test("a comment on a line of a symbol's diff shows in Full diff too, and the tra
   );
 });
 
+test("a note on a diff line shows under its row in Full diff, and under the same row in its symbol's Diff", async () => {
+  const user = userEvent.setup();
+  render(
+    <ReviewPage
+      review={pageWith({
+        range: review.range,
+        diff: {
+          nodes: [
+            { id: 'web', kind: 'stack', label: 'web', path: '', state: 'unchanged' },
+            topFile('two.ts', 'modified'),
+          ],
+          edges: [],
+        },
+        symbols: [symbolsOf('web/file/two.ts', [editedAt('a', 1, 3), editedAt('b', 4, 6)])],
+        patches: [twoFunctionsPatch()],
+      })}
+      notes={{
+        version: 2,
+        tests: '',
+        summary: [],
+        notes: { 'line web/src/two.ts@base:5': { text: 'Three was the old default.' } },
+      }}
+    />,
+  );
+  const noteIn = (region: HTMLElement) => {
+    const row = within(region)
+      .getAllByRole('deletion')
+      .find(deleted => deleted.textContent?.startsWith('-  return 3;'));
+    return (
+      row && within(row).getByRole('region', { name: 'Note on two.ts:5 "return 3;"' }).textContent
+    );
+  };
+
+  await user.click(await screen.findByRole('button', { name: 'two.ts: modified' }));
+  await openFold(user, 'Full diff');
+  expect(noteIn(diffTab())).toBe('Three was the old default.');
+
+  await toggleSymbolDiff(user, 'b');
+  expect(noteIn(whatChanged())).toBe('Three was the old default.');
+});
+
 test('a symbol moved between files opens its lines from both, each named by its file, the one it left first, from either end', async () => {
   const user = userEvent.setup();
   const moved = {

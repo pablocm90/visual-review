@@ -4,6 +4,7 @@ import type { Comment } from '../core/review.ts';
 import { anchorName, lineAnchor, rowOfLine } from './anchors.ts';
 import type { Comments } from './comment-field.tsx';
 import type { PatchLine as Line, Piece } from './highlight-patch.ts';
+import { RowNote } from './note-block.tsx';
 import { CommentOn, SaidBefore, useSaidLinesOf } from './said-before.tsx';
 
 const Scoped = ({ scopes: [scope, ...inner], text }: Piece) =>
@@ -69,6 +70,7 @@ const PatchLine = ({
       {said.map(on => (
         <SaidBefore key={on.id} on={on} landing={landing} />
       ))}
+      {anchor && <RowNote anchor={anchor} name={anchorName(anchor, nodes)} comments={comments} />}
       {onComment && anchor && (
         <CommentOn
           anchor={anchor}
