@@ -217,6 +217,14 @@ test('security names each other reader whose stacks it reads no risky calls for,
   ]);
 });
 
+test('security names each file whose symbols, and so whose risky calls, were not read', () => {
+  expect(
+    notReadIn('security', {
+      symbols: [{ stack: 'shop', node: 'shop/class/User', unreadable: 'too big' }],
+    }),
+  ).toEqual(['not read for shop/class/User']);
+});
+
 test('security names, where it is written, what a new action was read through and could not be', () => {
   expect(
     notReadIn('security', {
