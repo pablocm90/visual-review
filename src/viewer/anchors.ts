@@ -23,12 +23,14 @@ export const lineAnchor = ({
 
 const lineNumber = (id: string): string => id.slice(id.lastIndexOf(':') + 1);
 
-export const placeOfLine = (anchor: PreviousComment['anchor']) => {
-  if (anchor.kind !== 'line') return undefined;
-  const path = fileOfLine(anchor.id);
-  const side: 'base' | 'head' = anchor.id.startsWith('@base:', path.length) ? 'base' : 'head';
-  return { path, side, line: Number(lineNumber(anchor.id)), text: anchor.text };
+export const lineAt = (id: string) => {
+  const path = fileOfLine(id);
+  const side: 'base' | 'head' = id.startsWith('@base:', path.length) ? 'base' : 'head';
+  return { path, side, line: Number(lineNumber(id)) };
 };
+
+export const placeOfLine = (anchor: PreviousComment['anchor']) =>
+  anchor.kind === 'line' ? { ...lineAt(anchor.id), text: anchor.text } : undefined;
 
 export type PlaceOfLine = NonNullable<ReturnType<typeof placeOfLine>>;
 

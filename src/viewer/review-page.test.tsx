@@ -6569,6 +6569,44 @@ test("on a served page Take on a diff line's note opens that row's field with th
   expect(takeInRow()).not.toBeNull();
 });
 
+test("the rail's flag on a diff line's note goes to its file and outlines that row in Full diff", async () => {
+  const user = userEvent.setup();
+  render(
+    <ReviewPage
+      review={pageWith({
+        range: review.range,
+        diff: {
+          nodes: [
+            { id: 'web', kind: 'stack', label: 'web', path: '', state: 'unchanged' },
+            topFile('two.ts', 'modified'),
+          ],
+          edges: [],
+        },
+        patches: [twoFunctionsPatch()],
+      })}
+      notes={{
+        version: 2,
+        tests: '',
+        summary: [],
+        notes: {
+          'line web/src/two.ts@head:5': { text: 'Four now.', flag: 'magic number' },
+        },
+      }}
+    />,
+  );
+
+  await user.click(await screen.findByRole('button', { name: /^Show \d+ findings?$/ }));
+  await user.click(
+    within(screen.getByRole('complementary', { name: 'Findings' })).getByRole('button', {
+      name: /^two\.ts: magic number/,
+    }),
+  );
+
+  expect(within(diffTab()).getByRole('insertion', { current: true }).textContent).toMatch(
+    /^\+ {2}return 4;/,
+  );
+});
+
 test("a box's patch holding a line note opens by itself, its other patches closed", async () => {
   const user = userEvent.setup();
   render(

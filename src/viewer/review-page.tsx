@@ -48,7 +48,7 @@ import {
   visibleDiff,
   visibleNodeOf,
 } from '../core/visible-diff.ts';
-import { anchorName, placeOfLine } from './anchors.ts';
+import { anchorName, lineAt, placeOfLine } from './anchors.ts';
 import { ChangedSinceMarks, ChangedSinceTag, useIsChangedSince } from './changed-since.tsx';
 import { ColourBy, type Colouring, ScaleLegend, type Shade, shadeOf } from './colour-by.tsx';
 import { CommentAsked, type Comments, holdsDraft } from './comment-field.tsx';
@@ -2183,7 +2183,12 @@ const Page = ({ review, notes, send }: ReviewPageProps) => {
     landOn(id, { path: undefined, row });
     goTo(id);
   };
-  const goToFinding = (id: string, finding: string) => goToRow(id, rowOfFinding(finding));
+  const goToFinding = (id: string, finding: string) => {
+    const flagged = anchorOfNoteFlag(finding);
+    if (flagged?.kind !== 'line') return goToRow(id, rowOfFinding(finding));
+    landOn(id, lineAt(flagged.id));
+    goTo(id);
+  };
   const showOutsideAt = (place: LandingIn, opener: HTMLButtonElement) => {
     landOn(null, place);
     location.hash = '#structure';
