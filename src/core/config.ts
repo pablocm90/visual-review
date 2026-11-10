@@ -109,6 +109,21 @@ const NotesConfigSchema = z.strictObject({
     .describe('Whether a note may recommend; false refuses one, left out it may'),
 });
 
+const SecuritySchema = z.strictObject({
+  authorize: z
+    .array(z.string())
+    .default([
+      'authorize',
+      'authorize!',
+      'load_and_authorize_resource',
+      'authorize_resource',
+      'verify_authorized',
+    ])
+    .describe(
+      'The callbacks and calls that authorize an action, * a wildcard; replaces the defaults',
+    ),
+});
+
 const ConfigSchema = z.strictObject({
   $schema: z.string().optional(),
   stacks: z
@@ -137,6 +152,7 @@ const ConfigSchema = z.strictObject({
   notes: NotesConfigSchema.prefault({}).describe(
     "How Claude writes its notes, read from the range's base revision, so a change can't rewrite it",
   ),
+  security: SecuritySchema.prefault({}).describe('How access to controller actions is read'),
 });
 
 export type Config = z.infer<typeof ConfigSchema>;

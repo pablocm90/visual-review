@@ -71,6 +71,7 @@ const readingOf = (overrides: Partial<Omit<RangeReading, 'reviewed'>>): RangeRea
   migrations: [],
   schemas: [],
   routes: [],
+  access: [],
   tests: [],
   symbols: [],
   symbolsNotRead: [],

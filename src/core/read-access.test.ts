@@ -1,5 +1,6 @@
 import { expect, test } from 'vitest';
 import { railsAccess } from '../readers/rails/access-reader.ts';
+import { readRange } from '../test-support/read-range.ts';
 import { commit, git, gitRepo } from '../test-support/repos.ts';
 import { readAccess } from './read-access.ts';
 
@@ -76,5 +77,20 @@ test('a controller moved out of the controllers still reads, at the side that he
 
   expect(await read(repo, root, to)).toMatchObject([
     { base: { actions: [{ action: 'index' }] }, head: { actions: [] } },
+  ]);
+});
+
+test("a range reading reads access at the defaults' authorize names, Pundit's among them", async () => {
+  using workspace = gitRepo({ [USERS]: users('  def index; end') });
+  const { repo, root } = workspace;
+  const to = commit(repo, { [USERS]: users('  def index; authorize User; end') });
+
+  const { access } = await readRange({ repo, from: root, to });
+
+  expect(access).toMatchObject([
+    {
+      base: { actions: [{ action: 'index' }] },
+      head: { actions: [{ action: 'index', cover: { by: 'authorize' } }] },
+    },
   ]);
 });

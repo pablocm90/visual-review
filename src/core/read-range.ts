@@ -2,6 +2,7 @@ import { existsSync } from 'node:fs';
 import { mkdtemp, readFile, realpath, rm, stat } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { basename, join, relative } from 'node:path';
+import type { AccessReader } from './access.ts';
 import {
   CONFIG_FILE,
   type Config,
@@ -19,6 +20,7 @@ import { dropLinksLeaving, isTrackedLinkLeaving } from './links-leaving.ts';
 import type { Lockfile } from './lockfile.ts';
 import { type MeasuredNode, measuredNodes } from './metrics.ts';
 import type { MigrationReader } from './migration.ts';
+import { type AccessReading, readAccess } from './read-access.ts';
 import { type DependencyChanges, readLockfiles } from './read-lockfiles.ts';
 import { type MigrationReading, readMigrations } from './read-migrations.ts';
 import { type Reach, readReaches } from './read-reaches.ts';
@@ -101,6 +103,7 @@ export type RangeReading = {
   readonly migrations: ReadonlyArray<MigrationReading>;
   readonly schemas: ReadonlyArray<SchemaReading>;
   readonly routes: ReadonlyArray<RoutesReading>;
+  readonly access: ReadonlyArray<AccessReading>;
   readonly danglingCalls: ReadonlyArray<DanglingCall>;
   readonly linksNotRead: ReadonlyArray<string>;
   readonly skipped: ReadonlyArray<Skipped>;
@@ -118,6 +121,7 @@ type ReadRangeOptions = Adapters & {
   readonly migrations: ReadonlyArray<MigrationReader>;
   readonly schemas: ReadonlyArray<SchemaReader>;
   readonly routes: ReadonlyArray<RouteReader>;
+  readonly access: ReadonlyArray<AccessReader>;
   readonly repo: string;
   readonly from: string;
   readonly to: string;
@@ -600,6 +604,7 @@ export const readRange = async ({
   migrations,
   schemas,
   routes,
+  access,
   ...adapters
 }: ReadRangeOptions): Promise<RangeReading> => {
   const [fromCommit, toCommit] = await Promise.all([resolve(repo, from), resolve(repo, to)]);
@@ -712,6 +717,15 @@ export const readRange = async ({
       migrations: await readMigrations({ repo, base, head: toCommit, changes, migrations }),
       schemas: await readSchemas({ repo, base, head: toCommit, changes, schemas }),
       routes: await readRoutes({ repo, base, head: toCommit, changes, routes }),
+      access: await readAccess({
+        repo,
+        base,
+        head: toCommit,
+        changes,
+        routed: false,
+        access,
+        authorize: config.security.authorize,
+      }),
       danglingCalls: after.danglingCalls,
       linksNotRead: after.linksNotRead,
       skipped: [
