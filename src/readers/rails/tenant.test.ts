@@ -175,3 +175,21 @@ test.for([
     notRead: [{ root: '', file: 'config/initializers/apartment.rb', reason: said }],
   });
 });
+
+test.for([
+  { change: '  config.excluded_models += %w[Plan]' },
+  { change: '  config.excluded_models << "Plan"' },
+  { change: '  config.excluded_models.push("Plan")' },
+  { change: '  shared = config.excluded_models' },
+])('excluded_models used but to assign it a list, as $change, is not read', ({ change }) => {
+  expect(
+    read({
+      'config/initializers/apartment.rb': initializer(
+        `  config.excluded_models = %w[Company]\n${change}`,
+      ),
+    }).configs[0],
+  ).toMatchObject({
+    excluded: ['Company'],
+    unread: [{ text: change.trim(), file: 'config/initializers/apartment.rb', line: 3 }],
+  });
+});

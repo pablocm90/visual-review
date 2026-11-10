@@ -58,16 +58,20 @@ const listOf = (file: string, list: Node): Excluded => {
   };
 };
 
+const assignedTo = (call: Node): boolean =>
+  call.parent?.type === 'assignment' && call.parent.childForFieldName('left')?.id === call.id;
+
 const excludedIn = (file: string, configure: Node): Excluded => {
-  const right = configure
-    .descendantsOfType('assignment')
-    .filter(assignment => {
-      const left = assignment.childForFieldName('left');
-      return left !== null && methodOf(left) === 'excluded_models';
-    })
-    .at(-1)
-    ?.childForFieldName('right');
-  return right == null ? { excluded: [] } : listOf(file, right);
+  const named = configure
+    .descendantsOfType('call')
+    .filter(call => methodOf(call) === 'excluded_models');
+  const right = named.filter(assignedTo).at(-1)?.parent?.childForFieldName('right');
+  const { excluded, unread = [] } = right == null ? { excluded: [] } : listOf(file, right);
+  const changed = named
+    .filter(call => !assignedTo(call))
+    .map(call => unreadAt(file, call.parent ?? call));
+  const all = [...unread, ...changed];
+  return { excluded, ...(all.length === 0 ? {} : { unread: all }) };
 };
 
 const carries = (root: Node): boolean =>
