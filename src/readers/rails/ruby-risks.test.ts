@@ -28,6 +28,17 @@ test.for([
   );
 });
 
+test.for([
+  { permitted: ':name, *FIELDS', texts: ['*FIELDS'] },
+  { permitted: 'FIELDS', texts: ['FIELDS'] },
+  { permitted: '**OPTIONS', texts: ['**OPTIONS'] },
+  { permitted: 'address: [:street, *ADDRESS]', texts: ['address.*ADDRESS'] },
+])('permit($permitted) reads what it cannot name as unread', ({ permitted, texts }) => {
+  expect(risksIn(`params.permit(${permitted})`)?.filter(risk => risk.unread)).toEqual(
+    texts.map(text => ({ kind: 'permit', text, unread: true })),
+  );
+});
+
 test('permit! reads as a risk by the call it is', () => {
   expect(risksIn('User.create(params.require(:user).permit!)')).toEqual([
     { kind: 'permit!', text: 'params.require(:user).permit!' },
