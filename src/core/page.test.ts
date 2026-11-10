@@ -3764,3 +3764,28 @@ test('a line marked safe in a view raises its security finding, whether the view
     'security:html-safe:app/views/index.html.erb#<%== bio %>',
   ]);
 });
+
+const addingLine = (path: string, line: string) => ({
+  path,
+  patch: ['@@ -0,0 +1,1 @@', `+${line}`].join('\n'),
+});
+
+const AWS_KEY = 'AKIAIOSFODNN7EXAMPLE';
+
+test('a secret a line gains raises its security finding, whether its file is drawn or not', () => {
+  const reading = readingWith({
+    patches: [
+      addingLine('web/src/a.ts', `const key = '${AWS_KEY}';`),
+      addingLine('config/aws.yml', `key: ${AWS_KEY}`),
+    ],
+  });
+
+  expect(
+    pageData({ repo: 'shop', reading, range: 'main..feature', version: '1.2.3', parsers })
+      .findings.filter(({ check }) => check === 'security:secret')
+      .map(({ id }) => id),
+  ).toStrictEqual([
+    'security:secret:web/src/a.ts#aws-access-key',
+    'security:secret:config/aws.yml#aws-access-key',
+  ]);
+});
