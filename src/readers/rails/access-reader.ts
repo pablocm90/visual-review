@@ -290,16 +290,26 @@ const fileOf = (text: string, { file, authorize }: Reading): ControllerFile => {
   };
 };
 
+const reopened = (first: Controller, next: Controller): Controller => ({
+  ...(first.parent === undefined ? next : first),
+  entries: [...first.entries, ...next.entries],
+  calls: new Map([...first.calls, ...next.calls]),
+});
+
 const controllersAt = (
   read: ReadonlyArray<ControllerFile>,
   root: string,
 ): ReadonlyMap<string, Controller> =>
-  new Map(
-    read
-      .filter(other => other.root === root)
-      .flatMap(other => other.controllers)
-      .map(controller => [controller.constant, controller]),
-  );
+  read
+    .filter(other => other.root === root)
+    .flatMap(other => other.controllers)
+    .reduce((found, controller) => {
+      const first = found.get(controller.constant);
+      return new Map(found).set(
+        controller.constant,
+        first === undefined ? controller : reopened(first, controller),
+      );
+    }, new Map<string, Controller>());
 
 const coveredIn = (
   read: ReadonlyArray<ControllerFile>,

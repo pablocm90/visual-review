@@ -458,6 +458,38 @@ test.for([
   },
 );
 
+const REOPENED = {
+  'app/controllers/users_controller.rb': `class UsersController < ApplicationController
+  def show; end
+end
+`,
+  'app/controllers/users_controller/extra.rb': `class UsersController
+  skip_before_action :authorize, only: :extra
+  def extra; end
+end
+`,
+};
+
+test.for([
+  { order: 'parent first', files: REOPENED },
+  { order: 'parent last', files: Object.fromEntries(Object.entries(REOPENED).reverse()) },
+])('a reopened controller keeps what each of its definitions says, $order', ({ files }) => {
+  expect(
+    read({
+      'app/controllers/application_controller.rb': `class ApplicationController < ActionController::Base
+  before_action :authorize
+end
+`,
+      ...files,
+    })
+      .actions.map(({ action, cover }) => [action, cover?.by])
+      .sort(),
+  ).toStrictEqual([
+    ['extra', undefined],
+    ['show', 'authorize'],
+  ]);
+});
+
 test("a callback's options are no callbacks of their own", () => {
   expect(
     read(
