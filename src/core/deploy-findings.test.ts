@@ -68,3 +68,8 @@ test('a key read on several rows and files raises once, on its first row', () =>
     ]).map(({ file, line }) => ({ file, line })),
   ).toStrictEqual([{ file: FILE, line: `${FILE}@head:2` }]);
 });
+
+test('a key read in a test file is for information', () => {
+  const inTest = { ...patchAdding('ENV["STRIPE_KEY"]'), path: 'spec/stripe_spec.rb' };
+  expect(deployKeyFindings([inTest]).map(({ level }) => level)).toStrictEqual(['info']);
+});

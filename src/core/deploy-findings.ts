@@ -1,6 +1,7 @@
 import type { FilePatch } from './diff-graphs.ts';
 import type { Finding } from './findings.ts';
 import { lineIdOf, patchHunks } from './patch-lines.ts';
+import { levelOf } from './secret-findings.ts';
 
 const ENV_READS: ReadonlyArray<RegExp> = [
   /\bENV(?:\[|\.fetch\(|\.key\?\()["'](\w+)["']/g,
@@ -24,7 +25,7 @@ const keysOn = ({ path, patch }: FilePatch): ReadonlyArray<Finding> =>
                   id: `deploy:env:${key}`,
                   check: 'deploy:env',
                   dimension: 'deploy',
-                  level: 'look',
+                  level: levelOf(path),
                   file: path,
                   line,
                   title: `${path} reads the env key ${key}`,
