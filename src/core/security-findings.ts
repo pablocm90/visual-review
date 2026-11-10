@@ -28,7 +28,7 @@ export const riskFindings = (files: ReadonlyArray<SymbolFile>): ReadonlyArray<Fi
       ? []
       : anchoredSymbols(file.node, file.symbols).flatMap(({ item: statement, id }) =>
           countingRepeats(
-            statement.risks ?? [],
+            (statement.risks ?? []).filter(risk => !risk.unread),
             risk => `security:${risk.kind}:${id}#${risk.text}`,
           ).map(({ item: risk, id: riskId }) => {
             const { does, detail } = said(risk);

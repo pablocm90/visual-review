@@ -38,6 +38,12 @@ test('a key a method gains to permit needs a look, on its file, found by name', 
   ]);
 });
 
+test('a permit it could not name raises no finding, since coverage names it', () => {
+  expect(riskFindings([file(create([{ kind: 'permit', text: '*FIELDS', unread: true }]))])).toEqual(
+    [],
+  );
+});
+
 test.for([
   {
     risk: { kind: 'permit!', text: 'params.permit!' },
