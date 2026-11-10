@@ -26,3 +26,13 @@ test("Apartment's excluded models are read as constants from its initializer", (
     ],
   });
 });
+
+test('a config file that never calls Apartment.configure gives no config', () => {
+  expect(
+    read({
+      'config/initializers/sidekiq.rb': 'Sidekiq.configure_server do |config|\nend\n',
+      'config/initializers/devise.rb':
+        'Devise.setup do |config|\n  config.excluded_models = %w[User]\nend\n',
+    }),
+  ).toStrictEqual({ configs: [] });
+});

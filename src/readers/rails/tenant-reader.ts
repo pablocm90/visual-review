@@ -4,8 +4,19 @@ import { methodOf, namesIn, readRuby } from './ruby-syntax.ts';
 
 const CONFIG_FILE = /(^|\/)config\/.+\.rb$/;
 
-const excludedIn = (root: Node): ReadonlyArray<string> =>
+const APARTMENT: ReadonlySet<string> = new Set(['Apartment', '::Apartment']);
+
+const configuresIn = (root: Node): ReadonlyArray<Node> =>
   root
+    .descendantsOfType('call')
+    .filter(
+      call =>
+        methodOf(call) === 'configure' &&
+        APARTMENT.has(call.childForFieldName('receiver')?.text ?? ''),
+    );
+
+const excludedIn = (configure: Node): ReadonlyArray<string> =>
+  configure
     .descendantsOfType('assignment')
     .filter(assignment => {
       const left = assignment.childForFieldName('left');
@@ -13,14 +24,19 @@ const excludedIn = (root: Node): ReadonlyArray<string> =>
     })
     .flatMap(assignment => namesIn(assignment.childForFieldName('right') ?? undefined));
 
-const configOf = (file: string, text: string): TenantConfig => ({
-  root: file.slice(0, file.indexOf('config/')),
-  file,
-  excluded: readRuby(text, excludedIn),
-  jobsCarryTenant: false,
-});
+const configsOf = (file: string, text: string): ReadonlyArray<TenantConfig> =>
+  text.includes('Apartment')
+    ? readRuby(text, root =>
+        configuresIn(root).map(configure => ({
+          root: file.slice(0, file.indexOf('config/')),
+          file,
+          excluded: excludedIn(configure),
+          jobsCarryTenant: false,
+        })),
+      )
+    : [];
 
 export const railsTenant: TenantReader = {
   holds: path => CONFIG_FILE.test(path),
-  configs: files => ({ configs: [...files].map(([file, text]) => configOf(file, text)) }),
+  configs: files => ({ configs: [...files].flatMap(([file, text]) => configsOf(file, text)) }),
 };
