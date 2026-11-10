@@ -110,3 +110,10 @@ export const accessFindings = ({
       });
   });
 };
+
+export const accessNotRead = (access: ReadonlyArray<AccessReading>): ReadonlyArray<string> =>
+  access.flatMap(({ head }) =>
+    head.actions.flatMap(({ unread }) =>
+      (unread ?? []).map(({ text, file, line }) => `${file}:${line} not read: ${text}`),
+    ),
+  );

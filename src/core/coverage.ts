@@ -1,3 +1,4 @@
+import { accessNotRead } from './access-findings.ts';
 import type { Dimension } from './findings.ts';
 import { NO_AXUM_CRATE } from './linker.ts';
 import type { RangeReading } from './read-range.ts';
@@ -91,7 +92,8 @@ export const coverageOf = ({
     { dimension: 'cohesion', notRead: [] },
     {
       dimension: 'security',
-      notRead: access.length === 0 && !readers.includes('rails') ? ['Rails only'] : [],
+      notRead:
+        access.length === 0 && !readers.includes('rails') ? ['Rails only'] : accessNotRead(access),
     },
   ];
 };
