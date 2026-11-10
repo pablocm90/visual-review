@@ -1,6 +1,6 @@
 import { expect, test } from 'vitest';
 import type { Action } from './access.ts';
-import { accessFindings } from './access-findings.ts';
+import { accessFindings, accessNotRead } from './access-findings.ts';
 import type { AccessReading } from './read-access.ts';
 import type { RouteChange } from './route-diff.ts';
 import type { Route } from './routes.ts';
@@ -212,4 +212,41 @@ test.for([
   expect(
     accessFindings({ access: [reading([], [action()])], routes: [], nodes: [NODE], open: [open] }),
   ).toStrictEqual([]);
+});
+
+const UNREAD = {
+  text: 'before_action *GLOBAL',
+  file: 'app/controllers/application_controller.rb',
+  line: 2,
+};
+
+const ALWAYS = { by: 'authorize', conditional: false };
+
+test.for([
+  { reason: 'new and covered', base: [], cover: ALWAYS, listed: true },
+  { reason: 'new and uncovered', base: [], cover: undefined, listed: true },
+  {
+    reason: 'unchanged and covered',
+    base: [action({ cover: ALWAYS })],
+    cover: ALWAYS,
+    listed: false,
+  },
+  { reason: 'unchanged and uncovered', base: [action()], cover: undefined, listed: false },
+  { reason: 'covered anew', base: [action()], cover: ALWAYS, listed: true },
+  {
+    reason: 'covered by another name',
+    base: [action({ cover: { by: 'authorize_user', conditional: false } })],
+    cover: ALWAYS,
+    listed: true,
+  },
+  {
+    reason: 'covered only conditionally now',
+    base: [action({ cover: ALWAYS })],
+    cover: { by: 'authorize', conditional: true },
+    listed: true,
+  },
+])('an action $reason lists its unread rows: $listed', ({ base, cover, listed }) => {
+  const head = action({ ...(cover === undefined ? {} : { cover }), unread: [UNREAD] });
+
+  expect(accessNotRead([reading(base, [head])]).length > 0).toBe(listed);
 });

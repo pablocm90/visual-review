@@ -74,6 +74,14 @@ const whatChanged = ({
       };
 };
 
+type Paired = Pick<Change, 'action' | 'before'>;
+
+const pairedIn = (access: ReadonlyArray<AccessReading>): ReadonlyArray<Paired> =>
+  access.flatMap(({ base, head }) => {
+    const before = new Map(base.actions.map(action => [keyOf(action), action]));
+    return head.actions.map(action => ({ action, before: before.get(keyOf(action)) }));
+  });
+
 export const accessFindings = ({
   access,
   routes,
@@ -81,39 +89,37 @@ export const accessFindings = ({
   open,
 }: AccessFindingsOptions): ReadonlyArray<Finding> => {
   const routedAnew = routes.flatMap(change => (change.state === 'removed' ? [] : [change.head]));
-  return access.flatMap(({ base, head }) => {
-    const before = new Map(base.actions.map(action => [keyOf(action), action]));
-    return head.actions
-      .filter(action => action.cover?.conditional !== false)
-      .filter(
-        ({ controller, action }) =>
-          !open.some(pattern => matchesWildcard(pattern, `${controller}#${action}`)),
-      )
-      .flatMap((action): ReadonlyArray<Finding> => {
-        const change = whatChanged({
-          action,
-          before: before.get(keyOf(action)),
-          routes: routedAnew,
-        });
-        return change === undefined
-          ? []
-          : [
-              {
-                id: `security:unauthorized:${keyOf(action)}`,
-                check: 'security:unauthorized',
-                dimension: 'security',
-                level: action.cover === undefined ? 'look' : 'info',
-                ...nodeOf(nodes, action),
-                ...change,
-              },
-            ];
-      });
-  });
+  return pairedIn(access)
+    .filter(({ action }) => action.cover?.conditional !== false)
+    .filter(
+      ({ action: { controller, action } }) =>
+        !open.some(pattern => matchesWildcard(pattern, `${controller}#${action}`)),
+    )
+    .flatMap(({ action, before }): ReadonlyArray<Finding> => {
+      const change = whatChanged({ action, before, routes: routedAnew });
+      return change === undefined
+        ? []
+        : [
+            {
+              id: `security:unauthorized:${keyOf(action)}`,
+              check: 'security:unauthorized',
+              dimension: 'security',
+              level: action.cover === undefined ? 'look' : 'info',
+              ...nodeOf(nodes, action),
+              ...change,
+            },
+          ];
+    });
 };
 
 export const accessNotRead = (access: ReadonlyArray<AccessReading>): ReadonlyArray<string> =>
-  access.flatMap(({ head }) =>
-    head.actions.flatMap(({ unread }) =>
+  pairedIn(access)
+    .filter(
+      ({ action, before }) =>
+        before === undefined ||
+        before.cover?.by !== action.cover?.by ||
+        before.cover?.conditional !== action.cover?.conditional,
+    )
+    .flatMap(({ action: { unread } }) =>
       (unread ?? []).map(({ text, file, line }) => `${file}:${line} not read: ${text}`),
-    ),
-  );
+    );
