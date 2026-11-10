@@ -249,7 +249,12 @@ export const raisedFindings = ({
   ...migrationFindings(migrations),
   ...schemaFindings(schemas),
   ...routeFindings(routes),
-  ...accessFindings({ access, routes: [], nodes, open: [] }),
+  ...accessFindings({
+    access,
+    routes: routes.flatMap(reading => ('routes' in reading ? reading.routes : [])),
+    nodes,
+    open: [],
+  }),
 ];
 
 const NOTE_FLAG = 'notes:';

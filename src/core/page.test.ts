@@ -318,6 +318,42 @@ test('an action the change adds with no authorization raises its finding to look
   ).toStrictEqual([{ id: 'security:unauthorized::UsersController#show', level: 'look' }]);
 });
 
+test('a route the change adds to an action with no authorization raises its finding on the page', () => {
+  const reading = readingWith({
+    access: [
+      {
+        base: { actions: [controllerAction], unread: [] },
+        head: { actions: [controllerAction], unread: [] },
+      },
+    ],
+    routes: [
+      {
+        routes: [
+          {
+            state: 'added',
+            head: {
+              verb: 'GET',
+              path: '/users/:id',
+              target: 'users#show',
+              root: '',
+              file: 'config/routes.rb',
+              line: 2,
+            },
+            patch: 'config/routes.rb',
+          },
+        ],
+        unread: [],
+      },
+    ],
+  });
+
+  expect(
+    pageData({ repo: 'shop', reading, range: 'a..b', version, parsers })
+      .findings.filter(({ check }) => check === 'security:unauthorized')
+      .map(({ title }) => title),
+  ).toStrictEqual(['UsersController#show newly routed with no authorization']);
+});
+
 test("an added migration's risks raise their findings on the page, and it keeps the reading", () => {
   const migrations = [{ file: 'db/migrate/1_a.rb', notRead: 'Ruby syntax error' }];
 
