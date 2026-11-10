@@ -30,6 +30,20 @@ export type CoverageFacts = Pick<
 
 const notReadFor = (name: string): string => `not read for ${name}`;
 
+const securityNotRead = ({
+  access,
+  readers,
+  routes,
+  openActions,
+}: Pick<CoverageFacts, 'access' | 'readers' | 'routes' | 'openActions'>): ReadonlyArray<string> =>
+  access.length === 0 && !readers.includes('rails')
+    ? ['Rails only']
+    : accessNotRead({
+        access,
+        routes: routes.flatMap(reading => ('routes' in reading ? reading.routes : [])),
+        open: openActions,
+      });
+
 export const coverageOf = ({
   skipped,
   symbolsNotRead,
@@ -92,16 +106,6 @@ export const coverageOf = ({
     { dimension: 'routes', notRead: routesNotRead },
     { dimension: 'blast-radius', notRead: ifDrawn([...symbolsMissing, ...reachesNotRead]) },
     { dimension: 'cohesion', notRead: [] },
-    {
-      dimension: 'security',
-      notRead:
-        access.length === 0 && !readers.includes('rails')
-          ? ['Rails only']
-          : accessNotRead({
-              access,
-              routes: routes.flatMap(reading => ('routes' in reading ? reading.routes : [])),
-              open: openActions,
-            }),
-    },
+    { dimension: 'security', notRead: securityNotRead({ access, readers, routes, openActions }) },
   ];
 };
