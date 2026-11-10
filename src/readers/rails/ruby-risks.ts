@@ -37,6 +37,21 @@ const asWritten =
   (kind: Risk['kind']): Reading =>
   call => [{ kind, text: codeOf(call) }];
 
+const firstArgument = (call: Node): Node | undefined =>
+  call.childForFieldName('arguments')?.namedChildren[0];
+
+const isLiteral = (node: Node): boolean =>
+  node.type === 'string' && node.namedChildren.every(({ type }) => type !== 'interpolation');
+
+const sqlDetail = (given: Node | undefined): Pick<Risk, 'detail'> => {
+  if (given === undefined || !isString(given)) return {};
+  return { detail: isLiteral(given) ? 'literal, no interpolation' : 'interpolated' };
+};
+
+const rawSql: Reading = call => [
+  { kind: 'raw-sql', text: codeOf(call), ...sqlDetail(firstArgument(call)) },
+];
+
 const RAW_SQL = [
   'find_by_sql',
   'execute',
@@ -47,7 +62,7 @@ const RAW_SQL = [
 ];
 
 const arelSql: Reading = call =>
-  call.childForFieldName('receiver')?.text === 'Arel' ? asWritten('raw-sql')(call) : [];
+  call.childForFieldName('receiver')?.text === 'Arel' ? rawSql(call) : [];
 
 const QUERIES = ['where', 'order', 'group', 'having', 'joins', 'pluck', 'select'];
 
@@ -57,14 +72,13 @@ const isString = (node: Node | undefined): boolean => {
   return ['left', 'right'].some(side => isString(node.childForFieldName(side) ?? undefined));
 };
 
-const givenAString: Reading = call =>
-  isString(call.childForFieldName('arguments')?.namedChildren[0]) ? asWritten('raw-sql')(call) : [];
+const givenAString: Reading = call => (isString(firstArgument(call)) ? rawSql(call) : []);
 
 const RISKS = new Map<string, Reading>([
   ...QUERIES.map((name): [string, Reading] => [name, givenAString]),
   ['permit', permittedKeys],
   ['permit!', asWritten('permit!')],
-  ...RAW_SQL.map((name): [string, Reading] => [name, asWritten('raw-sql')]),
+  ...RAW_SQL.map((name): [string, Reading] => [name, rawSql]),
   ['sql', arelSql],
 ]);
 

@@ -49,19 +49,20 @@ test('a method named sql on another receiver than Arel is no raw SQL', () => {
 });
 
 test.for([
-  'User.where("active")',
-  'User.where("name = ?", name)',
-  'User.order("name desc")',
-  'User.group("kind")',
-  'User.having("count(*) > 1")',
-  'User.joins("JOIN a ON a.id = b.id")',
-  'User.pluck("lower(name)")',
-  'User.select("name")',
-  'User.where("name = #{name}")',
-  'User.where("name = " + name)',
-  'User.where(column + " = 1")',
-])('%s reads as raw SQL, given a string', call => {
-  expect(risksIn(call)).toEqual([{ kind: 'raw-sql', text: call }]);
+  { call: 'User.where("active")', detail: 'literal, no interpolation' },
+  { call: 'User.where("name = ?", name)', detail: 'literal, no interpolation' },
+  { call: 'User.order("name desc")', detail: 'literal, no interpolation' },
+  { call: 'User.group("kind")', detail: 'literal, no interpolation' },
+  { call: 'User.having("count(*) > 1")', detail: 'literal, no interpolation' },
+  { call: 'User.joins("JOIN a ON a.id = b.id")', detail: 'literal, no interpolation' },
+  { call: 'User.pluck("lower(name)")', detail: 'literal, no interpolation' },
+  { call: 'User.select("name")', detail: 'literal, no interpolation' },
+  { call: 'User.where("name = #{name}")', detail: 'interpolated' },
+  { call: 'User.where("name = " + name)', detail: 'interpolated' },
+  { call: 'User.where(column + " = 1")', detail: 'interpolated' },
+  { call: 'connection.execute("DELETE FROM users")', detail: 'literal, no interpolation' },
+])('$call reads as raw SQL given a string, $detail', ({ call, detail }) => {
+  expect(risksIn(call)).toEqual([{ kind: 'raw-sql', text: call, detail }]);
 });
 
 test.for(['User.where(active: true)', 'User.order(:name)', 'User.select { |u| u.active }'])(
