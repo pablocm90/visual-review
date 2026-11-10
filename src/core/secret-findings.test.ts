@@ -36,3 +36,45 @@ test.for([' ', '-'])('a key on a line the change keeps or removes (%s) raises no
     secretFindings([{ ...patch, patch: `${patch.patch}\n${prefix}  AKIAIOSFODNN7EXAMPLE` }]),
   ).toEqual([]);
 });
+
+test.for([
+  { value: `ghp_${'a1B2'.repeat(9)}`, name: 'github-token', said: 'a GitHub token' },
+  { value: `gho_${'a1B2'.repeat(9)}`, name: 'github-token', said: 'a GitHub token' },
+  { value: `ghs_${'a1B2'.repeat(9)}`, name: 'github-token', said: 'a GitHub token' },
+  { value: `github_pat_${'a1_B'.repeat(20)}`, name: 'github-token', said: 'a GitHub token' },
+  { value: 'xoxb-1234567890-abcdefABCDEF', name: 'slack-token', said: 'a Slack token' },
+  { value: 'xoxp-1234567890-abcdefABCDEF', name: 'slack-token', said: 'a Slack token' },
+  { value: `sk_live_${'4eC39HqLyjWD'.repeat(2)}`, name: 'stripe-key', said: 'a Stripe live key' },
+  { value: `rk_live_${'4eC39HqLyjWD'.repeat(2)}`, name: 'stripe-key', said: 'a Stripe live key' },
+  {
+    value: `AIza${'SyD-9tSrke72PouQMnMX_7'}${'a1b2c3d4e5f6g'}`,
+    name: 'google-api-key',
+    said: 'a Google API key',
+  },
+])('$said ($value) a line gains needs a look too', ({ value, name, said }) => {
+  expect(
+    secretFindings([patchAdding(`  token = "${value}"`)]).map(({ id, title, detail }) => ({
+      id,
+      title,
+      detail,
+    })),
+  ).toStrictEqual([
+    {
+      id: `security:secret:${FILE}#${name}`,
+      title: `${FILE} adds ${said}`,
+      detail: `${value.slice(0, 4)}…(${value.length} chars). Rotate it: it stays in git history once removed.`,
+    },
+  ]);
+});
+
+test.for([
+  `sk_${'test'}_${'4eC39HqLyjWD'.repeat(2)}`,
+  'xoxq-1234567890-abcdef',
+  `ghx_${'a1B2'.repeat(9)}`,
+  `ghp_${'a1B2'.repeat(4)}`,
+  'github_pat_xxxx',
+  'xoxb-xxxx',
+  'sk_live_xxxx',
+])('%s, a test key, another prefix or a placeholder too short for a key, raises nothing', value => {
+  expect(secretFindings([patchAdding(`  token = "${value}"`)])).toEqual([]);
+});

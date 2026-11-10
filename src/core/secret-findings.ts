@@ -5,6 +5,14 @@ import { lineIdOf, patchHunks } from './patch-lines.ts';
 
 const FORMATS = [
   { name: 'aws-access-key', said: 'an AWS access key', pattern: /AKIA[0-9A-Z]{16}/ },
+  {
+    name: 'github-token',
+    said: 'a GitHub token',
+    pattern: /gh[pousr]_[A-Za-z0-9]{36}|github_pat_\w{22,}/,
+  },
+  { name: 'slack-token', said: 'a Slack token', pattern: /xox[abprs]-[A-Za-z0-9-]{10,}/ },
+  { name: 'stripe-key', said: 'a Stripe live key', pattern: /[rs]k_live_[A-Za-z0-9]{16,}/ },
+  { name: 'google-api-key', said: 'a Google API key', pattern: /AIza[\w-]{35}/ },
 ];
 
 const ROTATE = 'Rotate it: it stays in git history once removed.';
