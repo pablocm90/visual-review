@@ -272,3 +272,15 @@ test('a new action listed open lists no unread rows', () => {
   expect(unread(['UsersController#*'])).toHaveLength(0);
   expect(unread(['UsersController#edit'])).toHaveLength(1);
 });
+
+test('a row two actions were read through is listed once', () => {
+  expect(
+    accessNotRead({
+      access: [
+        reading([], [action({ unread: [UNREAD] }), action({ action: 'edit', unread: [UNREAD] })]),
+      ],
+      routes: [],
+      open: [],
+    }),
+  ).toStrictEqual(['app/controllers/application_controller.rb:2 not read: before_action *GLOBAL']);
+});

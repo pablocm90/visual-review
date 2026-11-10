@@ -125,7 +125,7 @@ export const accessNotRead = ({
   open,
 }: Omit<AccessFindingsOptions, 'nodes'>): ReadonlyArray<string> => {
   const routed = routedAnew(routes);
-  return pairedIn({ access, open })
+  const lines = pairedIn({ access, open })
     .filter(
       ({ action, before }) =>
         before === undefined ||
@@ -136,4 +136,5 @@ export const accessNotRead = ({
     .flatMap(({ action: { unread } }) =>
       (unread ?? []).map(({ text, file, line }) => `${file}:${line} not read: ${text}`),
     );
+  return [...new Set(lines)];
 };
