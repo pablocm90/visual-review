@@ -10,6 +10,14 @@ import typescript from 'highlight.js/lib/languages/typescript';
 import xml from 'highlight.js/lib/languages/xml';
 import yaml from 'highlight.js/lib/languages/yaml';
 import type { FilePatch } from '../core/diff-graphs.ts';
+import {
+  type Hunk,
+  holdsSide,
+  type LineSide,
+  type PatchRow,
+  type PatchRowKind,
+  patchHunks,
+} from '../core/patch-lines.ts';
 
 const LANGUAGE_BY_NAME: Readonly<Record<string, string>> = {
   'Cargo.lock': 'ini',
@@ -46,16 +54,8 @@ export const languageOf = (path: string): string | undefined => {
 
 export type Piece = { readonly text: string; readonly scopes: ReadonlyArray<string> };
 
-export type PatchLine = {
-  readonly kind: 'header' | 'context' | 'added' | 'removed' | 'note';
-  readonly prefix: string;
-  readonly pieces: ReadonlyArray<Piece>;
-  readonly base?: number;
-  readonly head?: number;
-};
+export type PatchLine = Omit<PatchRow, 'code'> & { readonly pieces: ReadonlyArray<Piece> };
 
-type Kind = PatchLine['kind'];
-type Side = 'old' | 'new';
 type Lines = ReadonlyArray<ReadonlyArray<Piece>>;
 
 const highlighter = hljs.newInstance();
@@ -111,89 +111,38 @@ const highlight = (code: string, language: string | undefined): Lines =>
     ? []
     : linesOf(highlighter.highlight(code, { language, ignoreIllegals: true }).value);
 
-const KIND_BY_PREFIX: Readonly<Record<string, Kind>> = {
-  '@': 'header',
-  '\\': 'note',
-  '+': 'added',
-  '-': 'removed',
+const SHOWN_FROM: Readonly<Partial<Record<PatchRowKind, LineSide>>> = {
+  removed: 'base',
+  context: 'head',
+  added: 'head',
 };
 
-type Row = { readonly kind: Kind; readonly prefix: string; readonly code: string };
-
-const rowOf = (line: string): Row => {
-  const kind = KIND_BY_PREFIX[line.slice(0, 1)] ?? 'context';
-  if (kind === 'header' || kind === 'note') return { kind, prefix: '', code: line };
-  return { kind, prefix: line.slice(0, 1), code: line.slice(1) };
-};
-
-const SIDE_KINDS: Readonly<Record<Side, ReadonlyArray<Kind>>> = {
-  old: ['context', 'removed'],
-  new: ['context', 'added'],
-};
-
-const SHOWN_FROM: Readonly<Partial<Record<Kind, Side>>> = {
-  removed: 'old',
-  context: 'new',
-  added: 'new',
-};
-
-const sideOf = (rows: ReadonlyArray<Row>, side: Side, language: string | undefined) =>
+const sideOf = (rows: ReadonlyArray<PatchRow>, side: LineSide, language: string | undefined) =>
   highlight(
     rows
-      .filter(row => SIDE_KINDS[side].includes(row.kind))
+      .filter(row => holdsSide(row.kind, side))
       .map(row => row.code)
       .join('\n'),
     language,
   );
 
-type Laying = {
-  readonly lines: ReadonlyArray<PatchLine>;
-  readonly at: Readonly<Record<Side, number>>;
-};
-
-const startsOf = (header = ''): Readonly<Record<Side, number>> => {
-  const match = /^@@ -(\d+)(?:,\d+)? \+(\d+)/.exec(header);
-  return { old: Number(match?.[1]), new: Number(match?.[2]) };
-};
-
-const numbersAt = (
-  kind: Kind,
-  at: Readonly<Record<Side, number>>,
-  start: Readonly<Record<Side, number>>,
-) => ({
-  ...(SIDE_KINDS.old.includes(kind) && { base: start.old + at.old }),
-  ...(SIDE_KINDS.new.includes(kind) && { head: start.new + at.new }),
-});
-
-const hunkLines = (rows: ReadonlyArray<Row>, language: string | undefined) => {
-  const sides = { old: sideOf(rows, 'old', language), new: sideOf(rows, 'new', language) };
-  const start = startsOf(rows[0]?.code);
-  return rows.reduce<Laying>(
-    ({ lines, at }, { kind, prefix, code }) => {
-      const side = SHOWN_FROM[kind];
-      const pieces = (side && sides[side][at[side]]) ?? [{ text: code, scopes: [] }];
-      return {
-        lines: lines.concat({ kind, prefix, pieces, ...numbersAt(kind, at, start) }),
-        at: {
-          old: at.old + Number(SIDE_KINDS.old.includes(kind)),
-          new: at.new + Number(SIDE_KINDS.new.includes(kind)),
-        },
-      };
-    },
-    { lines: [], at: { old: 0, new: 0 } },
-  ).lines;
+const hunkLines = ({ start, rows }: Hunk, language: string | undefined) => {
+  const sides = { base: sideOf(rows, 'base', language), head: sideOf(rows, 'head', language) };
+  return rows.map(({ code, ...row }): PatchLine => {
+    const side = SHOWN_FROM[row.kind];
+    const number = side && row[side];
+    const highlighted = side && number !== undefined && sides[side][number - start[side]];
+    return { ...row, pieces: highlighted || [{ text: code, scopes: [] }] };
+  });
 };
 
 export const highlightPatch = ({ path, patch }: FilePatch): ReadonlyArray<PatchLine> => {
   const language = languageOf(path);
-  const lines = patch.split('\n');
-  const rows = lines.map(rowOf);
-  const starts = rows.flatMap((row, index) => (row.kind === 'header' ? [index] : []));
-  if (starts.length === 0)
-    return lines
+  const hunks = patchHunks(patch);
+  if (hunks.length === 0)
+    return patch
+      .split('\n')
       .slice(-1)
       .map((text): PatchLine => ({ kind: 'note', prefix: '', pieces: [{ text, scopes: [] }] }));
-  return starts.flatMap((start, index) =>
-    hunkLines(rows.slice(start, starts[index + 1]), language),
-  );
+  return hunks.flatMap(hunk => hunkLines(hunk, language));
 };
