@@ -2,6 +2,13 @@
 
 What changed in each release of `@pablocm90/visual-review`, newest first. Versions follow [semver](https://semver.org); while it is 0.x, a minor version may change the exported types.
 
+## Unreleased
+
+### Added
+
+- A note keyed `line <file>@<base|head>:<n>` is on one row of a patch, drawn file or not: a removed row by its base number, a context or added row by its head's, as a comment on that row is anchored. It shows under that row in **Full diff**, which opens by itself with that patch open, in a symbol's **Diff** once toggled, and in the changed files outside the graph, with its why, its recommendation and, on a served page, **Take**, which opens that row's field with **Change this** picked. `--notes` refuses a key naming no row the page's patches hold (`unknown key line <id>`), including the base number of a context row. A flag on one lands on its row: on the node holding the file in Full diff, or, for a file outside the graph, in those files, from the findings rail, **Start here** and the review tray. A line change in the last review's `unasked` is named by its row and its text.
+- The skill may add a line note, and flag it, where a single diff line holds the point and no function, logic line or test note can name it.
+
 ## 0.62.0 — 2026-11-10
 
 ### Added
