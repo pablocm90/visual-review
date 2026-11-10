@@ -2,6 +2,13 @@
 
 What changed in each release of `@pablocm90/visual-review`, newest first. Versions follow [semver](https://semver.org); while it is 0.x, a minor version may change the exported types.
 
+## 0.67.0 — 2026-11-10
+
+### Added
+
+- A Rails app's Apartment config, an `Apartment.configure` in a Ruby file under its `config/`, is read at both sides for its `excluded_models` (`%w[]`, strings or constants). A model added there raises `tenancy:excluded` to look at, since its rows now live in the public schema and each tenant's own are left behind; a model removed raises one too, since each tenant now reads its own table. Each app is compared only with its own config, and one with no config at a side raises nothing.
+- The tenancy coverage, in the Risk lens, reads `Apartment only` with no Apartment config at either side, and otherwise names each config not read (a syntax error, or too big) and each `excluded_models` entry it can't spell out, by file and line; at the base only when the head reads it.
+
 ## 0.66.0 — 2026-11-10
 
 ### Added
