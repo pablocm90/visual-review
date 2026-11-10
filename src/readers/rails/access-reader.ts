@@ -92,6 +92,7 @@ const reaches = ({ only, except }: Callback, action: string): boolean =>
 
 type Controller = {
   readonly constant: string;
+  readonly isClass: boolean;
   readonly parent: Wanted | undefined;
   readonly entries: ReadonlyArray<Entry>;
   readonly calls: ReadonlyMap<string, ReadonlyArray<string>>;
@@ -128,6 +129,7 @@ const controllersIn = (
     return [
       {
         constant,
+        isClass: child.type === 'class',
         parent: parentOf(child),
         entries: entriesOf(body, reading),
         calls: callsOf(body),
@@ -220,11 +222,21 @@ const controllerPathOf = (controller: string): string =>
 const fileOf = (text: string, { file, authorize }: Reading): ControllerFile => {
   const root = file.slice(0, file.indexOf('app/controllers/'));
   const { symbols } = symbolsOfRuby(text);
+  const controllers = readRuby(text, program =>
+    controllersIn(program, undefined, { file, authorize }),
+  );
+  const classes = new Set(
+    controllers.filter(({ isClass }) => isClass).map(({ constant }) => constant),
+  );
   return {
     root,
-    controllers: readRuby(text, program => controllersIn(program, undefined, { file, authorize })),
+    controllers,
     actions: symbols.flatMap(({ name, scope, kind, exported, lines }) =>
-      kind === 'method' && exported && scope !== undefined && !name.startsWith('self.')
+      kind === 'method' &&
+      exported &&
+      scope !== undefined &&
+      classes.has(scope) &&
+      !name.startsWith('self.')
         ? [
             {
               controller: scope,

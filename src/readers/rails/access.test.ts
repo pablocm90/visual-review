@@ -32,6 +32,17 @@ end
   });
 });
 
+test("a concern's public methods are no actions of its own", () => {
+  expect(
+    read({
+      'app/controllers/concerns/paging.rb': `module Paging
+  def page_size; end
+end
+`,
+    }),
+  ).toStrictEqual({ actions: [] });
+});
+
 test.for([
   { written: 'Admin::UsersController', path: 'admin/users' },
   { written: 'OrderItemsController', path: 'order_items' },
