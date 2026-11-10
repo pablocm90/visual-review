@@ -32,17 +32,14 @@ type Change = {
 const reaches = (route: Route, { root, controllerPath, action }: Action): boolean =>
   route.root === root && route.target === `${controllerPath}#${action}`;
 
-const whatChanged = ({
-  action,
-  before,
-  routes,
-}: Change): { readonly title: string; readonly detail: string } | undefined => {
-  const at = `At ${action.file}:${action.line}.`;
-  const name = `${action.controller}#${action.action}`;
-  const only =
-    action.cover === undefined
-      ? undefined
-      : `${action.cover.by} covers it only under its if: or unless:`;
+type Said = { readonly title: string; readonly detail: string };
+
+type Wording = { readonly at: string; readonly name: string; readonly only: string | undefined };
+
+const coverChanged = (
+  { before }: Pick<Change, 'before'>,
+  { at, name, only }: Wording,
+): Said | undefined => {
   if (before === undefined && only !== undefined)
     return { title: `${name} added, authorized only conditionally`, detail: `${at} ${only}.` };
   if (before === undefined)
@@ -60,6 +57,13 @@ const whatChanged = ({
       title: `${name} lost its authorization`,
       detail: `${at} ${before.cover.by} covered it before; nothing authorizes it now.`,
     };
+  return undefined;
+};
+
+const routedChange = (
+  { action, routes }: Pick<Change, 'action' | 'routes'>,
+  { at, name, only }: Wording,
+): Said | undefined => {
   const routed = routes.find(route => reaches(route, action));
   if (routed === undefined) return undefined;
   const reached = `${at} ${routed.verb} ${routed.path} at ${routed.file}:${routed.line} now reaches it;`;
@@ -72,6 +76,19 @@ const whatChanged = ({
         title: `${name} newly routed, authorized only conditionally`,
         detail: `${reached} ${only}.`,
       };
+};
+
+const whatChanged = (change: Change): Said | undefined => {
+  const { action } = change;
+  const wording = {
+    at: `At ${action.file}:${action.line}.`,
+    name: `${action.controller}#${action.action}`,
+    only:
+      action.cover === undefined
+        ? undefined
+        : `${action.cover.by} covers it only under its if: or unless:`,
+  };
+  return coverChanged(change, wording) ?? routedChange(change, wording);
 };
 
 type Paired = Pick<Change, 'action' | 'before'>;
@@ -121,34 +138,28 @@ export const accessFindings = ({
     });
 };
 
-export const accessNotRead = ({
+const bearsOnChange =
+  (routed: ReadonlyArray<Route>) =>
+  ({ action, before }: Paired): boolean =>
+    before === undefined ||
+    before.cover?.by !== action.cover?.by ||
+    before.cover?.conditional !== action.cover?.conditional ||
+    routed.some(route => reaches(route, action));
+
+const unmatchedOpen = ({
   access,
-  routes,
   open,
-}: Omit<AccessFindingsOptions, 'nodes'>): ReadonlyArray<string> => {
-  const routed = routedAnew(routes);
-  const lines = pairedIn({ access, open })
-    .filter(
-      ({ action, before }) =>
-        before === undefined ||
-        before.cover?.by !== action.cover?.by ||
-        before.cover?.conditional !== action.cover?.conditional ||
-        routed.some(route => reaches(route, action)),
-    )
-    .flatMap(({ action: { unread } }) =>
-      (unread ?? []).map(({ text, file, line }) => `${file}:${line} not read: ${text}`),
-    );
+}: Pick<AccessFindingsOptions, 'access' | 'open'>): ReadonlyArray<string> => {
+  if (access.length === 0) return [];
   const atHead = access.flatMap(({ head }) => head.actions);
-  const unmatched =
-    access.length === 0
-      ? []
-      : open.filter(
-          pattern =>
-            !atHead.some(({ controller, action }) =>
-              matchesWildcard(pattern, `${controller}#${action}`),
-            ),
-        );
-  const files = access.flatMap(({ base, head }) => {
+  return open.filter(
+    pattern =>
+      !atHead.some(({ controller, action }) => matchesWildcard(pattern, `${controller}#${action}`)),
+  );
+};
+
+const filesNotRead = (access: ReadonlyArray<AccessReading>): ReadonlyArray<string> =>
+  access.flatMap(({ base, head }) => {
     const headFiles = head.notRead ?? [];
     const onlyAtBase = (base.notRead ?? []).filter(
       ({ file }) => !headFiles.some(other => other.file === file),
@@ -158,9 +169,20 @@ export const accessNotRead = ({
       ...onlyAtBase.map(({ file, reason }) => `${file} not read at the base: ${reason}`),
     ];
   });
+
+export const accessNotRead = ({
+  access,
+  routes,
+  open,
+}: Omit<AccessFindingsOptions, 'nodes'>): ReadonlyArray<string> => {
+  const lines = pairedIn({ access, open })
+    .filter(bearsOnChange(routedAnew(routes)))
+    .flatMap(({ action: { unread } }) =>
+      (unread ?? []).map(({ text, file, line }) => `${file}:${line} not read: ${text}`),
+    );
   return [
-    ...files,
+    ...filesNotRead(access),
     ...new Set(lines),
-    ...unmatched.map(pattern => `open ${pattern} matches no action`),
+    ...unmatchedOpen({ access, open }).map(pattern => `open ${pattern} matches no action`),
   ];
 };
