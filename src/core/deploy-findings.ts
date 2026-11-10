@@ -86,3 +86,14 @@ export const deployKeyFindings = ({
     .flatMap(patch => keysOn(patch).filter(({ key }) => !keysAtBase.includes(key)))
     .map(({ finding }) => finding)
     .filter((finding, index, all) => all.findIndex(({ id }) => id === finding.id) === index);
+
+const THROUGH_A_VARIABLE =
+  /\b(?:ENV(?:\[|\.fetch\(|\.key\?\()|(?:process|import\.meta)\.env\[|env::var(?:_os)?\()(?!["'])/;
+
+export const deployKeysNotRead = (patches: ReadonlyArray<FilePatch>): ReadonlyArray<string> =>
+  patches.flatMap(({ path, patch }) =>
+    patchHunks(patch)
+      .flatMap(hunk => hunk.rows)
+      .filter(row => row.kind === 'added' && THROUGH_A_VARIABLE.test(row.code))
+      .map(row => `${path}:${row.head} reads an env key through a variable`),
+  );

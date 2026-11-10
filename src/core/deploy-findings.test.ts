@@ -1,5 +1,5 @@
 import { expect, test } from 'vitest';
-import { deployKeyFindings } from './deploy-findings.ts';
+import { deployKeyFindings, deployKeysNotRead } from './deploy-findings.ts';
 import type { FilePatch } from './diff-graphs.ts';
 
 const deployKeys = (patches: ReadonlyArray<FilePatch>) =>
@@ -107,4 +107,25 @@ test('a key the base already reads somewhere is no new key', () => {
       keysAtBase: ['STRIPE_KEY'],
     }).map(({ id }) => id),
   ).toStrictEqual(['deploy:env:STRIPE_ID']);
+});
+
+test.for([
+  { read: 'ENV[name]', lines: [`${FILE}:2 reads an env key through a variable`] },
+  { read: 'ENV.fetch(name, nil)', lines: [`${FILE}:2 reads an env key through a variable`] },
+  { read: 'ENV.key?(name)', lines: [`${FILE}:2 reads an env key through a variable`] },
+  { read: 'process.env[name]', lines: [`${FILE}:2 reads an env key through a variable`] },
+  { read: 'import.meta.env[name]', lines: [`${FILE}:2 reads an env key through a variable`] },
+  { read: 'env::var(&name)', lines: [`${FILE}:2 reads an env key through a variable`] },
+  { read: 'env::var_os(&name)', lines: [`${FILE}:2 reads an env key through a variable`] },
+  { read: 'ENV["STRIPE_KEY"]', lines: [] },
+  { read: 'process.env["STRIPE_KEY"]', lines: [] },
+  { read: 'env::var("STRIPE_KEY")', lines: [] },
+  { read: 'MY_ENV[name]', lines: [] },
+])('reading a key as $read leaves unread $lines', ({ read, lines }) => {
+  expect(deployKeysNotRead([patchAdding(`  config.api_key = ${read}`)])).toStrictEqual(lines);
+});
+
+test('a key read through a variable on a line the change keeps leaves nothing unread', () => {
+  const patch = patchAdding();
+  expect(deployKeysNotRead([{ ...patch, patch: `${patch.patch}\n   x = ENV[name]` }])).toEqual([]);
 });

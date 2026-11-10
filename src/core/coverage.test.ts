@@ -18,6 +18,7 @@ const facts = (overrides: Partial<CoverageFacts> = {}): CoverageFacts => ({
   rulesNotRead: [],
   access: [],
   openActions: [],
+  patches: [],
   ...overrides,
 });
 
@@ -38,6 +39,7 @@ test('with nothing unread, each dimension a check raises is listed as checked, a
     { dimension: 'blast-radius', notRead: [] },
     { dimension: 'cohesion', notRead: [] },
     { dimension: 'security', notRead: [] },
+    { dimension: 'deploy', notRead: [] },
   ]);
 });
 
@@ -46,6 +48,19 @@ test("blast radius names what its reading couldn't, unless no stack was drawn", 
 
   expect(notReadIn('blast-radius', { reachesNotRead })).toEqual(reachesNotRead);
   expect(notReadIn('blast-radius', { reachesNotRead, readers: [] })).toEqual(['no stack drawn']);
+});
+
+test('deploy names each line reading an env key through a variable', () => {
+  const patch = [
+    '--- a/config/stripe.rb',
+    '+++ b/config/stripe.rb',
+    '@@ -1,0 +1,1 @@',
+    '+Stripe.api_key = ENV[name]',
+  ].join('\n');
+
+  expect(notReadIn('deploy', { patches: [{ path: 'config/stripe.rb', patch }] })).toEqual([
+    'config/stripe.rb:1 reads an env key through a variable',
+  ]);
 });
 
 test("rules names what the config's rules couldn't read", () => {
