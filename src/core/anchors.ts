@@ -5,7 +5,7 @@ import { nodeOfTests } from './tests-alongside.ts';
 
 type Keyed = { readonly kind: string; readonly id: string };
 
-export const NOTED_KINDS = ['part', 'edge', 'symbol', 'decision', 'test'] as const;
+export const NOTED_KINDS = ['part', 'edge', 'symbol', 'decision', 'test', 'line'] as const;
 
 export type Noted = { readonly kind: (typeof NOTED_KINDS)[number]; readonly id: string };
 

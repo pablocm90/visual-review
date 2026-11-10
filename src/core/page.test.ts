@@ -1325,6 +1325,30 @@ test("notes may key a symbol the page's data holds", () => {
   expect(() => notedPageHtml({ page, notes, notesFile, version })).not.toThrow();
 });
 
+test("notes may key a line of a drawn or an undrawn file's patch", () => {
+  const patchOf = (path: string) => ({
+    path,
+    patch: [`@@ -1 +1 @@`, '-old', '+new'].join('\n'),
+  });
+  const page = pageHtml({
+    viewer,
+    data: pageData({
+      repo: 'shop',
+      reading: readingWith({ patches: [patchOf('web/src/a.ts'), patchOf('README.md')] }),
+      range: 'main..feature',
+      version,
+      parsers,
+    }),
+  });
+  const notes = notesWith({
+    'part web/file/a.ts': { text: 'Reads well.' },
+    'line web/src/a.ts@head:1': { text: 'New.' },
+    'line README.md@base:1': { text: 'Old.' },
+  });
+
+  expect(() => notedPageHtml({ page, notes, notesFile, version })).not.toThrow();
+});
+
 test("notes on a later round's page may answer what its last review said, and only that", () => {
   const page = pageHtml({
     viewer,
