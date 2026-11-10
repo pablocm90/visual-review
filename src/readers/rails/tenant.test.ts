@@ -36,3 +36,46 @@ test('a config file that never calls Apartment.configure gives no config', () =>
     }),
   ).toStrictEqual({ configs: [] });
 });
+
+const APARTMENT = initializer('  config.excluded_models = %w[Company]');
+
+test.for([
+  {
+    reason: 'an initializer reopening ActiveJob::Base',
+    file: 'config/initializers/active_job.rb',
+    text: 'ActiveJob::Base.class_eval do\n  include Apartment::ActiveJob\nend\n',
+  },
+  {
+    reason: 'the app’s ApplicationJob',
+    file: 'app/jobs/application_job.rb',
+    text: 'class ApplicationJob < ActiveJob::Base\n  include ::Apartment::ActiveJob\nend\n',
+  },
+])('jobs carry the tenant when $reason includes Apartment::ActiveJob', ({ file, text }) => {
+  expect(
+    read({ 'config/initializers/apartment.rb': APARTMENT, [file]: text }).configs[0]
+      ?.jobsCarryTenant,
+  ).toBe(true);
+});
+
+test('another app’s Apartment::ActiveJob carries no tenant here', () => {
+  expect(
+    read({
+      'config/initializers/apartment.rb': APARTMENT,
+      'apps/admin/config/initializers/active_job.rb':
+        'ActiveJob::Base.include Apartment::ActiveJob\n',
+    }).configs[0]?.jobsCarryTenant,
+  ).toBe(false);
+});
+
+test.for([
+  { path: 'config/initializers/apartment.rb', held: true },
+  { path: 'apps/shop/config/application.rb', held: true },
+  { path: 'app/jobs/application_job.rb', held: true },
+  { path: 'apps/shop/app/jobs/application_job.rb', held: true },
+  { path: 'app/jobs/sync_job.rb', held: false },
+  { path: 'config/locales/en.yml', held: false },
+  { path: 'vendor/gems/x/config/initializers/apartment.rb', held: false },
+  { path: 'spec/dummy/config/initializers/apartment.rb', held: false },
+])('$path is held: $held', ({ path, held }) => {
+  expect(railsTenant.holds(path)).toBe(held);
+});

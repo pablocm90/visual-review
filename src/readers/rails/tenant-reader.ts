@@ -1,8 +1,11 @@
 import type { Node } from 'web-tree-sitter';
 import type { TenantConfig, TenantReader } from '../../core/tenant.ts';
-import { methodOf, namesIn, readRuby } from './ruby-syntax.ts';
+import { NOT_SEARCHED } from './reader.ts';
+import { argsOf, methodOf, namesIn, readRuby } from './ruby-syntax.ts';
 
-const CONFIG_FILE = /(^|\/)config\/.+\.rb$/;
+const HELD = /^(.*?)(?<=^|\/)(config\/.+|app\/jobs\/application_job)\.rb$/;
+
+const CARRIER: ReadonlySet<string> = new Set(['Apartment::ActiveJob', '::Apartment::ActiveJob']);
 
 const APARTMENT: ReadonlySet<string> = new Set(['Apartment', '::Apartment']);
 
@@ -24,19 +27,40 @@ const excludedIn = (configure: Node): ReadonlyArray<string> =>
     })
     .flatMap(assignment => namesIn(assignment.childForFieldName('right') ?? undefined));
 
-const configsOf = (file: string, text: string): ReadonlyArray<TenantConfig> =>
-  text.includes('Apartment')
-    ? readRuby(text, root =>
-        configuresIn(root).map(configure => ({
-          root: file.slice(0, file.indexOf('config/')),
-          file,
-          excluded: excludedIn(configure),
-          jobsCarryTenant: false,
-        })),
-      )
-    : [];
+const carries = (root: Node): boolean =>
+  root
+    .descendantsOfType('call')
+    .some(
+      call => methodOf(call) === 'include' && argsOf(call).some(({ text }) => CARRIER.has(text)),
+    );
+
+type HeldFile = {
+  readonly root: string;
+  readonly configs: ReadonlyArray<Omit<TenantConfig, 'jobsCarryTenant'>>;
+  readonly carries: boolean;
+};
+
+const heldFileOf = (file: string, text: string): HeldFile => {
+  const root = HELD.exec(file)?.[1] ?? '';
+  if (!text.includes('Apartment')) return { root, configs: [], carries: false };
+  return readRuby(text, tree => ({
+    root,
+    configs: configuresIn(tree).map(configure => ({ root, file, excluded: excludedIn(configure) })),
+    carries: carries(tree),
+  }));
+};
 
 export const railsTenant: TenantReader = {
-  holds: path => CONFIG_FILE.test(path),
-  configs: files => ({ configs: [...files].flatMap(([file, text]) => configsOf(file, text)) }),
+  holds: path => HELD.test(path) && !path.split('/').some(folder => NOT_SEARCHED.has(folder)),
+  configs: files => {
+    const held = [...files].map(([file, text]) => heldFileOf(file, text));
+    return {
+      configs: held.flatMap(({ configs }) =>
+        configs.map(config => ({
+          ...config,
+          jobsCarryTenant: held.some(other => other.root === config.root && other.carries),
+        })),
+      ),
+    };
+  },
 };
