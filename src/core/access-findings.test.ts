@@ -270,7 +270,19 @@ test('a new action listed open lists no unread rows', () => {
     accessNotRead({ access: [reading([], [action({ unread: [UNREAD] })])], routes: [], open });
 
   expect(unread(['UsersController#*'])).toHaveLength(0);
-  expect(unread(['UsersController#edit'])).toHaveLength(1);
+  expect(unread(['UsersController#edit'])).toContain(
+    'app/controllers/application_controller.rb:2 not read: before_action *GLOBAL',
+  );
+});
+
+test('an open glob matching no action at the head is a line, once access is read', () => {
+  const notRead = (access: ReadonlyArray<AccessReading>) =>
+    accessNotRead({ access, routes: [], open: ['UsersController#sho', 'UsersController#s*'] });
+
+  expect(notRead([reading([action({ action: 'sho' })], [action()])])).toStrictEqual([
+    'open UsersController#sho matches no action',
+  ]);
+  expect(notRead([])).toStrictEqual([]);
 });
 
 test('a row two actions were read through is listed once', () => {

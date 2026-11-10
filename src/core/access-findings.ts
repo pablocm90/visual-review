@@ -136,5 +136,15 @@ export const accessNotRead = ({
     .flatMap(({ action: { unread } }) =>
       (unread ?? []).map(({ text, file, line }) => `${file}:${line} not read: ${text}`),
     );
-  return [...new Set(lines)];
+  const atHead = access.flatMap(({ head }) => head.actions);
+  const unmatched =
+    access.length === 0
+      ? []
+      : open.filter(
+          pattern =>
+            !atHead.some(({ controller, action }) =>
+              matchesWildcard(pattern, `${controller}#${action}`),
+            ),
+        );
+  return [...new Set(lines), ...unmatched.map(pattern => `open ${pattern} matches no action`)];
 };
