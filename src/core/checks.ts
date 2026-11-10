@@ -38,6 +38,7 @@ export const CHECK_TITLES = {
   'security:raw-sql': 'raw SQL calls added',
   'security:html-safe': 'HTML newly marked safe',
   'security:dynamic-send': 'sends of a name not written',
+  'security:secret': 'secrets added',
 } as const;
 
 export type Check = keyof typeof CHECK_TITLES;
