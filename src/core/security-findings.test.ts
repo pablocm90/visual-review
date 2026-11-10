@@ -145,3 +145,14 @@ test('a file that is no view is not scanned: its symbols are read', () => {
     viewRiskFindings([{ ...viewPatch('name.html_safe'), path: 'app/helpers/users_helper.rb' }]),
   ).toEqual([]);
 });
+
+test('a second line in one view is counted in its id, on its own row', () => {
+  expect(
+    viewRiskFindings([viewPatch('<%= raw(a) %>', '<p>plain</p>', '<%== b %>')]).map(
+      ({ id, line }) => ({ id, line }),
+    ),
+  ).toEqual([
+    { id: `security:html-safe:${VIEW}`, line: `${VIEW}@head:2` },
+    { id: `security:html-safe:${VIEW}#2`, line: `${VIEW}@head:4` },
+  ]);
+});

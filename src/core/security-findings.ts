@@ -54,13 +54,13 @@ export const viewRiskFindings = (patches: ReadonlyArray<FilePatch>): ReadonlyArr
       patchHunks(patch)
         .flatMap(hunk => hunk.rows)
         .filter(row => row.kind === 'added' && MARKS_SAFE.test(row.code))
-        .flatMap((row): ReadonlyArray<Finding> => {
+        .flatMap((row, index): ReadonlyArray<Finding> => {
           const line = lineIdOf(path, row);
           return line === undefined
             ? []
             : [
                 {
-                  id: `security:html-safe:${path}`,
+                  id: countedId(`security:html-safe:${path}`, index),
                   check: 'security:html-safe',
                   dimension: 'security',
                   level: 'look',
