@@ -8,16 +8,11 @@ import {
   decisionsOfClass,
   decisionsOfMethod,
 } from './ruby-decisions.ts';
-import { readRuby } from './ruby-syntax.ts';
+import { constantWithin, readRuby } from './ruby-syntax.ts';
 
 const DEFINITIONS = new Set(['class', 'module']);
 
 const BODIES = new Set(['program', 'body_statement', 'block_body']);
-
-const constantWithin = (written: string, within: string | undefined): string => {
-  if (written.startsWith('::')) return written.slice(2);
-  return within === undefined ? written : `${within}::${written}`;
-};
 
 const signatureOf = (definition: Node): string =>
   definition.childForFieldName('superclass')?.text ?? '';

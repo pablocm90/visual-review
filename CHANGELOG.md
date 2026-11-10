@@ -2,12 +2,21 @@
 
 What changed in each release of `@pablocm90/visual-review`, newest first. Versions follow [semver](https://semver.org); while it is 0.x, a minor version may change the exported types.
 
-## 0.63.0 — 2026-11-10
+## Unreleased
 
 ### Added
 
 - A note keyed `line <file>@<base|head>:<n>` is on one row of a patch, drawn file or not: a removed row by its base number, a context or added row by its head's, as a comment on that row is anchored. It shows under that row in **Full diff**, which opens by itself with that patch open, in a symbol's **Diff** once toggled, and in the changed files outside the graph, with its why, its recommendation and, on a served page, **Take**, which opens that row's field with **Change this** picked. `--notes` refuses a key naming no row the page's patches hold (`unknown key line <id>`), including the base number of a context row. A flag on one lands on its row from the findings rail and **Start here**: in Full diff on the node holding the file, or, for a file outside the graph, in those files, where the review tray's answer to it goes too. A line change in the last review's `unasked` is named by its row and its text.
 - The skill may add a line note, and flag it, where a single diff line holds the point and no function, logic line or test note can name it.
+
+## 0.63.0 — 2026-11-10
+
+### Added
+
+- Rails controller actions with no authorization raise `security:unauthorized`, the first `security` check. When a change touches a controller or a route, every controller is read at both sides, without running Ruby: an action is covered by an authorizing `before_action` or `around_action` reaching it (an `after_action` only when it is `verify_authorized`, since any other runs once the action has; its controller's, a parent's in the app or an included concern's, within `only` and `except`, unless a later skip removes it) or by its own call. A new action with no cover, one that lost its cover, or one a route the change adds now reaches needs a look; one covered only under `if:` / `unless:` is for information. An action already uncovered raises nothing.
+- `visual-review.config.json` takes `security.authorize`, the names that authorize, `*` a wildcard (Pundit's and CanCanCan's by default), and `security.open`, `Controller#action` globs of actions meant to be public. Both are read from the range's base, as `notes` is, so a change can't open its own actions.
+- Coverage lists `security`: `Rails only` with no Rails app, else what couldn't be read, by file and line (a callback list with a splat, a block calling no authorizing name, a parent or concern outside the controllers, a controller that doesn't parse), and each `open` glob matching no action.
+- The skill cites a `security:` finding rather than guessing about access.
 
 ## 0.62.0 — 2026-11-10
 

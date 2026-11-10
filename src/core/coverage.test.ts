@@ -16,6 +16,8 @@ const facts = (overrides: Partial<CoverageFacts> = {}): CoverageFacts => ({
   routes: [],
   reachesNotRead: [],
   rulesNotRead: [],
+  access: [],
+  openActions: [],
   ...overrides,
 });
 
@@ -35,6 +37,7 @@ test('with nothing unread, each dimension a check raises is listed as checked, a
     { dimension: 'routes', notRead: [] },
     { dimension: 'blast-radius', notRead: [] },
     { dimension: 'cohesion', notRead: [] },
+    { dimension: 'security', notRead: [] },
   ]);
 });
 
@@ -147,6 +150,17 @@ test.for([
   expect(notReadIn('schema', { readers: ['typescript'], ...overrides })).toEqual(notRead);
 });
 
+test.for([
+  { reason: 'no Rails stack on either side', overrides: {}, notRead: ['Rails only'] },
+  {
+    reason: 'controllers read',
+    overrides: { access: [{ base: { actions: [] }, head: { actions: [] } }] },
+    notRead: [],
+  },
+])('with $reason and no Rails reader, security reads $notRead', ({ overrides, notRead }) => {
+  expect(notReadIn('security', { readers: ['typescript'], ...overrides })).toEqual(notRead);
+});
+
 test.for(['logic', 'api', 'tests', 'metrics'] as const)(
   'with no stack drawn, %s says so rather than reading as checked',
   dimension => {
@@ -182,4 +196,53 @@ test('routes names a route file it could not read, and not one it could', () => 
       ],
     }),
   ).toEqual(['not read: config/routes.rb']);
+});
+
+const unreadAction = {
+  controller: 'UsersController',
+  controllerPath: 'users',
+  action: 'show',
+  root: '',
+  file: 'app/controllers/users_controller.rb',
+  line: 4,
+  unread: [
+    { text: 'before_action *GLOBAL', file: 'app/controllers/application_controller.rb', line: 2 },
+  ],
+};
+
+test('security names, where it is written, what a new action was read through and could not be', () => {
+  expect(
+    notReadIn('security', {
+      access: [{ base: { actions: [] }, head: { actions: [unreadAction] } }],
+    }),
+  ).toEqual(['app/controllers/application_controller.rb:2 not read: before_action *GLOBAL']);
+});
+
+test("security leaves out what an action the config's security.open lists was read through", () => {
+  expect(
+    notReadIn('security', {
+      access: [{ base: { actions: [] }, head: { actions: [unreadAction] } }],
+      openActions: ['UsersController#show'],
+    }),
+  ).toEqual([]);
+});
+
+test('security names what an unchanged action was read through when a route the change adds reaches it', () => {
+  const route = {
+    verb: 'GET',
+    path: '/users/:id',
+    target: 'users#show',
+    root: '',
+    file: 'config/routes.rb',
+    line: 3,
+  };
+
+  expect(
+    notReadIn('security', {
+      access: [{ base: { actions: [unreadAction] }, head: { actions: [unreadAction] } }],
+      routes: [
+        { routes: [{ state: 'added', head: route, patch: 'config/routes.rb' }], unread: [] },
+      ],
+    }),
+  ).toHaveLength(1);
 });

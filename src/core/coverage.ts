@@ -1,3 +1,4 @@
+import { accessNotRead } from './access-findings.ts';
 import type { Dimension } from './findings.ts';
 import { NO_AXUM_CRATE } from './linker.ts';
 import type { RangeReading } from './read-range.ts';
@@ -23,9 +24,25 @@ export type CoverageFacts = Pick<
   | 'routes'
   | 'reachesNotRead'
   | 'rulesNotRead'
+  | 'access'
+  | 'openActions'
 >;
 
 const notReadFor = (name: string): string => `not read for ${name}`;
+
+const securityNotRead = ({
+  access,
+  readers,
+  routes,
+  openActions,
+}: Pick<CoverageFacts, 'access' | 'readers' | 'routes' | 'openActions'>): ReadonlyArray<string> =>
+  access.length === 0 && !readers.includes('rails')
+    ? ['Rails only']
+    : accessNotRead({
+        access,
+        routes: routes.flatMap(reading => ('routes' in reading ? reading.routes : [])),
+        open: openActions,
+      });
 
 export const coverageOf = ({
   skipped,
@@ -41,6 +58,8 @@ export const coverageOf = ({
   routes,
   reachesNotRead,
   rulesNotRead,
+  access,
+  openActions,
 }: CoverageFacts): ReadonlyArray<Coverage> => {
   const skippedStacks = skipped.flatMap(({ stacks }) => stacks);
   const symbolsMissing = [
@@ -87,5 +106,6 @@ export const coverageOf = ({
     { dimension: 'routes', notRead: routesNotRead },
     { dimension: 'blast-radius', notRead: ifDrawn([...symbolsMissing, ...reachesNotRead]) },
     { dimension: 'cohesion', notRead: [] },
+    { dimension: 'security', notRead: securityNotRead({ access, readers, routes, openActions }) },
   ];
 };

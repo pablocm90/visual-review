@@ -149,7 +149,7 @@ const writeReview = async (args: ReadonlyArray<string>): Promise<string> => {
     await fillNotes({ range, page, notesFile: values.notes });
     return page;
   }
-  const { linkers, lockfiles, migrations, readers, routes, schemas } = await import(
+  const { access, linkers, lockfiles, migrations, readers, routes, schemas } = await import(
     './adapters.ts'
   );
   const reviewed =
@@ -165,6 +165,7 @@ const writeReview = async (args: ReadonlyArray<string>): Promise<string> => {
     migrations,
     schemas,
     routes,
+    access,
     onPath,
   });
   reading.skipped.forEach(skip => {

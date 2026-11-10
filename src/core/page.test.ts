@@ -71,6 +71,8 @@ const readingOf = (overrides: Partial<Omit<RangeReading, 'reviewed'>>): RangeRea
   migrations: [],
   schemas: [],
   routes: [],
+  access: [],
+  openActions: [],
   tests: [],
   symbols: [],
   symbolsNotRead: [],
@@ -292,6 +294,63 @@ test('an edge the change adds breaking an architecture rule raises its finding t
       .findings.filter(({ check }) => check === 'rules:broken')
       .map(({ id, level }) => ({ id, level })),
   ).toStrictEqual([{ id: 'rules:broken:no-stack:web/file/a.ts -> web', level: 'look' }]);
+});
+
+const controllerAction = {
+  controller: 'UsersController',
+  controllerPath: 'users',
+  action: 'show',
+  root: '',
+  file: 'app/controllers/users_controller.rb',
+  line: 2,
+};
+
+test('an action the change adds with no authorization raises its finding to look at on the page', () => {
+  const reading = readingWith({
+    access: [{ base: { actions: [] }, head: { actions: [controllerAction] } }],
+  });
+
+  expect(
+    pageData({ repo: 'shop', reading, range: 'a..b', version, parsers })
+      .findings.filter(({ check }) => check === 'security:unauthorized')
+      .map(({ id, level }) => ({ id, level })),
+  ).toStrictEqual([{ id: 'security:unauthorized::UsersController#show', level: 'look' }]);
+});
+
+test('a route the change adds to an action with no authorization raises its finding on the page', () => {
+  const reading = readingWith({
+    access: [
+      {
+        base: { actions: [controllerAction] },
+        head: { actions: [controllerAction] },
+      },
+    ],
+    routes: [
+      {
+        routes: [
+          {
+            state: 'added',
+            head: {
+              verb: 'GET',
+              path: '/users/:id',
+              target: 'users#show',
+              root: '',
+              file: 'config/routes.rb',
+              line: 2,
+            },
+            patch: 'config/routes.rb',
+          },
+        ],
+        unread: [],
+      },
+    ],
+  });
+
+  expect(
+    pageData({ repo: 'shop', reading, range: 'a..b', version, parsers })
+      .findings.filter(({ check }) => check === 'security:unauthorized')
+      .map(({ title }) => title),
+  ).toStrictEqual(['UsersController#show newly routed with no authorization']);
 });
 
 test("an added migration's risks raise their findings on the page, and it keeps the reading", () => {
