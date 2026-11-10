@@ -3828,7 +3828,7 @@ test('a private key line holding another of its lines is masked whole, not aroun
       addingLine(
         'config/deploy.pem',
         '-----BEGIN RSA PRIVATE KEY-----',
-        'x1y2z3',
+        'MIIEowIBAAKCAQEA',
         'MIIEowIBAAKCAQEAx1y2z3',
         '-----END RSA PRIVATE KEY-----',
       ),
@@ -3841,7 +3841,7 @@ test('a private key line holding another of its lines is masked whole, not aroun
     [
       '@@ -0,0 +1,4 @@',
       '+-----BEGIN RSA PRIVATE KEY-----',
-      '+x1y2…(6 chars)',
+      '+MIIE…(16 chars)',
       '+MIIE…(22 chars)',
       '+-----END RSA PRIVATE KEY-----',
     ].join('\n'),

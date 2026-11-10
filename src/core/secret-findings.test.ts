@@ -284,3 +284,18 @@ test('the body lines of a private key a change adds are values to mask, up to it
     'QyNTUxOQAAACBhc2RmYXNkZmFzZGZhc2RmYXNkZmFzZGZhc2RmYXNkZgAAAJgAAAAA',
   ]);
 });
+
+test("a private key's body line is a value to mask only when it reads as base64 of 16 characters or more, so no code line or short line is masked page-wide", () => {
+  expect(
+    secretValues([
+      patchAdding(
+        '-----BEGIN RSA PRIVATE KEY-----',
+        'AAAA+BBB/CCCDDDD',
+        'AAAABBBBCCCCDDD',
+        'verifyAuthorizedAccess(user) unless currentUserIsAdmin',
+        'Zm9vYmFyYmF6cXV4cXV1eA==',
+        '-----END RSA PRIVATE KEY-----',
+      ),
+    ]),
+  ).toStrictEqual(['AAAA+BBB/CCCDDDD', 'Zm9vYmFyYmF6cXV4cXV1eA==']);
+});

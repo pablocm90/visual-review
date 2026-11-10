@@ -135,6 +135,8 @@ const secretLines = ({ path, patch }: FilePatch): ReadonlyArray<Finding> =>
 export const secretFindings = (patches: ReadonlyArray<FilePatch>): ReadonlyArray<Finding> =>
   patches.flatMap(patch => [...secretFile(patch), ...secretLines(patch)]);
 
+const KEY_LINE = /^[A-Za-z0-9+/]{16,}={0,2}$/;
+
 type KeyBody = { readonly inKey: boolean; readonly lines: ReadonlyArray<string> };
 
 const keyBodies = ({ patch }: FilePatch): ReadonlyArray<string> =>
@@ -146,7 +148,7 @@ const keyBodies = ({ patch }: FilePatch): ReadonlyArray<string> =>
         if (KEY_HEADER.test(code)) return { inKey: true, lines };
         if (KEY_FOOTER.test(code)) return { inKey: false, lines };
         const line = code.trim();
-        return { inKey, lines: inKey && line !== '' ? [...lines, line] : lines };
+        return { inKey, lines: inKey && KEY_LINE.test(line) ? [...lines, line] : lines };
       },
       { inKey: false, lines: [] },
     ).lines;
