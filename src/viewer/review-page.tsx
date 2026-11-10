@@ -4,6 +4,7 @@ import {
   type PointerEvent,
   type ReactNode,
   type RefObject,
+  useContext,
   useEffect,
   useEffectEvent,
   useId,
@@ -12,7 +13,7 @@ import {
   useRef,
   useState,
 } from 'react';
-import { anchorKey } from '../core/anchors.ts';
+import { anchorKey, anchorOfKey, fileOfLine } from '../core/anchors.ts';
 import type { DiffedNode, FilePatch, GraphDiff } from '../core/diff-graphs.ts';
 import { deepestHolding, isAtOrUnder } from '../core/diff-graphs.ts';
 import { anchorOfNoteFlag, type Finding, findingsAt, findingsOf } from '../core/findings.ts';
@@ -527,6 +528,15 @@ const onThePart = (landing: LandingIn | undefined) =>
 const holdsLineDraft = (comments: Comments, path: string) =>
   Object.values(comments).some(({ anchor }) => placeOfLine(anchor)?.path === path);
 
+const useHoldsLineNote = () => {
+  const { notes } = useContext(RowNotes);
+  return (path: string) =>
+    Object.keys(notes).some(key => {
+      const { kind, id } = anchorOfKey(key);
+      return kind === 'line' && fileOfLine(id) === path;
+    });
+};
+
 const Patch = ({
   path,
   patch,
@@ -550,8 +560,13 @@ const Patch = ({
     else scrollInPanel(top.current, 'start');
   }, [landed]);
   const holdsDraft = holdsLineDraft(commenting.comments, path);
+  const holdsNote = useHoldsLineNote()(path);
   return (
-    <details aria-label={path} open={open || holdsDraft || saidLines.length > 0} ref={top}>
+    <details
+      aria-label={path}
+      open={open || holdsDraft || holdsNote || saidLines.length > 0}
+      ref={top}
+    >
       <summary>
         {path}
         <ChangedSinceTag marked={marked} />
@@ -741,12 +756,13 @@ const FullDiff = ({
 }: FullDiffProps) => {
   const [closedAt, setClosedAt] = useState<{ readonly landing: LandingIn | undefined }>();
   const [landedOn, setLandedOn] = useState(false);
+  const holdsLineNote = useHoldsLineNote();
   const onAPatch = landing?.path === undefined ? undefined : landing;
   if (onAPatch !== undefined && !landedOn) setLandedOn(true);
   const wanted =
     onAPatch !== undefined ||
     landedOn ||
-    patches.some(({ path }) => holdsLineDraft(commenting.comments, path));
+    patches.some(({ path }) => holdsLineDraft(commenting.comments, path) || holdsLineNote(path));
   const closed =
     closedAt !== undefined && (onAPatch === undefined || closedAt.landing === onAPatch);
   const open = (held || wanted) && !closed;

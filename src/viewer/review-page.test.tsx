@@ -6474,7 +6474,7 @@ test("a comment on a line of a symbol's diff shows in Full diff too, and the tra
   );
 });
 
-test("a note on a diff line shows under its row in Full diff, and under the same row in its symbol's Diff", async () => {
+test("a note on a diff line shows under its row in Full diff, open by itself, and under the same row in its symbol's Diff", async () => {
   const user = userEvent.setup();
   render(
     <ReviewPage
@@ -6508,11 +6508,56 @@ test("a note on a diff line shows under its row in Full diff, and under the same
   };
 
   await user.click(await screen.findByRole('button', { name: 'two.ts: modified' }));
-  await openFold(user, 'Full diff');
   expect(noteIn(diffTab())).toBe('Three was the old default.');
 
   await toggleSymbolDiff(user, 'b');
   expect(noteIn(whatChanged())).toBe('Three was the old default.');
+});
+
+test("a box's patch holding a line note opens by itself, its other patches closed", async () => {
+  const user = userEvent.setup();
+  render(
+    <ReviewPage
+      review={pageWith({
+        range: review.range,
+        diff: {
+          nodes: [
+            { id: 'web', kind: 'stack', label: 'web', path: '', state: 'unchanged' },
+            {
+              id: 'web/module/billing',
+              kind: 'module',
+              label: 'billing',
+              parent: 'web',
+              path: 'web/src/billing',
+              state: 'modified',
+            },
+            ...['refund.ts', 'tax.ts'].map(file => ({
+              ...topFile(file, 'modified'),
+              parent: 'web/module/billing',
+              path: `web/src/billing/${file}`,
+            })),
+          ],
+          edges: [],
+        },
+        patches: ['refund.ts', 'tax.ts'].map(file =>
+          patchOf(`web/src/billing/${file}`, '@@ -1 +1 @@', '-a', '+b'),
+        ),
+      })}
+      notes={{
+        version: 2,
+        tests: '',
+        summary: [],
+        notes: { 'line web/src/billing/refund.ts@head:1': { text: 'b, not a.' } },
+      }}
+    />,
+  );
+  const patchOpen = (path: string) =>
+    within(diffTab()).getByRole('group', { name: path }).hasAttribute('open');
+
+  await user.click(await screen.findByRole('button', { name: 'billing: modified' }));
+
+  expect(patchOpen('web/src/billing/refund.ts')).toBe(true);
+  expect(patchOpen('web/src/billing/tax.ts')).toBe(false);
 });
 
 test('a symbol moved between files opens its lines from both, each named by its file, the one it left first, from either end', async () => {
