@@ -2,6 +2,12 @@
 
 What changed in each release of `@pablocm90/visual-review`, newest first. Versions follow [semver](https://semver.org); while it is 0.x, a minor version may change the exported types.
 
+## Unreleased
+
+### Changed
+
+- A base `visual-review.config.json` that isn't JSON reads as no notes settings (`notesConfig` `{}`) rather than failing the review, so a PR repairing it can be reviewed. A base `notes` entry that doesn't parse still fails, naming the file at the base.
+
 ## 0.61.0 — 2026-11-09
 
 ### Added
