@@ -25,7 +25,9 @@ const gained = (
 export const tenancyFindings = (tenancy: ReadonlyArray<TenancyReading>): ReadonlyArray<Finding> =>
   tenancy.flatMap(({ base, head }) =>
     head.configs.flatMap(({ root, file, excluded }) => {
-      const before = base.configs.flatMap(config => config.excluded);
+      const atBase = base.configs.filter(config => config.root === root);
+      if (atBase.length === 0) return [];
+      const before = atBase.flatMap(config => config.excluded);
       return [...gained(excluded, before).map(added), ...gained(before, excluded).map(removed)].map(
         ({ model, ...said }): Finding => ({
           id: `tenancy:excluded:${root}:${model}`,

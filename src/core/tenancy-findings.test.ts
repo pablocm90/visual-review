@@ -49,3 +49,31 @@ test('a model no longer excluded needs a look too', () => {
     },
   ]);
 });
+
+test("each app's excluded models are compared with its own", () => {
+  const admin = (excluded: ReadonlyArray<string>) => config({ root: 'admin', excluded });
+  const shop = (excluded: ReadonlyArray<string>) => config({ root: 'shop', excluded });
+
+  expect(
+    tenancyFindings([
+      {
+        base: { configs: [admin(['Company', 'Plan']), shop(['Company'])] },
+        head: { configs: [admin(['Company', 'Plan']), shop(['Company', 'Plan'])] },
+      },
+    ]).map(({ id }) => id),
+  ).toStrictEqual(['tenancy:excluded:shop:Plan']);
+});
+
+test('an app whose config was not read at the base raises nothing', () => {
+  expect(
+    tenancyFindings([
+      {
+        base: {
+          configs: [],
+          notRead: [{ root: '', file: FILE, reason: `Ruby syntax error in ${FILE}` }],
+        },
+        head: { configs: [config({ excluded: ['Company', 'Plan'] })] },
+      },
+    ]),
+  ).toStrictEqual([]);
+});
