@@ -366,3 +366,35 @@ test('tenancy names each excluded_models entry not read, at the base only when t
     `${APARTMENT}:4 not read at the base: Billing.models`,
   ]);
 });
+
+test("tenancy names an app's entry not read at the base though another app's like it is not read at both", () => {
+  const unread = (file: string): TenantTable['configs'][number] => ({
+    root: '',
+    file,
+    excluded: [],
+    jobsCarryTenant: false,
+    unread: [{ text: 'MODELS', file, line: 2 }],
+  });
+  const other = 'apps/admin/config/initializers/apartment.rb';
+  expect(
+    notReadIn('tenancy', {
+      tenancy: [
+        {
+          base: { configs: [unread(APARTMENT), unread(other)] },
+          head: { configs: [unread(other)] },
+        },
+      ],
+    }),
+  ).toEqual([`${other}:2 not read: MODELS`, `${APARTMENT}:2 not read at the base: MODELS`]);
+});
+
+test('tenancy is no Apartment only while any tenant reader found a config', () => {
+  expect(
+    notReadIn('tenancy', {
+      tenancy: [
+        { base: { configs: [] }, head: { configs: [] } },
+        { base: apartment(), head: apartment() },
+      ],
+    }),
+  ).toEqual([]);
+});

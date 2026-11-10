@@ -63,7 +63,7 @@ const excludedIn = (file: string, configure: Node): Excluded => {
     .descendantsOfType('assignment')
     .filter(assignment => {
       const left = assignment.childForFieldName('left');
-      return left?.type === 'call' && methodOf(left) === 'excluded_models';
+      return left !== null && methodOf(left) === 'excluded_models';
     })
     .at(-1)
     ?.childForFieldName('right');

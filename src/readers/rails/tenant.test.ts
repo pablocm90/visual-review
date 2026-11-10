@@ -57,6 +57,15 @@ test.for([
   ).toBe(true);
 });
 
+test('Apartment::ActiveJob extended, not included, carries no tenant', () => {
+  expect(
+    read({
+      'config/initializers/apartment.rb': APARTMENT,
+      'config/initializers/active_job.rb': 'ActiveJob::Base.extend Apartment::ActiveJob\n',
+    }).configs[0]?.jobsCarryTenant,
+  ).toBe(false);
+});
+
 test('another app’s Apartment::ActiveJob carries no tenant here', () => {
   expect(
     read({
@@ -73,6 +82,7 @@ test.for([
   { path: 'app/jobs/application_job.rb', held: true },
   { path: 'apps/shop/app/jobs/application_job.rb', held: true },
   { path: 'app/jobs/sync_job.rb', held: false },
+  { path: 'lib/myconfig/apartment.rb', held: false },
   { path: 'config/locales/en.yml', held: false },
   { path: 'vendor/gems/x/config/initializers/apartment.rb', held: false },
   { path: 'spec/dummy/config/initializers/apartment.rb', held: false },
@@ -98,6 +108,7 @@ test.for([
   { list: '[*SHARED, "Company"]', excluded: ['Company'], unread: ['*SHARED'] },
   { list: '["#{prefix}Company", User]', excluded: ['User'], unread: ['"#{prefix}Company"'] },
   { list: '%W[#{prefix}Company User]', excluded: ['User'], unread: ['#{prefix}Company'] },
+  { list: '[shared::Company, User]', excluded: ['User'], unread: ['shared::Company'] },
 ])('$list is read as far as it is written out', ({ list, excluded, unread }) => {
   expect(excludedAs(list)).toMatchObject({
     excluded,
@@ -105,14 +116,40 @@ test.for([
   });
 });
 
-test('the last excluded_models written is the one Apartment keeps', () => {
+test('the last excluded_models written is the one Apartment keeps, whatever is set after it', () => {
   expect(
     read({
       'config/initializers/apartment.rb': initializer(
-        '  config.excluded_models = %w[Company]\n  config.excluded_models = %w[User]',
+        '  config.excluded_models = %w[Company]\n  config.excluded_models = %w[User]\n  config.tenant_names = %w[a b]',
       ),
     }).configs[0]?.excluded,
   ).toStrictEqual(['User']);
+});
+
+test('::Apartment.configure is read as Apartment.configure', () => {
+  expect(
+    read({
+      'config/initializers/apartment.rb': `::${initializer('  config.excluded_models = %w[Company]')}`,
+    }).configs[0]?.excluded,
+  ).toStrictEqual(['Company']);
+});
+
+test('Apartment called for anything but configure gives no config', () => {
+  expect(read({ 'config/initializers/tenants.rb': 'Apartment.reset\n' })).toStrictEqual({
+    configs: [],
+  });
+});
+
+test('a config file never naming Apartment is not read, so one broken is no blind spot', () => {
+  expect(read({ 'config/initializers/sidekiq.rb': 'Sidekiq.configure_server do\n' })).toStrictEqual(
+    { configs: [] },
+  );
+});
+
+test('an app whose first config folder holds another config folder is the app above the first', () => {
+  expect(read({ 'apps/shop/config/tenancy/config/apartment.rb': APARTMENT }).configs[0]?.root).toBe(
+    'apps/shop/',
+  );
 });
 
 test.for([
