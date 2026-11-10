@@ -2,7 +2,7 @@ import type { FilePatch } from './diff-graphs.ts';
 import type { Finding } from './findings.ts';
 import { lineIdOf, patchHunks } from './patch-lines.ts';
 
-const ENV_READ = /ENV\["(\w+)"\]/g;
+const ENV_READ = /\bENV(?:\[|\.fetch\(|\.key\?\()["'](\w+)["']/g;
 
 const keysOn = ({ path, patch }: FilePatch): ReadonlyArray<Finding> =>
   patchHunks(patch)
