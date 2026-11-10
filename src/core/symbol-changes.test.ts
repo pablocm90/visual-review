@@ -948,6 +948,27 @@ test('a paired symbol carries the risks its head gains over its base, counted as
   ]);
 });
 
+test('a permit the base could not name does not cancel the one the head names alike', () => {
+  const before = readRuby(
+    'class UsersController',
+    '  def create',
+    '    params.permit(email)',
+    '  end',
+    'end',
+  );
+  const after = readRuby(
+    'class UsersController',
+    '  def create',
+    '    params.permit(:email)',
+    '  end',
+    'end',
+  );
+
+  expect(risksOf(symbolChanges({ before, after }), 'create')).toEqual([
+    { kind: 'permit', text: 'email' },
+  ]);
+});
+
 test('an added symbol carries every risk it holds', () => {
   const before = readRuby('class UsersController', 'end');
   const after = readRuby(

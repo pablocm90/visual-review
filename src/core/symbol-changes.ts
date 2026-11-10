@@ -96,7 +96,8 @@ const logicOf = (old: ReadSymbol, symbol: ReadSymbol) => {
   return logic.every(({ change }) => change === 'same') ? {} : { logic };
 };
 
-const riskKey = ({ kind, text }: Risk): string => `${kind} ${text}`;
+const riskKey = ({ kind, text, unread }: Risk): string =>
+  `${kind} ${text}${unread ? ' unread' : ''}`;
 
 const gainedRisks = (old: Pick<ReadSymbol, 'risks'>, symbol: ReadSymbol) => {
   const risks = (old.risks ?? []).reduce((left, lost) => {
