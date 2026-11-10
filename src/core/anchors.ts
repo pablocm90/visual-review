@@ -5,6 +5,13 @@ import { nodeOfTests } from './tests-alongside.ts';
 
 type Keyed = { readonly kind: string; readonly id: string };
 
+export const NOTED_KINDS = ['part', 'edge', 'symbol', 'decision', 'test'] as const;
+
+export type Noted = { readonly kind: (typeof NOTED_KINDS)[number]; readonly id: string };
+
+export const isNoted = (anchor: Keyed): anchor is Noted =>
+  NOTED_KINDS.some(kind => kind === anchor.kind);
+
 export const split = (id: string, at: string): readonly [string, string] => {
   const cut = id.indexOf(at);
   return [id.slice(0, cut), id.slice(cut + at.length)];

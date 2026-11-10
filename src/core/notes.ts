@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { anchorKey, anchorOfKey } from './anchors.ts';
+import { anchorKey, anchorOfKey, NOTED_KINDS } from './anchors.ts';
 import type { NotesConfig } from './config.ts';
 import type { GraphDiff } from './diff-graphs.ts';
 import { DIMENSIONS } from './findings.ts';
@@ -32,11 +32,7 @@ const AnswerSchema = z.discriminatedUnion('status', [
   answerOf('declined', 'Not taken, and this says why'),
 ]);
 
-const NoteKeySchema = z.templateLiteral([
-  z.enum(['part', 'edge', 'symbol', 'decision', 'test']),
-  ' ',
-  z.string(),
-]);
+const NoteKeySchema = z.templateLiteral([z.enum(NOTED_KINDS), ' ', z.string()]);
 
 const ReviewNotesSchema = z
   .strictObject({

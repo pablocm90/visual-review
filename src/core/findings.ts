@@ -1,4 +1,4 @@
-import { anchorOfKey, anchorTarget } from './anchors.ts';
+import { anchorOfKey, anchorTarget, isNoted, type Noted } from './anchors.ts';
 import type { Check } from './checks.ts';
 import { dependencyFindings } from './dependency-findings.ts';
 import type { FilePatch, GraphDiff } from './diff-graphs.ts';
@@ -248,13 +248,6 @@ export const raisedFindings = ({
 ];
 
 const NOTE_FLAG = 'notes:';
-
-const NOTED = ['part', 'edge', 'symbol', 'decision', 'test'] as const;
-
-type Noted = { readonly kind: (typeof NOTED)[number]; readonly id: string };
-
-const isNoted = (anchor: { readonly kind: string }): anchor is Noted =>
-  NOTED.some(kind => kind === anchor.kind);
 
 export const anchorOfNoteFlag = (id: string): Noted | undefined => {
   if (!id.startsWith(NOTE_FLAG)) return undefined;
