@@ -76,7 +76,7 @@ test.for([
   'xoxb-xxxx',
   'sk_live_xxxx',
 ])('%s, a test key, another prefix or a placeholder too short for a key, raises nothing', value => {
-  expect(secretFindings([patchAdding(`  token = "${value}"`)])).toEqual([]);
+  expect(secretFindings([patchAdding(`  value = "${value}"`)])).toEqual([]);
 });
 
 test.for(['RSA ', 'EC ', 'OPENSSH ', ''])(
@@ -97,3 +97,35 @@ test.for(['RSA ', 'EC ', 'OPENSSH ', ''])(
     ]);
   },
 );
+
+const HEURISTIC =
+  'heuristic: a long, varied literal under a secret-like name. Rotate it: it stays in git history once removed.';
+
+test.for([
+  { code: '  api_key = "aB3dE5fG7hJ9kL1mN0pQ"', name: 'api_key' },
+  { code: "  password: 'aB3dE5fG7hJ9kL1mN0pQ',", name: 'password' },
+  { code: '  "client_secret" => "aB3dE5fG7hJ9kL1mN0pQ",', name: 'client_secret' },
+  { code: "SECRET_TOKEN = 'aB3dE5fG7hJ9kL1mN0pQ'", name: 'SECRET_TOKEN' },
+  { code: "export const apiKey = 'aB3dE5fG7hJ9kL1mN0pQ';", name: 'apiKey' },
+])('a varied literal a line gains under $name needs a look, by heuristic', ({ code, name }) => {
+  expect(
+    secretFindings([patchAdding(code)]).map(({ id, title, detail }) => ({ id, title, detail })),
+  ).toStrictEqual([
+    {
+      id: `security:secret:${FILE}#assigned-secret`,
+      title: `${FILE} adds a secret-like value for ${name}`,
+      detail: `aB3d…(20 chars), ${HEURISTIC}`,
+    },
+  ]);
+});
+
+test.for([
+  { code: '  password = "your-api-key-here"', why: 'a placeholder, little varied' },
+  { code: '  token = "aB3dE5fG7hJ9kL1"', why: 'shorter than 16 characters' },
+  { code: '  token = ENV["API_TOKEN_FOR_THE_APP"]', why: 'no literal assigned' },
+  { code: '  if token == "aB3dE5fG7hJ9kL1mN0pQ"', why: 'compared, not assigned' },
+  { code: '  name = "aB3dE5fG7hJ9kL1mN0pQ"', why: 'under a name holding no secret word' },
+  { code: '  password_hint: "Use twelve characters, one digit"', why: 'words, not a key' },
+])('$code raises nothing: $why', ({ code }) => {
+  expect(secretFindings([patchAdding(code)])).toEqual([]);
+});

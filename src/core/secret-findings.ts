@@ -32,6 +32,41 @@ const ROTATE = 'Rotate it: it stays in git history once removed.';
 
 const masked = (value: string): string => `${value.slice(0, 4)}…(${value.length} chars)`;
 
+type Found = {
+  readonly name: string;
+  readonly said: string;
+  readonly detail: string;
+};
+
+const knownFormat = (code: string): ReadonlyArray<Found> =>
+  FORMATS.flatMap(({ name, said, pattern, shown = masked }) => {
+    const value = pattern.exec(code)?.[0];
+    return value === undefined ? [] : [{ name, said, detail: `${shown(value)}. ${ROTATE}` }];
+  });
+
+const ASSIGNED =
+  /(\w*(?:password|secret|token|api_?key)\w*)["']?\s*(?:=>|:|=)\s*["']([^"'\s]{16,})["']/i;
+
+const MOST_ORDERLY = 3.5;
+
+const entropy = (value: string): number =>
+  [...Map.groupBy(value, char => char).values()]
+    .map(({ length }) => length / value.length)
+    .reduce((sum, share) => sum - share * Math.log2(share), 0);
+
+const assignedSecret = (code: string): ReadonlyArray<Found> => {
+  const [, name, value] = ASSIGNED.exec(code) ?? [];
+  return name === undefined || value === undefined || entropy(value) <= MOST_ORDERLY
+    ? []
+    : [
+        {
+          name: 'assigned-secret',
+          said: `a secret-like value for ${name}`,
+          detail: `${masked(value)}, heuristic: a long, varied literal under a secret-like name. ${ROTATE}`,
+        },
+      ];
+};
+
 export const secretFindings = (patches: ReadonlyArray<FilePatch>): ReadonlyArray<Finding> =>
   patches.flatMap(({ path, patch }) =>
     countingRepeats(
@@ -39,13 +74,12 @@ export const secretFindings = (patches: ReadonlyArray<FilePatch>): ReadonlyArray
         .flatMap(hunk => hunk.rows)
         .filter(row => row.kind === 'added')
         .flatMap(row =>
-          FORMATS.flatMap(format => {
-            const value = format.pattern.exec(row.code)?.[0];
-            return value === undefined ? [] : [{ row, format, value }];
-          }),
+          (knownFormat(row.code).length > 0 ? knownFormat(row.code) : assignedSecret(row.code)).map(
+            found => ({ row, found }),
+          ),
         ),
-      ({ format }) => `security:secret:${path}#${format.name}`,
-    ).flatMap(({ item: { row, format, value }, id }): ReadonlyArray<Finding> => {
+      ({ found }) => `security:secret:${path}#${found.name}`,
+    ).flatMap(({ item: { row, found }, id }): ReadonlyArray<Finding> => {
       const line = lineIdOf(path, row);
       return line === undefined
         ? []
@@ -57,8 +91,8 @@ export const secretFindings = (patches: ReadonlyArray<FilePatch>): ReadonlyArray
               level: 'look',
               file: path,
               line,
-              title: `${path} adds ${format.said}`,
-              detail: `${(format.shown ?? masked)(value)}. ${ROTATE}`,
+              title: `${path} adds ${found.said}`,
+              detail: found.detail,
             },
           ];
     }),
