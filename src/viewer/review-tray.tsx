@@ -179,7 +179,7 @@ const DraftList = ({
     {answered.flatMap(({ anchor, kind, text }) =>
       findings
         .filter(finding => finding.id === anchor.id)
-        .map(({ id, title, target, file, table, route }) => (
+        .map(({ id, title, target, file, table, route, line }) => (
           <Draft
             key={id}
             name={title}
@@ -187,7 +187,7 @@ const DraftList = ({
               target !== undefined
                 ? () => onGoToDraft(target, anchor)
                 : file !== undefined
-                  ? opener => onGoToFile(file, opener, table ?? route)
+                  ? opener => onGoToFile(file, opener, table ?? route ?? line)
                   : undefined
             }
             label={answerLabels.get(kind)}

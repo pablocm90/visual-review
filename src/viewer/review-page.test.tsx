@@ -6607,7 +6607,7 @@ test("the rail's flag on a diff line's note goes to its file and outlines that r
   );
 });
 
-test("the rail's flag on a line note in a file outside the graph opens those files on that row", async () => {
+test("the rail's flag on a line note in a file outside the graph opens those files on that row, as its answer in the tray does", async () => {
   const user = userEvent.setup();
   render(
     <ReviewPage
@@ -6626,22 +6626,31 @@ test("the rail's flag on a line note in a file outside the graph opens those fil
         summary: [],
         notes: { 'line README.md@head:2': { text: 'Newer.', flag: 'stale wording' } },
       }}
+      send={vi.fn(async () => {})}
     />,
   );
+  const landedRow = () => within(inspector()).getByRole('insertion', { current: true });
 
   await user.click(await screen.findByRole('button', { name: 'Show 1 finding' }));
-  await user.click(
-    within(screen.getByRole('complementary', { name: 'Findings' })).getByRole('button', {
-      name: /stale wording/,
-    }),
-  );
+  const rail = screen.getByRole('complementary', { name: 'Findings' });
+  await user.click(within(rail).getByRole('button', { name: /stale wording/ }));
 
   expect(within(inspector()).getByRole('heading', { level: 2 }).textContent).toBe(
     'Changed files outside the graph',
   );
-  expect(within(inspector()).getByRole('insertion', { current: true }).textContent).toContain(
-    'new',
+  expect(landedRow().textContent).toContain('new');
+
+  const finding = within(rail).getByText('stale wording').closest('li') ?? rail;
+  await user.click(within(finding).getByRole('button', { name: 'Fix this' }));
+  await user.click(within(inspector()).getByRole('button', { name: 'Close inspector' }));
+  await openReview(user);
+  await user.click(
+    within(screen.getByRole('list', { name: 'Drafts' })).getByRole('button', {
+      name: 'stale wording',
+    }),
   );
+
+  expect(landedRow().textContent).toContain('new');
 });
 
 test("a box's patch holding a line note opens by itself, its other patches closed", async () => {
