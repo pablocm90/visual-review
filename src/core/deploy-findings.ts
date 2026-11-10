@@ -40,7 +40,7 @@ const pathOf = (chain: string): string =>
 const credentialReads = (code: string): ReadonlyArray<Read> =>
   [...code.matchAll(CHAIN)].map(([, chain]) => ({ kind: 'credentials', key: pathOf(chain ?? '') }));
 
-const CODE = /\.(?:rb|erb|rs|[cm]?[jt]sx?)$/;
+const CODE = /\.(?:rb|rake|erb|rs|[cm]?[jt]sx?)$/;
 
 const rowsOf = ({ path, patch }: FilePatch, kind: 'added' | 'removed') =>
   CODE.test(path)
