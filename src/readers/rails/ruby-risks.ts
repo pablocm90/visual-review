@@ -40,8 +40,12 @@ const asWritten =
 const firstArgument = (call: Node): Node | undefined =>
   call.childForFieldName('arguments')?.namedChildren[0];
 
-const isLiteral = (node: Node): boolean =>
-  node.type === 'string' && node.namedChildren.every(({ type }) => type !== 'interpolation');
+const WRITTEN = new Set(['string', 'delimited_symbol']);
+
+const isLiteral = (node: Node | undefined): boolean =>
+  node?.type === 'simple_symbol' ||
+  (WRITTEN.has(node?.type ?? '') &&
+    (node?.namedChildren ?? []).every(({ type }) => type !== 'interpolation'));
 
 const sqlDetail = (given: Node | undefined): Pick<Risk, 'detail'> => {
   if (given === undefined || !isString(given)) return {};
@@ -77,6 +81,14 @@ const givenAString: Reading = call => (isString(firstArgument(call)) ? rawSql(ca
 const bareRaw: Reading = call =>
   call.childForFieldName('receiver') === null ? asWritten('html-safe')(call) : [];
 
+const sentByName =
+  (named: (call: Node) => Node | undefined): Reading =>
+  call =>
+    isLiteral(named(call)) ? [] : asWritten('dynamic-send')(call);
+
+const receiverOf = (call: Node): Node | undefined =>
+  call.childForFieldName('receiver') ?? undefined;
+
 const RISKS = new Map<string, Reading>([
   ...QUERIES.map((name): [string, Reading] => [name, givenAString]),
   ['permit', permittedKeys],
@@ -86,6 +98,10 @@ const RISKS = new Map<string, Reading>([
   ['html_safe', asWritten('html-safe')],
   ['safe_concat', asWritten('html-safe')],
   ['raw', bareRaw],
+  ['send', sentByName(firstArgument)],
+  ['public_send', sentByName(firstArgument)],
+  ['constantize', sentByName(receiverOf)],
+  ['safe_constantize', sentByName(receiverOf)],
 ]);
 
 export const risksIn = (body: Node): ReadonlyArray<Risk> =>

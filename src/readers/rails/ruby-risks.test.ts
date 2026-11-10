@@ -82,3 +82,25 @@ test.for(['name.html_safe', 'raw(name)', 'raw name', 'buffer.safe_concat(name)']
 test('raw on a receiver is no HTML marked safe', () => {
   expect(risksIn('response.raw(name)')).toEqual([]);
 });
+
+test.for([
+  'record.send(name)',
+  'record.public_send(name, 1)',
+  'send(name)',
+  'record.send("save_#{kind}")',
+  'record.send(:"save_#{kind}")',
+  'params[:type].constantize',
+  'params[:type].safe_constantize',
+  '"#{kind}Policy".constantize',
+])('%s reads as a dynamic send', call => {
+  expect(risksIn(call)).toEqual([{ kind: 'dynamic-send', text: call }]);
+});
+
+test.for([
+  'record.send(:save)',
+  'record.send("save")',
+  'record.send(:"save!")',
+  '"User".constantize',
+])('%s, sending a literal, is no dynamic send', call => {
+  expect(risksIn(call)).toEqual([]);
+});
