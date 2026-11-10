@@ -39,6 +39,7 @@ export const CHECK_TITLES = {
   'security:html-safe': 'HTML newly marked safe',
   'security:dynamic-send': 'sends of a name not written',
   'security:secret': 'secrets added',
+  'tenancy:excluded': 'excluded models added or removed',
 } as const;
 
 export type Check = keyof typeof CHECK_TITLES;
