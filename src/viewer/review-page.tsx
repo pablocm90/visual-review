@@ -15,7 +15,7 @@ import {
 import { anchorKey } from '../core/anchors.ts';
 import type { DiffedNode, FilePatch, GraphDiff } from '../core/diff-graphs.ts';
 import { deepestHolding, isAtOrUnder } from '../core/diff-graphs.ts';
-import { type Finding, findingsAt, findingsOf } from '../core/findings.ts';
+import { anchorOfNoteFlag, type Finding, findingsAt, findingsOf } from '../core/findings.ts';
 import { edgeId } from '../core/graph.ts';
 import {
   logicTotalsOf,
@@ -691,6 +691,13 @@ type InspectorProps = {
 };
 
 type LandingPlace = string | null | undefined;
+
+const rowOfFinding = (finding: string): string => {
+  const flagged = anchorOfNoteFlag(finding);
+  return flagged === undefined || flagged.kind === 'part' || flagged.kind === 'edge'
+    ? anchorKey({ kind: 'finding', id: finding })
+    : anchorKey(flagged);
+};
 
 type CommentAskedOn = { readonly on: string | undefined; readonly row: string | undefined };
 
@@ -2160,8 +2167,7 @@ const Page = ({ review, notes, send }: ReviewPageProps) => {
     landOn(id, { path: undefined, row });
     goTo(id);
   };
-  const goToFinding = (id: string, finding: string) =>
-    goToRow(id, anchorKey({ kind: 'finding', id: finding }));
+  const goToFinding = (id: string, finding: string) => goToRow(id, rowOfFinding(finding));
   const showOutsideAt = (place: LandingIn, opener: HTMLButtonElement) => {
     landOn(null, place);
     location.hash = '#structure';

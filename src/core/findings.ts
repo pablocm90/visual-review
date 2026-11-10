@@ -1,4 +1,4 @@
-import { anchorOfKey } from './anchors.ts';
+import { anchorOfKey, anchorTarget, isNoted, type Noted } from './anchors.ts';
 import type { Check } from './checks.ts';
 import { dependencyFindings } from './dependency-findings.ts';
 import type { FilePatch, GraphDiff } from './diff-graphs.ts';
@@ -249,35 +249,35 @@ export const raisedFindings = ({
 
 const NOTE_FLAG = 'notes:';
 
-const ON_THE_GRAPH = ['part', 'edge'];
-
-export const targetOfNoteFlag = (id: string): string | undefined => {
+export const anchorOfNoteFlag = (id: string): Noted | undefined => {
   if (!id.startsWith(NOTE_FLAG)) return undefined;
   const anchor = anchorOfKey(id.slice(NOTE_FLAG.length));
-  return ON_THE_GRAPH.includes(anchor.kind) ? anchor.id : undefined;
+  return isNoted(anchor) ? anchor : undefined;
 };
 
 type FindingsOfOptions = {
-  readonly data: Pick<PageData, 'findings'>;
+  readonly data: Pick<PageData, 'findings' | 'tests'> & {
+    readonly diff: Pick<PageData['diff'], 'nodes'>;
+  };
   readonly notes: ReviewNotes | undefined;
 };
 
 export const findingsOf = ({ data, notes }: FindingsOfOptions): ReadonlyArray<Finding> => [
   ...data.findings,
-  ...Object.entries(notes?.notes ?? {}).flatMap(([key, { flag, dimension = 'structure' }]) =>
-    flag === undefined
-      ? []
-      : [
-          {
-            id: `${NOTE_FLAG}${key}`,
-            check: 'flag' as const,
-            dimension,
-            level: 'look' as const,
-            target: anchorOfKey(key).id,
-            title: flag,
-          },
-        ],
-  ),
+  ...Object.entries(notes?.notes ?? {}).flatMap(([key, { flag, dimension = 'structure' }]) => {
+    if (flag === undefined) return [];
+    const target = anchorTarget(anchorOfKey(key), { nodes: data.diff.nodes, tests: data.tests });
+    return [
+      {
+        id: `${NOTE_FLAG}${key}`,
+        check: 'flag' as const,
+        dimension,
+        level: 'look' as const,
+        ...(target === undefined ? {} : { target }),
+        title: flag,
+      },
+    ];
+  }),
 ];
 
 type FindingsAtOptions = {

@@ -1,7 +1,7 @@
 import { anchorTarget, fileOfLine, isHeld, split, type TargetsOf } from './anchors.ts';
 import type { Rename } from './diff-graphs.ts';
 import { isAtOrUnder } from './diff-graphs.ts';
-import { type Finding, targetOfNoteFlag } from './findings.ts';
+import { anchorOfNoteFlag, type Finding } from './findings.ts';
 import { endsOfId, type GraphNode } from './graph.ts';
 import type { Commit, ReviewedHead } from './read-range.ts';
 import type { ChangedSince } from './since-review.ts';
@@ -139,9 +139,10 @@ export const previousComments = ({
     };
   };
   const answered = (comment: Said, findingId: string): PreviousComment => {
+    const flagged = anchorOfNoteFlag(findingId);
+    if (flagged !== undefined) return placed(comment, flagged);
     const raised = findings.find(({ id }) => id === findingId);
-    const target = targetOfNoteFlag(findingId) ?? raised?.target;
-    if (target !== undefined) return placed(comment, onTheGraph(target));
+    if (raised?.target !== undefined) return placed(comment, onTheGraph(raised.target));
     if (raised !== undefined || compared === undefined) return comment;
     const decision = compared.held.decisions.find(held => held === decisionOfLost(findingId));
     return decision === undefined

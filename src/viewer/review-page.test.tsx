@@ -2246,6 +2246,7 @@ test("a note's or a metric finding in the rail goes to its node or edge as the s
         tests: '',
         summary: [],
         notes: {
+          'part rust/crate/application': { text: 'Adds the export use case.', flag: 'exports' },
           'edge rust/crate/cli-adapter -> rust/crate/application': {
             text: 'The CLI drives the use case.',
             flag: 'new dependency direction',
@@ -2254,8 +2255,12 @@ test("a note's or a metric finding in the rail goes to its node or edge as the s
       }}
     />,
   );
+  const landedUnderWhyLook = () =>
+    within(within(inspector()).getByRole('region', { name: 'Why look' })).getByRole('listitem', {
+      current: true,
+    });
 
-  await user.click(await screen.findByRole('button', { name: 'Show 2 findings' }));
+  await user.click(await screen.findByRole('button', { name: 'Show 3 findings' }));
   const rail = () => within(screen.getByRole('complementary', { name: 'Findings' }));
   await user.click(rail().getByRole('button', { name: /^cli-adapter → application: new/ }));
   await waitFor(() =>
@@ -2266,14 +2271,14 @@ test("a note's or a metric finding in the rail goes to its node or edge as the s
     ),
   );
   expect(noteShown()).toBe('The CLI drives the use case.');
+  expect(scrolledIntoView.mock.contexts).toContain(landedUnderWhyLook());
+
+  await user.click(rail().getByRole('button', { name: /^application: exports/ }));
+  expect(scrolledIntoView.mock.contexts).toContain(landedUnderWhyLook());
 
   await user.click(rail().getByRole('button', { name: 'domain: lines 900, over 800' }));
   expect(document.activeElement).toBe(screen.getByRole('button', { name: 'domain: unchanged' }));
-  const row = within(within(inspector()).getByRole('region', { name: 'Why look' })).getByRole(
-    'listitem',
-    { current: true },
-  );
-  expect(scrolledIntoView.mock.contexts).toContain(row);
+  expect(scrolledIntoView.mock.contexts).toContain(landedUnderWhyLook());
 });
 
 const rowsOf = (order: HTMLElement) =>
@@ -7501,6 +7506,28 @@ test("Take on a symbol the last review commented on fills that comment's Reply, 
   const field = within(roundRow()).getByRole('textbox', { name: 'Your comment' });
   expect(document.activeElement).toBe(field);
   expect(field).toHaveProperty('value', 'Round half to even.');
+});
+
+test("the rail's flag on a symbol's note goes to its file and outlines the symbol's row", async () => {
+  const user = userEvent.setup();
+  render(
+    <ReviewPage
+      review={pageWithAnUnchangedSymbol()}
+      notes={{
+        ...roundNote,
+        notes: { 'symbol web/file/tax.ts#round': { text: 'Rounds half up.', flag: 'half up' } },
+      }}
+    />,
+  );
+
+  await user.click(await screen.findByRole('button', { name: /^Show \d+ findings?$/ }));
+  await user.click(
+    within(screen.getByRole('complementary', { name: 'Findings' })).getByRole('button', {
+      name: /^tax\.ts: half up/,
+    }),
+  );
+
+  expect(roundRow().getAttribute('aria-current')).toBe('true');
 });
 
 test.each([

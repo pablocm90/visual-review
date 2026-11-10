@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { anchorKey, anchorOfKey } from './anchors.ts';
+import { anchorKey, anchorOfKey, NOTED_KINDS } from './anchors.ts';
 import type { NotesConfig } from './config.ts';
 import type { GraphDiff } from './diff-graphs.ts';
 import { DIMENSIONS } from './findings.ts';
@@ -32,11 +32,7 @@ const AnswerSchema = z.discriminatedUnion('status', [
   answerOf('declined', 'Not taken, and this says why'),
 ]);
 
-const NoteKeySchema = z.templateLiteral([
-  z.enum(['part', 'edge', 'symbol', 'decision', 'test']),
-  ' ',
-  z.string(),
-]);
+const NoteKeySchema = z.templateLiteral([z.enum(NOTED_KINDS), ' ', z.string()]);
 
 const ReviewNotesSchema = z
   .strictObject({
@@ -68,7 +64,7 @@ const ReviewNotesSchema = z
               .string()
               .optional()
               .describe('What to do about it, when something warrants it'),
-            flag: z.string().optional().describe('A short label for a structural concern'),
+            flag: z.string().optional().describe('A short label for a concern that needs a look'),
             dimension: z
               .enum(DIMENSIONS)
               .optional()
@@ -270,12 +266,6 @@ export const notesProblems = ({
     ...[...Object.keys(notes.notes), ...Object.keys(notes.unasked ?? {})]
       .filter(key => !knownKeys.has(key))
       .map(key => `unknown key ${key}`),
-    ...Object.entries(notes.notes)
-      .filter(
-        ([key, { flag }]) =>
-          flag !== undefined && !['part', 'edge'].includes(anchorOfKey(key).kind),
-      )
-      .map(([key]) => `flag on ${key}: only a part or edge note takes a flag`),
     ...Object.entries(notes.notes).flatMap(([key, note]) =>
       SWITCHED_FIELDS.filter(
         field => notesConfig[field] === false && note[field] !== undefined,

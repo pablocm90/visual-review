@@ -1,20 +1,25 @@
 import { deepestHolding } from './diff-graphs.ts';
 import { endsOfId, type GraphNode } from './graph.ts';
-import type { Comment } from './review.ts';
 import type { TestFile } from './test-changes.ts';
 import { nodeOfTests } from './tests-alongside.ts';
 
-type Anchor = Comment['anchor'];
+type Keyed = { readonly kind: string; readonly id: string };
+
+export const NOTED_KINDS = ['part', 'edge', 'symbol', 'decision', 'test'] as const;
+
+export type Noted = { readonly kind: (typeof NOTED_KINDS)[number]; readonly id: string };
+
+export const isNoted = (anchor: Keyed): anchor is Noted =>
+  NOTED_KINDS.some(kind => kind === anchor.kind);
 
 export const split = (id: string, at: string): readonly [string, string] => {
   const cut = id.indexOf(at);
   return [id.slice(0, cut), id.slice(cut + at.length)];
 };
 
-export const anchorKey = ({ kind, id }: { readonly kind: string; readonly id: string }): string =>
-  `${kind} ${id}`;
+export const anchorKey = ({ kind, id }: Keyed): string => `${kind} ${id}`;
 
-export const anchorOfKey = (key: string): { readonly kind: string; readonly id: string } => {
+export const anchorOfKey = (key: string): Keyed => {
   const [kind, id] = split(key, ' ');
   return { kind, id };
 };
@@ -29,10 +34,7 @@ export type TargetsOf = {
 export const isHeld = ({ nodes }: Pick<TargetsOf, 'nodes'>, id: string): boolean =>
   nodes.some(node => node.id === id);
 
-const namedTarget = (
-  anchor: Pick<Anchor, 'kind' | 'id'>,
-  { nodes, tests }: TargetsOf,
-): string | undefined => {
+const namedTarget = (anchor: Keyed, { nodes, tests }: TargetsOf): string | undefined => {
   if (anchor.kind === 'symbol' || anchor.kind === 'decision') return split(anchor.id, '#')[0];
   if (anchor.kind === 'line') return deepestHolding(fileOfLine(anchor.id), nodes)?.id;
   if (anchor.kind !== 'test') return anchor.id;
@@ -40,10 +42,7 @@ const namedTarget = (
   return file && nodeOfTests({ nodes, file });
 };
 
-export const anchorTarget = (
-  anchor: Pick<Anchor, 'kind' | 'id'>,
-  targets: TargetsOf,
-): string | undefined => {
+export const anchorTarget = (anchor: Keyed, targets: TargetsOf): string | undefined => {
   const target = namedTarget(anchor, targets);
   return target !== undefined && endsOfId(target).every(end => isHeld(targets, end))
     ? target
