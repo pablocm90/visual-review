@@ -4,6 +4,7 @@ import {
   type PointerEvent,
   type ReactNode,
   type RefObject,
+  useContext,
   useEffect,
   useEffectEvent,
   useId,
@@ -12,10 +13,16 @@ import {
   useRef,
   useState,
 } from 'react';
-import { anchorKey } from '../core/anchors.ts';
+import { anchorKey, anchorOfKey, fileOfLine } from '../core/anchors.ts';
 import type { DiffedNode, FilePatch, GraphDiff } from '../core/diff-graphs.ts';
 import { deepestHolding, isAtOrUnder } from '../core/diff-graphs.ts';
-import { anchorOfNoteFlag, type Finding, findingsAt, findingsOf } from '../core/findings.ts';
+import {
+  anchorOfNoteFlag,
+  type Finding,
+  findingsAt,
+  findingsOf,
+  type PlaceInFile,
+} from '../core/findings.ts';
 import { edgeId } from '../core/graph.ts';
 import {
   logicTotalsOf,
@@ -47,7 +54,7 @@ import {
   visibleDiff,
   visibleNodeOf,
 } from '../core/visible-diff.ts';
-import { anchorName, placeOfLine } from './anchors.ts';
+import { anchorName, lineAt, placeOfLine } from './anchors.ts';
 import { ChangedSinceMarks, ChangedSinceTag, useIsChangedSince } from './changed-since.tsx';
 import { ColourBy, type Colouring, ScaleLegend, type Shade, shadeOf } from './colour-by.tsx';
 import { CommentAsked, type Comments, holdsDraft } from './comment-field.tsx';
@@ -527,6 +534,15 @@ const onThePart = (landing: LandingIn | undefined) =>
 const holdsLineDraft = (comments: Comments, path: string) =>
   Object.values(comments).some(({ anchor }) => placeOfLine(anchor)?.path === path);
 
+const useHoldsLineNote = () => {
+  const { notes } = useContext(RowNotes);
+  return (path: string) =>
+    Object.keys(notes).some(key => {
+      const { kind, id } = anchorOfKey(key);
+      return kind === 'line' && fileOfLine(id) === path;
+    });
+};
+
 const Patch = ({
   path,
   patch,
@@ -550,8 +566,13 @@ const Patch = ({
     else scrollInPanel(top.current, 'start');
   }, [landed]);
   const holdsDraft = holdsLineDraft(commenting.comments, path);
+  const holdsNote = useHoldsLineNote()(path);
   return (
-    <details aria-label={path} open={open || holdsDraft || saidLines.length > 0} ref={top}>
+    <details
+      aria-label={path}
+      open={open || holdsDraft || holdsNote || saidLines.length > 0}
+      ref={top}
+    >
       <summary>
         {path}
         <ChangedSinceTag marked={marked} />
@@ -741,12 +762,13 @@ const FullDiff = ({
 }: FullDiffProps) => {
   const [closedAt, setClosedAt] = useState<{ readonly landing: LandingIn | undefined }>();
   const [landedOn, setLandedOn] = useState(false);
+  const holdsLineNote = useHoldsLineNote();
   const onAPatch = landing?.path === undefined ? undefined : landing;
   if (onAPatch !== undefined && !landedOn) setLandedOn(true);
   const wanted =
     onAPatch !== undefined ||
     landedOn ||
-    patches.some(({ path }) => holdsLineDraft(commenting.comments, path));
+    patches.some(({ path }) => holdsLineDraft(commenting.comments, path) || holdsLineNote(path));
   const closed =
     closedAt !== undefined && (onAPatch === undefined || closedAt.landing === onAPatch);
   const open = (held || wanted) && !closed;
@@ -1710,7 +1732,7 @@ type LandingHeadProps = GraphControlsProps &
     readonly onGoTo: (id: string) => void;
     readonly onGoToFinding: (id: string, finding: string) => void;
     readonly onShowOutside: (opener: HTMLButtonElement) => void;
-    readonly onShowFile: (path: string, opener: HTMLButtonElement, place?: string) => void;
+    readonly onShowFile: (path: string, opener: HTMLButtonElement, place: PlaceInFile) => void;
   };
 
 const logicLineOf = ({
@@ -1812,7 +1834,7 @@ type LeftColumnProps = {
   readonly onGoToFinding: (id: string, finding: string) => void;
   readonly onGoToOutside: (place: LandingIn, opener: HTMLButtonElement) => void;
   readonly onShowOutside: (opener: HTMLButtonElement) => void;
-  readonly onShowFile: (path: string, opener: HTMLButtonElement, place?: string) => void;
+  readonly onShowFile: (path: string, opener: HTMLButtonElement, place: PlaceInFile) => void;
 };
 
 const LeftColumn = ({
@@ -1845,6 +1867,7 @@ const LeftColumn = ({
         nodes={review.diff.nodes}
         tests={review.tests}
         symbols={review.symbols}
+        patches={[...review.patches, ...review.undrawn]}
         findings={findings}
         onGoTo={onGoTo}
         onGoToDraft={onGoToDraft}
@@ -2167,7 +2190,12 @@ const Page = ({ review, notes, send }: ReviewPageProps) => {
     landOn(id, { path: undefined, row });
     goTo(id);
   };
-  const goToFinding = (id: string, finding: string) => goToRow(id, rowOfFinding(finding));
+  const goToFinding = (id: string, finding: string) => {
+    const flagged = anchorOfNoteFlag(finding);
+    if (flagged?.kind !== 'line') return goToRow(id, rowOfFinding(finding));
+    landOn(id, lineAt(flagged.id));
+    goTo(id);
+  };
   const showOutsideAt = (place: LandingIn, opener: HTMLButtonElement) => {
     landOn(null, place);
     location.hash = '#structure';
@@ -2175,23 +2203,32 @@ const Page = ({ review, notes, send }: ReviewPageProps) => {
   };
   const [schemaLanding, setSchemaLanding] = useState<SchemaLanding>();
   const [routesLanding, setRoutesLanding] = useState<RoutesLanding>();
-  const showPatch = (path: string, opener: HTMLButtonElement) => {
+  const showPatch = (path: string, opener: HTMLButtonElement, line?: string) => {
+    const place = line === undefined ? { path } : lineAt(line);
     const holder = deepestHolding(path, review.diff.nodes);
     if (holder === undefined) {
-      showOutsideAt({ path }, opener);
+      showOutsideAt(place, opener);
       return;
     }
-    landOn(holder.id, { path });
+    landOn(holder.id, place);
     goToOnStructure(holder.id);
   };
-  const showFile = (path: string, opener: HTMLButtonElement, place?: string) => {
+  const showFile = (
+    path: string,
+    opener: HTMLButtonElement,
+    { table, route, line }: PlaceInFile,
+  ) => {
+    if (line !== undefined) {
+      showPatch(path, opener, line);
+      return;
+    }
     if (review.schemas.some(({ file }) => file === path)) {
-      setSchemaLanding({ file: path, table: place });
+      setSchemaLanding({ file: path, table });
       location.hash = '#schema';
       return;
     }
     if (routesHold(review.routes, path)) {
-      setRoutesLanding({ file: path, route: place });
+      setRoutesLanding({ file: path, route });
       location.hash = '#routes';
       return;
     }

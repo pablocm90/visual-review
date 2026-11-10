@@ -1,5 +1,6 @@
 import { fileOfLine, split } from '../core/anchors.ts';
 import { endsOfId, type GraphNode } from '../core/graph.ts';
+import { lineIdOf } from '../core/patch-lines.ts';
 import type { PreviousComment } from '../core/previous-comments.ts';
 import type { Comment } from '../core/review.ts';
 import type { PatchLine } from './highlight-patch.ts';
@@ -10,29 +11,26 @@ type Nodes = ReadonlyArray<Pick<GraphNode, 'id' | 'label' | 'parent' | 'path'>>;
 
 export const lineAnchor = ({
   path,
-  line: { kind, pieces, ...numbers },
+  line,
 }: {
   readonly path: string;
   readonly line: PatchLine;
 }): Anchor | undefined => {
-  const side = kind === 'removed' ? 'base' : 'head';
-  const number = numbers[side];
-  if (number === undefined) return undefined;
-  return {
-    kind: 'line',
-    id: `${path}@${side}:${number}`,
-    text: pieces.map(({ text }) => text).join(''),
-  };
+  const id = lineIdOf(path, line);
+  if (id === undefined) return undefined;
+  return { kind: 'line', id, text: line.pieces.map(({ text }) => text).join('') };
 };
 
 const lineNumber = (id: string): string => id.slice(id.lastIndexOf(':') + 1);
 
-export const placeOfLine = (anchor: PreviousComment['anchor']) => {
-  if (anchor.kind !== 'line') return undefined;
-  const path = fileOfLine(anchor.id);
-  const side: 'base' | 'head' = anchor.id.startsWith('@base:', path.length) ? 'base' : 'head';
-  return { path, side, line: Number(lineNumber(anchor.id)), text: anchor.text };
+export const lineAt = (id: string) => {
+  const path = fileOfLine(id);
+  const side: 'base' | 'head' = id.startsWith('@base:', path.length) ? 'base' : 'head';
+  return { path, side, line: Number(lineNumber(id)) };
 };
+
+export const placeOfLine = (anchor: PreviousComment['anchor']) =>
+  anchor.kind === 'line' ? { ...lineAt(anchor.id), text: anchor.text } : undefined;
 
 export type PlaceOfLine = NonNullable<ReturnType<typeof placeOfLine>>;
 

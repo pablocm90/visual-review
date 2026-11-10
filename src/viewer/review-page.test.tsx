@@ -6476,6 +6476,249 @@ test("a comment on a line of a symbol's diff shows in Full diff too, and the tra
   );
 });
 
+test("a note on a diff line shows under its row in Full diff, open by itself, and under the same row in its symbol's Diff", async () => {
+  const user = userEvent.setup();
+  render(
+    <ReviewPage
+      review={pageWith({
+        range: review.range,
+        diff: {
+          nodes: [
+            { id: 'web', kind: 'stack', label: 'web', path: '', state: 'unchanged' },
+            topFile('two.ts', 'modified'),
+          ],
+          edges: [],
+        },
+        symbols: [symbolsOf('web/file/two.ts', [editedAt('a', 1, 3), editedAt('b', 4, 6)])],
+        patches: [twoFunctionsPatch()],
+      })}
+      notes={{
+        version: 2,
+        tests: '',
+        summary: [],
+        notes: { 'line web/src/two.ts@base:5': { text: 'Three was the old default.' } },
+      }}
+    />,
+  );
+  const noteIn = (region: HTMLElement) => {
+    const row = within(region)
+      .getAllByRole('deletion')
+      .find(deleted => deleted.textContent?.startsWith('-  return 3;'));
+    return (
+      row && within(row).getByRole('region', { name: 'Note on two.ts:5 "return 3;"' }).textContent
+    );
+  };
+
+  await user.click(await screen.findByRole('button', { name: 'two.ts: modified' }));
+  expect(noteIn(diffTab())).toBe('Three was the old default.');
+
+  await toggleSymbolDiff(user, 'b');
+  expect(noteIn(whatChanged())).toBe('Three was the old default.');
+});
+
+test("on a served page Take on a diff line's note opens that row's field with the recommendation as a change, focused, and hides while the draft holds text", async () => {
+  const user = userEvent.setup();
+  render(
+    <ReviewPage
+      review={pageWith({
+        range: review.range,
+        diff: {
+          nodes: [
+            { id: 'web', kind: 'stack', label: 'web', path: '', state: 'unchanged' },
+            topFile('two.ts', 'modified'),
+          ],
+          edges: [],
+        },
+        patches: [twoFunctionsPatch()],
+      })}
+      notes={{
+        version: 2,
+        tests: '',
+        summary: [],
+        notes: {
+          'line web/src/two.ts@base:5': {
+            text: 'Three was the old default.',
+            recommendation: 'Keep 3 behind a flag.',
+          },
+        },
+      }}
+      send={async () => {}}
+    />,
+  );
+  const row = () =>
+    within(
+      within(diffTab())
+        .getAllByRole('deletion')
+        .find(deleted => deleted.textContent?.startsWith('-  return 3;')) ?? document.body,
+    );
+  const field = () => row().getByRole('textbox', { name: 'Your comment' });
+  const takeInRow = () => row().queryByRole('button', { name: 'Take' });
+
+  await user.click(await screen.findByRole('button', { name: 'two.ts: modified' }));
+  await user.click(row().getByRole('button', { name: 'Take' }));
+
+  expect(document.activeElement).toBe(field());
+  expect(field()).toHaveProperty('value', 'Keep 3 behind a flag.');
+  expect(
+    within(row().getByRole('radiogroup', { name: 'Comment kind' })).getByRole('radio', {
+      name: 'Change this',
+    }),
+  ).toHaveProperty('checked', true);
+  expect(within(tray()).getByText('1 drafted · 1 change')).toBeDefined();
+  expect(takeInRow()).toBeNull();
+
+  await user.clear(field());
+  expect(takeInRow()).not.toBeNull();
+});
+
+test("the rail's flag on a diff line's note goes to its file and outlines that row in Full diff", async () => {
+  const user = userEvent.setup();
+  render(
+    <ReviewPage
+      review={pageWith({
+        range: review.range,
+        diff: {
+          nodes: [
+            { id: 'web', kind: 'stack', label: 'web', path: '', state: 'unchanged' },
+            topFile('two.ts', 'modified'),
+          ],
+          edges: [],
+        },
+        patches: [twoFunctionsPatch()],
+      })}
+      notes={{
+        version: 2,
+        tests: '',
+        summary: [],
+        notes: {
+          'line web/src/two.ts@head:5': { text: 'Four now.', flag: 'magic number' },
+        },
+      }}
+    />,
+  );
+
+  await user.click(await screen.findByRole('button', { name: /^Show \d+ findings?$/ }));
+  await user.click(
+    within(screen.getByRole('complementary', { name: 'Findings' })).getByRole('button', {
+      name: /^two\.ts: magic number/,
+    }),
+  );
+
+  expect(within(diffTab()).getByRole('insertion', { current: true }).textContent).toMatch(
+    /^\+ {2}return 4;/,
+  );
+});
+
+test.for([
+  { path: 'README.md', reading: {} },
+  {
+    path: 'config/routes.rb',
+    reading: { routes: [{ file: 'config/routes.rb', notRead: 'Ruby syntax error' }] },
+  },
+  {
+    path: 'db/schema.rb',
+    reading: { schemas: [{ file: 'db/schema.rb', notRead: 'Ruby syntax error' }] },
+  },
+])(
+  "the rail's flag on a line note in $path, outside the graph, opens those files on that row, the note under it, as its answer in the tray does",
+  async ({ path, reading }) => {
+    const user = userEvent.setup();
+    render(
+      <ReviewPage
+        review={pageWith({
+          ...review,
+          ...reading,
+          undrawn: [
+            {
+              path,
+              patch: `--- a/${path}\n+++ b/${path}\n@@ -1,2 +1,2 @@\n one\n-old\n+new`,
+            },
+          ],
+        })}
+        notes={{
+          version: 2,
+          tests: '',
+          summary: [],
+          notes: { [`line ${path}@head:2`]: { text: 'Newer.', flag: 'stale wording' } },
+        }}
+        send={vi.fn(async () => {})}
+      />,
+    );
+    const landedRow = () => within(inspector()).getByRole('insertion', { current: true });
+
+    await user.click(await screen.findByRole('button', { name: /^Show \d+ findings?$/ }));
+    const rail = screen.getByRole('complementary', { name: 'Findings' });
+    await user.click(within(rail).getByRole('button', { name: /stale wording/ }));
+
+    expect(within(inspector()).getByRole('heading', { level: 2 }).textContent).toBe(
+      'Changed files outside the graph',
+    );
+    expect(landedRow().textContent).toContain('new');
+    expect(
+      within(landedRow()).getByRole('region', { name: new RegExp(`^Note on ${path}:2`) })
+        .textContent,
+    ).toBe('Newer.');
+
+    const finding = within(rail).getByText('stale wording').closest('li') ?? rail;
+    await user.click(within(finding).getByRole('button', { name: 'Fix this' }));
+    await user.click(within(inspector()).getByRole('button', { name: 'Close inspector' }));
+    await openReview(user);
+    await user.click(
+      within(screen.getByRole('list', { name: 'Drafts' })).getByRole('button', {
+        name: 'stale wording',
+      }),
+    );
+
+    expect(landedRow().textContent).toContain('new');
+  },
+);
+
+test("a box's patch holding a line note opens by itself, its other patches closed", async () => {
+  const user = userEvent.setup();
+  render(
+    <ReviewPage
+      review={pageWith({
+        range: review.range,
+        diff: {
+          nodes: [
+            { id: 'web', kind: 'stack', label: 'web', path: '', state: 'unchanged' },
+            {
+              id: 'web/module/billing',
+              kind: 'module',
+              label: 'billing',
+              parent: 'web',
+              path: 'web/src/billing',
+              state: 'modified',
+            },
+            ...['refund.ts', 'tax.ts'].map(file => ({
+              ...topFile(file, 'modified'),
+              parent: 'web/module/billing',
+              path: `web/src/billing/${file}`,
+            })),
+          ],
+          edges: [],
+        },
+        patches: ['refund.ts', 'tax.ts'].map(file =>
+          patchOf(`web/src/billing/${file}`, '@@ -1 +1 @@', '-a', '+b'),
+        ),
+      })}
+      notes={{
+        version: 2,
+        tests: '',
+        summary: [],
+        notes: { 'line web/src/billing/refund.ts@head:1': { text: 'b, not a.' } },
+      }}
+    />,
+  );
+  const patchOpen = (path: string) =>
+    within(diffTab()).getByRole('group', { name: path }).hasAttribute('open');
+
+  await user.click(await screen.findByRole('button', { name: 'billing: modified' }));
+
+  expect(patchOpen('web/src/billing/refund.ts')).toBe(true);
+  expect(patchOpen('web/src/billing/tax.ts')).toBe(false);
+});
+
 test('a symbol moved between files opens its lines from both, each named by its file, the one it left first, from either end', async () => {
   const user = userEvent.setup();
   const moved = {
@@ -9728,6 +9971,24 @@ test.for([
     key: 'test total.test.ts#drops totals',
     name: 'drops totals',
     node: 'total.ts: modified',
+  },
+  {
+    row: 'a diff line',
+    page: () =>
+      pageWith({
+        range: review.range,
+        diff: {
+          nodes: [
+            { id: 'web', kind: 'stack', label: 'web', path: '', state: 'unchanged' },
+            topFile('two.ts', 'modified'),
+          ],
+          edges: [],
+        },
+        patches: [twoFunctionsPatch()],
+      }),
+    key: 'line web/src/two.ts@base:5',
+    name: 'two.ts:5 "return 3;"',
+    node: 'two.ts: modified',
   },
 ])(
   "the last review names what Claude changed unasked on $row by its row, going to its file's node",

@@ -1,6 +1,6 @@
 import { expect, test } from 'vitest';
 import { z } from 'zod';
-import type { DiffedNode, GraphDiff } from './diff-graphs.ts';
+import type { DiffedNode, FilePatch, GraphDiff } from './diff-graphs.ts';
 import {
   type Note,
   notesJsonSchema,
@@ -86,6 +86,20 @@ const tests: ReadonlyArray<TestFile> = [
   },
 ];
 
+const patches: ReadonlyArray<FilePatch> = [
+  {
+    path: 'web/src/pages/home.tsx',
+    patch: [
+      'diff --git a/web/src/pages/home.tsx b/web/src/pages/home.tsx',
+      '@@ -4,3 +4,3 @@',
+      ' import { format } from "../utils/format";',
+      '-const ready = false;',
+      '+const ready = true;',
+      ' export const run = () => ready;',
+    ].join('\n'),
+  },
+];
+
 const notesWith = (overrides: Partial<ReviewNotes> = {}): ReviewNotes => ({
   version: 2,
   summary: [{ text: 'Home formats dates.', target: 'web/module/pages' }, { text: 'Web only.' }],
@@ -100,6 +114,7 @@ const notesWith = (overrides: Partial<ReviewNotes> = {}): ReviewNotes => ({
 test('notes on every touched part of the collapsed view, keyed to nodes or to edges as drawn at any depth, flagged on any anchor or not, have no problems', () => {
   expect(
     notesProblems({
+      patches,
       symbols,
       notesConfig: {},
       tests,
@@ -127,6 +142,10 @@ test('notes on every touched part of the collapsed view, keyed to nodes or to ed
             text: 'Pins the format.',
             flag: 'pins a locale',
           },
+          'line web/src/pages/home.tsx@head:4': { text: 'Imports format.' },
+          'line web/src/pages/home.tsx@base:5': { text: 'Was never ready.' },
+          'line web/src/pages/home.tsx@head:5': { text: 'Always ready.', flag: 'skips the wait' },
+          'line web/src/pages/home.tsx@head:6': { text: 'Returns it.' },
         },
       }),
     }),
@@ -136,6 +155,7 @@ test('notes on every touched part of the collapsed view, keyed to nodes or to ed
 test('a note on a hidden import covers the edge it is drawn into while its modules are collapsed', () => {
   expect(
     notesProblems({
+      patches,
       symbols,
       notesConfig: {},
       tests,
@@ -154,6 +174,7 @@ test('a note on a hidden import covers the edge it is drawn into while its modul
 test('a stack that appears in the change is not asked for a note, since notes cannot name a stack', () => {
   expect(
     notesProblems({
+      patches,
       symbols,
       notesConfig: {},
       tests,
@@ -178,6 +199,7 @@ test('a note may be keyed by an edge between its ends or any of the boxes above 
 
   expect(
     notesProblems({
+      patches,
       symbols,
       notesConfig: {},
       tests,
@@ -280,6 +302,27 @@ test.for([
     expected: ['unknown key test web/src/pages/home.test.tsx#formats dates'],
   },
   {
+    problem: "a note on a context line's base number, which names no row",
+    notes: notesWith({
+      notes: { ...notesWith().notes, 'line web/src/pages/home.tsx@base:4': { text: 'Imports.' } },
+    }),
+    expected: ['unknown key line web/src/pages/home.tsx@base:4'],
+  },
+  {
+    problem: 'a note on a line no hunk holds',
+    notes: notesWith({
+      notes: { ...notesWith().notes, 'line web/src/pages/home.tsx@head:7': { text: 'Ends.' } },
+    }),
+    expected: ['unknown key line web/src/pages/home.tsx@head:7'],
+  },
+  {
+    problem: 'a note on a line of a file with no patch',
+    notes: notesWith({
+      notes: { ...notesWith().notes, 'line web/src/pages/header.tsx@head:4': { text: 'Head.' } },
+    }),
+    expected: ['unknown key line web/src/pages/header.tsx@head:4'],
+  },
+  {
     problem: 'a summary item targeting something not in the graph',
     notes: notesWith({ summary: [{ text: 'Gone.', target: 'web/module/gone' }] }),
     expected: ['unknown id web/module/gone'],
@@ -297,9 +340,9 @@ test.for([
     expected: ['no note on edge web/module/pages -> web/module/utils'],
   },
 ])('$problem is a problem', ({ notes, expected }) => {
-  expect(notesProblems({ symbols, tests, diff, notes, said: [], notesConfig: {} })).toEqual(
-    expected,
-  );
+  expect(
+    notesProblems({ patches, symbols, tests, diff, notes, said: [], notesConfig: {} }),
+  ).toEqual(expected);
 });
 
 const fullNote = { text: 'Runs once.', why: 'Idempotent.', recommendation: 'Name it.' };
@@ -332,6 +375,7 @@ test.for([
 ])('the notes switches with $switches give $expected', ({ notesConfig, note, expected }) => {
   expect(
     notesProblems({
+      patches,
       symbols,
       tests,
       diff,
@@ -480,6 +524,7 @@ test("an answer is known by its anchor's kind and id in the last review, whateve
 
   expect(
     notesProblems({
+      patches,
       symbols,
       notesConfig: {},
       tests,
@@ -529,6 +574,7 @@ test('an unasked change is keyed as a note is, by a part, an edge, a symbol, a d
 
   expect(
     notesProblems({
+      patches,
       symbols,
       tests,
       diff,
@@ -548,13 +594,23 @@ test('an unasked change needs a last review to show under, even one that said no
     unasked: { 'part web/module/pages': { text: 'Renamed the helper.' } },
   });
 
-  expect(notesProblems({ symbols, tests, diff, said: undefined, notesConfig: {}, notes })).toEqual([
-    'unasked changes show under the last review, and this page has none',
-  ]);
   expect(
-    notesProblems({ symbols, tests, diff, said: undefined, notesConfig: {}, notes: notesWith() }),
+    notesProblems({ patches, symbols, tests, diff, said: undefined, notesConfig: {}, notes }),
+  ).toEqual(['unasked changes show under the last review, and this page has none']);
+  expect(
+    notesProblems({
+      patches,
+      symbols,
+      tests,
+      diff,
+      said: undefined,
+      notesConfig: {},
+      notes: notesWith(),
+    }),
   ).toEqual([]);
-  expect(notesProblems({ symbols, tests, diff, said: [], notesConfig: {}, notes })).toEqual([]);
+  expect(
+    notesProblems({ patches, symbols, tests, diff, said: [], notesConfig: {}, notes }),
+  ).toEqual([]);
 });
 
 test('a done answer names its commit', () => {
@@ -584,8 +640,8 @@ test.for([
   },
   {
     level: 'the notes, a key of a kind no note takes',
-    overrides: { notes: { 'line web/src/a.ts@head:12': { text: 'Guards.' } } },
-    key: 'line web/src/a.ts@head:12',
+    overrides: { notes: { 'finding logic:removed:web/a.ts#run': { text: 'Guards.' } } },
+    key: 'finding logic:removed:web/a.ts#run',
   },
   {
     level: 'the notes, a bare id',
@@ -644,7 +700,7 @@ test('the published notes schema marks no field read-only, since notes are writt
   expect(JSON.stringify(notesJsonSchema())).not.toContain('readOnly');
 });
 
-test('the published notes schema says version 2 and keys notes and unasked changes by part, edge, symbol, decision or test', () => {
+test('the published notes schema says version 2 and keys notes and unasked changes by part, edge, symbol, decision, test or line', () => {
   const schema = z.object({
     properties: z.object({
       version: z.object({ const: z.number() }),
@@ -675,6 +731,7 @@ test('the published notes schema says version 2 and keys notes and unasked chang
       'symbol web/a.ts#run',
       'decision web/a.ts#run#x',
       'test web/a.ts#x',
+      'line web/a.ts@head:1',
     ],
     [
       'part web/a.ts',
@@ -682,6 +739,7 @@ test('the published notes schema says version 2 and keys notes and unasked chang
       'symbol web/a.ts#run',
       'decision web/a.ts#run#x',
       'test web/a.ts#x',
+      'line web/a.ts@head:1',
     ],
   ]);
 });

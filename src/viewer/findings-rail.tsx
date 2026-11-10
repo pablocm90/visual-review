@@ -4,6 +4,7 @@ import {
   DIMENSIONS,
   type Dimension,
   type Finding,
+  type PlaceInFile,
   skippedFindingId,
 } from '../core/findings.ts';
 import { endsOfId } from '../core/graph.ts';
@@ -30,7 +31,7 @@ type FindingsRailProps = {
   readonly onGoTo: (id: string) => void;
   readonly onGoToFinding: (id: string, finding: string) => void;
   readonly onShowOutside: (opener: HTMLButtonElement) => void;
-  readonly onShowFile: (path: string, opener: HTMLButtonElement, place?: string) => void;
+  readonly onShowFile: (path: string, opener: HTMLButtonElement, place: PlaceInFile) => void;
   readonly answers: Answers;
   readonly onAnswer: AnswerTo | undefined;
 };
@@ -66,7 +67,7 @@ type LineOptions = {
   readonly onGoTo: (id: string) => void;
   readonly onGoToFinding: (id: string, finding: string) => void;
   readonly onShowOutside: (opener: HTMLButtonElement) => void;
-  readonly onShowFile: (path: string, opener: HTMLButtonElement, place?: string) => void;
+  readonly onShowFile: (path: string, opener: HTMLButtonElement, place: PlaceInFile) => void;
 };
 
 const linesOf = ({ review, onGoTo, onGoToFinding, onShowOutside, onShowFile }: LineOptions) => {
@@ -77,7 +78,7 @@ const linesOf = ({ review, onGoTo, onGoToFinding, onShowOutside, onShowFile }: L
       .join(' → ');
   const placeOf = new Map(review.diff.nodes.map(node => [node.id, node.path || node.label]));
   const lineOf = (finding: Finding): Line => {
-    const { id, level, target, file, table, route, title, detail, groups } = finding;
+    const { id, level, target, file, title, detail, groups } = finding;
     if (target !== undefined) {
       return {
         id,
@@ -94,7 +95,7 @@ const linesOf = ({ review, onGoTo, onGoToFinding, onShowOutside, onShowFile }: L
       target: detail ?? '',
       ...(id === 'structure:undrawn' && { act: onShowOutside }),
       ...(file !== undefined && {
-        act: (opener: HTMLButtonElement) => onShowFile(file, opener, table ?? route),
+        act: (opener: HTMLButtonElement) => onShowFile(file, opener, finding),
       }),
       ...(groups && {
         groups: groups.flatMap(group =>

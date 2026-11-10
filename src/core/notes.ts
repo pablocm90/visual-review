@@ -1,9 +1,10 @@
 import { z } from 'zod';
 import { anchorKey, anchorOfKey, NOTED_KINDS } from './anchors.ts';
 import type { NotesConfig } from './config.ts';
-import type { GraphDiff } from './diff-graphs.ts';
+import type { FilePatch, GraphDiff } from './diff-graphs.ts';
 import { DIMENSIONS } from './findings.ts';
 import { edgeId } from './graph.ts';
+import { lineIdOf, patchHunks } from './patch-lines.ts';
 import type { SymbolFile } from './read-range.ts';
 import { testAnchorsIn } from './since-review.ts';
 import { anchoredSymbols, decisionsOf } from './symbol-findings.ts';
@@ -75,7 +76,7 @@ const ReviewNotesSchema = z
       .readonly()
       .default({})
       .describe(
-        'Notes by `part <node id>`, `edge <from> -> <to>`, `symbol <file node id>#<symbol>`, `decision <file node id>#<symbol>#<decision>` or `test <test file path>#<heading › test>`; left out, there are none',
+        'Notes by `part <node id>`, `edge <from> -> <to>`, `symbol <file node id>#<symbol>`, `decision <file node id>#<symbol>#<decision>`, `test <test file path>#<heading › test>` or `line <file path>@<base|head>:<n>` (a removed row by its base number, any other by its head); left out, there are none',
       ),
     answers: z
       .record(z.string(), AnswerSchema)
@@ -196,6 +197,7 @@ const SWITCHED_FIELDS = ['why', 'recommendation'] as const;
 
 type NotesProblemsOptions = {
   readonly diff: GraphDiff;
+  readonly patches: ReadonlyArray<FilePatch>;
   readonly notes: ReviewNotes;
   readonly symbols: ReadonlyArray<SymbolFile>;
   readonly tests: ReadonlyArray<TestFile>;
@@ -222,6 +224,7 @@ const lastReviewProblems = ({
 
 export const notesProblems = ({
   diff,
+  patches,
   notes,
   symbols,
   tests,
@@ -251,6 +254,11 @@ export const notesProblems = ({
         : [],
     ),
     ...testAnchorsIn(tests).map(({ id }) => anchorKey({ kind: 'test', id })),
+    ...patches.flatMap(({ path, patch }) =>
+      patchHunks(patch)
+        .flatMap(({ rows }) => rows.flatMap(row => lineIdOf(path, row) ?? []))
+        .map(id => anchorKey({ kind: 'line', id })),
+    ),
   ]);
   const collapsed = visibleDiff({ diff, expanded: new Set() });
   const shown = visibleNotes({ diff, expanded: new Set(), notes: notesOnTheGraph(notes.notes) });

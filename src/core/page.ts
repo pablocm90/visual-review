@@ -218,6 +218,7 @@ export const notedPageHtml = ({
   const data = writtenBy({ page, version, advice: 'run visual-review without --notes first' });
   const problems = notesProblems({
     diff: data.diff,
+    patches: [...data.patches, ...data.undrawn],
     notes,
     symbols: data.symbols,
     tests: data.tests,

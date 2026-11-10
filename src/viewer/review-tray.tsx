@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { anchorKey, anchorTarget, type TargetsOf } from '../core/anchors.ts';
-import type { Finding } from '../core/findings.ts';
+import type { Finding, PlaceInFile } from '../core/findings.ts';
 import type { GraphNode } from '../core/graph.ts';
 import type { PreviousComment } from '../core/previous-comments.ts';
 import type { Answer, Comment, Review } from '../core/review.ts';
@@ -27,7 +27,7 @@ type ReviewTrayProps = {
   readonly tests: TargetsOf['tests'];
   readonly onGoToDraft: (id: string, anchor: PreviousComment['anchor']) => void;
   readonly onGoToOutside: (place: PlaceOfLine, opener: HTMLButtonElement) => void;
-  readonly onGoToFile: (path: string, opener: HTMLButtonElement, place?: string) => void;
+  readonly onGoToFile: (path: string, opener: HTMLButtonElement, place: PlaceInFile) => void;
   readonly send: (review: Review) => Promise<void>;
 };
 
@@ -148,7 +148,7 @@ type DraftListProps = {
   readonly targetOf: TargetOf;
   readonly onGoToDraft: (id: string, anchor: PreviousComment['anchor']) => void;
   readonly onGoToOutside: (place: PlaceOfLine, opener: HTMLButtonElement) => void;
-  readonly onGoToFile: (path: string, opener: HTMLButtonElement, place?: string) => void;
+  readonly onGoToFile: (path: string, opener: HTMLButtonElement, place: PlaceInFile) => void;
 };
 
 const DraftList = ({
@@ -179,7 +179,7 @@ const DraftList = ({
     {answered.flatMap(({ anchor, kind, text }) =>
       findings
         .filter(finding => finding.id === anchor.id)
-        .map(({ id, title, target, file, table, route }) => (
+        .map(({ id, title, target, file, ...place }) => (
           <Draft
             key={id}
             name={title}
@@ -187,7 +187,7 @@ const DraftList = ({
               target !== undefined
                 ? () => onGoToDraft(target, anchor)
                 : file !== undefined
-                  ? opener => onGoToFile(file, opener, table ?? route)
+                  ? opener => onGoToFile(file, opener, place)
                   : undefined
             }
             label={answerLabels.get(kind)}

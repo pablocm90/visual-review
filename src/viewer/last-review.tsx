@@ -1,6 +1,8 @@
 import { anchorOfKey, anchorTarget, type TargetsOf } from '../core/anchors.ts';
+import type { FilePatch } from '../core/diff-graphs.ts';
 import type { Finding } from '../core/findings.ts';
 import type { ReviewNotes } from '../core/notes.ts';
+import { lineIdOf, patchHunks } from '../core/patch-lines.ts';
 import type { PreviousComment } from '../core/previous-comments.ts';
 import type { SymbolFile } from '../core/read-range.ts';
 import type { Comment } from '../core/review.ts';
@@ -45,6 +47,7 @@ type UnaskedChangesProps = Pick<Going, 'nodes' | 'onGoTo'> & {
   readonly changes: ReadonlyArray<readonly [string, { readonly text: string }]>;
   readonly tests: TargetsOf['tests'];
   readonly symbols: ReadonlyArray<SymbolFile>;
+  readonly patches: ReadonlyArray<FilePatch>;
 };
 
 const decisionText = (symbols: ReadonlyArray<SymbolFile>, id: string): string =>
@@ -53,21 +56,30 @@ const decisionText = (symbols: ReadonlyArray<SymbolFile>, id: string): string =>
     .flatMap(decisionsOf)
     .find(decision => decision.id === id)?.text ?? id;
 
-const anchorOfUnasked = (key: string, symbols: ReadonlyArray<SymbolFile>): Comment['anchor'] => {
+const lineText = (patches: ReadonlyArray<FilePatch>, id: string): string =>
+  patches.flatMap(({ path, patch }) =>
+    patchHunks(patch).flatMap(({ rows }) => rows.filter(row => lineIdOf(path, row) === id)),
+  )[0]?.code ?? '';
+
+const anchorOfUnasked = (
+  key: string,
+  { symbols, patches }: Pick<UnaskedChangesProps, 'symbols' | 'patches'>,
+): Comment['anchor'] => {
   const { kind, id } = anchorOfKey(key);
   if (kind === 'decision') return { kind, id, text: decisionText(symbols, id) };
+  if (kind === 'line') return { kind, id, text: lineText(patches, id) };
   if (kind === 'symbol' || kind === 'test' || kind === 'edge') return { kind, id };
   return { kind: 'part', id };
 };
 
-const UnaskedChanges = ({ changes, nodes, tests, symbols, onGoTo }: UnaskedChangesProps) => {
+const UnaskedChanges = ({ changes, nodes, tests, onGoTo, ...rows }: UnaskedChangesProps) => {
   if (changes.length === 0) return null;
   return (
     <>
       <h3 className="last-review-subtitle">{UNASKED_TITLE}</h3>
       <ul aria-label={UNASKED_TITLE} className="last-review-list">
         {changes.map(([key, { text }]) => {
-          const anchor = anchorOfUnasked(key, symbols);
+          const anchor = anchorOfUnasked(key, rows);
           const name = anchorName(anchor, nodes);
           const target = anchorTarget(anchor, { nodes, tests });
           return (
@@ -89,12 +101,19 @@ const UnaskedChanges = ({ changes, nodes, tests, symbols, onGoTo }: UnaskedChang
 };
 
 type LastReviewProps = Going &
-  Pick<UnaskedChangesProps, 'tests' | 'symbols'> & {
+  Pick<UnaskedChangesProps, 'tests' | 'symbols' | 'patches'> & {
     readonly since: SinceReview;
     readonly unasked: ReviewNotes['unasked'];
   };
 
-export const LastReview = ({ since, unasked, tests, symbols, ...going }: LastReviewProps) => {
+export const LastReview = ({
+  since,
+  unasked,
+  tests,
+  symbols,
+  patches,
+  ...going
+}: LastReviewProps) => {
   const quiet = 'changedWithoutComment' in since ? since.changedWithoutComment : [];
   const unaskedChanges = Object.entries(unasked ?? {});
   if (
@@ -155,6 +174,7 @@ export const LastReview = ({ since, unasked, tests, symbols, ...going }: LastRev
           nodes={going.nodes}
           tests={tests}
           symbols={symbols}
+          patches={patches}
           onGoTo={going.onGoTo}
         />
       </details>

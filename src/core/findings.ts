@@ -1,5 +1,5 @@
 import { accessFindings } from './access-findings.ts';
-import { anchorOfKey, anchorTarget, isNoted, type Noted } from './anchors.ts';
+import { anchorOfKey, anchorTarget, fileOfLine, isNoted, type Noted } from './anchors.ts';
 import type { Check } from './checks.ts';
 import { dependencyFindings } from './dependency-findings.ts';
 import type { FilePatch, GraphDiff } from './diff-graphs.ts';
@@ -60,10 +60,13 @@ export type Finding = {
   readonly file?: string;
   readonly table?: string;
   readonly route?: string;
+  readonly line?: string;
   readonly title: string;
   readonly detail?: string;
   readonly groups?: SplitSuggestion['groups'];
 };
+
+export type PlaceInFile = Pick<Finding, 'table' | 'route' | 'line'>;
 
 const METRIC_NAMES = { cyclomatic: 'cyclomatic', lines: 'lines', abc: 'ABC size' } as const;
 
@@ -278,14 +281,17 @@ export const findingsOf = ({ data, notes }: FindingsOfOptions): ReadonlyArray<Fi
   ...data.findings,
   ...Object.entries(notes?.notes ?? {}).flatMap(([key, { flag, dimension = 'structure' }]) => {
     if (flag === undefined) return [];
-    const target = anchorTarget(anchorOfKey(key), { nodes: data.diff.nodes, tests: data.tests });
+    const anchor = anchorOfKey(key);
+    const target = anchorTarget(anchor, { nodes: data.diff.nodes, tests: data.tests });
     return [
       {
         id: `${NOTE_FLAG}${key}`,
         check: 'flag' as const,
         dimension,
         level: 'look' as const,
-        ...(target === undefined ? {} : { target }),
+        ...(target !== undefined
+          ? { target }
+          : anchor.kind === 'line' && { file: fileOfLine(anchor.id), line: anchor.id }),
         title: flag,
       },
     ];
