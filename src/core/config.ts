@@ -109,6 +109,25 @@ const NotesConfigSchema = z.strictObject({
     .describe('Whether a note may recommend; false refuses one, left out it may'),
 });
 
+const SecuritySchema = z.strictObject({
+  authorize: z
+    .array(z.string())
+    .default([
+      'authorize',
+      'authorize!',
+      'load_and_authorize_resource',
+      'authorize_resource',
+      'verify_authorized',
+    ])
+    .describe(
+      'The callbacks and calls that authorize an action, * a wildcard; replaces the defaults',
+    ),
+  open: z
+    .array(z.string())
+    .default([])
+    .describe('Actions meant to be public, as Controller#action globs: they raise nothing'),
+});
+
 const ConfigSchema = z.strictObject({
   $schema: z.string().optional(),
   stacks: z
@@ -136,6 +155,9 @@ const ConfigSchema = z.strictObject({
     .describe('Architecture rules by name: edges from some nodes to others that break them'),
   notes: NotesConfigSchema.prefault({}).describe(
     "How Claude writes its notes, read from the range's base revision, so a change can't rewrite it",
+  ),
+  security: SecuritySchema.prefault({}).describe(
+    "How access to controller actions is read, from the range's base revision, so a change can't open its own actions",
   ),
 });
 
@@ -199,7 +221,12 @@ const parsedBy = <Schema extends z.ZodType>(
 export const parseConfig = (text: string): Config =>
   parsedBy(ConfigSchema, jsonIn(text, CONFIG_FILE), CONFIG_FILE);
 
-const BaseNotesSchema = z.object({ notes: NotesConfigSchema.prefault({}) });
+const BaseConfigSchema = z.object({
+  notes: NotesConfigSchema.prefault({}),
+  security: SecuritySchema.prefault({}),
+});
 
-export const parseBaseNotesConfig = (text: string): NotesConfig =>
-  parsedBy(BaseNotesSchema, jsonOrNothing(text), `${CONFIG_FILE} at the base`).notes;
+export type BaseConfig = Pick<Config, 'notes' | 'security'>;
+
+export const parseBaseConfig = (text: string): BaseConfig =>
+  parsedBy(BaseConfigSchema, jsonOrNothing(text), `${CONFIG_FILE} at the base`);

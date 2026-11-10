@@ -205,6 +205,16 @@ A finding whose newest answer in any review of its pull request is It's fine. It
 _Avoid_: dismissed, suppressed
 _In code_: `SinceReview['calledFine']`
 
+**Cover**:
+What authorizes a controller action: an authorizing `before_action` or `around_action` that reaches it (an `after_action` runs once the action has, so only `verify_authorized`, which checks an authorize call was made, counts), from its controller, a parent or an included concern, under its `only` and `except`, with no later skip removing it, or its own call of an authorizing name. It is conditional when it holds only under an `if:` or `unless:`.
+_Avoid_: guard (a logic line), protection, auth
+_In code_: `Cover` (`src/core/access.ts`), `security.authorize`
+
+**Open action**:
+A controller action the repo says is meant to be public, by a `Controller#action` glob in `security.open`, so it raises no finding however it is covered.
+_Avoid_: public action (any action Rails routes), skipped
+_In code_: `security.open`, `RangeReading.openActions`
+
 ## Relationships
 
 - A **fact** may raise **findings**; a **finding** is never the only record of a fact.
@@ -221,6 +231,7 @@ _In code_: `SinceReview['calledFine']`
 - A **direct** package's **dependency change** raises its own **finding** that needs a look; a lockfile's transitive ones roll up into one **finding** for information.
 - A **table change** raises a **finding** in the schema dimension, for information, or needing a look when the table is removed; a dump added or removed whole raises one for the file, and none per table.
 - A removed route or a new target at one verb and path raises its own **finding** in the routes dimension that needs a look; a file's added routes raise one for information, with the count. PATCH and PUT of one path and target count as one. A statement not read raises a **finding** that needs a look only when its text is added or removed, so one that stays raises none.
+- A controller action with no **cover** raises a **finding** in the security dimension that needs a look when it is new, lost its cover, or a route the change adds reaches it; one covered only conditionally raises one for information; an **open action** raises none, and an action already uncovered raises none.
 - A **flag** is answered like any other **finding**, under the id `notes:<kind> <id>`, its note's key.
 - An edge at the head breaking a **rule** raises one **finding** per rule in the rules dimension, on that edge, needing a look when the change adds the edge and for information when it was already there; a removed edge raises none.
 - A removed guard or catch **logic line** raises a **finding** in the logic dimension that needs a look; a function's other **logic lines** that changed, a moved one among them, raise one for information; a file with either and no test changed alongside it raises one in the tests dimension.

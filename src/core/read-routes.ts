@@ -1,4 +1,4 @@
-import { gitUntrimmed } from './git.ts';
+import { filesHeldAt } from './git.ts';
 import { diffRoutes, type RouteChange, type UnreadChange } from './route-diff.ts';
 import { RouteFileNotRead, type RouteReader, type RouteTable } from './routes.ts';
 
@@ -35,18 +35,8 @@ export const readRoutes = async ({
   changes,
   routes,
 }: ReadRoutesOptions): Promise<ReadonlyArray<RoutesReading>> => {
-  const tableAt = async (revision: string, reader: RouteReader): Promise<RouteTable> => {
-    const listed = await gitUntrimmed(repo, 'ls-tree', '-r', '-z', '--name-only', revision);
-    const files = await Promise.all(
-      listed
-        .split('\0')
-        .filter(reader.holds)
-        .map(
-          async file => [file, await gitUntrimmed(repo, 'show', `${revision}:${file}`)] as const,
-        ),
-    );
-    return reader.routes(new Map(files));
-  };
+  const tableAt = async (revision: string, reader: RouteReader): Promise<RouteTable> =>
+    reader.routes(await filesHeldAt({ repo, revision, holds: reader.holds }));
   const readingOf = async (
     reader: RouteReader,
     changed: Changes,

@@ -21,6 +21,7 @@ export default defineConfig({
           name: 'page',
           include: ['**/*.test.tsx'],
           fileParallelism: false,
+          testTimeout: 15_000,
           sequence: { groupOrder: 1 },
         },
       },

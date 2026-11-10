@@ -2,11 +2,13 @@ import { existsSync } from 'node:fs';
 import { mkdtemp, readFile, realpath, rm, stat } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { basename, join, relative } from 'node:path';
+import type { AccessReader } from './access.ts';
 import {
+  type BaseConfig,
   CONFIG_FILE,
   type Config,
   type NotesConfig,
-  parseBaseNotesConfig,
+  parseBaseConfig,
   parseConfig,
   type ReaderName,
 } from './config.ts';
@@ -19,6 +21,7 @@ import { dropLinksLeaving, isTrackedLinkLeaving } from './links-leaving.ts';
 import type { Lockfile } from './lockfile.ts';
 import { type MeasuredNode, measuredNodes } from './metrics.ts';
 import type { MigrationReader } from './migration.ts';
+import { type AccessReading, readAccess } from './read-access.ts';
 import { type DependencyChanges, readLockfiles } from './read-lockfiles.ts';
 import { type MigrationReading, readMigrations } from './read-migrations.ts';
 import { type Reach, readReaches } from './read-reaches.ts';
@@ -101,6 +104,8 @@ export type RangeReading = {
   readonly migrations: ReadonlyArray<MigrationReading>;
   readonly schemas: ReadonlyArray<SchemaReading>;
   readonly routes: ReadonlyArray<RoutesReading>;
+  readonly access: ReadonlyArray<AccessReading>;
+  readonly openActions: ReadonlyArray<string>;
   readonly danglingCalls: ReadonlyArray<DanglingCall>;
   readonly linksNotRead: ReadonlyArray<string>;
   readonly skipped: ReadonlyArray<Skipped>;
@@ -118,6 +123,7 @@ type ReadRangeOptions = Adapters & {
   readonly migrations: ReadonlyArray<MigrationReader>;
   readonly schemas: ReadonlyArray<SchemaReader>;
   readonly routes: ReadonlyArray<RouteReader>;
+  readonly access: ReadonlyArray<AccessReader>;
   readonly repo: string;
   readonly from: string;
   readonly to: string;
@@ -285,10 +291,12 @@ const configAt = async (repo: string, revision: string): Promise<Config> => {
   return parseConfig(await readFileThatEnds(inWorkingTree));
 };
 
-const notesConfigAt = async (repo: string, revision: string): Promise<NotesConfig> =>
-  (await git(repo, 'ls-tree', '--name-only', revision, '--', CONFIG_FILE)) === ''
-    ? {}
-    : parseBaseNotesConfig(await git(repo, 'show', `${revision}:${CONFIG_FILE}`));
+const baseConfigAt = async (repo: string, revision: string): Promise<BaseConfig> =>
+  parseBaseConfig(
+    (await git(repo, 'ls-tree', '--name-only', revision, '--', CONFIG_FILE)) === ''
+      ? '{}'
+      : await git(repo, 'show', `${revision}:${CONFIG_FILE}`),
+  );
 
 type ChurnOptions = {
   readonly repo: string;
@@ -600,12 +608,13 @@ export const readRange = async ({
   migrations,
   schemas,
   routes,
+  access,
   ...adapters
 }: ReadRangeOptions): Promise<RangeReading> => {
   const [fromCommit, toCommit] = await Promise.all([resolve(repo, from), resolve(repo, to)]);
   const base = await git(repo, 'merge-base', fromCommit, toCommit);
   const config = await configAt(repo, toCommit);
-  const notesConfig = await notesConfigAt(repo, base);
+  const { notes: notesConfig, security } = await baseConfigAt(repo, base);
   const scratch = await realpath(await mkdtemp(join(tmpdir(), 'visual-review-')));
   try {
     const sides = { before: join(scratch, 'before'), after: join(scratch, 'after') };
@@ -692,6 +701,7 @@ export const readRange = async ({
             config,
             ...adapters,
           });
+    const routesRead = await readRoutes({ repo, base, head: toCommit, changes, routes });
     return {
       before: before.graph,
       after: after.graph,
@@ -711,7 +721,17 @@ export const readRange = async ({
       dependencyChanges: await readLockfiles({ repo, base, head: toCommit, changes, lockfiles }),
       migrations: await readMigrations({ repo, base, head: toCommit, changes, migrations }),
       schemas: await readSchemas({ repo, base, head: toCommit, changes, schemas }),
-      routes: await readRoutes({ repo, base, head: toCommit, changes, routes }),
+      routes: routesRead,
+      access: await readAccess({
+        repo,
+        base,
+        head: toCommit,
+        changes,
+        routed: routesRead.length > 0,
+        access,
+        authorize: security.authorize,
+      }),
+      openActions: security.open,
       danglingCalls: after.danglingCalls,
       linksNotRead: after.linksNotRead,
       skipped: [

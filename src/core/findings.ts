@@ -1,3 +1,4 @@
+import { accessFindings } from './access-findings.ts';
 import { anchorOfKey, anchorTarget, isNoted, type Noted } from './anchors.ts';
 import type { Check } from './checks.ts';
 import { dependencyFindings } from './dependency-findings.ts';
@@ -10,6 +11,7 @@ import { migrationFindings } from './migration-findings.ts';
 import type { ReviewNotes } from './notes.ts';
 import type { PageData } from './page.ts';
 import { reachFindings } from './reach-findings.ts';
+import type { AccessReading } from './read-access.ts';
 import type { DependencyChanges } from './read-lockfiles.ts';
 import type { MigrationReading } from './read-migrations.ts';
 import type { SymbolFile } from './read-range.ts';
@@ -89,6 +91,8 @@ type RaisedOptions = {
   readonly migrations: ReadonlyArray<MigrationReading>;
   readonly schemas: ReadonlyArray<SchemaReading>;
   readonly routes: ReadonlyArray<RoutesReading>;
+  readonly access: ReadonlyArray<AccessReading>;
+  readonly openActions: ReadonlyArray<string>;
   readonly metricFindings: ReadonlyArray<MetricFinding>;
   readonly symbols: ReadonlyArray<SymbolFile>;
   readonly symbolsNotRead: ReadonlyArray<string>;
@@ -173,6 +177,8 @@ export const raisedFindings = ({
   migrations,
   schemas,
   routes,
+  access,
+  openActions,
   metricFindings,
   symbols,
   symbolsNotRead,
@@ -245,6 +251,12 @@ export const raisedFindings = ({
   ...migrationFindings(migrations),
   ...schemaFindings(schemas),
   ...routeFindings(routes),
+  ...accessFindings({
+    access,
+    routes: routes.flatMap(reading => ('routes' in reading ? reading.routes : [])),
+    nodes,
+    open: openActions,
+  }),
 ];
 
 const NOTE_FLAG = 'notes:';

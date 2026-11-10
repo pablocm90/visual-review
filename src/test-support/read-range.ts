@@ -1,4 +1,4 @@
-import { linkers, lockfiles, migrations, readers, routes, schemas } from '../adapters.ts';
+import { access, linkers, lockfiles, migrations, readers, routes, schemas } from '../adapters.ts';
 import {
   type RangeReading,
   type ReviewedHead,
@@ -17,4 +17,14 @@ type RangeOptions = {
 };
 
 export const readRange = (range: RangeOptions): Promise<RangeReading> =>
-  readRangeWith({ readers, linkers, lockfiles, migrations, schemas, routes, onPath, ...range });
+  readRangeWith({
+    access,
+    readers,
+    linkers,
+    lockfiles,
+    migrations,
+    schemas,
+    routes,
+    onPath,
+    ...range,
+  });

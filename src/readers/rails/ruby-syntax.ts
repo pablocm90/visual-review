@@ -47,3 +47,8 @@ export const argsOf = (call: Node): ReadonlyArray<Node> => {
 
 export const blockParameterOf = (call: Node): string | undefined =>
   call.childForFieldName('block')?.childForFieldName('parameters')?.namedChildren[0]?.text;
+
+export const constantWithin = (written: string, within: string | undefined): string => {
+  if (written.startsWith('::')) return written.slice(2);
+  return within === undefined ? written : `${within}::${written}`;
+};

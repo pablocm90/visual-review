@@ -1,3 +1,4 @@
+import type { AccessReader } from './core/access.ts';
 import type { Linker } from './core/linker.ts';
 import type { Lockfile } from './core/lockfile.ts';
 import type { MigrationReader } from './core/migration.ts';
@@ -10,6 +11,7 @@ import { cargoLockfile } from './lockfiles/cargo.ts';
 import { npmLockfile } from './lockfiles/npm.ts';
 import { pnpmLockfile } from './lockfiles/pnpm.ts';
 import { yarnLockfile } from './lockfiles/yarn.ts';
+import { railsAccess } from './readers/rails/access-reader.ts';
 import { railsMigrations } from './readers/rails/migration-risks.ts';
 import { railsReader } from './readers/rails/reader.ts';
 import { railsRoutes } from './readers/rails/route-reader.ts';
@@ -34,3 +36,5 @@ export const migrations: ReadonlyArray<MigrationReader> = [railsMigrations];
 export const schemas: ReadonlyArray<SchemaReader> = [railsSchema];
 
 export const routes: ReadonlyArray<RouteReader> = [railsRoutes];
+
+export const access: ReadonlyArray<AccessReader> = [railsAccess];
