@@ -67,33 +67,53 @@ const assignedSecret = (code: string): ReadonlyArray<Found> => {
       ];
 };
 
-export const secretFindings = (patches: ReadonlyArray<FilePatch>): ReadonlyArray<Finding> =>
-  patches.flatMap(({ path, patch }) =>
-    countingRepeats(
-      patchHunks(patch)
-        .flatMap(hunk => hunk.rows)
-        .filter(row => row.kind === 'added')
-        .flatMap(row =>
-          (knownFormat(row.code).length > 0 ? knownFormat(row.code) : assignedSecret(row.code)).map(
-            found => ({ row, found }),
-          ),
+const SECRET_FILE =
+  /(?:^|\/)(?:\.env(?!\.example)[^/]*|config\/master\.key|config\/credentials\/[^/]+\.key|[^/]+\.pem|id_rsa(?!\.pub)[^/]*)$/;
+
+const secretFile = ({ path, patch }: FilePatch): ReadonlyArray<Finding> =>
+  SECRET_FILE.test(path) && /^new file mode /m.test(patch)
+    ? [
+        {
+          id: `security:secret:${path}#secret-file`,
+          check: 'security:secret',
+          dimension: 'security',
+          level: 'look',
+          file: path,
+          title: `${path} is a secret file the change adds`,
+          detail:
+            'Keep it out of git and rotate what it holds: it stays in git history once removed.',
+        },
+      ]
+    : [];
+
+const secretLines = ({ path, patch }: FilePatch): ReadonlyArray<Finding> =>
+  countingRepeats(
+    patchHunks(patch)
+      .flatMap(hunk => hunk.rows)
+      .filter(row => row.kind === 'added')
+      .flatMap(row =>
+        (knownFormat(row.code).length > 0 ? knownFormat(row.code) : assignedSecret(row.code)).map(
+          found => ({ row, found }),
         ),
-      ({ found }) => `security:secret:${path}#${found.name}`,
-    ).flatMap(({ item: { row, found }, id }): ReadonlyArray<Finding> => {
-      const line = lineIdOf(path, row);
-      return line === undefined
-        ? []
-        : [
-            {
-              id,
-              check: 'security:secret',
-              dimension: 'security',
-              level: 'look',
-              file: path,
-              line,
-              title: `${path} adds ${found.said}`,
-              detail: found.detail,
-            },
-          ];
-    }),
-  );
+      ),
+    ({ found }) => `security:secret:${path}#${found.name}`,
+  ).flatMap(({ item: { row, found }, id }): ReadonlyArray<Finding> => {
+    const line = lineIdOf(path, row);
+    return line === undefined
+      ? []
+      : [
+          {
+            id,
+            check: 'security:secret',
+            dimension: 'security',
+            level: 'look',
+            file: path,
+            line,
+            title: `${path} adds ${found.said}`,
+            detail: found.detail,
+          },
+        ];
+  });
+
+export const secretFindings = (patches: ReadonlyArray<FilePatch>): ReadonlyArray<Finding> =>
+  patches.flatMap(patch => [...secretFile(patch), ...secretLines(patch)]);

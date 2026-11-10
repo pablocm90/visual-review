@@ -129,3 +129,58 @@ test.for([
 ])('$code raises nothing: $why', ({ code }) => {
   expect(secretFindings([patchAdding(code)])).toEqual([]);
 });
+
+const addedFile = (path: string) => ({
+  path,
+  patch: [
+    `diff --git a/${path} b/${path}`,
+    'new file mode 100644',
+    'index 0000000..e69de29',
+    '--- /dev/null',
+    `+++ b/${path}`,
+    '@@ -0,0 +1,1 @@',
+    '+# nothing to see',
+  ].join('\n'),
+});
+
+test.for([
+  '.env',
+  '.env.production',
+  'web/.env.local',
+  'config/master.key',
+  'backend/config/master.key',
+  'config/credentials/production.key',
+  'certs/server.pem',
+  'id_rsa',
+  'deploy/id_rsa_ci',
+])('%s, a secret file the change adds, needs a look', path => {
+  expect(secretFindings([addedFile(path)])).toStrictEqual([
+    {
+      id: `security:secret:${path}#secret-file`,
+      check: 'security:secret',
+      dimension: 'security',
+      level: 'look',
+      file: path,
+      title: `${path} is a secret file the change adds`,
+      detail: 'Keep it out of git and rotate what it holds: it stays in git history once removed.',
+    },
+  ]);
+});
+
+test.for([
+  '.env.example',
+  'deploy/id_rsa.pub',
+  'config/credentials.yml.enc',
+  'config/credentials/production.yml.enc',
+  'app/models/master.key.rb',
+  'docs/env.md',
+  'lib/letter.envelope.rb',
+  'deploy/.environments/README.md',
+  'docs/id_rsa/README.md',
+])('%s, a file the change adds that holds no secret, raises nothing', path => {
+  expect(secretFindings([addedFile(path)])).toEqual([]);
+});
+
+test('a secret file the change edits, not adds, raises nothing for the file', () => {
+  expect(secretFindings([{ ...patchAdding('new file mode 100644'), path: '.env' }])).toEqual([]);
+});
