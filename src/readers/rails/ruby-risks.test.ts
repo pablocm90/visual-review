@@ -31,3 +31,19 @@ test('permit! reads as a risk by the call it is', () => {
     { kind: 'permit!', text: 'params.require(:user).permit!' },
   ]);
 });
+
+test.for([
+  'User.find_by_sql(query)',
+  'connection.execute(query)',
+  'connection.exec_query(query)',
+  'connection.select_all(query)',
+  'connection.select_value(query)',
+  'connection.select_rows(query)',
+  'Arel.sql(query)',
+])('%s reads as raw SQL whatever it is given', call => {
+  expect(risksIn(call)).toEqual([{ kind: 'raw-sql', text: call }]);
+});
+
+test('a method named sql on another receiver than Arel is no raw SQL', () => {
+  expect(risksIn('report.sql(query)')).toEqual([]);
+});

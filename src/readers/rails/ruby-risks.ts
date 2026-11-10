@@ -31,9 +31,29 @@ const permittedKeys = (call: Node): ReadonlyArray<Risk> =>
     text,
   }));
 
-const RISKS = new Map<string, (call: Node) => ReadonlyArray<Risk>>([
+type Reading = (call: Node) => ReadonlyArray<Risk>;
+
+const asWritten =
+  (kind: Risk['kind']): Reading =>
+  call => [{ kind, text: codeOf(call) }];
+
+const RAW_SQL = [
+  'find_by_sql',
+  'execute',
+  'exec_query',
+  'select_all',
+  'select_value',
+  'select_rows',
+];
+
+const arelSql: Reading = call =>
+  call.childForFieldName('receiver')?.text === 'Arel' ? asWritten('raw-sql')(call) : [];
+
+const RISKS = new Map<string, Reading>([
   ['permit', permittedKeys],
-  ['permit!', call => [{ kind: 'permit!', text: codeOf(call) }]],
+  ['permit!', asWritten('permit!')],
+  ...RAW_SQL.map((name): [string, Reading] => [name, asWritten('raw-sql')]),
+  ['sql', arelSql],
 ]);
 
 export const risksIn = (body: Node): ReadonlyArray<Risk> =>

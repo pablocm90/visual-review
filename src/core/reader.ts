@@ -71,7 +71,7 @@ export type ReadSymbol = {
   readonly risks?: ReadonlyArray<Risk>;
 };
 
-export type RiskKind = 'permit' | 'permit!';
+export type RiskKind = 'permit' | 'permit!' | 'raw-sql';
 
 export type Risk = { readonly kind: RiskKind; readonly text: string };
 
