@@ -13,6 +13,7 @@ import type { RoutesReading } from './read-routes.ts';
 import type { SchemaReading } from './read-schemas.ts';
 import { type ReadingOrder, readingOrder } from './reading-order.ts';
 import type { Review } from './review.ts';
+import { masked, secretValues } from './secret-findings.ts';
 import { type SinceReview, sinceReviewOf } from './since-review.ts';
 import type { Skipped } from './skipped.ts';
 import { splitSuggestion } from './split-suggestion.ts';
@@ -63,6 +64,18 @@ type PageDataOptions = {
 
 export const UNCOMMITTED = 'HEAD..worktree';
 
+const maskedIn = <T>(data: T, values: ReadonlyArray<string>): T => {
+  const longestFirst = values.toSorted((one, other) => other.length - one.length);
+  const mask = (text: string): string =>
+    longestFirst.reduce((masking, value) => masking.replaceAll(value, masked(value)), text);
+  const read: unknown = JSON.parse(JSON.stringify(data), (_key, value: unknown) => {
+    if (typeof value === 'string') return mask(value);
+    if (value === null || typeof value !== 'object' || Array.isArray(value)) return value;
+    return Object.fromEntries(Object.entries(value).map(([key, held]) => [mask(key), held]));
+  });
+  return read as T;
+};
+
 export const pageData = ({
   reading,
   repo,
@@ -103,7 +116,7 @@ export const pageData = ({
     ruleBreaks: reading.ruleBreaks,
     edges: diff.edges,
   });
-  return {
+  const data: PageData = {
     repo,
     range,
     version,
@@ -142,6 +155,7 @@ export const pageData = ({
           }),
         }),
   };
+  return maskedIn(data, secretValues(reading.patches));
 };
 
 const DATA_SLOT = 'review-data';

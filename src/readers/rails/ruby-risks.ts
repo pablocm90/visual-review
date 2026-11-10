@@ -10,27 +10,29 @@ const keyName = (key: Node): string => {
   return key.text;
 };
 
-const nestedKeys = (pair: Node, path: string): ReadonlyArray<string> => {
+const nestedKeys = (pair: Node, path: string): ReadonlyArray<Risk> => {
   const key = pair.childForFieldName('key');
   const value = pair.childForFieldName('value');
   if (key === null) return [];
   const named = `${path}${keyName(key)}`;
-  if (value?.type !== 'array' || value.namedChildCount === 0) return [named];
+  if (value === null) return [{ kind: 'permit', text: named }];
+  if (value.type !== 'array' && value.type !== 'hash')
+    return [{ kind: 'permit', text: `${named}.${value.text}`, unread: true }];
+  if (value.namedChildCount === 0) return [{ kind: 'permit', text: named }];
   return keysIn(value.namedChildren, `${named}.`);
 };
 
-const keysIn = (written: ReadonlyArray<Node>, path: string): ReadonlyArray<string> =>
-  written.flatMap(each => {
-    if (each.type === 'simple_symbol' || each.type === 'string') return [`${path}${keyName(each)}`];
+const keysIn = (written: ReadonlyArray<Node>, path: string): ReadonlyArray<Risk> =>
+  written.flatMap((each): ReadonlyArray<Risk> => {
+    if (each.type === 'simple_symbol' || each.type === 'string')
+      return [{ kind: 'permit', text: `${path}${keyName(each)}` }];
     if (each.type === 'hash') return keysIn(each.namedChildren, path);
-    return each.type === 'pair' ? nestedKeys(each, path) : [];
+    if (each.type === 'pair') return nestedKeys(each, path);
+    return [{ kind: 'permit', text: `${path}${each.text}`, unread: true }];
   });
 
 const permittedKeys = (call: Node): ReadonlyArray<Risk> =>
-  keysIn(call.childForFieldName('arguments')?.namedChildren ?? [], '').map(text => ({
-    kind: 'permit',
-    text,
-  }));
+  keysIn(call.childForFieldName('arguments')?.namedChildren ?? [], '');
 
 type Reading = (call: Node) => ReadonlyArray<Risk>;
 

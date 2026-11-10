@@ -77,6 +77,7 @@ export type Risk = {
   readonly kind: RiskKind;
   readonly text: string;
   readonly detail?: string;
+  readonly unread?: true;
 };
 
 export type FileSymbols = {

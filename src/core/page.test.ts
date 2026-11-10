@@ -3764,3 +3764,103 @@ test('a line marked safe in a view raises its security finding, whether the view
     'security:html-safe:app/views/index.html.erb#<%== bio %>',
   ]);
 });
+
+const addingLine = (path: string, ...lines: ReadonlyArray<string>) => ({
+  path,
+  patch: [`@@ -0,0 +1,${lines.length} @@`, ...lines.map(line => `+${line}`)].join('\n'),
+});
+
+const AWS_KEY = 'AKIAIOSFODNN7EXAMPLE';
+
+test('a secret a line gains raises its security finding, whether its file is drawn or not', () => {
+  const reading = readingWith({
+    patches: [
+      addingLine('web/src/a.ts', `const key = '${AWS_KEY}';`),
+      addingLine('config/aws.yml', `key: ${AWS_KEY}`),
+    ],
+  });
+
+  expect(
+    pageData({ repo: 'shop', reading, range: 'main..feature', version: '1.2.3', parsers })
+      .findings.filter(({ check }) => check === 'security:secret')
+      .map(({ id }) => id),
+  ).toStrictEqual([
+    'security:secret:web/src/a.ts#aws-access-key',
+    'security:secret:config/aws.yml#aws-access-key',
+  ]);
+});
+
+const symbolsIn = (file: SymbolFile | undefined) =>
+  file !== undefined && 'symbols' in file ? file.symbols : [];
+
+test('a secret the change adds is masked in every string of the page data, its patch and its decision texts alike', () => {
+  const reading = readingWith({
+    patches: [addingLine('config/aws.yml', `key: ${AWS_KEY} # was ${AWS_KEY}`)],
+    symbols: [
+      symbolFile([
+        {
+          name: 'sign',
+          kind: 'function',
+          exported: { base: true, head: true },
+          change: 'edited',
+          logic: [logicLine({ change: 'added', kind: 'if', head: `if (key === '${AWS_KEY}')` })],
+        },
+      ]),
+    ],
+  });
+
+  const data = pageData({ repo: 'shop', reading, range: 'main..feature', version, parsers });
+
+  expect({
+    holdsKey: JSON.stringify(data).includes(AWS_KEY),
+    patch: data.undrawn[0]?.patch,
+    decision: symbolsIn(data.symbols[0])[0]?.logic?.[0]?.head,
+  }).toStrictEqual({
+    holdsKey: false,
+    patch: '@@ -0,0 +1,1 @@\n+key: AKIA…(20 chars) # was AKIA…(20 chars)',
+    decision: "if (key === 'AKIA…(20 chars)')",
+  });
+});
+
+test('a private key line holding another of its lines is masked whole, not around the shorter one', () => {
+  const reading = readingWith({
+    patches: [
+      addingLine(
+        'config/deploy.pem',
+        '-----BEGIN RSA PRIVATE KEY-----',
+        'MIIEowIBAAKCAQEA',
+        'MIIEowIBAAKCAQEAx1y2z3',
+        '-----END RSA PRIVATE KEY-----',
+      ),
+    ],
+  });
+
+  expect(
+    pageData({ repo: 'shop', reading, range: 'main..feature', version, parsers }).undrawn[0]?.patch,
+  ).toBe(
+    [
+      '@@ -0,0 +1,4 @@',
+      '+-----BEGIN RSA PRIVATE KEY-----',
+      '+MIIE…(16 chars)',
+      '+MIIE…(22 chars)',
+      '+-----END RSA PRIVATE KEY-----',
+    ].join('\n'),
+  );
+});
+
+test('a secret held in a node id is masked in the keys keyed by that id too, so its metrics are still found', () => {
+  const named = webFile(`${AWS_KEY}.ts`);
+  const reading = readingWith({
+    after: { nodes: [webStack, webFile('a.ts'), named], edges: [] },
+    changedPaths: ['web/src/a.ts', named.path],
+    churn: { before: {}, after: { [named.path]: 3 } },
+    patches: [addingLine('config/aws.yml', `key: ${AWS_KEY}`)],
+  });
+
+  const data = pageData({ repo: 'shop', reading, range: 'main..feature', version, parsers });
+
+  expect({
+    holdsKey: JSON.stringify(data).includes(AWS_KEY),
+    metricsFound: data.metrics['web/file/AKIA…(20 chars).ts'] !== undefined,
+  }).toStrictEqual({ holdsKey: false, metricsFound: true });
+});

@@ -3,6 +3,7 @@ import type { Dimension } from './findings.ts';
 import { NO_AXUM_CRATE } from './linker.ts';
 import type { RangeReading } from './read-range.ts';
 import { notReadLine } from './skipped.ts';
+import { qualified } from './symbol-changes.ts';
 
 export type Coverage = {
   readonly dimension: Dimension;
@@ -33,6 +34,17 @@ const notReadFor = (name: string): string => `not read for ${name}`;
 const unreadIn = (symbols: CoverageFacts['symbols']): ReadonlyArray<string> =>
   symbols.flatMap(file => ('unreadable' in file ? [notReadFor(file.node)] : []));
 
+const permitsUnreadIn = (symbols: CoverageFacts['symbols']): ReadonlyArray<string> =>
+  symbols.flatMap(file =>
+    'unreadable' in file
+      ? []
+      : file.symbols.flatMap(statement =>
+          (statement.risks ?? [])
+            .filter(risk => risk.unread)
+            .map(risk => `${file.node} not read: permit(${risk.text}) in ${qualified(statement)}`),
+        ),
+  );
+
 const securityNotRead = ({
   access,
   readers,
@@ -44,7 +56,7 @@ const securityNotRead = ({
   'access' | 'readers' | 'routes' | 'openActions' | 'symbols'
 >): ReadonlyArray<string> =>
   access.length === 0 && !readers.includes('rails')
-    ? ['Rails only']
+    ? ['authorization and risky calls: Rails only']
     : [
         ...accessNotRead({
           access,
@@ -52,6 +64,7 @@ const securityNotRead = ({
           open: openActions,
         }),
         ...unreadIn(symbols),
+        ...permitsUnreadIn(symbols),
         ...readers
           .filter(reader => reader !== 'rails')
           .map(reader => `risky calls not read for ${reader}`),
