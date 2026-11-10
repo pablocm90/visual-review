@@ -8,6 +8,7 @@ import { railsMigrations } from './rails/migration-risks.ts';
 import { railsReader } from './rails/reader.ts';
 import { railsRoutes } from './rails/route-reader.ts';
 import { railsSchema } from './rails/schema-tables.ts';
+import { railsTenant } from './rails/tenant-reader.ts';
 import { crateModules } from './rust/crate-modules.ts';
 import { rustReader } from './rust/reader.ts';
 
@@ -231,6 +232,19 @@ test.for([
   { reading: 'where a Rails class is used', files: 2 * FILES + 1, read: usesInRails },
   { reading: 'where a Rust function is used', files: 2 * FILES + 2, read: usesInRust },
   { reading: 'Rails routes', files: FILES + 1, read: () => railsRoutes.routes(routeFiles()) },
+  {
+    reading: 'Apartment configs',
+    files: FILES,
+    read: () =>
+      railsTenant.configs(
+        new Map(
+          Array.from({ length: FILES }, (_, index): [string, string] => [
+            `apps/app${index}/config/initializers/apartment.rb`,
+            `Apartment.configure do |config|\n  config.excluded_models = %w[Model${index}]\nend\n`,
+          ]),
+        ),
+      ),
+  },
   {
     reading: 'a schema dump that doesn’t parse',
     files: 1,
