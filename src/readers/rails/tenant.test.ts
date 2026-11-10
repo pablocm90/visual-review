@@ -79,3 +79,38 @@ test.for([
 ])('$path is held: $held', ({ path, held }) => {
   expect(railsTenant.holds(path)).toBe(held);
 });
+
+const excludedAs = (list: string) =>
+  read({ 'config/initializers/apartment.rb': initializer(`  config.excluded_models = ${list}`) })
+    .configs[0];
+
+test.for([
+  { list: '["Company", "Admin::User"]', excluded: ['Company', 'Admin::User'] },
+  { list: '[Company, ::Admin::User]', excluded: ['Company', 'Admin::User'] },
+])('$list is read as its constants', ({ list, excluded }) => {
+  expect(excludedAs(list)).toMatchObject({ excluded });
+  expect(excludedAs(list)).not.toHaveProperty('unread');
+});
+
+test.for([
+  { list: 'EXCLUDED', excluded: [], unread: ['EXCLUDED'] },
+  { list: '%w[Company].freeze', excluded: [], unread: ['%w[Company].freeze'] },
+  { list: '[*SHARED, "Company"]', excluded: ['Company'], unread: ['*SHARED'] },
+  { list: '["#{prefix}Company", User]', excluded: ['User'], unread: ['"#{prefix}Company"'] },
+  { list: '%W[#{prefix}Company User]', excluded: ['User'], unread: ['#{prefix}Company'] },
+])('$list is read as far as it is written out', ({ list, excluded, unread }) => {
+  expect(excludedAs(list)).toMatchObject({
+    excluded,
+    unread: unread.map(text => ({ text, file: 'config/initializers/apartment.rb', line: 2 })),
+  });
+});
+
+test('the last excluded_models written is the one Apartment keeps', () => {
+  expect(
+    read({
+      'config/initializers/apartment.rb': initializer(
+        '  config.excluded_models = %w[Company]\n  config.excluded_models = %w[User]',
+      ),
+    }).configs[0]?.excluded,
+  ).toStrictEqual(['User']);
+});

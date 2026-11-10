@@ -1,7 +1,7 @@
 import type { Node } from 'web-tree-sitter';
-import type { TenantConfig, TenantReader } from '../../core/tenant.ts';
+import type { TenantConfig, TenantReader, TenantUnread } from '../../core/tenant.ts';
 import { NOT_SEARCHED } from './reader.ts';
-import { argsOf, methodOf, namesIn, readRuby } from './ruby-syntax.ts';
+import { argsOf, methodOf, readRuby, writtenIn } from './ruby-syntax.ts';
 
 const HELD = /^(.*?)(?<=^|\/)(config\/.+|app\/jobs\/application_job)\.rb$/;
 
@@ -18,14 +18,51 @@ const configuresIn = (root: Node): ReadonlyArray<Node> =>
         APARTMENT.has(call.childForFieldName('receiver')?.text ?? ''),
     );
 
-const excludedIn = (configure: Node): ReadonlyArray<string> =>
-  configure
+type Excluded = Pick<TenantConfig, 'excluded' | 'unread'>;
+
+const STRINGS: ReadonlySet<string> = new Set(['string', 'bare_string']);
+
+const CONSTANTS: ReadonlySet<string> = new Set(['constant', 'scope_resolution']);
+
+const nameIn = (node: Node): string | undefined => {
+  if (STRINGS.has(node.type) && node.namedChildren.every(({ type }) => type === 'string_content'))
+    return node.text.replace(/^"|"$/g, '');
+  if (CONSTANTS.has(node.type) && node.descendantsOfType('identifier').length === 0)
+    return node.text.replace(/^::/, '');
+  return undefined;
+};
+
+const LISTS: ReadonlySet<string> = new Set(['array', 'string_array']);
+
+const unreadAt = (file: string, node: Node): TenantUnread => ({
+  text: node.text,
+  file,
+  line: node.startPosition.row + 1,
+});
+
+const listOf = (file: string, list: Node): Excluded => {
+  if (!LISTS.has(list.type)) return { excluded: [], unread: [unreadAt(file, list)] };
+  const read = writtenIn(list).map(node => ({ node, name: nameIn(node) }));
+  const unread = read.flatMap(({ node, name }) =>
+    name === undefined ? [unreadAt(file, node)] : [],
+  );
+  return {
+    excluded: read.flatMap(({ name }) => (name === undefined ? [] : [name])),
+    ...(unread.length === 0 ? {} : { unread }),
+  };
+};
+
+const excludedIn = (file: string, configure: Node): Excluded => {
+  const right = configure
     .descendantsOfType('assignment')
     .filter(assignment => {
       const left = assignment.childForFieldName('left');
       return left?.type === 'call' && methodOf(left) === 'excluded_models';
     })
-    .flatMap(assignment => namesIn(assignment.childForFieldName('right') ?? undefined));
+    .at(-1)
+    ?.childForFieldName('right');
+  return right == null ? { excluded: [] } : listOf(file, right);
+};
 
 const carries = (root: Node): boolean =>
   root
@@ -45,7 +82,7 @@ const heldFileOf = (file: string, text: string): HeldFile => {
   if (!text.includes('Apartment')) return { root, configs: [], carries: false };
   return readRuby(text, tree => ({
     root,
-    configs: configuresIn(tree).map(configure => ({ root, file, excluded: excludedIn(configure) })),
+    configs: configuresIn(tree).map(configure => ({ root, file, ...excludedIn(file, configure) })),
     carries: carries(tree),
   }));
 };
