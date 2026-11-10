@@ -20,6 +20,8 @@ test.for([
   { permitted: '"address" => [:street]', texts: ['address.street'] },
   { permitted: 'tags: []', texts: ['tags'] },
   { permitted: 'meta: {}', texts: ['meta'] },
+  { permitted: '"name", \'email\'', texts: ['name', 'email'] },
+  { permitted: ':name, { address: ["street"] }', texts: ['name', 'address.street'] },
 ])('permit($permitted) reads its nested keys by path', ({ permitted, texts }) => {
   expect(risksIn(`params.permit(${permitted})`)).toEqual(
     texts.map(text => ({ kind: 'permit', text })),

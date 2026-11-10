@@ -21,7 +21,8 @@ const nestedKeys = (pair: Node, path: string): ReadonlyArray<string> => {
 
 const keysIn = (written: ReadonlyArray<Node>, path: string): ReadonlyArray<string> =>
   written.flatMap(each => {
-    if (each.type === 'simple_symbol') return [`${path}${each.text.slice(1)}`];
+    if (each.type === 'simple_symbol' || each.type === 'string') return [`${path}${keyName(each)}`];
+    if (each.type === 'hash') return keysIn(each.namedChildren, path);
     return each.type === 'pair' ? nestedKeys(each, path) : [];
   });
 
