@@ -1,5 +1,5 @@
 import { decisionKey, decisionText, type LogicLine, logicDiff } from './logic-diff.ts';
-import type { FileSymbols, LineRange, ReadSymbol, SymbolKind } from './reader.ts';
+import type { FileSymbols, LineRange, ReadSymbol, Risk, SymbolKind } from './reader.ts';
 
 export type SymbolChange =
   | 'added'
@@ -23,6 +23,7 @@ export type SymbolStatement = {
   readonly movedTo?: string;
   readonly movedFrom?: string;
   readonly logic?: ReadonlyArray<LogicLine>;
+  readonly risks?: ReadonlyArray<Risk>;
 };
 
 export type ExportChanges = {
@@ -95,6 +96,16 @@ const logicOf = (old: ReadSymbol, symbol: ReadSymbol) => {
   return logic.every(({ change }) => change === 'same') ? {} : { logic };
 };
 
+const riskKey = ({ kind, text }: Risk): string => `${kind} ${text}`;
+
+const gainedRisks = (old: ReadSymbol, symbol: ReadSymbol) => {
+  const risks = (old.risks ?? []).reduce((left, lost) => {
+    const at = left.findIndex(risk => riskKey(risk) === riskKey(lost));
+    return at === -1 ? left : left.toSpliced(at, 1);
+  }, symbol.risks ?? []);
+  return risks.length === 0 ? {} : { risks };
+};
+
 const pairedWith = (old: ReadSymbol, symbol: ReadSymbol): SymbolStatement => ({
   ...named(symbol),
   lines: { base: old.lines, head: symbol.lines },
@@ -104,6 +115,7 @@ const pairedWith = (old: ReadSymbol, symbol: ReadSymbol): SymbolStatement => ({
     ? {}
     : { signature: { base: old.signature, head: symbol.signature } }),
   ...logicOf(old, symbol),
+  ...gainedRisks(old, symbol),
 });
 
 type Rename = {

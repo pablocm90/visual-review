@@ -1,4 +1,5 @@
 import { expect, test } from 'vitest';
+import { symbolsOfRuby } from '../readers/rails/ruby-symbols.ts';
 import { symbolsOfTypeScript } from '../readers/typescript/typescript-symbols.ts';
 import {
   type FileSymbolChanges,
@@ -915,4 +916,34 @@ test("a file's blind spots are its head's", () => {
       after: { ...read(), blindSpots: ['define_method'] },
     }).blindSpots,
   ).toEqual(['define_method']);
+});
+
+const readRuby = (...lines: ReadonlyArray<string>) => symbolsOfRuby(lines.join('\n'));
+
+const risksOf = (changes: SymbolChanges, name: string) =>
+  changes.symbols.find(statement => statement.name === name)?.risks;
+
+test('a paired symbol carries the risks its head gains over its base, counted as a multiset by kind and text', () => {
+  const before = readRuby(
+    'class UsersController',
+    '  def create',
+    '    params.permit(:name, :legacy)',
+    '    User.where("a = 1")',
+    '  end',
+    'end',
+  );
+  const after = readRuby(
+    'class UsersController',
+    '  def create',
+    '    params.permit(:name, :admin)',
+    '    User.where("a = 1")',
+    '    User.where("a = 1")',
+    '  end',
+    'end',
+  );
+
+  expect(risksOf(symbolChanges({ before, after }), 'create')).toEqual([
+    { kind: 'permit', text: 'admin' },
+    { kind: 'raw-sql', text: 'User.where("a = 1")', detail: 'literal, no interpolation' },
+  ]);
 });
