@@ -3444,6 +3444,11 @@ test.for([
     mark: { target: 'web/file/a.ts -> web/file/b.ts', changedSince: [commitOnA] },
   },
   {
+    on: 'a note flag on a symbol changed since, placed on its file',
+    id: 'notes:symbol web/file/a.ts#run',
+    mark: { target: 'web/file/a.ts', changedSince: [commitOnA] },
+  },
+  {
     on: 'a version 1 note flag, which finds no part, changed with no commit to name',
     id: 'notes:web/file/a.ts',
     mark: { changedSince: [] },

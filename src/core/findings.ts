@@ -249,12 +249,17 @@ export const raisedFindings = ({
 
 const NOTE_FLAG = 'notes:';
 
-const ON_THE_GRAPH = ['part', 'edge'];
+const NOTED = ['part', 'edge', 'symbol', 'decision', 'test'] as const;
 
-export const targetOfNoteFlag = (id: string): string | undefined => {
+type Noted = { readonly kind: (typeof NOTED)[number]; readonly id: string };
+
+const isNoted = (anchor: { readonly kind: string }): anchor is Noted =>
+  NOTED.some(kind => kind === anchor.kind);
+
+export const anchorOfNoteFlag = (id: string): Noted | undefined => {
   if (!id.startsWith(NOTE_FLAG)) return undefined;
   const anchor = anchorOfKey(id.slice(NOTE_FLAG.length));
-  return ON_THE_GRAPH.includes(anchor.kind) ? anchor.id : undefined;
+  return isNoted(anchor) ? anchor : undefined;
 };
 
 type FindingsOfOptions = {
