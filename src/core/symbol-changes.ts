@@ -376,19 +376,20 @@ export const symbolChangesOf = (
     );
     return more.length === 0 ? other : undefined;
   };
-  const moved = (statement: SymbolStatement): Partial<SymbolStatement> => {
+  const moved = (statement: SymbolStatement): SymbolStatement => {
     const end = ends.find(end => end.statement === statement);
     const other = end && onlyEndOf(end);
-    if (other === undefined || onlyEndOf(other) !== end) return {};
+    if (other === undefined || onlyEndOf(other) !== end) return statement;
+    const { risks, ...whole } = statement;
     return statement.change === 'removed'
-      ? { change: 'moved', movedTo: other.node }
-      : { change: 'moved', movedFrom: other.node };
+      ? { ...whole, change: 'moved', movedTo: other.node }
+      : { ...whole, change: 'moved', movedFrom: other.node };
   };
   const settled = paired.map(({ node, statements, changes }) => ({
     node,
     changes,
     statements: statements.map(({ statement, read }) => ({
-      statement: { ...statement, ...moved(statement) },
+      statement: moved(statement),
       read,
     })),
   }));

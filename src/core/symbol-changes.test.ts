@@ -962,3 +962,25 @@ test('an added symbol carries every risk it holds', () => {
     { kind: 'permit!', text: 'params.permit!' },
   ]);
 });
+
+test('a symbol moved whole to another file gains none of its risks', () => {
+  const update = ['  def update', '    params.permit!', '  end'];
+  const files = symbolChangesOf([
+    {
+      node: 'shop/class/UsersController',
+      before: readRuby('class UsersController', ...update, 'end'),
+      after: readRuby('class UsersController', 'end'),
+    },
+    {
+      node: 'shop/file/app/controllers/users_actions.rb',
+      before: readRuby('class UsersController', 'end'),
+      after: readRuby('class UsersController', ...update, 'end'),
+    },
+  ]);
+
+  expect(files[1]?.symbols.find(({ name }) => name === 'update')).toMatchObject({
+    change: 'moved',
+    movedFrom: 'shop/class/UsersController',
+  });
+  expect(risksOf(files[1] ?? { symbols: [] }, 'update')).toBeUndefined();
+});
