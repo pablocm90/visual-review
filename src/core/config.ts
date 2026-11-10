@@ -152,11 +152,21 @@ export type StackSettings = z.infer<typeof StackSchema>;
 export const stackSettings = (config: Config, stack: string): StackSettings =>
   config.stacks[stack] || {};
 
+const jsonOf = (text: string): unknown => JSON.parse(text.replace(/^\uFEFF/, ''));
+
 const jsonIn = (text: string, file: string): unknown => {
   try {
-    return JSON.parse(text.replace(/^\uFEFF/, ''));
+    return jsonOf(text);
   } catch (error) {
     throw new Error(`${file}: ${String(error)}`);
+  }
+};
+
+const jsonOrNothing = (text: string): unknown => {
+  try {
+    return jsonOf(text);
+  } catch {
+    return {};
   }
 };
 
@@ -171,10 +181,10 @@ const withinUnions = (issue: z.core.$ZodIssue): ReadonlyArray<z.core.$ZodIssue> 
 
 const parsedBy = <Schema extends z.ZodType>(
   schema: Schema,
-  text: string,
+  json: unknown,
   file: string,
 ): z.output<Schema> => {
-  const result = schema.safeParse(jsonIn(text, file));
+  const result = schema.safeParse(json);
   if (result.success) return result.data;
   throw new Error(
     result.error.issues
@@ -186,9 +196,10 @@ const parsedBy = <Schema extends z.ZodType>(
   );
 };
 
-export const parseConfig = (text: string): Config => parsedBy(ConfigSchema, text, CONFIG_FILE);
+export const parseConfig = (text: string): Config =>
+  parsedBy(ConfigSchema, jsonIn(text, CONFIG_FILE), CONFIG_FILE);
 
 const BaseNotesSchema = z.object({ notes: NotesConfigSchema.prefault({}) });
 
 export const parseBaseNotesConfig = (text: string): NotesConfig =>
-  parsedBy(BaseNotesSchema, text, `${CONFIG_FILE} at the base`).notes;
+  parsedBy(BaseNotesSchema, jsonOrNothing(text), `${CONFIG_FILE} at the base`).notes;

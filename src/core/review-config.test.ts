@@ -575,33 +575,33 @@ test('a base config whose other entries this visual-review refuses still gives i
   expect(range.notesConfig).toStrictEqual({ guidance: 'Name the port.' });
 });
 
-test.for([
-  {
-    reason: 'is no JSON',
-    text: '{"notes": ',
-    error: 'SyntaxError: Unexpected end of JSON input',
-  },
-  {
-    reason: 'has a notes entry that does not parse',
-    text: '{"notes": {"guidance": ["Name the port."]}}',
-    error: 'notes.guidance: Invalid input: expected string, received array',
-  },
-])(
-  'a base config that $reason fails the review, naming the file at the base and the problem',
-  async ({ text, error }) => {
-    using workspace = gitRepo({
-      'package.json': '{}\n',
-      'src/a.ts': '',
-      'visual-review.config.json': text,
-    });
-    const { repo, root } = workspace;
-    const to = commit(repo, { 'visual-review.config.json': '{}\n' });
+test('a base config that is no JSON gives no notes config, so a change repairing it can be reviewed', async () => {
+  using workspace = gitRepo({
+    'package.json': '{}\n',
+    'src/a.ts': '',
+    'visual-review.config.json': '{"notes": ',
+  });
+  const { repo, root } = workspace;
+  const to = commit(repo, { 'visual-review.config.json': guidanceConfig('Praise it.') });
 
-    await expect(readRange({ repo, from: root, to })).rejects.toThrow(
-      `visual-review.config.json at the base: ${error}`,
-    );
-  },
-);
+  const range = await readRange({ repo, from: root, to });
+
+  expect(range.notesConfig).toStrictEqual({});
+});
+
+test('a base config whose notes entry does not parse fails the review, naming the file at the base and the problem', async () => {
+  using workspace = gitRepo({
+    'package.json': '{}\n',
+    'src/a.ts': '',
+    'visual-review.config.json': '{"notes": {"guidance": ["Name the port."]}}',
+  });
+  const { repo, root } = workspace;
+  const to = commit(repo, { 'visual-review.config.json': '{}\n' });
+
+  await expect(readRange({ repo, from: root, to })).rejects.toThrow(
+    'visual-review.config.json at the base: notes.guidance: Invalid input: expected string, received array',
+  );
+});
 
 test('a base notes entry that does not parse fails the review before any graph is read', async () => {
   using workspace = gitRepo({
