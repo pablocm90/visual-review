@@ -52,6 +52,11 @@ test.for([
   { reason: 'a key on a line the change keeps', prefix: ' ', code: 'ENV["STRIPE_KEY"]' },
   { reason: 'a key on a line the change removes', prefix: '-', code: 'ENV["STRIPE_KEY"]' },
   { reason: 'a hash merely named like ENV', prefix: '+', code: 'MY_ENV["STRIPE_KEY"]' },
+  {
+    reason: 'a method merely named like credentials',
+    prefix: '+',
+    code: 'aws_credentials.access_key',
+  },
 ])('$reason raises nothing', ({ prefix, code }) => {
   const patch = patchAdding();
   expect(deployKeyFindings([{ ...patch, patch: `${patch.patch}\n${prefix}  ${code}` }])).toEqual(
@@ -72,4 +77,21 @@ test('a key read on several rows and files raises once, on its first row', () =>
 test('a key read in a test file is for information', () => {
   const inTest = { ...patchAdding('ENV["STRIPE_KEY"]'), path: 'spec/stripe_spec.rb' };
   expect(deployKeyFindings([inTest]).map(({ level }) => level)).toStrictEqual(['info']);
+});
+
+test.for([
+  { read: 'Rails.application.credentials.stripe.secret_key', key: 'stripe.secret_key' },
+  { read: 'credentials.stripe![:secret_key]', key: 'stripe.secret_key' },
+  { read: 'credentials[:stripe][:secret_key]', key: 'stripe.secret_key' },
+  { read: 'credentials.stripe["secret_key"]', key: 'stripe.secret_key' },
+  { read: 'credentials.dig(:stripe, :secret_key)', key: 'stripe.secret_key' },
+  { read: 'credentials.fetch(:stripe)', key: 'stripe' },
+])('reading credentials as $read raises the path $key', ({ read, key }) => {
+  expect(deployKeyFindings([patchAdding(`  config.api_key = ${read}`)])).toMatchObject([
+    {
+      id: `deploy:credentials:${key}`,
+      check: 'deploy:credentials',
+      title: `${FILE} reads the credentials key ${key}`,
+    },
+  ]);
 });
