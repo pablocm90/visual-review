@@ -1,5 +1,8 @@
 import type { Node } from 'web-tree-sitter';
 import type { Risk } from '../../core/reader.ts';
+import { codeReaderOf } from '../tree-sitter.ts';
+
+const { codeOf } = codeReaderOf(new Set(['.', '&.']));
 
 const keyName = (key: Node): string => {
   if (key.type === 'simple_symbol') return key.text.slice(1);
@@ -28,8 +31,12 @@ const permittedKeys = (call: Node): ReadonlyArray<Risk> =>
     text,
   }));
 
+const RISKS = new Map<string, (call: Node) => ReadonlyArray<Risk>>([
+  ['permit', permittedKeys],
+  ['permit!', call => [{ kind: 'permit!', text: codeOf(call) }]],
+]);
+
 export const risksIn = (body: Node): ReadonlyArray<Risk> =>
   body
     .descendantsOfType('call')
-    .filter(call => call.childForFieldName('method')?.text === 'permit')
-    .flatMap(permittedKeys);
+    .flatMap(call => RISKS.get(call.childForFieldName('method')?.text ?? '')?.(call) ?? []);

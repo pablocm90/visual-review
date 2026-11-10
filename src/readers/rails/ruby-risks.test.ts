@@ -25,3 +25,9 @@ test.for([
     texts.map(text => ({ kind: 'permit', text })),
   );
 });
+
+test('permit! reads as a risk by the call it is', () => {
+  expect(risksIn('User.create(params.require(:user).permit!)')).toEqual([
+    { kind: 'permit!', text: 'params.require(:user).permit!' },
+  ]);
+});

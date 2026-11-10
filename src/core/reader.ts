@@ -71,7 +71,7 @@ export type ReadSymbol = {
   readonly risks?: ReadonlyArray<Risk>;
 };
 
-export type RiskKind = 'permit';
+export type RiskKind = 'permit' | 'permit!';
 
 export type Risk = { readonly kind: RiskKind; readonly text: string };
 
