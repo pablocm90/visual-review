@@ -97,3 +97,47 @@ test.for([
     expect(tenancyFindings([reading(base, head)])).toStrictEqual([]);
   },
 );
+
+const OTHER = 'config/initializers/tenants.rb';
+
+test("an app's configs are read together: a model raised once, on the file naming it, and one moved between them not at all", () => {
+  expect(
+    tenancyFindings([
+      {
+        base: { configs: [config({ excluded: ['Company', 'Plan', 'User'] })] },
+        head: {
+          configs: [
+            config({ excluded: ['Company', 'Seat'] }),
+            config({ file: OTHER, excluded: ['User', 'Seat', 'Team'] }),
+          ],
+        },
+      },
+    ]).map(({ id, file }) => [id, file]),
+  ).toStrictEqual([
+    ['tenancy:excluded::Seat', FILE],
+    ['tenancy:excluded::Team', OTHER],
+    ['tenancy:excluded::Plan', FILE],
+  ]);
+});
+
+test.for([
+  {
+    side: 'base',
+    hidden: 'added',
+    base: [config({ excluded: [] }), config({ file: OTHER, excluded: [], unread })],
+    head: [config({ excluded: ['Plan'] })],
+  },
+  {
+    side: 'head',
+    hidden: 'removed',
+    base: [config({ excluded: ['Plan'] })],
+    head: [config({ excluded: [] }), config({ file: OTHER, excluded: [], unread })],
+  },
+])(
+  "one of an app's configs not read at the $side hides what its others $hidden",
+  ({ base, head }) => {
+    expect(tenancyFindings([{ base: { configs: base }, head: { configs: head } }])).toStrictEqual(
+      [],
+    );
+  },
+);

@@ -25,23 +25,39 @@ const gained = (
 
 const hidesModels = ({ unread = [] }: Pick<TenantConfig, 'unread'>): boolean => unread.length > 0;
 
+const ofApp = (configs: ReadonlyArray<TenantConfig>, root: string): ReadonlyArray<TenantConfig> =>
+  configs.filter(config => config.root === root);
+
+const firstOfEachApp = (configs: ReadonlyArray<TenantConfig>): ReadonlyArray<TenantConfig> =>
+  configs.filter(
+    (config, index) => configs.findIndex(other => other.root === config.root) === index,
+  );
+
+const modelsOf = (configs: ReadonlyArray<TenantConfig>): ReadonlyArray<string> => [
+  ...new Set(configs.flatMap(config => config.excluded)),
+];
+
 export const tenancyFindings = (tenancy: ReadonlyArray<TenancyReading>): ReadonlyArray<Finding> =>
   tenancy.flatMap(({ base, head }) =>
-    head.configs.flatMap(atHead => {
-      const { root, file, excluded } = atHead;
-      const atBase = base.configs.filter(config => config.root === root);
+    firstOfEachApp(head.configs).flatMap(first => {
+      const { root } = first;
+      const atBase = ofApp(base.configs, root);
       if (atBase.length === 0) return [];
-      const before = atBase.flatMap(config => config.excluded);
+      const atHead = ofApp(head.configs, root);
+      const before = modelsOf(atBase);
+      const after = modelsOf(atHead);
+      const fileOf = (model: string): string =>
+        (atHead.find(config => config.excluded.includes(model)) ?? first).file;
       return [
-        ...(atBase.some(hidesModels) ? [] : gained(excluded, before).map(added)),
-        ...(hidesModels(atHead) ? [] : gained(before, excluded).map(removed)),
+        ...(atBase.some(hidesModels) ? [] : gained(after, before).map(added)),
+        ...(atHead.some(hidesModels) ? [] : gained(before, after).map(removed)),
       ].map(
         ({ model, ...said }): Finding => ({
           id: `tenancy:excluded:${root}:${model}`,
           check: 'tenancy:excluded',
           dimension: 'tenancy',
           level: 'look',
-          file,
+          file: fileOf(model),
           ...said,
         }),
       );
