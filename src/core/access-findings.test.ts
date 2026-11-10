@@ -25,8 +25,8 @@ const action = (overrides: Partial<Action> = {}): Action => ({
 });
 
 const reading = (base: ReadonlyArray<Action>, head: ReadonlyArray<Action>): AccessReading => ({
-  base: { actions: base, unread: [] },
-  head: { actions: head, unread: [] },
+  base: { actions: base },
+  head: { actions: head },
 });
 
 const OTHER = {

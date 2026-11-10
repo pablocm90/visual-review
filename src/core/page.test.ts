@@ -307,9 +307,7 @@ const controllerAction = {
 
 test('an action the change adds with no authorization raises its finding to look at on the page', () => {
   const reading = readingWith({
-    access: [
-      { base: { actions: [], unread: [] }, head: { actions: [controllerAction], unread: [] } },
-    ],
+    access: [{ base: { actions: [] }, head: { actions: [controllerAction] } }],
   });
 
   expect(
@@ -323,8 +321,8 @@ test('a route the change adds to an action with no authorization raises its find
   const reading = readingWith({
     access: [
       {
-        base: { actions: [controllerAction], unread: [] },
-        head: { actions: [controllerAction], unread: [] },
+        base: { actions: [controllerAction] },
+        head: { actions: [controllerAction] },
       },
     ],
     routes: [

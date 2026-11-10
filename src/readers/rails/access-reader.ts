@@ -206,17 +206,9 @@ const coverOf = ({ action, callbacks, calls, authorize }: Covering): { readonly 
 
 type ControllerFile = {
   readonly root: string;
-  readonly file: string;
   readonly controllers: ReadonlyArray<Controller>;
   readonly actions: ReadonlyArray<Action>;
-  readonly unread: ReadonlyArray<UnreadAccess>;
 };
-
-const unreadIn = (program: Node, { file, authorize }: Reading): ReadonlyArray<UnreadAccess> =>
-  program
-    .descendantsOfType('call')
-    .filter(call => CALLBACK.test(methodOf(call)) && unreadable(call, authorize))
-    .map(call => ({ text: call.text, file, line: call.startPosition.row + 1 }));
 
 const controllerPathOf = (controller: string): string =>
   controller
@@ -229,11 +221,7 @@ const fileOf = (text: string, { file, authorize }: Reading): ControllerFile => {
   const root = file.slice(0, file.indexOf('app/controllers/'));
   return {
     root,
-    file,
-    ...readRuby(text, program => ({
-      controllers: controllersIn(program, undefined, { file, authorize }),
-      unread: unreadIn(program, { file, authorize }),
-    })),
+    controllers: readRuby(text, program => controllersIn(program, undefined, { file, authorize })),
     actions: symbolsOfRuby(text).symbols.flatMap(({ name, scope, kind, exported, lines }) =>
       kind === 'method' && exported && scope !== undefined && !name.startsWith('self.')
         ? [
@@ -262,24 +250,6 @@ const controllersAt = (
       .map(controller => [controller.constant, controller]),
   );
 
-const namedOf = ({ parent, header, entries }: Controller) =>
-  (parent === undefined || RAILS_PARENTS.has(parent.name)
-    ? []
-    : [{ wanted: parent, ...header }]
-  ).concat(
-    entries.flatMap(entry => ('include' in entry ? [{ ...entry.at, wanted: entry.include }] : [])),
-  );
-
-const lookupsUnread = (read: ReadonlyArray<ControllerFile>): ReadonlyArray<UnreadAccess> =>
-  read.flatMap(({ root, file, controllers }) => {
-    const all = controllersAt(read, root);
-    return controllers.flatMap(controller =>
-      namedOf(controller)
-        .filter(({ wanted }) => foundIn(without(all, controller.constant), wanted) === undefined)
-        .map(({ text, line }) => ({ text, file, line })),
-    );
-  });
-
 const coveredIn = (
   read: ReadonlyArray<ControllerFile>,
   authorize: ReadonlyArray<string>,
@@ -307,9 +277,6 @@ export const railsAccess: AccessReader = {
     CONTROLLER_FILE.test(path) && !path.split('/').some(folder => NOT_SEARCHED.has(folder)),
   actions: ({ files, authorize }) => {
     const read = [...files].map(([file, text]) => fileOf(text, { file, authorize }));
-    return {
-      actions: coveredIn(read, authorize),
-      unread: read.flatMap(({ unread }) => unread).concat(lookupsUnread(read)),
-    };
+    return { actions: coveredIn(read, authorize) };
   },
 };

@@ -22,7 +22,6 @@ export type Action = {
 
 export type AccessTable = {
   readonly actions: ReadonlyArray<Action>;
-  readonly unread: ReadonlyArray<UnreadAccess>;
 };
 
 export type AccessAsked = {

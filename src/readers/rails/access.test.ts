@@ -29,7 +29,6 @@ end
         line: 2,
       },
     ],
-    unread: [],
   });
 });
 
@@ -419,9 +418,15 @@ end
   ).toStrictEqual([by]);
 });
 
+const unreadOf = (files: Record<string, string>) =>
+  read(files).actions.map(({ action, unread }) => [
+    action,
+    unread?.map(({ text, file, line }) => [text, file, line]),
+  ]);
+
 test('a callback list it cannot read, or a block calling no authorize name, is unread, where it is written', () => {
   expect(
-    read({
+    unreadOf({
       'app/controllers/users_controller.rb': `class UsersController < ActionController::Base
   helper_method *HELPERS
   before_action :require_admin
@@ -431,29 +436,31 @@ test('a callback list it cannot read, or a block calling no authorize name, is u
   def index; end
 end
 `,
-    }).unread,
+    }),
   ).toStrictEqual([
-    {
-      text: 'before_action *CALLBACKS, :set_user',
-      file: 'app/controllers/users_controller.rb',
-      line: 4,
-    },
-    {
-      text: 'before_action { head :forbidden unless admin? }',
-      file: 'app/controllers/users_controller.rb',
-      line: 6,
-    },
+    [
+      'index',
+      [
+        ['before_action *CALLBACKS, :set_user', 'app/controllers/users_controller.rb', 4],
+        [
+          'before_action { head :forbidden unless admin? }',
+          'app/controllers/users_controller.rb',
+          6,
+        ],
+      ],
+    ],
   ]);
 });
 
 test('a parent outside the controllers read is unread, where the class names it', () => {
   expect(
-    read({
+    unreadOf({
       'app/controllers/application_controller.rb': `class ApplicationController < ActionController::Base
 end
 `,
       'app/controllers/api/base_controller.rb': `module Api
   class BaseController < ActionController::API
+    def index; end
   end
 end
 `,
@@ -466,27 +473,40 @@ end
 `,
       'app/controllers/admin/audits_controller.rb': `module Admin
   class AuditsController < AuditsController
+    def show; end
   end
 end
 `,
-    }).unread,
+    }),
   ).toStrictEqual([
-    {
-      text: 'class SessionsController < Devise::SessionsController',
-      file: 'app/controllers/sessions_controller.rb',
-      line: 2,
-    },
-    {
-      text: 'class AuditsController < AuditsController',
-      file: 'app/controllers/admin/audits_controller.rb',
-      line: 2,
-    },
+    ['index', undefined],
+    ['index', undefined],
+    [
+      'new',
+      [
+        [
+          'class SessionsController < Devise::SessionsController',
+          'app/controllers/sessions_controller.rb',
+          2,
+        ],
+      ],
+    ],
+    [
+      'show',
+      [
+        [
+          'class AuditsController < AuditsController',
+          'app/controllers/admin/audits_controller.rb',
+          2,
+        ],
+      ],
+    ],
   ]);
 });
 
 test('an include naming a concern outside the controllers read is unread, where it is written', () => {
   expect(
-    read({
+    unreadOf({
       'app/controllers/concerns/authorized.rb': `module Authorized
   extend ActiveSupport::Concern
   included do
@@ -499,18 +519,15 @@ end
   def index; end
 end
 `,
-    }).unread,
+    }),
   ).toStrictEqual([
-    {
-      text: 'include Pundit::Authorization',
-      file: 'app/controllers/concerns/authorized.rb',
-      line: 4,
-    },
-    {
-      text: 'include Authorized, Pagy::Backend',
-      file: 'app/controllers/users_controller.rb',
-      line: 2,
-    },
+    [
+      'index',
+      [
+        ['include Pundit::Authorization', 'app/controllers/concerns/authorized.rb', 4],
+        ['include Authorized, Pagy::Backend', 'app/controllers/users_controller.rb', 2],
+      ],
+    ],
   ]);
 });
 
@@ -552,43 +569,5 @@ end
       ],
     ],
     ['show', [['before_action *REPORTS', 'app/controllers/reports_controller.rb']]],
-  ]);
-});
-
-test('an action carries the parent and the includes it could not find, where they are written', () => {
-  const { actions } = read({
-    'app/controllers/concerns/authorized.rb': `module Authorized
-  extend ActiveSupport::Concern
-  included do
-    include Pundit::Authorization
-  end
-end
-`,
-    'app/controllers/sessions_controller.rb': `class SessionsController < Devise::SessionsController
-  include Authorized
-  def new; end
-end
-`,
-    'app/controllers/users_controller.rb': `class UsersController < ActionController::Base
-  include Pagy::Backend
-  def index; end
-end
-`,
-  });
-
-  expect(
-    actions.map(({ action, unread }) => [action, unread?.map(({ text, file }) => [text, file])]),
-  ).toStrictEqual([
-    [
-      'new',
-      [
-        [
-          'class SessionsController < Devise::SessionsController',
-          'app/controllers/sessions_controller.rb',
-        ],
-        ['include Pundit::Authorization', 'app/controllers/concerns/authorized.rb'],
-      ],
-    ],
-    ['index', [['include Pagy::Backend', 'app/controllers/users_controller.rb']]],
   ]);
 });
