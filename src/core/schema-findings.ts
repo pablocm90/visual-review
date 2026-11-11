@@ -1,4 +1,5 @@
-import { counted, type Finding } from './findings.ts';
+import { counted } from './counted.ts';
+import type { Finding } from './finding.ts';
 import type { SchemaReading } from './read-schemas.ts';
 import type { SchemaChange, TableChange } from './schema-diff.ts';
 

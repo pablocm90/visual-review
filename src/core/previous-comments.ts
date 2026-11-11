@@ -3,7 +3,7 @@ import type { Rename } from './diff-graphs.ts';
 import { isAtOrUnder } from './diff-graphs.ts';
 import { anchorOfNoteFlag, type Finding } from './findings.ts';
 import { endsOfId, type GraphNode } from './graph.ts';
-import type { Commit, ReviewedHead } from './read-range.ts';
+import type { Commit, ReviewedHead } from './reading.ts';
 import type { ChangedSince } from './since-review.ts';
 import { decisionOfLost } from './symbol-findings.ts';
 

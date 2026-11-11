@@ -7,6 +7,12 @@ const stem = (path: string): string =>
 
 const testedStem = (path: string): string => stem(path).replace(/[._](test|spec)$/, '');
 
+/** Whether a node is the one a test file is named after (`refund.ts`, `refund.test.ts`) in its stack. */
+const namedAlike =
+  (stackOf: (id: string) => string) =>
+  (node: Pick<GraphNode, 'id' | 'path'>, test: Pick<TestFile, 'path' | 'stack'>): boolean =>
+    stem(node.path) === testedStem(test.path) && stackOf(node.id) === test.stack;
+
 type TestsAlongsideOptions = {
   readonly nodes: ReadonlyArray<GraphNode>;
   readonly node: GraphNode;
@@ -19,12 +25,10 @@ export const testsAlongside = ({
   tests,
 }: TestsAlongsideOptions): ReadonlyArray<TestFile> => {
   if (node.kind === 'stack') return tests.filter(({ stack }) => stack === node.id);
-  const stackOf = stackOfIn(nodes);
+  const alike = namedAlike(stackOfIn(nodes));
   const inside = nodes.filter(each => isAtOrUnder(each.path, node));
   return tests.filter(
-    ({ path, stack }) =>
-      isAtOrUnder(path, node) ||
-      inside.some(each => stem(each.path) === testedStem(path) && stackOf(each.id) === stack),
+    test => isAtOrUnder(test.path, node) || inside.some(each => alike(each, test)),
   );
 };
 
@@ -35,12 +39,9 @@ type NodeOfTestsOptions = {
 
 export const nodeOfTests = ({ nodes, file }: NodeOfTestsOptions): string | undefined => {
   const holder = deepestHolding(file.path, nodes);
-  const stackOf = stackOfIn(nodes);
+  const alike = namedAlike(stackOfIn(nodes));
   const named = nodes.find(
-    each =>
-      stem(each.path) === testedStem(file.path) &&
-      stackOf(each.id) === file.stack &&
-      (holder === undefined || isAtOrUnder(each.path, holder)),
+    each => alike(each, file) && (holder === undefined || isAtOrUnder(each.path, holder)),
   );
   return (named ?? holder ?? nodes.find(({ id }) => id === file.stack))?.id;
 };
@@ -64,7 +65,7 @@ export const subjectsOfTests = ({
 }: SubjectsOptions): ReadonlyMap<string, string> => {
   const inCycle = new Set(cycles.flat());
   const free = new Set(parts.filter(part => !inCycle.has(part)));
-  const stackOf = stackOfIn(nodes);
+  const alike = namedAlike(stackOfIn(nodes));
   const nodeOf = new Map(nodes.map(node => [node.id, node]));
   return new Map(
     [...free].flatMap(part => {
@@ -73,13 +74,7 @@ export const subjectsOfTests = ({
       if (test === undefined) return [];
       const subject = [...free].find(other => {
         const node = nodeOf.get(other);
-        return (
-          other !== part &&
-          node !== undefined &&
-          node.kind === 'file' &&
-          stem(node.path) === testedStem(test.path) &&
-          stackOf(other) === test.stack
-        );
+        return other !== part && node?.kind === 'file' && alike(node, test);
       });
       return subject === undefined ? [] : [[part, subject] as const];
     }),

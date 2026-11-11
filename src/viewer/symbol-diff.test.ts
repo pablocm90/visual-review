@@ -3,11 +3,13 @@ import type { SymbolStatement } from '../core/symbol-changes.ts';
 import { highlightPatch } from './highlight-patch.ts';
 import {
   blockAround,
+  blocksMeet,
+  decisionRuns,
   holdsFirstLine,
   logicDiffHoldsSignature,
   otherEndOf,
   rowsOfSymbol,
-  sameBlock,
+  tagsOfRun,
 } from './symbol-diff.ts';
 
 const rowsOf = (...lines: readonly string[]) =>
@@ -328,11 +330,33 @@ test('a decision on an unchanged row is that row alone, and one the patch lacks 
   expect(blockAround(GUARDS, { side: 'head', line: 90 })).toBeUndefined();
 });
 
-test('decisions share a block when their blocks overlap', () => {
-  const one = blockAround(GUARDS, { side: 'head', line: 18 });
-  expect(sameBlock(one, blockAround(GUARDS, { side: 'head', line: 20 }))).toBe(true);
-  expect(sameBlock(one, blockAround(GUARDS, { side: 'head', line: 16 }))).toBe(false);
-  expect(sameBlock(one, undefined)).toBe(false);
+const decided = (change: 'added' | 'changed' | 'removed', line: number) => ({
+  line: { change, kind: 'guard' as const, line, ...(change === 'removed' ? {} : { head: 'if' }) },
+});
+
+test('decisions run together while their blocks overlap or touch, a decision on the row next to a block joining it', () => {
+  const runs = decisionRuns(
+    [decided('added', 18), decided('added', 20), decided('added', 16)],
+    GUARDS,
+  );
+  expect(runs.map(({ decisions, block }) => [decisions.length, block])).toStrictEqual([
+    [3, { from: 1, to: 7 }],
+  ]);
+  expect(blocksMeet({ from: 0, to: 2 }, { from: 3, to: 4 })).toBe(true);
+  expect(blocksMeet({ from: 0, to: 2 }, { from: 4, to: 4 })).toBe(false);
+  expect(blocksMeet({ from: 0, to: 2 }, undefined)).toBe(false);
+});
+
+test('a run tags each row of its block with the decisions it holds, a changed one on the row it was too', () => {
+  const [run] = decisionRuns([decided('changed', 18), decided('added', 19)], GUARDS);
+  expect(run && tagsOfRun(run, GUARDS)).toStrictEqual([
+    undefined,
+    '~ guard',
+    '~ guard',
+    '+ guard',
+    undefined,
+    undefined,
+  ]);
 });
 
 test("a logic diff holds a symbol's signature when one of its blocks changes the symbol's first line", () => {

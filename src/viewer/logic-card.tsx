@@ -1,13 +1,13 @@
 import type { DiffedNode, FilePatch } from '../core/diff-graphs.ts';
 import type { LogicLine } from '../core/logic-diff.ts';
 import { countsOf, isExit } from '../core/logic-strip.ts';
-import type { SymbolFile } from '../core/read-range.ts';
+import type { SymbolFile } from '../core/reading.ts';
 import { qualified } from '../core/symbol-changes.ts';
 import { anchoredSymbols, decisionsOf } from '../core/symbol-findings.ts';
 import { highlightPatch, type PatchLine } from './highlight-patch.ts';
 import { exitsWords, type StripRow } from './logic-strip.tsx';
-import { blockAround, decisionAt, holdsDecision, joinedBlocks } from './symbol-diff.ts';
-import { logicLabel, MARKS } from './what-changed.tsx';
+import { decisionRuns, decisionTag, holdsDecision } from './symbol-diff.ts';
+import { logicLabel } from './what-changed.tsx';
 
 /** How much of each function a logic card shows: its marks, its changed decisions, or its code. */
 export type CardDepth = 'ticks' | 'decisions' | 'code';
@@ -68,7 +68,7 @@ const shortened = (text: string): string =>
 const decisionLines = (decisions: ReadonlyArray<StripRow>): ReadonlyArray<CardLine> =>
   decisions.flatMap(({ id, line }): ReadonlyArray<CardLine> => {
     if (line.change === 'same') return [];
-    const tag = `${MARKS[line.change]} ${line.kind}`;
+    const tag = decisionTag(line);
     if (line.change === 'changed')
       return [
         { kind: 'removed', text: shortened(line.base ?? ''), tag, decision: id },
@@ -93,16 +93,14 @@ const codeLines = (
   rows: ReadonlyArray<PatchLine>,
 ): ReadonlyArray<CardLine> => {
   const changed = decisions.filter(({ line }) => line.change !== 'same');
-  const blocks = joinedBlocks(
-    changed.flatMap(({ line }) => blockAround(rows, decisionAt(line)) ?? []),
-  );
+  const blocks = decisionRuns(changed, rows).flatMap(({ block }) => block ?? []);
   if (blocks.length === 0) return decisionLines(decisions);
   return blocks.flatMap(
     (block, index): ReadonlyArray<CardLine> => [
       ...(index > 0 ? [{ kind: 'gap', text: '⋯' } as const] : []),
       ...rows.slice(block.from, block.to + 1).map((row): CardLine => {
         const on = changed.filter(({ line }) => holdsDecision(line, row));
-        const tag = on.map(({ line }) => `${MARKS[line.change]} ${line.kind}`).join(' ');
+        const tag = on.map(({ line }) => decisionTag(line)).join(' ');
         return {
           kind: ROW_KINDS[row.kind] ?? 'context',
           text: textOfRow(row),

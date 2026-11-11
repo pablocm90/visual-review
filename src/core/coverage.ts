@@ -1,7 +1,7 @@
 import { accessNotRead } from './access-findings.ts';
 import type { Dimension } from './findings.ts';
 import { NO_AXUM_CRATE } from './linker.ts';
-import type { RangeReading } from './read-range.ts';
+import type { RangeReading } from './reading.ts';
 import { notReadLine } from './skipped.ts';
 import { qualified } from './symbol-changes.ts';
 

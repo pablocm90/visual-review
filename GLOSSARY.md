@@ -76,6 +76,16 @@ _In code_: `NotePanel` (`src/viewer/review-page.tsx`)
 Walking the parts one at a time: the left column narrows to the numbered, named stops, the reading column takes the middle, and the aside holds the corner map and Next to it. `J`, `K`, Start reading, a row of the reading order and the head's Next enter it, as `L` and Next logic change do, walking the changed decisions instead; a click in the graph, a finding or Start here keep the graph whole.
 _In code_: `reading` (`src/viewer/review-page.tsx`)
 
+**Landing**:
+Where going to something puts you: the part selected and, finer, the row it named (a symbol, decision, test, finding or patch line) outlined and scrolled into view, kept until the selection or the panel changes.
+_Avoid_: focus, target
+_In code_: `LandingIn`, `useLanding`, `LandedRows` (`src/viewer/`)
+
+**News**:
+What makes a row or a fold open by itself: a change, a draft, a note, a comment from the last review or a change since it. Tested by keeps the unchanged tests that hold news, and the Tests screen folds only tests without it.
+_Avoid_: activity, updates
+_In code_: `holdsNews`, `useSymbolHoldsNews`, `useTestNews`
+
 **Corner map**:
 The graph while reading: the same layout in the aside, centred on the current part and its neighbourhood, the part ringed. It says where you are, and a click on a node goes there; it doesn't zoom, pan or open boxes, and its labels aren't promised at that scale. Open map returns to the graph whole.
 _Avoid_: minimap, thumbnail
