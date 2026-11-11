@@ -1,7 +1,7 @@
 import { expect, test } from 'vitest';
 import type { GraphNode } from './graph.ts';
 import type { TestFile } from './test-changes.ts';
-import { nodeOfTests, testsAlongside } from './tests-alongside.ts';
+import { nodeOfTests, testsAfterSubjects, testsAlongside } from './tests-alongside.ts';
 
 const node = (id: string, kind: GraphNode['kind'], path: string, parent?: string): GraphNode => ({
   id,
@@ -105,4 +105,39 @@ test.for([
   expect(
     onIt === undefined ? [file] : testsAlongside({ nodes, node: onIt, tests: [file] }),
   ).toEqual([file]);
+});
+
+const web = (name: string): GraphNode => node(`web/file/${name}`, 'file', `web/src/${name}`, 'web');
+
+test('the reading order reads a test file right after the file it tests, keeping the rest in order', () => {
+  const parts = ['a.ts', 'b.ts', 'c.ts', 'a.test.ts', 'b.spec.ts', 'z.test.ts'].map(
+    name => `web/file/${name}`,
+  );
+  expect(
+    testsAfterSubjects({
+      parts,
+      cycles: [],
+      nodes: [
+        node('web', 'stack', ''),
+        ...['a.ts', 'b.ts', 'c.ts', 'a.test.ts', 'b.spec.ts', 'z.test.ts'].map(web),
+      ],
+      tests: ['a.test.ts', 'b.spec.ts', 'z.test.ts'].map(name =>
+        testFile(`web/src/${name}`, 'web'),
+      ),
+    }),
+  ).toStrictEqual(
+    ['a.ts', 'a.test.ts', 'b.ts', 'b.spec.ts', 'c.ts', 'z.test.ts'].map(name => `web/file/${name}`),
+  );
+});
+
+test('a test file stays where it is when it or its subject is in a cycle, or its subject is in another stack', () => {
+  const parts = ['web/file/a.ts', 'web/file/b.ts', 'web/file/a.test.ts', 'web/file/b.test.ts'];
+  expect(
+    testsAfterSubjects({
+      parts,
+      cycles: [['web/file/a.ts', 'web/file/c.ts']],
+      nodes: [node('web', 'stack', ''), ...['a.ts', 'b.ts', 'a.test.ts', 'b.test.ts'].map(web)],
+      tests: [testFile('web/src/a.test.ts', 'web'), testFile('web/src/b.test.ts', 'api')],
+    }),
+  ).toStrictEqual(parts);
 });

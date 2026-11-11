@@ -18,6 +18,7 @@ import { type SinceReview, sinceReviewOf } from './since-review.ts';
 import type { Skipped } from './skipped.ts';
 import { splitSuggestion } from './split-suggestion.ts';
 import type { TestFile } from './test-changes.ts';
+import { testsAfterSubjects } from './tests-alongside.ts';
 
 export type PullRequest = {
   readonly number: number;
@@ -89,7 +90,11 @@ export const pageData = ({
     diff.nodes.some(node => isAtOrUnder(path, node));
   const metrics = nodeMetrics({ diff, ...reading });
   const undrawn = reading.patches.filter(patch => !isDrawn(patch));
-  const order = readingOrder(diff);
+  const ordered = readingOrder(diff);
+  const order = {
+    ...ordered,
+    parts: testsAfterSubjects({ ...ordered, nodes: diff.nodes, tests: reading.tests }),
+  };
   const findings = raisedFindings({
     skipped: reading.skipped,
     changedPaths: reading.changedPaths,

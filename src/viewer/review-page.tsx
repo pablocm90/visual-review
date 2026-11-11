@@ -108,6 +108,7 @@ import { type SchemaLanding, SchemaScreen } from './schema-screen.tsx';
 import { scrollInPanel } from './scroll-in-panel.ts';
 import { changedCount, TestedBy, TestsScreen, useTestsToRead } from './tests-screen.tsx';
 import {
+  aroundPart,
   boxOf,
   centred,
   fitted,
@@ -498,7 +499,7 @@ const Zoom = ({ scale, onZoom, onFit }: ZoomProps) => (
       Fit
     </button>
     <button type="button" onClick={() => onZoom(1)}>
-      100%
+      Actual size
     </button>
   </div>
 );
@@ -833,6 +834,12 @@ const WhyLook = (rows: FindingRowsProps) => (
 
 const isUntestedLogic = ({ check }: Finding) => check === 'tests:untested-logic';
 
+/** Information What changed already says, row by row: an export added, a function's logic changed. */
+const SAID_IN_WHAT_CHANGED: ReadonlySet<Finding['check']> = new Set(['api:added', 'logic:changed']);
+
+const isShownInWhatChanged = ({ check, level }: Finding) =>
+  level === 'info' && SAID_IN_WHAT_CHANGED.has(check);
+
 const NotePanel = ({
   nodes,
   node,
@@ -863,7 +870,12 @@ const NotePanel = ({
     ? reaches.filter(reach => reach.node === node.id || boxesAbove(reach.node).includes(node.id))
     : [];
   const untested = found.filter(isUntestedLogic);
-  const toLookAt = found.filter(finding => !isUntestedLogic(finding) && !isReachFinding(finding));
+  const toLookAt = found.filter(
+    finding =>
+      !isUntestedLogic(finding) &&
+      !isReachFinding(finding) &&
+      !(filesWithNews.length > 0 && isShownInWhatChanged(finding)),
+  );
   const isBare =
     filesWithNews.length === 0 &&
     found.length === 0 &&
@@ -1359,7 +1371,7 @@ const TABS = {
 
 type Tab = keyof typeof TABS;
 
-const useGraphView = (layout: Layout | undefined, map: boolean) => {
+const useGraphView = (layout: Layout | undefined, map: boolean, current?: string) => {
   const [frameElement, setFrameElement] = useState<HTMLDivElement | null>(null);
   const [frameWidth, setFrameWidth] = useState<number>();
   useEffect(() => {
@@ -1379,7 +1391,15 @@ const useGraphView = (layout: Layout | undefined, map: boolean) => {
       : undefined;
   const [chosen, setChosen] = useState<Chosen>();
   const view =
-    layout && frame && (map ? fitted({ graph: layout, frame }) : viewOn({ layout, frame, chosen }));
+    layout &&
+    frame &&
+    (map
+      ? aroundPart({
+          graph: layout,
+          frame,
+          box: current === undefined ? undefined : boxOf({ layout, id: current }),
+        })
+      : viewOn({ layout, frame, chosen }));
   const placed = layout && frame && view && { graph: layout, frame, view };
   const choose = (next: (on: NonNullable<typeof placed>) => View, pin?: string) => {
     if (placed) setChosen({ of: placed.graph, view: next(placed), in: placed.frame, pin });
@@ -2080,11 +2100,12 @@ const Page = ({ review, notes, send }: ReviewPageProps) => {
   const tab = useTab(review);
   const [layout, setLayout] = useState<Layout>();
   const [reading, setReading] = useState(false);
+  const [selected, setSelected] = useState<string>();
   const { frameElement, placed, frameProps, zoomAtCentre, fitToFrame, centre, pin } = useGraphView(
     layout,
     reading,
+    selected,
   );
-  const [selected, setSelected] = useState<string>();
   const [commentAsked, setCommentAsked] = useCommentAsked(selected, tab);
   const heading = useRef<HTMLHeadingElement>(null);
   const [outside, setOutside] = useState(false);
@@ -2500,7 +2521,7 @@ const Page = ({ review, notes, send }: ReviewPageProps) => {
       <Header review={review} tab={tab} read={read} />
       {tab === 'structure' && (
         <>
-          {!reading && (
+          {!reading && review.diff.edges.some(edge => edge.via !== undefined) && (
             <div className="structure-head">
               <p className="caveat">Calls whose path is built at runtime are not drawn.</p>
             </div>

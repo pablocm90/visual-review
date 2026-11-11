@@ -75,6 +75,10 @@ export const startHere = ({ findings, metrics, nodes }: StartHereOptions) => {
   return {
     lines: lines.slice(0, SHOWN),
     front: lines.filter(fronted).slice(0, SHOWN),
+    frontCut: Math.max(0, lines.filter(fronted).length - SHOWN),
+    information: lines
+      .filter(line => !fronted(line))
+      .reduce((sum, line) => sum + line.findings.length, 0),
     rest: lines.filter(line => !fronted(line)),
     look: findings.filter(({ level }) => level === 'look').length,
     total: findings.length,

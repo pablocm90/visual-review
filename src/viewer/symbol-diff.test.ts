@@ -1,7 +1,14 @@
 import { expect, test } from 'vitest';
 import type { SymbolStatement } from '../core/symbol-changes.ts';
 import { highlightPatch } from './highlight-patch.ts';
-import { blockAround, holdsFirstLine, otherEndOf, rowsOfSymbol, sameBlock } from './symbol-diff.ts';
+import {
+  blockAround,
+  holdsFirstLine,
+  logicDiffHoldsSignature,
+  otherEndOf,
+  rowsOfSymbol,
+  sameBlock,
+} from './symbol-diff.ts';
 
 const rowsOf = (...lines: readonly string[]) =>
   highlightPatch({ path: 'a.ts', patch: lines.join('\n') });
@@ -326,4 +333,38 @@ test('decisions share a block when their blocks overlap', () => {
   expect(sameBlock(one, blockAround(GUARDS, { side: 'head', line: 20 }))).toBe(true);
   expect(sameBlock(one, blockAround(GUARDS, { side: 'head', line: 16 }))).toBe(false);
   expect(sameBlock(one, undefined)).toBe(false);
+});
+
+test("a logic diff holds a symbol's signature when one of its blocks changes the symbol's first line", () => {
+  const rows = rowsOf(
+    '@@ -1,2 +1,3 @@',
+    '-const key = (a: A) => a.x;',
+    '+const key = (a: A) =>',
+    "+  a.unread ? 'u' : a.x;",
+    ' const other = 1;',
+  );
+  const logic = [{ change: 'added', head: 'a.unread ?', line: 2 }] as const;
+  expect(
+    logicDiffHoldsSignature(rows, {
+      lines: { base: { start: 1, end: 1 }, head: { start: 1, end: 2 } },
+      logic,
+    }),
+  ).toBe(true);
+  expect(
+    logicDiffHoldsSignature(rows, {
+      lines: { base: { start: 4, end: 4 }, head: { start: 4, end: 4 } },
+      logic,
+    }),
+  ).toBe(false);
+  expect(logicDiffHoldsSignature(rows, { lines: { head: { start: 1, end: 2 } } })).toBe(false);
+});
+
+test('a block leaves out a blank row of context at its edge', () => {
+  const rows = rowsOf('@@ -1,3 +1,3 @@', ' ', '-const a = 1;', '+const a = 2;', ' const b = 1;');
+  const block = blockAround(rows, { side: 'head', line: 2 });
+  expect(block && shown(rows.slice(block.from, block.to + 1))).toStrictEqual([
+    '-const a = 1;',
+    '+const a = 2;',
+    ' const b = 1;',
+  ]);
 });

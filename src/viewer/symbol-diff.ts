@@ -103,7 +103,10 @@ export const blockAround = (
   const first = rows.findLastIndex((_, index) => index < at && !changed(index)) + 1;
   const after = rows.findIndex((_, index) => index > at && !changed(index));
   const last = (after === -1 ? rows.length : after) - 1;
-  const context = (index: number) => rows[index]?.kind === 'context';
+  const context = (index: number) => {
+    const row = rows[index];
+    return row?.kind === 'context' && row.pieces.some(piece => piece.text.trim() !== '');
+  };
   return { from: context(first - 1) ? first - 1 : first, to: context(last + 1) ? last + 1 : last };
 };
 
@@ -138,3 +141,25 @@ export const joinedBlocks = (blocks: ReadonlyArray<Block>): ReadonlyArray<Block>
       else joined.push(block);
       return joined;
     }, []);
+
+type Spanned = Pick<SymbolStatement, 'lines'> & {
+  readonly logic?: ReadonlyArray<Placed> | undefined;
+};
+
+/** Whether the diff under a symbol's logic changes holds a changed row on its first line. */
+export const logicDiffHoldsSignature = (
+  rows: ReadonlyArray<PatchLine>,
+  { lines, logic = [] }: Spanned,
+): boolean =>
+  logic
+    .filter(line => line.change !== 'same')
+    .flatMap(line => blockAround(rows, decisionAt(line)) ?? [])
+    .some(({ from, to }) =>
+      rows
+        .slice(from, to + 1)
+        .some(
+          row =>
+            (row.kind === 'added' && row.head === lines.head?.start) ||
+            (row.kind === 'removed' && row.base === lines.base?.start),
+        ),
+    );

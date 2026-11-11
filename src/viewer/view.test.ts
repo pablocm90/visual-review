@@ -1,6 +1,7 @@
 import { expect, test } from 'vitest';
 import type { Layout, PlacedNode } from './layout.ts';
 import {
+  aroundPart,
   boxOf,
   centred,
   fitted,
@@ -15,14 +16,14 @@ import {
 
 test.for([
   {
-    graphIs: 'wider than the frame, fitted to its width and centred vertically',
+    graphIs: 'wider than the frame, fitted no smaller than 80%, centred, and panned past its edges',
     graph: { width: 2000, height: 400 },
-    view: { scale: 0.5, x: 0, y: 200 },
+    view: { scale: 0.8, x: -300, y: 140 },
   },
   {
-    graphIs: 'taller than the frame, fitted to its height and centred horizontally',
+    graphIs: 'taller than the frame, fitted no smaller than 80% and centred',
     graph: { width: 500, height: 1200 },
-    view: { scale: 0.5, x: 375, y: 0 },
+    view: { scale: 0.8, x: 300, y: -180 },
   },
   {
     graphIs: 'smaller than the frame, kept at natural size and centred',
@@ -35,9 +36,9 @@ test.for([
 
 test.for([
   {
-    graphIs: 'wider than the frame takes its height at the scale fitting its width',
+    graphIs: 'wider than the frame takes its height at the scale fitting its width, 80% at least',
     graph: { width: 2000, height: 600 },
-    height: 300,
+    height: 480,
   },
   {
     graphIs: 'narrower than the frame takes its natural height',
@@ -328,4 +329,21 @@ test("an edge's place in the graph spans its points, inside its stack's place fo
     width: 300,
     height: 150,
   });
+});
+
+test('zooming out goes past the fitted 80% down to the whole graph', () => {
+  const graph = { width: 2000, height: 400 };
+  const frame = { width: 1000, height: 600 };
+  const view = fitted({ graph, frame });
+  expect(zoomed({ graph, frame, view, scale: 0.1, at: { x: 500, y: 300 } }).scale).toBe(0.5);
+});
+
+test('the reading map centres the part in a neighbourhood around it, or shows the whole graph with none', () => {
+  const graph = { width: 4000, height: 2000 };
+  const frame = { width: 320, height: 200 };
+  const view = aroundPart({ graph, frame, box: { x: 2000, y: 1000, width: 100, height: 40 } });
+  expect(view.scale).toBe(0.5);
+  expect(view.x + 2050 * view.scale).toBe(160);
+  expect(view.y + 1020 * view.scale).toBe(100);
+  expect(aroundPart({ graph, frame, box: undefined }).scale).toBe(0.08);
 });

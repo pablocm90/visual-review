@@ -430,16 +430,10 @@ const SeveralFindings = ({ line, lineOf }: SeveralFindingsProps) => {
   );
 };
 
-const findingsIn = (lines: ReadonlyArray<StartHereLine>) =>
-  lines.reduce((sum, line) => sum + line.findings.length, 0);
-
-const lookCount = (front: ReadonlyArray<StartHereLine>) => {
-  const look = findingsIn(front.filter(line => line.level === 'look'));
-  const blind = findingsIn(front.filter(line => line.level !== 'look'));
-  return [
-    look > 0 ? counted(look, 'needs a look', 'need a look') : undefined,
-    blind > 0 ? counted(blind, 'not read', 'not read') : undefined,
-  ]
+const lookCount = (front: ReadonlyArray<StartHereLine>, cut: number) => {
+  const look = front.filter(line => line.level === 'look').length + cut;
+  const blind = front.filter(line => line.level !== 'look').length;
+  return [look > 0 ? `${look} to look at` : undefined, blind > 0 ? `${blind} not read` : undefined]
     .filter(part => part !== undefined)
     .join(' · ');
 };
@@ -447,11 +441,12 @@ const lookCount = (front: ReadonlyArray<StartHereLine>) => {
 type StartHereListProps = {
   readonly label: string;
   readonly lines: ReadonlyArray<StartHereLine>;
+  readonly cut?: number;
   readonly lineOf: (finding: Finding) => Line;
   readonly onShowAll: () => void;
 };
 
-const StartHereList = ({ label, lines, lineOf, onShowAll }: StartHereListProps) => {
+const StartHereList = ({ label, lines, cut = 0, lineOf, onShowAll }: StartHereListProps) => {
   const lineOfOne = (finding: Finding): Line => {
     const { groups, ...line } = lineOf(finding);
     return groups ? { ...line, target: '', act: onShowAll } : line;
@@ -467,6 +462,13 @@ const StartHereList = ({ label, lines, lineOf, onShowAll }: StartHereListProps) 
           <SeveralFindings key={line.key} line={line} lineOf={lineOf} />
         ),
       )}
+      {cut > 0 && (
+        <li className="finding start-here-more">
+          <button type="button" onClick={onShowAll}>
+            and {cut} more in All findings
+          </button>
+        </li>
+      )}
     </ul>
   );
 };
@@ -478,14 +480,13 @@ const StartHereList = ({ label, lines, lineOf, onShowAll }: StartHereListProps) 
 export const StartHere = (props: StartHereProps) => {
   const { opened, onOpened } = props;
   const calledFine = props.review.sinceReview?.calledFine ?? [];
-  const { front, rest, total } = startHere({
+  const { front, frontCut, rest, information } = startHere({
     findings: props.findings.filter(finding => !calledFine.includes(finding.id)),
     metrics: props.review.metrics,
     nodes: props.review.diff.nodes,
   });
   const anyFindings = props.allFindings.length > 0;
   const lineOf = linesOf(props);
-  const information = total - findingsIn(front);
   const toggle = (list: keyof StartHereOpened) => onOpened({ ...opened, [list]: !opened[list] });
   return (
     <section className="start-here" aria-label="Start here">
@@ -499,7 +500,7 @@ export const StartHere = (props: StartHereProps) => {
             onClick={() => toggle('look')}
           >
             <span className="start-here-dot" aria-hidden="true" />
-            {lookCount(front)}
+            {lookCount(front, frontCut)}
           </button>
         ) : (
           <span className="start-here-count">nothing needs a look</span>
@@ -523,6 +524,7 @@ export const StartHere = (props: StartHereProps) => {
         <StartHereList
           label="Needs a look"
           lines={front}
+          cut={frontCut}
           lineOf={lineOf}
           onShowAll={props.onShowAll}
         />

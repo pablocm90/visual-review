@@ -3864,3 +3864,38 @@ test('a secret held in a node id is masked in the keys keyed by that id too, so 
     metricsFound: data.metrics['web/file/AKIA…(20 chars).ts'] !== undefined,
   }).toStrictEqual({ holdsKey: false, metricsFound: true });
 });
+
+test('a hotspot is raised on a file the change touches, not on one a hop away, whose metrics still read', () => {
+  const measured = {
+    lines: 1,
+    functions: [{ name: 'f', cyclomatic: 9, abc: { assignments: 0, branches: 0, conditions: 0 } }],
+  };
+  const side = {
+    nodes: [webStack, webFile('a.ts'), webFile('b.ts')],
+    edges: [{ from: 'web/file/a.ts', to: 'web/file/b.ts' }],
+  };
+  const data = pageData({
+    repo: 'shop',
+    reading: readingWith({
+      before: side,
+      after: side,
+      churn: {
+        before: { 'web/src/a.ts': 9, 'web/src/b.ts': 9 },
+        after: { 'web/src/a.ts': 9, 'web/src/b.ts': 9 },
+      },
+      measures: {
+        before: { 'web/src/a.ts': measured, 'web/src/b.ts': measured },
+        after: { 'web/src/a.ts': measured, 'web/src/b.ts': measured },
+      },
+      thresholds: { cyclomatic: 20, splitParts: 4, hotspot: { churn: 3, cyclomatic: 5 } },
+    }),
+    range: 'main..feature',
+    version,
+    parsers,
+  });
+
+  expect(Object.keys(data.metrics)).toContain('web/file/b.ts');
+  expect(
+    data.findings.filter(({ check }) => check === 'metrics:hotspot').map(({ target }) => target),
+  ).toStrictEqual(['web/file/a.ts']);
+});
