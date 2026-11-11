@@ -141,3 +141,24 @@ test('a test file stays where it is when it or its subject is in a cycle, or its
     }),
   ).toStrictEqual(parts);
 });
+
+test("a test file named after no node, such as a Rust crate's integration test, tests every node in the crate holding it", () => {
+  const crate: ReadonlyArray<GraphNode> = [
+    node('rust', 'stack', ''),
+    node('rust/crate/app', 'package', 'crates/app', 'rust'),
+    node('rust/mod/app/main.rs', 'file', 'crates/app/src/main.rs', 'rust/crate/app'),
+    node('rust/crate/other', 'package', 'crates/other', 'rust'),
+    node('rust/mod/other/lib.rs', 'file', 'crates/other/src/lib.rs', 'rust/crate/other'),
+  ];
+  const integration = testFile('crates/app/tests/index.rs', 'rust');
+  const named = testFile('crates/app/tests/lib.rs', 'rust');
+  const alongside = (id: string, test: TestFile) =>
+    testsAlongside({
+      nodes: crate,
+      node: crate.find(each => each.id === id) ?? node(id, 'file', id),
+      tests: [test],
+    }).length > 0;
+  expect(alongside('rust/mod/app/main.rs', integration)).toBe(true);
+  expect(alongside('rust/mod/other/lib.rs', integration)).toBe(false);
+  expect(alongside('rust/mod/app/main.rs', named)).toBe(false);
+});
