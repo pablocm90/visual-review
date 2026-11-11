@@ -27,8 +27,20 @@ export const testsAlongside = ({
   if (node.kind === 'stack') return tests.filter(({ stack }) => stack === node.id);
   const alike = namedAlike(stackOfIn(nodes));
   const inside = nodes.filter(each => isAtOrUnder(each.path, node));
+  /**
+   * A test named after no node and held by a package, such as a Rust crate's `tests/` file, tests
+   * the package whole; a test in a folder still tests only what it is named after.
+   */
+  const testsItsPackage = (test: TestFile): boolean => {
+    if (nodes.some(each => alike(each, test))) return false;
+    const holder = deepestHolding(test.path, nodes);
+    return holder?.kind === 'package' && isAtOrUnder(node.path, holder);
+  };
   return tests.filter(
-    test => isAtOrUnder(test.path, node) || inside.some(each => alike(each, test)),
+    test =>
+      isAtOrUnder(test.path, node) ||
+      inside.some(each => alike(each, test)) ||
+      testsItsPackage(test),
   );
 };
 
