@@ -230,6 +230,11 @@ h1 {
   user-select: none;
 }
 
+.frame:has(> .zoom) {
+  box-sizing: content-box;
+  padding-bottom: 40px;
+}
+
 .graph {
   display: block;
   width: 100%;
@@ -1457,6 +1462,7 @@ pre .hljs-emphasis {
 }
 
 .start-here {
+  min-width: 0;
   margin-bottom: 10px;
   padding: 0 0 8px;
   border-bottom: 1px solid var(--stack-line);
@@ -1474,6 +1480,7 @@ pre .hljs-emphasis {
 }
 
 .start-here .finding {
+  min-width: 0;
   padding: 2px 0;
   align-items: center;
 }
@@ -1483,6 +1490,7 @@ pre .hljs-emphasis {
   flex-direction: row;
   align-items: baseline;
   gap: 8px;
+  min-width: 0;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -2488,6 +2496,7 @@ main:has(> .review-tray) {
 
 .start-here-information-list {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: 8px;
   margin-top: 10px;
 }
@@ -3529,15 +3538,23 @@ main:has(> .review-tray) {
   top: -12px;
 }
 
-li:not(:hover, :focus-within) > .comment-on:not([aria-expanded="true"]),
-[data-level="info"]:not(:hover, :focus-within) > .finding-answer:not(:has([aria-pressed="true"])) {
+li:not(:hover, :focus-within) > .comment-on:not([aria-expanded="true"]) {
   opacity: 0;
 }
 
+[data-level="info"]:not(:hover, :focus-within) > .finding-answer:not(:has([aria-pressed="true"])) {
+  block-size: 0;
+  margin-block: 0;
+  overflow: hidden;
+}
+
 @media (hover: none) {
-  li > .comment-on,
-  [data-level="info"] > .finding-answer {
+  li > .comment-on {
     opacity: 1;
+  }
+
+  [data-level="info"] > .finding-answer {
+    block-size: auto;
   }
 }
 
