@@ -358,11 +358,18 @@ export const LensRow = ({ picked, findings, coverage }: LensRowProps) => {
   );
 };
 
+/** Which of Start here's lists are open under its line: what needs a look, and the rest. */
+export type StartHereOpened = { readonly look: boolean; readonly information: boolean };
+
 type StartHereProps = LineOptions & {
   readonly findings: ReadonlyArray<Finding>;
+  readonly allFindings: ReadonlyArray<Finding>;
+  readonly coverage: PageData['coverage'];
+  readonly picked: Lens | undefined;
+  readonly onPick: (lens: Lens | undefined) => void;
   readonly onShowAll: () => void;
-  readonly open: boolean;
-  readonly onOpen: (open: boolean) => void;
+  readonly opened: StartHereOpened;
+  readonly onOpened: (opened: StartHereOpened) => void;
   readonly review: Pick<PageData, 'diff' | 'metrics' | 'sinceReview'>;
   readonly logic: StartHereLogicProps | undefined;
 };
@@ -373,9 +380,8 @@ type StartHereLogicProps = {
 };
 
 const StartHereLogic = ({ totals, onShow }: StartHereLogicProps) => (
-  <li className="finding start-here-logic">
-    <LensOf dimension="logic" />
-    <button type="button" onClick={onShow}>
+  <span className="start-here-logic">
+    <button type="button" className="start-here-count-button" onClick={onShow}>
       {counted(totals.decisions, 'decision', 'decisions')} changed in{' '}
       {counted(totals.functions, 'function', 'functions')}, {counted(totals.files, 'file', 'files')}
     </button>
@@ -389,7 +395,7 @@ const StartHereLogic = ({ totals, onShow }: StartHereLogicProps) => (
         .filter(part => part !== undefined)
         .join(' · ')}
     </span>
-  </li>
+  </span>
 );
 
 type SeveralFindingsProps = {
@@ -424,56 +430,119 @@ const SeveralFindings = ({ line, lineOf }: SeveralFindingsProps) => {
   );
 };
 
-const startHereCount = (look: number, total: number) =>
-  look > 0
-    ? counted(look, 'finding needs a look', 'findings need a look')
-    : `nothing needs a look · ${counted(total, 'finding', 'findings')}`;
+const findingsIn = (lines: ReadonlyArray<StartHereLine>) =>
+  lines.reduce((sum, line) => sum + line.findings.length, 0);
 
+const lookCount = (front: ReadonlyArray<StartHereLine>) => {
+  const look = findingsIn(front.filter(line => line.level === 'look'));
+  const blind = findingsIn(front.filter(line => line.level !== 'look'));
+  return [
+    look > 0 ? counted(look, 'needs a look', 'need a look') : undefined,
+    blind > 0 ? counted(blind, 'not read', 'not read') : undefined,
+  ]
+    .filter(part => part !== undefined)
+    .join(' · ');
+};
+
+type StartHereListProps = {
+  readonly label: string;
+  readonly lines: ReadonlyArray<StartHereLine>;
+  readonly lineOf: (finding: Finding) => Line;
+  readonly onShowAll: () => void;
+};
+
+const StartHereList = ({ label, lines, lineOf, onShowAll }: StartHereListProps) => {
+  const lineOfOne = (finding: Finding): Line => {
+    const { groups, ...line } = lineOf(finding);
+    return groups ? { ...line, target: '', act: onShowAll } : line;
+  };
+  return (
+    <ul className="start-here-list" aria-label={label}>
+      {lines.map(line =>
+        line.findings.length === 1 ? (
+          line.findings.map(finding => (
+            <FindingItem key={line.key} finding={lineOfOne(finding)} lens={line.dimension} />
+          ))
+        ) : (
+          <SeveralFindings key={line.key} line={line} lineOf={lineOf} />
+        ),
+      )}
+    </ul>
+  );
+};
+
+/**
+ * One line above the graph: what needs a look (open by default), the range's changed logic, and a
+ * count of what is for information, which opens with the lenses that narrow it.
+ */
 export const StartHere = (props: StartHereProps) => {
-  const { open, onOpen } = props;
+  const { opened, onOpened } = props;
   const calledFine = props.review.sinceReview?.calledFine ?? [];
-  const { lines, look, total } = startHere({
+  const { front, rest, total } = startHere({
     findings: props.findings.filter(finding => !calledFine.includes(finding.id)),
     metrics: props.review.metrics,
     nodes: props.review.diff.nodes,
   });
-  if (lines.length === 0 && props.logic === undefined) return null;
+  const anyFindings = props.allFindings.length > 0;
   const lineOf = linesOf(props);
-  const lineOfOne = (finding: Finding): Line => {
-    const { groups, ...line } = lineOf(finding);
-    return groups ? { ...line, target: '', act: props.onShowAll } : line;
-  };
+  const information = total - findingsIn(front);
+  const toggle = (list: keyof StartHereOpened) => onOpened({ ...opened, [list]: !opened[list] });
   return (
     <section className="start-here" aria-label="Start here">
       <div className="start-here-head">
-        <h2 className="start-here-title">
+        <h2 className="visually-hidden">Start here</h2>
+        {front.length > 0 ? (
           <button
             type="button"
-            className="start-here-toggle"
-            aria-expanded={open}
-            onClick={() => onOpen(!open)}
+            className="start-here-count-button start-here-look"
+            aria-expanded={opened.look}
+            onClick={() => toggle('look')}
           >
-            Start here
+            <span className="start-here-dot" aria-hidden="true" />
+            {lookCount(front)}
           </button>
-        </h2>
-        <span className="start-here-count">{startHereCount(look, total)}</span>
-        <button type="button" className="show-all" onClick={props.onShowAll}>
-          All findings
+        ) : (
+          <span className="start-here-count">nothing needs a look</span>
+        )}
+        {props.logic && <StartHereLogic {...props.logic} />}
+        <button
+          type="button"
+          className="start-here-count-button start-here-information"
+          aria-expanded={opened.information}
+          onClick={() => toggle('information')}
+        >
+          {anyFindings ? `${information} for information` : 'what was checked'}
         </button>
+        {anyFindings && (
+          <button type="button" className="show-all" onClick={props.onShowAll}>
+            All findings
+          </button>
+        )}
       </div>
-      {open && (
-        <ul>
-          {props.logic && <StartHereLogic {...props.logic} />}
-          {lines.map(line =>
-            line.findings.length === 1 ? (
-              line.findings.map(finding => (
-                <FindingItem key={line.key} finding={lineOfOne(finding)} lens={line.dimension} />
-              ))
-            ) : (
-              <SeveralFindings key={line.key} line={line} lineOf={lineOf} />
-            ),
-          )}
-        </ul>
+      {opened.look && front.length > 0 && (
+        <StartHereList
+          label="Needs a look"
+          lines={front}
+          lineOf={lineOf}
+          onShowAll={props.onShowAll}
+        />
+      )}
+      {opened.information && (
+        <div className="start-here-information-list">
+          <LensChips
+            findings={props.allFindings}
+            coverage={props.coverage}
+            picked={props.picked}
+            onPick={props.onPick}
+          />
+          <LensRow picked={props.picked} findings={props.allFindings} coverage={props.coverage} />
+          <StartHereList
+            label="For information"
+            lines={rest}
+            lineOf={lineOf}
+            onShowAll={props.onShowAll}
+          />
+        </div>
       )}
     </section>
   );

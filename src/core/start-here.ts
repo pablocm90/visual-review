@@ -69,8 +69,13 @@ export const startHere = ({ findings, metrics, nodes }: StartHereOptions) => {
       }),
     ),
   );
+  const unread = ({ check }: Finding) =>
+    check === 'structure:skipped' || check.endsWith(':not-read') || check.endsWith('-not-read');
+  const fronted = (line: StartHereLine) => line.level === 'look' || line.findings.some(unread);
   return {
     lines: lines.slice(0, SHOWN),
+    front: lines.filter(fronted).slice(0, SHOWN),
+    rest: lines.filter(line => !fronted(line)),
     look: findings.filter(({ level }) => level === 'look').length,
     total: findings.length,
   };

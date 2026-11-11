@@ -14,7 +14,7 @@ What a finding is about, one of a fixed list (structure, logic, api, tests, metr
 _Avoid_: category, kind
 
 **Lens**:
-One of five groups of dimensions the reader narrows findings to: Behaviour (logic, tests, failure, performance), Contract (api, blast radius, routes, schema), Risk (security, tenancy, deploy, dependencies), Shape (structure, rules, cohesion) and Context (metrics, ownership). Picking one narrows Start here and the rail to it, and dims the other badges. The graph is never filtered.
+One of five groups of dimensions the reader narrows findings to: Behaviour (logic, tests, failure, performance), Contract (api, blast radius, routes, schema), Risk (security, tenancy, deploy, dependencies), Shape (structure, rules, cohesion) and Context (metrics, ownership). Picking one, in Start here's list of what is for information, narrows Start here and the rail to it, and dims the other badges. The graph is never filtered.
 _Avoid_: category, group, triage
 _In code_: `Lens`, `LENS_OF` (`src/viewer/lenses.ts`)
 
@@ -63,12 +63,12 @@ _Avoid_: constraint, policy, check
 _In code_: `Rules` (`src/core/config.ts`), `ruleBreaks` (`src/core/rule-breaks.ts`)
 
 **Start here**:
-The few lines to begin with above the graph, at most five, each the findings of one check and level, or one flag. Those that need a look come first; within each level, a line ranks by its best finding: the blind spots, then direct dependency changes, risky migrations, removed tables, removed routes and new targets, then what most depends on, then what changes most. Above those, when the range changed a decision and no lens but Behaviour is picked, one more line that is no finding: how many decisions changed, going to **Logic only**.
+One line above the graph: how many findings need a look (and how many say something wasn't read), how many decisions the range changed when no lens but Behaviour is picked, going to **Logic only**, and how many findings are for information. Under it, open by default, the lines that need a look or weren't read, at most five, each the findings of one check and level, or one flag, ranked by its best finding: the blind spots, then direct dependency changes, risky migrations, removed tables, removed routes and new targets, then what most depends on, then what changes most. The count for information opens the other lines with the lenses; with no findings it reads "what was checked".
 _Avoid_: Look first, top findings, priorities
 _In code_: `startHere` (`src/core/start-here.ts`)
 
 **Reading column**:
-What the inspector reads for one part, top to bottom: its note, What changed (its symbols and logic lines), Why look (the findings on it), then Tested by (its changed tests, and the finding when logic changed with no test alongside). An arrow's holds its note and findings only.
+What the inspector reads for one part, top to bottom, under its head, which stays in view: its note, Why look (the findings on it), What changed (its symbols, each function with changed logic a card whose name stays in view, its logic lines with the patch rows each run of them sits on open below), then Tested by (its changed tests, and the finding when logic changed with no test alongside). An arrow's holds its note and findings only.
 _Avoid_: note panel, sidebar
 _In code_: `NotePanel` (`src/viewer/review-page.tsx`)
 
@@ -138,7 +138,7 @@ A function's logic lines drawn as marks in source order, one tick each, above Wh
 _In code_: `LogicStrip`
 
 **Logic only**:
-A choice of Show drawing only the files with a changed decision, their boxes open, with every edge between them, each file a card holding a logic strip per function with a changed decision. It's offered only when there is one.
+A choice of Show drawing only the files with a changed decision, their boxes open, with every edge between them, each file a card holding a logic strip per function with a changed decision. Its cards show, by the Cards choice, only those marks, the changed decisions under each function (the default), or the patch rows they sit on, each decision tagged; a card's code button opens that card alone to its rows. It's offered only when there is one.
 _In code_: `logicOnly`, `LogicCardBody`
 
 **Anchor**:

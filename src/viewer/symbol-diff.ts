@@ -82,3 +82,59 @@ export const rowsOfSymbol = ({
     return kept.some(isChange) ? [headerOf(kept), ...kept] : [];
   });
 };
+
+export type DecisionAt = { readonly side: 'base' | 'head'; readonly line: number };
+
+/** The rows a decision sits in: its run of added and removed rows, with one row either side. */
+export type Block = { readonly from: number; readonly to: number };
+
+export const blockAround = (
+  rows: ReadonlyArray<PatchLine>,
+  { side, line }: DecisionAt,
+): Block | undefined => {
+  const at = rows.findIndex(row => row.kind !== 'header' && row[side] === line);
+  const row = rows[at];
+  if (row === undefined) return undefined;
+  if (!isChange(row)) return { from: at, to: at };
+  const changed = (index: number) => {
+    const each = rows[index];
+    return each !== undefined && isChange(each);
+  };
+  const first = rows.findLastIndex((_, index) => index < at && !changed(index)) + 1;
+  const after = rows.findIndex((_, index) => index > at && !changed(index));
+  const last = (after === -1 ? rows.length : after) - 1;
+  const context = (index: number) => rows[index]?.kind === 'context';
+  return { from: context(first - 1) ? first - 1 : first, to: context(last + 1) ? last + 1 : last };
+};
+
+export const sameBlock = (one: Block | undefined, other: Block | undefined): boolean =>
+  one !== undefined && other !== undefined && one.from <= other.to && other.from <= one.to;
+
+type Placed = { readonly change: string; readonly head?: string; readonly line: number };
+
+/** Where a decision is read: its head line, or its base line when the head lost it. */
+export const decisionAt = ({ head, line }: Placed): DecisionAt => ({
+  side: head === undefined ? 'base' : 'head',
+  line,
+});
+
+/** Whether a patch row holds the decision: its own row, or the row a changed one was. */
+export const holdsDecision = (decision: Placed, row: PatchLine): boolean => {
+  const { side, line } = decisionAt(decision);
+  const own =
+    row[side] === line &&
+    (row.kind === 'context' || row.kind === (side === 'base' ? 'removed' : 'added'));
+  return own || (decision.change === 'changed' && row.kind === 'removed' && row.base === line);
+};
+
+/** Joins blocks that overlap or touch, in order. */
+export const joinedBlocks = (blocks: ReadonlyArray<Block>): ReadonlyArray<Block> =>
+  blocks
+    .toSorted((one, other) => one.from - other.from)
+    .reduce<Array<Block>>((joined, block) => {
+      const last = joined.at(-1);
+      if (last && block.from <= last.to + 1)
+        joined[joined.length - 1] = { ...last, to: Math.max(last.to, block.to) };
+      else joined.push(block);
+      return joined;
+    }, []);

@@ -46,6 +46,7 @@ export type LineComments = {
 const PatchLine = ({
   path,
   line,
+  tag,
   said,
   landing,
   nodes,
@@ -54,12 +55,16 @@ const PatchLine = ({
 }: LineComments & {
   readonly path: string;
   readonly line: Line;
+  readonly tag: string | undefined;
   readonly said: ReadonlyArray<PreviousComment['anchor']>;
   readonly landing: Partial<LineLanding> | undefined;
 }) => {
   const { kind, prefix, pieces } = line;
   const anchor = lineAnchor({ path, line });
-  const marks = { 'aria-current': landing !== undefined || undefined };
+  const marks = {
+    'aria-current': landing !== undefined || undefined,
+    ...(tag !== undefined && { 'data-decision': tag }),
+  };
   const code = (
     <>
       {prefix}
@@ -100,6 +105,7 @@ export const useSaidAt = (path: string, lines: ReadonlyArray<Line>): SaidAt => {
 export const PatchRows = ({
   path,
   lines,
+  tags,
   saidAt,
   landedRow,
   landed,
@@ -107,6 +113,8 @@ export const PatchRows = ({
 }: LineComments & {
   readonly path: string;
   readonly lines: ReadonlyArray<Line>;
+  /** A word for each row, such as the decision a logic change sits on, shown beside it. */
+  readonly tags?: ReadonlyArray<string | undefined>;
   readonly saidAt: SaidAt;
   readonly landedRow: number | undefined;
   readonly landed: Partial<LineLanding> | undefined;
@@ -118,6 +126,7 @@ export const PatchRows = ({
         key={index}
         path={path}
         line={line}
+        tag={tags?.[index]}
         said={saidAt(line)}
         landing={index === landedRow ? landed : undefined}
         {...commenting}
