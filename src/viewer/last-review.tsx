@@ -4,7 +4,7 @@ import type { Finding } from '../core/findings.ts';
 import type { ReviewNotes } from '../core/notes.ts';
 import { lineIdOf, patchHunks } from '../core/patch-lines.ts';
 import type { PreviousComment } from '../core/previous-comments.ts';
-import type { SymbolFile } from '../core/read-range.ts';
+import type { SymbolFile } from '../core/reading.ts';
 import type { Comment } from '../core/review.ts';
 import type { SinceReview } from '../core/since-review.ts';
 import { anchoredSymbols, decisionsOf } from '../core/symbol-findings.ts';

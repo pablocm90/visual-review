@@ -43,7 +43,7 @@ export type LineComments = {
   readonly onComment: ((comment: Comment) => void) | undefined;
 };
 
-const PatchLine = ({
+const PatchRowView = ({
   path,
   line,
   tag,
@@ -121,7 +121,7 @@ export const PatchRows = ({
 }) => (
   <pre>
     {lines.map((line, index) => (
-      <PatchLine
+      <PatchRowView
         // biome-ignore lint/suspicious/noArrayIndexKey: a patch's lines are fixed and may repeat
         key={index}
         path={path}

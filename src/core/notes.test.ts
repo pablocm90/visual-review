@@ -9,7 +9,7 @@ import {
   type ReviewNotes,
   visibleNotes,
 } from './notes.ts';
-import type { SymbolFile } from './read-range.ts';
+import type { SymbolFile } from './reading.ts';
 import type { TestFile } from './test-changes.ts';
 
 type NodeState = GraphDiff['nodes'][number]['state'];

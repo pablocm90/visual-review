@@ -99,7 +99,7 @@ type Run =
 const LEAST_FOLDED = 3;
 
 /** Statements in order, each run of quiet tests long enough to fold taken together. */
-const runsIn = (
+const quietRunsIn = (
   statements: ReadonlyArray<AnchoredStatement>,
   isQuiet: IsQuiet | undefined,
 ): ReadonlyArray<Run> => {
@@ -130,7 +130,7 @@ const TestTree = ({
   readonly isQuiet?: IsQuiet | undefined;
 }) => (
   <ul>
-    {runsIn(statements, isQuiet).map(run => {
+    {quietRunsIn(statements, isQuiet).map(run => {
       if (run.quiet)
         return (
           <li key={`quiet ${run.tests[0]?.trail}`} className="test-run">

@@ -1,8 +1,9 @@
 import { accessFindings } from './access-findings.ts';
 import { anchorOfKey, anchorTarget, fileOfLine, isNoted, type Noted } from './anchors.ts';
-import type { Check } from './checks.ts';
+import { counted } from './counted.ts';
 import { dependencyFindings } from './dependency-findings.ts';
 import type { FilePatch, GraphDiff } from './diff-graphs.ts';
+import type { Finding } from './finding.ts';
 import { endsOfId, type GraphNode } from './graph.ts';
 import type { DanglingCall } from './linker.ts';
 import type { MetricFinding } from './metric-findings.ts';
@@ -14,10 +15,10 @@ import { reachFindings } from './reach-findings.ts';
 import type { AccessReading } from './read-access.ts';
 import type { DependencyChanges } from './read-lockfiles.ts';
 import type { MigrationReading } from './read-migrations.ts';
-import type { SymbolFile } from './read-range.ts';
 import type { Reach } from './read-reaches.ts';
 import type { RoutesReading } from './read-routes.ts';
 import type { SchemaReading } from './read-schemas.ts';
+import type { SymbolFile } from './reading.ts';
 import { routeFindings } from './route-findings.ts';
 import type { RuleBreak } from './rule-breaks.ts';
 import { ruleFindings } from './rule-findings.ts';
@@ -31,44 +32,8 @@ import { anyChanged, type TestFile } from './test-changes.ts';
 import { testsAlongside } from './tests-alongside.ts';
 import { visibleNodeOf } from './visible-diff.ts';
 
-export const DIMENSIONS = [
-  'structure',
-  'logic',
-  'api',
-  'tests',
-  'metrics',
-  'dependencies',
-  'rules',
-  'schema',
-  'routes',
-  'blast-radius',
-  'security',
-  'tenancy',
-  'deploy',
-  'performance',
-  'failure',
-  'ownership',
-  'cohesion',
-] as const;
-
-export type Dimension = (typeof DIMENSIONS)[number];
-
-export type Finding = {
-  readonly id: string;
-  readonly check: Check | 'flag';
-  readonly dimension: Dimension;
-  readonly level: 'look' | 'info';
-  readonly target?: string;
-  readonly file?: string;
-  readonly table?: string;
-  readonly route?: string;
-  readonly line?: string;
-  readonly title: string;
-  readonly detail?: string;
-  readonly groups?: SplitSuggestion['groups'];
-};
-
-export type PlaceInFile = Pick<Finding, 'table' | 'route' | 'line'>;
+export { counted } from './counted.ts';
+export { DIMENSIONS, type Dimension, type Finding, type PlaceInFile } from './finding.ts';
 
 const METRIC_NAMES = { cyclomatic: 'cyclomatic', lines: 'lines', abc: 'ABC size' } as const;
 
@@ -83,9 +48,6 @@ const metricTitle = (finding: MetricFinding) => {
   const { base, head, threshold } = finding;
   return `hotspot, churn ${move(base?.churn, head.churn)} and cyclomatic ${move(base?.cyclomatic, head.cyclomatic)}, over ${threshold.churn} and ${threshold.cyclomatic}`;
 };
-
-export const counted = (count: number, one: string, many: string) =>
-  `${count} ${count === 1 ? one : many}`;
 
 type RaisedOptions = {
   readonly skipped: ReadonlyArray<Skipped>;

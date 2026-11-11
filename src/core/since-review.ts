@@ -8,7 +8,7 @@ import {
   partChanged,
   previousComments,
 } from './previous-comments.ts';
-import type { ReviewedHead, ReviewedReading, SymbolFile } from './read-range.ts';
+import type { ReviewedHead, ReviewedReading, SymbolFile } from './reading.ts';
 import { isQuiet, qualified } from './symbol-changes.ts';
 import { type AnchoredSymbol, anchoredSymbols, decisionsOf } from './symbol-findings.ts';
 import {

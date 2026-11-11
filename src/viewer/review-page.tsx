@@ -23,7 +23,7 @@ import {
   findingsOf,
   type PlaceInFile,
 } from '../core/findings.ts';
-import { edgeId } from '../core/graph.ts';
+import { edgeId, stackOfIn } from '../core/graph.ts';
 import {
   logicTotalsOf,
   nextDecision,
@@ -36,8 +36,8 @@ import { type Note, notesOnTheGraph, type ReviewNotes, visibleNotes } from '../c
 import { type PageData, UNCOMMITTED } from '../core/page.ts';
 import type { PreviousComment } from '../core/previous-comments.ts';
 import { isReachFinding } from '../core/reach-findings.ts';
-import type { SymbolFile } from '../core/read-range.ts';
 import type { Reach } from '../core/read-reaches.ts';
+import type { SymbolFile } from '../core/reading.ts';
 import type { Answer, Comment, Review } from '../core/review.ts';
 import type { ChangedSince, SinceReview } from '../core/since-review.ts';
 import type { TestFile } from '../core/test-changes.ts';
@@ -605,8 +605,8 @@ const Patch = ({
 type DiffNode = GraphDiff['nodes'][number];
 
 const stackOf = (nodes: ReadonlyArray<DiffNode>, node: DiffNode): DiffNode => {
-  const parent = nodes.find(other => other.id === node.parent);
-  return parent ? stackOf(nodes, parent) : node;
+  const stack = stackOfIn(nodes)(node.id);
+  return nodes.find(({ id }) => id === stack) ?? node;
 };
 
 type Walking = {
@@ -1801,7 +1801,7 @@ const GraphControls = ({
   );
 };
 
-type LandingHeadProps = GraphControlsProps &
+type GraphHeadProps = GraphControlsProps &
   GraphCaveatProps & {
     readonly review: PageData;
     readonly notes: ReviewPageProps['notes'];
@@ -1823,14 +1823,14 @@ const logicLineOf = ({
   picked,
   scopes,
   onScope,
-}: Pick<LandingHeadProps, 'review' | 'picked' | 'scopes' | 'onScope'>) => {
+}: Pick<GraphHeadProps, 'review' | 'picked' | 'scopes' | 'onScope'>) => {
   const logicOnly = scopes.find(([name]) => name === LOGIC_ONLY);
   return logicOnly && (picked === undefined || picked === LENS_OF.logic)
     ? { totals: logicTotalsOf(review.symbols), onShow: () => onScope(logicOnly) }
     : undefined;
 };
 
-const LandingHead = ({
+const GraphHead = ({
   review,
   notes,
   findings,
@@ -1847,7 +1847,7 @@ const LandingHead = ({
   since,
   nothingDrawn,
   ...controls
-}: LandingHeadProps) => (
+}: GraphHeadProps) => (
   <>
     {notes && notes.summary.length > 0 && <Summary notes={notes} onGoTo={onGoTo} />}
     <StartHere
@@ -2412,7 +2412,7 @@ const Page = ({ review, notes, send }: ReviewPageProps) => {
   const content = (
     <div key="content" className="content">
       {!reading && (
-        <LandingHead
+        <GraphHead
           review={review}
           notes={notes}
           findings={findings}

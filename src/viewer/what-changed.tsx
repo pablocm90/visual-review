@@ -14,7 +14,7 @@ import type { LogicLine } from '../core/logic-diff.ts';
 import { holdsFewChanges, logicTotalsOf, runsOf } from '../core/logic-strip.ts';
 import type { PageData } from '../core/page.ts';
 import type { PreviousComment } from '../core/previous-comments.ts';
-import type { SymbolFile } from '../core/read-range.ts';
+import type { SymbolFile } from '../core/reading.ts';
 import type { Comment } from '../core/review.ts';
 import { testAnchorsIn } from '../core/since-review.ts';
 import { isQuiet, qualified, SYMBOL_GROUPS, type SymbolStatement } from '../core/symbol-changes.ts';
@@ -30,13 +30,12 @@ import { CommentOn, SaidBefore, useHasSaid } from './said-before.tsx';
 import { scrollInPanel } from './scroll-in-panel.ts';
 import { Signature } from './signature-lines.tsx';
 import {
-  type Block,
-  blockAround,
-  decisionAt,
-  holdsDecision,
+  type DecisionRun,
+  decisionRuns,
   logicDiffHoldsSignature,
+  MARKS,
   otherEndOf,
-  sameBlock,
+  tagsOfRun,
 } from './symbol-diff.ts';
 import { type SymbolEnd, SymbolLines } from './symbol-lines.tsx';
 
@@ -133,14 +132,6 @@ const nameOf = (symbol: SymbolStatement): string => {
   const mark = exportMarkOf(symbol);
   const name = `${symbol.kind} ${qualified(symbol)}`;
   return mark === undefined ? name : `${name}, ${mark}`;
-};
-
-export const MARKS: Readonly<Record<LogicLine['change'], string>> = {
-  same: '·',
-  added: '+',
-  removed: '−',
-  changed: '~',
-  moved: '→',
 };
 
 const textOf = ({ base, head }: LogicLine): string =>
@@ -241,42 +232,7 @@ const LogicRow = ({
   );
 };
 
-type Shown = { readonly rows: ReadonlyArray<DecisionRow>; readonly block: Block | undefined };
-
-/** Consecutive changed rows sitting in one block of the patch share it, shown once below them. */
-const sharingBlocks = (
-  rows: ReadonlyArray<DecisionRow>,
-  lines: ReadonlyArray<PatchLine>,
-): ReadonlyArray<Shown> => {
-  const shown: Array<Shown> = [];
-  for (const row of rows) {
-    const block = blockAround(lines, decisionAt(row.line));
-    const last = shown.at(-1);
-    if (last?.block && block && sameBlock(last.block, block)) {
-      shown[shown.length - 1] = {
-        rows: [...last.rows, row],
-        block: {
-          from: Math.min(last.block.from, block.from),
-          to: Math.max(last.block.to, block.to),
-        },
-      };
-    } else shown.push({ rows: [row], block });
-  }
-  return shown;
-};
-
-const tagsOf = (
-  { rows, block }: Shown,
-  lines: ReadonlyArray<PatchLine>,
-): ReadonlyArray<string | undefined> =>
-  block === undefined
-    ? []
-    : lines.slice(block.from, block.to + 1).map(patchLine => {
-        const tags = rows
-          .filter(({ line }) => holdsDecision(line, patchLine))
-          .map(({ line }) => `${MARKS[line.change]} ${line.kind}`);
-        return tags.length === 0 ? undefined : tags.join(' ');
-      });
+type Shown = DecisionRun<DecisionRow>;
 
 type DiffUnder = {
   readonly patch: FilePatch;
@@ -299,7 +255,7 @@ const LogicDiff = ({
       <PatchRows
         path={under.patch.path}
         lines={under.lines.slice(shown.block.from, shown.block.to + 1)}
-        tags={tagsOf(shown, under.lines)}
+        tags={tagsOfRun(shown, under.lines)}
         saidAt={under.saidAt}
         landedRow={undefined}
         landed={undefined}
@@ -381,13 +337,13 @@ const LogicLines = ({
               ]
             : under === undefined
               ? run.rows.map(rowOf)
-              : sharingBlocks(run.rows, under.lines).flatMap((shown, at) => [
-                  ...shown.rows.map(rowOf),
+              : decisionRuns(run.rows, under.lines).flatMap((shown, at) => [
+                  ...shown.decisions.map(rowOf),
                   <LogicDiff
-                    key={`diff ${shown.rows[0]?.id ?? at}`}
+                    key={`diff ${shown.decisions[0]?.id ?? at}`}
                     shown={shown}
                     under={under}
-                    name={shown.rows.map(row => row.label).join(', ')}
+                    name={shown.decisions.map(row => row.label).join(', ')}
                     {...places}
                   />,
                 ]),

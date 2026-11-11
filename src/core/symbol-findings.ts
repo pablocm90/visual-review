@@ -2,7 +2,7 @@ import { countingRepeats } from './counted-id.ts';
 import type { Finding } from './findings.ts';
 import type { GraphNode } from './graph.ts';
 import { decisionText, type LogicLine } from './logic-diff.ts';
-import type { SymbolFile } from './read-range.ts';
+import type { SymbolFile } from './reading.ts';
 import { signatureSummary } from './signature-members.ts';
 import {
   type ExportChanges,

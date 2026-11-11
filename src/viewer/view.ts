@@ -47,20 +47,20 @@ type Point = { readonly x: number; readonly y: number };
 
 const MOST_ZOOMED = 4;
 
-type Placed = { readonly graph: Size; readonly frame: Size; readonly view: View };
+type Framed = { readonly graph: Size; readonly frame: Size; readonly view: View };
 
 const clampedOn = (graph: number, frame: number, offset: number) =>
   graph > frame ? Math.min(0, Math.max(frame - graph, offset)) : (frame - graph) / 2;
 
-const clamped = ({ graph, frame, view }: Placed): View => ({
+const clamped = ({ graph, frame, view }: Framed): View => ({
   scale: view.scale,
   x: clampedOn(graph.width * view.scale, frame.width, view.x),
   y: clampedOn(graph.height * view.scale, frame.height, view.y),
 });
 
-type ZoomedOptions = Placed & { readonly scale: number; readonly at: Point };
+type ZoomedOptions = Framed & { readonly scale: number; readonly at: Point };
 
-const bounded = ({ graph, frame, scale }: Omit<Placed, 'view'> & { readonly scale: number }) =>
+const bounded = ({ graph, frame, scale }: Omit<Framed, 'view'> & { readonly scale: number }) =>
   Math.min(MOST_ZOOMED, Math.max(whole({ graph, frame }).scale, scale));
 
 export const zoomed = ({ graph, frame, view, scale, at }: ZoomedOptions): View => {
@@ -73,10 +73,10 @@ export const zoomed = ({ graph, frame, view, scale, at }: ZoomedOptions): View =
   });
 };
 
-export const panned = ({ graph, frame, view, by }: Placed & { readonly by: Point }): View =>
+export const panned = ({ graph, frame, view, by }: Framed & { readonly by: Point }): View =>
   clamped({ graph, frame, view: { scale: view.scale, x: view.x + by.x, y: view.y + by.y } });
 
-export const resized = ({ graph, frame, view, from }: Placed & { readonly from: Size }): View =>
+export const resized = ({ graph, frame, view, from }: Framed & { readonly from: Size }): View =>
   clamped({
     graph,
     frame,
@@ -87,7 +87,7 @@ export const resized = ({ graph, frame, view, from }: Placed & { readonly from: 
     },
   });
 
-type PinnedOptions = Placed & { readonly from: Point; readonly to: Point };
+type PinnedOptions = Framed & { readonly from: Point; readonly to: Point };
 
 export const pinned = ({ graph, frame, view, from, to }: PinnedOptions): View => {
   const scale = bounded({ graph, frame, scale: view.scale });
@@ -109,7 +109,7 @@ export const centred = ({
   frame,
   box,
   least = 0,
-}: Omit<Placed, 'view'> & { readonly box: Box; readonly least?: number }) => {
+}: Omit<Framed, 'view'> & { readonly box: Box; readonly least?: number }) => {
   const scale = Math.max(least, Math.min(1, frame.width / box.width, frame.height / box.height));
   return clamped({
     graph,
@@ -165,7 +165,7 @@ export const aroundPart = ({
   graph,
   frame,
   box,
-}: Omit<Placed, 'view'> & { readonly box: Box | undefined }): View => {
+}: Omit<Framed, 'view'> & { readonly box: Box | undefined }): View => {
   if (box === undefined) return whole({ graph, frame });
   const width = Math.max(box.width * 2, NEIGHBOURHOOD.width);
   const height = Math.max(box.height * 2, NEIGHBOURHOOD.height);

@@ -1,5 +1,6 @@
+import { counted } from './counted.ts';
 import { countedId } from './counted-id.ts';
-import { counted, type Finding } from './findings.ts';
+import type { Finding } from './finding.ts';
 import type { RoutesReading, UnreadRow } from './read-routes.ts';
 import { keyedStatements, lineKey, type RouteLine, routeLines } from './route-lines.ts';
 

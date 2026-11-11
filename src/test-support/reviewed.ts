@@ -1,4 +1,4 @@
-import type { ReviewedHead } from '../core/read-range.ts';
+import type { ReviewedHead } from '../core/reading.ts';
 
 export const reviewedHead = (overrides: Partial<ReviewedHead> = {}): ReviewedHead => ({
   head: 'h1',

@@ -14,7 +14,7 @@ import type {
   ReviewedHead,
   ReviewedReading,
   SymbolFile,
-} from './read-range.ts';
+} from './reading.ts';
 import type { Review } from './review.ts';
 import type { SymbolStatement } from './symbol-changes.ts';
 import type { TestFile } from './test-changes.ts';

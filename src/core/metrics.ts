@@ -1,7 +1,7 @@
 import type { GraphDiff } from './diff-graphs.ts';
 import type { Graph, GraphEdge } from './graph.ts';
-import type { Churn, Measures, RangeReading } from './read-range.ts';
 import type { FileMeasures, FunctionMeasures } from './reader.ts';
+import type { Churn, Measures, RangeReading } from './reading.ts';
 
 export const tenths = (value: number) => Math.round(value * 10) / 10;
 

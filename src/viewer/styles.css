@@ -987,6 +987,7 @@ pre .hljs-emphasis {
   display: flex;
   flex-wrap: wrap;
   gap: 6px;
+  margin-bottom: 8px;
 }
 
 .chip {
@@ -1101,18 +1102,6 @@ pre .hljs-emphasis {
 
 .graph-view-menu .near-only {
   min-height: 0;
-  margin: 0;
-}
-
-.graph-filters {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 16px;
-}
-
-.graph-filters .near-only {
-  min-height: 36px;
   margin: 0;
 }
 
@@ -1457,20 +1446,11 @@ pre .hljs-emphasis {
   resize: vertical;
 }
 
-.lenses {
-  margin-bottom: 8px;
-}
-
 .start-here {
   min-width: 0;
   margin-bottom: 10px;
   padding: 0 0 8px;
   border-bottom: 1px solid var(--stack-line);
-}
-
-.start-here-title {
-  margin: 0;
-  font-size: 13px;
 }
 
 .start-here ul {
@@ -1496,7 +1476,6 @@ pre .hljs-emphasis {
   text-overflow: ellipsis;
 }
 
-.start-here-toggle,
 .show-all {
   padding: 0;
   border: 0;

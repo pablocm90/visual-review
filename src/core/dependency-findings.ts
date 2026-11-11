@@ -1,5 +1,6 @@
+import { counted } from './counted.ts';
 import type { PackageChange } from './dependency-changes.ts';
-import { counted, type Finding } from './findings.ts';
+import type { Finding } from './finding.ts';
 import type { DependencyChanges } from './read-lockfiles.ts';
 
 const versions = (list: ReadonlyArray<string>) => list.join(', ');

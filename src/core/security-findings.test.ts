@@ -1,6 +1,6 @@
 import { expect, test } from 'vitest';
-import type { SymbolFile } from './read-range.ts';
 import type { Risk } from './reader.ts';
+import type { SymbolFile } from './reading.ts';
 import { riskFindings, viewRiskFindings } from './security-findings.ts';
 import type { SymbolStatement } from './symbol-changes.ts';
 
