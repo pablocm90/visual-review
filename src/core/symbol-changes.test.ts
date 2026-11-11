@@ -7,6 +7,7 @@ import {
   symbolChanges,
   symbolChangesOf,
 } from './symbol-changes.ts';
+import { partsWithLogicToTest, symbolFindings } from './symbol-findings.ts';
 
 const read = (...lines: ReadonlyArray<string>) =>
   symbolsOfTypeScript(lines.join('\n'), 'src/shop.ts');
@@ -1004,4 +1005,31 @@ test('a symbol moved whole to another file gains none of its risks', () => {
     movedFrom: 'shop/class/UsersController',
   });
   expect(risksOf(files[1] ?? { symbols: [] }, 'update')).toBeUndefined();
+});
+
+test("a function the change adds carries its decisions as added logic, which raises no finding beyond the symbol's own", () => {
+  const changes = symbolChanges({
+    before: read('function charge(a) { pay(a); }'),
+    after: read(
+      'function charge(a) { pay(a); }',
+      'function refund(a) { if (!a) return; if (a.late) warn(); give(a); }',
+    ),
+  });
+
+  expect(
+    changes.symbols
+      .find(({ name }) => name === 'refund')
+      ?.logic?.map(({ kind, change }) => ({ kind, change })),
+  ).toEqual([
+    { kind: 'guard', change: 'added' },
+    { kind: 'if', change: 'added' },
+  ]);
+  expect(
+    symbolFindings({ files: [{ stack: 'web', node: 'web/shop', ...changes }], nodes: [] }).map(
+      ({ check }) => check,
+    ),
+  ).not.toContain('logic:changed');
+  expect(partsWithLogicToTest([{ stack: 'web', node: 'web/shop', ...changes }])).toEqual(
+    new Set(['web/shop']),
+  );
 });
