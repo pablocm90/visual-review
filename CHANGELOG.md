@@ -2,6 +2,15 @@
 
 What changed in each release of `@pablocm90/visual-review`, newest first. Versions follow [semver](https://semver.org); while it is 0.x, a minor version may change the exported types.
 
+## Unreleased
+
+### Changed
+
+- **Start here** is one line above the graph: what needs a look (and what wasn't read), the range's changed decisions, and a count of what is for information. What needs a look opens under it by default, at most five lines; the count for information opens the rest with the lenses, which narrow both lists. With no findings it still says what was checked.
+- The graph's controls are one row: Show, the legend, and a **View** menu holding Colour by and All edges. On **Logic only** a **Cards** choice sets how much each card shows: its marks, its changed decisions (the default), or the code they sit on, each decision tagged on its row. A card's **code** button opens that card alone to its code.
+- In the inspector, Why look comes before What changed, the part's head stays put while its column scrolls, and each function with changed logic is a card whose name stays in view over its rows.
+- Under each run of logic changes in What changed, the patch rows they sit on open in place, once for changes sharing a block, each decision's row tagged with its change and kind. The key of marks opens from **Key** beside What changed rather than showing every time.
+
 ## 0.66.0 — 2026-11-10
 
 ### Added

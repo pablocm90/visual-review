@@ -108,6 +108,31 @@ const shown = (name: string) =>
 const showEverything = (user: ReturnType<typeof userEvent.setup>) =>
   user.click(shown('Everything'));
 
+/** Opens the graph's View menu, where Colour by and All edges are, unless it is open. */
+const openView = async (user: ReturnType<typeof userEvent.setup>) => {
+  const view = screen.getByRole('button', { name: 'View' });
+  if (view.getAttribute('aria-expanded') !== 'true') await user.click(view);
+};
+
+const allEdges = async (user: ReturnType<typeof userEvent.setup>) => {
+  await openView(user);
+  return screen.getByRole('checkbox', { name: 'All edges' });
+};
+
+/** Opens Start here's list of what is for information, where the lenses are, unless it is open. */
+const openInformation = async (user: ReturnType<typeof userEvent.setup>) => {
+  const opener = await screen.findByRole('button', { name: /for information$|^what was checked$/ });
+  if (opener.getAttribute('aria-expanded') !== 'true') await user.click(opener);
+};
+
+const cardDepth = (name: string) =>
+  within(screen.getByRole('group', { name: 'Cards' })).getByRole('button', { name });
+
+const lenses = async (user: ReturnType<typeof userEvent.setup>) => {
+  await openInformation(user);
+  return within(screen.getByRole('group', { name: 'Lenses' }));
+};
+
 const openReview = (user: ReturnType<typeof userEvent.setup>) =>
   user.click(screen.getByRole('button', { name: 'Review' }));
 
@@ -157,8 +182,6 @@ test('draws every crate and dependency inside the rust stack with its change sta
 
   const rust = await screen.findByRole('group', { name: 'rust' });
   expect(screen.getAllByRole('group')).toEqual([
-    screen.getByRole('group', { name: 'Lenses' }),
-    screen.getByRole('group', { name: 'Colour by' }),
     screen.getByRole('group', { name: 'Show' }),
     screen.getByRole('group', { name: 'Graph' }),
     rust,
@@ -1089,7 +1112,7 @@ test("toggling a box keeps the zoom and the box's corner where it was on screen,
   await press('Expand utils');
   await within(web).findByRole('group', { name: 'utils' });
   await collapseUtilsAt125();
-  await user.click(screen.getByRole('checkbox', { name: 'All edges' }));
+  await user.click(await allEdges(user));
   await refitsFrom('125%');
 });
 
@@ -1890,15 +1913,14 @@ test("a drawn node's or edge's badge names its findings under the worst level, s
   await user.click(screen.getByRole('button', { name: 'application: modified' }));
   expect(whyLook()).toBeNull();
 
-  const shape = () =>
-    within(screen.getByRole('group', { name: 'Lenses' })).getByRole('button', { name: /Shape/ });
-  await user.click(shape());
+  const shape = async () => (await lenses(user)).getByRole('button', { name: /Shape/ });
+  await user.click(await shape());
   expect(screen.getAllByRole('img', { name: /finding/ }).map(badge => badge.ariaLabel)).toEqual([
     'needs a look, 1 finding: new dependency direction',
     'for information, 1 finding: lines 900, over 800, outside Shape',
     'needs a look, 2 findings: cyclomatic 4 → 14, over 10; new entry point',
   ]);
-  await user.click(shape());
+  await user.click(await shape());
   expect(
     screen.getByRole('img', { name: 'for information, 1 finding: lines 900, over 800' }),
   ).toBeTruthy();
@@ -2051,6 +2073,7 @@ test("the findings rail starts collapsed to their total and how many need a look
   ]);
   expect(lines('Routes')).toEqual(['cli-adapter: 2 calls with no route: /api/info, /api/users']);
 
+  await openInformation(user);
   expect(lensChips()).toEqual([
     'Behaviour · logic, tests checked, nothing found false',
     'Contract ○1 false',
@@ -2062,12 +2085,11 @@ test("the findings rail starts collapsed to their total and how many need a look
     within(screen.getByRole('complementary', { name: 'Findings' }))
       .getAllByRole('heading', { level: 3 })
       .map(heading => heading.textContent);
-  const context = () =>
-    within(screen.getByRole('group', { name: 'Lenses' })).getByRole('button', { name: /Context/ });
-  await user.click(context());
+  const context = async () => (await lenses(user)).getByRole('button', { name: /Context/ });
+  await user.click(await context());
   expect(lensChips()).toContain('Context ○1 ▲1 true');
   expect(headings()).toEqual(['Metrics']);
-  await user.click(context());
+  await user.click(await context());
   expect(lensChips()).toContain('Context ○1 ▲1 false');
   expect(headings()).toEqual(['Structure', 'Metrics', 'Routes']);
   await user.click(screen.getByRole('button', { name: 'Hide findings' }));
@@ -2136,6 +2158,7 @@ test("a lens counts each of its dimensions' findings, a note's flag among them, 
 
   const startHereLines = within(await screen.findByRole('region', { name: 'Start here' }));
   expect(startHereLines.getByRole('button', { name: /reads a token/ })).toBeDefined();
+  await openInformation(user);
   expect(lensChips()).toEqual([
     'Behaviour ○2 ▲1 false',
     'Contract · api, schema, routes, blast radius checked, nothing found false',
@@ -2145,13 +2168,13 @@ test("a lens counts each of its dimensions' findings, a note's flag among them, 
   ]);
 
   await user.click(
-    within(screen.getByRole('group', { name: 'Lenses' })).getByRole('button', {
+    (await lenses(user)).getByRole('button', {
       name: /Behaviour/,
     }),
   );
   expect(startHereLines.queryByRole('button', { name: /reads a token/ })).toBeNull();
   expect(startHereLines.getByRole('button', { name: /no test alongside/ })).toBeDefined();
-  expect(startHereLines.getByRole('button', { name: /^2 / })).toBeDefined();
+  expect(startHereLines.getByRole('button', { name: /^2 functions/ })).toBeDefined();
   await user.click(screen.getByRole('button', { name: 'All findings' }));
   const open = screen.getByRole('complementary', { name: 'Findings' });
   expect(
@@ -2210,6 +2233,7 @@ test("a picked lens lists its dimensions under the chips, each with its counts, 
     />,
   );
 
+  await openInformation(user);
   const lenses = within(await screen.findByRole('group', { name: 'Lenses' }));
   expect(lensChips()).toEqual([
     'Behaviour ○1 ▲1 false',
@@ -2451,6 +2475,7 @@ test('while reading, the landing gives way: no lenses, Start here or findings ra
     screen.queryByRole('region', { name: 'Start here' }),
     screen.queryByRole('navigation', { name: 'Findings' }),
   ];
+  await openInformation(user);
   await user.click(screen.getByRole('button', { name: 'domain: unchanged' }));
   expect(screen.getByRole('group', { name: 'Graph' })).toBeDefined();
   expect(landing().every(piece => piece !== null)).toBe(true);
@@ -2826,9 +2851,7 @@ test('All findings, while reading, returns to the landing with every finding ope
 
   render(<ReviewPage review={{ ...walkedReview(), findings: [findingOn('rust/crate/domain')] }} />);
   await screen.findByRole('group', { name: 'rust' });
-  await user.click(
-    within(screen.getByRole('group', { name: 'Lenses' })).getByRole('button', { name: /Risk/ }),
-  );
+  await user.click((await lenses(user)).getByRole('button', { name: /Risk/ }));
   await user.keyboard('j');
   await user.click(screen.getByRole('button', { name: 'All findings' }));
 
@@ -2890,14 +2913,19 @@ test('on the map an arrow and its badge go nowhere: the part stays, and they go 
   expect(noteShown()).toBe('The CLI drives the use case.');
 });
 
-test('Start here left collapsed is still collapsed after reading', async () => {
+test("Start here's lists stay as they were left after reading", async () => {
   const user = userEvent.setup();
-  render(<ReviewPage review={{ ...walkedReview(), findings: [findingOn('rust/crate/domain')] }} />);
+  render(
+    <ReviewPage
+      review={{ ...walkedReview(), findings: [findingOn('rust/crate/domain', { level: 'look' })] }}
+    />,
+  );
   await screen.findByRole('group', { name: 'rust' });
   const toggle = () =>
     within(screen.getByRole('region', { name: 'Start here' })).getByRole('button', {
-      name: 'Start here',
+      name: '1 needs a look',
     });
+  expect(toggle().getAttribute('aria-expanded')).toBe('true');
   await user.click(toggle());
   expect(toggle().getAttribute('aria-expanded')).toBe('false');
 
@@ -3472,7 +3500,7 @@ test('J walks the reading order with the All edges box focused', async () => {
   render(<ReviewPage review={walkedReview()} />);
   await screen.findByRole('group', { name: 'rust' });
 
-  await user.click(screen.getByRole('checkbox', { name: 'All edges' }));
+  await user.click(await allEdges(user));
   await user.keyboard('j');
   expect(selectedPart()).toBe('application');
 });
@@ -3498,7 +3526,7 @@ test("J, K and A typed in why it's fine are text, neither walking nor marking", 
   );
 });
 
-test('Start here lists its lines in rank order, in the lens a chip picks, folding to its title, each going to its node, five at most with All findings opening the rail, and is absent with no findings', async () => {
+test("Start here's line counts what needs a look and opens on it, ranked, in the lens a chip picks, folding when its count is pressed, each going to its node, five at most with All findings opening the rail; what is for information opens apart", async () => {
   const user = userEvent.setup();
   const flagged = (target: string, overrides: Partial<Finding>) =>
     findingOn(target, { check: 'flag', level: 'look', ...overrides });
@@ -3518,31 +3546,30 @@ test('Start here lists its lines in rank order, in the lens a chip picks, foldin
 
   const band = () => within(screen.getByRole('region', { name: 'Start here' }));
   await screen.findByRole('region', { name: 'Start here' });
-  const items = () =>
-    band()
+  const itemsOf = (list: string) =>
+    within(band().getByRole('list', { name: list }))
       .getAllByRole('listitem')
       .map(item => within(item).getByRole('button').getAttribute('aria-label'));
-  expect(items()).toEqual([
-    'cli-adapter: first',
-    'domain: second',
-    'application: third',
-    'application: lines 900, over 800',
-  ]);
-  expect(band().getByText('3 findings need a look')).toBeDefined();
-  const contract = () =>
-    within(screen.getByRole('group', { name: 'Lenses' })).getByRole('button', { name: /Contract/ });
-  await user.click(contract());
+  const items = () => itemsOf('Needs a look');
+  expect(items()).toEqual(['cli-adapter: first', 'domain: second', 'application: third']);
+  const count = () => band().getByRole('button', { name: '3 need a look' });
+  expect(count().getAttribute('aria-expanded')).toBe('true');
+  expect(band().queryByRole('list', { name: 'For information' })).toBeNull();
+
+  await user.click(band().getByRole('button', { name: '1 for information' }));
+  expect(itemsOf('For information')).toEqual(['application: lines 900, over 800']);
+  expect(items()).toHaveLength(3);
+  const contract = async () => (await lenses(user)).getByRole('button', { name: /Contract/ });
+  await user.click(await contract());
   expect(items()).toEqual(['application: third']);
-  await user.click(contract());
-  expect(items()).toHaveLength(4);
-  const toggle = () => band().getByRole('button', { name: 'Start here' });
-  expect(toggle().getAttribute('aria-expanded')).toBe('true');
-  await user.click(toggle());
-  expect(band().queryAllByRole('listitem')).toHaveLength(0);
-  expect(band().getByText('3 findings need a look')).toBeDefined();
-  expect(toggle().getAttribute('aria-expanded')).toBe('false');
-  await user.click(toggle());
-  expect(items()).toHaveLength(4);
+  await user.click(await contract());
+  expect(items()).toHaveLength(3);
+
+  await user.click(count());
+  expect(band().queryByRole('list', { name: 'Needs a look' })).toBeNull();
+  expect(count().getAttribute('aria-expanded')).toBe('false');
+  await user.click(count());
+  expect(items()).toHaveLength(3);
   await user.click(band().getByRole('button', { name: 'domain: second' }));
   await waitFor(() =>
     expect(document.activeElement).toBe(screen.getByRole('button', { name: 'domain: unchanged' })),
@@ -3564,16 +3591,20 @@ test('Start here lists its lines in rank order, in the lens a chip picks, foldin
   await user.click(screen.getByRole('button', { name: 'Hide findings' }));
 
   rerender(<ReviewPage review={pageWith({ ...review, findings: [] })} />);
-  expect(screen.queryByRole('region', { name: 'Start here' })).toBeNull();
+  expect(band().getByText('nothing needs a look')).toBeDefined();
+  expect(band().getByRole('button', { name: 'what was checked' })).toBeDefined();
+  expect(band().queryByRole('button', { name: 'All findings' })).toBeNull();
 });
 
-test('with nothing to look at, Start here says so and still shows what is for information', async () => {
+test('with nothing to look at, Start here says so and still opens what is for information', async () => {
+  const user = userEvent.setup();
   const { rerender } = render(
     <ReviewPage review={pageWith({ ...review, findings: [findingOn('rust/crate/domain')] })} />,
   );
 
   const band = within(await screen.findByRole('region', { name: 'Start here' }));
-  expect(band.getByText('nothing needs a look · 1 finding')).toBeDefined();
+  expect(band.getByText('nothing needs a look')).toBeDefined();
+  await user.click(band.getByRole('button', { name: '1 for information' }));
   expect(band.getByRole('button', { name: 'domain: lines 900, over 800' })).toBeDefined();
 
   rerender(
@@ -3584,7 +3615,8 @@ test('with nothing to look at, Start here says so and still shows what is for in
       })}
     />,
   );
-  expect(band.getByText('1 finding needs a look')).toBeDefined();
+  expect(band.getByRole('button', { name: '1 needs a look' })).toBeDefined();
+  expect(band.getByRole('button', { name: '0 for information' })).toBeDefined();
 });
 
 const webModule = (label: string, state: Diffed = 'unchanged') => ({
@@ -3656,6 +3688,7 @@ test("a check's findings read as one line, which opens in place to list them, un
   );
 
   const band = within(await screen.findByRole('region', { name: 'Start here' }));
+  await openInformation(user);
   const signatures = () =>
     band.getByRole('button', { name: '7 exported signatures changed · 4 files' });
   expect(band.getByRole('button', { name: '30 exported symbols added · 9 files' })).toBeDefined();
@@ -3705,6 +3738,7 @@ test("Start here's lines name their lens and dimension, and the findings an open
   );
 
   const band = within(await screen.findByRole('region', { name: 'Start here' }));
+  await openInformation(user);
   const lineOf = (name: RegExp) => band.getByRole('button', { name }).closest('li');
   expect(lineOf(/exported signatures changed/)?.textContent).toContain('Contract · api');
   expect(lineOf(/reaches far/)?.textContent).toContain('Contract · blast radius');
@@ -3792,6 +3826,7 @@ test('a suggested split in Start here opens the rail, where its group buttons ar
   );
 
   const band = within(await screen.findByRole('region', { name: 'Start here' }));
+  await openInformation(user);
   const groupButton = { name: /^1 part, from/ };
   expect(band.queryByRole('button', groupButton)).toBeNull();
   expect(screen.queryByRole('complementary', { name: 'Findings' })).toBeNull();
@@ -3958,7 +3993,7 @@ test("with 'All edges' unticked, an unchanged import between two open modules is
   );
   await showEverything(user);
   const web = await screen.findByRole('group', { name: 'web' });
-  const all = screen.getByRole('checkbox', { name: 'All edges' });
+  const all = await allEdges(user);
   expect(all).toHaveProperty('checked', false);
   await user.click(within(web).getByRole('button', { name: 'Expand orders' }));
   await user.click(within(web).getByRole('button', { name: 'Expand billing' }));
@@ -4084,7 +4119,7 @@ test("with 'Changed + 1 hop' shown, going to a merged module edge or to a hidden
 
   await user.click(screen.getByRole('button', { name: 'See checkout.' }));
 
-  expect(screen.getByRole('checkbox', { name: 'All edges' })).toHaveProperty('checked', true);
+  expect(await allEdges(user)).toHaveProperty('checked', true);
   expect(shown('Changed + 1 hop').getAttribute('aria-pressed')).toBe('true');
 });
 
@@ -5375,6 +5410,7 @@ test('Colour by starts on Change; on Churn each measured node is named with its 
     />,
   );
   const rust = await screen.findByRole('group', { name: 'rust' });
+  await openView(user);
   expect(colourBy('Change').getAttribute('aria-pressed')).toBe('true');
   expect(colourBy('Churn').getAttribute('aria-pressed')).toBe('false');
   expect(screen.getByRole('list', { name: 'Legend' })).toBeTruthy();
@@ -5425,6 +5461,7 @@ test("on Complexity each node is named with its head's highest cyclomatic and th
   );
   const rust = await screen.findByRole('group', { name: 'rust' });
 
+  await openView(user);
   await user.click(colourBy('Complexity'));
   expect(colourBy('Complexity').getAttribute('aria-pressed')).toBe('true');
   expect(scaleSteps()).toEqual(['0–4', '5–7', '8–10', '11+']);
@@ -5490,6 +5527,7 @@ test('on Kind of change a changed file is named with the strongest kind of its s
   await showEverything(user);
   await within(web).findByRole('button', { name: 'same.ts: unchanged' });
 
+  await openView(user);
   await user.click(colourBy('Kind of change'));
   expect(colourBy('Kind of change').getAttribute('aria-pressed')).toBe('true');
   expect(screen.queryByRole('list', { name: 'Legend' })).toBeNull();
@@ -5539,6 +5577,7 @@ test('on Kind of change a closed box is named with the strongest kind among the 
   );
   const web = await screen.findByRole('group', { name: 'web' });
 
+  await openView(user);
   await user.click(colourBy('Kind of change'));
   expect(buttonsIn(web)).toEqual([
     'checkout: modified, API change',
@@ -5961,9 +6000,21 @@ test("a box's What changed lists each file inside it with symbol changes, each w
       [
         [
           'Edited',
-          ['function refund: edited', 'added throw: throw new Late', 'added return: return late'],
+          [
+            'function refund: edited',
+            'added throw: throw new Late',
+            'Diff under added throw: throw new Late',
+            'added return: return late',
+          ],
         ],
-        ['Logic of function refund', ['added throw: throw new Late', 'added return: return late']],
+        [
+          'Logic of function refund',
+          [
+            'added throw: throw new Late',
+            'Diff under added throw: throw new Late',
+            'added return: return late',
+          ],
+        ],
       ],
     ],
     [
@@ -6093,9 +6144,11 @@ test("an edited function's logic lines show under it in What changed, each with 
       .map(item => item.getAttribute('aria-label')),
   ).toEqual([
     'removed guard: if (!paid) return',
+    'Diff under removed guard: if (!paid) return',
     'same loop: for (const line of lines)',
     'changed if: if (a > 0) → if (a >= 0)',
     'added throw: throw new Late',
+    'Diff under changed if: if (a > 0) → if (a >= 0), added throw: throw new Late',
   ]);
   expect(
     within(logic)
@@ -7298,7 +7351,7 @@ test("same-named symbols in one file take a comment each, counted through the fi
   );
 });
 
-test("the column reads a part's note, then What changed, then Why look; an edge's holds its note and findings only", async () => {
+test("the column reads a part's note, then Why look, then What changed, then Tested by; an edge's holds its note and findings only", async () => {
   const user = userEvent.setup();
   const edge = 'web/file/tax.ts -> web/file/vat.ts';
   render(
@@ -7350,9 +7403,9 @@ test("the column reads a part's note, then What changed, then Why look; an edge'
     (first.compareDocumentPosition(second) & Node.DOCUMENT_POSITION_FOLLOWING) !== 0;
 
   await user.click(await screen.findByRole('button', { name: 'tax.ts: modified' }));
-  expect(follows(within(inspector()).getByText('Rounds now.'), region('What changed'))).toBe(true);
-  expect(follows(region('What changed'), region('Why look'))).toBe(true);
-  expect(follows(region('Why look'), region('Tested by'))).toBe(true);
+  expect(follows(within(inspector()).getByText('Rounds now.'), region('Why look'))).toBe(true);
+  expect(follows(region('Why look'), region('What changed'))).toBe(true);
+  expect(follows(region('What changed'), region('Tested by'))).toBe(true);
 
   await user.click(screen.getByRole('button', { name: 'tax.ts → vat.ts: added' }));
   expect(noteShown()).toBe('A new way in.');
@@ -10593,7 +10646,7 @@ test('a last comment on an edge shows on the arrow drawn in its place, closed bo
   expect(said('Why the checkout?')).toBeTruthy();
   expect(said('Why the cart?')).toBeNull();
 
-  await user.click(screen.getByRole('checkbox', { name: 'All edges' }));
+  await user.click(await allEdges(user));
   await user.click(within(web).getByRole('button', { name: 'Collapse orders' }));
   await user.click(
     await within(web).findByRole('button', { name: 'orders → invoice.ts: unchanged' }),
@@ -10950,8 +11003,10 @@ test("with changed logic, Show offers 'Logic only' after 'Changes only'; picked,
     expect(buttonsIn(web)).toEqual([
       'refund.ts → cart.ts: unchanged',
       'refund.ts: modified',
+      'Code of refund.ts',
       'added if: if (late)',
       'cart.ts: modified',
+      'Code of cart.ts',
       'added if: if (empty)',
     ]),
   );
@@ -11000,7 +11055,7 @@ test("on 'Logic only' a file holds a row per function with a changed decision, e
   ).toEqual(['same guard: if (ok) return', 'added if: if (late)']);
 });
 
-test("on 'Logic only' a file's card counts its changed decisions and exits and is as big as its rows", async () => {
+test("on 'Logic only' with the cards at their marks, a file's card counts its changed decisions and exits and is as big as its rows", async () => {
   const user = userEvent.setup();
   const exit = { change: 'removed', kind: 'throw', depth: 0, base: 'throw oops', line: 4 } as const;
   const same = { change: 'same', kind: 'if', depth: 0, head: 'if (ok)', line: 9 } as const;
@@ -11023,6 +11078,7 @@ test("on 'Logic only' a file's card counts its changed decisions and exits and i
   );
 
   await user.click(await screen.findByRole('button', { name: 'Logic only' }));
+  await user.click(cardDepth('Marks'));
 
   const web = await screen.findByRole('group', { name: 'web' });
   const refund = await within(web).findByRole('button', { name: /^refund\.ts: modified/ });
@@ -11039,6 +11095,56 @@ test("on 'Logic only' a file's card counts its changed decisions and exits and i
   expect(Number(sizeOf(cart)?.getAttribute('width'))).toBeGreaterThan(
     Number(sizeOf(refund)?.getAttribute('width')),
   );
+});
+
+const refundPatch = {
+  path: 'web/src/refund.ts',
+  patch: ['@@ -1,2 +1,3 @@', ' function refund() {', '+  if (late) return;', ' }'].join('\n'),
+};
+
+test("a logic change's diff opens under it, the decision's own row tagged with its change and kind", async () => {
+  const user = userEvent.setup();
+  render(<ReviewPage review={{ ...pageOfLogic(), patches: [refundPatch] }} />);
+
+  await user.click(await screen.findByRole('button', { name: 'refund.ts: modified' }));
+  const diff = within(screen.getByRole('region', { name: 'What changed' })).getByRole('listitem', {
+    name: 'Diff under added if: if (late)',
+  });
+  const tagged = [...diff.querySelectorAll('[data-decision]')].map(row => [
+    row.tagName,
+    row.getAttribute('data-decision'),
+    row.textContent,
+  ]);
+  expect(tagged).toEqual([['INS', '+ if', '+  if (late) return;']]);
+  expect(diff.textContent).toContain('function refund() {');
+});
+
+test("on 'Logic only' the cards show each function's changed decisions; Code shows the rows they sit on, tagged, for every card or, pressed on one, for that card alone", async () => {
+  const user = userEvent.setup();
+  render(<ReviewPage review={{ ...pageOfLogic(), patches: [refundPatch] }} />);
+
+  await user.click(await screen.findByRole('button', { name: 'Logic only' }));
+  const web = await screen.findByRole('group', { name: 'web' });
+  const refund = () => within(web).getByRole('button', { name: /^refund\.ts: modified/ });
+  const cart = () => within(web).getByRole('button', { name: /^cart\.ts: modified/ });
+  expect(cardDepth('Decisions').getAttribute('aria-pressed')).toBe('true');
+  expect(within(refund()).getByText('if (late)')).toBeTruthy();
+  expect(within(cart()).getByText('if (empty)')).toBeTruthy();
+
+  await user.click(cardDepth('Code'));
+  expect(within(refund()).getByText('+ if (late) return;')).toBeTruthy();
+  expect(within(refund()).getByText('function refund() {')).toBeTruthy();
+  expect(within(refund()).getByText('+ if')).toBeTruthy();
+
+  await user.click(cardDepth('Decisions'));
+  const code = within(web).getByRole('button', { name: 'Code of refund.ts' });
+  expect(code.getAttribute('aria-pressed')).toBe('false');
+  await user.click(code);
+  expect(within(refund()).getByText('+ if (late) return;')).toBeTruthy();
+  expect(within(cart()).getByText('if (empty)')).toBeTruthy();
+  expect(
+    within(web).getByRole('button', { name: 'Code of refund.ts' }).getAttribute('aria-pressed'),
+  ).toBe('true');
 });
 
 test("on 'Logic only' a tick selects its file and lands on its row in What changed; in the reading map it only goes to its part", async () => {
@@ -11251,10 +11357,7 @@ test("Start here opens with what the range's logic did, counting only the kinds 
   await screen.findByRole('group', { name: 'web' });
 
   const band = within(screen.getByRole('region', { name: 'Start here' }));
-  const [first] = band.getAllByRole('listitem');
-  expect(first?.textContent).toBe(
-    'Behaviour · logic5 decisions changed in 3 functions, 2 files1 exit · 4 added · 1 removed',
-  );
+  expect(band.getByText('1 exit · 4 added · 1 removed')).toBeTruthy();
   expect(shown('Logic only').getAttribute('aria-pressed')).toBe('false');
 
   await user.click(band.getByRole('button', { name: /^5 decisions changed/ }));
@@ -11263,23 +11366,35 @@ test("Start here opens with what the range's logic did, counting only the kinds 
   await screen.findByRole('button', { name: 'added throw: throw late' });
 });
 
-test("Start here's logic line shows with no findings, and goes with a lens other than Behaviour", async () => {
-  const user = userEvent.setup();
+const logicCount = () =>
+  within(screen.getByRole('region', { name: 'Start here' })).queryByRole('button', {
+    name: /decisions? changed in/,
+  });
+
+test("Start here's logic count shows with no findings, with nothing to look at or for information", async () => {
   render(<ReviewPage review={pageOfLogic()} />);
   await screen.findByRole('group', { name: 'web' });
-  const logicLine = () =>
-    within(screen.getByRole('region', { name: 'Start here' })).getByRole('listitem').textContent;
-  const line = 'Behaviour · logic2 decisions changed in 2 functions, 2 files2 added';
-  expect(logicLine()).toBe(line);
-
-  await user.click(screen.getByRole('button', { name: /^Behaviour/ }));
-  expect(logicLine()).toBe(line);
-
-  await user.click(screen.getByRole('button', { name: /^Contract/ }));
-  expect(screen.queryByRole('region', { name: 'Start here' })).toBeNull();
+  const band = within(screen.getByRole('region', { name: 'Start here' }));
+  expect(logicCount()?.textContent).toBe('2 decisions changed in 2 functions, 2 files');
+  expect(band.getByText('2 added')).toBeTruthy();
+  expect(band.getByText('nothing needs a look')).toBeTruthy();
+  expect(band.getByRole('button', { name: 'what was checked' })).toBeTruthy();
+  expect(band.queryByRole('button', { name: 'All findings' })).toBeNull();
 });
 
-test('Start here has no logic line with no changed decision', async () => {
+test("Start here's logic count stays with Behaviour picked and goes with another lens", async () => {
+  const user = userEvent.setup();
+  render(<ReviewPage review={{ ...pageOfLogic(), findings: [findingOn('web/file/cart.ts')] }} />);
+  await screen.findByRole('group', { name: 'web' });
+
+  await user.click((await lenses(user)).getByRole('button', { name: /^Behaviour/ }));
+  expect(logicCount()).not.toBeNull();
+
+  await user.click((await lenses(user)).getByRole('button', { name: /^Contract/ }));
+  expect(logicCount()).toBeNull();
+});
+
+test('Start here has no logic count with no changed decision', async () => {
   render(
     <ReviewPage
       review={{
@@ -11289,8 +11404,8 @@ test('Start here has no logic line with no changed decision', async () => {
       }}
     />,
   );
-  const band = within(await screen.findByRole('region', { name: 'Start here' }));
-  expect(band.getAllByRole('listitem')).toHaveLength(1);
+  await screen.findByRole('region', { name: 'Start here' });
+  expect(logicCount()).toBeNull();
 });
 
 const pageOfOrders = (): PageData => {
@@ -11339,7 +11454,7 @@ test("What changed's heading on a file in a box sums its own logic, with no exit
   );
 });
 
-test('What changed holds the legend of marks when a strip shows, and not on a file with no logic', async () => {
+test('What changed offers its key of marks when a strip shows, closed until asked, and not on a file with no logic', async () => {
   const user = userEvent.setup();
   render(
     <ReviewPage
@@ -11362,26 +11477,36 @@ test('What changed holds the legend of marks when a strip shows, and not on a fi
   );
   const legend = () => within(whatChanged()).queryByRole('list', { name: 'Marks' });
 
+  const key = () => within(whatChanged()).queryByRole('button', { name: 'Key' });
+
   await user.click(await screen.findByRole('button', { name: 'cart.ts: modified' }));
+  expect(legend()).toBeNull();
+  await user.click(key() as HTMLElement);
   expect(legend()).not.toBeNull();
 
   await user.click(screen.getByRole('button', { name: 'styles.ts: modified' }));
   expect(within(whatChanged()).getByRole('listitem', { name: /tidy/ })).toBeTruthy();
+  expect(key()).toBeNull();
   expect(legend()).toBeNull();
 });
 
-test("the legend of marks sits above the graph on 'Logic only', and leaves on another Show choice", async () => {
+test("on 'Logic only' the graph offers how much its cards show, and no band of marks above it; another Show choice hides the offer", async () => {
   const user = userEvent.setup();
   render(<ReviewPage review={pageOfLogic()} />);
   await screen.findByRole('group', { name: 'web' });
-  const legend = () => screen.queryByRole('list', { name: 'Marks' });
-  expect(legend()).toBeNull();
+  const depths = () => screen.queryByRole('group', { name: 'Cards' });
+  expect(depths()).toBeNull();
 
   await user.click(shown('Logic only'));
-  expect(legend()).not.toBeNull();
+  expect(
+    within(depths() as HTMLElement)
+      .getAllByRole('button')
+      .map(button => button.textContent),
+  ).toEqual(['Marks', 'Decisions', 'Code']);
+  expect(screen.queryByRole('list', { name: 'Marks' })).toBeNull();
 
   await user.click(shown('Changes only'));
-  expect(legend()).toBeNull();
+  expect(depths()).toBeNull();
 });
 
 const decisionsIn = (file: string, count: number) =>
@@ -11417,6 +11542,7 @@ test('Colour by Logic names each changed file with its changed decisions and the
   );
   const web = await screen.findByRole('group', { name: 'web' });
 
+  await openView(user);
   await user.click(colourBy('Logic'));
   await user.click(shown('Everything'));
 
@@ -11457,6 +11583,7 @@ test('Colour by Logic leaves an added or a removed part neutral, its decisions n
   );
   const web = await screen.findByRole('group', { name: 'web' });
 
+  await openView(user);
   await user.click(colourBy('Logic'));
   await user.click(shown('Everything'));
 
@@ -11470,17 +11597,20 @@ test('Colour by Logic leaves an added or a removed part neutral, its decisions n
 });
 
 test('Colour by offers Logic only on a page with a changed decision', async () => {
+  const user = userEvent.setup();
   const offered = () =>
     within(screen.getByRole('group', { name: 'Colour by' }))
       .getAllByRole('button')
       .map(button => button.textContent);
   const page = render(<ReviewPage review={pageWith(review)} />);
   await screen.findByRole('group', { name: 'rust' });
+  await openView(user);
   expect(offered()).toEqual(['Change', 'Churn', 'Complexity', 'Kind of change']);
   page.unmount();
 
   render(<ReviewPage review={pageOfLogic()} />);
   await screen.findByRole('group', { name: 'web' });
+  await openView(user);
   expect(offered()).toEqual(['Change', 'Churn', 'Complexity', 'Kind of change', 'Logic']);
 });
 
@@ -11505,6 +11635,7 @@ test('Colour by Logic gives a closed box the sum of the decisions inside it, not
   );
   const web = await screen.findByRole('group', { name: 'web' });
 
+  await openView(user);
   await user.click(colourBy('Logic'));
 
   await waitFor(() =>

@@ -60,7 +60,7 @@ import { ColourBy, type Colouring, ScaleLegend, type Shade, shadeOf } from './co
 import { CommentAsked, type Comments, holdsDraft } from './comment-field.tsx';
 import { type Answers, type AnswerTo, findingLine, LEVELS, worstOf } from './finding-display.tsx';
 import { FindingRows, type FindingRowsProps } from './finding-rows.tsx';
-import { FindingsRail, LensChips, LensRow, StartHere } from './findings-rail.tsx';
+import { FindingsRail, StartHere, type StartHereOpened } from './findings-rail.tsx';
 import { highlightPatch } from './highlight-patch.ts';
 import { LastReview } from './last-review.tsx';
 import {
@@ -71,8 +71,13 @@ import {
   type PlacedStack,
 } from './layout.ts';
 import { LENS_OF, type Lens } from './lenses.ts';
-import { type LogicCard, LogicCardBody, logicCardsOf } from './logic-card.tsx';
-import { LogicLegend } from './logic-strip.tsx';
+import {
+  CARD_DEPTHS,
+  type CardDepth,
+  type LogicCard,
+  LogicCardBody,
+  logicCardsOf,
+} from './logic-card.tsx';
 import { MetricsTable } from './metrics-tab.tsx';
 import { NextToIt } from './next-to-it.tsx';
 import { NoteBlock, RowNotes } from './note-block.tsx';
@@ -246,6 +251,8 @@ type Drawing = {
   readonly scale: number;
   readonly cards: ReadonlyMap<string, LogicCard>;
   readonly onTick: (node: string, decision: string) => void;
+  readonly openedCards: ReadonlySet<string>;
+  readonly onOpenCard: (node: string) => void;
 };
 
 type CurrentRingProps = {
@@ -357,6 +364,8 @@ const NodeView = ({ node, drawing }: { readonly node: PlacedNode; readonly drawi
             formerLabel={node.formerLabel}
             width={node.width}
             onTick={inMap ? undefined : decision => drawing.onTick(node.id, decision)}
+            onOpen={inMap ? undefined : () => drawing.onOpenCard(node.id)}
+            opened={drawing.openedCards.has(node.id)}
           />
         ) : (
           <text x={node.width / 2} y={node.height / 2}>
@@ -883,6 +892,7 @@ const NotePanel = ({
         ) : (
           <p>Drawn for several edges: open its ends to comment on one of them.</p>
         ))}
+      {toLookAt.length > 0 && <WhyLook found={toLookAt} answers={answers} onAnswer={onAnswer} />}
       {node && filesWithNews.length > 0 && (
         <WhatChanged
           node={node}
@@ -897,7 +907,6 @@ const NotePanel = ({
           onComment={onComment}
         />
       )}
-      {toLookAt.length > 0 && <WhyLook found={toLookAt} answers={answers} onAnswer={onAnswer} />}
       {(testsToRead.length > 0 || untested.length > 0) && (
         <TestedBy
           drawn={testsToRead}
@@ -940,6 +949,18 @@ const Inspector = ({
   const [diffHeld, setDiffHeld] = useState(false);
   const measured = node && props.metrics[node.id];
   const column = useRef<HTMLElement>(null);
+  useLayoutEffect(() => {
+    const head = column.current?.querySelector<HTMLElement>('.inspector-head');
+    if (!column.current || !head) return;
+    const held = column.current;
+    const measure = () =>
+      held.style.setProperty('--inspector-head', `${head.getBoundingClientRect().height}px`);
+    measure();
+    if (typeof ResizeObserver === 'undefined') return;
+    const observer = new ResizeObserver(measure);
+    observer.observe(head);
+    return () => observer.disconnect();
+  });
   // biome-ignore lint/correctness/useExhaustiveDependencies: a new part opens at the column's top
   useLayoutEffect(() => {
     if (!column.current || landing?.row !== undefined || landing?.path !== undefined) return;
@@ -1675,6 +1696,8 @@ const GraphFrame = ({
 );
 
 type GraphControlsProps = {
+  readonly cardDepth: CardDepth;
+  readonly onCardDepth: (depth: CardDepth) => void;
   readonly colouring: Colouring;
   readonly onColouring: (colouring: Colouring) => void;
   readonly scopes: ReadonlyArray<Scope>;
@@ -1684,7 +1707,31 @@ type GraphControlsProps = {
   readonly onAllEdges: (allEdges: boolean) => void;
 };
 
+const CardDepths = ({
+  depth,
+  onPick,
+}: {
+  readonly depth: CardDepth;
+  readonly onPick: (depth: CardDepth) => void;
+}) => {
+  const label = useId();
+  return (
+    <div className="graph-choice">
+      <span id={label}>Cards</span>
+      <div role="group" aria-labelledby={label}>
+        {CARD_DEPTHS.map(([id, name]) => (
+          <button key={id} type="button" aria-pressed={id === depth} onClick={() => onPick(id)}>
+            {name}
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+};
+
 const GraphControls = ({
+  cardDepth,
+  onCardDepth,
   colouring,
   onColouring,
   scopes,
@@ -1692,31 +1739,47 @@ const GraphControls = ({
   onScope,
   allEdges,
   onAllEdges,
-}: GraphControlsProps) => (
-  <>
+}: GraphControlsProps) => {
+  const [viewOpen, setViewOpen] = useState(false);
+  const menu = useId();
+  return (
     <div className="graph-controls">
-      <ColourBy
-        colouring={colouring}
-        onPick={onColouring}
-        withLogic={scopes.some(([name]) => name === LOGIC_ONLY)}
-      />
-      <div className="graph-filters">
-        <Show scopes={scopes} scope={scope} onPick={onScope} />
-        <label className="near-only">
-          <input
-            type="checkbox"
-            checked={allEdges}
-            onChange={event => onAllEdges(event.target.checked)}
-          />
-          All edges
-        </label>
+      <Show scopes={scopes} scope={scope} onPick={onScope} />
+      {scope[0] === LOGIC_ONLY && <CardDepths depth={cardDepth} onPick={onCardDepth} />}
+      <div className="graph-key">
+        {colouring === 'change' ? <Legend /> : <ScaleLegend colouring={colouring} />}
+      </div>
+      <div className="graph-view">
+        <button
+          type="button"
+          className="graph-view-toggle"
+          aria-expanded={viewOpen}
+          aria-controls={menu}
+          onClick={() => setViewOpen(!viewOpen)}
+        >
+          View
+        </button>
+        {viewOpen && (
+          <div className="graph-view-menu" id={menu}>
+            <ColourBy
+              colouring={colouring}
+              onPick={onColouring}
+              withLogic={scopes.some(([name]) => name === LOGIC_ONLY)}
+            />
+            <label className="near-only">
+              <input
+                type="checkbox"
+                checked={allEdges}
+                onChange={event => onAllEdges(event.target.checked)}
+              />
+              All edges
+            </label>
+          </div>
+        )}
       </div>
     </div>
-    <div className="graph-key">
-      {colouring === 'change' ? <Legend /> : <ScaleLegend colouring={colouring} />}
-    </div>
-  </>
-);
+  );
+};
 
 type LandingHeadProps = GraphControlsProps &
   GraphCaveatProps & {
@@ -1727,8 +1790,8 @@ type LandingHeadProps = GraphControlsProps &
     readonly picked: Lens | undefined;
     readonly onPick: (lens: Lens | undefined) => void;
     readonly onShowAll: () => void;
-    readonly startHereOpen: boolean;
-    readonly onStartHereOpen: (open: boolean) => void;
+    readonly startHereOpened: StartHereOpened;
+    readonly onStartHereOpened: (opened: StartHereOpened) => void;
     readonly onGoTo: (id: string) => void;
     readonly onGoToFinding: (id: string, finding: string) => void;
     readonly onShowOutside: (opener: HTMLButtonElement) => void;
@@ -1755,8 +1818,8 @@ const LandingHead = ({
   picked,
   onPick,
   onShowAll,
-  startHereOpen,
-  onStartHereOpen,
+  startHereOpened,
+  onStartHereOpened,
   onGoTo,
   onGoToFinding,
   onShowOutside,
@@ -1767,13 +1830,15 @@ const LandingHead = ({
 }: LandingHeadProps) => (
   <>
     {notes && notes.summary.length > 0 && <Summary notes={notes} onGoTo={onGoTo} />}
-    <LensChips findings={findings} coverage={review.coverage} picked={picked} onPick={onPick} />
-    <LensRow picked={picked} findings={findings} coverage={review.coverage} />
     <StartHere
       findings={inLens}
+      allFindings={findings}
+      coverage={review.coverage}
+      picked={picked}
+      onPick={onPick}
       onShowAll={onShowAll}
-      open={startHereOpen}
-      onOpen={onStartHereOpen}
+      opened={startHereOpened}
+      onOpened={onStartHereOpened}
       review={review}
       onGoTo={onGoTo}
       onGoToFinding={onGoToFinding}
@@ -1781,7 +1846,6 @@ const LandingHead = ({
       onShowFile={onShowFile}
       logic={logicLineOf({ review, picked, ...controls })}
     />
-    {controls.scope[0] === LOGIC_ONLY && <LogicLegend />}
     <GraphControls {...controls} />
     <GraphCaveat since={since} nothingDrawn={nothingDrawn} />
   </>
@@ -2054,15 +2118,28 @@ const Page = ({ review, notes, send }: ReviewPageProps) => {
     () => visibleDiff({ diff: review.diff, expanded: placedAt }),
     [review, placedAt],
   );
+  const [cardDepth, setCardDepth] = useState<CardDepth>('decisions');
+  const [openedCards, setOpenedCards] = useState<ReadonlySet<string>>(new Set());
   const cards = useMemo(
     () =>
-      boxesAllOpen ? logicCardsOf({ files: review.symbols, nodes: review.diff.nodes }) : NO_CARDS,
-    [review, boxesAllOpen],
+      boxesAllOpen
+        ? logicCardsOf({
+            files: review.symbols,
+            nodes: review.diff.nodes,
+            patches: review.patches,
+            depth: cardDepth,
+            opened: openedCards,
+          })
+        : NO_CARDS,
+    [review, boxesAllOpen, cardDepth, openedCards],
   );
   const [colouring, setColouring] = useState<Colouring>('change');
   const [picked, setPicked] = useState<Lens>();
   const [railOpen, setRailOpen] = useState(false);
-  const [startHereOpen, setStartHereOpen] = useState(true);
+  const [startHereOpened, setStartHereOpened] = useState<StartHereOpened>({
+    look: true,
+    information: false,
+  });
   const findings = findingsOf({ data: review, notes });
   const inLens = findings.filter(
     finding => picked === undefined || LENS_OF[finding.dimension] === picked,
@@ -2113,6 +2190,8 @@ const Page = ({ review, notes, send }: ReviewPageProps) => {
     cards,
     onTick: (node: string, decision: string) =>
       goToRow(node, anchorKey({ kind: 'decision', id: decision })),
+    openedCards,
+    onOpenCard: (node: string) => setOpenedCards(current => toggled(current, node)),
     unroutedOf: (id: string) =>
       dangling.filter(call => visibleOf(call.from) === id).map(call => call.path),
     shadeOf: ({ id, state }: DiffedNode) => {
@@ -2320,12 +2399,18 @@ const Page = ({ review, notes, send }: ReviewPageProps) => {
           picked={picked}
           onPick={setPicked}
           onShowAll={() => setRailOpen(true)}
-          startHereOpen={startHereOpen}
-          onStartHereOpen={setStartHereOpen}
+          startHereOpened={startHereOpened}
+          onStartHereOpened={setStartHereOpened}
           onGoTo={goTo}
           onGoToFinding={goToFinding}
           onShowOutside={showOutside}
           onShowFile={showFile}
+          cardDepth={cardDepth}
+          onCardDepth={next => {
+            fitToFrame();
+            setCardDepth(next);
+            setOpenedCards(new Set());
+          }}
           colouring={colouring}
           onColouring={setColouring}
           scopes={scopes}

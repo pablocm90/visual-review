@@ -1,7 +1,7 @@
 import { expect, test } from 'vitest';
 import type { SymbolStatement } from '../core/symbol-changes.ts';
 import { highlightPatch } from './highlight-patch.ts';
-import { holdsFirstLine, otherEndOf, rowsOfSymbol } from './symbol-diff.ts';
+import { blockAround, holdsFirstLine, otherEndOf, rowsOfSymbol, sameBlock } from './symbol-diff.ts';
 
 const rowsOf = (...lines: readonly string[]) =>
   highlightPatch({ path: 'a.ts', patch: lines.join('\n') });
@@ -284,4 +284,46 @@ test('otherEndOf: the end it left is found from the end it came to', () => {
       files: [fileHolding('from', [left])],
     })?.lines,
   ).toBe(left.lines);
+});
+
+const GUARDS = rowsOf(
+  '@@ -16,5 +16,8 @@',
+  '   if (key === null) return [];',
+  '   const named = key;',
+  '-  if (value?.type !== "array") return [named];',
+  '+  if (value === null) return [];',
+  '+  if (value.type !== "array")',
+  '+    return [];',
+  '   return keysIn(value);',
+  ' };',
+);
+
+const between = (block: ReturnType<typeof blockAround>) =>
+  block && shown(GUARDS.slice(block.from, block.to + 1));
+
+test("a decision's block is its run of changed rows with a row of context either side, from either side's numbers", () => {
+  const run = [
+    '   const named = key;',
+    '-  if (value?.type !== "array") return [named];',
+    '+  if (value === null) return [];',
+    '+  if (value.type !== "array")',
+    '+    return [];',
+    '   return keysIn(value);',
+  ];
+  expect(between(blockAround(GUARDS, { side: 'head', line: 19 }))).toStrictEqual(run);
+  expect(between(blockAround(GUARDS, { side: 'base', line: 18 }))).toStrictEqual(run);
+});
+
+test('a decision on an unchanged row is that row alone, and one the patch lacks has no block', () => {
+  expect(between(blockAround(GUARDS, { side: 'head', line: 16 }))).toStrictEqual([
+    '   if (key === null) return [];',
+  ]);
+  expect(blockAround(GUARDS, { side: 'head', line: 90 })).toBeUndefined();
+});
+
+test('decisions share a block when their blocks overlap', () => {
+  const one = blockAround(GUARDS, { side: 'head', line: 18 });
+  expect(sameBlock(one, blockAround(GUARDS, { side: 'head', line: 20 }))).toBe(true);
+  expect(sameBlock(one, blockAround(GUARDS, { side: 'head', line: 16 }))).toBe(false);
+  expect(sameBlock(one, undefined)).toBe(false);
 });

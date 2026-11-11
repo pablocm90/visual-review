@@ -228,3 +228,30 @@ test.for([
 
   expect({ names: lines[0]?.names, files: lines[0]?.files }).toStrictEqual({ names, files });
 });
+
+test('the front holds what needs a look and what was not read, the rest all of what is for information', () => {
+  const unread: Finding = {
+    id: 'dependencies:not-read:pnpm-lock.yaml',
+    check: 'dependencies:not-read',
+    dimension: 'dependencies',
+    level: 'info',
+    title: 'pnpm-lock.yaml not read',
+  };
+  const findings = [
+    ...raisedOver('api:signature', 'look', 2, 2),
+    ...raisedOver('api:added', 'info', 3, 3),
+    ...raisedOver('metrics:hotspot', 'info', 1, 1),
+    unread,
+  ];
+
+  const { front, rest } = startHere({ findings, metrics: {}, nodes });
+
+  expect(front.map(line => line.title)).toStrictEqual([
+    '2 exported signatures changed',
+    'pnpm-lock.yaml not read',
+  ]);
+  expect(rest.map(line => line.key).toSorted()).toStrictEqual([
+    'api:added info',
+    'metrics:hotspot info',
+  ]);
+});
