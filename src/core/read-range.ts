@@ -2,7 +2,6 @@ import { existsSync } from 'node:fs';
 import { mkdtemp, readFile, realpath, rm, stat } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { basename, join, relative } from 'node:path';
-import type { AccessReader } from './access.ts';
 import {
   type BaseConfig,
   CONFIG_FILE,
@@ -16,15 +15,9 @@ import { readFileThatEnds } from './file-that-ends.ts';
 import { git } from './git.ts';
 import { type Graph, stackOfIn } from './graph.ts';
 import { dropLinksLeaving, isTrackedLinkLeaving } from './links-leaving.ts';
-import type { Lockfile } from './lockfile.ts';
 import { type MeasuredNode, measuredNodes } from './metrics.ts';
-import type { MigrationReader } from './migration.ts';
-import { readAccess } from './read-access.ts';
-import { readLockfiles } from './read-lockfiles.ts';
-import { readMigrations } from './read-migrations.ts';
+import { type ChangeReaders, readChanges } from './read-changes.ts';
 import { readReaches } from './read-reaches.ts';
-import { readRoutes } from './read-routes.ts';
-import { readSchemas } from './read-schemas.ts';
 import {
   type Adapters,
   checkConfig,
@@ -33,9 +26,7 @@ import {
   type StacksReading,
 } from './read-stacks.ts';
 import type { FileSymbols, Reader } from './reader.ts';
-import type { RouteReader } from './routes.ts';
 import { ruleBreaks, rulesNotRead } from './rule-breaks.ts';
-import type { SchemaReader } from './schema.ts';
 import type { Skipped } from './skipped.ts';
 import { symbolChangesOf } from './symbol-changes.ts';
 import { type TestFile, testChanges, withMovedTests } from './test-changes.ts';
@@ -61,18 +52,14 @@ import type {
   ReviewedReading,
 } from './reading.ts';
 
-type ReadRangeOptions = Adapters & {
-  readonly lockfiles: ReadonlyArray<Lockfile>;
-  readonly migrations: ReadonlyArray<MigrationReader>;
-  readonly schemas: ReadonlyArray<SchemaReader>;
-  readonly routes: ReadonlyArray<RouteReader>;
-  readonly access: ReadonlyArray<AccessReader>;
-  readonly repo: string;
-  readonly from: string;
-  readonly to: string;
-  readonly churnTo?: string;
-  readonly reviewed?: ReviewedHead;
-};
+type ReadRangeOptions = Adapters &
+  ChangeReaders & {
+    readonly repo: string;
+    readonly from: string;
+    readonly to: string;
+    readonly churnTo?: string;
+    readonly reviewed?: ReviewedHead;
+  };
 
 type ReadSideOptions = Adapters & {
   readonly repo: string;
@@ -644,7 +631,6 @@ export const readRange = async ({
             config,
             ...adapters,
           });
-    const routesRead = await readRoutes({ repo, base, head: toCommit, changes, routes });
     return {
       before: before.graph,
       after: after.graph,
@@ -661,19 +647,18 @@ export const readRange = async ({
         changedPaths,
         pathOf: id => diff.nodes.find(node => node.id === id)?.path ?? id,
       })),
-      dependencyChanges: await readLockfiles({ repo, base, head: toCommit, changes, lockfiles }),
-      migrations: await readMigrations({ repo, base, head: toCommit, changes, migrations }),
-      schemas: await readSchemas({ repo, base, head: toCommit, changes, schemas }),
-      routes: routesRead,
-      access: await readAccess({
+      ...(await readChanges({
         repo,
         base,
         head: toCommit,
         changes,
-        routed: routesRead.length > 0,
-        access,
         authorize: security.authorize,
-      }),
+        lockfiles,
+        migrations,
+        schemas,
+        routes,
+        access,
+      })),
       openActions: security.open,
       danglingCalls: after.danglingCalls,
       linksNotRead: after.linksNotRead,

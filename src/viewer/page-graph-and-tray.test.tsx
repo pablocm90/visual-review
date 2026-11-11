@@ -1348,7 +1348,7 @@ test('a reader skipped for want of its tool is named once, at the top of the fin
           changedPaths: [],
           patches: [],
           undrawn: [],
-          dangling: [],
+          danglingCalls: [],
           dependencyChanges: [],
           migrations: [],
           schemas: [],
