@@ -34,21 +34,32 @@ const useAsked = (anchor: Comment['anchor']) => {
   return asked?.anchor === anchorKey(anchor) ? asked.request : undefined;
 };
 
-export type CommentFieldProps = {
-  readonly anchor: Comment['anchor'];
+/**
+ * The review's drafts and how to write one, provided once by the page: a served page's `onComment`
+ * writes a draft, and a page that isn't served has none, so it shows no comment field at all.
+ */
+export type DraftingOnPage = {
   readonly comments: Comments;
-  readonly onComment: (comment: Comment) => void;
+  readonly onComment: ((comment: Comment) => void) | undefined;
 };
+
+export const Drafting = createContext<DraftingOnPage>({ comments: {}, onComment: undefined });
+
+export const useDrafting = (): DraftingOnPage => useContext(Drafting);
+
+export type CommentFieldProps = { readonly anchor: Comment['anchor'] };
 
 type FocusedFieldProps = CommentFieldProps & { readonly clicked?: object | undefined };
 
-export const CommentField = ({ anchor, comments, onComment, clicked }: FocusedFieldProps) => {
+export const CommentField = ({ anchor, clicked }: FocusedFieldProps) => {
+  const { comments, onComment } = useDrafting();
   const group = useId();
   const textarea = useRef<HTMLTextAreaElement>(null);
   const asked = useAsked(anchor);
   useLayoutEffect(() => {
     if (clicked ?? asked) textarea.current?.focus();
   }, [clicked, asked]);
+  if (onComment === undefined) return null;
   const { kind, text } = comments[anchorKey(anchor)] ?? NO_DRAFT;
   const write = (draft: Draft) => onComment({ anchor, ...draft });
   return (
@@ -92,7 +103,8 @@ export const CommentOpener = ({
   className,
   ...field
 }: CommentOpenerProps) => {
-  const drafted = field.comments[anchorKey(field.anchor)] !== undefined;
+  const { comments, onComment } = useDrafting();
+  const drafted = comments[anchorKey(field.anchor)] !== undefined;
   const [open, setOpen] = useState(drafted);
   const [landed, setLanded] = useState(landing);
   const [clicked, setClicked] = useState<object>();
@@ -106,6 +118,7 @@ export const CommentOpener = ({
     setLanded(landing);
     if (landing !== undefined && drafted) setOpen(true);
   }
+  if (onComment === undefined) return null;
   return (
     <>
       <button

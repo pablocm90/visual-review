@@ -2,10 +2,10 @@ import { useMemo } from 'react';
 import type { FilePatch } from '../core/diff-graphs.ts';
 import type { SymbolStatement } from '../core/symbol-changes.ts';
 import { highlightPatch } from './highlight-patch.ts';
-import { type LineComments, PatchRows, useSaidAt } from './patch-rows.tsx';
+import { type PatchPlaces, PatchRows, useSaidAt } from './patch-rows.tsx';
 import { holdsFirstLine, rowsOfSymbol } from './symbol-diff.ts';
 
-type LinesProps = LineComments & {
+type LinesProps = PatchPlaces & {
   readonly patch: FilePatch;
   readonly lines: SymbolStatement['lines'];
   readonly inFile: ReadonlyArray<SymbolStatement>;
@@ -45,7 +45,7 @@ export type SymbolEnd = Pick<LinesProps, 'patch' | 'lines' | 'inFile'>;
 export const SymbolLines = ({
   ends,
   ...commenting
-}: LineComments & { readonly ends: ReadonlyArray<SymbolEnd> }) =>
+}: PatchPlaces & { readonly ends: ReadonlyArray<SymbolEnd> }) =>
   ends.map(end =>
     ends.length === 1 ? (
       <LinesOfFile key={end.patch.path} {...end} {...commenting} />
