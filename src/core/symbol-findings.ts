@@ -242,6 +242,36 @@ type SymbolFindingsOptions = {
   readonly nodes: ReadonlyArray<GraphNode>;
 };
 
+const isPlainlyAdded = ({ item }: AnchoredSymbol): boolean =>
+  item.change === 'added' && isAddedExport(item) && removalOf(item, id => id) === undefined;
+
+/**
+ * Each symbol's API finding, a file's exports added with it grouped into one for information, so a
+ * new module of twenty types reads as one line; one moved or newly exported keeps its own.
+ */
+const shapeFindings = (
+  node: string,
+  symbols: ReadonlyArray<AnchoredSymbol>,
+  pathOf: PathOf,
+): ReadonlyArray<Finding> => {
+  const added = symbols.filter(isPlainlyAdded);
+  if (added.length < 2) return symbols.flatMap(symbol => findingOf({ node, symbol, pathOf }) ?? []);
+  return [
+    {
+      id: `api:added:${node}`,
+      check: 'api:added',
+      dimension: 'api',
+      level: 'info',
+      target: node,
+      title: `${added.length} exported symbols added`,
+      detail: added.map(({ item }) => `${item.kind} ${qualified(item)}`).join(', '),
+    },
+    ...symbols
+      .filter(symbol => !isPlainlyAdded(symbol))
+      .flatMap(symbol => findingOf({ node, symbol, pathOf }) ?? []),
+  ];
+};
+
 export const symbolFindings = ({ files, nodes }: SymbolFindingsOptions): ReadonlyArray<Finding> => {
   const pathOf = (id: string) => nodes.find(node => node.id === id)?.path ?? id;
   return files.flatMap(file =>
@@ -258,9 +288,7 @@ export const symbolFindings = ({ files, nodes }: SymbolFindingsOptions): Readonl
           },
         ]
       : [
-          ...unheld(anchoredSymbols(file.node, file.symbols)).flatMap(
-            symbol => findingOf({ node: file.node, symbol, pathOf }) ?? [],
-          ),
+          ...shapeFindings(file.node, unheld(anchoredSymbols(file.node, file.symbols)), pathOf),
           ...exportsFinding(file),
           ...anchoredSymbols(file.node, file.symbols).flatMap(symbol =>
             logicFindings(file.node, symbol),

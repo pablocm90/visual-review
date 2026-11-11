@@ -680,8 +680,8 @@ test.for([
     prefix: 'api:removed',
   },
   {
-    how: 'added',
-    change: { exported: { head: true }, change: 'added' },
+    how: 'newly exported',
+    change: { exported: { base: false, head: true }, change: 'edited' },
     prefix: 'api:added',
   },
   {
@@ -713,6 +713,36 @@ test.for([
     ).toStrictEqual([`${prefix}:web/file/a.ts#C.x`, `${prefix}:web/file/a.ts#C.x#2`]);
   },
 );
+
+test("a file's exports added with it are one finding for information listing them; one newly exported keeps its own", () => {
+  const symbol = (
+    name: string,
+    kind: SymbolStatement['kind'],
+    change: Pick<SymbolStatement, 'exported' | 'change'>,
+  ): SymbolStatement => ({ name, kind, lines: {}, ...change });
+  const added = { exported: { head: true }, change: 'added' } as const;
+
+  expect(
+    findingsOfSymbols([
+      symbolFile([
+        symbol('Parts', 'type', added),
+        symbol('assemble', 'function', added),
+        symbol('total', 'function', { exported: { base: false, head: true }, change: 'edited' }),
+      ]),
+    ]).map(({ id, title, detail }) => ({ id, title, detail })),
+  ).toStrictEqual([
+    {
+      id: 'api:added:web/file/a.ts',
+      title: '2 exported symbols added',
+      detail: 'type Parts, function assemble',
+    },
+    {
+      id: 'api:added:web/file/a.ts#total',
+      title: 'function total now exported',
+      detail: undefined,
+    },
+  ]);
+});
 
 test('an exported symbol whose signature changed is an api finding to look at, its detail summing up what moved; one changed on a symbol not exported raises none', () => {
   const signature = { base: '(order: Order)', head: '(order: Order, at: Date)' };
