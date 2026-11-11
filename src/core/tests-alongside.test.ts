@@ -43,6 +43,18 @@ test.for([
     test: 'web/src/refunds/other.test.ts',
     stack: 'web',
     node: 'web/file/refunds/refund.ts',
+    alongside: true,
+  },
+  {
+    test: 'web/src/orders/other.test.ts',
+    stack: 'web',
+    node: 'web/file/refunds/refund.ts',
+    alongside: false,
+  },
+  {
+    test: 'web/src/refunds/orders.test.ts',
+    stack: 'web',
+    node: 'web/file/refunds/refund.ts',
     alongside: false,
   },
   {
