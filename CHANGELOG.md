@@ -10,6 +10,9 @@ What changed in each release of `@pablocm90/visual-review`, newest first. Versio
 - A part's comment field no longer stays pinned at the top of the inspector while you scroll.
 - A function's changed signature shows once: its member lines are left out when the diff under its logic changes already holds that line.
 - Start here counts lines to look at, not findings, and says how many more All findings holds when it shows only five.
+- The zoom control sits in a strip of its own under the graph, so it never covers a node in a short frame.
+- A long line in Start here's list is clipped inside it instead of widening the page.
+- A finding's hidden answer buttons no longer leave a gap under it.
 
 ### Changed
 
