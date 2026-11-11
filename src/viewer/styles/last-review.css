@@ -1,0 +1,109 @@
+.last-review {
+  padding: 16px 0 0;
+}
+
+.last-review-title {
+  margin: 0 0 8px;
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.last-review-body {
+  margin: 0 0 8px;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.last-review-list {
+  display: grid;
+  gap: 8px;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.last-comment {
+  font-size: 13px;
+  overflow-wrap: anywhere;
+}
+
+.last-mark {
+  margin-inline-start: 6px;
+  padding: 0 4px;
+  border: 1px solid var(--stack-line);
+  border-radius: 3px;
+  color: var(--muted);
+  font-size: 11px;
+  white-space: nowrap;
+}
+
+.last-said {
+  margin: 2px 0 0;
+  white-space: pre-wrap;
+}
+
+.last-commits {
+  list-style: none;
+  margin: 2px 0 0;
+  padding: 0;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.last-review-subtitle {
+  margin: 12px 0 4px;
+  font-size: 13px;
+}
+
+.said-before {
+  margin: 8px 0;
+  padding: 6px 8px;
+  border-inline-start: 3px solid var(--stack-line);
+  font-size: 13px;
+  overflow-wrap: anywhere;
+  white-space: normal;
+}
+
+.called-fine {
+  margin-inline-start: 6px;
+  color: var(--muted);
+  font-size: 11px;
+  white-space: nowrap;
+}
+
+.said-edge {
+  margin: 8px 0 -6px;
+  color: var(--muted);
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+
+.claudes-answer {
+  margin: 4px 0 0;
+  padding-inline-start: 8px;
+  border-inline-start: 3px solid var(--stack-line);
+}
+
+.said-resolve {
+  margin-inline-start: 8px;
+  padding: 0 6px;
+  border: 1px solid var(--stack-line);
+  border-radius: 4px;
+  background: transparent;
+  color: var(--muted);
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.said-resolve:hover,
+.said-resolve[aria-pressed="true"] {
+  background: var(--unchanged-fill);
+  color: var(--ink);
+}
+
+.said-resolve:focus-visible {
+  outline: 2px solid var(--ramp-3);
+  outline-offset: 1px;
+}

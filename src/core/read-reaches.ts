@@ -1,8 +1,8 @@
 import type { GraphNode } from './graph.ts';
 import type { MeasuredNode } from './metrics.ts';
-import type { RangeReading, SymbolFile } from './read-range.ts';
 import type { StacksReading } from './read-stacks.ts';
 import type { Reader, SymbolUse, UsesReading } from './reader.ts';
+import type { RangeReading, SymbolFile } from './reading.ts';
 import { qualified, type SymbolStatement } from './symbol-changes.ts';
 import { anchoredSymbols, removalOf, unbackedExports, unheld } from './symbol-findings.ts';
 

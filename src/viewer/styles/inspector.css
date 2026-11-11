@@ -1,0 +1,838 @@
+.note {
+  position: sticky;
+  top: 24px;
+  flex: 0 1 auto;
+  box-sizing: border-box;
+  max-height: calc(100vh - 48px - var(--foot, 0px));
+  overflow: auto;
+  padding: 12px 16px;
+  border: 1px solid var(--stack-line);
+  border-radius: 8px;
+  background: var(--stack);
+}
+
+.note p {
+  margin: 0;
+}
+
+.note .close {
+  float: right;
+  width: 28px;
+  height: 28px;
+  margin: -4px -8px 0 8px;
+  border: 1px solid var(--stack-line);
+  border-radius: 6px;
+  background: var(--stack);
+  color: var(--ink);
+  font: inherit;
+  font-size: 16px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.note .close:hover {
+  background: var(--unchanged-fill);
+}
+
+.inspector-head {
+  position: sticky;
+  top: -12px;
+  z-index: 4;
+  margin: -12px -16px 14px;
+  padding: 12px 16px 10px;
+  border-bottom: 1px solid var(--stack-line);
+  background: var(--stack);
+}
+
+.inspector-head h2 {
+  margin: 6px 0 2px;
+  font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  font-size: 18px;
+  font-weight: 600;
+  word-break: break-all;
+}
+
+.inspector-head .chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.inspector-head .chips span {
+  padding: 1px 8px;
+  border-radius: 999px;
+  background: var(--unchanged-fill);
+  color: var(--ink);
+  font-size: 12px;
+}
+
+.inspector-head .chips [data-state="added"] {
+  background: var(--added-fill);
+  color: var(--added);
+}
+
+.inspector-head .chips [data-state="removed"] {
+  background: var(--removed-fill);
+  color: var(--removed);
+}
+
+.inspector-head .chips [data-state="modified"] {
+  background: var(--modified-fill);
+  color: var(--modified);
+}
+
+.inspector-head .path {
+  color: var(--muted);
+  font-size: 12.5px;
+  word-break: break-all;
+}
+
+.note .renamed {
+  color: var(--muted);
+}
+
+.metrics {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.metrics th,
+.metrics td {
+  padding: 6px 0 6px 8px;
+  border-bottom: 1px solid var(--stack-line);
+  text-align: right;
+  vertical-align: top;
+  font-variant-numeric: tabular-nums;
+}
+
+.metrics thead th {
+  color: var(--muted);
+  font-size: 11.5px;
+  font-weight: 600;
+  text-transform: uppercase;
+}
+
+.metrics :is(thead th, tbody th):first-child {
+  padding-left: 0;
+  text-align: left;
+}
+
+.metrics tbody th {
+  font-weight: 500;
+}
+
+.metrics small {
+  display: block;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 400;
+}
+
+.metrics-caption {
+  margin: 0 0 8px;
+  color: var(--muted);
+  font-size: 12.5px;
+}
+
+.metrics .bars {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin-top: 4px;
+}
+
+.metrics .bars span {
+  display: block;
+  height: 4px;
+  border-radius: 2px;
+}
+
+.metrics .bars .before {
+  background: var(--stack-line);
+}
+
+.metrics .bars .after {
+  background: var(--ink);
+  opacity: 0.65;
+}
+
+.metrics .over .bars .after {
+  opacity: 1;
+}
+
+.functions {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: 12.5px;
+}
+
+.functions li {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.functions .added code:first-child {
+  color: var(--added);
+}
+
+.functions .removed code:first-child {
+  color: var(--removed);
+}
+
+.functions .modified code:first-child {
+  font-weight: 600;
+}
+
+.note-findings {
+  margin: 0 0 12px;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-weight: 600;
+}
+
+.note-findings .level-mark {
+  margin: 0 6px 0 0;
+}
+
+.symbol-file > h4 {
+  margin: 14px 0 2px;
+  font:
+    600 13px ui-monospace,
+    "SF Mono",
+    Menlo,
+    monospace;
+}
+
+.symbol-group h4 {
+  margin: 14px 0 6px;
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.symbol-group ul {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 12.5px;
+}
+
+.symbols .symbol-group code,
+.signature del,
+.signature ins {
+  font:
+    12.5px ui-monospace,
+    "SF Mono",
+    Menlo,
+    monospace;
+}
+
+.symbol-group .kind {
+  display: inline-block;
+  min-width: 5.5em;
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.symbol-group summary {
+  margin-top: 12px;
+  color: var(--muted);
+  font-size: 12.5px;
+  cursor: pointer;
+}
+
+.symbol-group .origin {
+  color: var(--muted);
+}
+
+.signature {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin: 4px 0 0 5.5em;
+  overflow-wrap: anywhere;
+}
+
+.signature del {
+  padding: 1px 4px;
+  border-radius: 3px;
+  background: var(--removed-fill);
+  color: var(--removed);
+}
+
+.signature ins {
+  padding: 1px 4px;
+  border-radius: 3px;
+  background: var(--added-fill);
+  color: var(--added);
+  text-decoration: none;
+}
+
+.symbol-group .export-mark {
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.note-findings .finding-answer {
+  margin-top: 4px;
+  padding-left: 19px;
+}
+
+.changed-since {
+  margin-inline-start: 6px;
+  padding: 0 4px;
+  border: 1px solid var(--modified);
+  border-radius: 3px;
+  color: var(--modified);
+  font-size: 11px;
+  white-space: nowrap;
+}
+
+.signature-lines {
+  padding: 0;
+  list-style: none;
+}
+
+.signature-lines .signature-fold-summary {
+  margin-top: 0;
+  font-size: 12px;
+}
+
+.signature-line {
+  display: block;
+  white-space: pre-wrap;
+}
+
+.column-section > h3,
+.what-changed-head > h3 {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 8px;
+  margin: 20px 0 8px;
+  color: var(--muted);
+  font-size: 11.5px;
+  font-weight: 600;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+}
+
+.what-changed-head {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+
+.logic-key {
+  margin-left: auto;
+  padding: 0 8px;
+  border: 1px solid var(--stack-line);
+  border-radius: 6px;
+  background: var(--stack);
+  color: var(--muted);
+  font: inherit;
+  letter-spacing: 0;
+  text-transform: none;
+  cursor: pointer;
+}
+
+.column-section li[aria-current="true"] {
+  outline: 2px solid var(--ink);
+  outline-offset: 2px;
+}
+
+.part-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.part-actions > :where(button) {
+  margin: 0;
+  padding: 2px 8px;
+  border: 1px solid var(--stack-line);
+  border-radius: 4px;
+  background: transparent;
+  color: var(--ink);
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.part-actions > :where(button):hover,
+.part-actions > :where(button)[aria-pressed="true"],
+.part-actions > :where(button)[aria-expanded="true"] {
+  background: var(--unchanged-fill);
+}
+
+.part-actions kbd {
+  margin-inline-start: 4px;
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.part-actions > :where(.comment-kind, .comment) {
+  order: 1;
+  flex-basis: 100%;
+}
+
+.fold {
+  margin-top: 14px;
+  border-top: 1px solid var(--stack-line);
+  padding-top: 8px;
+}
+
+.fold-toggle {
+  display: block;
+  width: 100%;
+  padding: 2px 0;
+  border: 0;
+  background: transparent;
+  color: var(--ink);
+  font: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  text-align: start;
+  cursor: pointer;
+}
+
+.fold-toggle::before {
+  content: "▸ ";
+  color: var(--muted);
+}
+
+.fold-toggle[aria-expanded="true"]::before {
+  content: "▾ ";
+}
+
+.symbol-diff {
+  margin-inline-start: 8px;
+  padding: 0 6px;
+  border: 1px solid var(--stack-line);
+  border-radius: 4px;
+  background: transparent;
+  color: var(--muted);
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.symbol-diff:hover,
+.symbol-diff[aria-expanded="true"] {
+  background: var(--unchanged-fill);
+  color: var(--ink);
+}
+
+.symbol-lines {
+  margin-top: 4px;
+}
+
+.symbol-lines-note {
+  margin: 4px 0 0;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.symbol-lines-end h5 {
+  margin: 8px 0 0;
+  color: var(--muted);
+  font:
+    500 12px ui-monospace,
+    "SF Mono",
+    Menlo,
+    monospace;
+  word-break: break-all;
+}
+
+.logic-lines {
+  overflow-wrap: anywhere;
+}
+
+.reach-uses {
+  margin: 0 0 12px;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-size: 12px;
+}
+
+.reach-go {
+  display: block;
+  width: 100%;
+  padding: 2px 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.reach-place {
+  display: block;
+  color: var(--muted);
+  font:
+    500 12px ui-monospace,
+    "SF Mono",
+    Menlo,
+    monospace;
+  overflow-wrap: anywhere;
+}
+
+.reach-go:hover .reach-place {
+  text-decoration: underline;
+}
+
+.reach-text {
+  display: block;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+
+.reach-mark {
+  display: inline-block;
+  margin: 2px 6px 0 0;
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.strip-of-logic {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 2px 10px;
+  margin: 4px 0;
+}
+
+.strip-ticks {
+  display: inline-flex;
+  flex-wrap: wrap;
+  row-gap: 2px;
+}
+
+.strip-tick {
+  position: relative;
+  flex: none;
+  width: 8px;
+  height: 30px;
+  padding: 0;
+  border: 0;
+  background: none;
+  cursor: pointer;
+}
+
+.strip-tick::before {
+  content: "";
+  position: absolute;
+  left: 1px;
+  bottom: 15px;
+  width: 6px;
+  height: 8px;
+  box-sizing: border-box;
+}
+
+.tick-added::before {
+  background: var(--added);
+}
+
+.tick-changed::before {
+  background: var(--modified);
+}
+
+.tick-removed::before {
+  top: 15px;
+  bottom: auto;
+  background: var(--removed);
+}
+
+.tick-moved::before {
+  border: 1px solid var(--muted);
+}
+
+.tick-exit::before {
+  height: 14px;
+}
+
+.tick-same::before {
+  bottom: 14px;
+  height: 2px;
+  background: var(--muted);
+  opacity: 0.55;
+}
+
+.strip-count {
+  color: var(--muted);
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.logic-rows > summary {
+  margin-top: 0;
+  cursor: pointer;
+}
+
+.logic-rows > summary .strip-of-logic {
+  display: inline-flex;
+  vertical-align: middle;
+}
+
+.logic-run {
+  list-style: none;
+}
+
+.logic-run > details > summary {
+  margin-top: 0;
+  width: fit-content;
+  color: var(--muted);
+  font-size: 12px;
+  cursor: pointer;
+  list-style: none;
+}
+
+.logic-run > details > summary::-webkit-details-marker {
+  display: none;
+}
+
+.logic-run-show {
+  text-decoration: underline;
+}
+
+.logic-run > details[open] .logic-run-show {
+  display: none;
+}
+
+.logic-run > details > ul {
+  margin: 0;
+  padding: 0;
+}
+
+.strip-tick[aria-current="true"] {
+  outline: 2px solid var(--ink);
+  outline-offset: -1px;
+}
+
+.logic-comment-on {
+  opacity: 0;
+}
+
+.logic-row:hover > .logic-comment-on,
+.logic-row:focus-within > .logic-comment-on,
+.logic-comment-on[aria-expanded="true"] {
+  opacity: 1;
+}
+
+@media (hover: none) {
+  .logic-comment-on {
+    opacity: 1;
+  }
+}
+
+.logic-line {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.logic-row {
+  padding-block: 1px;
+  border-radius: 4px;
+}
+
+.logic-row .mark {
+  display: inline-block;
+  width: 1.4em;
+  font-weight: 600;
+  text-align: center;
+}
+
+.logic-added {
+  background: var(--added-fill);
+}
+
+.logic-added .mark {
+  color: var(--added);
+}
+
+.logic-removed {
+  background: var(--removed-fill);
+}
+
+.logic-removed .mark {
+  color: var(--removed);
+}
+
+.logic-changed {
+  background: var(--unchanged-fill);
+}
+
+.logic-changed .mark {
+  color: var(--modified);
+}
+
+.logic-moved .mark,
+.logic-same {
+  color: var(--muted);
+}
+
+.logic-row del,
+.logic-row ins {
+  padding: 0 2px;
+  border-radius: 3px;
+  font:
+    12.5px ui-monospace,
+    "SF Mono",
+    Menlo,
+    monospace;
+}
+
+.logic-row del {
+  background: var(--removed-fill);
+  color: var(--removed);
+}
+
+.logic-row ins {
+  background: var(--added-fill);
+  color: var(--added);
+  text-decoration: none;
+}
+
+.logic-line:hover code,
+.logic-line:hover ins {
+  text-decoration: underline;
+}
+
+.logic-summary {
+  color: var(--muted);
+  font-weight: 400;
+  letter-spacing: 0;
+  text-transform: none;
+}
+
+.logic-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px 14px;
+  margin: 4px 0 8px;
+  padding: 0;
+  list-style: none;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.logic-legend-entry {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.logic-legend-mark {
+  cursor: default;
+}
+
+.part-actions > .next-logic {
+  margin-inline-start: auto;
+}
+
+.note .note-why {
+  margin-top: 6px;
+}
+
+.note-why strong {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.note .note-recommendation {
+  margin-top: 6px;
+  padding: 6px 8px;
+  border-inline-start: 3px solid var(--ramp-2);
+  background: var(--ramp-0);
+}
+
+.note-recommendation strong {
+  display: block;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.logic-diff {
+  margin: 2px 0 10px 1.4em;
+  list-style: none;
+}
+
+.logic-diff pre {
+  margin-top: 0;
+  padding: 4px 0;
+  border: 1px solid var(--stack-line);
+}
+
+.symbol-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 8px;
+}
+
+.symbol-with-logic {
+  border: 1px solid var(--stack-line);
+  border-radius: 8px;
+}
+
+.symbol-with-logic > .symbol-head {
+  position: sticky;
+  top: calc(var(--inspector-head, 0px) - 12px);
+  z-index: 3;
+  padding: 7px 10px;
+  border-bottom: 1px solid var(--stack-line);
+  border-radius: 8px 8px 0 0;
+  background: var(--unchanged-fill);
+}
+
+.symbol-with-logic > .symbol-head code {
+  font-size: 13.5px;
+  font-weight: 600;
+}
+
+.symbol-with-logic > :not(.symbol-head) {
+  margin-inline: 10px;
+}
+
+.symbol-with-logic > :last-child {
+  margin-bottom: 8px;
+}
+
+.inspector-head:has(.comment) {
+  position: static;
+}
+
+.note:has(.inspector-head .comment) .symbol-with-logic > .symbol-head {
+  top: -12px;
+}

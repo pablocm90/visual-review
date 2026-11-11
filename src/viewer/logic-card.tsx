@@ -1,11 +1,22 @@
-import type { DiffedNode } from '../core/diff-graphs.ts';
+import type { DiffedNode, FilePatch } from '../core/diff-graphs.ts';
 import type { LogicLine } from '../core/logic-diff.ts';
 import { countsOf, isExit } from '../core/logic-strip.ts';
-import type { SymbolFile } from '../core/read-range.ts';
+import type { SymbolFile } from '../core/reading.ts';
 import { qualified } from '../core/symbol-changes.ts';
 import { anchoredSymbols, decisionsOf } from '../core/symbol-findings.ts';
+import { highlightPatch, type PatchLine } from './highlight-patch.ts';
 import { exitsWords, type StripRow } from './logic-strip.tsx';
+import { decisionRuns, decisionTag, holdsDecision } from './symbol-diff.ts';
 import { logicLabel } from './what-changed.tsx';
+
+/** How much of each function a logic card shows: its marks, its changed decisions, or its code. */
+export type CardDepth = 'ticks' | 'decisions' | 'code';
+
+export const CARD_DEPTHS: ReadonlyArray<readonly [CardDepth, string]> = [
+  ['ticks', 'Marks'],
+  ['decisions', 'Decisions'],
+  ['code', 'Code'],
+];
 
 const PADDING_X = 14;
 const PADDING_Y = 8;
@@ -18,6 +29,20 @@ const PLATE_MARGIN = 2;
 const GAP = 8;
 const FILE_CHAR = 8;
 const ROW_CHAR = 7;
+const LINE_HEIGHT = 16;
+const LINE_CHAR = 6.6;
+const LONGEST_LINE = 72;
+const TAG_WIDTH = 64;
+const LINES_GAP = 6;
+const OPEN_WIDTH = 44;
+
+/** A line under a function on a card: a decision, or a row of its code. */
+type CardLine = {
+  readonly kind: 'added' | 'removed' | 'changed' | 'context' | 'gap';
+  readonly text: string;
+  readonly tag?: string;
+  readonly decision?: string;
+};
 
 type CardRow = {
   readonly id: string;
@@ -25,14 +50,66 @@ type CardRow = {
   readonly shownName: string;
   readonly count: string;
   readonly decisions: ReadonlyArray<StripRow>;
+  readonly lines: ReadonlyArray<CardLine>;
 };
 
 export type LogicCard = {
   readonly count: string;
+  readonly depth: CardDepth;
   readonly nameWidth: number;
   readonly rows: ReadonlyArray<CardRow>;
   readonly width: number;
   readonly height: number;
+};
+
+const shortened = (text: string): string =>
+  text.length > LONGEST_LINE ? `${text.slice(0, LONGEST_LINE - 1)}…` : text;
+
+const decisionLines = (decisions: ReadonlyArray<StripRow>): ReadonlyArray<CardLine> =>
+  decisions.flatMap(({ id, line }): ReadonlyArray<CardLine> => {
+    if (line.change === 'same') return [];
+    const tag = decisionTag(line);
+    if (line.change === 'changed')
+      return [
+        { kind: 'removed', text: shortened(line.base ?? ''), tag, decision: id },
+        { kind: 'added', text: shortened(line.head ?? ''), decision: id },
+      ];
+    const kind =
+      line.change === 'removed' ? 'removed' : line.change === 'added' ? 'added' : 'changed';
+    return [{ kind, text: shortened(line.head ?? line.base ?? ''), tag, decision: id }];
+  });
+
+const textOfRow = (row: PatchLine): string =>
+  shortened(`${row.prefix}${row.pieces.map(piece => piece.text).join('')}`);
+
+const ROW_KINDS: Readonly<Partial<Record<PatchLine['kind'], CardLine['kind']>>> = {
+  added: 'added',
+  removed: 'removed',
+  context: 'context',
+};
+
+const codeLines = (
+  decisions: ReadonlyArray<StripRow>,
+  rows: ReadonlyArray<PatchLine>,
+): ReadonlyArray<CardLine> => {
+  const changed = decisions.filter(({ line }) => line.change !== 'same');
+  const blocks = decisionRuns(changed, rows).flatMap(({ block }) => block ?? []);
+  if (blocks.length === 0) return decisionLines(decisions);
+  return blocks.flatMap(
+    (block, index): ReadonlyArray<CardLine> => [
+      ...(index > 0 ? [{ kind: 'gap', text: '⋯' } as const] : []),
+      ...rows.slice(block.from, block.to + 1).map((row): CardLine => {
+        const on = changed.filter(({ line }) => holdsDecision(line, row));
+        const tag = on.map(({ line }) => decisionTag(line)).join(' ');
+        return {
+          kind: ROW_KINDS[row.kind] ?? 'context',
+          text: textOfRow(row),
+          ...(tag !== '' && { tag }),
+          ...(on[0] && { decision: on[0].id }),
+        };
+      }),
+    ],
+  );
 };
 
 const countWords = (logic: ReadonlyArray<LogicLine>): string => {
@@ -42,7 +119,16 @@ const countWords = (logic: ReadonlyArray<LogicLine>): string => {
 
 const longest = (lengths: ReadonlyArray<number>): number => Math.max(0, ...lengths);
 
-const cardOf = (node: DiffedNode | undefined, rows: ReadonlyArray<CardRow>): LogicCard => {
+const linesHeight = (lines: ReadonlyArray<CardLine>): number =>
+  lines.length === 0 ? 0 : lines.length * LINE_HEIGHT + LINES_GAP;
+
+const rowHeight = (row: CardRow): number => ROW_HEIGHT + linesHeight(row.lines);
+
+const cardOf = (
+  node: DiffedNode | undefined,
+  rows: ReadonlyArray<CardRow>,
+  depth: CardDepth,
+): LogicCard => {
   const { changed, exits } = countsOf(
     rows.flatMap(({ decisions }) => decisions.map(({ line }) => line)),
   );
@@ -54,27 +140,50 @@ const cardOf = (node: DiffedNode | undefined, rows: ReadonlyArray<CardRow>): Log
         nameWidth + GAP + row.decisions.length * TICK_PITCH + GAP + row.count.length * ROW_CHAR,
     ),
   );
+  const linesWidth = longest(
+    rows.flatMap(row => row.lines.map(line => TAG_WIDTH + line.text.length * LINE_CHAR)),
+  );
   const former = node?.formerLabel === undefined ? '' : ` was ${node.formerLabel}`;
   const fileWidth = `${node?.label ?? ''}${former}`.length * FILE_CHAR;
   return {
     count,
+    depth,
     nameWidth,
     rows,
-    width: 2 * PADDING_X + Math.max(rowWidth, fileWidth + GAP + count.length * ROW_CHAR),
-    height: 2 * PADDING_Y + HEADER_HEIGHT + rows.length * ROW_HEIGHT,
+    width:
+      2 * PADDING_X +
+      Math.max(rowWidth, linesWidth, fileWidth + GAP + count.length * ROW_CHAR + OPEN_WIDTH),
+    height: 2 * PADDING_Y + HEADER_HEIGHT + rows.reduce((sum, row) => sum + rowHeight(row), 0),
   };
 };
+
+const depthOf = (depth: CardDepth, opened: ReadonlySet<string>, node: string): CardDepth =>
+  opened.has(node) ? 'code' : depth;
 
 export const logicCardsOf = ({
   files,
   nodes,
+  patches = [],
+  depth = 'ticks',
+  opened = new Set(),
 }: {
   readonly files: ReadonlyArray<SymbolFile>;
   readonly nodes: ReadonlyArray<DiffedNode>;
+  readonly patches?: ReadonlyArray<FilePatch>;
+  readonly depth?: CardDepth;
+  readonly opened?: ReadonlySet<string>;
 }): ReadonlyMap<string, LogicCard> =>
   new Map(
     files.flatMap(file => {
       if (!('symbols' in file)) return [];
+      const shown = depthOf(depth, opened, file.node);
+      const path = nodes.find(({ id }) => id === file.node)?.path;
+      const patch = patches.find(each => each.path === path);
+      const patchRows = shown === 'code' && patch ? highlightPatch(patch) : [];
+      const linesOf = (decisions: ReadonlyArray<StripRow>): ReadonlyArray<CardLine> => {
+        if (shown === 'ticks') return [];
+        return shown === 'code' ? codeLines(decisions, patchRows) : decisionLines(decisions);
+      };
       const rows = anchoredSymbols(file.node, file.symbols).flatMap(symbol => {
         const decisions = decisionsOf(symbol).map(({ id, line }) => ({
           id,
@@ -91,6 +200,7 @@ export const logicCardsOf = ({
                 shownName: qualified(symbol.item),
                 count: countWords(logic),
                 decisions,
+                lines: linesOf(decisions),
               },
             ];
       });
@@ -100,6 +210,7 @@ export const logicCardsOf = ({
           cardOf(
             nodes.find(({ id }) => id === file.node),
             rows,
+            shown,
           ),
         ] as const,
       ];
@@ -146,15 +257,53 @@ const Tick = ({
   );
 };
 
+const CardLines = ({
+  lines,
+  width,
+  onTick,
+}: {
+  readonly lines: ReadonlyArray<CardLine>;
+  readonly width: number;
+  readonly onTick: OnTick;
+}) => (
+  <g className="card-lines" transform={`translate(0 ${ROW_HEIGHT})`}>
+    {lines.map((line, index) => {
+      const { decision } = line;
+      const go = decision !== undefined && onTick ? { onClick: () => onTick(decision) } : {};
+      return (
+        <g
+          // biome-ignore lint/suspicious/noArrayIndexKey: a card's lines are fixed and may repeat
+          key={index}
+          className={`card-line card-line-${line.kind}${decision === undefined ? '' : ' card-line-goes'}`}
+          transform={`translate(0 ${index * LINE_HEIGHT})`}
+          {...go}
+        >
+          <path className="card-line-plate" d={boxPath(-4, 0, width + 8, LINE_HEIGHT)} />
+          {line.tag !== undefined && (
+            <text className="card-line-tag" x={TAG_WIDTH - 8} y={LINE_HEIGHT / 2}>
+              {line.tag}
+            </text>
+          )}
+          <text className="card-line-text" x={TAG_WIDTH} y={LINE_HEIGHT / 2}>
+            {line.text}
+          </text>
+        </g>
+      );
+    })}
+  </g>
+);
+
 const Row = ({
-  row: { name, shownName, count, decisions },
-  index,
+  row: { name, shownName, count, decisions, lines },
+  top,
   nameWidth,
+  width,
   onTick,
 }: {
   readonly row: CardRow;
-  readonly index: number;
+  readonly top: number;
   readonly nameWidth: number;
+  readonly width: number;
   readonly onTick: OnTick;
 }) => {
   const stripX = nameWidth + GAP;
@@ -162,7 +311,7 @@ const Row = ({
     <g
       role="group"
       aria-label={`Marks of ${name}`}
-      transform={`translate(${PADDING_X} ${PADDING_Y + HEADER_HEIGHT + index * ROW_HEIGHT})`}
+      transform={`translate(${PADDING_X} ${PADDING_Y + HEADER_HEIGHT + top})`}
     >
       <text className="card-name" y={ROW_HEIGHT / 2}>
         {shownName}
@@ -191,9 +340,13 @@ const Row = ({
       >
         {count}
       </text>
+      {lines.length > 0 && <CardLines lines={lines} width={width} onTick={onTick} />}
     </g>
   );
 };
+
+const topsOf = (rows: ReadonlyArray<CardRow>): ReadonlyArray<number> =>
+  rows.map((_, index) => rows.slice(0, index).reduce((sum, row) => sum + rowHeight(row), 0));
 
 export const LogicCardBody = ({
   card,
@@ -201,14 +354,19 @@ export const LogicCardBody = ({
   formerLabel,
   width,
   onTick,
+  onOpen,
+  opened,
 }: {
   readonly card: LogicCard;
   readonly label: string;
   readonly formerLabel: string | undefined;
   readonly width: number;
   readonly onTick: OnTick;
+  readonly onOpen: (() => void) | undefined;
+  readonly opened: boolean;
 }) => {
   const middle = PADDING_Y + HEADER_HEIGHT / 2;
+  const tops = topsOf(card.rows);
   return (
     <>
       <text className="card-file" x={PADDING_X} y={middle}>
@@ -219,11 +377,40 @@ export const LogicCardBody = ({
           </tspan>
         )}
       </text>
-      <text className="card-total" x={width - PADDING_X} y={middle}>
+      <text className="card-total" x={width - PADDING_X - OPEN_WIDTH} y={middle}>
         {card.count}
       </text>
+      {onOpen && (
+        <g
+          className="card-open"
+          role="button"
+          tabIndex={-1}
+          aria-label={`Code of ${label}`}
+          aria-pressed={opened}
+          onClick={event => {
+            event.stopPropagation();
+            onOpen();
+          }}
+          transform={`translate(${width - PADDING_X - OPEN_WIDTH + GAP} ${PADDING_Y + 3})`}
+        >
+          <path
+            className="card-open-plate"
+            d={boxPath(0, 0, OPEN_WIDTH - GAP, HEADER_HEIGHT - 8)}
+          />
+          <text className="card-open-word" x={(OPEN_WIDTH - GAP) / 2} y={(HEADER_HEIGHT - 8) / 2}>
+            {opened ? 'less' : 'code'}
+          </text>
+        </g>
+      )}
       {card.rows.map((row, index) => (
-        <Row key={row.id} row={row} index={index} nameWidth={card.nameWidth} onTick={onTick} />
+        <Row
+          key={row.id}
+          row={row}
+          top={tops[index] ?? 0}
+          nameWidth={card.nameWidth}
+          width={width - 2 * PADDING_X}
+          onTick={onTick}
+        />
       ))}
     </>
   );

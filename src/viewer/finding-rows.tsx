@@ -19,7 +19,11 @@ export const FindingRows = ({ found, answers, onAnswer }: FindingRowsProps) => {
   return (
     <ul className="note-findings" aria-label="Findings">
       {found.map(finding => (
-        <li key={finding.id} {...marksOf({ kind: 'finding', id: finding.id })}>
+        <li
+          key={finding.id}
+          data-level={finding.level}
+          {...marksOf({ kind: 'finding', id: finding.id })}
+        >
           <LevelMark level={finding.level} />
           {findingLine(finding)}
           {onAnswer && (

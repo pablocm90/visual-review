@@ -1,4 +1,4 @@
-import { CHECK_TITLES } from './checks.ts';
+import { CHECK_TITLES, isNotRead } from './checks.ts';
 import type { Finding } from './findings.ts';
 import { endsOfId, type GraphNode } from './graph.ts';
 import type { NodeMetrics } from './metrics.ts';
@@ -42,10 +42,7 @@ export const startHere = ({ findings, metrics, nodes }: StartHereOptions) => {
     target === undefined
       ? Number.POSITIVE_INFINITY
       : Math.max(...endsOfId(target).map(end => metrics[end]?.head?.[measure] ?? 0));
-  const isBlindSpot = ({ target, dimension, check }: Finding) =>
-    target === undefined &&
-    (!(dimension === 'dependencies' || dimension === 'schema' || dimension === 'routes') ||
-      check.endsWith(':not-read'));
+  const isBlindSpot = ({ check }: Finding) => isNotRead(check);
   const ranked = findings.toSorted(
     (one, other) =>
       Number(other.level === 'look') - Number(one.level === 'look') ||
@@ -69,8 +66,15 @@ export const startHere = ({ findings, metrics, nodes }: StartHereOptions) => {
       }),
     ),
   );
+  const fronted = (line: StartHereLine) => line.level === 'look' || line.findings.some(isBlindSpot);
   return {
     lines: lines.slice(0, SHOWN),
+    front: lines.filter(fronted).slice(0, SHOWN),
+    frontCut: Math.max(0, lines.filter(fronted).length - SHOWN),
+    information: lines
+      .filter(line => !fronted(line))
+      .reduce((sum, line) => sum + line.findings.length, 0),
+    rest: lines.filter(line => !fronted(line)),
     look: findings.filter(({ level }) => level === 'look').length,
     total: findings.length,
   };

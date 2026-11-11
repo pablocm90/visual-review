@@ -1,5 +1,4 @@
 import { type Coverage, coverageOf } from './coverage.ts';
-import { FLIPPER_FLAGS } from './deploy-findings.ts';
 import { diffGraphs, type FilePatch, type GraphDiff, isAtOrUnder } from './diff-graphs.ts';
 import { type Finding, raisedFindings } from './findings.ts';
 import type { DanglingCall } from './linker.ts';
@@ -8,10 +7,10 @@ import { type NodeMetrics, nodeMetrics } from './metrics.ts';
 import { notesProblems, type ReviewNotes } from './notes.ts';
 import type { DependencyChanges } from './read-lockfiles.ts';
 import type { MigrationReading } from './read-migrations.ts';
-import type { RangeReading, SymbolFile } from './read-range.ts';
 import type { Reach } from './read-reaches.ts';
 import type { RoutesReading } from './read-routes.ts';
 import type { SchemaReading } from './read-schemas.ts';
+import type { RangeReading, SymbolFile } from './reading.ts';
 import { type ReadingOrder, readingOrder } from './reading-order.ts';
 import type { Review } from './review.ts';
 import { masked, secretValues } from './secret-findings.ts';
@@ -19,6 +18,7 @@ import { type SinceReview, sinceReviewOf } from './since-review.ts';
 import type { Skipped } from './skipped.ts';
 import { splitSuggestion } from './split-suggestion.ts';
 import type { TestFile } from './test-changes.ts';
+import { testsAfterSubjects } from './tests-alongside.ts';
 
 export type PullRequest = {
   readonly number: number;
@@ -90,34 +90,22 @@ export const pageData = ({
     diff.nodes.some(node => isAtOrUnder(path, node));
   const metrics = nodeMetrics({ diff, ...reading });
   const undrawn = reading.patches.filter(patch => !isDrawn(patch));
-  const order = readingOrder(diff);
+  const ordered = readingOrder(diff);
+  const order = {
+    ...ordered,
+    parts: testsAfterSubjects({ ...ordered, nodes: diff.nodes, tests: reading.tests }),
+  };
   const findings = raisedFindings({
-    skipped: reading.skipped,
-    changedPaths: reading.changedPaths,
-    patches: reading.patches,
+    ...reading,
     undrawn,
-    dangling: reading.danglingCalls,
-    dependencyChanges: reading.dependencyChanges,
-    migrations: reading.migrations,
-    schemas: reading.schemas,
-    routes: reading.routes,
-    access: reading.access,
-    openActions: reading.openActions,
     metricFindings: metricFindings({ metrics, thresholds: reading.thresholds }),
-    symbols: reading.symbols,
-    symbolsNotRead: reading.symbolsNotRead,
-    reaches: reading.reaches,
     nodes: diff.nodes,
-    tests: reading.tests,
+    edges: diff.edges,
     split: splitSuggestion({
       parts: order.parts,
       edges: diff.edges,
       splitParts: reading.thresholds.splitParts,
     }),
-    ruleBreaks: reading.ruleBreaks,
-    edges: diff.edges,
-    keysAtBase: reading.deployKeysAtBase,
-    flags: reading.deployConfig.flags ?? FLIPPER_FLAGS,
   });
   const data: PageData = {
     repo,

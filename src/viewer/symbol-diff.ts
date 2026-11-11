@@ -1,4 +1,5 @@
-import type { SymbolFile } from '../core/read-range.ts';
+import type { LogicLine } from '../core/logic-diff.ts';
+import type { SymbolFile } from '../core/reading.ts';
 import type { SymbolStatement } from '../core/symbol-changes.ts';
 import type { PatchLine } from './highlight-patch.ts';
 
@@ -82,3 +83,132 @@ export const rowsOfSymbol = ({
     return kept.some(isChange) ? [headerOf(kept), ...kept] : [];
   });
 };
+
+export type DecisionAt = { readonly side: 'base' | 'head'; readonly line: number };
+
+/** The rows a decision sits in: its run of added and removed rows, with one row either side. */
+export type Block = { readonly from: number; readonly to: number };
+
+export const blockAround = (
+  rows: ReadonlyArray<PatchLine>,
+  { side, line }: DecisionAt,
+): Block | undefined => {
+  const at = rows.findIndex(row => row.kind !== 'header' && row[side] === line);
+  const row = rows[at];
+  if (row === undefined) return undefined;
+  if (!isChange(row)) return { from: at, to: at };
+  const changed = (index: number) => {
+    const each = rows[index];
+    return each !== undefined && isChange(each);
+  };
+  const first = rows.findLastIndex((_, index) => index < at && !changed(index)) + 1;
+  const after = rows.findIndex((_, index) => index > at && !changed(index));
+  const last = (after === -1 ? rows.length : after) - 1;
+  const context = (index: number) => {
+    const row = rows[index];
+    return row?.kind === 'context' && row.pieces.some(piece => piece.text.trim() !== '');
+  };
+  return { from: context(first - 1) ? first - 1 : first, to: context(last + 1) ? last + 1 : last };
+};
+
+/** Whether two blocks overlap or touch, so their rows read as one stretch of the patch. */
+export const blocksMeet = (one: Block | undefined, other: Block | undefined): boolean =>
+  one !== undefined && other !== undefined && one.from <= other.to + 1 && other.from <= one.to + 1;
+
+type DecisionPlace = { readonly change: string; readonly head?: string; readonly line: number };
+
+/** Where a decision is read: its head line, or its base line when the head lost it. */
+export const decisionAt = ({ head, line }: DecisionPlace): DecisionAt => ({
+  side: head === undefined ? 'base' : 'head',
+  line,
+});
+
+/** Whether a patch row holds the decision: its own row, or the row a changed one was. */
+export const holdsDecision = (decision: DecisionPlace, row: PatchLine): boolean => {
+  const { side, line } = decisionAt(decision);
+  const own =
+    row[side] === line &&
+    (row.kind === 'context' || row.kind === (side === 'base' ? 'removed' : 'added'));
+  return own || (decision.change === 'changed' && row.kind === 'removed' && row.base === line);
+};
+
+/** How a logic line's change reads: added `+`, removed `−`, changed `~`, moved `→`, same `·`. */
+export const MARKS: Readonly<Record<LogicLine['change'], string>> = {
+  same: '·',
+  added: '+',
+  removed: '−',
+  changed: '~',
+  moved: '→',
+};
+
+/** The word a decision's row is tagged with in a diff: its change's mark and its kind. */
+export const decisionTag = ({ change, kind }: Pick<LogicLine, 'change' | 'kind'>): string =>
+  `${MARKS[change]} ${kind}`;
+
+type Decided = { readonly line: DecisionPlace & Pick<LogicLine, 'change' | 'kind'> };
+
+export type DecisionRun<T extends Decided> = {
+  readonly decisions: ReadonlyArray<T>;
+  readonly block: Block | undefined;
+};
+
+/**
+ * Decisions in order, each run of consecutive ones whose blocks meet taken together with the block
+ * they span: the stretch of the patch shown once for them, in the inspector and on a card alike.
+ */
+export const decisionRuns = <T extends Decided>(
+  decisions: ReadonlyArray<T>,
+  rows: ReadonlyArray<PatchLine>,
+): ReadonlyArray<DecisionRun<T>> => {
+  const runs: Array<DecisionRun<T>> = [];
+  for (const decision of decisions) {
+    const block = blockAround(rows, decisionAt(decision.line));
+    const last = runs.at(-1);
+    if (last?.block && block && blocksMeet(last.block, block))
+      runs[runs.length - 1] = {
+        decisions: [...last.decisions, decision],
+        block: {
+          from: Math.min(last.block.from, block.from),
+          to: Math.max(last.block.to, block.to),
+        },
+      };
+    else runs.push({ decisions: [decision], block });
+  }
+  return runs;
+};
+
+/** Each row of a run's block, with the tags of the decisions it holds, or undefined for none. */
+export const tagsOfRun = <T extends Decided>(
+  { decisions, block }: DecisionRun<T>,
+  rows: ReadonlyArray<PatchLine>,
+): ReadonlyArray<string | undefined> =>
+  block === undefined
+    ? []
+    : rows.slice(block.from, block.to + 1).map(row => {
+        const tags = decisions
+          .filter(({ line }) => holdsDecision(line, row))
+          .map(({ line }) => decisionTag(line));
+        return tags.length === 0 ? undefined : tags.join(' ');
+      });
+
+type Spanned = Pick<SymbolStatement, 'lines'> & {
+  readonly logic?: ReadonlyArray<DecisionPlace> | undefined;
+};
+
+/** Whether the diff under a symbol's logic changes holds a changed row on its first line. */
+export const logicDiffHoldsSignature = (
+  rows: ReadonlyArray<PatchLine>,
+  { lines, logic = [] }: Spanned,
+): boolean =>
+  logic
+    .filter(line => line.change !== 'same')
+    .flatMap(line => blockAround(rows, decisionAt(line)) ?? [])
+    .some(({ from, to }) =>
+      rows
+        .slice(from, to + 1)
+        .some(
+          row =>
+            (row.kind === 'added' && row.head === lines.head?.start) ||
+            (row.kind === 'removed' && row.base === lines.base?.start),
+        ),
+    );

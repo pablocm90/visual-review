@@ -1,5 +1,5 @@
 import type { NodeMeasures, NodeMetrics } from './metrics.ts';
-import type { RangeReading } from './read-range.ts';
+import type { RangeReading } from './reading.ts';
 
 type Hotspot = RangeReading['thresholds']['hotspot'];
 

@@ -228,3 +228,50 @@ test.for([
 
   expect({ names: lines[0]?.names, files: lines[0]?.files }).toStrictEqual({ names, files });
 });
+
+test('the front holds what needs a look and what was not read, the rest all of what is for information', () => {
+  const unread: Finding = {
+    id: 'dependencies:not-read:pnpm-lock.yaml',
+    check: 'dependencies:not-read',
+    dimension: 'dependencies',
+    level: 'info',
+    title: 'pnpm-lock.yaml not read',
+  };
+  const findings = [
+    ...raisedOver('api:signature', 'look', 2, 2),
+    ...raisedOver('api:added', 'info', 3, 3),
+    ...raisedOver('metrics:hotspot', 'info', 1, 1),
+    unread,
+  ];
+
+  const { front, rest } = startHere({ findings, metrics: {}, nodes });
+
+  expect(front.map(line => line.title)).toStrictEqual([
+    '2 exported signatures changed',
+    'pnpm-lock.yaml not read',
+  ]);
+  expect(rest.map(line => line.key).toSorted()).toStrictEqual([
+    'api:added info',
+    'metrics:hotspot info',
+  ]);
+});
+
+test('past five lines to look at, the front says how many it cut, and those never count for information', () => {
+  const flags = Array.from({ length: 7 }, (_, at) =>
+    findingOn(`web/file/${at}.ts`, {
+      id: `flag ${at}`,
+      check: 'flag',
+      level: 'look',
+      title: `${at}`,
+    }),
+  );
+  const { front, frontCut, information } = startHere({
+    findings: [...flags, ...raisedOver('api:added', 'info', 3, 3)],
+    metrics: {},
+    nodes,
+  });
+
+  expect(front).toHaveLength(5);
+  expect(frontCut).toBe(2);
+  expect(information).toBe(3);
+});

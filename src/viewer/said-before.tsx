@@ -10,7 +10,6 @@ import {
   CommentField,
   type CommentFieldProps,
   CommentOpener,
-  type Comments,
 } from './comment-field.tsx';
 import { ANSWER_KINDS } from './finding-display.tsx';
 import { Ref } from './ref.tsx';
@@ -65,8 +64,6 @@ const ClaudesAnswer = ({ answer }: { readonly answer: Answers[string] }) => (
 type Responding = {
   readonly resolved: ReadonlyArray<PreviousComment>;
   readonly onResolve: (comment: PreviousComment) => void;
-  readonly comments: Comments;
-  readonly onComment: (comment: Comment) => void;
 };
 
 const RespondingToLastSaid = createContext<Responding | undefined>(undefined);
@@ -105,15 +102,7 @@ const Reply = ({ comment, landing }: Landed & { readonly comment: PreviousCommen
   const responding = useContext(RespondingToLastSaid);
   const anchor = anchorAtHead(comment);
   if (responding === undefined || anchor.kind === 'finding') return null;
-  return (
-    <CommentOpener
-      word="Reply"
-      landing={landing}
-      anchor={anchor}
-      comments={responding.comments}
-      onComment={responding.onComment}
-    />
-  );
+  return <CommentOpener word="Reply" landing={landing} anchor={anchor} />;
 };
 
 export const Said = ({ landing, ...said }: Marked & Landed) => {

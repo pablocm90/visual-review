@@ -14,7 +14,7 @@ import type {
   ReviewedHead,
   ReviewedReading,
   SymbolFile,
-} from './read-range.ts';
+} from './reading.ts';
 import type { Review } from './review.ts';
 import type { SymbolStatement } from './symbol-changes.ts';
 import type { TestFile } from './test-changes.ts';
@@ -682,8 +682,8 @@ test.for([
     prefix: 'api:removed',
   },
   {
-    how: 'added',
-    change: { exported: { head: true }, change: 'added' },
+    how: 'newly exported',
+    change: { exported: { base: false, head: true }, change: 'edited' },
     prefix: 'api:added',
   },
   {
@@ -715,6 +715,36 @@ test.for([
     ).toStrictEqual([`${prefix}:web/file/a.ts#C.x`, `${prefix}:web/file/a.ts#C.x#2`]);
   },
 );
+
+test("a file's exports added with it are one finding for information listing them; one newly exported keeps its own", () => {
+  const symbol = (
+    name: string,
+    kind: SymbolStatement['kind'],
+    change: Pick<SymbolStatement, 'exported' | 'change'>,
+  ): SymbolStatement => ({ name, kind, lines: {}, ...change });
+  const added = { exported: { head: true }, change: 'added' } as const;
+
+  expect(
+    findingsOfSymbols([
+      symbolFile([
+        symbol('Parts', 'type', added),
+        symbol('assemble', 'function', added),
+        symbol('total', 'function', { exported: { base: false, head: true }, change: 'edited' }),
+      ]),
+    ]).map(({ id, title, detail }) => ({ id, title, detail })),
+  ).toStrictEqual([
+    {
+      id: 'api:added:web/file/a.ts',
+      title: '2 exported symbols added',
+      detail: 'type Parts, function assemble',
+    },
+    {
+      id: 'api:added:web/file/a.ts#total',
+      title: 'function total now exported',
+      detail: undefined,
+    },
+  ]);
+});
 
 test('an exported symbol whose signature changed is an api finding to look at, its detail summing up what moved; one changed on a symbol not exported raises none', () => {
   const signature = { base: '(order: Order)', head: '(order: Order, at: Date)' };
@@ -3897,4 +3927,39 @@ test('a secret held in a node id is masked in the keys keyed by that id too, so 
     holdsKey: JSON.stringify(data).includes(AWS_KEY),
     metricsFound: data.metrics['web/file/AKIA…(20 chars).ts'] !== undefined,
   }).toStrictEqual({ holdsKey: false, metricsFound: true });
+});
+
+test('a hotspot is raised on a file the change touches, not on one a hop away, whose metrics still read', () => {
+  const measured = {
+    lines: 1,
+    functions: [{ name: 'f', cyclomatic: 9, abc: { assignments: 0, branches: 0, conditions: 0 } }],
+  };
+  const side = {
+    nodes: [webStack, webFile('a.ts'), webFile('b.ts')],
+    edges: [{ from: 'web/file/a.ts', to: 'web/file/b.ts' }],
+  };
+  const data = pageData({
+    repo: 'shop',
+    reading: readingWith({
+      before: side,
+      after: side,
+      churn: {
+        before: { 'web/src/a.ts': 9, 'web/src/b.ts': 9 },
+        after: { 'web/src/a.ts': 9, 'web/src/b.ts': 9 },
+      },
+      measures: {
+        before: { 'web/src/a.ts': measured, 'web/src/b.ts': measured },
+        after: { 'web/src/a.ts': measured, 'web/src/b.ts': measured },
+      },
+      thresholds: { cyclomatic: 20, splitParts: 4, hotspot: { churn: 3, cyclomatic: 5 } },
+    }),
+    range: 'main..feature',
+    version,
+    parsers,
+  });
+
+  expect(Object.keys(data.metrics)).toContain('web/file/b.ts');
+  expect(
+    data.findings.filter(({ check }) => check === 'metrics:hotspot').map(({ target }) => target),
+  ).toStrictEqual(['web/file/a.ts']);
 });

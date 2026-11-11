@@ -1,7 +1,16 @@
 import { expect, test } from 'vitest';
 import type { SymbolStatement } from '../core/symbol-changes.ts';
 import { highlightPatch } from './highlight-patch.ts';
-import { holdsFirstLine, otherEndOf, rowsOfSymbol } from './symbol-diff.ts';
+import {
+  blockAround,
+  blocksMeet,
+  decisionRuns,
+  holdsFirstLine,
+  logicDiffHoldsSignature,
+  otherEndOf,
+  rowsOfSymbol,
+  tagsOfRun,
+} from './symbol-diff.ts';
 
 const rowsOf = (...lines: readonly string[]) =>
   highlightPatch({ path: 'a.ts', patch: lines.join('\n') });
@@ -284,4 +293,102 @@ test('otherEndOf: the end it left is found from the end it came to', () => {
       files: [fileHolding('from', [left])],
     })?.lines,
   ).toBe(left.lines);
+});
+
+const GUARDS = rowsOf(
+  '@@ -16,5 +16,8 @@',
+  '   if (key === null) return [];',
+  '   const named = key;',
+  '-  if (value?.type !== "array") return [named];',
+  '+  if (value === null) return [];',
+  '+  if (value.type !== "array")',
+  '+    return [];',
+  '   return keysIn(value);',
+  ' };',
+);
+
+const between = (block: ReturnType<typeof blockAround>) =>
+  block && shown(GUARDS.slice(block.from, block.to + 1));
+
+test("a decision's block is its run of changed rows with a row of context either side, from either side's numbers", () => {
+  const run = [
+    '   const named = key;',
+    '-  if (value?.type !== "array") return [named];',
+    '+  if (value === null) return [];',
+    '+  if (value.type !== "array")',
+    '+    return [];',
+    '   return keysIn(value);',
+  ];
+  expect(between(blockAround(GUARDS, { side: 'head', line: 19 }))).toStrictEqual(run);
+  expect(between(blockAround(GUARDS, { side: 'base', line: 18 }))).toStrictEqual(run);
+});
+
+test('a decision on an unchanged row is that row alone, and one the patch lacks has no block', () => {
+  expect(between(blockAround(GUARDS, { side: 'head', line: 16 }))).toStrictEqual([
+    '   if (key === null) return [];',
+  ]);
+  expect(blockAround(GUARDS, { side: 'head', line: 90 })).toBeUndefined();
+});
+
+const decided = (change: 'added' | 'changed' | 'removed', line: number) => ({
+  line: { change, kind: 'guard' as const, line, ...(change === 'removed' ? {} : { head: 'if' }) },
+});
+
+test('decisions run together while their blocks overlap or touch, a decision on the row next to a block joining it', () => {
+  const runs = decisionRuns(
+    [decided('added', 18), decided('added', 20), decided('added', 16)],
+    GUARDS,
+  );
+  expect(runs.map(({ decisions, block }) => [decisions.length, block])).toStrictEqual([
+    [3, { from: 1, to: 7 }],
+  ]);
+  expect(blocksMeet({ from: 0, to: 2 }, { from: 3, to: 4 })).toBe(true);
+  expect(blocksMeet({ from: 0, to: 2 }, { from: 4, to: 4 })).toBe(false);
+  expect(blocksMeet({ from: 0, to: 2 }, undefined)).toBe(false);
+});
+
+test('a run tags each row of its block with the decisions it holds, a changed one on the row it was too', () => {
+  const [run] = decisionRuns([decided('changed', 18), decided('added', 19)], GUARDS);
+  expect(run && tagsOfRun(run, GUARDS)).toStrictEqual([
+    undefined,
+    '~ guard',
+    '~ guard',
+    '+ guard',
+    undefined,
+    undefined,
+  ]);
+});
+
+test("a logic diff holds a symbol's signature when one of its blocks changes the symbol's first line", () => {
+  const rows = rowsOf(
+    '@@ -1,2 +1,3 @@',
+    '-const key = (a: A) => a.x;',
+    '+const key = (a: A) =>',
+    "+  a.unread ? 'u' : a.x;",
+    ' const other = 1;',
+  );
+  const logic = [{ change: 'added', head: 'a.unread ?', line: 2 }] as const;
+  expect(
+    logicDiffHoldsSignature(rows, {
+      lines: { base: { start: 1, end: 1 }, head: { start: 1, end: 2 } },
+      logic,
+    }),
+  ).toBe(true);
+  expect(
+    logicDiffHoldsSignature(rows, {
+      lines: { base: { start: 4, end: 4 }, head: { start: 4, end: 4 } },
+      logic,
+    }),
+  ).toBe(false);
+  expect(logicDiffHoldsSignature(rows, { lines: { head: { start: 1, end: 2 } } })).toBe(false);
+});
+
+test('a block leaves out a blank row of context at its edge', () => {
+  const rows = rowsOf('@@ -1,3 +1,3 @@', ' ', '-const a = 1;', '+const a = 2;', ' const b = 1;');
+  const block = blockAround(rows, { side: 'head', line: 2 });
+  expect(block && shown(rows.slice(block.from, block.to + 1))).toStrictEqual([
+    '-const a = 1;',
+    '+const a = 2;',
+    ' const b = 1;',
+  ]);
 });

@@ -1,7 +1,13 @@
 import { expect, test } from 'vitest';
 import type { GraphNode } from './graph.ts';
 import type { TestFile } from './test-changes.ts';
-import { nodeOfTests, testsAlongside } from './tests-alongside.ts';
+import {
+  nodeOfTests,
+  testPathIn,
+  testsAfterSubjects,
+  testsAlongside,
+  testsWithoutNodes,
+} from './tests-alongside.ts';
 
 const node = (id: string, kind: GraphNode['kind'], path: string, parent?: string): GraphNode => ({
   id,
@@ -41,6 +47,18 @@ test.for([
   },
   {
     test: 'web/src/refunds/other.test.ts',
+    stack: 'web',
+    node: 'web/file/refunds/refund.ts',
+    alongside: true,
+  },
+  {
+    test: 'web/src/orders/other.test.ts',
+    stack: 'web',
+    node: 'web/file/refunds/refund.ts',
+    alongside: false,
+  },
+  {
+    test: 'web/src/refunds/orders.test.ts',
     stack: 'web',
     node: 'web/file/refunds/refund.ts',
     alongside: false,
@@ -105,4 +123,113 @@ test.for([
   expect(
     onIt === undefined ? [file] : testsAlongside({ nodes, node: onIt, tests: [file] }),
   ).toEqual([file]);
+});
+
+const web = (name: string): GraphNode => node(`web/file/${name}`, 'file', `web/src/${name}`, 'web');
+
+test('the reading order reads a test file right after the file it tests, keeping the rest in order', () => {
+  const parts = ['a.ts', 'b.ts', 'c.ts', 'a.test.ts', 'b.spec.ts', 'z.test.ts'].map(
+    name => `web/file/${name}`,
+  );
+  expect(
+    testsAfterSubjects({
+      parts,
+      cycles: [],
+      nodes: [
+        node('web', 'stack', ''),
+        ...['a.ts', 'b.ts', 'c.ts', 'a.test.ts', 'b.spec.ts', 'z.test.ts'].map(web),
+      ],
+      tests: ['a.test.ts', 'b.spec.ts', 'z.test.ts'].map(name =>
+        testFile(`web/src/${name}`, 'web'),
+      ),
+    }),
+  ).toStrictEqual(
+    ['a.ts', 'a.test.ts', 'b.ts', 'b.spec.ts', 'c.ts', 'z.test.ts'].map(name => `web/file/${name}`),
+  );
+});
+
+test('a test file stays where it is when it or its subject is in a cycle, or its subject is in another stack', () => {
+  const parts = ['web/file/a.ts', 'web/file/b.ts', 'web/file/a.test.ts', 'web/file/b.test.ts'];
+  expect(
+    testsAfterSubjects({
+      parts,
+      cycles: [['web/file/a.ts', 'web/file/c.ts']],
+      nodes: [node('web', 'stack', ''), ...['a.ts', 'b.ts', 'a.test.ts', 'b.test.ts'].map(web)],
+      tests: [testFile('web/src/a.test.ts', 'web'), testFile('web/src/b.test.ts', 'api')],
+    }),
+  ).toStrictEqual(parts);
+});
+
+test("a test file named after no node, such as a Rust crate's integration test, tests every node in the crate holding it", () => {
+  const crate: ReadonlyArray<GraphNode> = [
+    node('rust', 'stack', ''),
+    node('rust/crate/app', 'package', 'crates/app', 'rust'),
+    node('rust/mod/app/main.rs', 'file', 'crates/app/src/main.rs', 'rust/crate/app'),
+    node('rust/mod/app/lib.rs', 'file', 'crates/app/src/lib.rs', 'rust/crate/app'),
+    node('rust/crate/other', 'package', 'crates/other', 'rust'),
+    node('rust/mod/other/lib.rs', 'file', 'crates/other/src/lib.rs', 'rust/crate/other'),
+  ];
+  const integration = testFile('crates/app/tests/index.rs', 'rust');
+  const named = testFile('crates/app/tests/lib.rs', 'rust');
+  const alongside = (id: string, test: TestFile) =>
+    testsAlongside({
+      nodes: crate,
+      node: crate.find(each => each.id === id) ?? node(id, 'file', id),
+      tests: [test],
+    }).length > 0;
+  expect(alongside('rust/mod/app/main.rs', integration)).toBe(true);
+  expect(alongside('rust/mod/other/lib.rs', integration)).toBe(false);
+  expect(alongside('rust/mod/app/main.rs', named)).toBe(false);
+  expect(alongside('rust/mod/app/lib.rs', named)).toBe(true);
+  expect(alongside('rust/mod/other/lib.rs', named)).toBe(false);
+});
+
+test('a changed test file with no node of its own is placed under the last part whose Tested by lists it', () => {
+  const crate: ReadonlyArray<GraphNode> = [
+    node('rust', 'stack', ''),
+    node('rust/crate/app', 'package', 'crates/app', 'rust'),
+    node('rust/mod/app/main.rs', 'file', 'crates/app/src/main.rs', 'rust/crate/app'),
+    node('rust/mod/app/run', 'file', 'crates/app/src/run.rs', 'rust/crate/app'),
+    node('rust/mod/app/run.test.rs', 'file', 'crates/app/src/run.test.rs', 'rust/crate/app'),
+  ];
+  const changed = (path: string): TestFile => ({
+    path,
+    stack: 'rust',
+    statements: [{ kind: 'test', name: 'runs', change: 'added' }],
+  });
+  const placed = testsWithoutNodes({
+    parts: ['rust/mod/app/run', 'rust/mod/app/main.rs'],
+    nodes: crate,
+    tests: [
+      changed('crates/app/tests/index.rs'),
+      testFile('crates/app/tests/quiet.rs', 'rust'),
+      changed('crates/app/src/run.test.rs'),
+    ],
+  });
+
+  expect([...placed].map(([part, tests]) => [part, tests.map(({ path }) => path)])).toEqual([
+    ['rust/mod/app/main.rs', ['crates/app/tests/index.rs']],
+  ]);
+  expect(testPathIn(crate, 'crates/app/tests/index.rs')).toBe('tests/index.rs');
+});
+
+test("a crate's test file is named after a module of its own crate only", () => {
+  const crates: ReadonlyArray<GraphNode> = [
+    node('rust', 'stack', ''),
+    node('rust/crate/graph', 'package', 'crates/graph', 'rust'),
+    node('rust/mod/graph/hops', 'file', 'crates/graph/src/hops.rs', 'rust/crate/graph'),
+    node('rust/crate/engine', 'package', 'crates/engine', 'rust'),
+    node('rust/mod/engine/lib.rs', 'file', 'crates/engine/src/lib.rs', 'rust/crate/engine'),
+  ];
+  const hops = testFile('crates/engine/tests/hops.rs', 'rust');
+  const alongside = (id: string) =>
+    testsAlongside({
+      nodes: crates,
+      node: crates.find(each => each.id === id) ?? node(id, 'file', id),
+      tests: [hops],
+    }).length > 0;
+
+  expect(alongside('rust/mod/graph/hops')).toBe(false);
+  expect(alongside('rust/mod/engine/lib.rs')).toBe(true);
+  expect(nodeOfTests({ nodes: crates, file: hops })).toBe('rust/crate/engine');
 });

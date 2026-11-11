@@ -3,6 +3,7 @@ import {
   type ReactNode,
   useContext,
   useLayoutEffect,
+  useMemo,
   useRef,
   useState,
 } from 'react';
@@ -13,20 +14,28 @@ import type { LogicLine } from '../core/logic-diff.ts';
 import { holdsFewChanges, logicTotalsOf, runsOf } from '../core/logic-strip.ts';
 import type { PageData } from '../core/page.ts';
 import type { PreviousComment } from '../core/previous-comments.ts';
-import type { SymbolFile } from '../core/read-range.ts';
-import type { Comment } from '../core/review.ts';
+import type { SymbolFile } from '../core/reading.ts';
 import { testAnchorsIn } from '../core/since-review.ts';
 import { isQuiet, qualified, SYMBOL_GROUPS, type SymbolStatement } from '../core/symbol-changes.ts';
 import { type AnchoredSymbol, anchoredSymbols, decisionsOf } from '../core/symbol-findings.ts';
 import { boxesAboveIn } from '../core/visible-diff.ts';
 import { ChangedSinceTag, sinceLabel, useIsChangedSince } from './changed-since.tsx';
-import type { Comments } from './comment-field.tsx';
+import { useDrafting } from './comment-field.tsx';
+import { highlightPatch, type PatchLine } from './highlight-patch.ts';
 import { LogicLegend, LogicStrip } from './logic-strip.tsx';
 import { RowNote, RowNotes } from './note-block.tsx';
+import { PatchRows, useSaidAt } from './patch-rows.tsx';
 import { CommentOn, SaidBefore, useHasSaid } from './said-before.tsx';
 import { scrollInPanel } from './scroll-in-panel.ts';
 import { Signature } from './signature-lines.tsx';
-import { otherEndOf } from './symbol-diff.ts';
+import {
+  type DecisionRun,
+  decisionRuns,
+  logicDiffHoldsSignature,
+  MARKS,
+  otherEndOf,
+  tagsOfRun,
+} from './symbol-diff.ts';
 import { type SymbolEnd, SymbolLines } from './symbol-lines.tsx';
 
 const symbolsIn = (files: ReadonlyArray<SymbolFile>): ReadonlyArray<SymbolStatement> =>
@@ -48,8 +57,6 @@ type Places = {
   readonly onGoTo: (id: string) => void;
   readonly onShowLine: (at: LineAt) => void;
   readonly onShowRow: (row: string) => void;
-  readonly comments: Comments;
-  readonly onComment: ((comment: Comment) => void) | undefined;
 };
 
 export type RowLanding = { readonly row?: string };
@@ -124,14 +131,6 @@ const nameOf = (symbol: SymbolStatement): string => {
   return mark === undefined ? name : `${name}, ${mark}`;
 };
 
-const MARKS: Readonly<Record<LogicLine['change'], string>> = {
-  same: '·',
-  added: '+',
-  removed: '−',
-  changed: '~',
-  moved: '→',
-};
-
 const textOf = ({ base, head }: LogicLine): string =>
   base !== undefined && head !== undefined ? `${base} → ${head}` : (head ?? base ?? '');
 
@@ -173,7 +172,7 @@ export const logicLabel = (line: LogicLine, nodes: Places['nodes']): string => {
 
 type ShowLine = (at: Omit<LineAt, 'node'>) => void;
 
-type LogicPlaces = Pick<Places, 'nodes' | 'comments' | 'onComment'>;
+type LogicPlaces = Pick<Places, 'nodes'>;
 
 type DecisionRow = ReturnType<typeof decisionsOf>[number] & {
   readonly marked: boolean;
@@ -184,9 +183,8 @@ const LogicRow = ({
   row: { line, id, text, marked, label },
   onShowLine,
   nodes,
-  comments,
-  onComment,
 }: LogicPlaces & { readonly row: DecisionRow; readonly onShowLine: ShowLine }) => {
+  const { onComment } = useDrafting();
   const marksOf = useRowMarks();
   return (
     <li
@@ -211,33 +209,67 @@ const LogicRow = ({
         </button>
       )}
       <ChangedSinceTag marked={marked} />
-      <RowNote
-        anchor={{ kind: 'decision', id, text }}
-        name={logicLabel(line, nodes)}
-        comments={comments}
-      />
+      <RowNote anchor={{ kind: 'decision', id, text }} name={logicLabel(line, nodes)} />
       <SaidBefore on={{ kind: 'decision', id }} />
       {onComment && (
         <CommentOn
           className="logic-comment-on"
           name={logicLabel(line, nodes)}
           anchor={{ kind: 'decision', id, text }}
-          comments={comments}
-          onComment={onComment}
         />
       )}
     </li>
   );
 };
 
+type Shown = DecisionRun<DecisionRow>;
+
+type DiffUnder = {
+  readonly patch: FilePatch;
+  readonly lines: ReadonlyArray<PatchLine>;
+  readonly saidAt: ReturnType<typeof useSaidAt>;
+};
+
+const LogicDiff = ({
+  shown,
+  under,
+  name,
+  ...commenting
+}: LogicPlaces & {
+  readonly shown: Shown;
+  readonly under: DiffUnder;
+  readonly name: string;
+}) =>
+  shown.block && (
+    <li className="logic-diff changes" aria-label={`Diff under ${name}`}>
+      <PatchRows
+        path={under.patch.path}
+        lines={under.lines.slice(shown.block.from, shown.block.to + 1)}
+        tags={tagsOfRun(shown, under.lines)}
+        saidAt={under.saidAt}
+        landedRow={undefined}
+        landed={undefined}
+        {...commenting}
+      />
+    </li>
+  );
+
+const useDiffUnder = (patch: FilePatch | undefined): DiffUnder | undefined => {
+  const lines = useMemo(() => (patch ? highlightPatch(patch) : []), [patch]);
+  const saidAt = useSaidAt(patch?.path ?? '', lines);
+  return patch && { patch, lines, saidAt };
+};
+
 const LogicLines = ({
   symbol,
+  under,
   onShowLine,
   onShowRow,
   fewChanges,
   ...places
 }: LogicPlaces & {
   readonly symbol: AnchoredSymbol;
+  readonly under: DiffUnder | undefined;
   readonly onShowLine: ShowLine;
   readonly onShowRow: Places['onShowRow'];
   readonly fewChanges: boolean;
@@ -246,6 +278,7 @@ const LogicLines = ({
   const hasSaid = useHasSaid();
   const marksOf = useRowMarks();
   const { notes } = useContext(RowNotes);
+  const { comments } = useDrafting();
   const name = `${symbol.item.kind} ${qualified(symbol.item)}`;
   const rows = decisionsOf(symbol).map(decision => {
     const marked = isChangedSince('decisions', decision.id);
@@ -257,7 +290,7 @@ const LogicLines = ({
   });
   const holdsNews = ({ id, marked }: DecisionRow): boolean =>
     marked ||
-    places.comments[anchorKey({ kind: 'decision', id })] !== undefined ||
+    comments[anchorKey({ kind: 'decision', id })] !== undefined ||
     notes[anchorKey({ kind: 'decision', id })] !== undefined ||
     hasSaid({ kind: 'decision', id });
   const rowOf = (row: DecisionRow) => (
@@ -293,7 +326,18 @@ const LogicLines = ({
                   </details>
                 </li>,
               ]
-            : run.rows.map(rowOf),
+            : under === undefined
+              ? run.rows.map(rowOf)
+              : decisionRuns(run.rows, under.lines).flatMap((shown, at) => [
+                  ...shown.decisions.map(rowOf),
+                  <LogicDiff
+                    key={`diff ${shown.decisions[0]?.id ?? at}`}
+                    shown={shown}
+                    under={under}
+                    name={shown.decisions.map(row => row.label).join(', ')}
+                    {...places}
+                  />,
+                ]),
         )}
       </ul>
     </details>
@@ -363,57 +407,49 @@ const SymbolRow = ({
   const isChangedSince = useIsChangedSince();
   const marksOf = useRowMarks();
   const [diffOpen, setDiffOpen] = useState(false);
+  const under = useDiffUnder(symbol.logic === undefined ? undefined : patch);
+  const signatureInDiff = under !== undefined && logicDiffHoldsSignature(under.lines, symbol);
   const name = `${symbol.kind} ${qualified(symbol)}`;
   const ends = isQuiet(symbol) ? [] : endsOf(symbol, { node, patch, inFile }, places);
   return (
     <li
+      className={symbol.logic === undefined ? 'symbol-row' : 'symbol-row symbol-with-logic'}
       aria-label={sinceLabel(`${nameOf(symbol)}: ${symbol.change}`, isChangedSince('symbols', id))}
       {...marksOf({ kind: 'symbol', id })}
     >
-      <SymbolName symbol={symbol} />
-      <ChangedSinceTag marked={isChangedSince('symbols', id)} />
-      <Origin symbol={symbol} {...places} />
-      {ends.length > 0 && (
-        <button
-          type="button"
-          className="symbol-diff"
-          aria-label={`Diff of ${name}`}
-          aria-expanded={diffOpen}
-          onClick={() => setDiffOpen(!diffOpen)}
-        >
-          Diff
-        </button>
+      <div className="symbol-head">
+        <SymbolName symbol={symbol} />
+        <ChangedSinceTag marked={isChangedSince('symbols', id)} />
+        <Origin symbol={symbol} {...places} />
+        {ends.length > 0 && (
+          <button
+            type="button"
+            className="symbol-diff"
+            aria-label={`Diff of ${name}`}
+            aria-expanded={diffOpen}
+            onClick={() => setDiffOpen(!diffOpen)}
+          >
+            {symbol.logic === undefined ? 'Diff' : 'Whole function'}
+          </button>
+        )}
+      </div>
+      {symbol.signature && !signatureInDiff && (
+        <Signature name={name} signature={symbol.signature} />
       )}
-      {symbol.signature && <Signature name={name} signature={symbol.signature} />}
-      <RowNote anchor={{ kind: 'symbol', id }} name={name} comments={places.comments} />
+      <RowNote anchor={{ kind: 'symbol', id }} name={name} />
       <SaidBefore on={{ kind: 'symbol', id }} />
-      {places.onComment && (
-        <CommentOn
-          name={name}
-          anchor={{ kind: 'symbol', id }}
-          comments={places.comments}
-          onComment={places.onComment}
-        />
-      )}
+      <CommentOn name={name} anchor={{ kind: 'symbol', id }} />
       {symbol.logic !== undefined && (
         <LogicLines
           symbol={{ item: symbol, id }}
+          under={under}
           onShowLine={at => places.onShowLine({ node, ...at })}
           onShowRow={places.onShowRow}
           fewChanges={holdsFewChanges(inFile)}
           nodes={places.nodes}
-          comments={places.comments}
-          onComment={places.onComment}
         />
       )}
-      {diffOpen && (
-        <SymbolLines
-          ends={ends}
-          nodes={places.nodes}
-          comments={places.comments}
-          onComment={places.onComment}
-        />
-      )}
+      {diffOpen && <SymbolLines ends={ends} nodes={places.nodes} />}
     </li>
   );
 };
@@ -435,6 +471,7 @@ const SymbolList = ({
 );
 
 const SymbolFiles = ({ file, ...places }: Places & { readonly file: SymbolFile }) => {
+  const { comments } = useDrafting();
   const inFile = 'symbols' in file ? file.symbols : [];
   const symbols = anchoredSymbols(file.node, inFile);
   const quiet = symbols.filter(({ item }) => isQuiet(item));
@@ -462,7 +499,7 @@ const SymbolFiles = ({ file, ...places }: Places & { readonly file: SymbolFile }
           aria-label="Unchanged symbols"
           open={quiet.some(
             symbol =>
-              places.comments[anchorKey({ kind: 'symbol', id: symbol.id })] !== undefined ||
+              comments[anchorKey({ kind: 'symbol', id: symbol.id })] !== undefined ||
               holdsNews(symbol),
           )}
         >
@@ -558,13 +595,27 @@ export const WhatChanged = ({
   readonly files: ReadonlyArray<SymbolFile>;
 }) => {
   const count = changedSymbolCount(files);
+  const [keyOpen, setKeyOpen] = useState(false);
+  const withLogic = symbolsIn(files).some(({ logic }) => logic !== undefined);
   return (
     <section className="column-section symbols" aria-label="What changed">
-      <h3>
-        What changed{count > 0 && ` ${count}`}
-        <LogicSummary files={files} />
-      </h3>
-      {symbolsIn(files).some(({ logic }) => logic !== undefined) && <LogicLegend />}
+      <div className="what-changed-head">
+        <h3>
+          What changed{count > 0 && ` ${count}`}
+          <LogicSummary files={files} />
+        </h3>
+        {withLogic && (
+          <button
+            type="button"
+            className="logic-key"
+            aria-expanded={keyOpen}
+            onClick={() => setKeyOpen(!keyOpen)}
+          >
+            Key
+          </button>
+        )}
+      </div>
+      {withLogic && keyOpen && <LogicLegend />}
       <SymbolsOf node={node} files={files} {...places} />
     </section>
   );

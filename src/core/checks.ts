@@ -46,3 +46,20 @@ export const CHECK_TITLES = {
 } as const;
 
 export type Check = keyof typeof CHECK_TITLES;
+
+/**
+ * The checks that say something couldn't be read: a reader not run, symbols, lockfiles, schema
+ * dumps or route files not read. Start here calls them blind spots, ranks them first and keeps them
+ * in front with what needs a look, whatever their level.
+ */
+export const NOT_READ_CHECKS: ReadonlySet<Check> = new Set<Check>([
+  'structure:skipped',
+  'structure:symbols-not-read',
+  'structure:unreadable-symbols',
+  'routes:not-read',
+  'dependencies:not-read',
+  'schema:not-read',
+]);
+
+export const isNotRead = (check: Check | 'flag'): boolean =>
+  check !== 'flag' && NOT_READ_CHECKS.has(check);

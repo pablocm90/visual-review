@@ -1,11 +1,31 @@
-import { useLayoutEffect, useRef } from 'react';
+import { Fragment, useLayoutEffect, useRef } from 'react';
 import type { Finding } from '../core/findings.ts';
 import type { PageData } from '../core/page.ts';
+import { partLabels } from '../core/reading-order.ts';
+import { subjectsOfTests, testPathIn, testsWithoutNodes } from '../core/tests-alongside.ts';
 import { LEVELS, LevelMark, worstOf } from './finding-display.tsx';
 import { scrollInPanel } from './scroll-in-panel.ts';
 
+const subjectsOf = ({
+  diff,
+  readingOrder,
+  tests,
+}: Pick<PageData, 'diff' | 'readingOrder' | 'tests'>) =>
+  subjectsOfTests({ ...readingOrder, nodes: diff.nodes, tests });
+
+/** The changed test files with no node of their own, under the part whose Tested by lists them. */
+const testsUnder = ({
+  diff,
+  readingOrder,
+  tests,
+}: Pick<PageData, 'diff' | 'readingOrder' | 'tests'>) => {
+  const under = testsWithoutNodes({ parts: readingOrder.parts, nodes: diff.nodes, tests });
+  return (part: string) =>
+    (under.get(part) ?? []).map(({ path }) => ({ path, label: testPathIn(diff.nodes, path) }));
+};
+
 type ReadingStopsProps = {
-  readonly review: Pick<PageData, 'diff' | 'readingOrder' | 'undrawn'>;
+  readonly review: Pick<PageData, 'diff' | 'readingOrder' | 'undrawn' | 'tests'>;
   readonly read: ReadonlySet<string>;
   readonly current: string | undefined;
   readonly onGoTo: (id: string) => void;
@@ -13,7 +33,7 @@ type ReadingStopsProps = {
 };
 
 type ReadingOrderListProps = {
-  readonly review: Pick<PageData, 'diff' | 'readingOrder' | 'undrawn'>;
+  readonly review: Pick<PageData, 'diff' | 'readingOrder' | 'undrawn' | 'tests'>;
   readonly findings: ReadonlyArray<Finding>;
   readonly read: ReadonlySet<string>;
   readonly commentable: boolean;
@@ -38,20 +58,21 @@ const FindingsMark = ({ findings }: { readonly findings: ReadonlyArray<Finding> 
 };
 
 type StopProps = {
-  readonly number: number;
+  readonly number?: number;
   readonly label: string | undefined;
+  readonly test?: boolean;
   readonly read: boolean;
   readonly current: boolean;
   readonly onClick: (opener: HTMLButtonElement) => void;
 };
 
-const Stop = ({ number, label, read, current, onClick }: StopProps) => {
+const Stop = ({ number, label, test = false, read, current, onClick }: StopProps) => {
   const button = useRef<HTMLButtonElement>(null);
   useLayoutEffect(() => {
     if (current && button.current) scrollInPanel(button.current, 'nearest');
   }, [current]);
   return (
-    <li className="reading-stop">
+    <li className={test ? 'reading-stop reading-stop-test' : 'reading-stop'}>
       <button
         type="button"
         className="reading-stop-button"
@@ -60,8 +81,12 @@ const Stop = ({ number, label, read, current, onClick }: StopProps) => {
         ref={button}
         onClick={event => onClick(event.currentTarget)}
       >
-        <span className="reading-number">{number}</span>{' '}
-        <span className="visually-hidden">{label}</span>
+        {number !== undefined && (
+          <>
+            <span className="reading-number">{number}</span>{' '}
+          </>
+        )}
+        <span className="reading-stop-label">{label}</span>
       </button>
       {read && (
         <span className="reading-read" role="img" aria-label="read">
@@ -79,20 +104,34 @@ export const ReadingStops = ({
   onGoTo,
   onShowOutside,
 }: ReadingStopsProps) => {
-  const labelOf = new Map(review.diff.nodes.map(node => [node.id, node.label]));
+  const labelOf = partLabels(review.diff.nodes, review.readingOrder.parts);
   const { parts } = review.readingOrder;
+  const subjects = subjectsOf(review);
+  const testsOf = testsUnder(review);
   return (
     <nav className="reading-stops" aria-label="Reading order">
       <ol>
         {parts.map((part, index) => (
-          <Stop
-            key={part}
-            number={index + 1}
-            label={labelOf.get(part)}
-            read={read.has(part)}
-            current={part === current}
-            onClick={() => onGoTo(part)}
-          />
+          <Fragment key={part}>
+            <Stop
+              number={index + 1}
+              label={labelOf.get(part)}
+              test={subjects.has(part)}
+              read={read.has(part)}
+              current={part === current}
+              onClick={() => onGoTo(part)}
+            />
+            {testsOf(part).map(({ path, label }) => (
+              <Stop
+                key={path}
+                label={label}
+                test
+                read={false}
+                current={false}
+                onClick={() => onGoTo(part)}
+              />
+            ))}
+          </Fragment>
         ))}
         {review.undrawn.map(({ path }, index) => (
           <Stop
@@ -119,9 +158,11 @@ export const ReadingOrderList = ({
   onShowOutside,
 }: ReadingOrderListProps) => {
   if (review.readingOrder.parts.length === 0 && review.undrawn.length === 0) return null;
-  const labelOf = new Map(review.diff.nodes.map(node => [node.id, node.label]));
+  const labelOf = partLabels(review.diff.nodes, review.readingOrder.parts);
   const findingsOn = Map.groupBy(findings, finding => finding.target);
   const cycleFrom = new Map(review.readingOrder.cycles.map(cycle => [cycle[0], cycle.length]));
+  const subjects = subjectsOf(review);
+  const testsOf = testsUnder(review);
   return (
     <nav className="reading-order" aria-label="Reading order">
       <h2 className="reading-order-title">Reading order</h2>
@@ -145,22 +186,35 @@ export const ReadingOrderList = ({
           const found = findingsOn.get(part);
           const cycle = cycleFrom.get(part);
           return (
-            <li key={part} className="reading-order-row">
-              <button type="button" className="reading-order-part" onClick={() => onGoTo(part)}>
-                <span className="reading-number">{index + 1}</span> {labelOf.get(part)}
-              </button>
-              {read.has(part) && (
-                <span className="reading-read" role="img" aria-label="read">
-                  ✓
-                </span>
-              )}
-              {found && <FindingsMark findings={found} />}
-              {cycle !== undefined && (
-                <p className="reading-cycle">
-                  {cycle} parts depend on each other: read in name order
-                </p>
-              )}
-            </li>
+            <Fragment key={part}>
+              <li
+                className={
+                  subjects.has(part) ? 'reading-order-row reading-order-test' : 'reading-order-row'
+                }
+              >
+                <button type="button" className="reading-order-part" onClick={() => onGoTo(part)}>
+                  <span className="reading-number">{index + 1}</span> {labelOf.get(part)}
+                </button>
+                {read.has(part) && (
+                  <span className="reading-read" role="img" aria-label="read">
+                    ✓
+                  </span>
+                )}
+                {found && <FindingsMark findings={found} />}
+                {cycle !== undefined && (
+                  <p className="reading-cycle">
+                    These {cycle} import each other, so they're read alphabetically
+                  </p>
+                )}
+              </li>
+              {testsOf(part).map(({ path, label }) => (
+                <li key={path} className="reading-order-row reading-order-test">
+                  <button type="button" className="reading-order-part" onClick={() => onGoTo(part)}>
+                    {label}
+                  </button>
+                </li>
+              ))}
+            </Fragment>
           );
         })}
       </ol>

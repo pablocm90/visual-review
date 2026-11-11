@@ -1,26 +1,19 @@
 import { accessFindings } from './access-findings.ts';
 import { anchorOfKey, anchorTarget, fileOfLine, isNoted, type Noted } from './anchors.ts';
-import type { Check } from './checks.ts';
+import { counted } from './counted.ts';
 import { dependencyFindings } from './dependency-findings.ts';
-import { deployFlagFindings, deployKeyFindings } from './deploy-findings.ts';
+import { deployFlagFindings, deployKeyFindings, FLIPPER_FLAGS } from './deploy-findings.ts';
 import type { FilePatch, GraphDiff } from './diff-graphs.ts';
+import type { Finding } from './finding.ts';
 import { endsOfId, type GraphNode } from './graph.ts';
-import type { DanglingCall } from './linker.ts';
 import type { MetricFinding } from './metric-findings.ts';
 import { tenths } from './metrics.ts';
 import { migrationFindings } from './migration-findings.ts';
 import type { ReviewNotes } from './notes.ts';
 import type { PageData } from './page.ts';
 import { reachFindings } from './reach-findings.ts';
-import type { AccessReading } from './read-access.ts';
-import type { DependencyChanges } from './read-lockfiles.ts';
-import type { MigrationReading } from './read-migrations.ts';
-import type { SymbolFile } from './read-range.ts';
-import type { Reach } from './read-reaches.ts';
-import type { RoutesReading } from './read-routes.ts';
-import type { SchemaReading } from './read-schemas.ts';
+import type { RangeReading } from './reading.ts';
 import { routeFindings } from './route-findings.ts';
-import type { RuleBreak } from './rule-breaks.ts';
 import { ruleFindings } from './rule-findings.ts';
 import { schemaFindings } from './schema-findings.ts';
 import { secretFindings } from './secret-findings.ts';
@@ -28,48 +21,12 @@ import { riskFindings, viewRiskFindings } from './security-findings.ts';
 import { notReadLine, type Skipped } from './skipped.ts';
 import type { SplitSuggestion } from './split-suggestion.ts';
 import { partsWithLogicToTest, symbolFindings } from './symbol-findings.ts';
-import { anyChanged, type TestFile } from './test-changes.ts';
+import { anyChanged } from './test-changes.ts';
 import { testsAlongside } from './tests-alongside.ts';
 import { visibleNodeOf } from './visible-diff.ts';
 
-export const DIMENSIONS = [
-  'structure',
-  'logic',
-  'api',
-  'tests',
-  'metrics',
-  'dependencies',
-  'rules',
-  'schema',
-  'routes',
-  'blast-radius',
-  'security',
-  'tenancy',
-  'deploy',
-  'performance',
-  'failure',
-  'ownership',
-  'cohesion',
-] as const;
-
-export type Dimension = (typeof DIMENSIONS)[number];
-
-export type Finding = {
-  readonly id: string;
-  readonly check: Check | 'flag';
-  readonly dimension: Dimension;
-  readonly level: 'look' | 'info';
-  readonly target?: string;
-  readonly file?: string;
-  readonly table?: string;
-  readonly route?: string;
-  readonly line?: string;
-  readonly title: string;
-  readonly detail?: string;
-  readonly groups?: SplitSuggestion['groups'];
-};
-
-export type PlaceInFile = Pick<Finding, 'table' | 'route' | 'line'>;
+export { counted } from './counted.ts';
+export { DIMENSIONS, type Dimension, type Finding, type PlaceInFile } from './finding.ts';
 
 const METRIC_NAMES = { cyclomatic: 'cyclomatic', lines: 'lines', abc: 'ABC size' } as const;
 
@@ -85,32 +42,33 @@ const metricTitle = (finding: MetricFinding) => {
   return `hotspot, churn ${move(base?.churn, head.churn)} and cyclomatic ${move(base?.cyclomatic, head.cyclomatic)}, over ${threshold.churn} and ${threshold.cyclomatic}`;
 };
 
-export const counted = (count: number, one: string, many: string) =>
-  `${count} ${count === 1 ? one : many}`;
-
-type RaisedOptions = {
-  readonly skipped: ReadonlyArray<Skipped>;
-  readonly changedPaths: ReadonlyArray<string>;
-  readonly patches: ReadonlyArray<FilePatch>;
+/** What the checks read: the reading's facts, plus what the page draws of them. */
+type RaisedOptions = Pick<
+  RangeReading,
+  | 'skipped'
+  | 'changedPaths'
+  | 'patches'
+  | 'danglingCalls'
+  | 'dependencyChanges'
+  | 'migrations'
+  | 'schemas'
+  | 'routes'
+  | 'access'
+  | 'openActions'
+  | 'symbols'
+  | 'symbolsNotRead'
+  | 'reaches'
+  | 'tests'
+  | 'ruleBreaks'
+  | 'deployKeysAtBase'
+  | 'deployConfig'
+> & {
   readonly undrawn: ReadonlyArray<FilePatch>;
-  readonly dangling: ReadonlyArray<DanglingCall>;
-  readonly dependencyChanges: ReadonlyArray<DependencyChanges>;
-  readonly migrations: ReadonlyArray<MigrationReading>;
-  readonly schemas: ReadonlyArray<SchemaReading>;
-  readonly routes: ReadonlyArray<RoutesReading>;
-  readonly access: ReadonlyArray<AccessReading>;
-  readonly openActions: ReadonlyArray<string>;
   readonly metricFindings: ReadonlyArray<MetricFinding>;
-  readonly symbols: ReadonlyArray<SymbolFile>;
-  readonly symbolsNotRead: ReadonlyArray<string>;
-  readonly reaches: ReadonlyArray<Reach>;
-  readonly nodes: ReadonlyArray<GraphNode>;
-  readonly tests: ReadonlyArray<TestFile>;
-  readonly split: SplitSuggestion | undefined;
-  readonly ruleBreaks: ReadonlyArray<RuleBreak>;
+  /** The drawn nodes, a diffed one with its state: a hotspot is raised on a changed node only. */
+  readonly nodes: ReadonlyArray<GraphNode & { readonly state?: string }>;
   readonly edges: GraphDiff['edges'];
-  readonly keysAtBase: ReadonlyArray<string>;
-  readonly flags: ReadonlyArray<string>;
+  readonly split: SplitSuggestion | undefined;
 };
 
 type UntestedOptions = Pick<RaisedOptions, 'nodes' | 'tests' | 'symbols'>;
@@ -177,104 +135,99 @@ const namesNotUtf8Finding = (paths: ReadonlyArray<string>): ReadonlyArray<Findin
 export const skippedFindingId = ({ stacks, side }: Skipped) =>
   `structure:skipped:${stacks.join(',')}${side === undefined ? '' : `:${side}`}`;
 
-export const raisedFindings = ({
-  skipped,
-  changedPaths,
-  patches,
-  undrawn,
-  dangling,
-  dependencyChanges,
-  migrations,
-  schemas,
-  routes,
-  access,
-  openActions,
-  metricFindings,
-  symbols,
-  symbolsNotRead,
-  reaches,
-  nodes,
-  tests,
-  split,
-  ruleBreaks,
-  edges,
-  keysAtBase,
-  flags,
-}: RaisedOptions): ReadonlyArray<Finding> => [
-  ...skipped.map(
-    (skip): Finding => ({
-      id: skippedFindingId(skip),
-      check: 'structure:skipped',
-      dimension: 'structure',
-      level: 'look',
-      title: notReadLine(skip),
+type Raise = (raised: RaisedOptions) => ReadonlyArray<Finding>;
+
+/** Every check, in the order its findings are listed: each reads what it needs of the options. */
+const RAISERS: ReadonlyArray<Raise> = [
+  ({ skipped }) =>
+    skipped.map(
+      (skip): Finding => ({
+        id: skippedFindingId(skip),
+        check: 'structure:skipped',
+        dimension: 'structure',
+        level: 'look',
+        title: notReadLine(skip),
+      }),
+    ),
+  ({ undrawn }) =>
+    undrawn.length === 0
+      ? []
+      : [
+          {
+            id: 'structure:undrawn',
+            check: 'structure:undrawn' as const,
+            dimension: 'structure' as const,
+            level: 'info' as const,
+            title: `${counted(undrawn.length, 'changed file', 'changed files')} outside the graph`,
+            detail: undrawn.map(patch => patch.path).join(', '),
+          },
+        ],
+  ({ changedPaths }) => namesNotUtf8Finding(changedPaths.filter(path => path.includes('\uFFFD'))),
+  ({ danglingCalls }) =>
+    [...Map.groupBy(danglingCalls, call => call.from)].map(
+      ([from, calls]): Finding => ({
+        id: `routes:dangling:${from}`,
+        check: 'routes:dangling',
+        dimension: 'routes',
+        level: 'info',
+        target: from,
+        title: counted(calls.length, 'call with no route', 'calls with no route'),
+        detail: calls.map(call => call.path).join(', '),
+      }),
+    ),
+  ({ metricFindings, nodes }) =>
+    metricFindings
+      .filter(
+        ({ metric, node }) =>
+          metric !== 'hotspot' || nodes.find(({ id }) => id === node)?.state !== 'unchanged',
+      )
+      .map(
+        (finding): Finding => ({
+          id: `metrics:${finding.metric}:${finding.node}`,
+          check: `metrics:${finding.metric}`,
+          dimension: 'metrics',
+          level: finding.level,
+          target: finding.node,
+          title: metricTitle(finding),
+        }),
+      ),
+  ({ symbols, nodes }) => symbolFindings({ files: symbols, nodes }),
+  ({ symbols }) => riskFindings(symbols),
+  ({ patches }) => viewRiskFindings(patches),
+  ({ patches }) => secretFindings(patches),
+  ({ patches, deployKeysAtBase }) => deployKeyFindings({ patches, keysAtBase: deployKeysAtBase }),
+  ({ patches, deployConfig }) =>
+    deployFlagFindings({ patches, flags: deployConfig.flags ?? FLIPPER_FLAGS }),
+  ({ reaches }) => reachFindings(reaches),
+  ({ symbols, nodes, tests }) => untestedLogicFindings({ nodes, tests, symbols }),
+  ({ symbolsNotRead }) =>
+    symbolsNotRead.map(
+      (stack): Finding => ({
+        id: `structure:symbols-not-read:${stack}`,
+        check: 'structure:symbols-not-read',
+        dimension: 'structure',
+        level: 'info',
+        target: stack,
+        title: `symbols not read for ${stack}`,
+      }),
+    ),
+  ({ split }) => (split === undefined ? [] : [splitFinding(split)]),
+  ({ ruleBreaks, edges }) => ruleFindings({ ruleBreaks, edges }),
+  ({ dependencyChanges }) => dependencyFindings(dependencyChanges),
+  ({ migrations }) => migrationFindings(migrations),
+  ({ schemas }) => schemaFindings(schemas),
+  ({ routes }) => routeFindings(routes),
+  ({ routes, access, openActions, nodes }) =>
+    accessFindings({
+      access,
+      routes: routes.flatMap(reading => ('routes' in reading ? reading.routes : [])),
+      nodes,
+      open: openActions,
     }),
-  ),
-  ...(undrawn.length === 0
-    ? []
-    : [
-        {
-          id: 'structure:undrawn',
-          check: 'structure:undrawn' as const,
-          dimension: 'structure' as const,
-          level: 'info' as const,
-          title: `${counted(undrawn.length, 'changed file', 'changed files')} outside the graph`,
-          detail: undrawn.map(patch => patch.path).join(', '),
-        },
-      ]),
-  ...namesNotUtf8Finding(changedPaths.filter(path => path.includes('\uFFFD'))),
-  ...[...Map.groupBy(dangling, call => call.from)].map(
-    ([from, calls]): Finding => ({
-      id: `routes:dangling:${from}`,
-      check: 'routes:dangling',
-      dimension: 'routes',
-      level: 'info',
-      target: from,
-      title: counted(calls.length, 'call with no route', 'calls with no route'),
-      detail: calls.map(call => call.path).join(', '),
-    }),
-  ),
-  ...metricFindings.map(
-    (finding): Finding => ({
-      id: `metrics:${finding.metric}:${finding.node}`,
-      check: `metrics:${finding.metric}`,
-      dimension: 'metrics',
-      level: finding.level,
-      target: finding.node,
-      title: metricTitle(finding),
-    }),
-  ),
-  ...symbolFindings({ files: symbols, nodes }),
-  ...riskFindings(symbols),
-  ...viewRiskFindings(patches),
-  ...secretFindings(patches),
-  ...deployKeyFindings({ patches, keysAtBase }),
-  ...deployFlagFindings({ patches, flags }),
-  ...reachFindings(reaches),
-  ...untestedLogicFindings({ nodes, tests, symbols }),
-  ...symbolsNotRead.map(
-    (stack): Finding => ({
-      id: `structure:symbols-not-read:${stack}`,
-      check: 'structure:symbols-not-read',
-      dimension: 'structure',
-      level: 'info',
-      target: stack,
-      title: `symbols not read for ${stack}`,
-    }),
-  ),
-  ...(split === undefined ? [] : [splitFinding(split)]),
-  ...ruleFindings({ ruleBreaks, edges }),
-  ...dependencyFindings(dependencyChanges),
-  ...migrationFindings(migrations),
-  ...schemaFindings(schemas),
-  ...routeFindings(routes),
-  ...accessFindings({
-    access,
-    routes: routes.flatMap(reading => ('routes' in reading ? reading.routes : [])),
-    nodes,
-    open: openActions,
-  }),
 ];
+
+export const raisedFindings = (raised: RaisedOptions): ReadonlyArray<Finding> =>
+  RAISERS.flatMap(raise => raise(raised));
 
 const NOTE_FLAG = 'notes:';
 

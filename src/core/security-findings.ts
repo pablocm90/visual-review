@@ -2,8 +2,8 @@ import { countingRepeats } from './counted-id.ts';
 import type { FilePatch } from './diff-graphs.ts';
 import type { Finding } from './findings.ts';
 import { lineIdOf, patchHunks } from './patch-lines.ts';
-import type { SymbolFile } from './read-range.ts';
 import type { Risk, RiskKind } from './reader.ts';
+import type { SymbolFile } from './reading.ts';
 import { qualified } from './symbol-changes.ts';
 import { anchoredSymbols } from './symbol-findings.ts';
 

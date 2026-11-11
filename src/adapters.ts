@@ -1,10 +1,5 @@
-import type { AccessReader } from './core/access.ts';
-import type { Linker } from './core/linker.ts';
-import type { Lockfile } from './core/lockfile.ts';
-import type { MigrationReader } from './core/migration.ts';
-import type { Reader } from './core/reader.ts';
-import type { RouteReader } from './core/routes.ts';
-import type { SchemaReader } from './core/schema.ts';
+import type { ChangeReaders } from './core/read-changes.ts';
+import type { Adapters } from './core/read-stacks.ts';
 import { fetchAxumLinker } from './linkers/fetch-axum/linker.ts';
 import { bundlerLockfile } from './lockfiles/bundler.ts';
 import { cargoLockfile } from './lockfiles/cargo.ts';
@@ -19,22 +14,16 @@ import { railsSchema } from './readers/rails/schema-tables.ts';
 import { rustReader } from './readers/rust/reader.ts';
 import { typeScriptReader } from './readers/typescript/reader.ts';
 
-export const readers: ReadonlyArray<Reader> = [rustReader, typeScriptReader, railsReader];
-
-export const linkers: ReadonlyArray<Linker> = [fetchAxumLinker];
-
-export const lockfiles: ReadonlyArray<Lockfile> = [
-  cargoLockfile,
-  bundlerLockfile,
-  pnpmLockfile,
-  npmLockfile,
-  yarnLockfile,
-];
-
-export const migrations: ReadonlyArray<MigrationReader> = [railsMigrations];
-
-export const schemas: ReadonlyArray<SchemaReader> = [railsSchema];
-
-export const routes: ReadonlyArray<RouteReader> = [railsRoutes];
-
-export const access: ReadonlyArray<AccessReader> = [railsAccess];
+/**
+ * Every adapter `readRange` takes but `onPath`, which the caller gives: the stack readers and
+ * linkers, and the change readers. A new one is added here and nowhere else.
+ */
+export const adapters: Omit<Adapters, 'onPath'> & ChangeReaders = {
+  readers: [rustReader, typeScriptReader, railsReader],
+  linkers: [fetchAxumLinker],
+  lockfiles: [cargoLockfile, bundlerLockfile, pnpmLockfile, npmLockfile, yarnLockfile],
+  migrations: [railsMigrations],
+  schemas: [railsSchema],
+  routes: [railsRoutes],
+  access: [railsAccess],
+};

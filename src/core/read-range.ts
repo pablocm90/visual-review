@@ -2,33 +2,23 @@ import { existsSync } from 'node:fs';
 import { mkdtemp, readFile, realpath, rm, stat } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { basename, join, relative } from 'node:path';
-import type { AccessReader } from './access.ts';
 import {
   type BaseConfig,
   CONFIG_FILE,
   type Config,
-  type DeployConfig,
-  type NotesConfig,
   parseBaseConfig,
   parseConfig,
   type ReaderName,
 } from './config.ts';
 import { credentialKeysIn, deployKeysIn } from './deploy-findings.ts';
-import { diffGraphs, type FilePatch, type GraphDiff, type Rename } from './diff-graphs.ts';
+import { diffGraphs, type GraphDiff, type Rename } from './diff-graphs.ts';
 import { readFileThatEnds } from './file-that-ends.ts';
 import { git } from './git.ts';
 import { type Graph, stackOfIn } from './graph.ts';
-import type { DanglingCall } from './linker.ts';
 import { dropLinksLeaving, isTrackedLinkLeaving } from './links-leaving.ts';
-import type { Lockfile } from './lockfile.ts';
 import { type MeasuredNode, measuredNodes } from './metrics.ts';
-import type { MigrationReader } from './migration.ts';
-import { type AccessReading, readAccess } from './read-access.ts';
-import { type DependencyChanges, readLockfiles } from './read-lockfiles.ts';
-import { type MigrationReading, readMigrations } from './read-migrations.ts';
-import { type Reach, readReaches } from './read-reaches.ts';
-import { type RoutesReading, readRoutes } from './read-routes.ts';
-import { readSchemas, type SchemaReading } from './read-schemas.ts';
+import { type ChangeReaders, readChanges } from './read-changes.ts';
+import { readReaches } from './read-reaches.ts';
 import {
   type Adapters,
   checkConfig,
@@ -36,111 +26,41 @@ import {
   readStacks,
   type StacksReading,
 } from './read-stacks.ts';
-import type { FileMeasures, FileSymbols, Reader } from './reader.ts';
-import type { Review } from './review.ts';
-import type { RouteReader } from './routes.ts';
-import { type RuleBreak, ruleBreaks, rulesNotRead } from './rule-breaks.ts';
-import type { SchemaReader } from './schema.ts';
+import type { FileSymbols, Reader } from './reader.ts';
+import { ruleBreaks, rulesNotRead } from './rule-breaks.ts';
 import type { Skipped } from './skipped.ts';
-import { type FileSymbolChanges, symbolChangesOf } from './symbol-changes.ts';
+import { symbolChangesOf } from './symbol-changes.ts';
 import { type TestFile, testChanges, withMovedTests } from './test-changes.ts';
 
-export type Churn = Readonly<Record<string, number>>;
+export type {
+  Churn,
+  Commit,
+  Measures,
+  RangeReading,
+  ReviewedDiff,
+  ReviewedHead,
+  ReviewedReading,
+  SymbolFile,
+} from './reading.ts';
 
-export type Measures = Readonly<Record<string, FileMeasures>>;
+import type {
+  Churn,
+  Commit,
+  Measures,
+  RangeReading,
+  ReviewedDiff,
+  ReviewedHead,
+  ReviewedReading,
+} from './reading.ts';
 
-export type SymbolFile = { readonly stack: string } & (
-  | FileSymbolChanges
-  | { readonly node: string; readonly unreadable: string }
-);
-
-export type ReviewedHead = {
-  readonly head: string;
-  readonly verdict: Review['verdict'];
-  readonly body?: string;
-  readonly read: ReadonlyArray<string>;
-  readonly comments: Review['comments'];
-  readonly calledFine: ReadonlyArray<string>;
-};
-
-export type ReviewedDiff = {
-  readonly before: Graph;
-  readonly changedPaths: ReadonlyArray<string>;
-  readonly renames: ReadonlyArray<Rename>;
-  readonly symbols: ReadonlyArray<SymbolFile>;
-  readonly tests: ReadonlyArray<TestFile>;
-};
-
-export type Commit = {
-  readonly sha: string;
-  readonly subject: string;
-  readonly files: ReadonlyArray<string>;
-};
-
-export type ReviewedReading = ReviewedHead &
-  (
-    | { readonly gone: true }
-    | { readonly unreadable: string }
-    | (ReviewedDiff & {
-        readonly after: Graph;
-        readonly pullRequest: ReviewedDiff;
-        readonly commits: ReadonlyArray<Commit>;
-      })
-  );
-
-export type RangeReading = {
-  readonly before: Graph;
-  readonly after: Graph;
-  readonly churn: { readonly before: Churn; readonly after: Churn };
-  readonly measures: { readonly before: Measures; readonly after: Measures };
-  readonly measuresNotRead: ReadonlyArray<string>;
-  readonly changedPaths: ReadonlyArray<string>;
-  readonly renames: ReadonlyArray<Rename>;
-  readonly patches: ReadonlyArray<FilePatch>;
-  readonly tests: ReadonlyArray<TestFile>;
-  readonly symbols: ReadonlyArray<SymbolFile>;
-  readonly symbolsNotRead: ReadonlyArray<string>;
-  readonly reaches: ReadonlyArray<Reach>;
-  readonly reachesNotRead: ReadonlyArray<string>;
-  readonly dependencyChanges: ReadonlyArray<DependencyChanges>;
-  readonly migrations: ReadonlyArray<MigrationReading>;
-  readonly schemas: ReadonlyArray<SchemaReading>;
-  readonly routes: ReadonlyArray<RoutesReading>;
-  readonly access: ReadonlyArray<AccessReading>;
-  readonly openActions: ReadonlyArray<string>;
-  readonly danglingCalls: ReadonlyArray<DanglingCall>;
-  readonly linksNotRead: ReadonlyArray<string>;
-  readonly skipped: ReadonlyArray<Skipped>;
-  readonly readers: ReadonlyArray<ReaderName>;
-  readonly thresholds: Omit<Config['metrics'], 'churnDays'>;
-  readonly churnDays: number;
-  readonly ruleBreaks: ReadonlyArray<RuleBreak>;
-  readonly rulesNotRead: ReadonlyArray<string>;
-  readonly deployKeysAtBase: ReadonlyArray<string>;
-  readonly deployConfig: DeployConfig;
-  readonly notesConfig: NotesConfig;
-  readonly reviewed?: ReviewedReading;
-};
-
-type ReadRangeOptions = Adapters & {
-  readonly lockfiles: ReadonlyArray<Lockfile>;
-  readonly migrations: ReadonlyArray<MigrationReader>;
-  readonly schemas: ReadonlyArray<SchemaReader>;
-  readonly routes: ReadonlyArray<RouteReader>;
-  readonly access: ReadonlyArray<AccessReader>;
-  readonly repo: string;
-  readonly from: string;
-  readonly to: string;
-  readonly churnTo?: string;
-  readonly reviewed?: ReviewedHead;
-};
-
-type ReadSideOptions = Adapters & {
-  readonly repo: string;
-  readonly revision: string;
-  readonly directory: string;
-  readonly config: Config;
-};
+type ReadRangeOptions = Adapters &
+  ChangeReaders & {
+    readonly repo: string;
+    readonly from: string;
+    readonly to: string;
+    readonly churnTo?: string;
+    readonly reviewed?: ReviewedHead;
+  };
 
 type KeysNamedAt = {
   readonly repo: string;
@@ -172,6 +92,13 @@ const keysNamedAt = async ({ repo, revision, keys }: KeysNamedAt) => {
   const credentials = await git(repo, 'grep', 'credentials', revision, '--').catch(noneFound);
   const found = new Set([...named.split('\n'), ...credentialKeysIn(credentials)]);
   return keys.filter(key => found.has(key));
+};
+
+type ReadSideOptions = Adapters & {
+  readonly repo: string;
+  readonly revision: string;
+  readonly directory: string;
+  readonly config: Config;
 };
 
 const readSide = async ({
@@ -289,7 +216,7 @@ const testFileAt = async ({
   }
 };
 
-const isUnder = (path: string, root: string): boolean => !relative(root, path).startsWith('..');
+const isUnder = (folder: string, path: string): boolean => !relative(folder, path).startsWith('..');
 
 const depth = (root: string): number => (root === '.' ? 0 : root.split('/').length);
 
@@ -307,7 +234,7 @@ const testsIn = async ({
   const files = await Promise.all(
     changes.flatMap(change => {
       const drawn = roots
-        .filter(({ reader, root }) => reader.isTestFile(change.to) && isUnder(change.to, root))
+        .filter(({ reader, root }) => reader.isTestFile(change.to) && isUnder(root, change.to))
         .toSorted((a, b) => depth(b.root) - depth(a.root))[0];
       return drawn === undefined
         ? []
@@ -737,7 +664,6 @@ export const readRange = async ({
             config,
             ...adapters,
           });
-    const routesRead = await readRoutes({ repo, base, head: toCommit, changes, routes });
     const patches = await Promise.all(
       changes.map(async paths => ({
         path: paths.at(-1) ?? '',
@@ -769,19 +695,18 @@ export const readRange = async ({
         changedPaths,
         pathOf: id => diff.nodes.find(node => node.id === id)?.path ?? id,
       })),
-      dependencyChanges: await readLockfiles({ repo, base, head: toCommit, changes, lockfiles }),
-      migrations: await readMigrations({ repo, base, head: toCommit, changes, migrations }),
-      schemas: await readSchemas({ repo, base, head: toCommit, changes, schemas }),
-      routes: routesRead,
-      access: await readAccess({
+      ...(await readChanges({
         repo,
         base,
         head: toCommit,
         changes,
-        routed: routesRead.length > 0,
-        access,
         authorize: security.authorize,
-      }),
+        lockfiles,
+        migrations,
+        schemas,
+        routes,
+        access,
+      })),
       openActions: security.open,
       danglingCalls: after.danglingCalls,
       linksNotRead: after.linksNotRead,

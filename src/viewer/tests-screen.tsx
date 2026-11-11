@@ -3,7 +3,6 @@ import { anchorKey } from '../core/anchors.ts';
 import type { GraphNode } from '../core/graph.ts';
 import type { ReviewNotes } from '../core/notes.ts';
 import type { PageData } from '../core/page.ts';
-import type { Comment } from '../core/review.ts';
 import {
   type AnchoredStatement,
   type AnchoredTest,
@@ -17,7 +16,7 @@ import {
 } from '../core/test-changes.ts';
 import { testsAlongside } from '../core/tests-alongside.ts';
 import { ChangedSinceTag, sinceLabel, useIsChangedSince } from './changed-since.tsx';
-import type { Comments } from './comment-field.tsx';
+import { useDrafting } from './comment-field.tsx';
 import { LevelMark } from './finding-display.tsx';
 import { FindingRows, type FindingRowsProps } from './finding-rows.tsx';
 import { RowNote, RowNotes } from './note-block.tsx';
@@ -40,21 +39,11 @@ const movement = ({ movedTo, movedFrom }: MarkedTest) => {
   return undefined;
 };
 
-type Commenting = {
-  readonly comments: Comments;
-  readonly onComment: ((comment: Comment) => void) | undefined;
-};
-
-type TestPlace = Commenting & {
+type TestPlace = {
   readonly path: string;
 };
 
-const TestLine = ({
-  test,
-  path,
-  comments,
-  onComment,
-}: TestPlace & { readonly test: AnchoredTest }) => {
+const TestLine = ({ test, path }: TestPlace & { readonly test: AnchoredTest }) => {
   const moved = movement(test);
   const id = testAnchorId(path, test.trail);
   const marked = useIsChangedSince()('tests', id);
@@ -76,27 +65,69 @@ const TestLine = ({
       {test.label && <span className="label">{test.label}</span>}
       {moved && <span className="moved">{moved.text}</span>}
       <ChangedSinceTag marked={marked} />
-      <RowNote anchor={{ kind: 'test', id }} name={test.trail} comments={comments} />
+      <RowNote anchor={{ kind: 'test', id }} name={test.trail} />
       <SaidBefore on={{ kind: 'test', id }} />
-      {onComment && (
-        <CommentOn
-          name={test.trail}
-          anchor={{ kind: 'test', id }}
-          comments={comments}
-          onComment={onComment}
-        />
-      )}
+      <CommentOn name={test.trail} anchor={{ kind: 'test', id }} />
     </li>
   );
 };
 
+type IsQuiet = (test: AnchoredTest) => boolean;
+
+type Run =
+  | { readonly quiet: false; readonly statement: AnchoredStatement }
+  | { readonly quiet: true; readonly tests: ReadonlyArray<AnchoredTest> };
+
+const LEAST_FOLDED = 3;
+
+/** Statements in order, each run of quiet tests long enough to fold taken together. */
+const quietRunsIn = (
+  statements: ReadonlyArray<AnchoredStatement>,
+  isQuiet: IsQuiet | undefined,
+): ReadonlyArray<Run> => {
+  const runs: Array<Run> = [];
+  let quiet: Array<AnchoredTest> = [];
+  const flush = () => {
+    if (quiet.length >= LEAST_FOLDED) runs.push({ quiet: true, tests: quiet });
+    else runs.push(...quiet.map(statement => ({ quiet: false as const, statement })));
+    quiet = [];
+  };
+  for (const statement of statements) {
+    if (isQuiet && statement.kind === 'test' && isQuiet(statement)) quiet.push(statement);
+    else {
+      flush();
+      runs.push({ quiet: false, statement });
+    }
+  }
+  flush();
+  return runs;
+};
+
 const TestTree = ({
   statements,
+  isQuiet,
   ...place
-}: TestPlace & { readonly statements: ReadonlyArray<AnchoredStatement> }) => (
+}: TestPlace & {
+  readonly statements: ReadonlyArray<AnchoredStatement>;
+  readonly isQuiet?: IsQuiet | undefined;
+}) => (
   <ul>
-    {statements.map(statement =>
-      statement.kind === 'test' ? (
+    {quietRunsIn(statements, isQuiet).map(run => {
+      if (run.quiet)
+        return (
+          <li key={`quiet ${run.tests[0]?.trail}`} className="test-run">
+            <details>
+              <summary>{run.tests.length} unchanged</summary>
+              <ul>
+                {run.tests.map(test => (
+                  <TestLine key={`test ${test.trail}`} test={test} {...place} />
+                ))}
+              </ul>
+            </details>
+          </li>
+        );
+      const { statement } = run;
+      return statement.kind === 'test' ? (
         <TestLine key={`test ${statement.trail}`} test={statement} {...place} />
       ) : (
         <li
@@ -106,10 +137,10 @@ const TestTree = ({
         >
           <span>{statement.name}</span>
           {statement.label && <span className="label">{statement.label}</span>}
-          <TestTree statements={statement.children} {...place} />
+          <TestTree statements={statement.children} isQuiet={isQuiet} {...place} />
         </li>
-      ),
-    )}
+      );
+    })}
   </ul>
 );
 
@@ -123,12 +154,14 @@ const anchoredIn = (file: TestFile): DrawnFile => ({
   statements: 'statements' in file ? anchoredTests(file.statements) : [],
 });
 
-type DrawnFilesProps = Commenting & {
+type DrawnFilesProps = {
   readonly drawn: ReadonlyArray<DrawnFile>;
   readonly nodes: ReadonlyArray<GraphNode>;
+  /** Folds each run of tests this says are quiet, as the Tests screen does with unchanged ones. */
+  readonly quietIn?: (path: string) => IsQuiet;
 };
 
-const DrawnFiles = ({ drawn, nodes, ...commenting }: DrawnFilesProps) =>
+const DrawnFiles = ({ drawn, nodes, quietIn }: DrawnFilesProps) =>
   drawn.map(({ file, statements }) => (
     <section key={file.path} aria-label={file.path}>
       <h3>
@@ -140,7 +173,7 @@ const DrawnFiles = ({ drawn, nodes, ...commenting }: DrawnFilesProps) =>
         {file.new && <span className="new">new file</span>}
       </h3>
       {'statements' in file ? (
-        <TestTree statements={statements} path={file.path} {...commenting} />
+        <TestTree statements={statements} path={file.path} isQuiet={quietIn?.(file.path)} />
       ) : (
         <p>Couldn't read its tests: {file.unreadable}</p>
       )}
@@ -157,25 +190,32 @@ const kept = (
     return children.length > 0 ? [{ ...statement, children }] : [];
   });
 
-export const useTestsToRead = (
-  files: ReadonlyArray<TestFile>,
-  comments: Comments,
-): ReadonlyArray<DrawnFile> => {
+/** Whether a test is news: changed, or holding a draft, a note, a last comment or a change since. */
+const useTestNews = () => {
+  const { comments } = useDrafting();
   const hasSaid = useHasSaid();
   const isChangedSince = useIsChangedSince();
   const { notes } = useContext(RowNotes);
-  return files.map(anchoredIn).map(({ file, statements }) => ({
-    file,
-    statements: kept(statements, ({ change, trail }) => {
-      const anchor = { kind: 'test', id: testAnchorId(file.path, trail) } as const;
+  return (path: string) =>
+    ({ change, trail, movedTo, movedFrom }: AnchoredTest): boolean => {
+      const anchor = { kind: 'test', id: testAnchorId(path, trail) } as const;
       return (
         change !== 'unchanged' ||
+        movedTo !== undefined ||
+        movedFrom !== undefined ||
         comments[anchorKey(anchor)] !== undefined ||
         notes[anchorKey(anchor)] !== undefined ||
         hasSaid(anchor) ||
         isChangedSince('tests', anchor.id)
       );
-    }),
+    };
+};
+
+export const useTestsToRead = (files: ReadonlyArray<TestFile>): ReadonlyArray<DrawnFile> => {
+  const isNews = useTestNews();
+  return files.map(anchoredIn).map(({ file, statements }) => ({
+    file,
+    statements: kept(statements, isNews(file.path)),
   }));
 };
 
@@ -265,21 +305,16 @@ const ChangedNodes = ({ review, onGoTo }: ChangedNodesProps) => {
   );
 };
 
-type TestsScreenProps = Commenting & {
+type TestsScreenProps = {
   readonly review: PageData;
   readonly notes: ReviewNotes | undefined;
   readonly selected: GraphNode | undefined;
   readonly onGoTo: (id: string) => void;
 };
 
-export const TestsScreen = ({
-  review,
-  notes,
-  selected,
-  onGoTo,
-  ...commenting
-}: TestsScreenProps) => {
+export const TestsScreen = ({ review, notes, selected, onGoTo }: TestsScreenProps) => {
   const [forSelected, setForSelected] = useState(false);
+  const isNews = useTestNews();
   const alongside =
     selected && testsAlongside({ nodes: review.diff.nodes, node: selected, tests: review.tests });
   const forNode = forSelected ? alongside : undefined;
@@ -317,7 +352,11 @@ export const TestsScreen = ({
       </div>
       <section className="tests tests-files" aria-label="Test changes">
         {shown.length > 0 ? (
-          <DrawnFiles drawn={shown.map(anchoredIn)} nodes={review.diff.nodes} {...commenting} />
+          <DrawnFiles
+            drawn={shown.map(anchoredIn)}
+            nodes={review.diff.nodes}
+            quietIn={path => test => !isNews(path)(test)}
+          />
         ) : (
           <p>{forNode ? 'No test changed here.' : 'No test changed.'}</p>
         )}
