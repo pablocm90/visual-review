@@ -1,0 +1,215 @@
+.changes details {
+  margin-top: 12px;
+}
+
+.changes summary {
+  cursor: pointer;
+  font:
+    500 12px ui-monospace,
+    "SF Mono",
+    Menlo,
+    monospace;
+}
+
+.changes pre {
+  display: grid;
+  grid-template-columns: minmax(max-content, 1fr);
+  margin: 6px 0 0;
+  padding: 8px 0;
+  overflow-x: auto;
+  border-radius: 4px;
+  background: var(--page);
+  font:
+    12px / 1.5 ui-monospace,
+    "SF Mono",
+    Menlo,
+    monospace;
+}
+
+.changes pre > * {
+  display: block;
+  padding: 0 10px;
+  color: var(--ink);
+  text-decoration: none;
+  white-space: pre;
+}
+
+.changes ins {
+  background: var(--added-fill);
+}
+
+.changes del {
+  background: var(--removed-fill);
+}
+
+pre .hljs-keyword,
+pre .hljs-doctag,
+pre .hljs-type,
+pre .hljs-template-tag,
+pre .hljs-template-variable,
+pre .hljs-variable.language_ {
+  color: var(--code-keyword);
+}
+
+pre .hljs-title {
+  color: var(--code-title);
+}
+
+pre .hljs-attr,
+pre .hljs-attribute,
+pre .hljs-literal,
+pre .hljs-meta,
+pre .hljs-number,
+pre .hljs-operator,
+pre .hljs-variable,
+pre .hljs-selector-attr,
+pre .hljs-selector-class,
+pre .hljs-selector-id,
+pre .hljs-section {
+  color: var(--code-constant);
+}
+
+pre .hljs-string,
+pre .hljs-regexp,
+pre .hljs-meta .hljs-string {
+  color: var(--code-string);
+}
+
+pre .hljs-built_in,
+pre .hljs-symbol {
+  color: var(--code-built-in);
+}
+
+pre .hljs-comment,
+pre .hljs-code,
+pre .hljs-formula {
+  color: var(--code-comment);
+}
+
+pre .hljs-name,
+pre .hljs-quote,
+pre .hljs-selector-tag,
+pre .hljs-selector-pseudo {
+  color: var(--code-tag);
+}
+
+pre .hljs-subst {
+  color: var(--ink);
+}
+
+pre .hljs-bullet {
+  color: var(--code-bullet);
+}
+
+pre .hljs-section,
+pre .hljs-strong {
+  font-weight: 600;
+}
+
+pre .hljs-emphasis {
+  font-style: italic;
+}
+
+.changes pre > [aria-current="true"] {
+  box-shadow: inset 3px 0 0 var(--modified);
+  outline: 1px solid var(--modified);
+  outline-offset: -1px;
+}
+
+.comment-on {
+  margin-inline-start: 8px;
+  padding: 0 6px;
+  border: 1px solid var(--stack-line);
+  border-radius: 4px;
+  background: transparent;
+  color: var(--muted);
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.comment-on:hover,
+.comment-on[aria-expanded="true"] {
+  background: var(--unchanged-fill);
+  color: var(--ink);
+}
+
+.comment-on:focus-visible {
+  outline: 2px solid var(--ramp-3);
+  outline-offset: 1px;
+}
+
+.changes pre .comment-kind,
+.changes pre .comment {
+  position: sticky;
+  left: 10px;
+  max-width: 480px;
+  margin-block: 6px;
+  white-space: normal;
+  font:
+    12px / 1.4 system-ui,
+    sans-serif;
+  user-select: text;
+}
+
+.changes pre .comment-on {
+  position: sticky;
+  right: 8px;
+  background: var(--page);
+  opacity: 0;
+  user-select: none;
+}
+
+.changes pre .comment-on:hover,
+.changes pre .comment-on[aria-expanded="true"] {
+  background: var(--unchanged-fill);
+}
+
+.changes pre > :hover > .comment-on,
+.changes pre > :focus-within > .comment-on,
+.changes pre .comment-on[aria-expanded="true"] {
+  opacity: 1;
+}
+
+@media (hover: none) {
+  .changes pre .comment-on {
+    opacity: 1;
+  }
+}
+
+.changes pre .said-before {
+  position: sticky;
+  left: 10px;
+  width: fit-content;
+  max-width: 480px;
+}
+
+.changes pre .said-before .comment-on {
+  position: static;
+  opacity: 1;
+}
+
+.changes pre > [data-decision] {
+  box-shadow: inset 3px 0 0 var(--modified);
+}
+
+.changes pre > ins[data-decision] {
+  box-shadow: inset 3px 0 0 var(--added);
+}
+
+.changes pre > del[data-decision] {
+  box-shadow: inset 3px 0 0 var(--removed);
+}
+
+.changes pre > [data-decision]::after {
+  content: attr(data-decision);
+  margin-left: 16px;
+  color: var(--muted);
+  font:
+    500 11px system-ui,
+    sans-serif;
+}
+
+li:not(:hover, :focus-within) > .comment-on:not([aria-expanded="true"]) {
+  opacity: 0;
+}

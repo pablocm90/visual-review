@@ -1,0 +1,627 @@
+.near-only {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0 0 12px;
+  color: var(--ink);
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.legend {
+  display: flex;
+  gap: 16px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  color: var(--muted);
+}
+
+.legend li {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.swatch {
+  width: 14px;
+  height: 14px;
+  border: 2px solid var(--line);
+  border-radius: 4px;
+  background: var(--fill);
+}
+
+.legend [data-state="removed"] .swatch {
+  border-style: dashed;
+}
+
+.frame {
+  position: relative;
+  overflow: hidden;
+  touch-action: none;
+  user-select: none;
+}
+
+.frame:has(> .zoom) {
+  box-sizing: content-box;
+  padding-bottom: 40px;
+}
+
+.graph {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.zoom {
+  position: absolute;
+  right: 8px;
+  bottom: 8px;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 2px;
+  border: 1px solid var(--stack-line);
+  border-radius: 6px;
+  background: var(--stack);
+  color: var(--muted);
+}
+
+.zoom output {
+  min-width: 4.5ch;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+
+.zoom button {
+  min-width: 28px;
+  padding: 2px 6px;
+  border: none;
+  border-radius: 4px;
+  background: none;
+  color: var(--ink);
+  font: inherit;
+  cursor: pointer;
+}
+
+.zoom button:hover {
+  background: var(--unchanged-fill);
+}
+
+.stack {
+  fill: var(--stack);
+  stroke: var(--stack-line);
+}
+
+.stack-label {
+  fill: var(--muted);
+  font:
+    600 12px ui-monospace,
+    "SF Mono",
+    Menlo,
+    monospace;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.module-box {
+  fill: var(--fill);
+  fill-opacity: 0.35;
+  stroke: var(--line);
+  stroke-width: 1.5;
+}
+
+.module[data-state="removed"] .module-box {
+  stroke-dasharray: 5 4;
+}
+
+.module-label {
+  fill: var(--ink);
+  font:
+    600 13px ui-monospace,
+    "SF Mono",
+    Menlo,
+    monospace;
+}
+
+.node rect {
+  fill: var(--fill);
+  stroke: var(--line);
+  stroke-width: 2;
+}
+
+.node text {
+  fill: var(--ink);
+  font:
+    500 13px ui-monospace,
+    "SF Mono",
+    Menlo,
+    monospace;
+  text-anchor: middle;
+  dominant-baseline: central;
+}
+
+.former {
+  fill: var(--muted);
+  font-size: 11px;
+  font-weight: 400;
+}
+
+.node[data-state="unchanged"] text {
+  fill: var(--muted);
+}
+
+.node[data-state="removed"] rect {
+  stroke-dasharray: 5 4;
+}
+
+.node[data-state="removed"] text {
+  text-decoration: line-through;
+}
+
+.edge {
+  fill: none;
+  stroke: var(--line);
+  stroke-width: 1.5;
+}
+
+.edge[data-state="unchanged"] {
+  stroke-width: 1;
+}
+
+.edge[data-state="added"],
+.edge[data-state="removed"] {
+  stroke-width: 2.5;
+}
+
+.edge[data-state="removed"] {
+  stroke-dasharray: 6 4;
+}
+
+.edge.call {
+  stroke-dasharray: 1 5;
+  stroke-linecap: round;
+}
+
+.edge.call[data-state="removed"] {
+  stroke-dasharray: 6 4 1 4;
+}
+
+.arrow path {
+  fill: var(--line);
+}
+
+.node,
+.edge {
+  cursor: pointer;
+}
+
+.node:focus {
+  outline: 2px solid var(--ink);
+  outline-offset: 2px;
+}
+
+.edge:focus {
+  outline: none;
+  stroke-width: 4;
+}
+
+.flag-badge {
+  cursor: pointer;
+}
+
+.flag-badge circle {
+  fill: var(--removed);
+}
+
+.flag-badge path {
+  stroke: var(--stack);
+  stroke-width: 2;
+  stroke-linecap: round;
+}
+
+.toggle {
+  cursor: pointer;
+}
+
+.toggle circle {
+  fill: var(--stack);
+  stroke: var(--muted);
+  stroke-width: 1.5;
+}
+
+.toggle path {
+  stroke: var(--ink);
+  stroke-width: 1.5;
+  stroke-linecap: round;
+}
+
+.toggle:focus {
+  outline: none;
+}
+
+.toggle:focus circle {
+  stroke: var(--ink);
+  stroke-width: 2.5;
+}
+
+.graph-controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px 20px;
+  margin-bottom: 10px;
+}
+
+.graph-view {
+  position: relative;
+  margin-left: auto;
+}
+
+.graph-view-toggle {
+  min-height: 32px;
+  padding: 0 12px;
+  border: 1px solid var(--stack-line);
+  border-radius: 7px;
+  background: var(--stack);
+  color: var(--ink);
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.graph-view-toggle::after {
+  content: " ▾";
+  color: var(--muted);
+}
+
+.graph-view-menu {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  z-index: 20;
+  display: grid;
+  gap: 10px;
+  padding: 12px;
+  border: 1px solid var(--stack-line);
+  border-radius: 8px;
+  background: var(--stack);
+  box-shadow: 0 8px 24px rgb(0 0 0 / 14%);
+}
+
+.graph-view-menu .near-only {
+  min-height: 0;
+  margin: 0;
+}
+
+.graph-choice {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  color: var(--muted);
+  font-size: 12.5px;
+}
+
+.graph-choice [role="group"] {
+  display: flex;
+  gap: 2px;
+  padding: 3px;
+  border-radius: 9px;
+  background: var(--unchanged-fill);
+}
+
+.graph-choice button {
+  min-height: 32px;
+  padding: 0 12px;
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--muted);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.graph-choice button[aria-pressed="true"] {
+  background: var(--stack);
+  color: var(--ink);
+  font-weight: 600;
+  box-shadow: 0 1px 2px rgb(0 0 0 / 14%);
+}
+
+.graph-key {
+  margin: 0;
+}
+
+.scale-legend {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 14px;
+  color: var(--muted);
+  font-size: 12.5px;
+}
+
+.scale {
+  display: flex;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+[data-step="0"] {
+  --step-fill: var(--ramp-0);
+  --step-ink: var(--ink);
+}
+
+[data-step="1"] {
+  --step-fill: var(--ramp-1);
+  --step-ink: var(--ink);
+}
+
+[data-step="2"] {
+  --step-fill: var(--ramp-2);
+  --step-ink: var(--ink);
+}
+
+[data-step="3"] {
+  --step-fill: var(--ramp-3);
+  --step-ink: var(--ramp-3-ink);
+}
+
+.scale-step {
+  padding: 2px 10px;
+  background: var(--step-fill);
+  color: var(--step-ink);
+  font-size: 12px;
+}
+
+.scale-step:first-child {
+  border-radius: 4px 0 0 4px;
+}
+
+.scale-step:last-child {
+  border-radius: 0 4px 4px 0;
+}
+
+.graph:not([data-colouring="change"]) .node rect {
+  fill: var(--unchanged-fill);
+}
+
+.graph .node[data-step] rect {
+  fill: var(--step-fill);
+}
+
+.graph .node[data-step] text,
+.graph .node[data-step] .former {
+  fill: var(--step-ink);
+}
+
+.badge {
+  padding: 0 7px;
+  border-radius: 999px;
+  background: var(--stack);
+  border: 1px solid var(--stack-line);
+  font-size: 11.5px;
+  font-variant-numeric: tabular-nums;
+}
+
+.flag-badge[data-level="info"] circle {
+  fill: var(--muted);
+}
+
+.flag-badge[data-outside="true"] {
+  opacity: 0.35;
+}
+
+[data-colouring="kind"] [data-step="0"] {
+  --step-fill: var(--ramp-3);
+  --step-ink: var(--ramp-3-ink);
+}
+
+[data-colouring="kind"] [data-step="1"] {
+  --step-fill: var(--ramp-2);
+  --step-ink: var(--ink);
+}
+
+[data-colouring="kind"] [data-step="2"] {
+  --step-fill: var(--ramp-0);
+  --step-ink: var(--ink);
+}
+
+[data-colouring="kind"] [data-step="3"] {
+  --step-fill: var(--unchanged-fill);
+  --step-ink: var(--muted);
+}
+
+.reading-number {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border: 1px solid var(--stack-line);
+  border-radius: 11px;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.reading-badge-disc {
+  fill: var(--stack);
+  stroke: var(--ink);
+  stroke-width: 1;
+}
+
+.node text.reading-badge-number,
+.module text.reading-badge-number {
+  fill: var(--ink);
+  font-size: 10px;
+  font-weight: 600;
+  text-decoration: none;
+  text-anchor: middle;
+  dominant-baseline: central;
+}
+
+:where(.columns.reading > .content) > .frame {
+  flex: none;
+}
+
+.open-map {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  padding: 2px 8px;
+  border: 1px solid var(--stack-line);
+  border-radius: 6px;
+  background: var(--stack);
+  color: var(--ink);
+  font: inherit;
+  cursor: pointer;
+}
+
+.open-map:hover {
+  background: var(--unchanged-fill);
+}
+
+.current-ring {
+  fill: none;
+  stroke: var(--ink);
+  stroke-width: 3px;
+  vector-effect: non-scaling-stroke;
+  pointer-events: none;
+}
+
+.node text.card-file,
+.node text.card-name,
+.node text.card-count {
+  text-anchor: start;
+}
+
+.node text.card-total {
+  text-anchor: end;
+}
+
+.node text.card-name,
+.node text.card-count,
+.node text.card-total {
+  font-size: 11.5px;
+  font-weight: 400;
+  text-decoration: none;
+}
+
+.node text.card-file {
+  font-weight: 600;
+}
+
+.node text.card-count,
+.node text.card-total {
+  fill: var(--muted);
+}
+
+.card-tick-hit,
+.card-strip-plate {
+  fill: transparent;
+}
+
+.graph .node[data-step] .card-strip-plate {
+  fill: var(--stack);
+}
+
+.card-mark-added {
+  fill: var(--added);
+}
+
+.card-mark-changed {
+  fill: var(--modified);
+}
+
+.card-mark-removed {
+  fill: var(--removed);
+}
+
+.card-mark-moved {
+  fill: none;
+  stroke: var(--muted);
+}
+
+.card-mark-same {
+  fill: var(--muted);
+  opacity: 0.55;
+}
+
+.card-line-plate {
+  fill: transparent;
+}
+
+.card-line-added .card-line-plate {
+  fill: var(--added-fill);
+}
+
+.card-line-removed .card-line-plate {
+  fill: var(--removed-fill);
+}
+
+.card-line-changed .card-line-plate {
+  fill: var(--modified-fill);
+}
+
+.node text.card-line-text,
+.node text.card-line-tag {
+  font:
+    11px ui-monospace,
+    "SF Mono",
+    Menlo,
+    monospace;
+  text-decoration: none;
+  white-space: pre;
+}
+
+.node text.card-line-text {
+  text-anchor: start;
+}
+
+.node text.card-line-tag {
+  fill: var(--muted);
+  font-family: system-ui, sans-serif;
+  font-size: 10px;
+  text-anchor: end;
+}
+
+.card-line-removed text.card-line-text {
+  fill: var(--removed);
+}
+
+.card-line-gap text.card-line-text {
+  fill: var(--muted);
+}
+
+.card-line-goes {
+  cursor: pointer;
+}
+
+.card-open {
+  cursor: pointer;
+}
+
+.card-open-plate {
+  fill: var(--stack);
+  stroke: var(--stack-line);
+}
+
+.node text.card-open-word {
+  fill: var(--muted);
+  font-size: 10.5px;
+  font-weight: 500;
+}
+
+.card-open[aria-pressed="true"] .card-open-plate {
+  fill: var(--ink);
+}
+
+.card-open[aria-pressed="true"] text.card-open-word {
+  fill: var(--page);
+}
