@@ -86,6 +86,8 @@ const readingOf = (overrides: Partial<Omit<RangeReading, 'reviewed'>>): RangeRea
   churnDays: 90,
   ruleBreaks: [],
   rulesNotRead: [],
+  deployKeysAtBase: [],
+  deployConfig: {},
   notesConfig: {},
   ...overrides,
 });
@@ -3818,6 +3820,38 @@ test('a secret a line gains raises its security finding, whether its file is dra
     'security:secret:web/src/a.ts#aws-access-key',
     'security:secret:config/aws.yml#aws-access-key',
   ]);
+});
+
+test('an env key a line gains raises its deploy finding, whether its file is drawn or not', () => {
+  const reading = readingWith({
+    patches: [addingLine('lib/tasks/sync.rake', 'token = ENV["SYNC_TOKEN"]')],
+  });
+
+  expect(
+    pageData({ repo: 'shop', reading, range: 'main..feature', version: '1.2.3', parsers })
+      .findings.filter(({ dimension }) => dimension === 'deploy')
+      .map(({ id }) => id),
+  ).toStrictEqual(['deploy:env:SYNC_TOKEN']);
+});
+
+test.for([
+  {
+    reason: "the base config's",
+    deployConfig: { flags: ['Feature.on?'] },
+    ids: ['deploy:flag-added:x'],
+  },
+  { reason: "Flipper's, with none configured", deployConfig: {}, ids: ['deploy:flag-added:y'] },
+])('the flags a change starts reading are read by $reason call names', ({ deployConfig, ids }) => {
+  const reading = readingWith({
+    patches: [addingLine('app/a.rb', 'Feature.on?(:x)', 'Flipper.enabled?(:y)')],
+    deployConfig,
+  });
+
+  expect(
+    pageData({ repo: 'shop', reading, range: 'main..feature', version: '1.2.3', parsers })
+      .findings.filter(({ dimension }) => dimension === 'deploy')
+      .map(({ id }) => id),
+  ).toStrictEqual(ids);
 });
 
 const symbolsIn = (file: SymbolFile | undefined) =>

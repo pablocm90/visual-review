@@ -1,4 +1,4 @@
-import type { Config, NotesConfig, ReaderName } from './config.ts';
+import type { Config, DeployConfig, NotesConfig, ReaderName } from './config.ts';
 import type { FilePatch, Rename } from './diff-graphs.ts';
 import type { Graph } from './graph.ts';
 import type { DanglingCall } from './linker.ts';
@@ -91,6 +91,8 @@ export type RangeReading = {
   readonly churnDays: number;
   readonly ruleBreaks: ReadonlyArray<RuleBreak>;
   readonly rulesNotRead: ReadonlyArray<string>;
+  readonly deployKeysAtBase: ReadonlyArray<string>;
+  readonly deployConfig: DeployConfig;
   readonly notesConfig: NotesConfig;
   readonly reviewed?: ReviewedReading;
 };

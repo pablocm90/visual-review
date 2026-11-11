@@ -2,17 +2,13 @@
 
 What changed in each release of `@pablocm90/visual-review`, newest first. Versions follow [semver](https://semver.org); while it is 0.x, a minor version may change the exported types.
 
-## Unreleased
+## 0.67.0 — 2026-11-11
 
-### Fixed
+### Added
 
-- Test file names under Tested by no longer show in capitals.
-- A part's comment field no longer stays pinned at the top of the inspector while you scroll.
-- A function's changed signature shows once: its member lines are left out when the diff under its logic changes already holds that line.
-- Start here counts lines to look at, not findings, and says how many more All findings holds when it shows only five.
-- The zoom control sits in a strip of its own under the graph, so it never covers a node in a short frame.
-- A long line in Start here's list is clipped inside it instead of widening the page.
-- A finding's hidden answer buttons no longer leave a gap under it.
+- An env variable or Rails credentials path a line the change adds to a code file (Ruby, Rake, ERB, Rust, JS or TS) reads by its literal name, and that the base doesn't know (an env key it names nowhere, a credentials path it reads in no form), raises `deploy:env` or `deploy:credentials` to look at, on the first row reading it, for every stack and in files outside the graph too: `ENV["KEY"]`, `ENV.fetch`, `ENV.key?`, `process.env.KEY`, `import.meta.env.KEY`, `env::var("KEY")`, `env::var_os`, `env!` and `option_env!`, and `Rails.application.credentials` read as `.aws.key`, `[:aws][:key]`, `.fetch(:aws)` or `.dig(:aws, :key)`, each read as `aws.key`. One read only in a test file or fixture is for information. The skill lists them in the summary, so they're set before the merge.
+- A feature flag the change starts or stops reading raises `deploy:flag-added` or `deploy:flag-removed` for information, a flag counting only when the rows reading it added and removed differ in number. The calls are Flipper's by default; the config's `deploy.flags`, read from the range's base, replaces them, `*` a wildcard within a name.
+- The deploy coverage lists each added line reading an env key through a variable, and says `flags: Flipper only` when no `deploy.flags` is set and no Flipper call is in the patches.
 
 ### Changed
 
@@ -24,11 +20,20 @@ What changed in each release of `@pablocm90/visual-review`, newest first. Versio
 - The graph opens, and Fit goes, no smaller than 80%, a wider graph panning; zooming out still reaches the whole. The zoom control sits at the frame's foot, its reset named Actual size. The reading map centres the current part in its neighbourhood.
 - The Tests screen folds each run of three or more unchanged tests.
 - The review tray opens as a drawer on the right; the answer buttons read in dark mode; a diff under a logic change no longer opens on a blank row; a cycle in the reading order reads "These 3 import each other, so they're read alphabetically".
-
 - **Start here** is one line above the graph: what needs a look (and what wasn't read), the range's changed decisions, and a count of what is for information. What needs a look opens under it by default, at most five lines; the count for information opens the rest with the lenses, which narrow both lists. With no findings it still says what was checked.
 - The graph's controls are one row: Show, the legend, and a **View** menu holding Colour by and All edges. On **Logic only** a **Cards** choice sets how much each card shows: its marks, its changed decisions (the default), or the code they sit on, each decision tagged on its row. A card's **code** button opens that card alone to its code.
 - In the inspector, Why look comes before What changed, the part's head stays put while its column scrolls, and each function with changed logic is a card whose name stays in view over its rows.
 - Under each run of logic changes in What changed, the patch rows they sit on open in place, once for changes sharing a block, each decision's row tagged with its change and kind. The key of marks opens from **Key** beside What changed rather than showing every time.
+
+### Fixed
+
+- Test file names under Tested by no longer show in capitals.
+- A part's comment field no longer stays pinned at the top of the inspector while you scroll.
+- A function's changed signature shows once: its member lines are left out when the diff under its logic changes already holds that line.
+- Start here counts lines to look at, not findings, and says how many more All findings holds when it shows only five.
+- The zoom control sits in a strip of its own under the graph, so it never covers a node in a short frame.
+- A long line in Start here's list is clipped inside it instead of widening the page.
+- A finding's hidden answer buttons no longer leave a gap under it.
 
 ## 0.66.0 — 2026-11-10
 

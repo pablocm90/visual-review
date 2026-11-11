@@ -10,6 +10,7 @@ import {
   parseConfig,
   type ReaderName,
 } from './config.ts';
+import { credentialKeysIn, deployKeysIn } from './deploy-findings.ts';
 import { diffGraphs, type GraphDiff, type Rename } from './diff-graphs.ts';
 import { readFileThatEnds } from './file-that-ends.ts';
 import { git } from './git.ts';
@@ -60,6 +61,38 @@ type ReadRangeOptions = Adapters &
     readonly churnTo?: string;
     readonly reviewed?: ReviewedHead;
   };
+
+type KeysNamedAt = {
+  readonly repo: string;
+  readonly revision: string;
+  readonly keys: ReadonlyArray<string>;
+};
+
+const noneFound = (error: unknown): string => {
+  if (error instanceof Error && 'code' in error && error.code === 1) return '';
+  throw error;
+};
+
+const keysNamedAt = async ({ repo, revision, keys }: KeysNamedAt) => {
+  if (keys.length === 0) return [];
+  const named = await git(
+    repo,
+    'grep',
+    '-F',
+    '-w',
+    '-o',
+    '-h',
+    '-I',
+    '--no-line-number',
+    '--no-column',
+    ...keys.flatMap(key => ['-e', key]),
+    revision,
+    '--',
+  ).catch(noneFound);
+  const credentials = await git(repo, 'grep', 'credentials', revision, '--').catch(noneFound);
+  const found = new Set([...named.split('\n'), ...credentialKeysIn(credentials)]);
+  return keys.filter(key => found.has(key));
+};
 
 type ReadSideOptions = Adapters & {
   readonly repo: string;
@@ -544,7 +577,7 @@ export const readRange = async ({
   const [fromCommit, toCommit] = await Promise.all([resolve(repo, from), resolve(repo, to)]);
   const base = await git(repo, 'merge-base', fromCommit, toCommit);
   const config = await configAt(repo, toCommit);
-  const { notes: notesConfig, security } = await baseConfigAt(repo, base);
+  const { notes: notesConfig, security, deploy: deployConfig } = await baseConfigAt(repo, base);
   const scratch = await realpath(await mkdtemp(join(tmpdir(), 'visual-review-')));
   try {
     const sides = { before: join(scratch, 'before'), after: join(scratch, 'after') };
@@ -631,6 +664,21 @@ export const readRange = async ({
             config,
             ...adapters,
           });
+    const patches = await Promise.all(
+      changes.map(async paths => ({
+        path: paths.at(-1) ?? '',
+        patch: await git(
+          repo,
+          '--literal-pathspecs',
+          'diff',
+          '--find-renames',
+          base,
+          toCommit,
+          '--',
+          ...paths,
+        ),
+      })),
+    );
     return {
       before: before.graph,
       after: after.graph,
@@ -674,24 +722,12 @@ export const readRange = async ({
       churnDays,
       ruleBreaks: ruleBreaks({ rules: config.rules, graph: after.graph }),
       rulesNotRead: rulesNotRead({ rules: config.rules, graph: after.graph }),
+      deployKeysAtBase: await keysNamedAt({ repo, revision: base, keys: deployKeysIn(patches) }),
+      deployConfig,
       notesConfig,
       changedPaths,
       renames,
-      patches: await Promise.all(
-        changes.map(async paths => ({
-          path: paths.at(-1) ?? '',
-          patch: await git(
-            repo,
-            '--literal-pathspecs',
-            'diff',
-            '--find-renames',
-            base,
-            toCommit,
-            '--',
-            ...paths,
-          ),
-        })),
-      ),
+      patches,
       ...(atReview === undefined ? {} : { reviewed: atReview.reading }),
     };
   } finally {

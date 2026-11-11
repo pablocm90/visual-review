@@ -77,7 +77,7 @@ const assignedSecret = (code: string): ReadonlyArray<Found> =>
 
 const TEST_FILE = /(?:^|\/)(?:(?:tests?|spec|__tests__|fixtures)\/|[^./][^/]*[._](?:test|spec)\.)/;
 
-const levelOf = (path: string): Finding['level'] => (TEST_FILE.test(path) ? 'info' : 'look');
+export const levelOf = (path: string): Finding['level'] => (TEST_FILE.test(path) ? 'info' : 'look');
 
 const SECRET_FILE =
   /(?:^|\/)(?:\.env(?![^/]*\.(?:example|sample|template|dist)$)[^/]*|config\/master\.key|config\/credentials\/[^/]+\.key|[^/]+\.pem|id_rsa(?!\.pub)[^/]*)$/;

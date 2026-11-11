@@ -128,6 +128,15 @@ const SecuritySchema = z.strictObject({
     .describe('Actions meant to be public, as Controller#action globs: they raise nothing'),
 });
 
+const DeploySchema = z.strictObject({
+  flags: z
+    .array(z.string())
+    .optional()
+    .describe(
+      "The calls taking a feature flag as first argument, * a wildcard within a name; left out, Flipper's",
+    ),
+});
+
 const ConfigSchema = z.strictObject({
   $schema: z.string().optional(),
   stacks: z
@@ -159,6 +168,9 @@ const ConfigSchema = z.strictObject({
   security: SecuritySchema.prefault({}).describe(
     "How access to controller actions is read, from the range's base revision, so a change can't open its own actions",
   ),
+  deploy: DeploySchema.prefault({}).describe(
+    "What a deploy must know of, read from the range's base revision, so a change can't hide its own flags",
+  ),
 });
 
 export type Config = z.infer<typeof ConfigSchema>;
@@ -168,6 +180,8 @@ export const configJsonSchema = () => z.toJSONSchema(ConfigSchema, { io: 'input'
 export type Rules = Config['rules'];
 
 export type NotesConfig = Config['notes'];
+
+export type DeployConfig = Config['deploy'];
 
 export type StackSettings = z.infer<typeof StackSchema>;
 
@@ -224,9 +238,10 @@ export const parseConfig = (text: string): Config =>
 const BaseConfigSchema = z.object({
   notes: NotesConfigSchema.prefault({}),
   security: SecuritySchema.prefault({}),
+  deploy: DeploySchema.prefault({}),
 });
 
-export type BaseConfig = Pick<Config, 'notes' | 'security'>;
+export type BaseConfig = Pick<Config, 'notes' | 'security' | 'deploy'>;
 
 export const parseBaseConfig = (text: string): BaseConfig =>
   parsedBy(BaseConfigSchema, jsonOrNothing(text), `${CONFIG_FILE} at the base`);

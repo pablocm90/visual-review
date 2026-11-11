@@ -561,6 +561,32 @@ test.for([
   },
 );
 
+test.for([
+  {
+    reason: "the base's flags stay when the head's name others",
+    base: { 'visual-review.config.json': '{"deploy": {"flags": ["Feature.on?"]}}\n' },
+    head: '{"deploy": {"flags": ["Feature.*"]}}\n',
+    deployConfig: { flags: ['Feature.on?'] },
+  },
+  {
+    reason: 'flags only the head names are none',
+    base: {},
+    head: '{"deploy": {"flags": ["Feature.*"]}}\n',
+    deployConfig: {},
+  },
+])(
+  "the reading's deploy config is the base revision's: $reason",
+  async ({ base, head, deployConfig }) => {
+    using workspace = gitRepo({ 'package.json': '{}\n', 'src/a.ts': '', ...base });
+    const { repo, root } = workspace;
+    const to = commit(repo, { 'visual-review.config.json': head });
+
+    const range = await readRange({ repo, from: root, to });
+
+    expect(range.deployConfig).toStrictEqual(deployConfig);
+  },
+);
+
 test('a base config whose other entries this visual-review refuses still gives its guidance', async () => {
   using workspace = gitRepo({
     'package.json': '{}\n',
