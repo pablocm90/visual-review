@@ -1,4 +1,5 @@
 import type { GraphDiff } from './diff-graphs.ts';
+import type { GraphNode } from './graph.ts';
 
 export type ReadingOrder = {
   readonly parts: ReadonlyArray<string>;
@@ -157,4 +158,36 @@ export const readingOrder = (diff: GraphDiff): ReadingOrder => {
     parts: [...order.flat(), ...removed.toSorted()],
     cycles: order.filter(group => group.length > 1),
   };
+};
+
+type Labelled = Pick<GraphNode, 'id' | 'label' | 'parent'>;
+
+const MOST_BOXES_NAMED = 4;
+
+/**
+ * Each part's name in the reading order: its label, with the boxes above it named before it
+ * (`graph › lib.rs`), one more each round, while another part reads the same.
+ */
+export const partLabels = (
+  nodes: ReadonlyArray<Labelled>,
+  parts: ReadonlyArray<string>,
+): ReadonlyMap<string, string> => {
+  const byId = new Map(nodes.map(node => [node.id, node]));
+  const boxesAbove = (id: string): ReadonlyArray<string> => {
+    const parent = byId.get(id)?.parent;
+    const box = parent === undefined ? undefined : byId.get(parent);
+    return box === undefined ? [] : [box.label, ...boxesAbove(box.id)];
+  };
+  const named = (id: string, depth: number) =>
+    [...boxesAbove(id).slice(0, depth).toReversed(), byId.get(id)?.label ?? id].join(' › ');
+  const depths = new Map(parts.map(part => [part, 0]));
+  for (let round = 0; round < MOST_BOXES_NAMED; round++) {
+    const counts = Map.groupBy(parts, part => named(part, depths.get(part) ?? 0));
+    const repeated = parts.filter(
+      part => (counts.get(named(part, depths.get(part) ?? 0))?.length ?? 0) > 1,
+    );
+    if (repeated.length === 0) break;
+    for (const part of repeated) depths.set(part, (depths.get(part) ?? 0) + 1);
+  }
+  return new Map(parts.map(part => [part, named(part, depths.get(part) ?? 0)]));
 };

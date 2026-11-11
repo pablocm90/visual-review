@@ -1,6 +1,6 @@
 import { expect, test } from 'vitest';
 import type { DiffedEdge, DiffedNode, GraphDiff } from './diff-graphs.ts';
-import { readingOrder } from './reading-order.ts';
+import { partLabels, readingOrder } from './reading-order.ts';
 
 const file = (name: string, state: DiffedNode['state'] = 'modified'): DiffedNode => ({
   id: `web/file/${name}`,
@@ -198,4 +198,21 @@ test('orders a thousand changed files without stalling', () => {
       .flatMap((name, index) => (index % 10 === 0 ? [] : [edge(name, names[index] ?? '')])),
   );
   expect(readingOrder(diff).parts).toHaveLength(1000);
+});
+
+test("a part's name in the reading order carries its boxes' names only while another part reads the same", () => {
+  const nodes = [
+    { id: 'rust', label: 'rust' },
+    { id: 'rust/crate/graph', label: 'graph', parent: 'rust' },
+    { id: 'rust/crate/engine', label: 'rust-engine', parent: 'rust' },
+    { id: 'rust/mod/graph/lib.rs', label: 'lib.rs', parent: 'rust/crate/graph' },
+    { id: 'rust/mod/graph/hops', label: 'hops', parent: 'rust/crate/graph' },
+    { id: 'rust/mod/engine/lib.rs', label: 'lib.rs', parent: 'rust/crate/engine' },
+  ];
+  const labels = partLabels(nodes, [
+    'rust/mod/graph/lib.rs',
+    'rust/mod/graph/hops',
+    'rust/mod/engine/lib.rs',
+  ]);
+  expect([...labels.values()]).toStrictEqual(['graph › lib.rs', 'hops', 'rust-engine › lib.rs']);
 });

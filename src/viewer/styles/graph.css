@@ -47,6 +47,13 @@
   padding-bottom: 40px;
 }
 
+.frame:has(> .open-map) {
+  box-sizing: content-box;
+  padding-top: 36px;
+  border: 1px solid var(--stack-line);
+  border-radius: 8px;
+}
+
 .graph {
   display: block;
   width: 100%;
@@ -472,7 +479,7 @@
 
 .open-map {
   position: absolute;
-  top: 8px;
+  top: 5px;
   right: 8px;
   padding: 2px 8px;
   border: 1px solid var(--stack-line);
