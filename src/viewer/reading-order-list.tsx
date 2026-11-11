@@ -1,6 +1,7 @@
 import { useLayoutEffect, useRef } from 'react';
 import type { Finding } from '../core/findings.ts';
 import type { PageData } from '../core/page.ts';
+import { partLabels } from '../core/reading-order.ts';
 import { subjectsOfTests } from '../core/tests-alongside.ts';
 import { LEVELS, LevelMark, worstOf } from './finding-display.tsx';
 import { scrollInPanel } from './scroll-in-panel.ts';
@@ -88,7 +89,7 @@ export const ReadingStops = ({
   onGoTo,
   onShowOutside,
 }: ReadingStopsProps) => {
-  const labelOf = new Map(review.diff.nodes.map(node => [node.id, node.label]));
+  const labelOf = partLabels(review.diff.nodes, review.readingOrder.parts);
   const { parts } = review.readingOrder;
   const subjects = subjectsOf(review);
   return (
@@ -130,7 +131,7 @@ export const ReadingOrderList = ({
   onShowOutside,
 }: ReadingOrderListProps) => {
   if (review.readingOrder.parts.length === 0 && review.undrawn.length === 0) return null;
-  const labelOf = new Map(review.diff.nodes.map(node => [node.id, node.label]));
+  const labelOf = partLabels(review.diff.nodes, review.readingOrder.parts);
   const findingsOn = Map.groupBy(findings, finding => finding.target);
   const cycleFrom = new Map(review.readingOrder.cycles.map(cycle => [cycle[0], cycle.length]));
   const subjects = subjectsOf(review);
