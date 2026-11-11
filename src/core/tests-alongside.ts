@@ -2,6 +2,8 @@ import { deepestHolding, isAtOrUnder } from './diff-graphs.ts';
 import { type GraphNode, stackOfIn } from './graph.ts';
 import type { TestFile } from './test-changes.ts';
 
+const folderOf = (path: string): string => path.slice(0, path.lastIndexOf('/') + 1);
+
 const stem = (path: string): string =>
   path.slice(path.lastIndexOf('/') + 1).replace(/\.[^.]*$/, '');
 
@@ -28,11 +30,12 @@ export const testsAlongside = ({
   const alike = namedAlike(stackOfIn(nodes));
   const inside = nodes.filter(each => isAtOrUnder(each.path, node));
   /**
-   * A test named after no node and held by a package, such as a Rust crate's `tests/` file, tests
-   * the package whole; a test in a folder still tests only what it is named after.
+   * A test named after no node tests what sits beside it: the files in its folder, or, held by a
+   * package such as a Rust crate's `tests/` file, the package whole.
    */
-  const testsItsPackage = (test: TestFile): boolean => {
+  const testsWhatIsBeside = (test: TestFile): boolean => {
     if (nodes.some(each => alike(each, test))) return false;
+    if (node.kind === 'file' && folderOf(node.path) === folderOf(test.path)) return true;
     const holder = deepestHolding(test.path, nodes);
     return holder?.kind === 'package' && isAtOrUnder(node.path, holder);
   };
@@ -40,7 +43,7 @@ export const testsAlongside = ({
     test =>
       isAtOrUnder(test.path, node) ||
       inside.some(each => alike(each, test)) ||
-      testsItsPackage(test),
+      testsWhatIsBeside(test),
   );
 };
 
