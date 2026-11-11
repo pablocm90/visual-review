@@ -15,13 +15,12 @@ import { holdsFewChanges, logicTotalsOf, runsOf } from '../core/logic-strip.ts';
 import type { PageData } from '../core/page.ts';
 import type { PreviousComment } from '../core/previous-comments.ts';
 import type { SymbolFile } from '../core/reading.ts';
-import type { Comment } from '../core/review.ts';
 import { testAnchorsIn } from '../core/since-review.ts';
 import { isQuiet, qualified, SYMBOL_GROUPS, type SymbolStatement } from '../core/symbol-changes.ts';
 import { type AnchoredSymbol, anchoredSymbols, decisionsOf } from '../core/symbol-findings.ts';
 import { boxesAboveIn } from '../core/visible-diff.ts';
 import { ChangedSinceTag, sinceLabel, useIsChangedSince } from './changed-since.tsx';
-import type { Comments } from './comment-field.tsx';
+import { useDrafting } from './comment-field.tsx';
 import { highlightPatch, type PatchLine } from './highlight-patch.ts';
 import { LogicLegend, LogicStrip } from './logic-strip.tsx';
 import { RowNote, RowNotes } from './note-block.tsx';
@@ -58,8 +57,6 @@ type Places = {
   readonly onGoTo: (id: string) => void;
   readonly onShowLine: (at: LineAt) => void;
   readonly onShowRow: (row: string) => void;
-  readonly comments: Comments;
-  readonly onComment: ((comment: Comment) => void) | undefined;
 };
 
 export type RowLanding = { readonly row?: string };
@@ -175,7 +172,7 @@ export const logicLabel = (line: LogicLine, nodes: Places['nodes']): string => {
 
 type ShowLine = (at: Omit<LineAt, 'node'>) => void;
 
-type LogicPlaces = Pick<Places, 'nodes' | 'comments' | 'onComment'>;
+type LogicPlaces = Pick<Places, 'nodes'>;
 
 type DecisionRow = ReturnType<typeof decisionsOf>[number] & {
   readonly marked: boolean;
@@ -186,9 +183,8 @@ const LogicRow = ({
   row: { line, id, text, marked, label },
   onShowLine,
   nodes,
-  comments,
-  onComment,
 }: LogicPlaces & { readonly row: DecisionRow; readonly onShowLine: ShowLine }) => {
+  const { onComment } = useDrafting();
   const marksOf = useRowMarks();
   return (
     <li
@@ -213,19 +209,13 @@ const LogicRow = ({
         </button>
       )}
       <ChangedSinceTag marked={marked} />
-      <RowNote
-        anchor={{ kind: 'decision', id, text }}
-        name={logicLabel(line, nodes)}
-        comments={comments}
-      />
+      <RowNote anchor={{ kind: 'decision', id, text }} name={logicLabel(line, nodes)} />
       <SaidBefore on={{ kind: 'decision', id }} />
       {onComment && (
         <CommentOn
           className="logic-comment-on"
           name={logicLabel(line, nodes)}
           anchor={{ kind: 'decision', id, text }}
-          comments={comments}
-          onComment={onComment}
         />
       )}
     </li>
@@ -288,6 +278,7 @@ const LogicLines = ({
   const hasSaid = useHasSaid();
   const marksOf = useRowMarks();
   const { notes } = useContext(RowNotes);
+  const { comments } = useDrafting();
   const name = `${symbol.item.kind} ${qualified(symbol.item)}`;
   const rows = decisionsOf(symbol).map(decision => {
     const marked = isChangedSince('decisions', decision.id);
@@ -299,7 +290,7 @@ const LogicLines = ({
   });
   const holdsNews = ({ id, marked }: DecisionRow): boolean =>
     marked ||
-    places.comments[anchorKey({ kind: 'decision', id })] !== undefined ||
+    comments[anchorKey({ kind: 'decision', id })] !== undefined ||
     notes[anchorKey({ kind: 'decision', id })] !== undefined ||
     hasSaid({ kind: 'decision', id });
   const rowOf = (row: DecisionRow) => (
@@ -445,16 +436,9 @@ const SymbolRow = ({
       {symbol.signature && !signatureInDiff && (
         <Signature name={name} signature={symbol.signature} />
       )}
-      <RowNote anchor={{ kind: 'symbol', id }} name={name} comments={places.comments} />
+      <RowNote anchor={{ kind: 'symbol', id }} name={name} />
       <SaidBefore on={{ kind: 'symbol', id }} />
-      {places.onComment && (
-        <CommentOn
-          name={name}
-          anchor={{ kind: 'symbol', id }}
-          comments={places.comments}
-          onComment={places.onComment}
-        />
-      )}
+      <CommentOn name={name} anchor={{ kind: 'symbol', id }} />
       {symbol.logic !== undefined && (
         <LogicLines
           symbol={{ item: symbol, id }}
@@ -463,18 +447,9 @@ const SymbolRow = ({
           onShowRow={places.onShowRow}
           fewChanges={holdsFewChanges(inFile)}
           nodes={places.nodes}
-          comments={places.comments}
-          onComment={places.onComment}
         />
       )}
-      {diffOpen && (
-        <SymbolLines
-          ends={ends}
-          nodes={places.nodes}
-          comments={places.comments}
-          onComment={places.onComment}
-        />
-      )}
+      {diffOpen && <SymbolLines ends={ends} nodes={places.nodes} />}
     </li>
   );
 };
@@ -496,6 +471,7 @@ const SymbolList = ({
 );
 
 const SymbolFiles = ({ file, ...places }: Places & { readonly file: SymbolFile }) => {
+  const { comments } = useDrafting();
   const inFile = 'symbols' in file ? file.symbols : [];
   const symbols = anchoredSymbols(file.node, inFile);
   const quiet = symbols.filter(({ item }) => isQuiet(item));
@@ -523,7 +499,7 @@ const SymbolFiles = ({ file, ...places }: Places & { readonly file: SymbolFile }
           aria-label="Unchanged symbols"
           open={quiet.some(
             symbol =>
-              places.comments[anchorKey({ kind: 'symbol', id: symbol.id })] !== undefined ||
+              comments[anchorKey({ kind: 'symbol', id: symbol.id })] !== undefined ||
               holdsNews(symbol),
           )}
         >

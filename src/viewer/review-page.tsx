@@ -57,7 +57,13 @@ import {
 import { anchorName, lineAt, placeOfLine } from './anchors.ts';
 import { ChangedSinceMarks, ChangedSinceTag, useIsChangedSince } from './changed-since.tsx';
 import { ColourBy, type Colouring, ScaleLegend, type Shade, shadeOf } from './colour-by.tsx';
-import { CommentAsked, type Comments, holdsDraft } from './comment-field.tsx';
+import {
+  CommentAsked,
+  type Comments,
+  Drafting,
+  holdsDraft,
+  useDrafting,
+} from './comment-field.tsx';
 import { type Answers, type AnswerTo, findingLine, LEVELS, worstOf } from './finding-display.tsx';
 import { FindingRows, type FindingRowsProps } from './finding-rows.tsx';
 import { FindingsRail, StartHere, type StartHereOpened } from './findings-rail.tsx';
@@ -82,8 +88,8 @@ import { MetricsTable } from './metrics-tab.tsx';
 import { NextToIt } from './next-to-it.tsx';
 import { NoteBlock, RowNotes } from './note-block.tsx';
 import {
-  type LineComments,
   type LineLanding,
+  type PatchPlaces,
   PatchRows,
   rowLandedOn,
   useSaidAt,
@@ -560,7 +566,7 @@ const Patch = ({
   landing,
   ...commenting
 }: FilePatch &
-  LineComments & { readonly open: boolean; readonly landing: LandingIn | undefined }) => {
+  PatchPlaces & { readonly open: boolean; readonly landing: LandingIn | undefined }) => {
   const lines = useMemo(() => highlightPatch({ path, patch }), [path, patch]);
   const marked = useIsChangedSince()('files', path);
   const saidLines = useSaidLinesOf(path);
@@ -575,7 +581,7 @@ const Patch = ({
     if (row) scrollInPanel(row, 'center');
     else scrollInPanel(top.current, 'start');
   }, [landed]);
-  const holdsDraft = holdsLineDraft(commenting.comments, path);
+  const holdsDraft = holdsLineDraft(useDrafting().comments, path);
   const holdsNote = useHoldsLineNote()(path);
   return (
     <details
@@ -628,8 +634,6 @@ const InspectorHead = ({
   node,
   walking: { read, onToggleRead, next, onGoTo, onNextLogic },
   anchor,
-  comments,
-  onComment,
   landing,
   heading,
 }: {
@@ -639,8 +643,6 @@ const InspectorHead = ({
   readonly walking: Walking;
   readonly anchor: Comment['anchor'];
   readonly landing: LandingIn | undefined;
-  readonly comments: Comments;
-  readonly onComment: ((comment: Comment) => void) | undefined;
 }) => (
   <header className="inspector-head">
     <p className="chips">
@@ -658,21 +660,17 @@ const InspectorHead = ({
         : `${node.path}, renamed from ${node.renamedFrom}`}
     </p>
     <div className="part-actions">
-      {onComment && (
-        <CommentOn
-          key={node.id}
-          anchor={anchor}
-          name={node.label}
-          word={
-            <>
-              Comment <KeyHint letter="C" />
-            </>
-          }
-          comments={comments}
-          onComment={onComment}
-          landing={onThePart(landing)}
-        />
-      )}
+      <CommentOn
+        key={node.id}
+        anchor={anchor}
+        name={node.label}
+        word={
+          <>
+            Comment <KeyHint letter="C" />
+          </>
+        }
+        landing={onThePart(landing)}
+      />
       {read !== undefined && (
         <button type="button" aria-pressed={read} onClick={onToggleRead}>
           Mark read <KeyHint letter="A" />
@@ -708,8 +706,6 @@ type InspectorProps = {
   readonly reaches: ReadonlyArray<Reach>;
   readonly onGoTo: (id: string) => void;
   readonly anchor: Comment['anchor'];
-  readonly comments: Comments;
-  readonly onComment: ((comment: Comment) => void) | undefined;
   readonly commentable: boolean;
   readonly onTake: ((recommendation: string) => void) | undefined;
   readonly saidInPlace: ReadonlyArray<string>;
@@ -754,7 +750,7 @@ const Fold = ({ title, open, onToggle, children }: FoldProps) => (
   </section>
 );
 
-type FullDiffProps = LineComments & {
+type FullDiffProps = PatchPlaces & {
   readonly patches: ReadonlyArray<FilePatch>;
   readonly patchesOpen: boolean;
   readonly held: boolean;
@@ -773,12 +769,13 @@ const FullDiff = ({
   const [closedAt, setClosedAt] = useState<{ readonly landing: LandingIn | undefined }>();
   const [landedOn, setLandedOn] = useState(false);
   const holdsLineNote = useHoldsLineNote();
+  const { comments } = useDrafting();
   const onAPatch = landing?.path === undefined ? undefined : landing;
   if (onAPatch !== undefined && !landedOn) setLandedOn(true);
   const wanted =
     onAPatch !== undefined ||
     landedOn ||
-    patches.some(({ path }) => holdsLineDraft(commenting.comments, path) || holdsLineNote(path));
+    patches.some(({ path }) => holdsLineDraft(comments, path) || holdsLineNote(path));
   const closed =
     closedAt !== undefined && (onAPatch === undefined || closedAt.landing === onAPatch);
   const open = (held || wanted) && !closed;
@@ -811,8 +808,6 @@ type NotePanelProps = Pick<
   | 'note'
   | 'found'
   | 'anchor'
-  | 'comments'
-  | 'onComment'
   | 'commentable'
   | 'onTake'
   | 'saidInPlace'
@@ -854,8 +849,6 @@ const NotePanel = ({
   note,
   found,
   anchor,
-  comments,
-  onComment,
   commentable,
   onTake,
   saidInPlace,
@@ -864,7 +857,8 @@ const NotePanel = ({
 }: NotePanelProps) => {
   const filesWithNews = useFilesWithNews(node, symbols, nodes);
   const hasSaid = useHasSaid();
-  const testsToRead = useTestsToRead(node ? testsAlongside({ nodes, node, tests }) : [], comments);
+  const { comments, onComment } = useDrafting();
+  const testsToRead = useTestsToRead(node ? testsAlongside({ nodes, node, tests }) : []);
   const boxesAbove = boxesAboveIn(nodes);
   const reachesHere = node
     ? reaches.filter(reach => reach.node === node.id || boxesAbove(reach.node).includes(node.id))
@@ -900,7 +894,7 @@ const NotePanel = ({
       {onComment &&
         !node &&
         (commentable ? (
-          <CommentFieldUnlessSaid anchor={anchor} comments={comments} onComment={onComment} />
+          <CommentFieldUnlessSaid anchor={anchor} />
         ) : (
           <p>Drawn for several edges: open its ends to comment on one of them.</p>
         ))}
@@ -915,16 +909,12 @@ const NotePanel = ({
           onGoTo={onGoTo}
           onShowLine={onShowLine}
           onShowRow={onShowRow}
-          comments={comments}
-          onComment={onComment}
         />
       )}
       {(testsToRead.length > 0 || untested.length > 0) && (
         <TestedBy
           drawn={testsToRead}
           nodes={nodes}
-          comments={comments}
-          onComment={onComment}
           found={untested}
           answers={answers}
           onAnswer={onAnswer}
@@ -990,8 +980,6 @@ const Inspector = ({
           node={node}
           walking={walking}
           anchor={props.anchor}
-          comments={props.comments}
-          onComment={props.onComment}
           landing={landing}
         />
       )}
@@ -1019,15 +1007,13 @@ const Inspector = ({
           onHold={setDiffHeld}
           landing={landing}
           nodes={props.nodes}
-          comments={props.comments}
-          onComment={props.onComment}
         />
       )}
     </aside>
   );
 };
 
-type OutsideFilesProps = LineComments & {
+type OutsideFilesProps = PatchPlaces & {
   readonly patches: ReadonlyArray<FilePatch>;
   readonly landing: LandingIn | undefined;
   readonly width: number | undefined;
@@ -1056,8 +1042,6 @@ type SidePanelProps = {
   readonly note: Note | undefined;
   readonly saidInPlace: ReadonlyArray<string>;
   readonly found: ReadonlyArray<Finding>;
-  readonly comments: Comments;
-  readonly onComment: ((comment: Comment) => void) | undefined;
   readonly answers: Answers;
   readonly onAnswer: AnswerTo | undefined;
   readonly chosenWidth: number | undefined;
@@ -1089,8 +1073,6 @@ const SidePanel = ({
   note,
   saidInPlace,
   found,
-  comments,
-  onComment,
   answers,
   onAnswer,
   chosenWidth,
@@ -1110,6 +1092,7 @@ const SidePanel = ({
   heading,
   reading,
 }: SidePanelProps) => {
+  const { onComment } = useDrafting();
   const patches = outside
     ? review.undrawn
     : node
@@ -1154,8 +1137,6 @@ const SidePanel = ({
           width={shownWidth}
           onClose={onCloseOutside}
           nodes={review.diff.nodes}
-          comments={comments}
-          onComment={onComment}
         />
       </>
     );
@@ -1188,8 +1169,6 @@ const SidePanel = ({
         reaches={review.reaches}
         onGoTo={onGoTo}
         anchor={anchor}
-        comments={comments}
-        onComment={onComment}
         commentable={commentable}
         onTake={
           onComment && commentable
@@ -1999,8 +1978,6 @@ type OtherScreenProps = {
   readonly review: PageData;
   readonly notes: ReviewPageProps['notes'];
   readonly selected: DiffNode | undefined;
-  readonly comments: Comments;
-  readonly onComment: ((comment: Comment) => void) | undefined;
   readonly onGoTo: (id: string) => void;
   readonly schemaLanding: SchemaLanding | undefined;
   readonly onSchemaLanded: () => void;
@@ -2016,8 +1993,6 @@ const OtherScreen = ({
   review,
   notes,
   selected,
-  comments,
-  onComment,
   onGoTo,
   schemaLanding,
   onSchemaLanded,
@@ -2027,24 +2002,15 @@ const OtherScreen = ({
 }: OtherScreenProps) => (
   <>
     {tab === 'tests' && (
-      <ChangedSinceMarks value={changedSinceIn(review)}>
-        <CommentAsked.Provider
-          value={
-            commentAsked?.row === undefined
-              ? undefined
-              : { anchor: commentAsked.row, request: commentAsked }
-          }
-        >
-          <TestsScreen
-            review={review}
-            notes={notes}
-            selected={selected}
-            onGoTo={onGoTo}
-            comments={comments}
-            onComment={onComment}
-          />
-        </CommentAsked.Provider>
-      </ChangedSinceMarks>
+      <CommentAsked.Provider
+        value={
+          commentAsked?.row === undefined
+            ? undefined
+            : { anchor: commentAsked.row, request: commentAsked }
+        }
+      >
+        <TestsScreen review={review} notes={notes} selected={selected} onGoTo={onGoTo} />
+      </CommentAsked.Provider>
     )}
     {tab === 'schema' && (
       <SchemaScreen review={review} landing={schemaLanding} onLanded={onSchemaLanded} />
@@ -2477,44 +2443,41 @@ const Page = ({ review, notes, send }: ReviewPageProps) => {
     </div>
   );
   const side = (
-    <ChangedSinceMarks key="side" value={changedSinceIn(review)}>
-      <SidePanel
-        review={review}
-        selected={selected}
-        node={selectedNode}
-        outside={outside}
-        note={selectedNote}
-        found={selectedFindings}
-        saidInPlace={edgesSaidInPlace({
-          comments: review.sinceReview?.comments ?? [],
-          arrow: selected,
-          diff: review.diff,
-          expanded: placedAt,
-          noted: unmerged,
-          allEdges,
-        })}
-        comments={comments}
-        onComment={comment}
-        answers={answers}
-        onAnswer={answer}
-        chosenWidth={chosenWidth}
-        onChooseWidth={setChosenWidth}
-        graphLeft={graphLeft}
-        onCloseOutside={closeOutside}
-        onCloseInspector={closeInspector}
-        onGoTo={goTo}
-        onWalkTo={walkTo}
-        onNextLogic={walkLogic}
-        landing={landing}
-        onLand={line => landOn(selected, line)}
-        read={read}
-        onToggleRead={toggleRead}
-        commentAsked={commentAsked}
-        onAskComment={id => setCommentAsked({ on: id, row: undefined })}
-        heading={heading}
-        reading={reading}
-      />
-    </ChangedSinceMarks>
+    <SidePanel
+      key="side"
+      review={review}
+      selected={selected}
+      node={selectedNode}
+      outside={outside}
+      note={selectedNote}
+      found={selectedFindings}
+      saidInPlace={edgesSaidInPlace({
+        comments: review.sinceReview?.comments ?? [],
+        arrow: selected,
+        diff: review.diff,
+        expanded: placedAt,
+        noted: unmerged,
+        allEdges,
+      })}
+      answers={answers}
+      onAnswer={answer}
+      chosenWidth={chosenWidth}
+      onChooseWidth={setChosenWidth}
+      graphLeft={graphLeft}
+      onCloseOutside={closeOutside}
+      onCloseInspector={closeInspector}
+      onGoTo={goTo}
+      onWalkTo={walkTo}
+      onNextLogic={walkLogic}
+      landing={landing}
+      onLand={line => landOn(selected, line)}
+      read={read}
+      onToggleRead={toggleRead}
+      commentAsked={commentAsked}
+      onAskComment={id => setCommentAsked({ on: id, row: undefined })}
+      heading={heading}
+      reading={reading}
+    />
   );
   const page = (
     <main>
@@ -2558,8 +2521,6 @@ const Page = ({ review, notes, send }: ReviewPageProps) => {
         review={review}
         notes={notes}
         selected={selectedNode}
-        comments={comments}
-        onComment={comment}
         onGoTo={goToOnStructure}
         schemaLanding={schemaLanding}
         onSchemaLanded={() => setSchemaLanding(undefined)}
@@ -2588,20 +2549,27 @@ const Page = ({ review, notes, send }: ReviewPageProps) => {
     </main>
   );
   return (
-    <RespondingOnPage
-      value={
-        comment && {
-          resolved,
-          onResolve: said => setResolved(current => withResolveToggled(current, said)),
-          comments,
-          onComment: comment,
-        }
-      }
-    >
-      <RowNotesOfPage notes={notes} comment={comment} selected={selected} onAsk={setCommentAsked}>
-        {page}
-      </RowNotesOfPage>
-    </RespondingOnPage>
+    <Drafting.Provider value={{ comments, onComment: comment }}>
+      <ChangedSinceMarks value={changedSinceIn(review)}>
+        <RespondingOnPage
+          value={
+            comment && {
+              resolved,
+              onResolve: said => setResolved(current => withResolveToggled(current, said)),
+            }
+          }
+        >
+          <RowNotesOfPage
+            notes={notes}
+            comment={comment}
+            selected={selected}
+            onAsk={setCommentAsked}
+          >
+            {page}
+          </RowNotesOfPage>
+        </RespondingOnPage>
+      </ChangedSinceMarks>
+    </Drafting.Provider>
   );
 };
 

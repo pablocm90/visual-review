@@ -2,7 +2,7 @@ import { createContext, useContext } from 'react';
 import { anchorKey } from '../core/anchors.ts';
 import type { Note } from '../core/notes.ts';
 import type { Comment } from '../core/review.ts';
-import { type Comments, holdsDraft } from './comment-field.tsx';
+import { holdsDraft, useDrafting } from './comment-field.tsx';
 
 type RowNotesOnPage = {
   readonly notes: Readonly<Record<string, Note>>;
@@ -47,10 +47,10 @@ export const NoteBlock = ({
 type RowNoteProps = {
   readonly anchor: Comment['anchor'];
   readonly name: string;
-  readonly comments: Comments;
 };
 
-export const RowNote = ({ anchor, name, comments }: RowNoteProps) => {
+export const RowNote = ({ anchor, name }: RowNoteProps) => {
+  const { comments } = useDrafting();
   const { notes, onTake } = useContext(RowNotes);
   const note = notes[anchorKey(anchor)];
   if (note === undefined) return null;

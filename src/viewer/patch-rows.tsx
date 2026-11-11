@@ -1,8 +1,6 @@
 import type { DiffedNode } from '../core/diff-graphs.ts';
 import type { PreviousComment } from '../core/previous-comments.ts';
-import type { Comment } from '../core/review.ts';
 import { anchorName, lineAnchor, rowOfLine } from './anchors.ts';
-import type { Comments } from './comment-field.tsx';
 import type { PatchLine as Line, Piece } from './highlight-patch.ts';
 import { RowNote } from './note-block.tsx';
 import { CommentOn, SaidBefore, useSaidLinesOf } from './said-before.tsx';
@@ -37,10 +35,9 @@ export const rowLandedOn = ({
     : rowOfLine(lines, { path, side, line, text });
 };
 
-export type LineComments = {
+/** What a patch row needs to name its anchor: the drawn nodes. */
+export type PatchPlaces = {
   readonly nodes: ReadonlyArray<DiffedNode>;
-  readonly comments: Comments;
-  readonly onComment: ((comment: Comment) => void) | undefined;
 };
 
 const PatchRowView = ({
@@ -50,9 +47,7 @@ const PatchRowView = ({
   said,
   landing,
   nodes,
-  comments,
-  onComment,
-}: LineComments & {
+}: PatchPlaces & {
   readonly path: string;
   readonly line: Line;
   readonly tag: string | undefined;
@@ -75,16 +70,8 @@ const PatchRowView = ({
       {said.map(on => (
         <SaidBefore key={on.id} on={on} landing={landing} />
       ))}
-      {anchor && <RowNote anchor={anchor} name={anchorName(anchor, nodes)} comments={comments} />}
-      {onComment && anchor && (
-        <CommentOn
-          anchor={anchor}
-          name={anchorName(anchor, nodes)}
-          comments={comments}
-          onComment={onComment}
-          landing={landing}
-        />
-      )}
+      {anchor && <RowNote anchor={anchor} name={anchorName(anchor, nodes)} />}
+      {anchor && <CommentOn anchor={anchor} name={anchorName(anchor, nodes)} landing={landing} />}
     </>
   );
   if (kind === 'added') return <ins {...marks}>{code}</ins>;
@@ -110,7 +97,7 @@ export const PatchRows = ({
   landedRow,
   landed,
   ...commenting
-}: LineComments & {
+}: PatchPlaces & {
   readonly path: string;
   readonly lines: ReadonlyArray<Line>;
   /** A word for each row, such as the decision a logic change sits on, shown beside it. */
