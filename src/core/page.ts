@@ -96,30 +96,16 @@ export const pageData = ({
     parts: testsAfterSubjects({ ...ordered, nodes: diff.nodes, tests: reading.tests }),
   };
   const findings = raisedFindings({
-    skipped: reading.skipped,
-    changedPaths: reading.changedPaths,
-    patches: reading.patches,
+    ...reading,
     undrawn,
-    dangling: reading.danglingCalls,
-    dependencyChanges: reading.dependencyChanges,
-    migrations: reading.migrations,
-    schemas: reading.schemas,
-    routes: reading.routes,
-    access: reading.access,
-    openActions: reading.openActions,
     metricFindings: metricFindings({ metrics, thresholds: reading.thresholds }),
-    symbols: reading.symbols,
-    symbolsNotRead: reading.symbolsNotRead,
-    reaches: reading.reaches,
     nodes: diff.nodes,
-    tests: reading.tests,
+    edges: diff.edges,
     split: splitSuggestion({
       parts: order.parts,
       edges: diff.edges,
       splitParts: reading.thresholds.splitParts,
     }),
-    ruleBreaks: reading.ruleBreaks,
-    edges: diff.edges,
   });
   const data: PageData = {
     repo,

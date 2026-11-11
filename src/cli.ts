@@ -149,9 +149,7 @@ const writeReview = async (args: ReadonlyArray<string>): Promise<string> => {
     await fillNotes({ range, page, notesFile: values.notes });
     return page;
   }
-  const { access, linkers, lockfiles, migrations, readers, routes, schemas } = await import(
-    './adapters.ts'
-  );
+  const { adapters } = await import('./adapters.ts');
   const reviewed =
     pullRequest &&
     (await lastReviewOf({ repo, pullRequest: pullRequest.number, head: revisions.to }));
@@ -159,13 +157,7 @@ const writeReview = async (args: ReadonlyArray<string>): Promise<string> => {
     repo,
     ...revisions,
     ...(reviewed && { reviewed }),
-    readers,
-    linkers,
-    lockfiles,
-    migrations,
-    schemas,
-    routes,
-    access,
+    ...adapters,
     onPath,
   });
   reading.skipped.forEach(skip => {
