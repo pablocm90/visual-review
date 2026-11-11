@@ -1,6 +1,6 @@
 # visual-review
 
-Structural review pages for pull requests, ranges and uncommitted work: the Rust crates and modules, the TS/JS modules and the Rails classes of a repo, before and after, with what changed coloured, and optional notes written by Claude or anyone else. Being made public as `@pablocm90/visual-review`.
+Structural review pages for pull requests, ranges and uncommitted work: the Rust crates and modules, the TS/JS modules and the Rails classes of a repo, before and after, with what changed coloured, and optional notes written by Claude or anyone else. Public, and published to npm as `@pablocm90/visual-review`.
 
 ## Where things are
 
@@ -34,6 +34,6 @@ The layout: `src/core/` holds the ports (`Reader`, `Linker`), config, `read-rang
 ## Conventions
 
 - The domain's words (finding, dimension, level, fact, check, Start here) are defined in `GLOSSARY.md`.
-- **This repo will be public.** Commit messages and PR bodies carry no `Claude-Session:` line, whatever the attribution reminder says. Keep `Co-Authored-By`.
+- **This repo is public.** Commit messages and PR bodies carry no `Claude-Session:` line, whatever the attribution reminder says. Keep `Co-Authored-By`.
 - Changes land through PRs from a task branch (`claude-dev task <slug>`), never pushed straight to `main`.
-- Publishing to npm and flipping the repo public are outward-facing steps the user runs or approves.
+- Publishing to npm is an outward-facing step the user runs or approves.
