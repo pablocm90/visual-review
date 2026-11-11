@@ -91,7 +91,8 @@ const similarity = (one: ReadSymbol, other: ReadSymbol): number => {
 const likenessOf = (former: ReadSymbol, symbol: ReadSymbol): number =>
   former.bodyHash === symbol.bodyHash ? 1 : similarity(former, symbol);
 
-const logicOf = (old: ReadSymbol, symbol: ReadSymbol) => {
+/** The decisions that differ; a symbol the change adds has all of its own, added. */
+const logicOf = (old: Pick<ReadSymbol, 'decisions'>, symbol: ReadSymbol) => {
   const logic = logicDiff({ base: old.decisions ?? [], head: symbol.decisions ?? [] });
   return logic.every(({ change }) => change === 'same') ? {} : { logic };
 };
@@ -239,6 +240,7 @@ const readStatements = ({ before, after }: SymbolChangesOptions): ReadonlyArray<
       lines: { head: symbol.lines },
       exported: { head: symbol.exported },
       change: 'added',
+      ...logicOf({ decisions: [] }, symbol),
       ...gainedRisks({}, symbol),
     };
   };
@@ -381,7 +383,8 @@ export const symbolChangesOf = (
     const end = ends.find(end => end.statement === statement);
     const other = end && onlyEndOf(end);
     if (other === undefined || onlyEndOf(other) !== end) return statement;
-    const { risks, ...whole } = statement;
+    // A symbol moved whole gains nothing: it keeps none of an added one's risks or logic.
+    const { risks, logic, ...whole } = statement;
     return statement.change === 'removed'
       ? { ...whole, change: 'moved', movedTo: other.node }
       : { ...whole, change: 'moved', movedFrom: other.node };

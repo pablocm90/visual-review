@@ -184,6 +184,8 @@ const logicFindings = (node: string, symbol: AnchoredSymbol): ReadonlyArray<Find
   const statement = symbol.item;
   const name = qualified(statement);
   const lines = statement.logic ?? [];
+  // A symbol the change adds is listed as added; its decisions raise nothing more.
+  if (statement.change === 'added') return [];
   return [
     ...decisionsOf(symbol).flatMap(({ line, id }) =>
       isLost(line)
