@@ -103,7 +103,8 @@ type RaisedOptions = {
   readonly symbols: ReadonlyArray<SymbolFile>;
   readonly symbolsNotRead: ReadonlyArray<string>;
   readonly reaches: ReadonlyArray<Reach>;
-  readonly nodes: ReadonlyArray<GraphNode>;
+  /** The drawn nodes, a diffed one with its state: a hotspot is raised on a changed node only. */
+  readonly nodes: ReadonlyArray<GraphNode & { readonly state?: string }>;
   readonly tests: ReadonlyArray<TestFile>;
   readonly split: SplitSuggestion | undefined;
   readonly ruleBreaks: ReadonlyArray<RuleBreak>;
@@ -229,16 +230,21 @@ export const raisedFindings = ({
       detail: calls.map(call => call.path).join(', '),
     }),
   ),
-  ...metricFindings.map(
-    (finding): Finding => ({
-      id: `metrics:${finding.metric}:${finding.node}`,
-      check: `metrics:${finding.metric}`,
-      dimension: 'metrics',
-      level: finding.level,
-      target: finding.node,
-      title: metricTitle(finding),
-    }),
-  ),
+  ...metricFindings
+    .filter(
+      ({ metric, node }) =>
+        metric !== 'hotspot' || nodes.find(({ id }) => id === node)?.state !== 'unchanged',
+    )
+    .map(
+      (finding): Finding => ({
+        id: `metrics:${finding.metric}:${finding.node}`,
+        check: `metrics:${finding.metric}`,
+        dimension: 'metrics',
+        level: finding.level,
+        target: finding.node,
+        title: metricTitle(finding),
+      }),
+    ),
   ...symbolFindings({ files: symbols, nodes }),
   ...riskFindings(symbols),
   ...viewRiskFindings(patches),

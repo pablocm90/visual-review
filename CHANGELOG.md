@@ -4,7 +4,23 @@ What changed in each release of `@pablocm90/visual-review`, newest first. Versio
 
 ## Unreleased
 
+### Fixed
+
+- Test file names under Tested by no longer show in capitals.
+- A part's comment field no longer stays pinned at the top of the inspector while you scroll.
+- A function's changed signature shows once: its member lines are left out when the diff under its logic changes already holds that line.
+- Start here counts lines to look at, not findings, and says how many more All findings holds when it shows only five.
+
 ### Changed
+
+- While reading, the left column names each stop, and a test file sits indented right after the file it tests in the reading order, as `J` walks it.
+- Next to it lists the changed neighbours, the unchanged ones folded under "and N unchanged".
+- The note that calls built at runtime aren't drawn shows only when the graph draws calls.
+- Why look leaves out an export added or a function's logic changed, which What changed already shows; the answer buttons of a finding for information, and the Comment buttons on rows, show on hover or focus.
+- A hotspot is raised only on a file the change touches; a file one hop away still shows its metrics.
+- The graph opens, and Fit goes, no smaller than 80%, a wider graph panning; zooming out still reaches the whole. The zoom control sits at the frame's foot, its reset named Actual size. The reading map centres the current part in its neighbourhood.
+- The Tests screen folds each run of three or more unchanged tests.
+- The review tray opens as a drawer on the right; the answer buttons read in dark mode; a diff under a logic change no longer opens on a blank row; a cycle in the reading order reads "These 3 import each other, so they're read alphabetically".
 
 - **Start here** is one line above the graph: what needs a look (and what wasn't read), the range's changed decisions, and a count of what is for information. What needs a look opens under it by default, at most five lines; the count for information opens the rest with the lenses, which narrow both lists. With no findings it still says what was checked.
 - The graph's controls are one row: Show, the legend, and a **View** menu holding Colour by and All edges. On **Logic only** a **Cards** choice sets how much each card shows: its marks, its changed decisions (the default), or the code they sit on, each decision tagged on its row. A card's **code** button opens that card alone to its code.

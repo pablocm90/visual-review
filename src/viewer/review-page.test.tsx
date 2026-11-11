@@ -17,7 +17,7 @@ import { symbolFindings } from '../core/symbol-findings.ts';
 import { findingOn, measured, pageWith } from '../test-support/page-data.ts';
 import { layoutDiff } from './layout.ts';
 import { ReviewPage } from './review-page.tsx';
-import { boxOf, centred, frameHeight, mapHeight } from './view.ts';
+import { aroundPart, boxOf, centred, frameHeight, mapHeight } from './view.ts';
 
 const frameOfWidth = (width: number) => {
   const observing: { report?: (width: number) => void } = {};
@@ -871,55 +871,78 @@ const zoomShown = () => screen.getByRole('status', { name: 'Zoom' }).textContent
 
 const viewOf = (stack: HTMLElement) => stack.parentElement?.getAttribute('transform');
 
-test.for([
-  { frameIs: 'half the graph wide', widthTimes: 0.5, window: 'tall', xTimes: 0 },
-  { frameIs: 'twice the graph wide', widthTimes: 2, window: 'half the graph high', xTimes: 0.75 },
-])(
-  'in a frame $frameIs and a window $window, the graph opens fitted at 50%, centred in a frame as high as the graph fitted to its width within the window',
-  async ({ widthTimes, window, xTimes }) => {
-    const graph = await layoutDiff(review.diff);
-    renderInFrame(pageWith(review), {
-      width: graph.width * widthTimes,
-      windowHeight: window === 'tall' ? 10_000 : graph.height / 2 + 48,
-    });
+/** The stack's view, to a millionth of a pixel: the frame's own sums land a float away. */
+const expectView = (stack: HTMLElement, x: number, y: number, scale: number) => {
+  const [, shownX, shownY, shownScale] =
+    /translate\(([^ ]+) ([^)]+)\) scale\(([^)]+)\)/.exec(viewOf(stack) ?? '') ?? [];
+  expect(Number(shownX)).toBeCloseTo(x, 6);
+  expect(Number(shownY)).toBeCloseTo(y, 6);
+  expect(Number(shownScale)).toBeCloseTo(scale, 6);
+};
 
-    const frame = await screen.findByRole('group', { name: 'Graph' });
-    const rust = await within(frame).findByRole('group', { name: 'rust' });
-    expect(zoomShown()).toBe('50%');
-    expect(viewOf(rust)).toBe(`translate(${graph.width * xTimes} 0) scale(0.5)`);
-    expect(frame.style.height).toBe(`${graph.height / 2}px`);
-  },
-);
+test('in a frame half the graph wide and a tall window, the graph opens no smaller than 80%, centred and panned into its middle, in a frame as high as the graph at that scale', async () => {
+  const graph = await layoutDiff(review.diff);
+  renderInFrame(pageWith(review), { width: graph.width / 2, windowHeight: 10_000 });
+
+  const frame = await screen.findByRole('group', { name: 'Graph' });
+  const rust = await within(frame).findByRole('group', { name: 'rust' });
+  expect(zoomShown()).toBe('80%');
+  expectView(rust, graph.width / 4 - (graph.width / 2) * 0.8, 0, 0.8);
+  expect(Number.parseFloat(frame.style.height)).toBeCloseTo(graph.height * 0.8, 6);
+});
+
+test('in a frame twice the graph wide and a window half the graph high, the graph opens at 80%, centred across and panned into its middle down a frame as high as the window allows', async () => {
+  const graph = await layoutDiff(review.diff);
+  renderInFrame(pageWith(review), { width: graph.width * 2, windowHeight: graph.height / 2 + 48 });
+
+  const frame = await screen.findByRole('group', { name: 'Graph' });
+  const rust = await within(frame).findByRole('group', { name: 'rust' });
+  expect(zoomShown()).toBe('80%');
+  expectView(
+    rust,
+    (graph.width * 2 - graph.width * 0.8) / 2,
+    graph.height / 4 - (graph.height / 2) * 0.8,
+    0.8,
+  );
+  expect(Number.parseFloat(frame.style.height)).toBeCloseTo(graph.height / 2, 6);
+});
 
 test('the toolbar zooms the graph by steps of 1.25, to 100% about the frame centre and back to fitted, and a relayout refits', async () => {
   const user = userEvent.setup();
   const graph = await layoutDiff(review.diff);
-  renderInFrame(pageWith(review), { width: graph.width / 2, windowHeight: 10_000 });
+  renderInFrame(pageWith(review), {
+    width: graph.width / 2,
+    windowHeight: graph.height / 2 + 48,
+  });
   const rust = await screen.findByRole('group', { name: 'rust' });
   const press = (name: string) => user.click(screen.getByRole('button', { name }));
 
   await press('Zoom in');
-  expect(zoomShown()).toBe('63%');
-  await press('Zoom out');
-  expect(zoomShown()).toBe('50%');
-  await press('100%');
   expect(zoomShown()).toBe('100%');
-  expect(viewOf(rust)).toBe(`translate(${-graph.width / 4} ${-graph.height / 4}) scale(1)`);
+  await press('Zoom out');
+  expect(zoomShown()).toBe('80%');
+  await press('Actual size');
+  expect(zoomShown()).toBe('100%');
+  expectView(rust, -graph.width / 4, -graph.height / 4, 1);
   await press('Fit');
-  expect(zoomShown()).toBe('50%');
-  expect(viewOf(rust)).toBe('translate(0 0) scale(0.5)');
+  expect(zoomShown()).toBe('80%');
+  expectView(rust, -graph.width * 0.15, -graph.height * 0.15, 0.8);
 
   await press('Zoom in');
+  expect(zoomShown()).toBe('100%');
   await showEverything(user);
-  await waitFor(() => expect(zoomShown()).toBe('50%'));
+  await waitFor(() => expect(zoomShown()).toBe('80%'));
 });
 
 test('dragging from a node pans the graph and selects nothing, even back near where it began, while a press that barely moves still selects it', async () => {
   const user = userEvent.setup();
   const graph = await layoutDiff(review.diff);
-  renderInFrame(pageWith(review), { width: graph.width / 2, windowHeight: 10_000 });
+  renderInFrame(pageWith(review), {
+    width: graph.width / 2,
+    windowHeight: graph.height / 2 + 48,
+  });
   const rust = await screen.findByRole('group', { name: 'rust' });
-  await user.click(screen.getByRole('button', { name: '100%' }));
+  await user.click(screen.getByRole('button', { name: 'Actual size' }));
   const domain = within(rust).getByRole('button', { name: 'domain: unchanged' });
   const drag = (...moves: ReadonlyArray<{ readonly clientX: number; readonly clientY: number }>) =>
     user.pointer([
@@ -928,16 +951,16 @@ test('dragging from a node pans the graph and selects nothing, even back near wh
       { keys: '[/MouseLeft]' },
     ]);
   const pannedBy = (x: number, y: number) =>
-    `translate(${x - graph.width / 4} ${y - graph.height / 4}) scale(1)`;
+    expectView(rust, x - graph.width / 4, y - graph.height / 4, 1);
 
   await drag({ clientX: 140, clientY: 130 });
-  expect(viewOf(rust)).toBe(pannedBy(40, 30));
+  pannedBy(40, 30);
   await drag({ clientX: 140, clientY: 130 }, { clientX: 102, clientY: 101 });
-  expect(viewOf(rust)).toBe(pannedBy(42, 31));
+  pannedBy(42, 31);
   expect(screen.queryByRole('complementary', { name: 'Inspector' })).toBeNull();
 
   await drag({ clientX: 103, clientY: 100 });
-  expect(viewOf(rust)).toBe(pannedBy(42, 31));
+  pannedBy(42, 31);
   expect(noteShown()).toBe('No note');
 
   await drag({ clientX: 140, clientY: 130 });
@@ -991,37 +1014,40 @@ test('the wheel pans the graph, scrolling the page instead once the graph can mo
 test('with the frame focused, + = - step the zoom, 1 goes to 100%, 0 fits, and the arrows pan by 40px without scrolling the page', async () => {
   const user = userEvent.setup();
   const graph = await layoutDiff(review.diff);
-  renderInFrame(pageWith(review), { width: graph.width / 2, windowHeight: 10_000 });
+  renderInFrame(pageWith(review), {
+    width: graph.width / 2,
+    windowHeight: graph.height / 2 + 48,
+  });
   const rust = await screen.findByRole('group', { name: 'rust' });
   const frame = screen.getByRole('group', { name: 'Graph' });
   const at100 = (x: number, y: number) =>
-    `translate(${x - graph.width / 4} ${y - graph.height / 4}) scale(1)`;
+    expectView(rust, x - graph.width / 4, y - graph.height / 4, 1);
   frame.focus();
 
   await user.keyboard('+');
-  expect(zoomShown()).toBe('63%');
+  expect(zoomShown()).toBe('100%');
   await user.keyboard('=');
-  expect(zoomShown()).toBe('78%');
+  expect(zoomShown()).toBe('125%');
   await user.keyboard('-');
-  expect(zoomShown()).toBe('63%');
+  expect(zoomShown()).toBe('100%');
   await user.keyboard('1');
-  expect(viewOf(rust)).toBe(at100(0, 0));
+  at100(0, 0);
   await user.keyboard('{ArrowRight}');
-  expect(viewOf(rust)).toBe(at100(-40, 0));
+  at100(-40, 0);
   await user.keyboard('{ArrowDown}');
-  expect(viewOf(rust)).toBe(at100(-40, -40));
+  at100(-40, -40);
   await user.keyboard('{ArrowLeft}{ArrowLeft}');
-  expect(viewOf(rust)).toBe(at100(40, -40));
+  at100(40, -40);
   await user.keyboard('{ArrowUp}{ArrowUp}');
-  expect(viewOf(rust)).toBe(at100(40, 40));
+  at100(40, 40);
   expect(fireEvent.keyDown(frame, { key: 'ArrowUp' })).toBe(false);
   expect(fireEvent.keyDown(frame, { key: 'Tab' })).toBe(true);
   expect(fireEvent.keyDown(frame, { key: '=', ctrlKey: true })).toBe(true);
   expect(fireEvent.keyDown(frame, { key: '-', metaKey: true })).toBe(true);
   expect(fireEvent.keyDown(frame, { key: 'ArrowLeft', altKey: true })).toBe(true);
-  expect(viewOf(rust)).toBe(at100(40, 80));
+  at100(40, 80);
   await user.keyboard('0');
-  expect(viewOf(rust)).toBe('translate(0 0) scale(0.5)');
+  expectView(rust, -graph.width * 0.15, -graph.height * 0.15, 0.8);
 });
 
 test("resizing the frame keeps the zoom and the graph point at the frame's centre", async () => {
@@ -1032,11 +1058,11 @@ test("resizing the frame keeps the zoom and the graph point at the frame's centr
     windowHeight: 10_000,
   });
   const rust = await screen.findByRole('group', { name: 'rust' });
-  await user.click(screen.getByRole('button', { name: '100%' }));
+  await user.click(screen.getByRole('button', { name: 'Actual size' }));
 
   resize((graph.width * 3) / 4);
   expect(zoomShown()).toBe('100%');
-  expect(viewOf(rust)).toBe(`translate(${-graph.width / 8} ${-graph.height / 8}) scale(1)`);
+  expectView(rust, -graph.width / 8, -graph.height / 10, 1);
 });
 
 const onScreen = (
@@ -1074,7 +1100,7 @@ test("toggling a box keeps the zoom and the box's corner where it was on screen,
   );
   const web = await screen.findByRole('group', { name: 'web' });
   const press = (name: string) => user.click(screen.getByRole('button', { name }));
-  await press('100%');
+  await press('Actual size');
   fireEvent.wheel(screen.getByRole('group', { name: 'Graph' }), {
     ctrlKey: true,
     deltaY: -100,
@@ -1099,7 +1125,7 @@ test("toggling a box keeps the zoom and the box's corner where it was on screen,
     expect(viewOf(web)).toBe(refitted);
   };
   const collapseUtilsAt125 = async () => {
-    await press('100%');
+    await press('Actual size');
     await press('Zoom in');
     await press('Collapse utils');
     await waitFor(() => expect(within(web).queryByRole('group', { name: 'utils' })).toBeNull());
@@ -2370,8 +2396,8 @@ test("the reading order numbers the changed parts in its order, on the graph too
     within(third ?? order).getByRole('img', { name: 'for information, 1 finding' }),
   ).toBeDefined();
   expect(within(first ?? order).queryByRole('img')).toBeNull();
-  expect(within(order).getAllByText(/depend on each other/)).toEqual([
-    within(first ?? order).getByText('3 parts depend on each other: read in name order'),
+  expect(within(order).getAllByText(/import each other/)).toEqual([
+    within(first ?? order).getByText("These 3 import each other, so they're read alphabetically"),
   ]);
   await user.click(within(order).getByRole('button', { name: '2 cli-adapter' }));
   expect(within(inspector()).getByRole('heading', { level: 2 }).textContent).toBe('cli-adapter');
@@ -2534,7 +2560,7 @@ test("Open map and Escape outside a field return to the landing with the part st
   expect(scrolledIntoView.mock.contexts).toContain(graph);
 });
 
-test('the map draws the graph fitted and takes no zoom or pan, and Open map brings back the graph on the part', async () => {
+test('the map draws the part centred in its neighbourhood and takes no zoom or pan, and Open map brings back the graph on the part', async () => {
   const user = userEvent.setup();
   const graph = await layoutDiff(review.diff);
   const width = graph.width / 2;
@@ -2556,7 +2582,12 @@ test('the map draws the graph fitted and takes no zoom or pan, and Open map brin
   await user.keyboard('j');
 
   const map = screen.getByRole('group', { name: 'Map' });
-  const fittedView = 'translate(0 0) scale(0.5)';
+  const around = aroundPart({
+    graph,
+    frame: { width, height: mapHeight({ graph, frameWidth: width }) },
+    box,
+  });
+  const fittedView = `translate(${around.x} ${around.y}) scale(${around.scale})`;
   expect(viewOf(rust)).toBe(fittedView);
   expect(map.style.height).toBe(`${mapHeight({ graph, frameWidth: width })}px`);
   expect(map.tabIndex).toBe(-1);
@@ -2822,11 +2853,12 @@ test("while reading, Next to it lists the part's edges by what each does, its ch
 
   expect(selectedPart()).toBe('application');
   expect(rows()).toEqual([
-    'imports domain',
     'calls legacy',
     'imported by cli-adapter · added · read',
+    'imports domain',
     'called by domain',
   ]);
+  expect(within(nextToIt() ?? document.body).getByText('and 2 unchanged')).toBeDefined();
 
   await user.click(screen.getByRole('button', { name: 'imports domain' }));
   expect(selectedPart()).toBe('domain');
@@ -2923,7 +2955,7 @@ test("Start here's lists stay as they were left after reading", async () => {
   await screen.findByRole('group', { name: 'rust' });
   const toggle = () =>
     within(screen.getByRole('region', { name: 'Start here' })).getByRole('button', {
-      name: '1 needs a look',
+      name: '1 to look at',
     });
   expect(toggle().getAttribute('aria-expanded')).toBe('true');
   await user.click(toggle());
@@ -3552,7 +3584,7 @@ test("Start here's line counts what needs a look and opens on it, ranked, in the
       .map(item => within(item).getByRole('button').getAttribute('aria-label'));
   const items = () => itemsOf('Needs a look');
   expect(items()).toEqual(['cli-adapter: first', 'domain: second', 'application: third']);
-  const count = () => band().getByRole('button', { name: '3 need a look' });
+  const count = () => band().getByRole('button', { name: '3 to look at' });
   expect(count().getAttribute('aria-expanded')).toBe('true');
   expect(band().queryByRole('list', { name: 'For information' })).toBeNull();
 
@@ -3584,9 +3616,10 @@ test("Start here's line counts what needs a look and opens on it, ranked, in the
     flagged('rust/crate/domain', { id: `look ${index}`, title: `${index}` }),
   );
   rerender(<ReviewPage review={pageWith({ ...review, findings: flags })} />);
-  expect(items()).toEqual(['0', '1', '2', '3', '4'].map(title => `domain: ${title}`));
+  expect(items()).toEqual([...['0', '1', '2', '3', '4'].map(title => `domain: ${title}`), null]);
+  expect(band().getByRole('button', { name: '6 to look at' })).toBeDefined();
   expect(screen.queryByRole('complementary', { name: 'Findings' })).toBeNull();
-  await user.click(band().getByRole('button', { name: 'All findings' }));
+  await user.click(band().getByRole('button', { name: 'and 1 more in All findings' }));
   expect(screen.getByRole('complementary', { name: 'Findings' })).toBeDefined();
   await user.click(screen.getByRole('button', { name: 'Hide findings' }));
 
@@ -3615,7 +3648,7 @@ test('with nothing to look at, Start here says so and still opens what is for in
       })}
     />,
   );
-  expect(band.getByRole('button', { name: '1 needs a look' })).toBeDefined();
+  expect(band.getByRole('button', { name: '1 to look at' })).toBeDefined();
   expect(band.getByRole('button', { name: '0 for information' })).toBeDefined();
 });
 
@@ -11694,4 +11727,101 @@ test("the head's Next logic change goes to the next changed decision, across fil
   await user.click(within(web).getByRole('button', { name: /^cart\.ts/ }));
   await within(inspector()).findByRole('button', { name: /^Next: / });
   expect(nextLogic()).toBeNull();
+});
+
+test("Why look leaves out what What changed already says row by row, an export added or a function's logic changed, and keeps the rest", async () => {
+  const user = userEvent.setup();
+  render(
+    <ReviewPage
+      review={{
+        ...pageOfLogic(),
+        findings: [
+          findingOn('web/file/refund.ts'),
+          findingOn('web/file/refund.ts', {
+            id: 'logic:changed:refund',
+            check: 'logic:changed',
+            dimension: 'logic',
+            title: 'function refund changed its logic',
+          }),
+          findingOn('web/file/refund.ts', {
+            id: 'api:added:refund',
+            check: 'api:added',
+            dimension: 'api',
+            title: 'function refund added',
+          }),
+        ],
+      }}
+    />,
+  );
+
+  await user.click(await screen.findByRole('button', { name: 'refund.ts: modified' }));
+  expect(
+    within(within(inspector()).getByRole('region', { name: 'Why look' }))
+      .getAllByRole('listitem')
+      .map(item => item.textContent),
+  ).toEqual(['lines 900, over 800']);
+});
+
+test('the Tests screen folds each run of three or more unchanged tests, keeping a changed one in its place', async () => {
+  const user = userEvent.setup();
+  const unchanged = (name: string) => ({ kind: 'test', name, change: 'unchanged' }) as const;
+  render(
+    <ReviewPage
+      review={{
+        ...pageOfLogic(),
+        tests: [
+          {
+            path: 'web/src/refund.test.ts',
+            stack: 'web',
+            statements: [
+              unchanged('one'),
+              unchanged('two'),
+              unchanged('three'),
+              { kind: 'test', name: 'late', change: 'added' },
+              unchanged('four'),
+            ],
+          },
+        ],
+      }}
+    />,
+  );
+
+  await user.click(await screen.findByRole('link', { name: /^Tests/ }));
+  const file = await screen.findByRole('region', { name: 'web/src/refund.test.ts' });
+  const fold = within(file).getByText('3 unchanged').closest('details');
+  expect(fold?.open).toBe(false);
+  expect(
+    within(fold ?? file)
+      .getAllByRole('listitem')
+      .map(item => item.ariaLabel),
+  ).toEqual(['one: unchanged', 'two: unchanged', 'three: unchanged']);
+  expect(within(file).getByRole('listitem', { name: 'late: added' }).closest('details')).toBeNull();
+  expect(
+    within(file).getByRole('listitem', { name: 'four: unchanged' }).closest('details'),
+  ).toBeNull();
+});
+
+test("the note that calls built at runtime aren't drawn shows only when the graph draws calls", async () => {
+  const caveat = () => screen.queryByText('Calls whose path is built at runtime are not drawn.');
+  const { unmount } = render(<ReviewPage review={pageWith(review)} />);
+  await screen.findByRole('group', { name: 'rust' });
+  expect(caveat()).toBeNull();
+  unmount();
+
+  render(
+    <ReviewPage
+      review={pageWith({
+        ...review,
+        diff: {
+          ...review.diff,
+          edges: [
+            ...review.diff.edges,
+            { ...dependency('domain', 'application', 'unchanged'), via: ['/api/y'] },
+          ],
+        },
+      })}
+    />,
+  );
+  await screen.findByRole('group', { name: 'rust' });
+  expect(caveat()).not.toBeNull();
 });

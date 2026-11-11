@@ -34,6 +34,7 @@ import {
   blockAround,
   decisionAt,
   holdsDecision,
+  logicDiffHoldsSignature,
   otherEndOf,
   sameBlock,
 } from './symbol-diff.ts';
@@ -315,19 +316,18 @@ const useDiffUnder = (patch: FilePatch | undefined): DiffUnder | undefined => {
 
 const LogicLines = ({
   symbol,
-  patch,
+  under,
   onShowLine,
   onShowRow,
   fewChanges,
   ...places
 }: LogicPlaces & {
   readonly symbol: AnchoredSymbol;
-  readonly patch: FilePatch | undefined;
+  readonly under: DiffUnder | undefined;
   readonly onShowLine: ShowLine;
   readonly onShowRow: Places['onShowRow'];
   readonly fewChanges: boolean;
 }) => {
-  const under = useDiffUnder(patch);
   const isChangedSince = useIsChangedSince();
   const hasSaid = useHasSaid();
   const marksOf = useRowMarks();
@@ -460,6 +460,8 @@ const SymbolRow = ({
   const isChangedSince = useIsChangedSince();
   const marksOf = useRowMarks();
   const [diffOpen, setDiffOpen] = useState(false);
+  const under = useDiffUnder(symbol.logic === undefined ? undefined : patch);
+  const signatureInDiff = under !== undefined && logicDiffHoldsSignature(under.lines, symbol);
   const name = `${symbol.kind} ${qualified(symbol)}`;
   const ends = isQuiet(symbol) ? [] : endsOf(symbol, { node, patch, inFile }, places);
   return (
@@ -484,7 +486,9 @@ const SymbolRow = ({
           </button>
         )}
       </div>
-      {symbol.signature && <Signature name={name} signature={symbol.signature} />}
+      {symbol.signature && !signatureInDiff && (
+        <Signature name={name} signature={symbol.signature} />
+      )}
       <RowNote anchor={{ kind: 'symbol', id }} name={name} comments={places.comments} />
       <SaidBefore on={{ kind: 'symbol', id }} />
       {places.onComment && (
@@ -498,7 +502,7 @@ const SymbolRow = ({
       {symbol.logic !== undefined && (
         <LogicLines
           symbol={{ item: symbol, id }}
-          patch={patch}
+          under={under}
           onShowLine={at => places.onShowLine({ node, ...at })}
           onShowRow={places.onShowRow}
           fewChanges={holdsFewChanges(inFile)}

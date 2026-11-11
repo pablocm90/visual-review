@@ -7,8 +7,14 @@ export type View = { readonly scale: number; readonly x: number; readonly y: num
 
 const PAGE_PADDING = 48;
 
-export const fitted = ({ graph, frame }: { readonly graph: Size; readonly frame: Size }): View =>
+/** Fitting never shrinks the graph below this; a wider graph pans instead, its labels kept legible. */
+export const SMALLEST_FIT = 0.8;
+
+const whole = ({ graph, frame }: { readonly graph: Size; readonly frame: Size }): View =>
   centred({ graph, frame, box: { x: 0, y: 0, ...graph } });
+
+export const fitted = ({ graph, frame }: { readonly graph: Size; readonly frame: Size }): View =>
+  centred({ graph, frame, box: { x: 0, y: 0, ...graph }, least: SMALLEST_FIT });
 
 type FrameHeightOptions = {
   readonly graph: Size;
@@ -16,11 +22,11 @@ type FrameHeightOptions = {
   readonly windowHeight: number;
 };
 
-const heightAtWidth = (graph: Size, frameWidth: number) =>
-  graph.height * Math.min(1, frameWidth / graph.width);
+const heightAtWidth = (graph: Size, frameWidth: number, least = 0) =>
+  graph.height * Math.max(least, Math.min(1, frameWidth / graph.width));
 
 export const frameHeight = ({ graph, frameWidth, windowHeight }: FrameHeightOptions): number =>
-  Math.min(heightAtWidth(graph, frameWidth), windowHeight - PAGE_PADDING);
+  Math.min(heightAtWidth(graph, frameWidth, SMALLEST_FIT), windowHeight - PAGE_PADDING);
 
 const MAP_TALLEST = 320;
 
@@ -55,7 +61,7 @@ const clamped = ({ graph, frame, view }: Placed): View => ({
 type ZoomedOptions = Placed & { readonly scale: number; readonly at: Point };
 
 const bounded = ({ graph, frame, scale }: Omit<Placed, 'view'> & { readonly scale: number }) =>
-  Math.min(MOST_ZOOMED, Math.max(fitted({ graph, frame }).scale, scale));
+  Math.min(MOST_ZOOMED, Math.max(whole({ graph, frame }).scale, scale));
 
 export const zoomed = ({ graph, frame, view, scale, at }: ZoomedOptions): View => {
   const within = bounded({ graph, frame, scale });
@@ -98,8 +104,13 @@ export const pinned = ({ graph, frame, view, from, to }: PinnedOptions): View =>
 
 type Box = Point & Size;
 
-export const centred = ({ graph, frame, box }: Omit<Placed, 'view'> & { readonly box: Box }) => {
-  const scale = Math.min(1, frame.width / box.width, frame.height / box.height);
+export const centred = ({
+  graph,
+  frame,
+  box,
+  least = 0,
+}: Omit<Placed, 'view'> & { readonly box: Box; readonly least?: number }) => {
+  const scale = Math.max(least, Math.min(1, frame.width / box.width, frame.height / box.height));
   return clamped({
     graph,
     frame,
@@ -145,4 +156,24 @@ const edgesIn = (layout: Layout) => [
 export const boxOf = ({ layout, id }: { readonly layout: Layout; readonly id: string }) => {
   const drawn = edgesIn(layout).find(({ edge }) => edgeId(edge) === id);
   return boxIn(layout.stacks, id, ORIGIN) ?? (drawn && span(drawn.edge.points, drawn.offset));
+};
+
+const NEIGHBOURHOOD = { width: 640, height: 400 };
+
+/** The reading map's view: the current part centred in a neighbourhood around it, not the whole. */
+export const aroundPart = ({
+  graph,
+  frame,
+  box,
+}: Omit<Placed, 'view'> & { readonly box: Box | undefined }): View => {
+  if (box === undefined) return whole({ graph, frame });
+  const width = Math.max(box.width * 2, NEIGHBOURHOOD.width);
+  const height = Math.max(box.height * 2, NEIGHBOURHOOD.height);
+  const around = {
+    x: box.x + box.width / 2 - width / 2,
+    y: box.y + box.height / 2 - height / 2,
+    width,
+    height,
+  };
+  return centred({ graph, frame, box: around });
 };

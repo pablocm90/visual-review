@@ -38,7 +38,7 @@ _Avoid_: component, item
 _In code_: an id in `readingOrder.parts`
 
 **Reading order**:
-The changed parts in the order to read them: a part after every part it depends on at the head, parts that depend on each other together in id order, then the removed parts in id order. The page numbers the changed files outside the graph after them.
+The changed parts in the order to read them: a part after every part it depends on at the head, parts that depend on each other together in id order, then the removed parts in id order; a test file named for a part comes right after it, indented, unless either is in such a cycle. The page numbers the changed files outside the graph after them.
 _Avoid_: priority, rank
 _In code_: `PageData.readingOrder`
 
@@ -63,23 +63,23 @@ _Avoid_: constraint, policy, check
 _In code_: `Rules` (`src/core/config.ts`), `ruleBreaks` (`src/core/rule-breaks.ts`)
 
 **Start here**:
-One line above the graph: how many findings need a look (and how many say something wasn't read), how many decisions the range changed when no lens but Behaviour is picked, going to **Logic only**, and how many findings are for information. Under it, open by default, the lines that need a look or weren't read, at most five, each the findings of one check and level, or one flag, ranked by its best finding: the blind spots, then direct dependency changes, risky migrations, removed tables, removed routes and new targets, then what most depends on, then what changes most. The count for information opens the other lines with the lenses; with no findings it reads "what was checked".
+One line above the graph: how many lines there are to look at (and how many say something wasn't read), how many decisions the range changed when no lens but Behaviour is picked, going to **Logic only**, and how many findings are for information. Under it, open by default, the lines that need a look or weren't read, at most five, then how many more All findings holds, each the findings of one check and level, or one flag, ranked by its best finding: the blind spots, then direct dependency changes, risky migrations, removed tables, removed routes and new targets, then what most depends on, then what changes most. The count for information opens the other lines with the lenses; with no findings it reads "what was checked".
 _Avoid_: Look first, top findings, priorities
 _In code_: `startHere` (`src/core/start-here.ts`)
 
 **Reading column**:
-What the inspector reads for one part, top to bottom, under its head, which stays in view: its note, Why look (the findings on it), What changed (its symbols, each function with changed logic a card whose name stays in view, its logic lines with the patch rows each run of them sits on open below), then Tested by (its changed tests, and the finding when logic changed with no test alongside). An arrow's holds its note and findings only.
+What the inspector reads for one part, top to bottom, under its head, which stays in view: its note, Why look (the findings on it, but for an export added or a function's logic changed, which What changed shows row by row), What changed (its symbols, each function with changed logic a card whose name stays in view, its logic lines with the patch rows each run of them sits on open below), then Tested by (its changed tests, and the finding when logic changed with no test alongside). An arrow's holds its note and findings only.
 _Avoid_: note panel, sidebar
 _In code_: `NotePanel` (`src/viewer/review-page.tsx`)
 
 **Reading** (the page's state):
-Walking the parts one at a time: the left column narrows to numbered stops, the reading column takes the middle, and the aside holds the corner map and Next to it. `J`, `K`, Start reading, a row of the reading order and the head's Next enter it, as `L` and Next logic change do, walking the changed decisions instead; a click in the graph, a finding or Start here keep the graph whole.
+Walking the parts one at a time: the left column narrows to the numbered, named stops, the reading column takes the middle, and the aside holds the corner map and Next to it. `J`, `K`, Start reading, a row of the reading order and the head's Next enter it, as `L` and Next logic change do, walking the changed decisions instead; a click in the graph, a finding or Start here keep the graph whole.
 _In code_: `reading` (`src/viewer/review-page.tsx`)
 
 **Corner map**:
-The graph while reading: the same layout fitted into the aside, with the current part ringed. It says where you are, and a click on a node goes there; it doesn't zoom, pan or open boxes, and its labels aren't promised at that scale. Open map returns to the graph whole.
+The graph while reading: the same layout in the aside, centred on the current part and its neighbourhood, the part ringed. It says where you are, and a click on a node goes there; it doesn't zoom, pan or open boxes, and its labels aren't promised at that scale. Open map returns to the graph whole.
 _Avoid_: minimap, thumbnail
-_In code_: `map` in `useGraphView`, `mapHeight` (`src/viewer/view.ts`)
+_In code_: `map` in `useGraphView`, `mapHeight` and `aroundPart` (`src/viewer/view.ts`)
 
 **Dependency change**:
 A package added to or removed from a lockfile, or major-bumped, or one that became or stopped being direct at the same version. Major-bumped means its set of compatibility lines differs across the sides: a version's numbers up to the first non-zero one, as `^` and Cargo read them, so `0.2.1` to `0.3.0` counts and `1.4.0` to `1.9.2` doesn't.

@@ -255,3 +255,23 @@ test('the front holds what needs a look and what was not read, the rest all of w
     'metrics:hotspot info',
   ]);
 });
+
+test('past five lines to look at, the front says how many it cut, and those never count for information', () => {
+  const flags = Array.from({ length: 7 }, (_, at) =>
+    findingOn(`web/file/${at}.ts`, {
+      id: `flag ${at}`,
+      check: 'flag',
+      level: 'look',
+      title: `${at}`,
+    }),
+  );
+  const { front, frontCut, information } = startHere({
+    findings: [...flags, ...raisedOver('api:added', 'info', 3, 3)],
+    metrics: {},
+    nodes,
+  });
+
+  expect(front).toHaveLength(5);
+  expect(frontCut).toBe(2);
+  expect(information).toBe(3);
+});
