@@ -1,5 +1,6 @@
 import type { FilePatch } from './diff-graphs.ts';
 import type { Finding } from './finding.ts';
+import type { GraphNode } from './graph.ts';
 import { lineIdOf, patchHunks } from './patch-lines.ts';
 import type { SchemaReading } from './read-schemas.ts';
 import type { RangeReading } from './reading.ts';
@@ -15,6 +16,12 @@ type DeployColumnsOptions = {
   readonly patches: ReadonlyArray<FilePatch>;
   readonly namedAtHead: ReadonlyArray<NamedColumn>;
   readonly ignoredAtBase: ReadonlyArray<TableColumn>;
+  readonly nodes: ReadonlyArray<GraphNode>;
+};
+
+const placeOf = (nodes: ReadonlyArray<GraphNode>, file: string) => {
+  const node = nodes.find(({ path }) => path === file);
+  return node === undefined ? { file } : { target: node.id };
 };
 
 const columnChanges = (schemas: ReadonlyArray<SchemaReading>) =>
@@ -64,7 +71,8 @@ const firstRowNaming = (patches: ReadonlyArray<FilePatch>, column: string) => {
 const stillReadFindings = ({
   schemas,
   namedAtHead,
-}: Pick<DeployColumnsOptions, 'schemas' | 'namedAtHead'>): ReadonlyArray<Finding> =>
+  nodes,
+}: Pick<DeployColumnsOptions, 'schemas' | 'namedAtHead' | 'nodes'>): ReadonlyArray<Finding> =>
   removedColumns(schemas).flatMap(({ table, column }) => {
     const named = namedAtHead.find(read => read.column === column && isAppCode(read.path));
     return named === undefined
@@ -75,7 +83,7 @@ const stillReadFindings = ({
             check: 'deploy:column-still-read',
             dimension: 'deploy',
             level: 'look',
-            file: named.path,
+            ...placeOf(nodes, named.path),
             title: `${named.path} still names the removed column ${table}.${column}`,
             detail:
               'Code running during the deploy may read it: ignore it in a deploy before dropping it. Matched by name.',

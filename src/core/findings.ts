@@ -201,12 +201,13 @@ const RAISERS: ReadonlyArray<Raise> = [
   ({ patches, deployKeysAtBase }) => deployKeyFindings({ patches, keysAtBase: deployKeysAtBase }),
   ({ patches, deployConfig }) =>
     deployFlagFindings({ patches, flags: deployConfig.flags ?? FLIPPER_FLAGS }),
-  ({ schemas, patches, columnsNamedAtHead, columnsIgnoredAtBase }) =>
+  ({ schemas, patches, columnsNamedAtHead, columnsIgnoredAtBase, nodes }) =>
     deployColumnFindings({
       schemas,
       patches,
       namedAtHead: columnsNamedAtHead,
       ignoredAtBase: columnsIgnoredAtBase,
+      nodes,
     }),
   ({ reaches }) => reachFindings(reaches),
   ({ symbols, nodes, tests }) => untestedLogicFindings({ nodes, tests, symbols }),

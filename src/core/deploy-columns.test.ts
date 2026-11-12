@@ -1,6 +1,7 @@
 import { expect, test } from 'vitest';
 import { deployColumnFindings } from './deploy-columns.ts';
 import type { FilePatch } from './diff-graphs.ts';
+import type { GraphNode } from './graph.ts';
 import type { SchemaReading } from './read-schemas.ts';
 import type { SchemaColumn } from './schema.ts';
 import type { SchemaChange, TableChange } from './schema-diff.ts';
@@ -35,6 +36,7 @@ const findingsOf = (options: Partial<Parameters<typeof deployColumnFindings>[0]>
     patches: [],
     namedAtHead: [],
     ignoredAtBase: [],
+    nodes: [],
     ...options,
   });
 
@@ -214,6 +216,26 @@ test('a removed column that app code at the head still names is to look at: igno
         'Code running during the deploy may read it: ignore it in a deploy before dropping it. Matched by name.',
     },
   ]);
+});
+
+test('a removed column still named in a drawn file targets its node, so the review opens it', () => {
+  const node: GraphNode = {
+    id: 'shop/class/User',
+    kind: 'file',
+    label: 'User',
+    parent: 'shop/layer/models',
+    path: MODEL,
+  };
+
+  const [finding] = findingsOf({
+    schemas: schemaRemoving('nickname'),
+    namedAtHead: [{ path: MODEL, column: 'nickname' }],
+    ignoredAtBase: NICKNAME_IGNORED,
+    nodes: [{ ...node, id: 'shop/class/Users', path: 'app/models/users.rb' }, node],
+  });
+
+  expect(finding).toMatchObject({ target: node.id });
+  expect(finding).not.toHaveProperty('file');
 });
 
 test.for([
