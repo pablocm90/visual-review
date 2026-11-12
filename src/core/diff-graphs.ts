@@ -123,7 +123,11 @@ export const diffGraphs = ({
   const idOf = (id: string): string => pairs.get(id)?.to.id ?? id;
   return {
     nodes: diffItems({
-      before: before.nodes.map(node => ({ ...node, id: idOf(node.id) })),
+      before: before.nodes.map(node => ({
+        ...node,
+        id: idOf(node.id),
+        ...(node.parent === undefined ? {} : { parent: idOf(node.parent) }),
+      })),
       after: after.nodes,
       keyOf: node => node.id,
       stateOfKept: node => (isTouched(node) ? 'modified' : 'unchanged'),

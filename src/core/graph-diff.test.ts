@@ -276,6 +276,35 @@ test('of two removed crates that most of their files went to one added crate, on
   ]);
 });
 
+test('a removed file of a renamed crate stays under the crate drawn in its place', () => {
+  const fileOf = (name: string, file: string): GraphNode => ({
+    id: `rust/mod/${name}/${file}`,
+    kind: 'file',
+    label: file,
+    parent: `rust/crate/${name}`,
+    path: `crates/${name}/src/${file}`,
+  });
+  const renames = [
+    { from: 'crates/domain/Cargo.toml', to: 'crates/models/Cargo.toml' },
+    { from: 'crates/domain/src/lib.rs', to: 'crates/models/src/lib.rs' },
+  ];
+  const diff = diffGraphs({
+    before: graph({
+      nodes: [crate('domain'), fileOf('domain', 'lib.rs'), fileOf('domain', 'gone.rs')],
+      edges: [],
+    }),
+    after: graph({ nodes: [crate('models'), fileOf('models', 'lib.rs')], edges: [] }),
+    changedPaths: [...renames.flatMap(({ from, to }) => [from, to]), 'crates/domain/src/gone.rs'],
+    renames,
+  });
+
+  expect(diff.nodes.map(({ id, state, parent }) => ({ id, state, parent }))).toStrictEqual([
+    { id: 'rust/crate/models', state: 'modified', parent: 'rust' },
+    { id: 'rust/mod/models/lib.rs', state: 'modified', parent: 'rust/crate/models' },
+    { id: 'rust/mod/domain/gone.rs', state: 'removed', parent: 'rust/crate/models' },
+  ]);
+});
+
 test.for([
   {
     pair: 'no file is renamed across',
