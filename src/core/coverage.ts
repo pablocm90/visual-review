@@ -1,4 +1,5 @@
 import { accessNotRead } from './access-findings.ts';
+import { columnsNotRead } from './deploy-columns.ts';
 import { deployNotRead } from './deploy-findings.ts';
 import type { Dimension } from './findings.ts';
 import { NO_AXUM_CRATE } from './linker.ts';
@@ -141,6 +142,12 @@ export const coverageOf = ({
       dimension: 'security',
       notRead: securityNotRead({ access, readers, routes, openActions, symbols }),
     },
-    { dimension: 'deploy', notRead: deployNotRead({ patches, flags: deployConfig.flags }) },
+    {
+      dimension: 'deploy',
+      notRead: [
+        ...deployNotRead({ patches, flags: deployConfig.flags }),
+        ...columnsNotRead({ schemas, migrations, readers }),
+      ],
+    },
   ];
 };

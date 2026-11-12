@@ -152,3 +152,44 @@ test.for([
 ])('holds $path: $holds', ({ path, holds }) => {
   expect(railsSchema.holds(path)).toBe(holds);
 });
+
+test.for([
+  {
+    reason: 'the names it assigns, strings and symbols, on the table its file names',
+    path: 'app/models/user.rb',
+    text: 'class User < ApplicationRecord\n  self.ignored_columns = ["nickname", :handle]\nend\n',
+    ignored: [
+      { table: 'users', column: 'nickname' },
+      { table: 'users', column: 'handle' },
+    ],
+  },
+  {
+    reason: 'the words it adds, on the plural of a nested file, prefixed by its folders or not',
+    path: 'app/models/billing/admin/category.rb',
+    text: 'class Billing::Admin::Category < ApplicationRecord\n  self.ignored_columns += %w[slug]\nend\n',
+    ignored: [
+      { table: 'categories', column: 'slug' },
+      { table: 'billing_admin_categories', column: 'slug' },
+    ],
+  },
+  {
+    reason: 'a frozen list',
+    path: 'app/models/user.rb',
+    text: 'class User < ApplicationRecord\n  self.ignored_columns = %w[legacy].freeze\nend\n',
+    ignored: [{ table: 'users', column: 'legacy' }],
+  },
+  {
+    reason: 'the table its table_name sets',
+    path: 'app/models/person.rb',
+    text: 'class Person < ApplicationRecord\n  self.table_name = "humans"\n  self.ignored_columns = [:age]\nend\n',
+    ignored: [{ table: 'humans', column: 'age' }],
+  },
+  {
+    reason: 'none when it only mentions them',
+    path: 'app/models/user.rb',
+    text: 'class User < ApplicationRecord\n  # ignored_columns once held nickname\nend\n',
+    ignored: [],
+  },
+])('a model ignores $reason', ({ path, text, ignored }) => {
+  expect(railsSchema.ignored({ path, text })).toStrictEqual(ignored);
+});

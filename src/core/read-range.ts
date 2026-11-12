@@ -13,7 +13,7 @@ import {
 import { credentialKeysIn, deployKeysIn } from './deploy-findings.ts';
 import { diffGraphs, type GraphDiff, type Rename } from './diff-graphs.ts';
 import { readFileThatEnds } from './file-that-ends.ts';
-import { git } from './git.ts';
+import { git, noneFound } from './git.ts';
 import { type Graph, stackOfIn } from './graph.ts';
 import { dropLinksLeaving, isTrackedLinkLeaving } from './links-leaving.ts';
 import { type MeasuredNode, measuredNodes } from './metrics.ts';
@@ -66,11 +66,6 @@ type KeysNamedAt = {
   readonly repo: string;
   readonly revision: string;
   readonly keys: ReadonlyArray<string>;
-};
-
-const noneFound = (error: unknown): string => {
-  if (error instanceof Error && 'code' in error && error.code === 1) return '';
-  throw error;
 };
 
 const keysNamedAt = async ({ repo, revision, keys }: KeysNamedAt) => {

@@ -2,6 +2,7 @@ import { accessFindings } from './access-findings.ts';
 import { anchorOfKey, anchorTarget, fileOfLine, isNoted, type Noted } from './anchors.ts';
 import { counted } from './counted.ts';
 import { dependencyFindings } from './dependency-findings.ts';
+import { deployColumnFindings } from './deploy-columns.ts';
 import { deployFlagFindings, deployKeyFindings, FLIPPER_FLAGS } from './deploy-findings.ts';
 import type { FilePatch, GraphDiff } from './diff-graphs.ts';
 import type { Finding } from './finding.ts';
@@ -61,6 +62,8 @@ type RaisedOptions = Pick<
   | 'tests'
   | 'ruleBreaks'
   | 'deployKeysAtBase'
+  | 'columnsNamedAtHead'
+  | 'columnsIgnoredAtBase'
   | 'deployConfig'
 > & {
   readonly undrawn: ReadonlyArray<FilePatch>;
@@ -198,6 +201,14 @@ const RAISERS: ReadonlyArray<Raise> = [
   ({ patches, deployKeysAtBase }) => deployKeyFindings({ patches, keysAtBase: deployKeysAtBase }),
   ({ patches, deployConfig }) =>
     deployFlagFindings({ patches, flags: deployConfig.flags ?? FLIPPER_FLAGS }),
+  ({ schemas, patches, columnsNamedAtHead, columnsIgnoredAtBase, nodes }) =>
+    deployColumnFindings({
+      schemas,
+      patches,
+      namedAtHead: columnsNamedAtHead,
+      ignoredAtBase: columnsIgnoredAtBase,
+      nodes,
+    }),
   ({ reaches }) => reachFindings(reaches),
   ({ symbols, nodes, tests }) => untestedLogicFindings({ nodes, tests, symbols }),
   ({ symbolsNotRead }) =>

@@ -280,3 +280,134 @@ test('a schema file holding no tables says nothing when deleted', async () => {
 
   expect(schemas).toStrictEqual([]);
 });
+
+test.for([
+  {
+    reason: 'every file naming it, once each',
+    model: 'class User\n  def label = name.presence || name || email\nend\n',
+    head: `  create_table "users", force: :cascade do |t|
+    t.string "email", null: false
+    t.index ["email"], name: "index_users_on_email"
+  end`,
+    named: [
+      { path: 'app/models/user.rb', column: 'name' },
+      { path: FILE, column: 'name' },
+    ],
+  },
+  {
+    reason: 'each column a file names',
+    model: 'class User\n  def label = name.presence || name || email\nend\n',
+    head: `  create_table "users", force: :cascade do |t|
+  end`,
+    named: [
+      { path: 'app/models/user.rb', column: 'name' },
+      { path: 'app/models/user.rb', column: 'email' },
+    ],
+  },
+  {
+    reason: 'not by a model ignoring it',
+    model: 'class User\n  self.ignored_columns = ["name"]\nend\n',
+    head: `  create_table "users", force: :cascade do |t|
+  end`,
+    named: [],
+  },
+  {
+    reason: 'by a model ignoring another column',
+    model: 'class User\n  self.ignored_columns = ["email"]\n  def label = name\nend\n',
+    head: `  create_table "users", force: :cascade do |t|
+  end`,
+    named: [{ path: 'app/models/user.rb', column: 'name' }],
+  },
+  {
+    reason: 'none when no file names it',
+    model: 'class User\nend\n',
+    head: `  create_table "users", force: :cascade do |t|
+    t.string "name"
+  end`,
+    named: [],
+  },
+])('a removed column is looked up by name at the head: $reason', async ({ model, head, named }) => {
+  using workspace = gitRepo({
+    [FILE]: dump(USERS),
+    'app/models/user.rb': model,
+    'app/models/name_tag.rb': 'class NameTag\n  def names = []\nend\n',
+  });
+  const { repo, root } = workspace;
+  git(repo, 'config', 'grep.lineNumber', 'true');
+  git(repo, 'config', 'grep.column', 'true');
+  const to = commit(repo, { [FILE]: dump(head) });
+
+  const { columnsNamedAtHead } = await readRange({ repo, from: root, to });
+
+  expect(columnsNamedAtHead).toStrictEqual(named);
+});
+
+test('a removed column a model ignores is still named by the other files naming it', async () => {
+  using workspace = gitRepo({
+    [FILE]: dump(USERS),
+    'app/models/user.rb': 'class User\n  self.ignored_columns = ["name"]\nend\n',
+    'app/views/users/show.html.erb': '<%= @user.name %>\n',
+  });
+  const { repo, root } = workspace;
+  const to = commit(repo, {
+    [FILE]: dump(`  create_table "users", force: :cascade do |t|
+    t.string "email", null: false
+  end`),
+  });
+
+  const { columnsNamedAtHead } = await readRange({ repo, from: root, to });
+
+  expect(columnsNamedAtHead).toStrictEqual([
+    { path: 'app/views/users/show.html.erb', column: 'name' },
+  ]);
+});
+
+test("the columns ignored are read from the base's models, not the head's", async () => {
+  using workspace = gitRepo({
+    [FILE]: dump(USERS),
+    'app/models/user.rb': 'class User\n  self.ignored_columns = ["name"]\nend\n',
+  });
+  const { repo, root } = workspace;
+  const to = commit(repo, {
+    [FILE]: dump(`  create_table "users", force: :cascade do |t|
+  end`),
+    'app/models/user.rb': 'class User\n  self.ignored_columns = ["name", "email"]\nend\n',
+  });
+
+  const { columnsIgnoredAtBase } = await readRange({ repo, from: root, to });
+
+  expect(columnsIgnoredAtBase).toStrictEqual([{ table: 'users', column: 'name' }]);
+});
+
+test('a model at a path git would quote is read for the columns it ignores', async () => {
+  using workspace = gitRepo({
+    [FILE]: dump(USERS),
+    'app/models/café.rb':
+      'class Café < ApplicationRecord\n  self.table_name = "users"\n  self.ignored_columns = ["name"]\nend\n',
+  });
+  const { repo, root } = workspace;
+  const to = commit(repo, {
+    [FILE]: dump(`  create_table "users", force: :cascade do |t|
+  end`),
+  });
+
+  const { columnsIgnoredAtBase } = await readRange({ repo, from: root, to });
+
+  expect(columnsIgnoredAtBase).toStrictEqual([{ table: 'users', column: 'name' }]);
+});
+
+test('a file other than Ruby quoting ignored_columns ignores no column', async () => {
+  using workspace = gitRepo({
+    [FILE]: dump(USERS),
+    'docs/user.md': 'Before dropping it:\n\n    self.ignored_columns = ["name"]\n',
+  });
+  const { repo, root } = workspace;
+  const to = commit(repo, {
+    [FILE]: dump(`  create_table "users", force: :cascade do |t|
+  end`),
+  });
+
+  const { columnsIgnoredAtBase } = await readRange({ repo, from: root, to });
+
+  expect(columnsIgnoredAtBase).toStrictEqual([]);
+});

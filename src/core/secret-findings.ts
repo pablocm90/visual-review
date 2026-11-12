@@ -1,6 +1,6 @@
 import { countingRepeats } from './counted-id.ts';
 import type { FilePatch } from './diff-graphs.ts';
-import type { Finding } from './findings.ts';
+import { type Finding, levelOf } from './finding.ts';
 import { lineIdOf, patchHunks } from './patch-lines.ts';
 
 type Format = {
@@ -74,10 +74,6 @@ const assignedSecret = (code: string): ReadonlyArray<Found> =>
             },
           ],
   );
-
-const TEST_FILE = /(?:^|\/)(?:(?:tests?|spec|__tests__|fixtures)\/|[^./][^/]*[._](?:test|spec)\.)/;
-
-export const levelOf = (path: string): Finding['level'] => (TEST_FILE.test(path) ? 'info' : 'look');
 
 const SECRET_FILE =
   /(?:^|\/)(?:\.env(?![^/]*\.(?:example|sample|template|dist)$)[^/]*|config\/master\.key|config\/credentials\/[^/]+\.key|[^/]+\.pem|id_rsa(?!\.pub)[^/]*)$/;

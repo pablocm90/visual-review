@@ -49,3 +49,9 @@ export const filesHeldAt = async (held: HeldAt): Promise<ReadonlyMap<string, str
   reading.child.stdin?.end(blobs.map(({ object }) => `${object}\n`).join(''));
   return filesIn((await reading).stdout, blobs);
 };
+
+/** A `git grep` that matched nothing exits 1: read it as no output. */
+export const noneFound = (error: unknown): string => {
+  if (error instanceof Error && 'code' in error && error.code === 1) return '';
+  throw error;
+};

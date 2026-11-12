@@ -1,4 +1,6 @@
 import type { AccessReader } from './access.ts';
+import { APP_CODE_EXTENSIONS, removedColumns } from './deploy-columns.ts';
+import { filesHeldAt, git, noneFound } from './git.ts';
 import type { Lockfile } from './lockfile.ts';
 import type { MigrationReader } from './migration.ts';
 import { readAccess } from './read-access.ts';
@@ -34,8 +36,79 @@ type ReadChangesOptions = ChangeReaders & {
 
 export type ChangesRead = Pick<
   RangeReading,
-  'dependencyChanges' | 'migrations' | 'schemas' | 'routes' | 'access'
+  | 'dependencyChanges'
+  | 'migrations'
+  | 'schemas'
+  | 'columnsNamedAtHead'
+  | 'columnsIgnoredAtBase'
+  | 'routes'
+  | 'access'
 >;
+
+type NamedAt = {
+  readonly repo: string;
+  readonly revision: string;
+  readonly names: ReadonlyArray<string>;
+};
+
+const namedAt = async ({ repo, revision, names }: NamedAt) => {
+  if (names.length === 0) return [];
+  const found = await git(
+    repo,
+    'grep',
+    '-F',
+    '-w',
+    '-o',
+    '-I',
+    '-z',
+    '--no-line-number',
+    '--no-column',
+    ...names.flatMap(name => ['-e', name]),
+    revision,
+    '--',
+    ...APP_CODE_EXTENSIONS.map(extension => `*.${extension}`),
+  ).catch(noneFound);
+  const reads = found
+    .split('\n')
+    .filter(line => line !== '')
+    .map(line => {
+      const [path = '', column = ''] = line.slice(revision.length + 1).split('\0');
+      return { path, column };
+    });
+  return [...new Map(reads.map(read => [`${read.path}\0${read.column}`, read])).values()];
+};
+
+type IgnoredAt = {
+  readonly repo: string;
+  readonly revision: string;
+  readonly schemas: ReadonlyArray<SchemaReader>;
+};
+
+const ignoredAt = async ({ repo, revision, schemas }: IgnoredAt) => {
+  const listed = await git(
+    repo,
+    'grep',
+    '-l',
+    '-z',
+    'ignored_columns',
+    revision,
+    '--',
+    '*.rb',
+  ).catch(noneFound);
+  const files = new Set(
+    listed
+      .split('\0')
+      .filter(line => line !== '')
+      .map(line => line.slice(revision.length + 1)),
+  );
+  if (files.size === 0) return [];
+  const models = await filesHeldAt({ repo, revision, holds: path => files.has(path) });
+  return [...models].flatMap(([path, text]) =>
+    schemas.flatMap(({ ignored }) =>
+      ignored({ path, text }).map(({ table, column }) => ({ path, table, column })),
+    ),
+  );
+};
 
 /** What each change reader reads of the range, the routes first since a changed route reaches access. */
 export const readChanges = async ({
@@ -52,10 +125,22 @@ export const readChanges = async ({
 }: ReadChangesOptions): Promise<ChangesRead> => {
   const revisions = { repo, base, head, changes };
   const routesRead = await readRoutes({ ...revisions, routes });
+  const schemasRead = await readSchemas({ ...revisions, schemas });
+  const removed = removedColumns(schemasRead);
+  const named = await namedAt({ repo, revision: head, names: removed.map(({ column }) => column) });
+  const ignoredAtHead =
+    named.length === 0 ? [] : await ignoredAt({ repo, revision: head, schemas });
+  const ignoredAtBase =
+    removed.length === 0 ? [] : await ignoredAt({ repo, revision: base, schemas });
   return {
     dependencyChanges: await readLockfiles({ ...revisions, lockfiles }),
     migrations: await readMigrations({ ...revisions, migrations }),
-    schemas: await readSchemas({ ...revisions, schemas }),
+    schemas: schemasRead,
+    columnsNamedAtHead: named.filter(
+      read =>
+        !ignoredAtHead.some(({ path, column }) => path === read.path && column === read.column),
+    ),
+    columnsIgnoredAtBase: ignoredAtBase.map(({ table, column }) => ({ table, column })),
     routes: routesRead,
     access: await readAccess({ ...revisions, routed: routesRead.length > 0, access, authorize }),
   };

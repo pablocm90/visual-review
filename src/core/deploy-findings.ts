@@ -1,8 +1,7 @@
 import type { Check } from './checks.ts';
 import type { FilePatch } from './diff-graphs.ts';
-import type { Finding } from './findings.ts';
+import { type Finding, levelOf } from './finding.ts';
 import { lineIdOf, patchHunks } from './patch-lines.ts';
-import { levelOf } from './secret-findings.ts';
 import { literally } from './wildcard.ts';
 
 type Read = { readonly kind: 'env' | 'credentials'; readonly key: string };
