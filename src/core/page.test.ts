@@ -3855,7 +3855,7 @@ test.for([
   ).toStrictEqual(ids);
 });
 
-test('a column the schema dump adds raises its deploy finding when added code names it', () => {
+test('the columns the schema dump adds and removes raise their deploy findings from the code naming them', () => {
   const reading = readingWith({
     schemas: [
       {
@@ -3865,20 +3865,24 @@ test('a column the schema dump adds raises its deploy finding when added code na
             name: 'users',
             state: 'changed',
             options: { base: '', head: '' },
-            columns: [{ state: 'added', head: { name: 'nickname', type: 'string', options: '' } }],
+            columns: [
+              { state: 'added', head: { name: 'nickname', type: 'string', options: '' } },
+              { state: 'removed', base: { name: 'handle', type: 'string', options: '' } },
+            ],
             indexes: [],
           },
         ],
       },
     ],
     patches: [addingLine('app/models/user.rb', 'nickname')],
+    columnsNamedAtHead: [{ path: 'app/models/user.rb', column: 'handle' }],
   });
 
   expect(
     pageData({ repo: 'shop', reading, range: 'main..feature', version: '1.2.3', parsers })
       .findings.filter(({ dimension }) => dimension === 'deploy')
       .map(({ id }) => id),
-  ).toStrictEqual(['deploy:column-used:users.nickname']);
+  ).toStrictEqual(['deploy:column-used:users.nickname', 'deploy:column-still-read:users.handle']);
 });
 
 const symbolsIn = (file: SymbolFile | undefined) =>
