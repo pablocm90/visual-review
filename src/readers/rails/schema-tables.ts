@@ -1,5 +1,7 @@
+import { basename } from 'node:path';
 import type { Node } from 'web-tree-sitter';
 import type { SchemaColumn, SchemaIndex, SchemaReader, SchemaTable } from '../../core/schema.ts';
+import { plural } from './inflection.ts';
 import { NOT_SEARCHED } from './reader.ts';
 import {
   argsOf,
@@ -7,6 +9,7 @@ import {
   isOption,
   methodOf,
   nameOf,
+  namesIn,
   positional,
   readRuby,
   writtenIn,
@@ -68,6 +71,13 @@ const tableOf = (createTable: Node): SchemaTable => {
   };
 };
 
+const assignedTo = (program: Node, method: string): ReadonlyArray<Node> =>
+  program.descendantsOfType(['assignment', 'operator_assignment']).flatMap(assignment => {
+    const left = assignment.childForFieldName('left');
+    const right = assignment.childForFieldName('right');
+    return left !== null && right !== null && methodOf(left) === method ? [right] : [];
+  });
+
 export const railsSchema: SchemaReader = {
   holds: path =>
     SCHEMA_FILE.test(path) && !path.split('/').some(folder => NOT_SEARCHED.has(folder)),
@@ -78,5 +88,13 @@ export const railsSchema: SchemaReader = {
         .descendantsOfType('call')
         .filter(call => methodOf(call) === 'create_table')
         .map(tableOf);
+    }),
+  ignored: ({ path, text }) =>
+    readRuby(text, program => {
+      const [named] = assignedTo(program, 'table_name');
+      const table = named === undefined ? plural(basename(path, '.rb')) : nameOf(named);
+      return assignedTo(program, 'ignored_columns').flatMap(list =>
+        namesIn(list).map(column => ({ table, column })),
+      );
     }),
 };
