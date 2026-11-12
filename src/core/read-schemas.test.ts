@@ -344,3 +344,20 @@ test("the columns ignored are read from the base's models, not the head's", asyn
 
   expect(columnsIgnoredAtBase).toStrictEqual([{ table: 'users', column: 'name' }]);
 });
+
+test('a model at a path git would quote is read for the columns it ignores', async () => {
+  using workspace = gitRepo({
+    [FILE]: dump(USERS),
+    'app/models/café.rb':
+      'class Café < ApplicationRecord\n  self.table_name = "users"\n  self.ignored_columns = ["name"]\nend\n',
+  });
+  const { repo, root } = workspace;
+  const to = commit(repo, {
+    [FILE]: dump(`  create_table "users", force: :cascade do |t|
+  end`),
+  });
+
+  const { columnsIgnoredAtBase } = await readRange({ repo, from: root, to });
+
+  expect(columnsIgnoredAtBase).toStrictEqual([{ table: 'users', column: 'name' }]);
+});

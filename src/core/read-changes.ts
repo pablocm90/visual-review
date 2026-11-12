@@ -87,8 +87,10 @@ type IgnoredAt = {
 };
 
 const ignoredAt = async ({ repo, revision, schemas }: IgnoredAt) => {
-  const files = (await git(repo, 'grep', '-l', 'ignored_columns', revision, '--').catch(noneFound))
-    .split('\n')
+  const files = (
+    await git(repo, 'grep', '-l', '-z', 'ignored_columns', revision, '--').catch(noneFound)
+  )
+    .split('\0')
     .filter(line => line !== '')
     .map(line => line.slice(revision.length + 1));
   const models = await Promise.all(
