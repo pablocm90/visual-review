@@ -1,4 +1,5 @@
 import type { Action } from './access.ts';
+import { placeOfFile } from './finding.ts';
 import type { Finding } from './findings.ts';
 import type { GraphNode } from './graph.ts';
 import type { AccessReading } from './read-access.ts';
@@ -14,14 +15,6 @@ type AccessFindingsOptions = {
 };
 
 const keyOf = ({ root, controller, action }: Action): string => `${root}:${controller}#${action}`;
-
-const nodeOf = (
-  nodes: ReadonlyArray<GraphNode>,
-  { file }: Action,
-): { readonly target: string } | { readonly file: string } => {
-  const node = nodes.find(({ path }) => path === file);
-  return node === undefined ? { file } : { target: node.id };
-};
 
 type Change = {
   readonly action: Action;
@@ -131,7 +124,7 @@ export const accessFindings = ({
               check: 'security:unauthorized',
               dimension: 'security',
               level: action.cover === undefined ? 'look' : 'info',
-              ...nodeOf(nodes, action),
+              ...placeOfFile(nodes, action.file),
               ...change,
             },
           ];
