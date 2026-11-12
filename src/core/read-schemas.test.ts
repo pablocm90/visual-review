@@ -305,6 +305,20 @@ test.for([
     ],
   },
   {
+    reason: 'not by a model ignoring it',
+    model: 'class User\n  self.ignored_columns = ["name"]\nend\n',
+    head: `  create_table "users", force: :cascade do |t|
+  end`,
+    named: [],
+  },
+  {
+    reason: 'by a model ignoring another column',
+    model: 'class User\n  self.ignored_columns = ["email"]\n  def label = name\nend\n',
+    head: `  create_table "users", force: :cascade do |t|
+  end`,
+    named: [{ path: 'app/models/user.rb', column: 'name' }],
+  },
+  {
     reason: 'none when no file names it',
     model: 'class User\nend\n',
     head: `  create_table "users", force: :cascade do |t|
@@ -326,6 +340,26 @@ test.for([
   const { columnsNamedAtHead } = await readRange({ repo, from: root, to });
 
   expect(columnsNamedAtHead).toStrictEqual(named);
+});
+
+test('a removed column a model ignores is still named by the other files naming it', async () => {
+  using workspace = gitRepo({
+    [FILE]: dump(USERS),
+    'app/models/user.rb': 'class User\n  self.ignored_columns = ["name"]\nend\n',
+    'app/views/users/show.html.erb': '<%= @user.name %>\n',
+  });
+  const { repo, root } = workspace;
+  const to = commit(repo, {
+    [FILE]: dump(`  create_table "users", force: :cascade do |t|
+    t.string "email", null: false
+  end`),
+  });
+
+  const { columnsNamedAtHead } = await readRange({ repo, from: root, to });
+
+  expect(columnsNamedAtHead).toStrictEqual([
+    { path: 'app/views/users/show.html.erb', column: 'name' },
+  ]);
 });
 
 test("the columns ignored are read from the base's models, not the head's", async () => {
