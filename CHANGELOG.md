@@ -2,6 +2,13 @@
 
 What changed in each release of `@pablocm90/visual-review`, newest first. Versions follow [semver](https://semver.org); while it is 0.x, a minor version may change the exported types.
 
+## Unreleased
+
+### Added
+
+- A column the schema dump removes raises `deploy:column-still-read` to look at when app Ruby code at the head still names it, and `deploy:not-ignored` when no model listed it in `ignored_columns` at the base, on the dump's table: ignore it in a deploy before dropping it. A column the dump adds that the change's own app Ruby code names raises `deploy:column-used` for information, on the row: on a rolling deploy that code can run before the migration. All are matched by name.
+- The deploy coverage says `columns: db/schema.rb only` when a migration is added and no dump changed, and `columns: Rails only` without a Rails stack.
+
 ## 0.67.1 — 2026-11-12
 
 ### Fixed
