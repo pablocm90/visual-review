@@ -4,12 +4,9 @@ import type { GraphNode } from './graph.ts';
 import { lineIdOf, patchHunks } from './patch-lines.ts';
 import type { SchemaReading } from './read-schemas.ts';
 import type { RangeReading } from './reading.ts';
-import type { TableColumn } from './schema.ts';
+import type { NamedColumn, TableColumn } from './schema.ts';
 import { isTestFile } from './secret-findings.ts';
 import { literally } from './wildcard.ts';
-
-/** A file at the head naming a column, by name. */
-export type NamedColumn = { readonly path: string; readonly column: string };
 
 type DeployColumnsOptions = {
   readonly schemas: ReadonlyArray<SchemaReading>;

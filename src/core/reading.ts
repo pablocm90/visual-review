@@ -1,5 +1,4 @@
 import type { Config, DeployConfig, NotesConfig, ReaderName } from './config.ts';
-import type { NamedColumn } from './deploy-columns.ts';
 import type { FilePatch, Rename } from './diff-graphs.ts';
 import type { Graph } from './graph.ts';
 import type { DanglingCall } from './linker.ts';
@@ -12,7 +11,7 @@ import type { SchemaReading } from './read-schemas.ts';
 import type { FileMeasures } from './reader.ts';
 import type { Review } from './review.ts';
 import type { RuleBreak } from './rule-breaks.ts';
-import type { TableColumn } from './schema.ts';
+import type { NamedColumn, TableColumn } from './schema.ts';
 import type { Skipped } from './skipped.ts';
 import type { FileSymbolChanges } from './symbol-changes.ts';
 import type { TestFile } from './test-changes.ts';

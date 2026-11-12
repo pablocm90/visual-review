@@ -19,6 +19,9 @@ export type SchemaTable = {
 
 export type TableColumn = { readonly table: string; readonly column: string };
 
+/** A file at the head naming a column, by name. */
+export type NamedColumn = { readonly path: string; readonly column: string };
+
 export type SchemaReader = {
   readonly holds: (path: string) => boolean;
   readonly tables: (text: string) => ReadonlyArray<SchemaTable>;
