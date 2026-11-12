@@ -44,6 +44,7 @@ test('an added column that code the change adds names is for information, on its
     deployColumnFindings({
       schemas: schemaAdding('nickname'),
       patches: [patchAdding(MODEL, '  def handle = nickname.presence || email', '  # nickname')],
+      namedAtHead: [],
     }),
   ).toStrictEqual([
     {
@@ -67,6 +68,7 @@ test.for(['lib/tasks/handles.rake', 'app/views/users/show.html.erb', 'lib/mongod
       deployColumnFindings({
         schemas: schemaAdding('nickname'),
         patches: [patchAdding(path, 'nickname')],
+        namedAtHead: [],
       }).map(({ id }) => id),
     ).toStrictEqual(['deploy:column-used:users.nickname']);
   },
@@ -77,6 +79,7 @@ test('a column name is matched as written, not as a pattern', () => {
     deployColumnFindings({
       schemas: schemaAdding('rate.usd'),
       patches: [patchAdding(MODEL, 'rate_usd')],
+      namedAtHead: [],
     }),
   ).toStrictEqual([]);
 });
@@ -97,7 +100,9 @@ test.for([
   { reason: 'a spec', patches: [patchAdding('spec/models/user_spec.rb', 'nickname')] },
   { reason: 'a TypeScript file', patches: [patchAdding('web/user.ts', 'nickname')] },
 ])('an added column named only by $reason raises nothing', ({ patches }) => {
-  expect(deployColumnFindings({ schemas: schemaAdding('nickname'), patches })).toStrictEqual([]);
+  expect(
+    deployColumnFindings({ schemas: schemaAdding('nickname'), patches, namedAtHead: [] }),
+  ).toStrictEqual([]);
 });
 
 test.for([
@@ -113,7 +118,48 @@ test.for([
   '$reason named by added code is not a new column',
   ({ schemas }) => {
     expect(
-      deployColumnFindings({ schemas, patches: [patchAdding(MODEL, 'nickname')] }),
+      deployColumnFindings({ schemas, patches: [patchAdding(MODEL, 'nickname')], namedAtHead: [] }),
+    ).toStrictEqual([]);
+  },
+);
+
+const schemaRemoving = (...names: ReadonlyArray<string>): ReadonlyArray<SchemaReading> => [
+  { file: 'db/schema.rb', tables: [table({ columns: names.map(removed) })] },
+];
+
+test('a removed column that app code at the head still names is to look at: ignore it in a deploy first', () => {
+  expect(
+    deployColumnFindings({
+      schemas: schemaRemoving('nickname'),
+      patches: [],
+      namedAtHead: [{ path: MODEL, column: 'nickname' }],
+    }),
+  ).toStrictEqual([
+    {
+      id: 'deploy:column-still-read:users.nickname',
+      check: 'deploy:column-still-read',
+      dimension: 'deploy',
+      level: 'look',
+      file: MODEL,
+      title: `${MODEL} still names the removed column users.nickname`,
+      detail:
+        'Code running during the deploy may read it: ignore it in a deploy before dropping it. Matched by name.',
+    },
+  ]);
+});
+
+test.for([
+  { reason: 'another column', namedAtHead: [{ path: MODEL, column: 'email' }] },
+  { reason: 'a spec', namedAtHead: [{ path: 'spec/models/user_spec.rb', column: 'nickname' }] },
+  {
+    reason: 'a TypeScript file',
+    namedAtHead: [{ path: 'app/javascript/user.ts', column: 'nickname' }],
+  },
+])(
+  'a removed column whose name the head reads only in $reason raises nothing',
+  ({ namedAtHead }) => {
+    expect(
+      deployColumnFindings({ schemas: schemaRemoving('nickname'), patches: [], namedAtHead }),
     ).toStrictEqual([]);
   },
 );

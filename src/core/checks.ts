@@ -44,6 +44,7 @@ export const CHECK_TITLES = {
   'deploy:flag-added': 'feature flags newly read',
   'deploy:flag-removed': 'feature flags no longer read',
   'deploy:column-used': 'new columns named by code before they are migrated',
+  'deploy:column-still-read': 'removed columns that code at the head still names',
 } as const;
 
 export type Check = keyof typeof CHECK_TITLES;

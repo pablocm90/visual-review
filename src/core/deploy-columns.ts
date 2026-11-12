@@ -8,6 +8,7 @@ import { literally } from './wildcard.ts';
 type DeployColumnsOptions = {
   readonly schemas: ReadonlyArray<SchemaReading>;
   readonly patches: ReadonlyArray<FilePatch>;
+  readonly namedAtHead: ReadonlyArray<{ readonly path: string; readonly column: string }>;
 };
 
 const columnChanges = (schemas: ReadonlyArray<SchemaReading>) =>
@@ -22,6 +23,11 @@ const columnChanges = (schemas: ReadonlyArray<SchemaReading>) =>
 const addedColumns = (schemas: ReadonlyArray<SchemaReading>) =>
   columnChanges(schemas).flatMap(({ table, change }) =>
     change.state === 'added' ? [{ table, column: change.head.name }] : [],
+  );
+
+const removedColumns = (schemas: ReadonlyArray<SchemaReading>) =>
+  columnChanges(schemas).flatMap(({ table, change }) =>
+    change.state === 'removed' ? [{ table, column: change.base.name }] : [],
   );
 
 const RUBY = /\.(?:rb|rake|erb)$/;
@@ -44,10 +50,32 @@ const firstRowNaming = (patches: ReadonlyArray<FilePatch>, column: string) => {
     .at(0);
 };
 
-export const deployColumnFindings = ({
+const stillReadFindings = ({
+  schemas,
+  namedAtHead,
+}: Omit<DeployColumnsOptions, 'patches'>): ReadonlyArray<Finding> =>
+  removedColumns(schemas).flatMap(({ table, column }) => {
+    const named = namedAtHead.find(read => read.column === column && isAppCode(read.path));
+    return named === undefined
+      ? []
+      : [
+          {
+            id: `deploy:column-still-read:${table}.${column}`,
+            check: 'deploy:column-still-read',
+            dimension: 'deploy',
+            level: 'look',
+            file: named.path,
+            title: `${named.path} still names the removed column ${table}.${column}`,
+            detail:
+              'Code running during the deploy may read it: ignore it in a deploy before dropping it. Matched by name.',
+          },
+        ];
+  });
+
+const usedFindings = ({
   schemas,
   patches,
-}: DeployColumnsOptions): ReadonlyArray<Finding> =>
+}: Omit<DeployColumnsOptions, 'namedAtHead'>): ReadonlyArray<Finding> =>
   addedColumns(schemas).flatMap(({ table, column }) => {
     const named = firstRowNaming(patches, column);
     return named?.line === undefined
@@ -66,3 +94,8 @@ export const deployColumnFindings = ({
           },
         ];
   });
+
+export const deployColumnFindings = (options: DeployColumnsOptions): ReadonlyArray<Finding> => [
+  ...usedFindings(options),
+  ...stillReadFindings(options),
+];
