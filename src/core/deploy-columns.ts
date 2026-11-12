@@ -2,6 +2,7 @@ import type { FilePatch } from './diff-graphs.ts';
 import type { Finding } from './finding.ts';
 import { lineIdOf, patchHunks } from './patch-lines.ts';
 import type { SchemaReading } from './read-schemas.ts';
+import type { RangeReading } from './reading.ts';
 import type { TableColumn } from './schema.ts';
 import { isTestFile } from './secret-findings.ts';
 import { literally } from './wildcard.ts';
@@ -127,3 +128,15 @@ export const deployColumnFindings = (options: DeployColumnsOptions): ReadonlyArr
   ...stillReadFindings(options),
   ...notIgnoredFindings(options),
 ];
+
+type ColumnsNotReadOptions = Pick<RangeReading, 'schemas' | 'migrations' | 'readers'>;
+
+export const columnsNotRead = ({
+  schemas,
+  migrations,
+  readers,
+}: ColumnsNotReadOptions): ReadonlyArray<string> => {
+  if (schemas.length > 0) return [];
+  if (migrations.length > 0) return ['columns: db/schema.rb only'];
+  return readers.includes('rails') ? [] : ['columns: Rails only'];
+};

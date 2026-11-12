@@ -82,6 +82,48 @@ test.for([
   expect(notReadIn('deploy', { deployConfig, patches })).toEqual(notRead);
 });
 
+const DUMP = { file: 'db/schema.rb', tables: [] };
+
+const MIGRATION = { file: 'db/migrate/20261112_drop_handle.rb', risks: [] };
+
+test.for([
+  {
+    reason: 'no Rails stack',
+    readers: ['rust'],
+    schemas: [],
+    migrations: [],
+    notRead: ['columns: Rails only'],
+  },
+  {
+    reason: 'no Rails stack and a dump changed',
+    readers: ['rust'],
+    schemas: [DUMP],
+    migrations: [],
+    notRead: [],
+  },
+  {
+    reason: 'a migration added and no dump changed',
+    readers: ['rust'],
+    schemas: [],
+    migrations: [MIGRATION],
+    notRead: ['columns: db/schema.rb only'],
+  },
+  {
+    reason: 'a migration added and its dump changed',
+    readers: ['rails'],
+    schemas: [DUMP],
+    migrations: [MIGRATION],
+    notRead: [],
+  },
+] satisfies ReadonlyArray<
+  Pick<CoverageFacts, 'readers' | 'schemas' | 'migrations'> & {
+    reason: string;
+    notRead: ReadonlyArray<string>;
+  }
+>)('deploy with $reason reads columns as $notRead', ({ readers, schemas, migrations, notRead }) => {
+  expect(notReadIn('deploy', { readers, schemas, migrations })).toEqual(notRead);
+});
+
 test("rules names what the config's rules couldn't read", () => {
   const rulesNotRead = ['no-invoices: from shop/class/*Controler matches no node'];
 
