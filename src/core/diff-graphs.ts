@@ -84,17 +84,18 @@ const pairNodes = ({
   const beforeIds = new Set(before.nodes.map(node => node.id));
   const afterIds = new Set(after.nodes.map(node => node.id));
   const added = after.nodes.filter(node => !beforeIds.has(node.id));
-  const baseFilesOf = (node: GraphNode): number =>
-    changedPaths.filter(path => isAtOrUnder(path, node)).length;
+  const removed = before.nodes.filter(node => !afterIds.has(node.id));
+  const baseFiles = new Map(
+    removed.map(node => [node, changedPaths.filter(path => isAtOrUnder(path, node)).length]),
+  );
   const filesAcross = (from: GraphNode, to: GraphNode): number => {
     if (from.kind !== to.kind || from.path === '') return 0;
     if (from.path === to.path) return Number.POSITIVE_INFINITY;
     const across = renames.filter(
       rename => isAtOrUnder(rename.from, from) && isAtOrUnder(rename.to, to),
     ).length;
-    return across * 2 > baseFilesOf(from) ? across : 0;
+    return across * 2 > (baseFiles.get(from) ?? 0) ? across : 0;
   };
-  const removed = before.nodes.filter(node => !afterIds.has(node.id));
   const scored = removed
     .flatMap(from => added.map(to => ({ from, to, files: filesAcross(from, to) })))
     .filter(({ files }) => files > 0);
