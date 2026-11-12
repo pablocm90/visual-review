@@ -1,6 +1,6 @@
 import type { AccessReader } from './access.ts';
 import { APP_CODE_EXTENSIONS, removedColumns } from './deploy-columns.ts';
-import { git, noneFound } from './git.ts';
+import { filesHeldAt, git, noneFound } from './git.ts';
 import type { Lockfile } from './lockfile.ts';
 import type { MigrationReader } from './migration.ts';
 import { readAccess } from './read-access.ts';
@@ -85,18 +85,26 @@ type IgnoredAt = {
 };
 
 const ignoredAt = async ({ repo, revision, schemas }: IgnoredAt) => {
-  const files = (
-    await git(repo, 'grep', '-l', '-z', 'ignored_columns', revision, '--', '*.rb').catch(noneFound)
-  )
-    .split('\0')
-    .filter(line => line !== '')
-    .map(line => line.slice(revision.length + 1));
-  const models = await Promise.all(
-    files.map(async path => ({ path, text: await git(repo, 'show', `${revision}:${path}`) })),
+  const listed = await git(
+    repo,
+    'grep',
+    '-l',
+    '-z',
+    'ignored_columns',
+    revision,
+    '--',
+    '*.rb',
+  ).catch(noneFound);
+  const files = new Set(
+    listed
+      .split('\0')
+      .filter(line => line !== '')
+      .map(line => line.slice(revision.length + 1)),
   );
-  return models.flatMap(model =>
+  const models = await filesHeldAt({ repo, revision, holds: path => files.has(path) });
+  return [...models].flatMap(([path, text]) =>
     schemas.flatMap(({ ignored }) =>
-      ignored(model).map(({ table, column }) => ({ path: model.path, table, column })),
+      ignored({ path, text }).map(({ table, column }) => ({ path, table, column })),
     ),
   );
 };
