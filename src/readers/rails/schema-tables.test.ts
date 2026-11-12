@@ -164,10 +164,13 @@ test.for([
     ],
   },
   {
-    reason: 'the words it adds, on the plural of a nested file',
-    path: 'app/models/admin/category.rb',
-    text: 'class Admin::Category < ApplicationRecord\n  self.ignored_columns += %w[slug]\nend\n',
-    ignored: [{ table: 'categories', column: 'slug' }],
+    reason: 'the words it adds, on the plural of a nested file, prefixed by its folders or not',
+    path: 'app/models/billing/admin/category.rb',
+    text: 'class Billing::Admin::Category < ApplicationRecord\n  self.ignored_columns += %w[slug]\nend\n',
+    ignored: [
+      { table: 'categories', column: 'slug' },
+      { table: 'billing_admin_categories', column: 'slug' },
+    ],
   },
   {
     reason: 'the table its table_name sets',

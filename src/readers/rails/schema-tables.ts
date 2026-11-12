@@ -78,6 +78,12 @@ const assignedTo = (program: Node, method: string): ReadonlyArray<Node> =>
     return left !== null && right !== null && methodOf(left) === method ? [right] : [];
   });
 
+const tablesNamedBy = (path: string): ReadonlyArray<string> => {
+  const table = plural(basename(path, '.rb'));
+  const folders = (path.split('/models/').at(-1) ?? '').split('/').slice(0, -1);
+  return folders.length === 0 ? [table] : [table, [...folders, table].join('_')];
+};
+
 export const railsSchema: SchemaReader = {
   holds: path =>
     SCHEMA_FILE.test(path) && !path.split('/').some(folder => NOT_SEARCHED.has(folder)),
@@ -92,9 +98,9 @@ export const railsSchema: SchemaReader = {
   ignored: ({ path, text }) =>
     readRuby(text, program => {
       const [named] = assignedTo(program, 'table_name');
-      const table = named === undefined ? plural(basename(path, '.rb')) : nameOf(named);
+      const tables = named === undefined ? tablesNamedBy(path) : [nameOf(named)];
       return assignedTo(program, 'ignored_columns').flatMap(list =>
-        namesIn(list).map(column => ({ table, column })),
+        namesIn(list).flatMap(column => tables.map(table => ({ table, column }))),
       );
     }),
 };
