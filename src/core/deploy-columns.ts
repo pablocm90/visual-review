@@ -38,7 +38,10 @@ export const removedColumns = (schemas: ReadonlyArray<SchemaReading>) =>
     change.state === 'removed' ? [{ file, table, column: change.base.name }] : [],
   );
 
-const RUBY = /\.(?:rb|rake|erb|jbuilder|slim|haml)$/;
+/** The extensions of the files read as app code: Ruby, Rake and Ruby views. */
+export const APP_CODE_EXTENSIONS = ['rb', 'rake', 'erb', 'jbuilder', 'slim', 'haml'];
+
+const RUBY = new RegExp(String.raw`\.(?:${APP_CODE_EXTENSIONS.join('|')})$`);
 
 const MIGRATED = /(?:^|\/)db\//;
 

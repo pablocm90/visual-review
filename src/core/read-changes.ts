@@ -1,5 +1,5 @@
 import type { AccessReader } from './access.ts';
-import { removedColumns } from './deploy-columns.ts';
+import { APP_CODE_EXTENSIONS, removedColumns } from './deploy-columns.ts';
 import { git, noneFound } from './git.ts';
 import type { Lockfile } from './lockfile.ts';
 import type { MigrationReader } from './migration.ts';
@@ -66,6 +66,7 @@ const namedAt = async ({ repo, revision, names }: NamedAt) => {
     ...names.flatMap(name => ['-e', name]),
     revision,
     '--',
+    ...APP_CODE_EXTENSIONS.map(extension => `*.${extension}`),
   ).catch(noneFound);
   const reads = found
     .split('\n')
@@ -74,10 +75,7 @@ const namedAt = async ({ repo, revision, names }: NamedAt) => {
       const [path = '', column = ''] = line.slice(revision.length + 1).split('\0');
       return { path, column };
     });
-  return reads.filter(
-    (read, index) =>
-      reads.findIndex(({ path, column }) => path === read.path && column === read.column) === index,
-  );
+  return [...new Map(reads.map(read => [`${read.path}\0${read.column}`, read])).values()];
 };
 
 type IgnoredAt = {
