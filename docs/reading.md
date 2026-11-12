@@ -30,7 +30,7 @@ The config's `rules`, keyed by name, each `{ from, notTo, reason }` by node id g
 
 ## The diff
 
-`diff-graphs.ts` diffs the sides, matching edges by `edgeId` (`graph.ts`, the `<from> -> <to>` notes use too). `visible-diff.ts` draws a node inside closed boxes as the outermost of them, at any depth.
+`diff-graphs.ts` diffs the sides, matching edges by `edgeId` (`graph.ts`, the `<from> -> <to>` notes use too). A removed node and an added one of its kind are drawn as one, renamed, when they share a path, or when each is the other's best match by files renamed across and more than half of the removed node's changed paths went to it, so two removed crates merged into a new one stay removed and the new one added; the removed node's id, its children's `parent` and its edges' ends then read as the added one's. `visible-diff.ts` draws a node inside closed boxes as the outermost of them, at any depth.
 
 ## Churn and metrics
 
