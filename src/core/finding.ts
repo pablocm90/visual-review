@@ -50,3 +50,9 @@ export const placeOfFile = (
   const node = nodes.find(({ path }) => path === file);
   return node === undefined ? { file } : { target: node.id };
 };
+
+const TEST_FILE = /(?:^|\/)(?:(?:tests?|spec|__tests__|fixtures)\/|[^./][^/]*[._](?:test|spec)\.)/;
+
+export const isTestFile = (path: string): boolean => TEST_FILE.test(path);
+
+export const levelOf = (path: string): Finding['level'] => (isTestFile(path) ? 'info' : 'look');

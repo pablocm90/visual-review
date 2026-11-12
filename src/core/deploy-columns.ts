@@ -1,11 +1,10 @@
 import type { FilePatch } from './diff-graphs.ts';
-import { type Finding, placeOfFile } from './finding.ts';
+import { type Finding, isTestFile, placeOfFile } from './finding.ts';
 import type { GraphNode } from './graph.ts';
 import { lineIdOf, patchHunks } from './patch-lines.ts';
 import type { SchemaReading } from './read-schemas.ts';
 import type { RangeReading } from './reading.ts';
 import type { NamedColumn, TableColumn } from './schema.ts';
-import { isTestFile } from './secret-findings.ts';
 import { literally } from './wildcard.ts';
 
 type DeployColumnsOptions = {
