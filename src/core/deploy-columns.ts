@@ -1,0 +1,56 @@
+import type { FilePatch } from './diff-graphs.ts';
+import type { Finding } from './finding.ts';
+import { lineIdOf, patchHunks } from './patch-lines.ts';
+import type { SchemaReading } from './read-schemas.ts';
+import { literally } from './wildcard.ts';
+
+type DeployColumnsOptions = {
+  readonly schemas: ReadonlyArray<SchemaReading>;
+  readonly patches: ReadonlyArray<FilePatch>;
+};
+
+const addedColumns = (schemas: ReadonlyArray<SchemaReading>) =>
+  schemas.flatMap(reading =>
+    'tables' in reading
+      ? reading.tables.flatMap(table =>
+          table.columns.flatMap(change =>
+            change.state === 'added' ? [{ table: table.name, column: change.head.name }] : [],
+          ),
+        )
+      : [],
+  );
+
+const firstRowNaming = (patches: ReadonlyArray<FilePatch>, column: string) => {
+  const names = new RegExp(String.raw`\b${literally(column)}\b`);
+  return patches
+    .flatMap(({ path, patch }) =>
+      patchHunks(patch)
+        .flatMap(hunk => hunk.rows)
+        .filter(row => row.kind === 'added' && names.test(row.code))
+        .map(row => ({ path, line: lineIdOf(path, row) })),
+    )
+    .at(0);
+};
+
+export const deployColumnFindings = ({
+  schemas,
+  patches,
+}: DeployColumnsOptions): ReadonlyArray<Finding> =>
+  addedColumns(schemas).flatMap(({ table, column }) => {
+    const named = firstRowNaming(patches, column);
+    return named?.line === undefined
+      ? []
+      : [
+          {
+            id: `deploy:column-used:${table}.${column}`,
+            check: 'deploy:column-used',
+            dimension: 'deploy',
+            level: 'info',
+            file: named.path,
+            line: named.line,
+            title: `${named.path} names the new column ${table}.${column}`,
+            detail:
+              'On a rolling deploy this code can run before the migration: migrate first or guard it. Matched by name.',
+          },
+        ];
+  });

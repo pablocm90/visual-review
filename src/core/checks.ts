@@ -43,6 +43,7 @@ export const CHECK_TITLES = {
   'deploy:credentials': 'credentials keys a deploy must set',
   'deploy:flag-added': 'feature flags newly read',
   'deploy:flag-removed': 'feature flags no longer read',
+  'deploy:column-used': 'new columns named by code before they are migrated',
 } as const;
 
 export type Check = keyof typeof CHECK_TITLES;

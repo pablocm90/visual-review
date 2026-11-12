@@ -3854,6 +3854,32 @@ test.for([
   ).toStrictEqual(ids);
 });
 
+test('a column the schema dump adds raises its deploy finding when added code names it', () => {
+  const reading = readingWith({
+    schemas: [
+      {
+        file: 'db/schema.rb',
+        tables: [
+          {
+            name: 'users',
+            state: 'changed',
+            options: { base: '', head: '' },
+            columns: [{ state: 'added', head: { name: 'nickname', type: 'string', options: '' } }],
+            indexes: [],
+          },
+        ],
+      },
+    ],
+    patches: [addingLine('app/models/user.rb', 'nickname')],
+  });
+
+  expect(
+    pageData({ repo: 'shop', reading, range: 'main..feature', version: '1.2.3', parsers })
+      .findings.filter(({ dimension }) => dimension === 'deploy')
+      .map(({ id }) => id),
+  ).toStrictEqual(['deploy:column-used:users.nickname']);
+});
+
 const symbolsIn = (file: SymbolFile | undefined) =>
   file !== undefined && 'symbols' in file ? file.symbols : [];
 
