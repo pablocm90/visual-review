@@ -2,6 +2,13 @@
 
 What changed in each release of `@pablocm90/visual-review`, newest first. Versions follow [semver](https://semver.org); while it is 0.x, a minor version may change the exported types.
 
+## 0.67.1 — 2026-11-12
+
+### Fixed
+
+- A removed crate, module or box is drawn as renamed into an added one only when each is the other's best match and more than half of its changed files went there. Before, several removed crates whose files went into one new crate all paired with it on a renamed `Cargo.toml` and a file each: the new crate read as modified, the removed ones vanished, and their edges read as self-edges or unchanged.
+- A removed file of a renamed crate sits under the crate drawn in its place, so its symbols and measures no longer read "not read for" the old crate.
+
 ## 0.67.0 — 2026-11-11
 
 ### Added
