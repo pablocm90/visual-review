@@ -138,7 +138,10 @@ export const columnsNotRead = ({
   migrations,
   readers,
 }: ColumnsNotReadOptions): ReadonlyArray<string> => {
-  if (schemas.length > 0) return [];
+  if (schemas.length > 0)
+    return schemas.flatMap(reading =>
+      'notRead' in reading ? [`columns: ${reading.file} not read`] : [],
+    );
   if (migrations.length > 0) return ['columns: db/schema.rb only'];
   return readers.includes('rails') ? [] : ['columns: Rails only'];
 };

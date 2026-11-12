@@ -115,6 +115,13 @@ test.for([
     migrations: [MIGRATION],
     notRead: [],
   },
+  {
+    reason: 'a dump that does not parse',
+    readers: ['rails'],
+    schemas: [DUMP, { file: 'db/data_schema.rb', notRead: 'Ruby syntax error' }],
+    migrations: [MIGRATION],
+    notRead: ['columns: db/data_schema.rb not read'],
+  },
 ] satisfies ReadonlyArray<
   Pick<CoverageFacts, 'readers' | 'schemas' | 'migrations'> & {
     reason: string;
