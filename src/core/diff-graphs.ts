@@ -71,33 +71,42 @@ export const deepestHolding = <Node extends Pick<GraphNode, 'path'>>(
 type PairNodesOptions = {
   readonly before: Graph;
   readonly after: Graph;
+  readonly changedPaths: ReadonlyArray<string>;
   readonly renames: ReadonlyArray<Rename>;
 };
 
 const pairNodes = ({
   before,
   after,
+  changedPaths,
   renames,
 }: PairNodesOptions): ReadonlyMap<string, { from: GraphNode; to: GraphNode }> => {
   const beforeIds = new Set(before.nodes.map(node => node.id));
   const afterIds = new Set(after.nodes.map(node => node.id));
   const added = after.nodes.filter(node => !beforeIds.has(node.id));
+  const removed = before.nodes.filter(node => !afterIds.has(node.id));
+  const baseFiles = new Map(
+    removed.map(node => [node, changedPaths.filter(path => isAtOrUnder(path, node)).length]),
+  );
   const filesAcross = (from: GraphNode, to: GraphNode): number => {
     if (from.kind !== to.kind || from.path === '') return 0;
     if (from.path === to.path) return Number.POSITIVE_INFINITY;
-    return renames.filter(rename => isAtOrUnder(rename.from, from) && isAtOrUnder(rename.to, to))
-      .length;
+    const across = renames.filter(
+      rename => isAtOrUnder(rename.from, from) && isAtOrUnder(rename.to, to),
+    ).length;
+    return across * 2 > (baseFiles.get(from) ?? 0) ? across : 0;
   };
+  const scored = removed
+    .flatMap(from => added.map(to => ({ from, to, files: filesAcross(from, to) })))
+    .filter(({ files }) => files > 0);
+  const bestOf = (candidates: typeof scored) => candidates.toSorted((a, b) => b.files - a.files)[0];
   return new Map(
-    before.nodes
-      .filter(node => !afterIds.has(node.id))
-      .flatMap(from => {
-        const [best] = added
-          .map(to => ({ to, files: filesAcross(from, to) }))
-          .filter(({ files }) => files > 0)
-          .sort((a, b) => b.files - a.files);
-        return best === undefined ? [] : [[from.id, { from, to: best.to }] as const];
-      }),
+    removed.flatMap(from => {
+      const best = bestOf(scored.filter(pair => pair.from === from));
+      return best === undefined || bestOf(scored.filter(pair => pair.to === best.to))?.from !== from
+        ? []
+        : [[from.id, { from, to: best.to }] as const];
+    }),
   );
 };
 
@@ -109,13 +118,17 @@ export const diffGraphs = ({
 }: DiffGraphsOptions): GraphDiff => {
   const isTouched = (node: GraphNode): boolean =>
     changedPaths.some(path => isAtOrUnder(path, node));
-  const pairs = pairNodes({ before, after, renames });
+  const pairs = pairNodes({ before, after, changedPaths, renames });
   const pairedFrom = new Map([...pairs].map(([, { from, to }]) => [to.id, from]));
   const renamedFrom = new Map(renames.map(({ from, to }) => [to, from]));
   const idOf = (id: string): string => pairs.get(id)?.to.id ?? id;
   return {
     nodes: diffItems({
-      before: before.nodes.map(node => ({ ...node, id: idOf(node.id) })),
+      before: before.nodes.map(node => ({
+        ...node,
+        id: idOf(node.id),
+        ...(node.parent === undefined ? {} : { parent: idOf(node.parent) }),
+      })),
       after: after.nodes,
       keyOf: node => node.id,
       stateOfKept: node => (isTouched(node) ? 'modified' : 'unchanged'),

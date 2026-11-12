@@ -202,26 +202,106 @@ test('a removed stack and an added one are two stacks, though no stack has a pat
   ]);
 });
 
-test('a removed crate pairs with the added crate that most of its renamed files went to', () => {
+test('a removed crate pairs with the added crate that more than half of its files went to', () => {
+  const renames = [
+    { from: 'crates/domain/src/money.rs', to: 'crates/shared/src/money.rs' },
+    { from: 'crates/domain/Cargo.toml', to: 'crates/models/Cargo.toml' },
+    { from: 'crates/domain/src/lib.rs', to: 'crates/models/src/lib.rs' },
+  ];
   const diff = diffGraphs({
     before: graph({ nodes: [crate('domain')], edges: [] }),
     after: graph({ nodes: [crate('shared'), crate('models')], edges: [] }),
-    changedPaths: [],
-    renames: [
-      { from: 'crates/domain/src/money.rs', to: 'crates/shared/src/money.rs' },
-      { from: 'crates/domain/Cargo.toml', to: 'crates/models/Cargo.toml' },
-      { from: 'crates/domain/src/lib.rs', to: 'crates/models/src/lib.rs' },
-    ],
+    changedPaths: renames.flatMap(({ from, to }) => [from, to]),
+    renames,
   });
 
   expect(diff.nodes).toStrictEqual([
     { ...crate('shared'), state: 'added' },
     {
       ...crate('models'),
-      state: 'unchanged',
+      state: 'modified',
       renamedFrom: 'crates/domain',
       formerLabel: 'domain',
     },
+  ]);
+});
+
+test('two removed crates whose files went into one added crate stay removed, and the added crate is added', () => {
+  const renames = [
+    { from: 'crates/adapter/Cargo.toml', to: 'crates/chat/Cargo.toml' },
+    { from: 'crates/adapter/src/chat.rs', to: 'crates/chat/src/http.rs' },
+    { from: 'crates/models/src/m.rs', to: 'crates/chat/src/domain.rs' },
+  ];
+  const diff = diffGraphs({
+    before: graph({ nodes: [crate('app'), crate('adapter'), crate('models')], edges: [] }),
+    after: graph({ nodes: [crate('app'), crate('chat')], edges: [] }),
+    changedPaths: [
+      ...renames.flatMap(({ from, to }) => [from, to]),
+      'crates/adapter/src/lib.rs',
+      'crates/adapter/src/other.rs',
+      'crates/models/Cargo.toml',
+      'crates/models/src/lib.rs',
+    ],
+    renames,
+  });
+
+  expect(diff.nodes.map(({ id, state }) => ({ id, state }))).toStrictEqual([
+    { id: 'rust/crate/app', state: 'unchanged' },
+    { id: 'rust/crate/chat', state: 'added' },
+    { id: 'rust/crate/adapter', state: 'removed' },
+    { id: 'rust/crate/models', state: 'removed' },
+  ]);
+});
+
+test('of two removed crates that most of their files went to one added crate, only the one sending it more pairs with it', () => {
+  const renames = [
+    { from: 'crates/api/src/lib.rs', to: 'crates/server/src/api.rs' },
+    { from: 'crates/api/src/routes.rs', to: 'crates/server/src/routes.rs' },
+    { from: 'crates/web/Cargo.toml', to: 'crates/server/Cargo.toml' },
+    { from: 'crates/web/src/lib.rs', to: 'crates/server/src/lib.rs' },
+    { from: 'crates/web/src/pages.rs', to: 'crates/server/src/pages.rs' },
+  ];
+  const diff = diffGraphs({
+    before: graph({ nodes: [crate('api'), crate('web')], edges: [] }),
+    after: graph({ nodes: [crate('server')], edges: [] }),
+    changedPaths: [...renames.flatMap(({ from, to }) => [from, to]), 'crates/api/Cargo.toml'],
+    renames,
+  });
+
+  expect(
+    diff.nodes.map(({ id, state, renamedFrom }) => ({ id, state, renamedFrom })),
+  ).toStrictEqual([
+    { id: 'rust/crate/server', state: 'modified', renamedFrom: 'crates/web' },
+    { id: 'rust/crate/api', state: 'removed', renamedFrom: undefined },
+  ]);
+});
+
+test('a removed file of a renamed crate stays under the crate drawn in its place', () => {
+  const fileOf = (name: string, file: string): GraphNode => ({
+    id: `rust/mod/${name}/${file}`,
+    kind: 'file',
+    label: file,
+    parent: `rust/crate/${name}`,
+    path: `crates/${name}/src/${file}`,
+  });
+  const renames = [
+    { from: 'crates/domain/Cargo.toml', to: 'crates/models/Cargo.toml' },
+    { from: 'crates/domain/src/lib.rs', to: 'crates/models/src/lib.rs' },
+  ];
+  const diff = diffGraphs({
+    before: graph({
+      nodes: [crate('domain'), fileOf('domain', 'lib.rs'), fileOf('domain', 'gone.rs')],
+      edges: [],
+    }),
+    after: graph({ nodes: [crate('models'), fileOf('models', 'lib.rs')], edges: [] }),
+    changedPaths: [...renames.flatMap(({ from, to }) => [from, to]), 'crates/domain/src/gone.rs'],
+    renames,
+  });
+
+  expect(diff.nodes.map(({ id, state, parent }) => ({ id, state, parent }))).toStrictEqual([
+    { id: 'rust/crate/models', state: 'modified', parent: 'rust' },
+    { id: 'rust/mod/models/lib.rs', state: 'modified', parent: 'rust/crate/models' },
+    { id: 'rust/mod/domain/gone.rs', state: 'removed', parent: 'rust/crate/models' },
   ]);
 });
 
