@@ -71,17 +71,21 @@ test('an added column that code the change adds names is for information, on its
   ]);
 });
 
-test.for(['lib/tasks/handles.rake', 'app/views/users/show.html.erb', 'lib/mongodb/sync.rb'])(
-  'an added column named by %s raises it',
-  path => {
-    expect(
-      findingsOf({
-        schemas: schemaAdding('nickname'),
-        patches: [patchAdding(path, 'nickname')],
-      }).map(({ id }) => id),
-    ).toStrictEqual(['deploy:column-used:users.nickname']);
-  },
-);
+test.for([
+  'lib/tasks/handles.rake',
+  'app/views/users/show.html.erb',
+  'app/views/users/show.json.jbuilder',
+  'app/views/users/show.html.slim',
+  'app/views/users/show.html.haml',
+  'lib/mongodb/sync.rb',
+])('an added column named by %s raises it', path => {
+  expect(
+    findingsOf({
+      schemas: schemaAdding('nickname'),
+      patches: [patchAdding(path, 'nickname')],
+    }).map(({ id }) => id),
+  ).toStrictEqual(['deploy:column-used:users.nickname']);
+});
 
 test('a column name is matched as written, not as a pattern', () => {
   expect(

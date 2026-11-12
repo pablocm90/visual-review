@@ -38,7 +38,7 @@ export const removedColumns = (schemas: ReadonlyArray<SchemaReading>) =>
     change.state === 'removed' ? [{ file, table, column: change.base.name }] : [],
   );
 
-const RUBY = /\.(?:rb|rake|erb)$/;
+const RUBY = /\.(?:rb|rake|erb|jbuilder|slim|haml)$/;
 
 const MIGRATED = /(?:^|\/)db\//;
 
