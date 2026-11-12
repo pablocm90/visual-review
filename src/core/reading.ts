@@ -12,6 +12,7 @@ import type { SchemaReading } from './read-schemas.ts';
 import type { FileMeasures } from './reader.ts';
 import type { Review } from './review.ts';
 import type { RuleBreak } from './rule-breaks.ts';
+import type { TableColumn } from './schema.ts';
 import type { Skipped } from './skipped.ts';
 import type { FileSymbolChanges } from './symbol-changes.ts';
 import type { TestFile } from './test-changes.ts';
@@ -83,6 +84,8 @@ export type RangeReading = {
   readonly schemas: ReadonlyArray<SchemaReading>;
   /** The files at the head naming a column the schema dumps remove, by name. */
   readonly columnsNamedAtHead: ReadonlyArray<NamedColumn>;
+  /** The columns the base's models list in `ignored_columns`. */
+  readonly columnsIgnoredAtBase: ReadonlyArray<TableColumn>;
   readonly routes: ReadonlyArray<RoutesReading>;
   readonly access: ReadonlyArray<AccessReading>;
   readonly openActions: ReadonlyArray<string>;

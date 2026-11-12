@@ -36,7 +36,13 @@ type ReadChangesOptions = ChangeReaders & {
 
 export type ChangesRead = Pick<
   RangeReading,
-  'dependencyChanges' | 'migrations' | 'schemas' | 'columnsNamedAtHead' | 'routes' | 'access'
+  | 'dependencyChanges'
+  | 'migrations'
+  | 'schemas'
+  | 'columnsNamedAtHead'
+  | 'columnsIgnoredAtBase'
+  | 'routes'
+  | 'access'
 >;
 
 type NamedAt = {
@@ -74,6 +80,23 @@ const namedAt = async ({ repo, revision, names }: NamedAt) => {
   );
 };
 
+type IgnoredAt = {
+  readonly repo: string;
+  readonly revision: string;
+  readonly schemas: ReadonlyArray<SchemaReader>;
+};
+
+const ignoredAt = async ({ repo, revision, schemas }: IgnoredAt) => {
+  const files = (await git(repo, 'grep', '-l', 'ignored_columns', revision, '--').catch(noneFound))
+    .split('\n')
+    .filter(line => line !== '')
+    .map(line => line.slice(revision.length + 1));
+  const models = await Promise.all(
+    files.map(async path => ({ path, text: await git(repo, 'show', `${revision}:${path}`) })),
+  );
+  return schemas.flatMap(({ ignored }) => models.flatMap(ignored));
+};
+
 /** What each change reader reads of the range, the routes first since a changed route reaches access. */
 export const readChanges = async ({
   repo,
@@ -99,6 +122,7 @@ export const readChanges = async ({
       revision: head,
       names: removedColumns(schemasRead).map(({ column }) => column),
     }),
+    columnsIgnoredAtBase: await ignoredAt({ repo, revision: base, schemas }),
     routes: routesRead,
     access: await readAccess({ ...revisions, routed: routesRead.length > 0, access, authorize }),
   };

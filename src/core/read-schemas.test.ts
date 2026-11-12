@@ -327,3 +327,20 @@ test.for([
 
   expect(columnsNamedAtHead).toStrictEqual(named);
 });
+
+test("the columns ignored are read from the base's models, not the head's", async () => {
+  using workspace = gitRepo({
+    [FILE]: dump(USERS),
+    'app/models/user.rb': 'class User\n  self.ignored_columns = ["name"]\nend\n',
+  });
+  const { repo, root } = workspace;
+  const to = commit(repo, {
+    [FILE]: dump(`  create_table "users", force: :cascade do |t|
+  end`),
+    'app/models/user.rb': 'class User\n  self.ignored_columns = ["name", "email"]\nend\n',
+  });
+
+  const { columnsIgnoredAtBase } = await readRange({ repo, from: root, to });
+
+  expect(columnsIgnoredAtBase).toStrictEqual([{ table: 'users', column: 'name' }]);
+});
