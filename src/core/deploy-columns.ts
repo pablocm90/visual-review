@@ -2,6 +2,7 @@ import type { FilePatch } from './diff-graphs.ts';
 import type { Finding } from './finding.ts';
 import { lineIdOf, patchHunks } from './patch-lines.ts';
 import type { SchemaReading } from './read-schemas.ts';
+import { isTestFile } from './secret-findings.ts';
 import { literally } from './wildcard.ts';
 
 type DeployColumnsOptions = {
@@ -20,9 +21,17 @@ const addedColumns = (schemas: ReadonlyArray<SchemaReading>) =>
       : [],
   );
 
+const RUBY = /\.(?:rb|rake|erb)$/;
+
+const MIGRATED = /(?:^|\/)db\//;
+
+const isAppCode = (path: string): boolean =>
+  RUBY.test(path) && !MIGRATED.test(path) && !isTestFile(path);
+
 const firstRowNaming = (patches: ReadonlyArray<FilePatch>, column: string) => {
   const names = new RegExp(String.raw`\b${literally(column)}\b`);
   return patches
+    .filter(({ path }) => isAppCode(path))
     .flatMap(({ path, patch }) =>
       patchHunks(patch)
         .flatMap(hunk => hunk.rows)

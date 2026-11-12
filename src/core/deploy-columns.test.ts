@@ -60,7 +60,7 @@ test('an added column that code the change adds names is for information, on its
   ]);
 });
 
-test.for(['lib/tasks/handles.rake', 'app/views/users/show.html.erb'])(
+test.for(['lib/tasks/handles.rake', 'app/views/users/show.html.erb', 'lib/mongodb/sync.rb'])(
   'an added column named by %s raises it',
   path => {
     expect(
@@ -93,6 +93,9 @@ test.for([
   },
   { reason: 'a name it starts', patches: [patchAdding(MODEL, 'nicknames')] },
   { reason: 'a name it ends', patches: [patchAdding(MODEL, 'old_nickname')] },
+  { reason: 'a migration', patches: [patchAdding('db/migrate/1_add_nickname.rb', 'nickname')] },
+  { reason: 'a spec', patches: [patchAdding('spec/models/user_spec.rb', 'nickname')] },
+  { reason: 'a TypeScript file', patches: [patchAdding('web/user.ts', 'nickname')] },
 ])('an added column named only by $reason raises nothing', ({ patches }) => {
   expect(deployColumnFindings({ schemas: schemaAdding('nickname'), patches })).toStrictEqual([]);
 });
