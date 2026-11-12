@@ -1,4 +1,5 @@
 import type { Config, DeployConfig, NotesConfig, ReaderName } from './config.ts';
+import type { NamedColumn } from './deploy-columns.ts';
 import type { FilePatch, Rename } from './diff-graphs.ts';
 import type { Graph } from './graph.ts';
 import type { DanglingCall } from './linker.ts';
@@ -80,6 +81,8 @@ export type RangeReading = {
   readonly dependencyChanges: ReadonlyArray<DependencyChanges>;
   readonly migrations: ReadonlyArray<MigrationReading>;
   readonly schemas: ReadonlyArray<SchemaReading>;
+  /** The files at the head naming a column the schema dumps remove, by name. */
+  readonly columnsNamedAtHead: ReadonlyArray<NamedColumn>;
   readonly routes: ReadonlyArray<RoutesReading>;
   readonly access: ReadonlyArray<AccessReading>;
   readonly openActions: ReadonlyArray<string>;

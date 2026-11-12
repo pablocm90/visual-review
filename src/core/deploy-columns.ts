@@ -5,10 +5,13 @@ import type { SchemaReading } from './read-schemas.ts';
 import { isTestFile } from './secret-findings.ts';
 import { literally } from './wildcard.ts';
 
+/** A file at the head naming a column, by name. */
+export type NamedColumn = { readonly path: string; readonly column: string };
+
 type DeployColumnsOptions = {
   readonly schemas: ReadonlyArray<SchemaReading>;
   readonly patches: ReadonlyArray<FilePatch>;
-  readonly namedAtHead: ReadonlyArray<{ readonly path: string; readonly column: string }>;
+  readonly namedAtHead: ReadonlyArray<NamedColumn>;
 };
 
 const columnChanges = (schemas: ReadonlyArray<SchemaReading>) =>
@@ -25,7 +28,7 @@ const addedColumns = (schemas: ReadonlyArray<SchemaReading>) =>
     change.state === 'added' ? [{ table, column: change.head.name }] : [],
   );
 
-const removedColumns = (schemas: ReadonlyArray<SchemaReading>) =>
+export const removedColumns = (schemas: ReadonlyArray<SchemaReading>) =>
   columnChanges(schemas).flatMap(({ table, change }) =>
     change.state === 'removed' ? [{ table, column: change.base.name }] : [],
   );

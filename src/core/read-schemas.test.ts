@@ -280,3 +280,50 @@ test('a schema file holding no tables says nothing when deleted', async () => {
 
   expect(schemas).toStrictEqual([]);
 });
+
+test.for([
+  {
+    reason: 'every file naming it, once each',
+    model: 'class User\n  def label = name.presence || name || email\nend\n',
+    head: `  create_table "users", force: :cascade do |t|
+    t.string "email", null: false
+    t.index ["email"], name: "index_users_on_email"
+  end`,
+    named: [
+      { path: 'app/models/user.rb', column: 'name' },
+      { path: FILE, column: 'name' },
+    ],
+  },
+  {
+    reason: 'each column a file names',
+    model: 'class User\n  def label = name.presence || name || email\nend\n',
+    head: `  create_table "users", force: :cascade do |t|
+  end`,
+    named: [
+      { path: 'app/models/user.rb', column: 'name' },
+      { path: 'app/models/user.rb', column: 'email' },
+    ],
+  },
+  {
+    reason: 'none when no file names it',
+    model: 'class User\nend\n',
+    head: `  create_table "users", force: :cascade do |t|
+    t.string "name"
+  end`,
+    named: [],
+  },
+])('a removed column is looked up by name at the head: $reason', async ({ model, head, named }) => {
+  using workspace = gitRepo({
+    [FILE]: dump(USERS),
+    'app/models/user.rb': model,
+    'app/models/name_tag.rb': 'class NameTag\n  def names = []\nend\n',
+  });
+  const { repo, root } = workspace;
+  git(repo, 'config', 'grep.lineNumber', 'true');
+  git(repo, 'config', 'grep.column', 'true');
+  const to = commit(repo, { [FILE]: dump(head) });
+
+  const { columnsNamedAtHead } = await readRange({ repo, from: root, to });
+
+  expect(columnsNamedAtHead).toStrictEqual(named);
+});

@@ -1,4 +1,6 @@
 import type { AccessReader } from './access.ts';
+import { removedColumns } from './deploy-columns.ts';
+import { git, noneFound } from './git.ts';
 import type { Lockfile } from './lockfile.ts';
 import type { MigrationReader } from './migration.ts';
 import { readAccess } from './read-access.ts';
@@ -34,8 +36,43 @@ type ReadChangesOptions = ChangeReaders & {
 
 export type ChangesRead = Pick<
   RangeReading,
-  'dependencyChanges' | 'migrations' | 'schemas' | 'routes' | 'access'
+  'dependencyChanges' | 'migrations' | 'schemas' | 'columnsNamedAtHead' | 'routes' | 'access'
 >;
+
+type NamedAt = {
+  readonly repo: string;
+  readonly revision: string;
+  readonly names: ReadonlyArray<string>;
+};
+
+const namedAt = async ({ repo, revision, names }: NamedAt) => {
+  if (names.length === 0) return [];
+  const found = await git(
+    repo,
+    'grep',
+    '-F',
+    '-w',
+    '-o',
+    '-I',
+    '-z',
+    '--no-line-number',
+    '--no-column',
+    ...names.flatMap(name => ['-e', name]),
+    revision,
+    '--',
+  ).catch(noneFound);
+  const reads = found
+    .split('\n')
+    .filter(line => line !== '')
+    .map(line => {
+      const [path = '', column = ''] = line.slice(revision.length + 1).split('\0');
+      return { path, column };
+    });
+  return reads.filter(
+    (read, index) =>
+      reads.findIndex(({ path, column }) => path === read.path && column === read.column) === index,
+  );
+};
 
 /** What each change reader reads of the range, the routes first since a changed route reaches access. */
 export const readChanges = async ({
@@ -52,10 +89,16 @@ export const readChanges = async ({
 }: ReadChangesOptions): Promise<ChangesRead> => {
   const revisions = { repo, base, head, changes };
   const routesRead = await readRoutes({ ...revisions, routes });
+  const schemasRead = await readSchemas({ ...revisions, schemas });
   return {
     dependencyChanges: await readLockfiles({ ...revisions, lockfiles }),
     migrations: await readMigrations({ ...revisions, migrations }),
-    schemas: await readSchemas({ ...revisions, schemas }),
+    schemas: schemasRead,
+    columnsNamedAtHead: await namedAt({
+      repo,
+      revision: head,
+      names: removedColumns(schemasRead).map(({ column }) => column),
+    }),
     routes: routesRead,
     access: await readAccess({ ...revisions, routed: routesRead.length > 0, access, authorize }),
   };

@@ -87,6 +87,7 @@ const readingOf = (overrides: Partial<Omit<RangeReading, 'reviewed'>>): RangeRea
   ruleBreaks: [],
   rulesNotRead: [],
   deployKeysAtBase: [],
+  columnsNamedAtHead: [],
   deployConfig: {},
   notesConfig: {},
   ...overrides,
