@@ -361,3 +361,19 @@ test('a model at a path git would quote is read for the columns it ignores', asy
 
   expect(columnsIgnoredAtBase).toStrictEqual([{ table: 'users', column: 'name' }]);
 });
+
+test('a file other than Ruby quoting ignored_columns ignores no column', async () => {
+  using workspace = gitRepo({
+    [FILE]: dump(USERS),
+    'docs/user.md': 'Before dropping it:\n\n    self.ignored_columns = ["name"]\n',
+  });
+  const { repo, root } = workspace;
+  const to = commit(repo, {
+    [FILE]: dump(`  create_table "users", force: :cascade do |t|
+  end`),
+  });
+
+  const { columnsIgnoredAtBase } = await readRange({ repo, from: root, to });
+
+  expect(columnsIgnoredAtBase).toStrictEqual([]);
+});

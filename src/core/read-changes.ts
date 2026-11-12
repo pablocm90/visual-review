@@ -88,7 +88,7 @@ type IgnoredAt = {
 
 const ignoredAt = async ({ repo, revision, schemas }: IgnoredAt) => {
   const files = (
-    await git(repo, 'grep', '-l', '-z', 'ignored_columns', revision, '--').catch(noneFound)
+    await git(repo, 'grep', '-l', '-z', 'ignored_columns', revision, '--', '*.rb').catch(noneFound)
   )
     .split('\0')
     .filter(line => line !== '')
