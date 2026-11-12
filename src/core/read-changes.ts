@@ -115,6 +115,7 @@ export const readChanges = async ({
   const revisions = { repo, base, head, changes };
   const routesRead = await readRoutes({ ...revisions, routes });
   const schemasRead = await readSchemas({ ...revisions, schemas });
+  const removed = removedColumns(schemasRead);
   return {
     dependencyChanges: await readLockfiles({ ...revisions, lockfiles }),
     migrations: await readMigrations({ ...revisions, migrations }),
@@ -122,9 +123,10 @@ export const readChanges = async ({
     columnsNamedAtHead: await namedAt({
       repo,
       revision: head,
-      names: removedColumns(schemasRead).map(({ column }) => column),
+      names: removed.map(({ column }) => column),
     }),
-    columnsIgnoredAtBase: await ignoredAt({ repo, revision: base, schemas }),
+    columnsIgnoredAtBase:
+      removed.length === 0 ? [] : await ignoredAt({ repo, revision: base, schemas }),
     routes: routesRead,
     access: await readAccess({ ...revisions, routed: routesRead.length > 0, access, authorize }),
   };
