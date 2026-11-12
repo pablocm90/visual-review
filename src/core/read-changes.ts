@@ -101,6 +101,7 @@ const ignoredAt = async ({ repo, revision, schemas }: IgnoredAt) => {
       .filter(line => line !== '')
       .map(line => line.slice(revision.length + 1)),
   );
+  if (files.size === 0) return [];
   const models = await filesHeldAt({ repo, revision, holds: path => files.has(path) });
   return [...models].flatMap(([path, text]) =>
     schemas.flatMap(({ ignored }) =>
