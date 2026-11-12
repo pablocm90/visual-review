@@ -137,6 +137,19 @@ const schemaRemoving = (...names: ReadonlyArray<string>): ReadonlyArray<SchemaRe
   { file: 'db/schema.rb', tables: [table({ columns: names.map(removed) })] },
 ];
 
+test.for([
+  { reason: 'adds', state: 'added', columns: [added('nickname')] },
+  { reason: 'drops', state: 'removed', columns: [removed('nickname')] },
+] as const)('the columns of a table the dump $reason whole raise nothing', ({ state, columns }) => {
+  expect(
+    findingsOf({
+      schemas: [{ file: 'db/schema.rb', tables: [table({ state, columns: [...columns] })] }],
+      patches: [patchAdding(MODEL, 'nickname')],
+      namedAtHead: [{ path: MODEL, column: 'nickname' }],
+    }),
+  ).toStrictEqual([]);
+});
+
 test('a removed column no model ignores at the base is to look at, on its table: ignore it in a deploy first', () => {
   expect(
     findingsOf({

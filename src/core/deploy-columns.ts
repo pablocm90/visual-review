@@ -20,9 +20,11 @@ type DeployColumnsOptions = {
 const columnChanges = (schemas: ReadonlyArray<SchemaReading>) =>
   schemas.flatMap(reading =>
     'tables' in reading
-      ? reading.tables.flatMap(table =>
-          table.columns.map(change => ({ file: reading.file, table: table.name, change })),
-        )
+      ? reading.tables
+          .filter(table => table.state === 'changed')
+          .flatMap(table =>
+            table.columns.map(change => ({ file: reading.file, table: table.name, change })),
+          )
       : [],
   );
 
