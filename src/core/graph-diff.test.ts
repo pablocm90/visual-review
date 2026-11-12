@@ -202,26 +202,54 @@ test('a removed stack and an added one are two stacks, though no stack has a pat
   ]);
 });
 
-test('a removed crate pairs with the added crate that most of its renamed files went to', () => {
+test('a removed crate pairs with the added crate that more than half of its files went to', () => {
+  const renames = [
+    { from: 'crates/domain/src/money.rs', to: 'crates/shared/src/money.rs' },
+    { from: 'crates/domain/Cargo.toml', to: 'crates/models/Cargo.toml' },
+    { from: 'crates/domain/src/lib.rs', to: 'crates/models/src/lib.rs' },
+  ];
   const diff = diffGraphs({
     before: graph({ nodes: [crate('domain')], edges: [] }),
     after: graph({ nodes: [crate('shared'), crate('models')], edges: [] }),
-    changedPaths: [],
-    renames: [
-      { from: 'crates/domain/src/money.rs', to: 'crates/shared/src/money.rs' },
-      { from: 'crates/domain/Cargo.toml', to: 'crates/models/Cargo.toml' },
-      { from: 'crates/domain/src/lib.rs', to: 'crates/models/src/lib.rs' },
-    ],
+    changedPaths: renames.flatMap(({ from, to }) => [from, to]),
+    renames,
   });
 
   expect(diff.nodes).toStrictEqual([
     { ...crate('shared'), state: 'added' },
     {
       ...crate('models'),
-      state: 'unchanged',
+      state: 'modified',
       renamedFrom: 'crates/domain',
       formerLabel: 'domain',
     },
+  ]);
+});
+
+test('two removed crates whose files went into one added crate stay removed, and the added crate is added', () => {
+  const renames = [
+    { from: 'crates/adapter/Cargo.toml', to: 'crates/chat/Cargo.toml' },
+    { from: 'crates/adapter/src/chat.rs', to: 'crates/chat/src/http.rs' },
+    { from: 'crates/models/src/m.rs', to: 'crates/chat/src/domain.rs' },
+  ];
+  const diff = diffGraphs({
+    before: graph({ nodes: [crate('app'), crate('adapter'), crate('models')], edges: [] }),
+    after: graph({ nodes: [crate('app'), crate('chat')], edges: [] }),
+    changedPaths: [
+      ...renames.flatMap(({ from, to }) => [from, to]),
+      'crates/adapter/src/lib.rs',
+      'crates/adapter/src/other.rs',
+      'crates/models/Cargo.toml',
+      'crates/models/src/lib.rs',
+    ],
+    renames,
+  });
+
+  expect(diff.nodes.map(({ id, state }) => ({ id, state }))).toStrictEqual([
+    { id: 'rust/crate/app', state: 'unchanged' },
+    { id: 'rust/crate/chat', state: 'added' },
+    { id: 'rust/crate/adapter', state: 'removed' },
+    { id: 'rust/crate/models', state: 'removed' },
   ]);
 });
 

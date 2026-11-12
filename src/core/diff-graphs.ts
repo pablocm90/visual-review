@@ -71,22 +71,28 @@ export const deepestHolding = <Node extends Pick<GraphNode, 'path'>>(
 type PairNodesOptions = {
   readonly before: Graph;
   readonly after: Graph;
+  readonly changedPaths: ReadonlyArray<string>;
   readonly renames: ReadonlyArray<Rename>;
 };
 
 const pairNodes = ({
   before,
   after,
+  changedPaths,
   renames,
 }: PairNodesOptions): ReadonlyMap<string, { from: GraphNode; to: GraphNode }> => {
   const beforeIds = new Set(before.nodes.map(node => node.id));
   const afterIds = new Set(after.nodes.map(node => node.id));
   const added = after.nodes.filter(node => !beforeIds.has(node.id));
+  const baseFilesOf = (node: GraphNode): number =>
+    changedPaths.filter(path => isAtOrUnder(path, node)).length;
   const filesAcross = (from: GraphNode, to: GraphNode): number => {
     if (from.kind !== to.kind || from.path === '') return 0;
     if (from.path === to.path) return Number.POSITIVE_INFINITY;
-    return renames.filter(rename => isAtOrUnder(rename.from, from) && isAtOrUnder(rename.to, to))
-      .length;
+    const across = renames.filter(
+      rename => isAtOrUnder(rename.from, from) && isAtOrUnder(rename.to, to),
+    ).length;
+    return across * 2 > baseFilesOf(from) ? across : 0;
   };
   return new Map(
     before.nodes
@@ -109,7 +115,7 @@ export const diffGraphs = ({
 }: DiffGraphsOptions): GraphDiff => {
   const isTouched = (node: GraphNode): boolean =>
     changedPaths.some(path => isAtOrUnder(path, node));
-  const pairs = pairNodes({ before, after, renames });
+  const pairs = pairNodes({ before, after, changedPaths, renames });
   const pairedFrom = new Map([...pairs].map(([, { from, to }]) => [to.id, from]));
   const renamedFrom = new Map(renames.map(({ from, to }) => [to, from]));
   const idOf = (id: string): string => pairs.get(id)?.to.id ?? id;
