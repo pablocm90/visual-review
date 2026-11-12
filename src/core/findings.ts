@@ -63,6 +63,7 @@ type RaisedOptions = Pick<
   | 'ruleBreaks'
   | 'deployKeysAtBase'
   | 'columnsNamedAtHead'
+  | 'columnsIgnoredAtBase'
   | 'deployConfig'
 > & {
   readonly undrawn: ReadonlyArray<FilePatch>;
@@ -200,8 +201,13 @@ const RAISERS: ReadonlyArray<Raise> = [
   ({ patches, deployKeysAtBase }) => deployKeyFindings({ patches, keysAtBase: deployKeysAtBase }),
   ({ patches, deployConfig }) =>
     deployFlagFindings({ patches, flags: deployConfig.flags ?? FLIPPER_FLAGS }),
-  ({ schemas, patches, columnsNamedAtHead }) =>
-    deployColumnFindings({ schemas, patches, namedAtHead: columnsNamedAtHead }),
+  ({ schemas, patches, columnsNamedAtHead, columnsIgnoredAtBase }) =>
+    deployColumnFindings({
+      schemas,
+      patches,
+      namedAtHead: columnsNamedAtHead,
+      ignoredAtBase: columnsIgnoredAtBase,
+    }),
   ({ reaches }) => reachFindings(reaches),
   ({ symbols, nodes, tests }) => untestedLogicFindings({ nodes, tests, symbols }),
   ({ symbolsNotRead }) =>

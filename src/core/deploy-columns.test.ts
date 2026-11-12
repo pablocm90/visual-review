@@ -27,6 +27,17 @@ const schemaAdding = (...names: ReadonlyArray<string>): ReadonlyArray<SchemaRead
 
 const MODEL = 'app/models/user.rb';
 
+const NICKNAME_IGNORED = [{ table: 'users', column: 'nickname' }];
+
+const findingsOf = (options: Partial<Parameters<typeof deployColumnFindings>[0]>) =>
+  deployColumnFindings({
+    schemas: [],
+    patches: [],
+    namedAtHead: [],
+    ignoredAtBase: [],
+    ...options,
+  });
+
 const patchAdding = (path: string, ...added: ReadonlyArray<string>): FilePatch => ({
   path,
   patch: [
@@ -41,10 +52,9 @@ const patchAdding = (path: string, ...added: ReadonlyArray<string>): FilePatch =
 
 test('an added column that code the change adds names is for information, on its first row: migrate first or guard', () => {
   expect(
-    deployColumnFindings({
+    findingsOf({
       schemas: schemaAdding('nickname'),
       patches: [patchAdding(MODEL, '  def handle = nickname.presence || email', '  # nickname')],
-      namedAtHead: [],
     }),
   ).toStrictEqual([
     {
@@ -65,10 +75,9 @@ test.for(['lib/tasks/handles.rake', 'app/views/users/show.html.erb', 'lib/mongod
   'an added column named by %s raises it',
   path => {
     expect(
-      deployColumnFindings({
+      findingsOf({
         schemas: schemaAdding('nickname'),
         patches: [patchAdding(path, 'nickname')],
-        namedAtHead: [],
       }).map(({ id }) => id),
     ).toStrictEqual(['deploy:column-used:users.nickname']);
   },
@@ -76,10 +85,9 @@ test.for(['lib/tasks/handles.rake', 'app/views/users/show.html.erb', 'lib/mongod
 
 test('a column name is matched as written, not as a pattern', () => {
   expect(
-    deployColumnFindings({
+    findingsOf({
       schemas: schemaAdding('rate.usd'),
       patches: [patchAdding(MODEL, 'rate_usd')],
-      namedAtHead: [],
     }),
   ).toStrictEqual([]);
 });
@@ -100,9 +108,7 @@ test.for([
   { reason: 'a spec', patches: [patchAdding('spec/models/user_spec.rb', 'nickname')] },
   { reason: 'a TypeScript file', patches: [patchAdding('web/user.ts', 'nickname')] },
 ])('an added column named only by $reason raises nothing', ({ patches }) => {
-  expect(
-    deployColumnFindings({ schemas: schemaAdding('nickname'), patches, namedAtHead: [] }),
-  ).toStrictEqual([]);
+  expect(findingsOf({ schemas: schemaAdding('nickname'), patches })).toStrictEqual([]);
 });
 
 test.for([
@@ -118,7 +124,11 @@ test.for([
   '$reason named by added code is not a new column',
   ({ schemas }) => {
     expect(
-      deployColumnFindings({ schemas, patches: [patchAdding(MODEL, 'nickname')], namedAtHead: [] }),
+      findingsOf({
+        schemas,
+        patches: [patchAdding(MODEL, 'nickname')],
+        ignoredAtBase: NICKNAME_IGNORED,
+      }),
     ).toStrictEqual([]);
   },
 );
@@ -127,12 +137,53 @@ const schemaRemoving = (...names: ReadonlyArray<string>): ReadonlyArray<SchemaRe
   { file: 'db/schema.rb', tables: [table({ columns: names.map(removed) })] },
 ];
 
+test('a removed column no model ignores at the base is to look at, on its table: ignore it in a deploy first', () => {
+  expect(
+    findingsOf({
+      schemas: [{ file: 'api/db/schema.rb', tables: [table({ columns: [removed('nickname')] })] }],
+    }),
+  ).toStrictEqual([
+    {
+      id: 'deploy:not-ignored:users.nickname',
+      check: 'deploy:not-ignored',
+      dimension: 'deploy',
+      level: 'look',
+      file: 'api/db/schema.rb',
+      table: 'users',
+      title: 'api/db/schema.rb drops users.nickname, which no model ignored at the base',
+      detail:
+        'Code running the base during the deploy still loads it: ignore it in a deploy before dropping it. Matched by name.',
+    },
+  ]);
+});
+
+test.for([
+  { reason: 'its table', ignoredAtBase: NICKNAME_IGNORED, ids: [] },
+  {
+    reason: 'another table',
+    ignoredAtBase: [{ table: 'accounts', column: 'nickname' }],
+    ids: ['deploy:not-ignored:users.nickname'],
+  },
+  {
+    reason: 'another column of its table',
+    ignoredAtBase: [{ table: 'users', column: 'email' }],
+    ids: ['deploy:not-ignored:users.nickname'],
+  },
+])(
+  'a removed column with the base ignoring it at $reason raises $ids',
+  ({ ignoredAtBase, ids }) => {
+    expect(
+      findingsOf({ schemas: schemaRemoving('nickname'), ignoredAtBase }).map(({ id }) => id),
+    ).toStrictEqual(ids);
+  },
+);
+
 test('a removed column that app code at the head still names is to look at: ignore it in a deploy first', () => {
   expect(
-    deployColumnFindings({
+    findingsOf({
       schemas: schemaRemoving('nickname'),
-      patches: [],
       namedAtHead: [{ path: MODEL, column: 'nickname' }],
+      ignoredAtBase: NICKNAME_IGNORED,
     }),
   ).toStrictEqual([
     {
@@ -159,7 +210,11 @@ test.for([
   'a removed column whose name the head reads only in $reason raises nothing',
   ({ namedAtHead }) => {
     expect(
-      deployColumnFindings({ schemas: schemaRemoving('nickname'), patches: [], namedAtHead }),
+      findingsOf({
+        schemas: schemaRemoving('nickname'),
+        namedAtHead,
+        ignoredAtBase: NICKNAME_IGNORED,
+      }),
     ).toStrictEqual([]);
   },
 );

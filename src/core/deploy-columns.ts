@@ -2,6 +2,7 @@ import type { FilePatch } from './diff-graphs.ts';
 import type { Finding } from './finding.ts';
 import { lineIdOf, patchHunks } from './patch-lines.ts';
 import type { SchemaReading } from './read-schemas.ts';
+import type { TableColumn } from './schema.ts';
 import { isTestFile } from './secret-findings.ts';
 import { literally } from './wildcard.ts';
 
@@ -12,13 +13,14 @@ type DeployColumnsOptions = {
   readonly schemas: ReadonlyArray<SchemaReading>;
   readonly patches: ReadonlyArray<FilePatch>;
   readonly namedAtHead: ReadonlyArray<NamedColumn>;
+  readonly ignoredAtBase: ReadonlyArray<TableColumn>;
 };
 
 const columnChanges = (schemas: ReadonlyArray<SchemaReading>) =>
   schemas.flatMap(reading =>
     'tables' in reading
       ? reading.tables.flatMap(table =>
-          table.columns.map(change => ({ table: table.name, change })),
+          table.columns.map(change => ({ file: reading.file, table: table.name, change })),
         )
       : [],
   );
@@ -29,8 +31,8 @@ const addedColumns = (schemas: ReadonlyArray<SchemaReading>) =>
   );
 
 export const removedColumns = (schemas: ReadonlyArray<SchemaReading>) =>
-  columnChanges(schemas).flatMap(({ table, change }) =>
-    change.state === 'removed' ? [{ table, column: change.base.name }] : [],
+  columnChanges(schemas).flatMap(({ file, table, change }) =>
+    change.state === 'removed' ? [{ file, table, column: change.base.name }] : [],
   );
 
 const RUBY = /\.(?:rb|rake|erb)$/;
@@ -56,7 +58,7 @@ const firstRowNaming = (patches: ReadonlyArray<FilePatch>, column: string) => {
 const stillReadFindings = ({
   schemas,
   namedAtHead,
-}: Omit<DeployColumnsOptions, 'patches'>): ReadonlyArray<Finding> =>
+}: Pick<DeployColumnsOptions, 'schemas' | 'namedAtHead'>): ReadonlyArray<Finding> =>
   removedColumns(schemas).flatMap(({ table, column }) => {
     const named = namedAtHead.find(read => read.column === column && isAppCode(read.path));
     return named === undefined
@@ -75,10 +77,32 @@ const stillReadFindings = ({
         ];
   });
 
+const notIgnoredFindings = ({
+  schemas,
+  ignoredAtBase,
+}: Pick<DeployColumnsOptions, 'schemas' | 'ignoredAtBase'>): ReadonlyArray<Finding> =>
+  removedColumns(schemas).flatMap(({ file, table, column }) =>
+    ignoredAtBase.some(ignored => ignored.table === table && ignored.column === column)
+      ? []
+      : [
+          {
+            id: `deploy:not-ignored:${table}.${column}`,
+            check: 'deploy:not-ignored',
+            dimension: 'deploy',
+            level: 'look',
+            file,
+            table,
+            title: `${file} drops ${table}.${column}, which no model ignored at the base`,
+            detail:
+              'Code running the base during the deploy still loads it: ignore it in a deploy before dropping it. Matched by name.',
+          },
+        ],
+  );
+
 const usedFindings = ({
   schemas,
   patches,
-}: Omit<DeployColumnsOptions, 'namedAtHead'>): ReadonlyArray<Finding> =>
+}: Pick<DeployColumnsOptions, 'schemas' | 'patches'>): ReadonlyArray<Finding> =>
   addedColumns(schemas).flatMap(({ table, column }) => {
     const named = firstRowNaming(patches, column);
     return named?.line === undefined
@@ -101,4 +125,5 @@ const usedFindings = ({
 export const deployColumnFindings = (options: DeployColumnsOptions): ReadonlyArray<Finding> => [
   ...usedFindings(options),
   ...stillReadFindings(options),
+  ...notIgnoredFindings(options),
 ];
