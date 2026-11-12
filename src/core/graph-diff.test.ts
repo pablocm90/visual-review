@@ -253,6 +253,29 @@ test('two removed crates whose files went into one added crate stay removed, and
   ]);
 });
 
+test('of two removed crates that most of their files went to one added crate, only the one sending it more pairs with it', () => {
+  const renames = [
+    { from: 'crates/api/src/lib.rs', to: 'crates/server/src/api.rs' },
+    { from: 'crates/api/src/routes.rs', to: 'crates/server/src/routes.rs' },
+    { from: 'crates/web/Cargo.toml', to: 'crates/server/Cargo.toml' },
+    { from: 'crates/web/src/lib.rs', to: 'crates/server/src/lib.rs' },
+    { from: 'crates/web/src/pages.rs', to: 'crates/server/src/pages.rs' },
+  ];
+  const diff = diffGraphs({
+    before: graph({ nodes: [crate('api'), crate('web')], edges: [] }),
+    after: graph({ nodes: [crate('server')], edges: [] }),
+    changedPaths: [...renames.flatMap(({ from, to }) => [from, to]), 'crates/api/Cargo.toml'],
+    renames,
+  });
+
+  expect(
+    diff.nodes.map(({ id, state, renamedFrom }) => ({ id, state, renamedFrom })),
+  ).toStrictEqual([
+    { id: 'rust/crate/server', state: 'modified', renamedFrom: 'crates/web' },
+    { id: 'rust/crate/api', state: 'removed', renamedFrom: undefined },
+  ]);
+});
+
 test.for([
   {
     pair: 'no file is renamed across',

@@ -94,16 +94,18 @@ const pairNodes = ({
     ).length;
     return across * 2 > baseFilesOf(from) ? across : 0;
   };
+  const removed = before.nodes.filter(node => !afterIds.has(node.id));
+  const scored = removed
+    .flatMap(from => added.map(to => ({ from, to, files: filesAcross(from, to) })))
+    .filter(({ files }) => files > 0);
+  const bestOf = (candidates: typeof scored) => candidates.toSorted((a, b) => b.files - a.files)[0];
   return new Map(
-    before.nodes
-      .filter(node => !afterIds.has(node.id))
-      .flatMap(from => {
-        const [best] = added
-          .map(to => ({ to, files: filesAcross(from, to) }))
-          .filter(({ files }) => files > 0)
-          .sort((a, b) => b.files - a.files);
-        return best === undefined ? [] : [[from.id, { from, to: best.to }] as const];
-      }),
+    removed.flatMap(from => {
+      const best = bestOf(scored.filter(pair => pair.from === from));
+      return best === undefined || bestOf(scored.filter(pair => pair.to === best.to))?.from !== from
+        ? []
+        : [[from.id, { from, to: best.to }] as const];
+    }),
   );
 };
 
