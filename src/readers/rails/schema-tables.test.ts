@@ -173,6 +173,12 @@ test.for([
     ],
   },
   {
+    reason: 'a frozen list',
+    path: 'app/models/user.rb',
+    text: 'class User < ApplicationRecord\n  self.ignored_columns = %w[legacy].freeze\nend\n',
+    ignored: [{ table: 'users', column: 'legacy' }],
+  },
+  {
     reason: 'the table its table_name sets',
     path: 'app/models/person.rb',
     text: 'class Person < ApplicationRecord\n  self.table_name = "humans"\n  self.ignored_columns = [:age]\nend\n',
