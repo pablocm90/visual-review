@@ -10,15 +10,18 @@ type DeployColumnsOptions = {
   readonly patches: ReadonlyArray<FilePatch>;
 };
 
-const addedColumns = (schemas: ReadonlyArray<SchemaReading>) =>
+const columnChanges = (schemas: ReadonlyArray<SchemaReading>) =>
   schemas.flatMap(reading =>
     'tables' in reading
       ? reading.tables.flatMap(table =>
-          table.columns.flatMap(change =>
-            change.state === 'added' ? [{ table: table.name, column: change.head.name }] : [],
-          ),
+          table.columns.map(change => ({ table: table.name, change })),
         )
       : [],
+  );
+
+const addedColumns = (schemas: ReadonlyArray<SchemaReading>) =>
+  columnChanges(schemas).flatMap(({ table, change }) =>
+    change.state === 'added' ? [{ table, column: change.head.name }] : [],
   );
 
 const RUBY = /\.(?:rb|rake|erb)$/;
