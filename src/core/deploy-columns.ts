@@ -75,9 +75,9 @@ const stillReadFindings = ({
             dimension: 'deploy',
             level: 'look',
             ...placeOfFile(nodes, named.path),
-            title: `${named.path} still names the removed column ${table}.${column}`,
+            title: `${named.path} still names ${column}, the name of the removed column ${table}.${column}`,
             detail:
-              'Code running during the deploy may read it: ignore it in a deploy before dropping it. Matched by name.',
+              'Code running during the deploy may read it: ignore it in a deploy before dropping it. Matched by name, whatever the table.',
           },
         ];
   });
@@ -120,9 +120,9 @@ const usedFindings = ({
             level: 'info',
             file: named.path,
             line: named.line,
-            title: `${named.path} names the new column ${table}.${column}`,
+            title: `${named.path} names ${column}, the name of the new column ${table}.${column}`,
             detail:
-              'On a rolling deploy this code can run before the migration: migrate first or guard it. Matched by name.',
+              'On a rolling deploy this code can run before the migration: migrate first or guard it. Matched by name, whatever the table.',
           },
         ];
   });

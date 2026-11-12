@@ -66,9 +66,9 @@ test('an added column that code the change adds names is for information, on its
       level: 'info',
       file: MODEL,
       line: `${MODEL}@head:2`,
-      title: `${MODEL} names the new column users.nickname`,
+      title: `${MODEL} names nickname, the name of the new column users.nickname`,
       detail:
-        'On a rolling deploy this code can run before the migration: migrate first or guard it. Matched by name.',
+        'On a rolling deploy this code can run before the migration: migrate first or guard it. Matched by name, whatever the table.',
     },
   ]);
 });
@@ -211,9 +211,9 @@ test('a removed column that app code at the head still names is to look at: igno
       dimension: 'deploy',
       level: 'look',
       file: MODEL,
-      title: `${MODEL} still names the removed column users.nickname`,
+      title: `${MODEL} still names nickname, the name of the removed column users.nickname`,
       detail:
-        'Code running during the deploy may read it: ignore it in a deploy before dropping it. Matched by name.',
+        'Code running during the deploy may read it: ignore it in a deploy before dropping it. Matched by name, whatever the table.',
     },
   ]);
 });
