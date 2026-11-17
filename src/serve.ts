@@ -1,4 +1,4 @@
-import { spawn } from 'node:child_process';
+import { execFile, spawn } from 'node:child_process';
 import { createHash, randomBytes } from 'node:crypto';
 import { once } from 'node:events';
 import { mkdir, readFile, realpath, rm } from 'node:fs/promises';
@@ -7,6 +7,7 @@ import type { AddressInfo } from 'node:net';
 import { homedir } from 'node:os';
 import { basename, dirname, isAbsolute, join } from 'node:path';
 import { text } from 'node:stream/consumers';
+import { promisify } from 'node:util';
 import { z } from 'zod';
 import { readFileThatEnds } from './core/file-that-ends.ts';
 import { servedPageHtml } from './core/page.ts';
@@ -21,7 +22,12 @@ const openInBrowser = (url: string): void => {
     .unref();
 };
 
-const LockSchema = z.strictObject({ pid: z.number(), port: z.number(), token: z.string() });
+const LockSchema = z.strictObject({
+  pid: z.number(),
+  port: z.number(),
+  token: z.string(),
+  url: z.string(),
+});
 
 type Lock = z.infer<typeof LockSchema>;
 
@@ -67,13 +73,39 @@ const refuse = ({ response, status, error }: RefuseOptions): void => {
   response.writeHead(status, { 'content-type': 'text/plain; charset=utf-8' }).end(error.message);
 };
 
+const fromACollaborator = (request: IncomingMessage): boolean =>
+  (request.headers['x-amp-authenticated'] ?? '')
+    .toString()
+    .split(',')
+    .map(token => token.trim())
+    .includes('collaborator=yes');
+
 type RouteOfOptions = {
   readonly request: IncomingMessage;
   readonly host: string;
+  readonly portalHost: string | undefined;
 };
 
-const routeOf = ({ request, host }: RouteOfOptions): string | undefined =>
-  request.headers.host === host ? `${request.method} ${request.url}` : undefined;
+const routeOf = ({ request, host, portalHost }: RouteOfOptions): string | undefined =>
+  request.headers.host === host ||
+  (request.headers.host === portalHost && fromACollaborator(request))
+    ? `${request.method} ${request.url}`
+    : undefined;
+
+const portalFor = async (port: number): Promise<string> => {
+  const registered = await promisify(execFile)('amp', [
+    'orb',
+    'portal',
+    String(port),
+    '--name',
+    'visual-review',
+    '--title',
+    'Visual review',
+  ]).catch((error: Error) => {
+    throw new Error(`Can't open an Amp portal: ${error.message}`);
+  });
+  return registered.stdout.trim();
+};
 
 type TakeReviewOptions = {
   readonly request: IncomingMessage;
@@ -121,6 +153,7 @@ const answerWithPage = async ({ response, pageNow }: AnswerWithPageOptions): Pro
       'content-type': 'text/html; charset=utf-8',
       'cache-control': 'no-store',
       'referrer-policy': 'no-referrer',
+      'x-amp-review-widget': 'off',
     })
     .end(html);
 };
@@ -129,6 +162,7 @@ type AnswerOptions = {
   readonly request: IncomingMessage;
   readonly response: ServerResponse;
   readonly host: string;
+  readonly portalHost: string | undefined;
   readonly token: string;
   readonly reviewFile: string;
   readonly pageNow: () => Promise<string>;
@@ -140,13 +174,14 @@ const answer = async ({
   request,
   response,
   host,
+  portalHost,
   token,
   reviewFile,
   pageNow,
   reviewed,
   pinged,
 }: AnswerOptions): Promise<void> => {
-  const route = routeOf({ request, host });
+  const route = routeOf({ request, host, portalHost });
   if (route === `POST /${token}/review`) {
     if (await tookReview({ request, response, reviewFile })) reviewed();
     return;
@@ -173,6 +208,7 @@ type ServePageOptions = {
   readonly idleMs: number;
   readonly firstPingMs: number;
   readonly open: boolean;
+  readonly amp: boolean;
 };
 
 export const servePage = async ({
@@ -181,13 +217,15 @@ export const servePage = async ({
   idleMs,
   firstPingMs,
   open,
+  amp,
 }: ServePageOptions): Promise<string | undefined> => {
-  if (page === undefined) throw new Error('Usage: visual-review serve [--no-open] <page.html>');
+  if (page === undefined)
+    throw new Error('Usage: visual-review serve [--no-open] [--amp] <page.html>');
   const lockFile = await lockFileOf(page);
   const lock = await liveLock(lockFile);
   if (lock !== undefined) {
-    if (open) openInBrowser(urlOf(lock));
-    else console.error(`Serving ${urlOf(lock)}`);
+    if (open) openInBrowser(lock.url);
+    else console.error(`Serving ${lock.url}`);
     return undefined;
   }
   const token = randomBytes(16).toString('hex');
@@ -198,11 +236,18 @@ export const servePage = async ({
   server.listen(0, '127.0.0.1');
   await once(server, 'listening');
   const { port } = server.address() as AddressInfo;
+  const portal = amp
+    ? await portalFor(port).catch((error: Error) => {
+        server.close();
+        throw error;
+      })
+    : undefined;
+  const url = portal === undefined ? urlOf({ port, token }) : new URL(token, portal).href;
   await mkdir(dirname(lockFile), { recursive: true })
     .then(() =>
       writeAnew({
         path: lockFile,
-        content: JSON.stringify({ pid: process.pid, port, token }),
+        content: JSON.stringify({ pid: process.pid, port, token, url }),
         mode: 0o600,
       }),
     )
@@ -230,6 +275,7 @@ export const servePage = async ({
       request,
       response,
       host,
+      portalHost: portal === undefined ? undefined : new URL(portal).host,
       token,
       reviewFile,
       pageNow,
@@ -244,7 +290,6 @@ export const servePage = async ({
     }),
   );
   process.once('SIGINT', stopped).once('SIGTERM', stopped);
-  const url = urlOf({ port, token });
   console.error(`Serving ${url}`);
   if (open) openInBrowser(url);
   return sent.promise.finally(() => {

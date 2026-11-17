@@ -183,7 +183,7 @@ const run = (args: ReadonlyArray<string>): Promise<string | undefined> =>
   args[0] === 'serve'
     ? ownVersion().then(version =>
         servePage({
-          page: args.slice(1).find(arg => arg !== '--no-open'),
+          page: args.slice(1).find(arg => arg !== '--no-open' && arg !== '--amp'),
           version,
           idleMs: msFrom({ variable: 'VISUAL_REVIEW_IDLE_MS', fallback: 10 * 60 * 1000 }),
           firstPingMs: msFrom({
@@ -191,6 +191,7 @@ const run = (args: ReadonlyArray<string>): Promise<string | undefined> =>
             fallback: 24 * 60 * 60 * 1000,
           }),
           open: !args.includes('--no-open'),
+          amp: args.includes('--amp'),
         }),
       )
     : writeReview(args);

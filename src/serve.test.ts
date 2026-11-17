@@ -55,6 +55,21 @@ const fakeOpeners = (openers: ReadonlyArray<string>) => {
   };
 };
 
+const PORTAL_REFUSED = 'Error: Portals are not available for this thread.';
+
+type FakeAmpOptions = { readonly bin: string; readonly refuses: boolean };
+
+const fakeAmp = ({ bin, refuses }: FakeAmpOptions): void => {
+  const file = join(bin, 'amp');
+  writeFileSync(
+    file,
+    refuses
+      ? `#!/bin/sh\necho '${PORTAL_REFUSED}' >&2\nexit 1\n`
+      : `#!/bin/sh\n[ "$1 $2" = 'orb portal' ] || exit 2\nprintf 'https://t-thread-p%s.onamp.dev/\\n' "$3"\n`,
+  );
+  chmodSync(file, 0o755);
+};
+
 type WrittenPageOptions = {
   readonly directory?: string;
   readonly range?: string;
@@ -100,7 +115,7 @@ const stderrOf = (child: ChildProcess) => {
     const lines: Array<string> = [];
     for await (const line of child.stderr ? createInterface(child.stderr) : []) {
       lines.push(line);
-      const found = /http:\/\/\S+/.exec(line)?.[0];
+      const found = /https?:\/\/\S+/.exec(line)?.[0];
       if (found) url.resolve(found);
     }
     url.reject(new Error('serve ended without printing its URL'));
@@ -128,6 +143,7 @@ const servedPage = async ({
   ...page
 }: ServedPageOptions = {}) => {
   const bin = fakeOpeners(openers);
+  fakeAmp({ bin: bin.path, refuses: false });
   const written = writtenPage(page);
   const home = mkdtempSync(join(tmpdir(), 'visual-review-home-'));
   if (lock !== undefined) {
@@ -196,9 +212,12 @@ type Asked = {
   readonly method?: string;
   readonly path?: string;
   readonly host?: string;
+  readonly authenticated?: string;
 };
 
-const statusFor = ({ url, method, path, host }: Asked): Promise<number> => {
+const A_COLLABORATOR = 'amp-user=yes, workspace-member=no, collaborator=yes';
+
+const statusFor = ({ url, method, path, host, authenticated }: Asked): Promise<number> => {
   const served = new URL(url);
   return new Promise((resolve, reject) => {
     request(
@@ -207,7 +226,10 @@ const statusFor = ({ url, method, path, host }: Asked): Promise<number> => {
         hostname: served.hostname,
         port: served.port,
         path: path ?? served.pathname,
-        headers: { host: host ?? served.host },
+        headers: {
+          host: host ?? served.host,
+          ...(authenticated === undefined ? {} : { 'x-amp-authenticated': authenticated }),
+        },
       },
       response => {
         response.resume();
@@ -229,9 +251,14 @@ test.for([
     path: '/:token/review',
     host: 'evil.example',
   },
+  {
+    request: "naming another host with Amp's collaborator header, which only --amp heeds",
+    host: 't-thread-p1.onamp.dev',
+    authenticated: A_COLLABORATOR,
+  },
 ])(
   'serve refuses a request $request with 403, and keeps serving the page',
-  async ({ method, path, host }) => {
+  async ({ method, path, host, authenticated }) => {
     using server = await servedPage();
     const { port, pathname } = new URL(server.url);
 
@@ -240,6 +267,7 @@ test.for([
       ...(method === undefined ? {} : { method }),
       ...(path === undefined ? {} : { path: path.replace('/:token', pathname) }),
       ...(host === undefined ? {} : { host: `${host}:${port}` }),
+      ...(authenticated === undefined ? {} : { authenticated }),
     });
 
     expect(status).toBe(403);
@@ -274,7 +302,7 @@ test('serve without a page exits non-zero saying how to call it', async () => {
 
   await expect(run).rejects.toMatchObject({
     code: 1,
-    stderr: 'Usage: visual-review serve [--no-open] <page.html>\n',
+    stderr: 'Usage: visual-review serve [--no-open] [--amp] <page.html>\n',
   });
 });
 
@@ -298,7 +326,7 @@ test("serve loads no reader or linker, so it starts without paying for their par
 
   await expect(run).rejects.toMatchObject({
     code: 1,
-    stderr: 'Usage: visual-review serve [--no-open] <page.html>\n',
+    stderr: 'Usage: visual-review serve [--no-open] [--amp] <page.html>\n',
   });
 });
 
@@ -567,6 +595,149 @@ test(
   SECOND_SERVE_LIMIT_MS,
 );
 
+type ThroughPortalOptions = {
+  readonly url: string;
+  readonly path?: string;
+  readonly method?: string;
+  readonly body?: string;
+  readonly host?: string;
+  readonly authenticated?: string;
+};
+
+type PortalAnswer = {
+  readonly status: number;
+  readonly widget: string | string[] | undefined;
+  readonly body: string;
+};
+
+const throughPortal = ({
+  url,
+  path = '',
+  method = 'GET',
+  body = '',
+  host,
+  authenticated,
+}: ThroughPortalOptions): Promise<PortalAnswer> => {
+  const portal = new URL(url);
+  return new Promise((resolve, reject) => {
+    request(
+      {
+        method,
+        hostname: '127.0.0.1',
+        port: /-p(\d+)\./.exec(portal.hostname)?.[1],
+        path: `${portal.pathname}${path}`,
+        headers: {
+          host: host ?? portal.host,
+          ...(authenticated === undefined ? {} : { 'x-amp-authenticated': authenticated }),
+        },
+      },
+      response =>
+        void text(response).then(
+          answered =>
+            resolve({
+              status: response.statusCode ?? 0,
+              widget: response.headers['x-amp-review-widget'],
+              body: answered,
+            }),
+          reject,
+        ),
+    )
+      .on('error', reject)
+      .end(body);
+  });
+};
+
+test("serve --amp prints the portal URL Amp gave its port, under its token, and through it a collaborator gets the page, with the portal's review widget off", async () => {
+  using server = await servedPage({ flags: ['--amp', '--no-open'] });
+  const { origin, pathname } = new URL(server.url);
+
+  const answer = await throughPortal({ url: server.url, authenticated: A_COLLABORATOR });
+
+  expect(origin).toMatch(/^https:\/\/t-thread-p\d+\.onamp\.dev$/);
+  expect(pathname).toMatch(/^\/[0-9a-f]{32}$/);
+  expect(answer).toMatchObject({ status: 200, widget: 'off' });
+  expect(answer.body).toContain(`id="review-serve">"${pathname.slice(1)}"</script>`);
+});
+
+test.for([
+  { visitor: 'with no Amp authentication, as one bypassing the portal would be' },
+  {
+    visitor: 'who can view the thread but not contribute to it',
+    authenticated: 'amp-user=yes, workspace-member=yes, collaborator=no',
+  },
+  {
+    visitor: 'naming a host other than the portal',
+    host: 'evil.example',
+    authenticated: A_COLLABORATOR,
+  },
+])('serve --amp refuses a visitor $visitor with 403', async ({ host, authenticated }) => {
+  using server = await servedPage({ flags: ['--amp', '--no-open'] });
+
+  const answer = await throughPortal({
+    url: server.url,
+    ...(host === undefined ? {} : { host }),
+    ...(authenticated === undefined ? {} : { authenticated }),
+  });
+
+  expect(answer.status).toBe(403);
+});
+
+test('a review a collaborator sends through the portal is written beside the page, and serve --amp exits 0', async () => {
+  using server = await servedPage({ flags: ['--amp', '--no-open'] });
+
+  const answer = await throughPortal({
+    url: server.url,
+    path: '/review',
+    method: 'POST',
+    body: JSON.stringify(reviewWith([])),
+    authenticated: A_COLLABORATOR,
+  });
+
+  expect(answer.status).toBe(204);
+  expect(await server.exited).toMatchObject({
+    code: 0,
+    stdout: `${server.page.replace(/\.html$/, '.review.json')}\n`,
+  });
+});
+
+test(
+  'serving an already served page with --amp --no-open prints the live portal URL and exits 0',
+  async () => {
+    using server = await servedPage({ flags: ['--amp', '--no-open'] });
+
+    const again = await server.serveAgain(['--amp', '--no-open']);
+
+    expect(again).toEqual({ stdout: '', stderr: `Serving ${server.url}\n` });
+  },
+  SECOND_SERVE_LIMIT_MS,
+);
+
+test.for([
+  { amp: 'refuses the portal', refuses: true, says: PORTAL_REFUSED },
+  { amp: 'is not on PATH', says: 'amp' },
+])(
+  'serve --amp when amp $amp exits non-zero saying so, leaving no lock',
+  async ({ refuses, says }) => {
+    using bin = fakeOpeners([]);
+    if (refuses !== undefined) fakeAmp({ bin: bin.path, refuses });
+    using written = writtenPage({});
+    const home = mkdtempSync(join(tmpdir(), 'visual-review-home-'));
+    using _removed = { [Symbol.dispose]: () => rmSync(home, { recursive: true, force: true }) };
+
+    const serving = promisify(execFile)(
+      process.execPath,
+      [join(import.meta.dirname, 'cli.ts'), 'serve', '--amp', written.page],
+      { env: { ...process.env, ...NOT_WAITING_FOR_A_PAGE, HOME: home, PATH: bin.path } },
+    );
+
+    await expect(serving).rejects.toMatchObject({
+      code: 1,
+      stderr: expect.stringContaining(says),
+    });
+    expect(existsSync(lockDirectoryIn(home)) ? readdirSync(lockDirectoryIn(home)) : []).toEqual([]);
+  },
+);
+
 test(
   'serving an already served page leaves the live server waiting for its first ping, past its idle time',
   async () => {
@@ -677,7 +848,12 @@ test('a lock in the folder of locks naming a live server is taken for it, so no 
   using named = await serverAnsweringAll();
   using server = await servedPage({
     flags: ['--no-open'],
-    lock: JSON.stringify({ pid: process.pid, port: named.port, token: aToken }),
+    lock: JSON.stringify({
+      pid: process.pid,
+      port: named.port,
+      token: aToken,
+      url: `http://127.0.0.1:${named.port}/${aToken}`,
+    }),
   });
 
   expect(server.url).toBe(`http://127.0.0.1:${named.port}/${aToken}`);
