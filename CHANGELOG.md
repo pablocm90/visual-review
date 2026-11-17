@@ -2,6 +2,21 @@
 
 What changed in each release of `@pablocm90/visual-review`, newest first. Versions follow [semver](https://semver.org); while it is 0.x, a minor version may change the exported types.
 
+## 0.69.0 — 2026-11-17
+
+### Added
+
+- `serve --amp` serves the page through an [Amp](https://ampcode.com) portal: it registers one with `amp orb portal` and prints the portal's URL under the token, so you review from the thread's Portal tab. Through the portal only a visitor Amp marks `collaborator=yes` in `X-Amp-Authenticated` gets the page or can send a review, even when the portal is made public; the portal's root, which the Portal tab links to, sends a collaborator on to the page. When `amp` is missing or refuses the portal, `serve --amp` exits 1 saying so. Without `--amp` nothing changes.
+
+### Changed
+
+- The served page carries `x-amp-review-widget: off`, so Amp's own comment button doesn't cover the Review panel.
+- serve's lock also holds the URL it printed, so serving an already served page prints or opens that URL; a lock written by an earlier version is replaced.
+
+### Fixed
+
+- serve exits once a review is sent even when a client, such as a proxy, still holds a connection open. Before, it wrote the review and kept running.
+
 ## 0.68.0 — 2026-11-12
 
 ### Added
