@@ -195,6 +195,10 @@ const answer = async ({
     response.writeHead(204).end();
     return;
   }
+  if (route === 'GET /' && request.headers.host === portalHost) {
+    response.writeHead(302, { location: `/${token}` }).end();
+    return;
+  }
   if (route !== `GET /${token}`) {
     response.writeHead(403).end();
     return;

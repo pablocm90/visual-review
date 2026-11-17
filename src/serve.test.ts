@@ -607,6 +607,7 @@ type ThroughPortalOptions = {
 type PortalAnswer = {
   readonly status: number;
   readonly widget: string | string[] | undefined;
+  readonly location: string | undefined;
   readonly body: string;
 };
 
@@ -637,6 +638,7 @@ const throughPortal = ({
             resolve({
               status: response.statusCode ?? 0,
               widget: response.headers['x-amp-review-widget'],
+              location: response.headers.location,
               body: answered,
             }),
           reject,
@@ -680,6 +682,17 @@ test.for([
   });
 
   expect(answer.status).toBe(403);
+});
+
+test('a collaborator opening the portal at its root, as the Portal tab links it, is sent on to the page', async () => {
+  using server = await servedPage({ flags: ['--amp', '--no-open'] });
+  const { origin, pathname } = new URL(server.url);
+
+  const root = await throughPortal({ url: `${origin}/`, authenticated: A_COLLABORATOR });
+  const stranger = await throughPortal({ url: `${origin}/` });
+
+  expect(root).toMatchObject({ status: 302, location: pathname });
+  expect(stranger.status).toBe(403);
 });
 
 test('a review a collaborator sends through the portal is written beside the page, and serve --amp exits 0', async () => {
