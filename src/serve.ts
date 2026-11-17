@@ -285,6 +285,7 @@ export const servePage = async ({
       pageNow,
       reviewed: () => {
         server.close();
+        server.closeAllConnections();
         sent.resolve(reviewFile);
       },
       pinged: async () => {

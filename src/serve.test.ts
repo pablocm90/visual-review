@@ -15,7 +15,7 @@ import {
   writeFileSync,
 } from 'node:fs';
 import { createServer, request } from 'node:http';
-import type { AddressInfo } from 'node:net';
+import { type AddressInfo, connect } from 'node:net';
 import { tmpdir } from 'node:os';
 import { basename, dirname, join } from 'node:path';
 import { createInterface } from 'node:readline';
@@ -365,6 +365,21 @@ test('a review sent from the served page is written beside it as <name>.review.j
   expect(await server.exited).toMatchObject({ code: 0, stdout: `${reviewFile}\n` });
   expect(JSON.parse(readFileSync(reviewFile, 'utf8'))).toEqual(review);
   expect(server.locks()).toEqual([]);
+});
+
+test('serve exits once a review is sent, though another connection is still open mid-request, as a portal proxy may hold one', async () => {
+  using server = await servedPage();
+  const { port, pathname, host } = new URL(server.url);
+  const held = connect(Number(port), '127.0.0.1');
+  using _held = { [Symbol.dispose]: () => held.destroy() };
+  await once(held, 'connect');
+  held.write(`GET ${pathname} HTTP/1.1\r\nHost: ${host}\r\n`);
+
+  await sendReview({ origin: `http://${host}`, token: pathname.slice(1), review: reviewWith([]) });
+
+  await expect(
+    Promise.race([server.exited, delay(3000).then(() => 'still running')]),
+  ).resolves.toMatchObject({ code: 0 });
 });
 
 test('a link standing where the review goes is replaced by the review, what it points at left as it was', async () => {
